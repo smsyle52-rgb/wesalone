@@ -240,7 +240,7 @@ export default function AgentsPage() {
         subtitle="اختبر الردود وجهّز أسلوب المساعد. لا يتم إرسال أي رد تلقائياً."
         actions={canConfigure ? (
           <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
-            وكيل جديد
+            مساعد جديد
           </button>
         ) : undefined}
       />
@@ -281,7 +281,7 @@ export default function AgentsPage() {
 
       <div className="flex gap-1 mb-6 border-b border-border overflow-x-auto">
         {[
-          { key: "agents", label: "الوكلاء", show: canRead },
+          { key: "agents", label: "المساعدون", show: canRead },
           { key: "runs", label: "سجل التشغيلات", show: canRead },
           { key: "usage", label: "الاستخدام", show: canViewUsage },
           { key: "safety", label: "أحداث الأمان", show: canViewSafety },
@@ -309,8 +309,8 @@ export default function AgentsPage() {
             {!agentsLoading && agents.length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
                 <div className="text-4xl mb-3">🤖</div>
-                <p className="text-sm">لا يوجد وكلاء بعد</p>
-                {canConfigure && <button onClick={() => setShowCreateModal(true)} className="mt-3 text-primary text-sm underline">أنشئ أول وكيل</button>}
+                <p className="text-sm">لا يوجد مساعدون بعد</p>
+                {canConfigure && <button onClick={() => setShowCreateModal(true)} className="mt-3 text-primary text-sm underline">أنشئ أول مساعد</button>}
               </div>
             )}
             {agents.map((agent: any) => (
@@ -340,7 +340,7 @@ export default function AgentsPage() {
           <div className="lg:col-span-2">
             {!selectedAgentId && (
               <div className="flex items-center justify-center h-64 text-muted-foreground text-sm rounded-xl border border-dashed border-border">
-                اختر وكيلاً لعرض تفاصيله
+                اختر مساعداً لعرض تفاصيله
               </div>
             )}
             {selectedAgentId && detailLoading && (

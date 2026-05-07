@@ -17,7 +17,7 @@ const navItems = [
   { path: "/payments", label: "المدفوعات", icon: "💰" },
   { path: "/debts", label: "الديون والتحصيل", icon: "📋" },
   { path: "/knowledge", label: "قاعدة المعرفة", icon: "📚" },
-  { path: "/agents", label: "وكلاء الذكاء الاصطناعي", icon: "🤖" },
+  { path: "/agents", label: "المساعد الذكي", icon: "🤖" },
   { path: "/integrations", label: "القنوات", icon: "🔌" },
   { path: "/analytics", label: "التحليلات", icon: "📈" },
   { path: "/reports", label: "التقارير", icon: "📑" },
