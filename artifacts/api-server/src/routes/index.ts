@@ -22,6 +22,8 @@ import aiRouter from "../modules/ai/ai.routes";
 import approvalsRouter from "../modules/approvals/approvals.routes";
 import analyticsRouter from "../modules/analytics/analytics.routes";
 import reportsRouter from "../modules/reports/reports.routes";
+import integrationsRouter from "../modules/integrations/integrations.routes";
+import webhooksRouter from "../modules/integrations/webhooks.routes";
 
 const router: IRouter = Router();
 
@@ -48,5 +50,7 @@ router.use("/ai", aiRouter);
 router.use("/approvals", approvalsRouter);
 router.use("/analytics", analyticsRouter);
 router.use("/reports", reportsRouter);
+router.use("/integrations", integrationsRouter);
+router.use("/webhooks", webhooksRouter);
 
 export default router;

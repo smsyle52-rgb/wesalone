@@ -6,6 +6,7 @@ export * from "./billing";
 export * from "./files";
 export * from "./finance";
 export * from "./outbox";
+export * from "./integrations";
 export * from "./contacts";
 export * from "./conversations";
 export * from "./tickets";

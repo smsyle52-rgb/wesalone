@@ -38,7 +38,11 @@ export type AuditAction =
   | "ai_approval_requested" | "ai_approval_approved" | "ai_approval_rejected"
   | "ai_feedback_create"
   | "report_definition_create" | "report_definition_update" | "report_definition_delete"
-  | "report_generate";
+  | "report_generate"
+  | "provider_account_create" | "provider_account_update" | "provider_account_disable"
+  | "webhook_event_replay"
+  | "outbox_retry" | "outbox_cancel"
+  | "integration_health_update";
 
 export type AuditSeverity = "info" | "warning" | "critical";
 

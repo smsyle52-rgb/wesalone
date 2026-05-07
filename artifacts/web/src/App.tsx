@@ -22,6 +22,7 @@ import KnowledgePage from "@/pages/KnowledgePage";
 import AgentsPage from "@/pages/AgentsPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import ReportsPage from "@/pages/ReportsPage";
+import IntegrationsPage from "@/pages/IntegrationsPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -82,6 +83,7 @@ function Router() {
       <Route path="/audit-logs" component={() => <ProtectedRoute component={AuditLogsPage} />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={AnalyticsPage} />} />
       <Route path="/reports" component={() => <ProtectedRoute component={ReportsPage} />} />
+      <Route path="/integrations" component={() => <ProtectedRoute component={IntegrationsPage} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
       <Route path="/" component={() => <Redirect to="/dashboard" />} />
       <Route component={NotFound} />
