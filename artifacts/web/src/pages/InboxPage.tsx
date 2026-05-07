@@ -499,12 +499,12 @@ export default function InboxPage() {
                   {waLink ? (
                     <a href={waLink} target="_blank" rel="noopener noreferrer"
                       className="px-2.5 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors">
-                      📱 فتح واتساب
+                      📱 فتح واتساب يدوياً
                     </a>
                   ) : (
                     <button disabled title="لا يوجد رقم واتساب لهذا العميل"
                       className="px-2.5 py-1 rounded-md text-xs bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-50">
-                      📱 فتح واتساب
+                      📱 فتح واتساب يدوياً
                     </button>
                   )}
 
