@@ -23,6 +23,7 @@ import AgentsPage from "@/pages/AgentsPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import IntegrationsPage from "@/pages/IntegrationsPage";
+import BusinessSetupPage from "@/pages/BusinessSetupPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -66,6 +67,7 @@ function Router() {
       <Route path="/login" component={() => <PublicRoute component={LoginPage} />} />
       <Route path="/register" component={() => <PublicRoute component={RegisterPage} />} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
+      <Route path="/start" component={() => <ProtectedRoute component={BusinessSetupPage} />} />
       <Route path="/inbox" component={() => <ProtectedRoute component={InboxPage} />} />
       <Route path="/tickets" component={() => <ProtectedRoute component={TicketsPage} />} />
       <Route path="/tasks" component={() => <ProtectedRoute component={TasksPage} />} />

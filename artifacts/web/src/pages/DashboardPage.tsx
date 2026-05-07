@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { formatCurrency } from "@/lib/utils";
@@ -26,6 +27,15 @@ function StatCard({ label, value, icon, color }: { label: string; value: string 
     </div>
   );
 }
+
+const operatorSteps = [
+  "عرّف نشاطك",
+  "أضف معلومات الرد",
+  "جرّب المساعد",
+  "افتح صندوق الوارد",
+  "حوّل محادثة إلى طلب",
+  "راجع التقرير",
+];
 
 export default function DashboardPage() {
   const { user, hasPermission } = useAuth();
@@ -55,6 +65,30 @@ export default function DashboardPage() {
         title={`${greeting()}، ${user?.name?.split(" ")[0] ?? ""}! 👋`}
         subtitle="إليك نظرة عامة على أعمالك اليوم"
       />
+
+      <section className="mb-6 rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">ابدأ تشغيل نشاطك</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              جهّز معلومات النشاط، اختبر المساعد، ثم شغّل الفريق من صندوق الوارد خطوة بخطوة.
+            </p>
+          </div>
+          <Link href="/start">
+            <span className="inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+              فتح دليل التشغيل
+            </span>
+          </Link>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+          {operatorSteps.map((step, index) => (
+            <div key={step} className="rounded-lg border border-border bg-background px-3 py-2">
+              <div className="text-xs font-semibold text-primary">{index + 1}</div>
+              <div className="mt-1 text-xs text-foreground">{step}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {!canViewAnalytics ? (
         <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800 text-sm text-center">

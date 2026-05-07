@@ -625,22 +625,25 @@ export default function InboxPage() {
 
               {canUseAI && selectedConvId && (
                 <div className="shrink-0 border-t border-border px-3 py-2 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    المساعد يقترح فقط، والموظف يقرر الإرسال.
+                  </p>
                   <div className="flex gap-1.5 flex-wrap">
                     <button onClick={runAISummarize} disabled={aiLoading}
                       className="px-2.5 py-1 text-xs font-medium rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 disabled:opacity-50 transition-colors">
-                      🤖 تلخيص
+                      🤖 لخص المحادثة
                     </button>
                     <button onClick={runAIDraft} disabled={aiLoading}
                       className="px-2.5 py-1 text-xs font-medium rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 disabled:opacity-50 transition-colors">
-                      ✍️ اقتراح رد
+                      ✍️ اقترح رد
                     </button>
                     <button onClick={runAIClassify} disabled={aiLoading}
                       className="px-2.5 py-1 text-xs font-medium rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 disabled:opacity-50 transition-colors">
-                      🏷️ تصنيف
+                      🏷️ صنّف الطلب
                     </button>
                     <button onClick={runAISuggest} disabled={aiLoading}
                       className="px-2.5 py-1 text-xs font-medium rounded-md bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 disabled:opacity-50 transition-colors">
-                      💡 اقتراحات
+                      💡 اقترح الخطوة التالية
                     </button>
                     {aiPanel && (
                       <button onClick={() => { setAiPanel(null); setAiSummary(null); setAiDraft(null); setAiClassify(null); setAiSuggestions([]); setAiError(null); }}

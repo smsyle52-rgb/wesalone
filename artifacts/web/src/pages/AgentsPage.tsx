@@ -236,14 +236,22 @@ export default function AgentsPage() {
   return (
     <div dir="rtl">
       <PageHeader
-        title="وكلاء الذكاء الاصطناعي"
-        subtitle="إدارة وكلاء AI وتتبع التشغيلات والاعتمادات"
+        title="المساعد الذكي"
+        subtitle="اختبر الردود وجهّز أسلوب المساعد. لا يتم إرسال أي رد تلقائياً."
         actions={canConfigure ? (
           <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
             وكيل جديد
           </button>
         ) : undefined}
       />
+
+      <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        لتجهيز المساعد بلغة صاحب النشاط، افتح صفحة{" "}
+        <a href={`${import.meta.env.BASE_URL}start`} className="font-semibold underline">
+          ابدأ تشغيل نشاطك
+        </a>
+        . هذه الصفحة للإعداد المتقدم فقط، ولا يوجد إرسال تلقائي للعملاء.
+      </div>
 
       {providerStatus && (
         <div className={cn(

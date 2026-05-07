@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { path: "/dashboard", label: "لوحة التحكم", icon: "📊" },
+  { path: "/start", label: "ابدأ تشغيل نشاطك", icon: "🚀" },
   { path: "/inbox", label: "صندوق الوارد", icon: "💬" },
   { path: "/tickets", label: "التذاكر", icon: "🎫" },
   { path: "/tasks", label: "المهام", icon: "✅" },
@@ -17,7 +18,7 @@ const navItems = [
   { path: "/debts", label: "الديون والتحصيل", icon: "📋" },
   { path: "/knowledge", label: "قاعدة المعرفة", icon: "📚" },
   { path: "/agents", label: "وكلاء الذكاء الاصطناعي", icon: "🤖" },
-  { path: "/integrations", label: "التكاملات", icon: "🔌" },
+  { path: "/integrations", label: "القنوات", icon: "🔌" },
   { path: "/analytics", label: "التحليلات", icon: "📈" },
   { path: "/reports", label: "التقارير", icon: "📑" },
   { path: "/audit-logs", label: "سجلات النشاط", icon: "🗒️" },
