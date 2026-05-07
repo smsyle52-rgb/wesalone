@@ -483,6 +483,9 @@ export default function InboxPage() {
 
                   {canAssign && (
                     <select
+                      id="inbox-conversation-assignee"
+                      name="conversationAssignee"
+                      aria-label="تعيين المحادثة إلى موظف"
                       value={conv.assignedMembershipId ?? ""}
                       onChange={(e) => assignConv.mutate({ convId: conv.id, membershipId: e.target.value || null })}
                       className="px-2 py-1 rounded-md text-xs border border-input bg-background focus:outline-none">
@@ -747,6 +750,9 @@ export default function InboxPage() {
                   </div>
                   <div className="flex gap-2">
                     <textarea
+                      id="inbox-message-text"
+                      name="messageText"
+                      aria-label={messageMode === "note" ? "ملاحظة داخلية" : "رد على المحادثة"}
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
                       onKeyDown={handleKeyDown}
