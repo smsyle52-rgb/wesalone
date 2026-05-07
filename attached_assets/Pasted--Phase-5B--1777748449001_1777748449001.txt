@@ -1,0 +1,148 @@
+ممتاز. تقرير Phase 5B قوي جداً، لكن لا نغلق المرحلة رسمياً بعد.
+
+يوجد نقطتان يجب إغلاقهما قبل الموافقة:
+
+1. tools route يمنع الأفعال المحظورة بـ 400 لكنه لا يسجل ai_safety_event.
+2. اختبار Knowledge Integration لم ينجح end-to-end لأن إنشاء document فشل بسبب حقل مطلوب ناقص.
+
+لا تضف Gemini live provider.
+لا تضف GEMINI_API_KEY integration.
+لا تضف embeddings.
+لا تضف Vector Search.
+لا تضف full-text search.
+لا تضف Automation.
+لا تضف Voice.
+لا تضف Integrations.
+لا تضف أي feature جديدة.
+
+نفّذ فقط:
+
+Phase 5B.1 — AI Safety + Knowledge Integration Patch
+
+Scope:
+
+1. Safety Events for Blocked Tool Actions
+
+في route الخاص بتعديل أدوات الوكيل أو تفعيل tool:
+إذا حاول المستخدم تفعيل tool_key محظور مثل:
+- payment.confirm
+- payment.reject
+- payment.update_status
+- debt.write_off
+- role.change
+- user.invite
+- integration.activate
+- message.auto_send
+- data.delete
+
+يجب أن يحدث الآتي:
+- ترجع 400 كما يحدث الآن
+- تسجل ai_safety_event داخل نفس workspace
+- event_type = blocked_tool_enable أو blocked_action
+- severity = critical للأفعال المالية والصلاحيات والحذف
+- blocked_action = tool_key
+- reason = الرسالة العربية
+- payload يحتوي agent_id و tool_key و actor_id إن أمكن
+
+لا تنفذ أي mutation على agent_tools.
+لا تفعّل الأداة.
+لا تغير أي كيان مالي أو صلاحية.
+
+2. Optional AI Run Link
+
+إذا لم يكن هناك ai_run_id في حالة tools route، اجعله nullable كما هو في schema.
+المهم أن ai_safety_events تسجل الحدث حتى بدون ai_run.
+
+3. Knowledge Integration End-to-End Test Fix
+
+أصلح اختبار أو flow إنشاء document المستخدم في Knowledge Integration.
+
+المطلوب:
+- أن يستطيع owner إنشاء knowledge base
+- ثم إنشاء document نصي صحيح داخلها
+- document ينتج chunks
+- draft-reply يستخدم searchKnowledge
+- response metadata أو run messages تحتوي knowledgeSources عند وجود نتائج
+
+إذا كان الخطأ بسبب missing source_id:
+- source_id يجب أن يكون nullable فعلياً أو أن flow الاختبار ينشئ source أولاً
+- لا تكسر schema
+- اختر الحل الأكثر اتساقاً مع Phase 5A
+
+4. Draft Reply Knowledge Metadata
+
+عند draft-reply:
+- إذا وُجدت knowledge sources، احفظها في ai_messages.metadata أو ai_run metadata إن كان موجوداً
+- لا embeddings
+- لا Vector Search
+- لا Gemini RAG
+- فقط ilike search الحالي
+
+5. Approval Reject Reason
+
+راجع approval reject:
+- إذا reason اختياري حالياً، اذكر هل هذا مقصود.
+- الأفضل: اجعل reason مطلوباً عند reject برسالة عربية:
+  "يجب إدخال سبب رفض الاعتماد"
+إذا سيؤثر على UI، طبّقه بشكل بسيط.
+
+6. Test Agent Button
+
+زر "اختبار" في AgentsPage يستخدم محادثة وهمية.
+لا تجعله يبدو كاختبار حقيقي على بيانات فعلية.
+إما:
+- غيّر النص إلى "اختبار تجريبي"
+- أو اجعله يتطلب اختيار محادثة فعلية
+الأفضل الآن: "اختبار تجريبي" مع توضيح:
+"يعمل بوضع mock ولا يرسل أي رسالة"
+
+7. Tests Required
+
+Typecheck:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+Safety:
+- enable tool payment.confirm → 400 + ai_safety_event created
+- enable tool message.auto_send → 400 + ai_safety_event created
+- enable tool role.change → 400 + ai_safety_event created
+- لا يتم إنشاء أو تحديث ai_agent_tools لهذه الأفعال
+- ai_safety_event يظهر في GET /api/ai/safety-events
+
+Knowledge:
+- create knowledge base → 201
+- create document → 201
+- chunks created
+- draft-reply مع query له علاقة بالمعرفة → succeeded
+- response includes knowledgeSources أو metadata فيها المصادر
+- WS2 لا يرى knowledgeSources من WS1
+
+Approval:
+- reject approval بدون reason → 400 إذا طبقت السبب الإلزامي
+- reject approval مع reason → 200
+- audit ai_approval_rejected موجود
+
+UI:
+- AgentsPage يعرض safety events الجديدة
+- زر الاختبار موضح بأنه تجريبي/mock
+- لا يوجد auto-send
+- draft reply لا يرسل تلقائياً
+
+ممنوع:
+- لا تضف Gemini live
+- لا تضف embeddings
+- لا تضف Vector Search
+- لا تضف Automation
+- لا تضف أي feature خارج هذا التصحيح
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. نتائج typecheck
+3. نتائج blocked tools safety events
+4. نتائج knowledge integration end-to-end
+5. نتائج approval reject reason
+6. نتائج UI الصغيرة
+7. أي مخاطر متبقية
+
+ثم توقف وانتظر الموافقة.

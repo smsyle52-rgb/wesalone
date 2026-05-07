@@ -1,0 +1,99 @@
+ممتاز. نوافق على Phase 8A ونعتبرها مغلقة رسمياً.
+
+نعم، نفّذ Patch صغير فقط باسم:
+Phase 8A.1 — Workspace Settings Edit Form.
+
+هذا ليس feature جديدة كبيرة، بل إكمال UI لـ endpoint موجود.
+
+ممنوع:
+- لا تضف features أخرى
+- لا تضف integrations
+- لا تضف AI
+- لا تضف reports
+- لا تضف migrations
+- لا تغيّر business logic
+- لا تضف إعدادات جديدة خارج بيانات workspace الأساسية
+
+Scope:
+
+1. SettingsPage Workspace Tab
+
+أضف نموذج تعديل بسيط لبيانات مساحة العمل:
+
+- اسم مساحة العمل / المنشأة
+- أي حقول موجودة فعلاً في workspace schema و API فقط
+
+لا تضف حقولاً غير موجودة في schema.
+لا تضف logo upload.
+لا تضف domain.
+لا تضف billing settings.
+لا تضف Meta settings.
+
+2. Backend
+
+استخدم endpoint الموجود:
+PATCH /api/workspace
+
+تأكد أنه:
+- requireSession
+- requirePermission مناسب، مثل settings:manage
+- workspace-scoped من session
+- لا يقبل workspace_id من body/query
+- يسجل audit log workspace_update
+- يرجع رسائل عربية
+
+لا تغيّر الـ API إلا إذا كان هناك mismatch بسيط مع الـ UI.
+
+3. Frontend
+
+في SettingsPage:
+- اعرض البيانات الحالية
+- زر "تعديل"
+- form عربي
+- حفظ
+- إلغاء
+- loading state
+- error state
+- success message
+- permission denied أو زر disabled إذا لا يملك settings:manage
+- لا نصوص إنجليزية للمستخدم
+
+4. Tests Required
+
+Typecheck:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+RBAC:
+- owner PATCH /api/workspace → 200
+- manager PATCH /api/workspace → حسب seed، اذكر النتيجة
+- agent PATCH /api/workspace → 403
+- viewer PATCH /api/workspace → 403
+
+Workspace isolation:
+- body يحتوي workspace_id مختلف → يتم تجاهله
+- التعديل يؤثر فقط على activeWorkspaceId من session
+
+Audit:
+- workspace_update audit log يُسجّل
+- old_data و new_data موجودة إن كان معمولاً بها
+
+UI:
+- form يظهر للمالك/المدير حسب الصلاحية
+- غير المصرّح يرى زر disabled أو permission denied عربي
+- success message يظهر
+- error message عربي
+- لا كسر RTL
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. هل عدلت backend أم frontend فقط
+3. نتائج typecheck
+4. نتائج RBAC
+5. نتائج workspace isolation
+6. نتائج audit log
+7. نتائج UI
+8. أي مخاطر متبقية
+
+ثم توقف وانتظر الموافقة.

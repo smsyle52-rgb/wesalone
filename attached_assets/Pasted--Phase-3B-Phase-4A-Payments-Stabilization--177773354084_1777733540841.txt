@@ -1,0 +1,324 @@
+ممتاز. نوافق على Phase 3B ونعتبرها مغلقة رسمياً.
+
+الآن ابدأ Phase 4A فقط:
+Payments Stabilization — المدفوعات وربطها بالطلبات.
+
+ممنوع في هذه المرحلة:
+- لا تضف Debts
+- لا تضف Collection
+- لا تضف AI
+- لا تضف Gemini
+- لا تضف Automation
+- لا تضف Integrations
+- لا تضف Payment Gateway خارجي
+- لا تضف Kuraimi/Jawali API
+- لا تضف Bulk Updates
+- لا تضف أي ميزة خارج المدفوعات اليدوية وربطها بالطلبات
+
+Phase 4A Scope:
+
+1. الهدف
+
+تثبيت المدفوعات اليدوية داخل المنصة:
+- تسجيل دفعة مرتبطة بطلب و/أو عميل
+- دعم الدفع الجزئي والكلي
+- دعم طرق الدفع اليمنية
+- دعم رقم الحوالة
+- دعم حالة pending/confirmed/rejected
+- تحديث paid_amount في الطلب عند تأكيد الدفعة فقط
+- عرض remaining_amount للطلب
+- Audit logs
+- Contact timeline
+- منع AI أو أي تكامل خارجي من تأكيد الدفع
+
+2. قواعد مطلقة
+
+- كل payment يبدأ status=pending دائماً.
+- لا يوجد payment provider خارجي.
+- لا توجد API حقيقية لكريمي أو جوالي.
+- Kuraimi/Jawali/manual methods فقط كطرق يدوية.
+- confirm/reject فقط لـ owner/manager/accountant.
+- reject يتطلب reject_reason غير فارغ بعد trim.
+- confirmed/rejected terminal.
+- لا يمكن تأكيد أو رفض دفعة ليست pending.
+- لا يمكن تعديل amount/currency/method بعد confirm/reject.
+- AI ممنوع من confirm/reject/payment state.
+- لا debts في هذه المرحلة.
+
+3. Database / Schema
+
+راجع وثبّت جدول payments:
+
+payments:
+- id
+- workspace_id
+- order_id nullable
+- contact_id nullable
+- amount
+- currency: YER | SAR | USD
+- payment_method_id nullable
+- method_snapshot JSONB
+- exchange_rate_id nullable
+- exchange_rate_snapshot JSONB nullable
+- base_amount_yer nullable
+- status: pending | confirmed | rejected
+- reference nullable
+- receipt_file_id nullable أو receipt_url مؤقتاً إذا الموجود
+- notes nullable
+- recorded_by
+- confirmed_by nullable
+- confirmed_at nullable
+- rejected_by nullable
+- rejected_at nullable
+- reject_reason nullable
+- paid_at nullable
+- created_at
+- updated_at
+
+payment_methods:
+- id
+- workspace_id
+- slug: cash | transfer | kuraimi | jawali | bank
+- label
+- type
+- is_active
+- requires_reference
+- requires_receipt
+- created_at
+- updated_at
+
+مهم:
+- إذا receipt_file_id غير جاهز، لا تبن file upload الآن. اترك receipt_url أو placeholder disabled.
+- لا تضف external provider credentials.
+
+4. Exchange Rate Snapshot
+
+عند إنشاء payment:
+- إذا currency = YER:
+  base_amount_yer = amount
+  exchange_rate_snapshot = null أو {rate:1}
+- إذا currency = SAR أو USD:
+  استخدم آخر exchange_rate فعال داخل نفس workspace.
+  احفظ:
+  exchange_rate_id
+  exchange_rate_snapshot
+  base_amount_yer = amount * rate
+
+إذا لا يوجد سعر صرف لعملة غير YER:
+- أرجع 400:
+  "يجب إدخال سعر الصرف قبل تسجيل دفعة بهذه العملة"
+
+لا تعيد حساب المدفوعات القديمة عند تغير سعر الصرف.
+
+5. Order Payment Logic
+
+عند إنشاء payment:
+- status=pending
+- لا تغيّر order.paid_amount
+
+عند confirm payment:
+- إذا order_id موجود:
+  - زد order.paid_amount بمبلغ الدفعة بعملة الطلب أو ما يعادلها حسب القواعد
+  - احسب remaining_amount للعرض
+- إذا amount المؤكد يجعل paid_amount يتجاوز total_amount:
+  أرجع 422:
+  "مبلغ الدفعة يتجاوز المبلغ المتبقي للطلب"
+
+عند reject:
+- لا تغيّر order.paid_amount
+
+ملاحظة:
+إذا order.currency مختلفة عن payment.currency:
+- استخدم base_amount_yer للمقارنة إذا كان order بالـ YER
+- أو أرجع 400 حالياً:
+  "عملة الدفعة يجب أن تطابق عملة الطلب في هذه المرحلة"
+اختر الخيار الأبسط والأكثر أماناً واذكره في التقرير.
+
+6. Backend APIs
+
+Payments:
+- GET /api/payments
+- POST /api/payments
+- GET /api/payments/:id
+- PATCH /api/payments/:id
+- POST /api/payments/:id/confirm
+- POST /api/payments/:id/reject
+
+Payment Methods:
+- GET /api/payment-methods
+- POST /api/payment-methods
+- PATCH /api/payment-methods/:id
+- DELETE أو deactivate /api/payment-methods/:id
+
+Exchange Rates:
+- GET /api/exchange-rates
+- POST /api/exchange-rates
+- PATCH /api/exchange-rates/:id
+
+كل API يجب أن:
+- يستخدم requireSession
+- يستخدم requirePermission المناسب
+- يكون workspace-scoped
+- لا يقبل workspace_id من body/query
+- يرجع رسائل عربية
+- يسجل audit log للكتابة
+- يضيف contact_timeline event عند وجود contact_id
+
+7. Permissions
+
+استخدم:
+- payments:read
+- payments:create
+- payments:update إن وجد، فقط لتعديل pending
+- payments:confirm
+- payments:reject
+- payments:export إن وجد
+- settings:manage أو payments:manage_methods لطرق الدفع
+- exchange_rates:read و exchange_rates:manage إن وجدت، أو settings:manage مؤقتاً
+
+أدوار:
+- owner/manager: كل شيء
+- accountant: read/create/confirm/reject وإدارة exchange rates إن كان مناسباً
+- agent: create فقط أو حسب seed الحالي، بدون confirm/reject
+- viewer: read فقط
+- no one except owner/manager/accountant confirms payments
+
+8. UI
+
+PaymentsPage:
+- قائمة المدفوعات
+- فلاتر: status, method, currency, date
+- إنشاء دفعة
+- ربط بطلب
+- ربط بعميل
+- عرض pending/confirmed/rejected
+- زر confirm فقط لمن يملك payments:confirm
+- زر reject فقط لمن يملك payments:reject أو payments:confirm حسب seed
+- reject modal يتطلب سبب
+- عرض base_amount_yer
+- عرض reference
+- عرض method_snapshot label
+- loading/empty/error/retry/permission denied
+- RTL كامل
+
+OrdersPage / Order Detail:
+- زر "تسجيل دفعة" يصبح مفعلاً الآن إذا المستخدم يملك payments:create
+- يعرض:
+  - total_amount
+  - paid_amount
+  - remaining_amount
+  - payment status: unpaid | partial | paid
+- لا تضف debts هنا
+
+ContactProfile:
+- قسم أو tab مختصر للمدفوعات المرتبطة بالعميل إن كان بسيطاً
+- زر تسجيل دفعة مفعّل إذا payments:create
+- لا تضف debt UI
+
+9. Audit + Timeline
+
+Audit:
+- payment_create severity=info
+- payment_update severity=warning
+- payment_confirm severity=critical
+- payment_reject severity=critical
+- payment_method_create/update/deactivate
+- exchange_rate_create/update
+
+Timeline:
+- payment_created
+- payment_confirmed
+- payment_rejected
+- payment_updated
+
+عند confirm payment linked to order:
+- أضف timeline event يذكر الطلب والمبلغ.
+
+10. State Machine
+
+Payments:
+- pending → confirmed
+- pending → rejected
+- confirmed terminal
+- rejected terminal
+
+اختبارات:
+- confirmed → rejected يفشل
+- rejected → confirmed يفشل
+- pending → confirmed ينجح
+- pending → rejected بدون reason يفشل
+- pending → rejected مع reason ينجح
+
+11. اختبارات إلزامية
+
+Typecheck:
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+- pnpm run typecheck:libs إن لزم
+
+RBAC:
+- viewer GET /api/payments → 200
+- viewer POST /api/payments → 403
+- agent POST /api/payments → 201 إذا seed يسمح
+- agent POST /api/payments/:id/confirm → 403
+- accountant POST /api/payments/:id/confirm → 200
+- accountant POST /api/payments/:id/reject → 200
+- viewer POST /api/payments/:id/reject → 403
+
+Workspace isolation:
+- POST payment مع workspace_id مختلف في body → يتجاهله
+- payment على order من workspace آخر → 404 أو 403
+- payment على contact من workspace آخر → 404 أو 403
+- confirm payment من workspace آخر → 404 أو 403
+
+Payment safety:
+- إنشاء payment يجعل status=pending
+- pending payment لا يغيّر order.paid_amount
+- confirm payment يحدّث order.paid_amount
+- reject payment لا يغيّر order.paid_amount
+- reject بدون reason أو reason مسافات فقط → 400
+- confirm payment أكبر من المتبقي → 422
+- confirm/reject payment غير pending → 400 أو 422
+
+Exchange rates:
+- YER payment يعمل بدون exchange rate
+- USD/SAR payment بدون exchange rate → 400
+- USD/SAR payment مع exchange rate → base_amount_yer صحيح
+- تغيير exchange rate لاحقاً لا يغيّر payment snapshot
+
+Order payment status:
+- order بدون دفعات confirmed → unpaid
+- دفعة جزئية confirmed → partial
+- دفعات confirmed تساوي total_amount → paid
+
+Audit/Timeline:
+- payment create audit + timeline
+- payment confirm audit severity critical + timeline
+- payment reject audit severity critical + timeline
+- exchange rate create audit
+
+UI:
+- PaymentsPage RTL
+- reject modal لا يسمح بسبب فارغ
+- أزرار confirm/reject تظهر حسب الصلاحية
+- OrdersPage يعرض paid/remaining
+- زر تسجيل دفعة في order يعمل
+- لا يوجد debt UI
+- لا يوجد payment gateway UI
+- لا نصوص إنجليزية للمستخدم
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. الجداول/الأعمدة الجديدة أو المعدلة
+3. routes والصلاحيات
+4. نتائج typecheck
+5. نتائج RBAC
+6. نتائج workspace isolation
+7. نتائج payment state machine
+8. نتائج order paid_amount و remaining_amount
+9. نتائج exchange rate snapshot
+10. نتائج audit/timeline
+11. نتائج UI
+12. أي شيء لم تستطع تنفيذه ولماذا
+
+ثم توقف وانتظر الموافقة.

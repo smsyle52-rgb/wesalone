@@ -1,0 +1,351 @@
+ممتاز. نوافق على Phase 5C ونعتبرها مغلقة رسمياً.
+
+لا تضف AI usage analytics منفصل الآن.
+لا تضف embeddings.
+لا تضف Vector Search.
+لا تضف Automation.
+لا تضف Scheduled Reports.
+لا تضف Export.
+لا تضف Voice.
+لا تضف Integrations.
+لا تضف أي external provider جديد.
+
+الآن ابدأ Phase 6A فقط:
+Reports / Analytics Foundation.
+
+ممنوع في هذه المرحلة:
+- لا تضف scheduled jobs
+- لا تضف PDF export
+- لا تضف Excel export
+- لا تضف email reports
+- لا تضف BigQuery
+- لا تضف external analytics
+- لا تضف charts معقدة
+- لا تضف AI-generated reports الآن
+- لا تضف Automation
+- لا تضف أي feature خارج التقارير والتحليلات الأساسية
+
+Phase 6A Scope:
+
+1. الهدف
+
+بناء طبقة تقارير وتحليلات أساسية داخل المنصة، workspace-scoped، تعتمد على البيانات الحقيقية الموجودة:
+
+- العملاء
+- المحادثات
+- العمليات
+- الطلبات
+- المدفوعات
+- الديون
+- AI usage
+- أداء الموظفين
+- أداء القنوات
+
+2. Database / Schema
+
+أضف أو ثبّت الجداول التالية إذا لم تكن موجودة:
+
+metrics_events:
+- id
+- workspace_id
+- event_type
+- entity_type nullable
+- entity_id nullable
+- actor_id nullable
+- value numeric nullable
+- metadata jsonb
+- occurred_at
+- created_at
+
+daily_stats:
+- id
+- workspace_id
+- stat_date
+- contacts_count
+- conversations_count
+- messages_count
+- tickets_open
+- tasks_pending
+- followups_pending
+- opportunities_open
+- orders_count
+- orders_total
+- payments_confirmed_total
+- debts_open_total
+- ai_runs_count
+- created_at
+- updated_at
+
+team_daily_stats:
+- id
+- workspace_id
+- stat_date
+- member_id
+- conversations_assigned
+- messages_sent
+- tickets_resolved
+- tasks_completed
+- followups_completed
+- orders_created
+- payments_recorded
+- ai_runs_used
+- created_at
+- updated_at
+
+report_definitions:
+- id
+- workspace_id
+- name
+- type: overview | operations | sales | finance | ai | team | channel
+- description nullable
+- config jsonb
+- created_by
+- created_at
+- updated_at
+
+generated_reports:
+- id
+- workspace_id
+- report_definition_id nullable
+- type
+- title
+- date_from
+- date_to
+- status: generated | failed
+- data jsonb
+- generated_by
+- created_at
+
+مهم:
+- لا scheduled generation الآن.
+- لا export files الآن.
+- لا AI-generated narrative الآن.
+- التقارير تُولّد عند الطلب فقط.
+
+3. Backend APIs
+
+Analytics summary:
+- GET /api/analytics/overview
+- GET /api/analytics/operations
+- GET /api/analytics/sales
+- GET /api/analytics/finance
+- GET /api/analytics/ai
+- GET /api/analytics/team
+- GET /api/analytics/channels
+
+Reports:
+- GET /api/reports/definitions
+- POST /api/reports/definitions
+- PATCH /api/reports/definitions/:id
+- DELETE أو archive /api/reports/definitions/:id
+- POST /api/reports/generate
+- GET /api/reports/generated
+- GET /api/reports/generated/:id
+
+كل API يجب أن:
+- يستخدم requireSession
+- يستخدم requirePermission
+- يكون workspace-scoped
+- لا يقبل workspace_id من body/query
+- يدعم date_from/date_to
+- يرجع رسائل عربية
+- يسجل audit log عند إنشاء/تعديل تعريف تقرير أو توليد تقرير
+
+4. Permissions
+
+أضف إن كانت غير موجودة:
+- analytics:read
+- reports:read
+- reports:create
+- reports:update
+- reports:delete
+- reports:generate
+
+أدوار:
+- owner/manager: كل شيء
+- agent: analytics:read محدود أو reports:read حسب seed
+- accountant: finance analytics + reports read/generate إن مناسب
+- viewer: read فقط أو حسب seed، اذكر القرار
+
+5. Metrics
+
+Analytics overview يجب أن يعرض:
+- إجمالي العملاء
+- محادثات مفتوحة
+- رسائل اليوم
+- تذاكر مفتوحة
+- مهام معلقة
+- متابعات متأخرة
+- فرص مفتوحة
+- طلبات اليوم
+- مدفوعات مؤكدة اليوم
+- ديون مفتوحة
+- AI runs اليوم
+
+Operations:
+- tickets by status
+- tasks by status
+- followups by status
+- overdue followups
+- opportunities by stage
+
+Sales:
+- opportunities value
+- won/lost counts
+- orders count
+- orders total
+- average order value
+
+Finance:
+- payments confirmed total
+- pending payments
+- rejected payments
+- debts open amount
+- debts overdue amount
+- collection notes count
+
+AI:
+- runs by task type
+- provider mock/gemini counts
+- safety blocked count
+- approval pending/approved/rejected
+- usage tokens إن وجدت
+
+Team:
+- assigned conversations
+- messages sent
+- tickets resolved
+- tasks completed
+- followups completed
+- orders created
+- payments recorded
+
+Channels:
+- conversations by channel
+- messages by source
+- manual / paste / widget counts إن توفرت
+
+6. Frontend UI
+
+فعّل الصفحات:
+- /analytics
+- /reports
+
+AnalyticsPage:
+- تبويبات:
+  - نظرة عامة
+  - العمليات
+  - المبيعات
+  - الماليات
+  - الذكاء الاصطناعي
+  - الفريق
+  - القنوات
+- date range picker بسيط
+- cards للأرقام
+- charts بسيطة إن كانت سهلة وآمنة
+- لا charts معقدة
+- loading
+- empty
+- error
+- retry
+- permission denied
+- RTL
+- لا نصوص إنجليزية للمستخدم
+
+ReportsPage:
+- قائمة تعريفات التقارير
+- إنشاء تعريف تقرير بسيط
+- توليد تقرير عند الطلب
+- عرض التقرير المولّد كبيانات/cards/tables
+- لا PDF
+- لا Excel
+- لا email
+- لا schedule
+
+7. Audit
+
+Audit actions:
+- report_definition_create
+- report_definition_update
+- report_definition_delete أو archive
+- report_generate
+- analytics_view optional إن كان مفيداً، لا تكثر logs
+
+8. Data Consistency
+
+التقارير يمكن أن تكون query-based مباشرة من الجداول الحالية في هذه المرحلة.
+لا تبنِ ETL معقد.
+لا scheduled aggregation.
+daily_stats يمكن أن يبقى جاهزاً أو يُملأ عند الطلب إذا كان بسيطاً.
+
+مهم:
+- لا تعرض أرقام fake.
+- إذا لا توجد بيانات، اعرض 0 وحالة فارغة واضحة.
+- كل رقم يجب أن يكون من DB داخل activeWorkspaceId.
+
+9. Tests Required
+
+Typecheck:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+RBAC:
+- viewer GET /api/analytics/overview → حسب seed، اذكر النتيجة
+- agent GET /api/analytics/overview → حسب seed
+- accountant GET /api/analytics/finance → 200 إذا seed يسمح
+- viewer POST /api/reports/generate → 403 إذا لا يملك reports:generate
+- owner POST /api/reports/generate → 201 أو 200
+- agent POST /api/reports/definitions → 403
+- owner POST /api/reports/definitions → 201
+
+Workspace isolation:
+- WS2 analytics لا يرى أرقام WS1
+- WS2 generated reports لا يرى reports WS1
+- workspace_id في body/query يتم تجاهله
+- date filters لا تكسر العزل
+
+Metrics:
+- overview يرجع أرقام صحيحة من DB
+- finance لا يحسب pending payments ضمن confirmed total
+- debts open amount لا يشمل paid/written_off/cancelled
+- AI usage يقرأ ai_usage / ai_runs بشكل صحيح
+- team stats مرتبطة بالـ workspace فقط
+
+Reports:
+- create report definition
+- generate overview report
+- generated report يحتوي date range
+- generated report data jsonb محفوظ
+- GET generated report من workspace آخر → 404 أو 403
+
+UI:
+- AnalyticsPage RTL
+- ReportsPage RTL
+- loading/empty/error/retry
+- permission denied
+- لا export buttons
+- لا scheduled reports UI
+- لا AI-generated narrative
+
+Safety:
+- لا scheduled jobs
+- لا external analytics
+- لا BigQuery
+- لا AI report generation
+- لا PDF/Excel export
+- لا بيانات وهمية
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. الجداول/الأعمدة الجديدة أو المعدلة
+3. routes والصلاحيات
+4. نتائج typecheck
+5. نتائج RBAC
+6. نتائج workspace isolation
+7. نتائج metrics
+8. نتائج reports generation
+9. نتائج UI
+10. أي مخاطر متبقية
+
+ثم توقف وانتظر الموافقة.

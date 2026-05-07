@@ -1,0 +1,212 @@
+ممتاز. لا تبدأ Payments الآن.
+
+قبل الموافقة على Phase 4، نحتاج Phase 3B Closure Verification Report كامل بالأدلة والاختبارات.
+
+لا تضف أي كود جديد إلا إذا كان تصحيحاً صغيراً يمنع الاختبارات من العمل.
+
+المطلوب:
+
+1. Changed Files
+اعرض كل الملفات التي تغيرت:
+- db schema
+- orders.routes.ts
+- dashboard.routes.ts
+- OrdersPage
+- InboxPage
+- ContactProfilePage
+- OpportunitiesPage
+- utils.ts
+- أي ملفات أخرى
+
+2. Database Changes
+اعرض الجداول والأعمدة الفعلية:
+
+orders:
+- conversation_id
+- opportunity_id
+- source_message_id
+- assigned_membership_id
+- order_number أو number
+- status
+- channel
+- total_amount
+- currency
+- paid_amount
+- discount
+- cancel_reason
+- returned_reason
+- confirmed_at
+- delivered_at
+- cancelled_at
+
+order_items:
+- order_id
+- name
+- description
+- quantity
+- unit_price
+- currency
+- total
+
+وضح هل order_items table موجود فعلياً، وهل total_amount في orders يُحدّث من البنود.
+
+3. Routes + Permissions
+
+اعرض كل routes والصلاحية المطلوبة لها:
+
+Orders:
+- GET /api/orders
+- POST /api/orders
+- GET /api/orders/:id
+- PATCH /api/orders/:id
+- PATCH /api/orders/:id/status
+- DELETE أو cancel
+
+Order Items:
+- GET /api/orders/:id/items
+- POST /api/orders/:id/items
+- PATCH /api/orders/:id/items/:itemId
+- DELETE /api/orders/:id/items/:itemId
+
+4. Typecheck
+
+شغّل واعرض النتائج:
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+- pnpm run typecheck:libs إن لزم
+
+5. RBAC Tests
+
+اختبر واعرض status code والرسالة:
+
+- viewer GET /api/orders → 200
+- viewer POST /api/orders → 403
+- agent POST /api/orders → 201 إذا seed يسمح
+- viewer PATCH /api/orders/:id/status → 403
+- owner PATCH /api/orders/:id/status → 200
+- accountant POST /api/orders → 403 أو حسب seed، اذكر النتيجة
+- viewer POST /api/orders/:id/items → 403
+- agent POST /api/orders/:id/items → حسب seed، اذكر النتيجة
+
+6. Workspace Isolation
+
+اختبر:
+- POST order مع workspace_id مختلف في body → يتم تجاهله
+- إنشاء order على contact من workspace آخر → 404 أو 403
+- إنشاء order على conversation من workspace آخر → 404 أو 403
+- إنشاء order على opportunity من workspace آخر → 404 أو 403
+- إضافة item إلى order من workspace آخر → 404 أو 403
+
+7. State Machine Tests
+
+اختبر:
+
+- new → confirmed ✅
+- confirmed → processing ✅
+- processing → ready ✅
+- ready → delivered ✅
+- delivered → returned بدون returned_reason → 400
+- delivered → returned مع returned_reason ✅
+- confirmed → cancelled بدون cancel_reason → 400
+- confirmed → cancelled مع cancel_reason ✅
+- cancelled → confirmed يجب أن يفشل
+- returned → delivered يجب أن يفشل
+
+اعرض الرسائل العربية عند الفشل.
+
+8. Order Items Calculation
+
+اختبر:
+- إنشاء item يحسب total = quantity * unit_price
+- تعديل quantity يعيد حساب total
+- تعديل unit_price يعيد حساب total
+- حذف item يحدث total_amount للطلب
+- discount يُطرح من total_amount
+- total_amount في order يساوي مجموع البنود ناقص الخصم
+
+9. Quick Actions
+
+اختبر:
+
+من conversation:
+- إنشاء order مرتبط بـ contact_id + conversation_id
+- إذا conversation بدون contact_id، زر الطلب disabled مع سبب عربي
+
+من contact profile:
+- إنشاء order مرتبط بـ contact_id
+
+من opportunity:
+- زر إنشاء طلب يظهر فقط إذا stage=won
+- إنشاء order مرتبط بـ opportunity_id
+- إذا opportunity ليست won، الزر disabled أو غير ظاهر مع سبب واضح
+
+10. Audit + Timeline
+
+اعرض أمثلة فعلية تثبت:
+
+Audit:
+- order_create
+- order_update
+- order_status_change
+- order_cancel
+- order_item_create
+- order_item_update
+- order_item_delete
+
+Timeline:
+- order_created
+- order_updated
+- order_status_changed
+- order_cancelled
+- order_item_added
+
+11. Dashboard Counters
+
+اعرض نتيجة /api/dashboard/summary بعد التعديل:
+- ordersToday
+- openOrders
+- وأي عدادات أخرى أضفتها
+
+12. UI Verification
+
+تحقق من OrdersPage:
+- RTL
+- loading state
+- empty state
+- error state
+- retry
+- permission denied
+- create modal
+- details modal/panel
+- item CRUD
+- status modal
+- filters by status/channel/search
+- لا نصوص إنجليزية للمستخدم
+
+تحقق من:
+- زر تسجيل دفعة disabled مع سبب عربي
+- زر إنشاء دين غير موجود أو disabled
+- لا يوجد Payments logic فعلي
+- لا يوجد Debts logic فعلي
+
+13. Remaining Risks
+
+اذكر بصراحة:
+- هل يوجد route بدون requirePermission؟
+- هل يوجد API يقرأ workspaceId من body؟
+- هل يوجد زر يعمل بدون backend؟
+- هل يوجد mock data في production path؟
+- هل يوجد أي migration issue بسبب drizzle push؟
+- هل paid_amount يتغير حالياً أم ثابت للعرض فقط؟
+- هل أي payment/debt logic تسلل إلى Phase 3B؟
+
+ممنوع:
+- لا تبدأ Payments
+- لا تضف Debts
+- لا تضف Collection
+- لا تضف AI
+- لا تضف Automation
+- لا تضف Integrations
+- لا تضف أي feature جديدة
+
+بعد التقرير توقف وانتظر الموافقة.

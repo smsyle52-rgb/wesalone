@@ -1,0 +1,177 @@
+ممتاز. نوافق على Phase 8A.1 ونعتبرها مغلقة رسمياً.
+
+نعم، نفّذ Patch صغير فقط باسم:
+Phase 8A.2 — Self Password Change.
+
+هذا Patch أمني أساسي قبل Cloud Staging.
+
+ممنوع:
+- لا تضف password reset عبر email
+- لا تضف OTP
+- لا تضف 2FA
+- لا تضف forgot password
+- لا تضف email provider
+- لا تضف SMS
+- لا تضف integrations
+- لا تضف features أخرى
+- لا تغيّر نظام auth العام إلا للضرورة
+
+Scope:
+
+1. Backend Endpoint
+
+أضف endpoint واضح، مثلاً:
+
+POST /api/auth/change-password
+
+أو إذا كان عندكم naming مختلف:
+PATCH /api/users/me/password
+
+المهم:
+- requireSession
+- لا يحتاج workspace permission لأنه إجراء خاص بالمستخدم نفسه
+- يستخدم user_id من session فقط
+- لا يقبل user_id من body
+- لا يقبل workspace_id من body
+- يتحقق من كلمة المرور الحالية
+- يتحقق من كلمة المرور الجديدة
+- يحدث password_hash فقط بعد نجاح التحقق
+- لا يرجع temporaryPassword
+- لا يرجع password hash أبداً
+
+2. Validation
+
+المدخلات:
+- currentPassword
+- newPassword
+- confirmPassword
+
+القواعد:
+- currentPassword مطلوب
+- newPassword مطلوب
+- confirmPassword مطلوب
+- newPassword و confirmPassword يجب أن يتطابقا
+- newPassword لا يقل عن 8 أحرف
+- newPassword يجب ألا يساوي currentPassword
+- استخدم نفس hash/verify mechanism الموجود في auth الحالي
+
+رسائل عربية:
+- "كلمة المرور الحالية غير صحيحة"
+- "كلمتا المرور غير متطابقتين"
+- "كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل"
+- "لا يمكن استخدام كلمة المرور الحالية ككلمة مرور جديدة"
+
+3. Rate Limit
+
+طبّق rate limit مناسب على endpoint تغيير كلمة المرور:
+- مثلاً 5 محاولات / 15 دقيقة
+- رسالة عربية:
+  "عدد المحاولات كبير، حاول لاحقاً"
+
+4. Audit Log
+
+عند نجاح تغيير كلمة المرور:
+- audit action: user_password_change أو password_change
+- severity: warning
+- actor_id = المستخدم نفسه
+- entity_type = user
+- entity_id = user.id
+- لا تسجل currentPassword
+- لا تسجل newPassword
+- لا تسجل hash
+- old_data/new_data لا تحتوي أي أسرار
+
+عند فشل كلمة المرور الحالية:
+- لا تسجل كلمة المرور
+- يمكن تسجيل login/security event إن كان موجوداً، لكن لا تبالغ
+
+5. Sessions
+
+في هذه المرحلة:
+- أبقِ الجلسة الحالية فعّالة بعد تغيير كلمة المرور
+- لا تضف revoke all sessions الآن إلا إذا النظام يدعمه بسهولة
+- وثّق في replit.md أن revoke other sessions مؤجل لمرحلة أمان لاحقة
+
+6. Frontend UI
+
+داخل SettingsPage أضف قسم:
+"الأمان"
+
+أو داخل تبويب مناسب موجود:
+
+الحقول:
+- كلمة المرور الحالية
+- كلمة المرور الجديدة
+- تأكيد كلمة المرور الجديدة
+
+UI:
+- زر "تغيير كلمة المرور"
+- loading state
+- success message:
+  "تم تغيير كلمة المرور بنجاح"
+- error message عربي من API
+- show/hide password اختياري إذا بسيط
+- لا تعرض أي كلمة مرور في النصوص أو logs
+- RTL
+- لا نصوص إنجليزية للمستخدم
+
+7. Tests Required
+
+Typecheck:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+Backend:
+- بدون session → 401
+- currentPassword خطأ → 400 أو 401 برسالة عربية
+- newPassword أقل من 8 → 400
+- confirmPassword لا يطابق → 400
+- newPassword يساوي currentPassword → 400
+- تغيير ناجح → 200
+- بعد التغيير:
+  - login بكلمة المرور القديمة يفشل
+  - login بكلمة المرور الجديدة ينجح
+- لا user_id من body يؤثر
+- لا workspace_id من body يؤثر
+
+Audit:
+- password change الناجح يسجل audit
+- audit لا يحتوي password أو hash
+
+Rate limit:
+- محاولات كثيرة → 429
+
+Security scan:
+- لا password في console.log
+- لا password في audit
+- لا hash يرجع للواجهة
+
+UI:
+- form يعمل
+- validation client-side إن وجد
+- رسائل عربية
+- success message
+- error message
+- RTL
+
+8. Documentation
+
+حدّث replit.md:
+- Phase 8A.2 مكتملة
+- تغيير كلمة المرور self-service
+- لا يوجد forgot password بعد
+- revoke other sessions مؤجل
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. endpoint الذي أضفته
+3. نتائج typecheck
+4. نتائج backend validation tests
+5. نتائج login old/new password
+6. نتائج audit log
+7. نتائج rate limit
+8. نتائج UI
+9. أي مخاطر متبقية
+
+ثم توقف وانتظر الموافقة.

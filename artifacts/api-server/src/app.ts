@@ -1,0 +1,87 @@
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import cors from "cors";
+import pinoHttp from "pino-http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import router from "./routes";
+import { logger } from "./lib/logger";
+import { sessionMiddleware } from "./lib/session";
+import { AppError } from "./lib/errors";
+import { securityHeaders, requestId } from "./middlewares/securityHeaders";
+import { env } from "./lib/env";
+
+const app: Express = express();
+
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "").split(",").filter(Boolean);
+
+app.set("trust proxy", 1);
+
+app.use(securityHeaders);
+
+app.use(
+  pinoHttp({
+    logger,
+    serializers: {
+      req(req) {
+        return {
+          id: req.id,
+          method: req.method,
+          url: req.url?.split("?")[0],
+        };
+      },
+      res(res) {
+        return { statusCode: res.statusCode };
+      },
+    },
+  }),
+);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.length === 0) return callback(null, true);
+      if (allowedOrigins.some((o) => origin.includes(o))) return callback(null, true);
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  }),
+);
+
+app.use(requestId);
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+app.use(sessionMiddleware);
+
+app.use("/api", router);
+
+// ── Static frontend serving (Cloud Run single-container mode) ──────────────────
+// Only active when SERVE_STATIC=true. In Replit, the web artifact serves itself.
+if (env.SERVE_STATIC) {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  // In production build, dist/index.mjs lives in artifacts/api-server/dist/
+  // Frontend build lives in artifacts/web/dist/public/
+  const staticDir = path.resolve(__dirname, "..", "..", "..", "artifacts", "web", "dist", "public");
+  app.use(express.static(staticDir, { index: false }));
+  logger.info({ staticDir }, "Serving static frontend");
+
+  // SPA fallback — all non-API routes return index.html
+  app.use((req: Request, res: Response) => {
+    res.sendFile(path.join(staticDir, "index.html"));
+  });
+} else {
+  app.use((req: Request, res: Response) => {
+    res.status(404).json({ error: "المسار غير موجود", code: "NOT_FOUND" });
+  });
+}
+
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({ error: err.messageAr, code: err.code });
+    return;
+  }
+  logger.error({ err, requestId: req.id, url: req.url, method: req.method }, "Unhandled error");
+  res.status(500).json({ error: "حدث خطأ غير متوقع", code: "INTERNAL_ERROR" });
+});
+
+export default app;

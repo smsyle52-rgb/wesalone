@@ -1,0 +1,335 @@
+ممتاز. نوافق على Phase 4A.2 و Phase 4A.2.1 ونغلقهما رسمياً.
+
+لا تضف Audit Log Viewer داخل SettingsPage الآن.
+لدينا Audit Viewer سابقاً، ولا نريد تكرار الميزة.
+
+الآن ابدأ Phase 4B فقط:
+Debts + Collection — الديون والتحصيل.
+
+ممنوع في هذه المرحلة:
+- لا تضف AI
+- لا تضف Gemini
+- لا تضف Automation
+- لا تضف Integrations
+- لا تضف Payment Gateway
+- لا تضف Kuraimi/Jawali API
+- لا تضف Audit Viewer جديد
+- لا تضف Reports متقدمة
+- لا تضف أي ميزة خارج الديون والتحصيل
+
+Phase 4B Scope:
+
+1. الهدف
+
+بناء نظام ديون وتحصيل يدوي مرتبط بـ:
+- العملاء
+- الطلبات
+- المدفوعات
+- المبالغ المتبقية
+- تواريخ الاستحقاق
+- ملاحظات التحصيل
+- حالة الدين
+- contact timeline
+- audit logs
+
+الدين هنا ليس بوابة دفع ولا تمويل. هو سجل ذمم/مبلغ مستحق على العميل.
+
+2. Database / Schema
+
+أضف أو ثبّت جدول debts:
+
+debts:
+- id
+- workspace_id
+- contact_id
+- order_id nullable
+- source_payment_id nullable
+- amount
+- currency: YER | SAR | USD
+- remaining_amount
+- status: open | partial | paid | overdue | written_off | cancelled
+- due_at nullable
+- description nullable
+- notes nullable
+- created_by
+- assigned_membership_id nullable
+- paid_at nullable
+- written_off_at nullable
+- cancelled_at nullable
+- cancel_reason nullable
+- write_off_reason nullable
+- created_at
+- updated_at
+
+collection_notes:
+- id
+- workspace_id
+- debt_id
+- contact_id
+- author_id
+- note
+- promised_payment_date nullable
+- promised_amount nullable
+- created_at
+
+مهم:
+- لا تجعل debt يغيّر order.paid_amount مباشرة.
+- المدفوعات المؤكدة هي التي تغيّر paid_amount.
+- debt يعكس المبلغ المستحق والمتابعة والتحصيل.
+- لا تضف debt تلقائياً إلا بزر واضح من المستخدم.
+
+3. State Machine
+
+Debts:
+- open → partial
+- open → paid
+- open → overdue
+- open → written_off
+- open → cancelled
+- partial → paid
+- partial → overdue
+- partial → written_off
+- partial → cancelled
+- overdue → partial
+- overdue → paid
+- overdue → written_off
+- overdue → cancelled
+
+قواعد:
+- paid terminal
+- written_off terminal ويتطلب write_off_reason
+- cancelled terminal ويتطلب cancel_reason
+- written_off لا يحدث إلا owner/manager أو permission debts:write_off
+- cancelled لا يحدث إلا owner/manager أو permission debts:cancel
+- remaining_amount لا يكون أقل من 0
+
+4. Backend APIs
+
+Debts:
+- GET /api/debts
+- POST /api/debts
+- GET /api/debts/:id
+- PATCH /api/debts/:id
+- PATCH /api/debts/:id/status
+- DELETE /api/debts/:id أو cancel حسب التصميم
+
+Collection Notes:
+- GET /api/debts/:id/notes
+- POST /api/debts/:id/notes
+- PATCH /api/debts/:id/notes/:noteId
+- DELETE /api/debts/:id/notes/:noteId
+
+كل API يجب أن:
+- يستخدم requireSession
+- يستخدم requirePermission
+- يكون workspace-scoped
+- لا يقبل workspace_id من body/query
+- يتحقق أن contact_id/order_id/payment_id داخل نفس workspace
+- يرجع رسائل عربية
+- يسجل audit log للكتابة
+- يضيف contact_timeline event
+
+5. Permissions
+
+أضف إذا كانت غير موجودة:
+- debts:read
+- debts:create
+- debts:update
+- debts:cancel
+- debts:write_off
+- debts:delete
+- collection_notes:read
+- collection_notes:create
+- collection_notes:update
+- collection_notes:delete
+
+أدوار مبدئية:
+- owner/manager: كل شيء
+- accountant: read/create/update/collection_notes/create وربما cancel/write_off حسب قرارك، اذكر seed
+- agent: read/create collection notes فقط أو حسب seed
+- viewer: read فقط
+
+6. Order Integration
+
+من Order Detail:
+- إذا remaining_amount > 0:
+  - زر "إنشاء دين" مفعّل لمن يملك debts:create
+  - يملأ contact_id + order_id + amount = remaining_amount + currency تلقائياً
+- إذا order paid بالكامل:
+  - الزر disabled:
+    "لا يوجد مبلغ متبقٍ على هذا الطلب"
+- إذا order cancelled/returned:
+  - الزر disabled:
+    "لا يمكن إنشاء دين على طلب ملغي أو مرتجع"
+
+لا تنشئ الدين تلقائياً.
+يجب أن يضغط المستخدم زر واضح.
+
+7. Contact Profile
+
+أضف تبويب أو قسم:
+"الديون والتحصيل"
+
+يعرض:
+- إجمالي الديون المفتوحة
+- إجمالي المتبقي
+- الديون المتأخرة
+- قائمة الديون
+- ملاحظات التحصيل
+- زر إضافة ملاحظة تحصيل
+- زر إنشاء دين يدوي إذا لديه debts:create
+
+8. Debts Page
+
+أضف أو ثبّت صفحة:
+- قائمة الديون
+- بحث باسم العميل
+- فلترة status
+- فلترة overdue
+- فلترة assigned
+- إنشاء دين
+- تعديل دين
+- تغيير حالة
+- ملاحظات تحصيل
+- badges للحالات
+- aging buckets إن كان بسيطاً:
+  - غير مستحق
+  - 1-7 أيام
+  - 8-30 يوم
+  - أكثر من 30 يوم
+
+لا تضف تقارير متقدمة الآن.
+
+9. Payments Integration
+
+عند confirm payment مرتبط بـ order:
+- لا تغيّر debts تلقائياً في هذه المرحلة إلا إذا كان التنفيذ بسيطاً وآمناً جداً.
+- الأفضل الآن: أضف تنبيه UI إذا كانت هناك ديون مرتبطة بالطلب:
+  "يوجد دين مرتبط بهذا الطلب، راجع حالة الدين بعد تأكيد الدفعة"
+
+إذا قررت تحديث debt عند الدفع:
+- يجب أن يكون داخل transaction
+- يجب أن يحدّث remaining_amount
+- إذا remaining_amount = 0 يجعل status=paid
+لكن لا تفعل ذلك إذا سيعقّد المرحلة.
+
+الأفضل لهذه المرحلة: manual debt settlement عبر PATCH debt/status أو update remaining_amount بصلاحية accountant/manager.
+
+10. Audit + Timeline
+
+Audit actions:
+- debt_create
+- debt_update
+- debt_status_change
+- debt_cancel
+- debt_write_off
+- collection_note_create
+- collection_note_update
+- collection_note_delete
+
+Timeline events:
+- debt_created
+- debt_updated
+- debt_status_changed
+- debt_cancelled
+- debt_written_off
+- collection_note_added
+- debt_paid
+
+11. Dashboard Counters
+
+إن كان بسيطاً:
+- openDebtsAmount
+- overdueDebtsCount
+- overdueDebtsAmount
+
+لا تضف charts أو reports متقدمة.
+
+12. UI Requirements
+
+كل صفحة أو تبويب:
+- RTL
+- loading
+- empty
+- error
+- retry
+- permission denied
+- modals عربية
+- لا نصوص إنجليزية للمستخدم
+- disabled buttons مع سبب عربي
+
+13. Tests Required
+
+Typecheck:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+RBAC:
+- viewer GET /api/debts → 200
+- viewer POST /api/debts → 403
+- agent POST /api/debts → حسب seed، اذكر النتيجة
+- accountant POST /api/debts → 201 إذا seed يسمح
+- viewer PATCH /api/debts/:id/status → 403
+- accountant PATCH /api/debts/:id/status → حسب seed
+- agent POST /api/debts/:id/notes → حسب seed
+- viewer POST /api/debts/:id/notes → 403
+
+Workspace isolation:
+- POST debt مع workspace_id مختلف في body → يتم تجاهله
+- debt على contact من workspace آخر → 404 أو 403
+- debt على order من workspace آخر → 404 أو 403
+- note على debt من workspace آخر → 404 أو 403
+
+State machine:
+- open → partial ✅
+- partial → paid ✅
+- open → overdue ✅
+- overdue → paid ✅
+- open → written_off بدون reason → 400
+- open → written_off مع reason ✅
+- open → cancelled بدون reason → 400
+- open → cancelled مع reason ✅
+- paid → open يجب أن يفشل
+- written_off → open يجب أن يفشل
+- cancelled → open يجب أن يفشل
+
+Order integration:
+- order remaining > 0 → create debt works
+- paid order → create debt disabled أو API يمنعها
+- cancelled/returned order → create debt disabled أو API يمنعها
+
+Validation:
+- amount <= 0 → 400
+- remaining_amount > amount → 400
+- due_at في الماضي يسمح لكنه يجعل debt overdue حسب logic أو يوضح الحالة
+- currency يجب أن تكون YER/SAR/USD
+
+Audit/Timeline:
+- debt create audit + timeline
+- debt status change audit + timeline
+- collection note audit + timeline
+- write off audit severity warning أو critical
+
+UI:
+- DebtsPage RTL
+- ContactProfile debts tab يعمل
+- Order detail create debt يعمل
+- لا يوجد Payment Gateway UI
+- لا يوجد AI UI
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. الجداول/الأعمدة الجديدة أو المعدلة
+3. routes والصلاحيات
+4. نتائج typecheck
+5. نتائج RBAC
+6. نتائج workspace isolation
+7. نتائج state machine
+8. نتائج order integration
+9. نتائج validation
+10. نتائج audit/timeline
+11. نتائج UI
+12. أي مخاطر متبقية
+
+ثم توقف وانتظر الموافقة.

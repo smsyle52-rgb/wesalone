@@ -1,0 +1,247 @@
+ممتاز. لا تضف Exchange Rates & Payment Methods UI الآن.
+
+قبل الموافقة على Phase 4A وإغلاقها رسمياً، نحتاج Phase 4A Closure Verification Report كامل بالأدلة والاختبارات.
+
+لا تضف أي كود جديد إلا إذا كان تصحيحاً ضرورياً لتشغيل الاختبارات.
+
+المطلوب:
+
+1. Changed Files
+اعرض كل الملفات التي تغيّرت:
+- payments.routes.ts
+- payment-methods.routes.ts
+- exchange-rates.routes.ts
+- orders routes/pages
+- PaymentsPage
+- OrdersPage
+- ContactProfilePage
+- DB schema
+- seed.ts
+- routes/index
+- utils أو أي ملف آخر
+
+2. Database Changes
+اعرض الأعمدة الفعلية في:
+
+payments:
+- payment_method_id
+- method_snapshot
+- exchange_rate_id
+- exchange_rate_snapshot
+- base_amount_yer
+- paid_at
+- status
+- confirmed_by
+- confirmed_at
+- rejected_by
+- rejected_at
+- reject_reason
+- reference
+- receipt_file_id أو receipt_url
+
+payment_methods:
+- slug
+- label
+- type
+- is_active
+- requires_reference
+- requires_receipt
+
+exchange_rates:
+- from_currency
+- to_currency
+- rate
+- effective_at
+- set_by
+
+orders:
+- paid_amount
+- total_amount
+- discount
+
+وضح:
+- هل method TEXT ما زال legacy؟
+- هل payment_method_id هو المصدر الأساسي؟
+- هل method_snapshot يُحفظ وقت إنشاء الدفعة؟
+- هل exchange_rate_snapshot لا يتغير بعد إنشاء الدفعة؟
+
+3. Routes + Permissions
+اعرض كل routes والصلاحية المطلوبة لها:
+
+Payments:
+- GET /api/payments
+- POST /api/payments
+- GET /api/payments/:id
+- PATCH /api/payments/:id
+- POST /api/payments/:id/confirm
+- POST /api/payments/:id/reject
+
+Payment Methods:
+- GET /api/payment-methods
+- POST /api/payment-methods
+- PATCH /api/payment-methods/:id
+- deactivate/delete
+
+Exchange Rates:
+- GET /api/exchange-rates
+- GET /api/exchange-rates/latestRates أو equivalent
+- POST /api/exchange-rates
+- PATCH /api/exchange-rates/:id
+
+4. Typecheck
+شغّل واعرض النتائج:
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+- pnpm run typecheck:libs إن لزم
+
+5. RBAC Tests
+اختبر واعرض status code والرسائل العربية:
+
+Payments:
+- viewer GET /api/payments → 200
+- viewer POST /api/payments → 403
+- agent POST /api/payments → 201 إذا seed يسمح
+- agent POST /api/payments/:id/confirm → 403
+- agent POST /api/payments/:id/reject → 403
+- accountant POST /api/payments/:id/confirm → 200
+- accountant POST /api/payments/:id/reject → 200
+- owner POST /api/payments/:id/confirm → 200
+
+Payment Methods:
+- viewer POST /api/payment-methods → 403
+- agent POST /api/payment-methods → 403
+- owner/manager POST /api/payment-methods → 201 أو 200 حسب التصميم
+
+Exchange Rates:
+- viewer POST /api/exchange-rates → 403
+- agent POST /api/exchange-rates → 403
+- accountant POST /api/exchange-rates → حسب seed، اذكر النتيجة
+- owner/manager POST /api/exchange-rates → 201
+
+6. Workspace Isolation
+اختبر:
+- POST payment مع workspace_id مختلف في body → يتم تجاهله
+- payment على order من workspace آخر → 404 أو 403
+- payment على contact من workspace آخر → 404 أو 403
+- confirm payment من workspace آخر → 404 أو 403
+- exchange rate من workspace آخر لا يظهر
+- payment method من workspace آخر لا يظهر
+
+7. Payment State Machine
+اختبر:
+- create payment → status=pending دائماً
+- pending → confirmed ✅
+- pending → rejected مع reason ✅
+- pending → rejected بدون reason أو reason مسافات فقط → 400
+- confirmed → rejected يفشل
+- rejected → confirmed يفشل
+- confirm مرتين يفشل
+- reject مرتين يفشل
+- PATCH amount بعد confirmed/rejected يفشل أو ممنوع حسب التصميم
+- PATCH method/currency بعد confirmed/rejected يفشل أو ممنوع حسب التصميم
+
+8. Order Payment Logic
+اختبر:
+- pending payment لا يغيّر order.paid_amount
+- confirm payment يرفع order.paid_amount
+- reject payment لا يغيّر order.paid_amount
+- overpayment يرجع 422 مع المبلغ المتبقي
+- payment currency mismatch يرجع 400
+- remaining_amount صحيح
+- order payment status:
+  - لا دفعات مؤكدة → unpaid
+  - دفعة جزئية مؤكدة → partial
+  - دفعات مؤكدة تساوي total_amount → paid
+
+9. Exchange Rate Snapshot
+اختبر:
+- YER payment يعمل بدون exchange rate
+- SAR/USD payment بدون exchange rate → 400
+- SAR/USD payment مع exchange rate → base_amount_yer صحيح
+- exchange_rate_snapshot محفوظ داخل payment
+- تغيير exchange rate لاحقاً لا يغير payment.exchange_rate_snapshot ولا base_amount_yer
+- أسعار الصرف seed مثل SAR=66.5 وUSD=250 يجب أن تكون dev-only أو يتم توضيح أنها initial workspace defaults قابلة للتعديل وليست production truth
+
+10. Audit + Timeline
+اعرض أمثلة فعلية:
+
+Audit:
+- payment_create severity=info
+- payment_update severity=warning إذا موجود
+- payment_confirm severity=critical
+- payment_reject severity=critical
+- payment_method_create/update/deactivate
+- exchange_rate_create/update
+
+Timeline:
+- payment_created
+- payment_confirmed
+- payment_rejected
+- payment_updated إن وجد
+
+ويجب أن تظهر في contact timeline عند وجود contact_id.
+
+11. UI Verification
+PaymentsPage:
+- RTL
+- loading state
+- empty state
+- error state
+- retry
+- permission denied
+- filters: status/method/currency/date
+- create payment modal
+- reject reason required in modal
+- confirm/reject buttons حسب الصلاحية
+- methodSnapshot.labelAr يظهر
+- reference يظهر
+- base_amount_yer يظهر
+- exchange rates bar يظهر
+- لا نصوص إنجليزية للمستخدم
+
+OrdersPage:
+- total_amount
+- paid_amount
+- remaining_amount
+- payment status unpaid/partial/paid
+- زر تسجيل دفعة يعمل حسب payments:create
+- لا يوجد debt UI
+- لا يوجد payment gateway UI
+
+ContactProfilePage:
+- تبويب أو قسم المدفوعات يعمل
+- زر دفعة حسب الصلاحية
+- لا يوجد debt UI
+
+12. External Integration Safety
+أكد:
+- لا يوجد Kuraimi API
+- لا يوجد Jawali API
+- لا يوجد payment gateway
+- لا يوجد secret أو token في DB
+- لا يوجد webhook خارجي
+- كل شيء manual فقط
+
+13. Remaining Risks
+اذكر بصراحة:
+- هل توجد routes بدون requirePermission؟
+- هل يوجد workspaceId يُقرأ من body؟
+- هل توجد أسعار صرف hardcoded في production path؟
+- هل paid_amount يمكن أن يتجاوز total_amount بأي سيناريو؟
+- هل توجد مدفوعات بلا contact_id ولا order_id؟ وهل هذا مسموح؟
+- هل method TEXT لا يزال مستخدماً؟
+- هل receipt upload مؤجل؟
+- هل أي debt logic تسلل للمرحلة؟
+
+ممنوع:
+- لا تضف Settings UI الآن
+- لا تضف Debts
+- لا تضف Collection
+- لا تضف Payment Gateway
+- لا تضف Kuraimi/Jawali API
+- لا تضف AI
+- لا تضف Automation
+- لا تضف Integrations
+- لا تضف أي ميزة جديدة
+
+بعد التقرير توقف وانتظر الموافقة.

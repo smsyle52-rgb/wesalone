@@ -1,0 +1,927 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
+
+function apiFetch(path: string, opts?: RequestInit) {
+  return fetch(`${import.meta.env.BASE_URL}api/knowledge/${path}`, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  }).then(async (r) => {
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error ?? "خطأ في الخادم");
+    return data;
+  });
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  active: "نشط", archived: "مؤرشف",
+  draft: "مسودة", processing: "قيد المعالجة", ready: "جاهز", failed: "فشل",
+  pending: "بانتظار التضمين", skipped: "متجاوز", embedded: "مضمّن",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  active: "bg-green-100 text-green-800",
+  archived: "bg-gray-100 text-gray-500",
+  draft: "bg-yellow-100 text-yellow-800",
+  processing: "bg-blue-100 text-blue-800",
+  ready: "bg-green-100 text-green-800",
+  failed: "bg-red-100 text-red-800",
+  pending: "bg-yellow-100 text-yellow-800",
+  skipped: "bg-gray-100 text-gray-500",
+  embedded: "bg-purple-100 text-purple-800",
+};
+
+function Badge({ status }: { status: string }) {
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[status] ?? "bg-gray-100 text-gray-600"}`}>
+      {STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
+
+type KnowledgeBase = { id: string; name: string; description?: string | null; status: string; createdAt: string };
+type KnowledgeSource = { id: string; type: string; title: string; status: string; rawText?: string | null; createdAt: string };
+type KnowledgeDocument = { id: string; title: string; contentText: string; status: string; tokenEstimate?: number | null; createdAt: string };
+type KnowledgeChunk = { id: string; chunkIndex: number; chunkText: string; tokenEstimate?: number | null; embeddingStatus: string };
+type FaqEntry = { id: string; question: string; answer: string; category?: string | null; status: string; createdAt: string };
+
+type KnowledgeTab = "sources" | "documents" | "faqs" | "chunks" | "settings";
+
+export default function KnowledgePage() {
+  const { hasPermission } = useAuth();
+  const qc = useQueryClient();
+
+  const canRead = hasPermission("knowledge:read");
+  const canCreate = hasPermission("knowledge:create");
+  const canUpdate = hasPermission("knowledge:update");
+  const canDelete = hasPermission("knowledge:delete");
+
+  const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<KnowledgeTab>("sources");
+  const [showCreateBase, setShowCreateBase] = useState(false);
+  const [createBaseForm, setCreateBaseForm] = useState({ name: "", description: "" });
+  const [showCreateSource, setShowCreateSource] = useState(false);
+  const [createSourceForm, setCreateSourceForm] = useState({ type: "text", title: "", rawText: "" });
+  const [showCreateDoc, setShowCreateDoc] = useState(false);
+  const [createDocForm, setCreateDocForm] = useState({ title: "", contentText: "" });
+  const [showCreateFaq, setShowCreateFaq] = useState(false);
+  const [createFaqForm, setCreateFaqForm] = useState({ question: "", answer: "", category: "" });
+  const [editingFaq, setEditingFaq] = useState<FaqEntry | null>(null);
+  const [editFaqForm, setEditFaqForm] = useState({ question: "", answer: "", category: "" });
+  const [editingDoc, setEditingDoc] = useState<KnowledgeDocument | null>(null);
+  const [editDocForm, setEditDocForm] = useState({ title: "", contentText: "" });
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+
+  const basesQuery = useQuery({
+    queryKey: ["knowledge-bases"],
+    queryFn: () => apiFetch("bases"),
+    enabled: canRead,
+  });
+
+  const selectedBase = (basesQuery.data?.bases as KnowledgeBase[] ?? []).find((b) => b.id === selectedBaseId);
+
+  const sourcesQuery = useQuery({
+    queryKey: ["knowledge-sources", selectedBaseId],
+    queryFn: () => apiFetch(`bases/${selectedBaseId}/sources`),
+    enabled: !!selectedBaseId && canRead && activeTab === "sources",
+  });
+
+  const docsQuery = useQuery({
+    queryKey: ["knowledge-docs", selectedBaseId],
+    queryFn: () => apiFetch(`bases/${selectedBaseId}/documents`),
+    enabled: !!selectedBaseId && canRead && activeTab === "documents",
+  });
+
+  const faqsQuery = useQuery({
+    queryKey: ["knowledge-faqs", selectedBaseId],
+    queryFn: () => apiFetch(`bases/${selectedBaseId}/faqs`),
+    enabled: !!selectedBaseId && canRead && activeTab === "faqs",
+  });
+
+  const chunksQuery = useQuery({
+    queryKey: ["knowledge-chunks", selectedDocId],
+    queryFn: () => apiFetch(`documents/${selectedDocId}/chunks`),
+    enabled: !!selectedDocId && canRead,
+  });
+
+  const searchQuery_ = useQuery({
+    queryKey: ["knowledge-search", searchQuery, selectedBaseId],
+    queryFn: () => {
+      const params = new URLSearchParams({ q: searchQuery });
+      if (selectedBaseId) params.set("baseId", selectedBaseId);
+      return apiFetch(`search?${params}`);
+    },
+    enabled: searchQuery.length >= 2 && canRead,
+  });
+
+  const createBase = useMutation({
+    mutationFn: (data: { name: string; description?: string }) =>
+      apiFetch("bases", { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["knowledge-bases"] });
+      setShowCreateBase(false);
+      setCreateBaseForm({ name: "", description: "" });
+      setSelectedBaseId(data.base.id);
+    },
+  });
+
+  const archiveBase = useMutation({
+    mutationFn: (id: string) => apiFetch(`bases/${id}/archive`, { method: "PATCH" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["knowledge-bases"] });
+      setSelectedBaseId(null);
+    },
+  });
+
+  const createSource = useMutation({
+    mutationFn: (data: object) => apiFetch(`bases/${selectedBaseId}/sources`, { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["knowledge-sources", selectedBaseId] });
+      setShowCreateSource(false);
+      setCreateSourceForm({ type: "text", title: "", rawText: "" });
+    },
+  });
+
+  const archiveSource = useMutation({
+    mutationFn: (id: string) => apiFetch(`sources/${id}/archive`, { method: "PATCH" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-sources", selectedBaseId] }),
+  });
+
+  const createDoc = useMutation({
+    mutationFn: (data: object) => apiFetch(`bases/${selectedBaseId}/documents`, { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["knowledge-docs", selectedBaseId] });
+      setShowCreateDoc(false);
+      setCreateDocForm({ title: "", contentText: "" });
+    },
+  });
+
+  const updateDoc = useMutation({
+    mutationFn: ({ id, ...data }: { id: string; title?: string; contentText?: string; status?: string }) =>
+      apiFetch(`documents/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["knowledge-docs", selectedBaseId] });
+      setEditingDoc(null);
+    },
+  });
+
+  const archiveDoc = useMutation({
+    mutationFn: (id: string) => apiFetch(`documents/${id}/archive`, { method: "PATCH" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-docs", selectedBaseId] }),
+  });
+
+  const rechunkDoc = useMutation({
+    mutationFn: (id: string) => apiFetch(`documents/${id}/rechunk`, { method: "POST" }),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ["knowledge-chunks", id] });
+      setSelectedDocId(id);
+    },
+  });
+
+  const createFaq = useMutation({
+    mutationFn: (data: object) => apiFetch(`bases/${selectedBaseId}/faqs`, { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["knowledge-faqs", selectedBaseId] });
+      setShowCreateFaq(false);
+      setCreateFaqForm({ question: "", answer: "", category: "" });
+    },
+  });
+
+  const updateFaq = useMutation({
+    mutationFn: ({ id, ...data }: { id: string; question?: string; answer?: string; category?: string | null }) =>
+      apiFetch(`faqs/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["knowledge-faqs", selectedBaseId] });
+      setEditingFaq(null);
+    },
+  });
+
+  const archiveFaq = useMutation({
+    mutationFn: (id: string) => apiFetch(`faqs/${id}/archive`, { method: "PATCH" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-faqs", selectedBaseId] }),
+  });
+
+  if (!canRead) {
+    return (
+      <div dir="rtl" className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
+        <span className="text-4xl">🔒</span>
+        <p className="font-medium">ليس لديك صلاحية لعرض قاعدة المعرفة</p>
+      </div>
+    );
+  }
+
+  const bases: KnowledgeBase[] = basesQuery.data?.bases ?? [];
+  const sources: KnowledgeSource[] = sourcesQuery.data?.sources ?? [];
+  const documents: KnowledgeDocument[] = docsQuery.data?.documents ?? [];
+  const faqs: FaqEntry[] = faqsQuery.data?.faqs ?? [];
+  const chunks: KnowledgeChunk[] = chunksQuery.data?.chunks ?? [];
+
+  const tabs: { id: KnowledgeTab; label: string; icon: string }[] = [
+    { id: "sources", label: "المصادر", icon: "📂" },
+    { id: "documents", label: "الوثائق", icon: "📄" },
+    { id: "faqs", label: "الأسئلة الشائعة", icon: "❓" },
+    { id: "chunks", label: "المقاطع", icon: "🔀" },
+    { id: "settings", label: "الإعدادات", icon: "⚙️" },
+  ];
+
+  return (
+    <div dir="rtl" className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">قاعدة المعرفة</h1>
+        {canCreate && (
+          <button onClick={() => setShowCreateBase(true)}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+            + قاعدة معرفة جديدة
+          </button>
+        )}
+      </div>
+
+      {/* Search bar */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") setSearchQuery(searchInput); }}
+          placeholder="بحث في قاعدة المعرفة..."
+          className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        <button onClick={() => setSearchQuery(searchInput)}
+          className="bg-muted text-foreground px-4 py-2 rounded-lg text-sm hover:bg-muted/80 transition-colors">
+          بحث
+        </button>
+        {searchQuery && (
+          <button onClick={() => { setSearchQuery(""); setSearchInput(""); }}
+            className="text-muted-foreground px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors">
+            مسح
+          </button>
+        )}
+      </div>
+
+      {/* Search results */}
+      {searchQuery.length >= 2 && (
+        <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+          <h2 className="font-semibold text-sm text-muted-foreground">نتائج البحث عن: «{searchQuery}»</h2>
+          {searchQuery_.isLoading && <p className="text-sm text-muted-foreground animate-pulse">جار البحث...</p>}
+          {searchQuery_.isError && <p className="text-sm text-red-500">{searchQuery_.error?.message}</p>}
+          {searchQuery_.data && (
+            <>
+              {searchQuery_.data.total === 0 && <p className="text-sm text-muted-foreground text-center py-4">لا توجد نتائج</p>}
+              {(searchQuery_.data.results?.faqs ?? []).length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-2">الأسئلة الشائعة</h3>
+                  <div className="space-y-2">
+                    {(searchQuery_.data.results.faqs as FaqEntry[]).map((f) => (
+                      <div key={f.id} className="bg-muted/50 rounded p-3">
+                        <p className="text-sm font-medium">{f.question}</p>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{f.answer}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(searchQuery_.data.results?.documents ?? []).length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-2">الوثائق</h3>
+                  <div className="space-y-2">
+                    {(searchQuery_.data.results.documents as { id: string; title: string }[]).map((d) => (
+                      <div key={d.id} className="bg-muted/50 rounded p-3">
+                        <p className="text-sm font-medium">📄 {d.title}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(searchQuery_.data.results?.chunks ?? []).length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-2">مقاطع النصوص</h3>
+                  <div className="space-y-2">
+                    {(searchQuery_.data.results.chunks as KnowledgeChunk[]).map((c) => (
+                      <div key={c.id} className="bg-muted/50 rounded p-3">
+                        <p className="text-xs text-muted-foreground">مقطع {c.chunkIndex + 1}</p>
+                        <p className="text-sm mt-0.5 line-clamp-3">{c.chunkText}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-4">
+        {/* Bases sidebar */}
+        <div className="w-64 shrink-0 space-y-1">
+          <p className="text-xs font-semibold text-muted-foreground px-2 mb-2">قواعد المعرفة</p>
+          {basesQuery.isLoading && <p className="text-sm text-muted-foreground px-2 animate-pulse">جار التحميل...</p>}
+          {basesQuery.isError && (
+            <div className="px-2">
+              <p className="text-sm text-red-500">{basesQuery.error?.message}</p>
+              <button onClick={() => basesQuery.refetch()} className="text-xs underline text-muted-foreground mt-1">إعادة المحاولة</button>
+            </div>
+          )}
+          {!basesQuery.isLoading && bases.length === 0 && (
+            <p className="text-sm text-muted-foreground px-2 py-4 text-center">
+              {canCreate ? "أضف أول قاعدة معرفة" : "لا توجد قواعد معرفة"}
+            </p>
+          )}
+          {bases.map((base) => (
+            <button
+              key={base.id}
+              onClick={() => { setSelectedBaseId(base.id); setActiveTab("sources"); }}
+              className={`w-full text-right px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                selectedBaseId === base.id
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-foreground"
+              }`}
+            >
+              <div className="font-medium truncate">📚 {base.name}</div>
+              <div className={`text-xs mt-0.5 ${selectedBaseId === base.id ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                {STATUS_LABELS[base.status] ?? base.status}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 min-w-0">
+          {!selectedBaseId ? (
+            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3 bg-card border border-border rounded-lg">
+              <span className="text-4xl">📚</span>
+              <p className="font-medium">اختر قاعدة معرفة أو أنشئ واحدة جديدة</p>
+              {canCreate && (
+                <button onClick={() => setShowCreateBase(true)}
+                  className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+                  + قاعدة معرفة جديدة
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="bg-card border border-border rounded-lg overflow-hidden">
+              {/* Base header */}
+              <div className="border-b border-border px-4 py-3 flex items-center justify-between">
+                <div>
+                  <h2 className="font-bold text-foreground">{selectedBase?.name}</h2>
+                  {selectedBase?.description && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{selectedBase.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedBase && <Badge status={selectedBase.status} />}
+                  {canDelete && selectedBase?.status === "active" && (
+                    <button
+                      onClick={() => { if (confirm("هل تريد أرشفة هذه القاعدة؟")) archiveBase.mutate(selectedBaseId!); }}
+                      className="text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1 rounded hover:bg-muted"
+                    >
+                      أرشفة
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div className="border-b border-border flex overflow-x-auto">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+                      activeTab === tab.id
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab content */}
+              <div className="p-4">
+
+                {/* ── Sources ── */}
+                {activeTab === "sources" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm">مصادر المعرفة</h3>
+                      {canCreate && (
+                        <button onClick={() => setShowCreateSource(true)}
+                          className="bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors">
+                          + مصدر جديد
+                        </button>
+                      )}
+                    </div>
+                    {sourcesQuery.isLoading && <p className="text-sm text-muted-foreground animate-pulse">جار التحميل...</p>}
+                    {sourcesQuery.isError && (
+                      <div>
+                        <p className="text-sm text-red-500">{sourcesQuery.error?.message}</p>
+                        <button onClick={() => sourcesQuery.refetch()} className="text-xs underline mt-1">إعادة المحاولة</button>
+                      </div>
+                    )}
+                    {/* Disabled types notice */}
+                    <div className="bg-muted/50 border border-border rounded-lg p-3 text-xs text-muted-foreground">
+                      <span className="font-medium">ملاحظة:</span> سيتم تفعيل رفع الملفات والروابط في مرحلة لاحقة. المتاح الآن: نص عادي والأسئلة الشائعة.
+                    </div>
+                    {!sourcesQuery.isLoading && sources.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <p className="text-2xl mb-2">📂</p>
+                        <p className="font-medium">لا توجد مصادر</p>
+                        {canCreate && <p className="text-xs mt-1">أضف أول مصدر بالنقر على "مصدر جديد"</p>}
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      {sources.map((s) => (
+                        <div key={s.id} className="border border-border rounded-lg p-3 flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{s.title}</span>
+                              <Badge status={s.status} />
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              النوع: {s.type === "text" ? "نص" : s.type === "faq" ? "أسئلة شائعة" : s.type === "file" ? "ملف" : "رابط"}
+                            </p>
+                            {s.rawText && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{s.rawText}</p>}
+                          </div>
+                          {canDelete && s.status !== "archived" && (
+                            <button onClick={() => { if (confirm("أرشفة المصدر؟")) archiveSource.mutate(s.id); }}
+                              className="text-xs text-muted-foreground hover:text-red-500 transition-colors shrink-0">
+                              أرشفة
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Documents ── */}
+                {activeTab === "documents" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm">الوثائق</h3>
+                      {canCreate && (
+                        <button onClick={() => setShowCreateDoc(true)}
+                          className="bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors">
+                          + وثيقة جديدة
+                        </button>
+                      )}
+                    </div>
+                    {docsQuery.isLoading && <p className="text-sm text-muted-foreground animate-pulse">جار التحميل...</p>}
+                    {docsQuery.isError && (
+                      <div>
+                        <p className="text-sm text-red-500">{docsQuery.error?.message}</p>
+                        <button onClick={() => docsQuery.refetch()} className="text-xs underline mt-1">إعادة المحاولة</button>
+                      </div>
+                    )}
+                    {!docsQuery.isLoading && documents.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <p className="text-2xl mb-2">📄</p>
+                        <p className="font-medium">لا توجد وثائق</p>
+                        {canCreate && <p className="text-xs mt-1">أضف أول وثيقة نصية</p>}
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      {documents.map((doc) => (
+                        <div key={doc.id} className="border border-border rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{doc.title}</span>
+                                <Badge status={doc.status} />
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {doc.tokenEstimate ? `~${doc.tokenEstimate} رمز` : ""} • {doc.contentText.length} حرف
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.contentText}</p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {canUpdate && (
+                                <button
+                                  onClick={() => { setEditingDoc(doc); setEditDocForm({ title: doc.title, contentText: doc.contentText }); }}
+                                  className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted">
+                                  تعديل
+                                </button>
+                              )}
+                              {canUpdate && (
+                                <button
+                                  onClick={() => { rechunkDoc.mutate(doc.id); }}
+                                  disabled={rechunkDoc.isPending}
+                                  className="text-xs text-muted-foreground hover:text-blue-600 transition-colors px-2 py-1 rounded hover:bg-muted">
+                                  {rechunkDoc.isPending ? "..." : "إعادة تقسيم"}
+                                </button>
+                              )}
+                              {canRead && (
+                                <button
+                                  onClick={() => { setSelectedDocId(doc.id === selectedDocId ? null : doc.id); setActiveTab("chunks"); }}
+                                  className="text-xs text-blue-600 hover:underline px-2 py-1">
+                                  عرض المقاطع
+                                </button>
+                              )}
+                              {canDelete && doc.status !== "archived" && (
+                                <button onClick={() => { if (confirm("أرشفة الوثيقة؟")) archiveDoc.mutate(doc.id); }}
+                                  className="text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1">
+                                  أرشفة
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── FAQs ── */}
+                {activeTab === "faqs" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm">الأسئلة الشائعة</h3>
+                      {canCreate && (
+                        <button onClick={() => setShowCreateFaq(true)}
+                          className="bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors">
+                          + سؤال جديد
+                        </button>
+                      )}
+                    </div>
+                    {faqsQuery.isLoading && <p className="text-sm text-muted-foreground animate-pulse">جار التحميل...</p>}
+                    {faqsQuery.isError && (
+                      <div>
+                        <p className="text-sm text-red-500">{faqsQuery.error?.message}</p>
+                        <button onClick={() => faqsQuery.refetch()} className="text-xs underline mt-1">إعادة المحاولة</button>
+                      </div>
+                    )}
+                    {!faqsQuery.isLoading && faqs.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <p className="text-2xl mb-2">❓</p>
+                        <p className="font-medium">لا توجد أسئلة شائعة</p>
+                        {canCreate && <p className="text-xs mt-1">أضف أول سؤال وإجابة</p>}
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      {faqs.map((faq) => (
+                        <div key={faq.id} className="border border-border rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge status={faq.status} />
+                                {faq.category && (
+                                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{faq.category}</span>
+                                )}
+                              </div>
+                              <p className="text-sm font-medium">س: {faq.question}</p>
+                              <p className="text-sm text-muted-foreground mt-1">ج: {faq.answer}</p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {canUpdate && (
+                                <button
+                                  onClick={() => { setEditingFaq(faq); setEditFaqForm({ question: faq.question, answer: faq.answer, category: faq.category ?? "" }); }}
+                                  className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted">
+                                  تعديل
+                                </button>
+                              )}
+                              {canDelete && faq.status === "active" && (
+                                <button onClick={() => { if (confirm("أرشفة هذا السؤال؟")) archiveFaq.mutate(faq.id); }}
+                                  className="text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1">
+                                  أرشفة
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Chunks ── */}
+                {activeTab === "chunks" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm">مقاطع النصوص (Chunks)</h3>
+                      {selectedDocId && (
+                        <span className="text-xs text-muted-foreground">الوثيقة: {documents.find(d => d.id === selectedDocId)?.title ?? selectedDocId.slice(0, 8)}</span>
+                      )}
+                    </div>
+                    {!selectedDocId && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <p className="text-2xl mb-2">🔀</p>
+                        <p className="font-medium">اختر وثيقة لعرض مقاطعها</p>
+                        <button onClick={() => setActiveTab("documents")} className="text-xs text-primary underline mt-2">
+                          انتقل إلى الوثائق
+                        </button>
+                      </div>
+                    )}
+                    {selectedDocId && chunksQuery.isLoading && <p className="text-sm text-muted-foreground animate-pulse">جار التحميل...</p>}
+                    {selectedDocId && chunksQuery.isError && (
+                      <div>
+                        <p className="text-sm text-red-500">{chunksQuery.error?.message}</p>
+                        <button onClick={() => chunksQuery.refetch()} className="text-xs underline mt-1">إعادة المحاولة</button>
+                      </div>
+                    )}
+                    {selectedDocId && !chunksQuery.isLoading && chunks.length === 0 && (
+                      <p className="text-center py-4 text-muted-foreground text-sm">لا توجد مقاطع لهذه الوثيقة</p>
+                    )}
+                    <div className="space-y-2">
+                      {chunks.map((chunk) => (
+                        <div key={chunk.id} className="border border-border rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-muted-foreground">مقطع {chunk.chunkIndex + 1}</span>
+                            <div className="flex items-center gap-2">
+                              {chunk.tokenEstimate && <span className="text-xs text-muted-foreground">~{chunk.tokenEstimate} رمز</span>}
+                              <Badge status={chunk.embeddingStatus} />
+                            </div>
+                          </div>
+                          <p className="text-sm leading-relaxed">{chunk.chunkText}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Settings ── */}
+                {activeTab === "settings" && (
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-sm">إعدادات قاعدة المعرفة</h3>
+                    <div className="bg-muted/50 border border-border rounded-lg p-4 space-y-3">
+                      <div>
+                        <label className="text-xs font-semibold text-muted-foreground">الاسم</label>
+                        <p className="text-sm mt-1">{selectedBase?.name}</p>
+                      </div>
+                      {selectedBase?.description && (
+                        <div>
+                          <label className="text-xs font-semibold text-muted-foreground">الوصف</label>
+                          <p className="text-sm mt-1">{selectedBase.description}</p>
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
+                        <div className="mt-1">{selectedBase && <Badge status={selectedBase.status} />}</div>
+                      </div>
+                    </div>
+                    <div className="bg-muted/30 border border-border rounded-lg p-4">
+                      <h4 className="text-sm font-semibold mb-2">فهرس التضمينات (Embeddings)</h4>
+                      <div className="flex items-center gap-2">
+                        <Badge status="not_configured" />
+                        <span className="text-xs text-muted-foreground">المزود: بدون (سيتم تفعيله في مرحلة لاحقة)</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        سيتم دعم pgvector و Vertex Vector Search في مرحلة قادمة. جميع المقاطع الحالية في حالة "بانتظار التضمين".
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Modals ── */}
+
+      {/* Create Base Modal */}
+      {showCreateBase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCreateBase(false)}>
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4">قاعدة معرفة جديدة</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">الاسم *</label>
+                <input type="text" value={createBaseForm.name} onChange={(e) => setCreateBaseForm({ ...createBaseForm, name: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="مثل: دعم العملاء، سياسات الشركة..." />
+              </div>
+              <div>
+                <label className="text-sm font-medium">الوصف</label>
+                <textarea value={createBaseForm.description} onChange={(e) => setCreateBaseForm({ ...createBaseForm, description: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary h-20 resize-none"
+                  placeholder="وصف اختياري..." />
+              </div>
+              {createBase.isError && <p className="text-sm text-red-500">{createBase.error?.message}</p>}
+            </div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <button onClick={() => setShowCreateBase(false)} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors">إلغاء</button>
+              <button
+                onClick={() => createBase.mutate({ name: createBaseForm.name, description: createBaseForm.description || undefined })}
+                disabled={createBase.isPending || !createBaseForm.name.trim()}
+                className="bg-primary text-primary-foreground px-4 py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {createBase.isPending ? "جار الإنشاء..." : "إنشاء"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Source Modal */}
+      {showCreateSource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCreateSource(false)}>
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-lg mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4">مصدر جديد</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">نوع المصدر</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {[
+                    { id: "text", label: "نص عادي", icon: "📝", disabled: false },
+                    { id: "faq", label: "أسئلة شائعة", icon: "❓", disabled: false },
+                    { id: "file", label: "ملف", icon: "📎", disabled: true },
+                    { id: "url", label: "رابط", icon: "🔗", disabled: true },
+                  ].map((t) => (
+                    <button key={t.id}
+                      onClick={() => !t.disabled && setCreateSourceForm({ ...createSourceForm, type: t.id })}
+                      disabled={t.disabled}
+                      title={t.disabled ? "سيتم تفعيله في مرحلة لاحقة" : undefined}
+                      className={`flex items-center gap-2 p-2.5 rounded-lg border text-sm transition-colors ${
+                        t.disabled
+                          ? "opacity-40 cursor-not-allowed border-border bg-muted/30"
+                          : createSourceForm.type === t.id
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border hover:bg-muted"
+                      }`}>
+                      <span>{t.icon}</span>
+                      <span>{t.label}</span>
+                      {t.disabled && <span className="text-xs text-muted-foreground">(قريباً)</span>}
+                    </button>
+                  ))}
+                </div>
+                {(createSourceForm.type === "file" || createSourceForm.type === "url") && (
+                  <p className="text-xs text-amber-600 mt-1">سيتم تفعيل رفع الملفات والروابط في مرحلة لاحقة</p>
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-medium">العنوان *</label>
+                <input type="text" value={createSourceForm.title} onChange={(e) => setCreateSourceForm({ ...createSourceForm, title: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              {createSourceForm.type === "text" && (
+                <div>
+                  <label className="text-sm font-medium">النص</label>
+                  <textarea value={createSourceForm.rawText} onChange={(e) => setCreateSourceForm({ ...createSourceForm, rawText: e.target.value })}
+                    className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary h-32 resize-none"
+                    placeholder="أدخل النص هنا..." />
+                </div>
+              )}
+              {createSource.isError && <p className="text-sm text-red-500">{createSource.error?.message}</p>}
+            </div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <button onClick={() => setShowCreateSource(false)} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors">إلغاء</button>
+              <button
+                onClick={() => createSource.mutate({ type: createSourceForm.type, title: createSourceForm.title, rawText: createSourceForm.rawText || null })}
+                disabled={createSource.isPending || !createSourceForm.title.trim()}
+                className="bg-primary text-primary-foreground px-4 py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {createSource.isPending ? "جار الحفظ..." : "إضافة"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Document Modal */}
+      {showCreateDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCreateDoc(false)}>
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-2xl mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4">وثيقة نصية جديدة</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">العنوان *</label>
+                <input type="text" value={createDocForm.title} onChange={(e) => setCreateDocForm({ ...createDocForm, title: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">المحتوى *</label>
+                <textarea value={createDocForm.contentText} onChange={(e) => setCreateDocForm({ ...createDocForm, contentText: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary h-48 resize-none"
+                  placeholder="أدخل محتوى الوثيقة..." />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {createDocForm.contentText.length} حرف • سيتم تقسيمه تلقائياً إلى مقاطع
+                </p>
+              </div>
+              {createDoc.isError && <p className="text-sm text-red-500">{createDoc.error?.message}</p>}
+            </div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <button onClick={() => setShowCreateDoc(false)} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors">إلغاء</button>
+              <button
+                onClick={() => createDoc.mutate({ title: createDocForm.title, contentText: createDocForm.contentText })}
+                disabled={createDoc.isPending || !createDocForm.title.trim() || !createDocForm.contentText.trim()}
+                className="bg-primary text-primary-foreground px-4 py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {createDoc.isPending ? "جار الإنشاء..." : "إنشاء الوثيقة"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Document Modal */}
+      {editingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setEditingDoc(null)}>
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-2xl mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4">تعديل الوثيقة</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">العنوان *</label>
+                <input type="text" value={editDocForm.title} onChange={(e) => setEditDocForm({ ...editDocForm, title: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">المحتوى *</label>
+                <textarea value={editDocForm.contentText} onChange={(e) => setEditDocForm({ ...editDocForm, contentText: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary h-48 resize-none" />
+              </div>
+              {updateDoc.isError && <p className="text-sm text-red-500">{updateDoc.error?.message}</p>}
+            </div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <button onClick={() => setEditingDoc(null)} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors">إلغاء</button>
+              <button
+                onClick={() => updateDoc.mutate({ id: editingDoc.id, title: editDocForm.title, contentText: editDocForm.contentText })}
+                disabled={updateDoc.isPending || !editDocForm.title.trim() || !editDocForm.contentText.trim()}
+                className="bg-primary text-primary-foreground px-4 py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {updateDoc.isPending ? "جار الحفظ..." : "حفظ التعديلات"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create FAQ Modal */}
+      {showCreateFaq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCreateFaq(false)}>
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-lg mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4">سؤال شائع جديد</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">السؤال *</label>
+                <input type="text" value={createFaqForm.question} onChange={(e) => setCreateFaqForm({ ...createFaqForm, question: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="ما هي سياسة الاسترداد؟" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">الإجابة *</label>
+                <textarea value={createFaqForm.answer} onChange={(e) => setCreateFaqForm({ ...createFaqForm, answer: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary h-28 resize-none"
+                  placeholder="الإجابة التفصيلية..." />
+              </div>
+              <div>
+                <label className="text-sm font-medium">التصنيف</label>
+                <input type="text" value={createFaqForm.category} onChange={(e) => setCreateFaqForm({ ...createFaqForm, category: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="مثل: دعم، فواتير..." />
+              </div>
+              {createFaq.isError && <p className="text-sm text-red-500">{createFaq.error?.message}</p>}
+            </div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <button onClick={() => setShowCreateFaq(false)} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors">إلغاء</button>
+              <button
+                onClick={() => createFaq.mutate({ question: createFaqForm.question, answer: createFaqForm.answer, category: createFaqForm.category || null })}
+                disabled={createFaq.isPending || !createFaqForm.question.trim() || !createFaqForm.answer.trim()}
+                className="bg-primary text-primary-foreground px-4 py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {createFaq.isPending ? "جار الحفظ..." : "إضافة"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit FAQ Modal */}
+      {editingFaq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setEditingFaq(null)}>
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-lg mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-4">تعديل السؤال الشائع</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">السؤال *</label>
+                <input type="text" value={editFaqForm.question} onChange={(e) => setEditFaqForm({ ...editFaqForm, question: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">الإجابة *</label>
+                <textarea value={editFaqForm.answer} onChange={(e) => setEditFaqForm({ ...editFaqForm, answer: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary h-28 resize-none" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">التصنيف</label>
+                <input type="text" value={editFaqForm.category} onChange={(e) => setEditFaqForm({ ...editFaqForm, category: e.target.value })}
+                  className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary" />
+              </div>
+              {updateFaq.isError && <p className="text-sm text-red-500">{updateFaq.error?.message}</p>}
+            </div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <button onClick={() => setEditingFaq(null)} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors">إلغاء</button>
+              <button
+                onClick={() => updateFaq.mutate({ id: editingFaq.id, question: editFaqForm.question, answer: editFaqForm.answer, category: editFaqForm.category || null })}
+                disabled={updateFaq.isPending || !editFaqForm.question.trim() || !editFaqForm.answer.trim()}
+                className="bg-primary text-primary-foreground px-4 py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {updateFaq.isPending ? "جار الحفظ..." : "حفظ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

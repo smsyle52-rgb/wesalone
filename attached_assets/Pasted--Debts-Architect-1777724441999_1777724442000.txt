@@ -1,0 +1,160 @@
+لا تضف Debts الآن.
+لا تضف أي ميزة جديدة.
+أوقف التوسع مؤقتاً.
+
+قبل أي تطوير إضافي، نفّذ Architecture Compliance Audit على ما بنيته حالياً، وقارن التنفيذ بالمعمارية النهائية والملحق التنفيذي.
+
+المطلوب منك الآن تقرير فقط، مع إصلاحات صغيرة فقط إذا كانت مطلوبة لتشغيل الاختبارات، بدون إضافة features جديدة.
+
+افحص وأجب بالتفصيل:
+
+1. Changed Files
+- اعرض كل الملفات التي تم إنشاؤها أو تعديلها.
+- صنّفها: backend / frontend / shared / migrations / config.
+
+2. Database / Migrations
+- اعرض كل migrations الموجودة.
+- اعرض كل الجداول المنشأة فعلياً.
+- هل توجد الجداول التالية؟
+  workspaces
+  users
+  workspace_memberships
+  roles
+  permissions
+  role_permissions
+  membership_roles
+  teams
+  team_members
+  sessions
+  audit_logs
+  login_events
+  feature_flags
+  plans
+  subscriptions
+- لا تعرض كلاماً عاماً؛ اعرض أسماء الجداول الفعلية.
+
+3. RBAC Verification
+- هل تستخدم users.role فقط أم نموذج RBAC الكامل؟
+- يجب أن يكون النموذج:
+  users
+  workspace_memberships
+  roles
+  permissions
+  role_permissions
+  membership_roles
+- اعرض كيف يتم حساب permissions في /api/auth/me.
+- أثبت أن agent لا يستطيع payments:confirm.
+- أثبت أن accountant لا يستطيع integrations:manage.
+- أثبت أن viewer لا يستطيع contacts:create.
+
+4. Workspace Isolation
+- أثبت أن workspace_id لا يُقبل من body أو query params.
+- أثبت أن workspace_id يأتي من session فقط.
+- افحص كل route تم بناؤه:
+  contacts
+  conversations
+  tickets
+  tasks
+  opportunities
+  orders
+  payments
+- لكل route، اذكر هل هو workspace-scoped أم لا.
+- أي route غير workspace-scoped اعتبره bug.
+
+5. Auth
+- register يجب أن ينشئ:
+  user
+  workspace
+  workspace_membership
+  owner role
+  subscription trial
+  default feature_flags
+- login/logout/me يجب أن تعمل.
+- لا hardcoded login في production path.
+- الحساب ahmed@test.com / password123 يجب أن يكون dev seed فقط أو احذفه.
+
+6. Audit Logs
+- هل audit_logs append-only؟
+- هل يوجد منع update/delete عليها؟
+- هل يتم تسجيل:
+  register
+  login
+  logout
+  payment confirm
+  payment reject
+  user role change
+  workspace settings update
+- اعرض أمثلة من الكود أو الاختبارات.
+
+7. Payments Safety
+- هل كل payment يبدأ status=pending دائماً؟
+- هل يوجد payment_methods table؟
+- هل payments تستخدم payment_method_id + method_snapshot؟
+- هل يوجد exchange_rate_snapshot و base_amount_yer؟
+- هل تأكيد/رفض الدفع محصور في owner/manager/accountant؟
+- هل reject يتطلب reject_reason؟
+- هل AI ممنوع تماماً من confirm/reject payments؟
+
+8. Google Cloud Readiness
+- هل الملفات تستخدم schema جاهز لـ GCS:
+  storage_provider
+  bucket
+  object_key
+  original_name
+  mime_type
+  size_bytes
+  scan_status
+- هل لا توجد local file paths معتمدة؟
+- هل لا توجد secrets مخزنة داخل DB؟
+- أي credentials يجب أن تكون secret_ref فقط.
+- هل يوجد outbox_events؟
+
+9. Feature Flags / Integrations Safety
+- أثبت أن هذه flags موجودة وقيمتها false:
+  whatsapp_api_enabled
+  ai_auto_send
+  ai_confirm_payments
+  voice_enabled
+  payment_providers_enabled
+- أي WhatsApp API أو Meta أو payment provider أو voice provider يجب أن يكون disabled.
+
+10. UI Audit
+- هل كل صفحات /app محمية؟
+- هل كل شاشة لها:
+  loading state
+  empty state
+  error state
+  permission denied state
+- هل كل الأزرار تعمل أو disabled مع سبب عربي؟
+- هل لا توجد نصوص إنجليزية للمستخدم؟
+- هل mobile 375px بدون horizontal overflow؟
+- هل html dir="rtl" lang="ar"؟
+
+11. Typecheck / Tests
+شغّل:
+- pnpm run typecheck
+- pnpm run lint إن وجد
+- migrations fresh من الصفر إن أمكن
+- أي tests موجودة
+
+واعرض النتائج كاملة.
+
+12. Scope Violation Report
+أنت نفذت أكثر من Phase 1.
+اعرض بالضبط:
+- ما الذي نفذته خارج Phase 1؟
+- هل هو مكتمل backend + DB + UI؟
+- أم مجرد UI/routes؟
+- ما المخاطر التي أضفتها؟
+- ما الذي يحتاج rollback أو stabilization؟
+
+ممنوع:
+- لا تضف Debts الآن.
+- لا تضف AI الآن.
+- لا تضف integrations الآن.
+- لا تضف أي صفحة جديدة.
+- لا تعمل migrations جديدة إلا إذا كانت لإصلاح خلل Phase 1 حرج.
+- لا تحذف ملفات.
+- لا تستخدم fake production data.
+
+بعد هذا التقرير، توقف وانتظر الموافقة.

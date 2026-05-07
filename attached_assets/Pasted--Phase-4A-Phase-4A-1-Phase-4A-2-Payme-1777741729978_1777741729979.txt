@@ -1,0 +1,177 @@
+ممتاز. نوافق على Phase 4A و Phase 4A.1 ونعتبرهما مغلقتين رسمياً.
+
+الآن ابدأ Phase 4A.2 فقط:
+Payment Settings UI — إدارة طرق الدفع وأسعار الصرف من الإعدادات.
+
+ممنوع في هذه المرحلة:
+- لا تضف Debts
+- لا تضف Collection
+- لا تضف Payment Gateway
+- لا تضف Kuraimi/Jawali API
+- لا تضف AI
+- لا تضف Automation
+- لا تضف Integrations
+- لا تضف أي ميزة خارج إدارة طرق الدفع وأسعار الصرف اليدوية
+
+Phase 4A.2 Scope:
+
+1. الهدف
+
+إضافة واجهة داخل Settings تسمح للمالك/المدير بإدارة:
+- طرق الدفع اليدوية
+- أسعار الصرف اليدوية
+
+بدون أي تكامل خارجي.
+
+2. Payment Methods UI
+
+داخل SettingsPage أضف تبويب:
+"طرق الدفع"
+
+يعرض:
+- كاش
+- حوالة
+- كريمي
+- جوالي
+- بنك
+- أي طريقة مخصصة
+
+لكل طريقة:
+- الاسم العربي
+- الاسم الإنجليزي اختياري
+- slug
+- الحالة: active/inactive
+- requires_reference
+- requires_receipt
+- sort_order
+
+الأفعال:
+- إضافة طريقة دفع
+- تعديل طريقة دفع
+- تعطيل طريقة دفع
+- إعادة تفعيل إن كان backend يدعمها، أو تعديل is_active
+
+قواعد:
+- لا حذف نهائي إذا الطريقة مستخدمة في payments
+- إذا لا يوجد reactivation route، استخدم PATCH لتعديل is_active
+- كل إجراء يسجل audit log
+- لا تخزن أسرار
+- لا يوجد external provider config
+
+3. Exchange Rates UI
+
+داخل SettingsPage أضف تبويب:
+"أسعار الصرف"
+
+يعرض:
+- USD → YER
+- SAR → YER
+- أي عملة مدعومة لاحقاً
+
+لكل سعر:
+- from_currency
+- to_currency = YER
+- rate
+- effective_at
+- set_by إن متاح
+
+الأفعال:
+- إضافة سعر صرف جديد
+- تعديل سعر صرف
+- عرض آخر سعر فعّال لكل عملة
+
+قواعد:
+- rate يجب أن يكون > 0
+- أسعار الصرف workspace-specific
+- لا تعتمد على API خارجي
+- لا تعدّل snapshots في المدفوعات القديمة
+- كل تغيير يسجل audit log
+
+4. RBAC
+
+استخدم الصلاحيات الحالية:
+- settings:manage لإدارة طرق الدفع وأسعار الصرف
+- payments:read لقراءة الطرق والأسعار إن كانت مستخدمة حالياً
+
+اختبارات:
+- owner يضيف payment method → 201
+- manager يضيف payment method → حسب seed، اذكر النتيجة
+- viewer يحاول إضافة payment method → 403
+- agent يحاول إضافة exchange rate → 403
+- owner يضيف exchange rate → 201
+
+5. UI Requirements
+
+SettingsPage:
+- RTL
+- loading state
+- empty state
+- error state
+- retry
+- permission denied
+- modals للإضافة/التعديل
+- رسائل عربية
+- لا نصوص إنجليزية للمستخدم
+- لا أزرار وهمية
+
+6. Audit
+
+Audit actions:
+- payment_method_create
+- payment_method_update
+- payment_method_deactivate
+- exchange_rate_create
+- exchange_rate_update
+
+7. Safety
+
+تأكد:
+- لا يوجد Payment Gateway
+- لا يوجد Kuraimi/Jawali API
+- لا توجد tokens
+- لا secrets في DB
+- كل شيء manual
+
+8. Tests Required
+
+Typecheck:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+RBAC:
+- viewer POST /api/payment-methods → 403
+- agent POST /api/payment-methods → 403
+- owner POST /api/payment-methods → 201
+- viewer POST /api/exchange-rates → 403
+- agent POST /api/exchange-rates → 403
+- owner POST /api/exchange-rates → 201
+
+Workspace Isolation:
+- payment method من workspace آخر لا يظهر
+- exchange rate من workspace آخر لا يظهر
+- workspace_id في body يتم تجاهله
+
+Validation:
+- exchange rate <= 0 → 400
+- payment method slug مكرر داخل نفس workspace → 409 أو validation error عربية
+- تعطيل method مستخدمة في payments لا يحذف سجل الدفعات
+
+UI:
+- Settings payment methods tab يعمل
+- Settings exchange rates tab يعمل
+- أخطاء API تظهر بالعربية
+- لا يوجد UI لأي بوابة دفع خارجية
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. routes المستخدمة والصلاحيات
+3. نتائج typecheck
+4. نتائج RBAC
+5. نتائج workspace isolation
+6. نتائج validation
+7. نتائج audit logs
+8. نتائج UI
+9. أي مخاطر متبقية
+
+ثم توقف وانتظر الموافقة.

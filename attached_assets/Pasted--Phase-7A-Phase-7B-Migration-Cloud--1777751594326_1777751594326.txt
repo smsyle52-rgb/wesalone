@@ -1,0 +1,151 @@
+ممتاز. نوافق على Phase 7A ونعتبرها مغلقة رسمياً.
+
+نعم، ابدأ الآن Phase 7B فقط:
+Migration / Cloud SQL Readiness.
+
+ممنوع في هذه المرحلة:
+- لا تضف features جديدة
+- لا تغيّر UX
+- لا تضف integrations
+- لا تضف AI
+- لا تضف reports جديدة
+- لا تضف scheduled jobs
+- لا تغيّر business logic إلا لو ظهر خطأ migration واضح
+- لا تعمل destructive reset
+- لا تحذف بيانات
+- لا تشغل migration على production
+- لا تستخدم db push كحل إنتاجي
+
+Phase 7B Scope:
+
+1. الهدف
+
+تحويل قاعدة البيانات من حالة التطوير المعتمدة على drizzle push إلى مسار migration قابل للمراجعة قبل الإنتاج.
+
+المطلوب:
+- إعداد drizzle-kit generate workflow
+- توليد migration files قابلة للمراجعة
+- توثيق طريقة تشغيل migrations
+- إعداد checklist قبل Cloud SQL
+- عدم كسر قاعدة البيانات الحالية
+- عدم حذف أي بيانات
+
+2. Migration Generation
+
+افحص إعدادات Drizzle الحالية:
+- drizzle.config.ts أو ما يعادله
+- schema entrypoints
+- output folder
+- DATABASE_URL usage
+- package scripts
+
+ثم:
+- أضف أو صحح script:
+  - db:generate
+  - db:migrate
+  - db:studio إن كان موجوداً
+  - db:push يبقى dev-only مع تحذير واضح
+
+لا تشغل db:migrate على production.
+لا تعمل reset.
+
+3. Generate Reviewable SQL
+
+شغّل generate فقط إذا كان آمناً:
+- pnpm run db:generate أو الأمر المناسب
+- أنتج migration SQL files
+- اعرض أسماء الملفات الناتجة
+- اعرض ملخصاً لما تحتويه
+- لا تطبقها على قاعدة الإنتاج
+
+إذا فشل generate بسبب أن drizzle push سبق أن غيّر DB:
+- لا تحاول reset
+- اشرح السبب
+- اقترح baseline migration strategy
+- وثّقها في replit.md
+
+4. Baseline Strategy
+
+بما أن المشروع بُني عبر drizzle push خلال التطوير، وثّق استراتيجية baseline:
+
+- current schema = baseline
+- generate migration snapshot من schema الحالي
+- review SQL يدوياً
+- apply على قاعدة staging فارغة أولاً
+- compare schema
+- ثم apply على Cloud SQL production فقط بعد backup
+
+5. Cloud SQL Readiness
+
+أضف إلى replit.md:
+- Cloud SQL PostgreSQL target
+- DATABASE_URL format
+- SSL requirement إن لزم
+- migration command
+- rollback policy
+- backup/PITR requirement
+- staging-before-production rule
+- لا db push في production
+
+6. Schema Debt Review
+
+راجع TODOs الموجودة:
+- report_definitions.is_archived text → boolean لاحقاً
+- tickets.team_id text → uuid FK لاحقاً
+- daily_stats/team_daily_stats empty until aggregation phase
+- in-memory rate limiter يحتاج Redis عند multi-instance
+
+لا تصلحها الآن إلا إذا كان الإصلاح صغيراً وآمناً جداً.
+الأفضل: وثّقها كـ schema debt.
+
+7. Migration Safety Checklist
+
+أضف checklist:
+- backup before migrate
+- run on staging
+- typecheck before migrate
+- review SQL
+- no destructive operations without explicit approval
+- verify healthz/readyz after migrate
+- verify auth/register/login
+- verify workspace isolation smoke test
+- verify payments/debts smoke test
+
+8. Tests Required
+
+Typecheck:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+Migration:
+- db:generate works أو يشرح سبب الفشل
+- generated files exist
+- generated SQL reviewed
+- no destructive SQL بدون تصريح
+- db:push marked dev-only
+
+Health:
+- GET /api/healthz → 200
+- GET /api/readyz → 200
+
+Docs:
+- replit.md updated with migration workflow
+- production DB checklist updated
+- Cloud SQL notes updated
+
+9. Report Back
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. scripts التي أُضيفت أو عُدلت
+3. migration files الناتجة
+4. ملخص SQL الناتج
+5. هل يوجد destructive SQL؟
+6. نتائج typecheck
+7. نتائج healthz/readyz
+8. تحديثات replit.md
+9. schema debts المتبقية
+10. هل المشروع جاهز لـ Cloud SQL staging أم يحتاج خطوة أخرى؟
+
+ثم توقف وانتظر الموافقة.

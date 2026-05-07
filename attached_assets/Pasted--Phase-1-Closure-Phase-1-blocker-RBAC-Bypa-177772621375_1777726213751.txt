@@ -1,0 +1,176 @@
+تقرير Phase 1 Closure ممتاز وكشف الخلل الحقيقي. لا نغلق Phase 1 بعد.
+
+يوجد blocker حرج:
+RBAC Bypass على مستوى routes.
+الاختبار أثبت أن viewer يستطيع POST /api/contacts رغم أنه لا يملك contacts:create.
+
+لا تضف role-change UI.
+لا تضف Debts.
+لا تضف AI.
+لا تضف integrations.
+لا تبدأ Phase 2.
+
+نفّذ الآن RBAC Enforcement Patch فقط.
+
+Scope:
+
+1. أنشئ أو فعّل middleware موحد:
+   requirePermission(permissionSlug)
+
+يجب أن:
+- يعمل بعد requireSession
+- يستخدم permissions الموجودة في session/context
+- يرجع 403 برسالة عربية واضحة:
+  "ليس لديك صلاحية تنفيذ هذا الإجراء"
+- لا يعتمد على UI
+- لا يقبل workspace_id من body أو query
+
+2. طبّق requirePermission على كل routes التشغيلية:
+
+Contacts:
+- GET /api/contacts → contacts:read
+- POST /api/contacts → contacts:create
+- GET /api/contacts/:id → contacts:read
+- PATCH/PUT /api/contacts/:id → contacts:update
+- DELETE /api/contacts/:id → contacts:delete
+
+Tickets:
+- GET → tickets:read
+- POST → tickets:create
+- PATCH/PUT → tickets:update
+- DELETE → tickets:delete
+- assign إن وجد → tickets:assign
+
+Tasks:
+- GET → tasks:read
+- POST → tasks:create
+- PATCH/PUT → tasks:update
+- DELETE → tasks:delete
+
+Followups:
+- GET → followups:read
+- POST → followups:create
+- PATCH/PUT → followups:update
+- DELETE → followups:delete
+
+Opportunities:
+- GET → opportunities:read
+- POST → opportunities:create
+- PATCH/PUT → opportunities:update
+- DELETE → opportunities:delete
+
+Orders:
+- GET → orders:read
+- POST → orders:create
+- PATCH/PUT → orders:update
+- DELETE أو cancel → orders:cancel أو orders:delete حسب الموجود
+
+Conversations:
+- GET /api/conversations → conversations:read
+- POST /api/conversations → conversations:create إن كانت الصلاحية موجودة، أو أضفها للـ seed
+- GET /api/conversations/:id → conversations:read
+- POST /api/conversations/:id/messages → conversations:reply أو conversations:update إن لم توجد reply
+- assign → conversations:assign
+- status/resolve → conversations:resolve
+
+Payments:
+- GET → payments:read
+- POST → payments:create
+- confirm → payments:confirm
+- reject → payments:reject أو payments:confirm حسب seed الحالي، والأفضل payments:reject
+- export إن وجد → payments:export
+
+Users / Team:
+- list → team:read
+- invite → users:invite
+- role change → users:manage_roles
+
+Workspace:
+- GET → settings:read
+- PATCH → settings:manage
+- payment-methods GET → payments:read أو settings:read حسب استخدامها
+
+Dashboard / Analytics:
+- dashboard summary → analytics:read
+
+Audit logs:
+- GET → audit_logs:read
+
+3. إذا كانت هناك permissions ناقصة في seed، أضفها بشكل صريح.
+خصوصاً:
+- conversations:create
+- conversations:update أو conversations:reply
+- payments:reject إذا غير موجودة
+لكن لا تعطها للأدوار الخاطئة.
+
+4. أضف audit logs للعمليات الكتابية إن لم تكن موجودة:
+- contacts create/update/delete
+- tickets create/update/delete
+- tasks create/update/delete
+- orders create/update/cancel
+- conversations create/message send
+لا تكرر audit إن كان موجوداً.
+
+5. أصلح reject reason في backend:
+- استخدم trim
+- reason المكوّن من مسافات فقط يجب أن يرجع 400:
+  "يجب إدخال سبب رفض الدفعة"
+
+6. UI permission denied:
+- عند استلام 403 من أي query أو mutation، اعرض رسالة عربية:
+  "ليس لديك صلاحية لتنفيذ هذا الإجراء"
+- لا تعرض أزرار الإنشاء/التعديل إذا المستخدم لا يملك الصلاحية
+- الزر المعطل يجب أن يحتوي سبب عربي واضح
+
+7. اختبارات إلزامية بعد الإصلاح:
+
+RBAC Negative Tests:
+- viewer POST /api/contacts → 403
+- viewer POST /api/tickets → 403
+- viewer POST /api/tasks → 403
+- viewer POST /api/orders → 403
+- viewer POST /api/payments → 403
+- agent POST /api/payments/:id/confirm → 403
+- agent PATCH /api/workspace → 403
+- accountant GET /api/integrations أو integrations manage إن وجد → 403
+- user بدون users:manage_roles لا يستطيع تغيير الدور → 403
+
+RBAC Positive Tests:
+- owner POST /api/contacts → 201
+- agent POST /api/contacts → 201 فقط إذا كان agent يملك contacts:create في seed، وإلا 403
+- accountant POST /api/payments/:id/confirm → 200
+- owner PATCH /api/workspace → 200
+
+Workspace Isolation:
+- أي body فيه workspace_id مختلف يتم تجاهله
+- المورد يُنشأ دائماً داخل activeWorkspaceId من session
+
+Payment Safety:
+- reject reason = "   " → 400
+- confirm/reject لا يعمل إلا على pending
+- confirm/reject يسجل audit severity=critical
+
+Commands:
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+- pnpm run typecheck:libs إن لزم
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. قائمة كل routes والصلاحية المطبقة عليها
+3. نتائج اختبارات RBAC السلبية والإيجابية
+4. نتائج اختبار reject reason trim
+5. نتائج typecheck
+6. أي permission أضفتها للـ seed وأي دور أخذها
+7. أي route بقي بدون requirePermission ولماذا
+
+ممنوع:
+- لا تضف ميزات جديدة.
+- لا تبدأ Phase 2.
+- لا تضف Debts.
+- لا تضف AI.
+- لا تضف integrations.
+- لا تحذف ملفات.
+- لا تستخدم fake production data.
+
+بعد التقرير توقف وانتظر الموافقة.

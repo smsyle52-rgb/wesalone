@@ -1,0 +1,334 @@
+ممتاز. نوافق على Phase 4B ونعتبرها مغلقة رسمياً.
+
+الآن ابدأ Phase 5A فقط:
+Knowledge Base Foundation — قاعدة المعرفة.
+
+ممنوع في هذه المرحلة:
+- لا تضف Gemini
+- لا تضف AI agents live
+- لا تضف AI auto-reply
+- لا تضف Automation
+- لا تضف Voice
+- لا تضف Integrations خارجية
+- لا تضف WhatsApp API
+- لا تضف أي model calls
+- لا تضف embeddings provider فعلي الآن
+- لا تضف Vector Search خارجي الآن
+
+Phase 5A Scope:
+
+1. الهدف
+
+بناء قاعدة معرفة داخلية قابلة للاستخدام لاحقاً مع Gemini/RAG، لكن بدون تشغيل Gemini الآن.
+
+يجب دعم:
+- Knowledge bases
+- Knowledge sources
+- Knowledge documents
+- Knowledge chunks
+- FAQ entries
+- Processing status
+- Versioning بسيط أو updated_at
+- RBAC
+- Workspace isolation
+- Audit logs
+- UI عربية RTL
+
+2. Database / Schema
+
+أضف أو ثبّت الجداول التالية:
+
+knowledge_bases:
+- id
+- workspace_id
+- name
+- description nullable
+- status: active | archived
+- created_by
+- created_at
+- updated_at
+
+knowledge_sources:
+- id
+- workspace_id
+- knowledge_base_id
+- type: text | faq | file | url
+- title
+- status: draft | processing | ready | failed | archived
+- source_url nullable
+- file_id nullable
+- raw_text nullable
+- metadata jsonb
+- created_by
+- created_at
+- updated_at
+
+knowledge_documents:
+- id
+- workspace_id
+- knowledge_base_id
+- source_id
+- title
+- content_text
+- status: draft | ready | archived
+- token_estimate nullable
+- created_by
+- created_at
+- updated_at
+
+knowledge_chunks:
+- id
+- workspace_id
+- knowledge_base_id
+- document_id
+- chunk_index
+- chunk_text
+- token_estimate nullable
+- embedding_status: pending | skipped | embedded | failed
+- embedding_ref nullable
+- metadata jsonb
+- created_at
+
+faq_entries:
+- id
+- workspace_id
+- knowledge_base_id
+- question
+- answer
+- category nullable
+- status: active | archived
+- created_by
+- created_at
+- updated_at
+
+embeddings_index_reference:
+- id
+- workspace_id
+- knowledge_base_id
+- provider: none | pgvector | vertex_vector_search
+- index_name nullable
+- status: not_configured | configured | disabled
+- config jsonb
+- created_at
+- updated_at
+
+مهم:
+- لا تضف embeddings فعلية الآن.
+- embedding_status يكون pending أو skipped.
+- embeddings_index_reference يكون not_configured افتراضياً.
+- لا تستدعِ Gemini.
+- لا تستدعِ أي API خارجي.
+
+3. Chunking Logic
+
+أضف chunking بسيط محلي فقط:
+- عند إنشاء knowledge document من نص طويل:
+  - قسم النص إلى chunks بطول آمن تقريباً
+  - chunk_index يبدأ من 0
+  - لا embeddings
+  - embedding_status = pending أو skipped حسب التصميم
+- لا تستخدم AI للتقسيم.
+- لا تستخدم OCR.
+- لا file parsing معقد الآن.
+
+4. Backend APIs
+
+Knowledge Bases:
+- GET /api/knowledge/bases
+- POST /api/knowledge/bases
+- GET /api/knowledge/bases/:id
+- PATCH /api/knowledge/bases/:id
+- DELETE أو archive /api/knowledge/bases/:id
+
+Sources:
+- GET /api/knowledge/bases/:id/sources
+- POST /api/knowledge/bases/:id/sources
+- PATCH /api/knowledge/sources/:sourceId
+- DELETE أو archive /api/knowledge/sources/:sourceId
+
+Documents:
+- GET /api/knowledge/bases/:id/documents
+- POST /api/knowledge/bases/:id/documents
+- GET /api/knowledge/documents/:documentId
+- PATCH /api/knowledge/documents/:documentId
+- DELETE أو archive /api/knowledge/documents/:documentId
+
+Chunks:
+- GET /api/knowledge/documents/:documentId/chunks
+- POST /api/knowledge/documents/:documentId/rechunk
+
+FAQ:
+- GET /api/knowledge/bases/:id/faqs
+- POST /api/knowledge/bases/:id/faqs
+- PATCH /api/knowledge/faqs/:faqId
+- DELETE أو archive /api/knowledge/faqs/:faqId
+
+Search:
+- GET /api/knowledge/search?q=...
+بحث نصي بسيط فقط داخل نفس workspace.
+لا embeddings.
+لا AI.
+
+كل API يجب أن:
+- يستخدم requireSession
+- يستخدم requirePermission
+- يكون workspace-scoped
+- لا يقبل workspace_id من body/query
+- يرجع رسائل عربية
+- يسجل audit log للكتابة
+
+5. Permissions
+
+أضف إذا كانت غير موجودة:
+- knowledge:read
+- knowledge:create
+- knowledge:update
+- knowledge:delete
+- knowledge:manage
+
+أدوار مبدئية:
+- owner/manager: كل شيء
+- agent/support/sales: read فقط
+- viewer: read فقط أو لا حسب seed، اذكر القرار
+- accountant: غالباً لا يحتاج إلا إذا seed الحالي يسمح read
+
+6. UI
+
+أضف صفحة:
+"المعرفة"
+
+Navigation item موجود سابقاً، فعّله.
+
+KnowledgePage يجب أن يحتوي:
+- قائمة قواعد المعرفة
+- إنشاء قاعدة معرفة
+- فتح قاعدة معرفة
+- تبويبات داخل القاعدة:
+  - المصادر
+  - الوثائق
+  - الأسئلة الشائعة
+  - المقاطع
+  - الإعدادات
+
+Sources UI:
+- إضافة مصدر text
+- إضافة مصدر FAQ
+- file/url placeholders disabled مع سبب:
+  "سيتم تفعيل رفع الملفات والروابط في مرحلة لاحقة"
+
+Documents UI:
+- إنشاء وثيقة نصية
+- تعديل وثيقة
+- عرض chunks
+- زر إعادة التقسيم
+
+FAQ UI:
+- إضافة سؤال وجواب
+- تعديل
+- أرشفة
+
+Search UI:
+- بحث نصي داخل المعرفة
+- يعرض النتائج من documents/chunks/faqs
+- بدون AI
+
+كل UI:
+- RTL
+- loading
+- empty
+- error
+- retry
+- permission denied
+- modals عربية
+- لا نصوص إنجليزية للمستخدم
+
+7. Audit
+
+Audit actions:
+- knowledge_base_create
+- knowledge_base_update
+- knowledge_base_archive
+- knowledge_source_create
+- knowledge_source_update
+- knowledge_source_archive
+- knowledge_document_create
+- knowledge_document_update
+- knowledge_document_archive
+- knowledge_document_rechunk
+- faq_create
+- faq_update
+- faq_archive
+
+8. Safety
+
+أكد:
+- لا Gemini
+- لا AI calls
+- لا embeddings provider
+- لا Vertex AI
+- لا file parsing معقد
+- لا OCR
+- لا external URL fetch
+- لا secrets
+- لا integrations
+
+9. Tests Required
+
+Typecheck:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+RBAC:
+- viewer GET /api/knowledge/bases → حسب seed، اذكر النتيجة
+- viewer POST /api/knowledge/bases → 403
+- agent GET /api/knowledge/bases → 200 إذا seed يسمح read
+- agent POST /api/knowledge/bases → 403
+- owner POST /api/knowledge/bases → 201
+- owner POST document → 201
+- owner POST FAQ → 201
+
+Workspace isolation:
+- knowledge base من workspace آخر → 404 أو 403
+- document من workspace آخر → 404 أو 403
+- FAQ من workspace آخر → 404 أو 403
+- workspace_id في body يتم تجاهله
+
+Chunking:
+- document طويل ينشئ chunks
+- chunk_index صحيح
+- إعادة التقسيم تحذف/تستبدل chunks القديمة بشكل آمن
+- embedding_status ليس embedded
+
+Search:
+- البحث يجد كلمة موجودة في FAQ
+- البحث يجد كلمة موجودة في document/chunk
+- البحث لا يرجع نتائج من workspace آخر
+
+Audit:
+- create/update/archive للمعرفة تسجل audit
+- rechunk يسجل audit
+
+UI:
+- KnowledgePage RTL
+- إنشاء قاعدة معرفة يعمل
+- إنشاء وثيقة نصية يعمل
+- FAQ يعمل
+- search يعمل
+- file/url buttons disabled مع سبب عربي
+- لا يوجد Gemini أو AI UI
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. الجداول/الأعمدة الجديدة
+3. routes والصلاحيات
+4. نتائج typecheck
+5. نتائج RBAC
+6. نتائج workspace isolation
+7. نتائج chunking
+8. نتائج search
+9. نتائج audit
+10. نتائج UI
+11. أي مخاطر متبقية
+
+ثم توقف وانتظر الموافقة.

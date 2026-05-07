@@ -1,0 +1,106 @@
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import Layout from "@/components/Layout";
+import LoginPage from "@/pages/LoginPage";
+import RegisterPage from "@/pages/RegisterPage";
+import DashboardPage from "@/pages/DashboardPage";
+import InboxPage from "@/pages/InboxPage";
+import TicketsPage from "@/pages/TicketsPage";
+import TasksPage from "@/pages/TasksPage";
+import FollowupsPage from "@/pages/FollowupsPage";
+import ContactsPage from "@/pages/ContactsPage";
+import OpportunitiesPage from "@/pages/OpportunitiesPage";
+import OrdersPage from "@/pages/OrdersPage";
+import PaymentsPage from "@/pages/PaymentsPage";
+import SettingsPage from "@/pages/SettingsPage";
+import AuditLogsPage from "@/pages/AuditLogsPage";
+import ContactProfilePage from "@/pages/ContactProfilePage";
+import DebtsPage from "@/pages/DebtsPage";
+import KnowledgePage from "@/pages/KnowledgePage";
+import AgentsPage from "@/pages/AgentsPage";
+import AnalyticsPage from "@/pages/AnalyticsPage";
+import ReportsPage from "@/pages/ReportsPage";
+import NotFound from "@/pages/not-found";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false, staleTime: 30_000 },
+  },
+});
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-white text-2xl font-bold mb-4 animate-pulse">خ</div>
+        <p className="text-muted-foreground text-sm">جار التحميل...</p>
+      </div>
+    </div>
+  );
+}
+
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (!user) return <Redirect to="/login" />;
+  return (
+    <Layout>
+      <Component />
+    </Layout>
+  );
+}
+
+function PublicRoute({ component: Component }: { component: React.ComponentType }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (user) return <Redirect to="/dashboard" />;
+  return <Component />;
+}
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/login" component={() => <PublicRoute component={LoginPage} />} />
+      <Route path="/register" component={() => <PublicRoute component={RegisterPage} />} />
+      <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
+      <Route path="/inbox" component={() => <ProtectedRoute component={InboxPage} />} />
+      <Route path="/tickets" component={() => <ProtectedRoute component={TicketsPage} />} />
+      <Route path="/tasks" component={() => <ProtectedRoute component={TasksPage} />} />
+      <Route path="/followups" component={() => <ProtectedRoute component={FollowupsPage} />} />
+      <Route path="/contacts/:id" component={({ params }) => (
+        <ProtectedRoute component={() => <ContactProfilePage contactId={params.id} />} />
+      )} />
+      <Route path="/contacts" component={() => <ProtectedRoute component={ContactsPage} />} />
+      <Route path="/opportunities" component={() => <ProtectedRoute component={OpportunitiesPage} />} />
+      <Route path="/orders" component={() => <ProtectedRoute component={OrdersPage} />} />
+      <Route path="/payments" component={() => <ProtectedRoute component={PaymentsPage} />} />
+      <Route path="/debts" component={() => <ProtectedRoute component={DebtsPage} />} />
+      <Route path="/knowledge" component={() => <ProtectedRoute component={KnowledgePage} />} />
+      <Route path="/agents" component={() => <ProtectedRoute component={AgentsPage} />} />
+      <Route path="/audit-logs" component={() => <ProtectedRoute component={AuditLogsPage} />} />
+      <Route path="/analytics" component={() => <ProtectedRoute component={AnalyticsPage} />} />
+      <Route path="/reports" component={() => <ProtectedRoute component={ReportsPage} />} />
+      <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
+      <Route path="/" component={() => <Redirect to="/dashboard" />} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+}
+
+export default App;

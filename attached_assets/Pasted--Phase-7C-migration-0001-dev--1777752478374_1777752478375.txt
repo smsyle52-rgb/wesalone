@@ -1,0 +1,109 @@
+ممتاز. نوافق على Phase 7C ونعتبرها مغلقة.
+
+نعم، طبّق migration 0001 على قاعدة dev الحالية فقط، لكن بشروط صارمة:
+
+ممنوع:
+- لا تطبق على production.
+- لا تطبق على Cloud SQL production.
+- لا تعمل reset.
+- لا تحذف بيانات.
+- لا تضف features جديدة.
+- لا تغيّر UX.
+- لا تغيّر business logic.
+- لا تولّد migration جديد إلا إذا فشل 0001 بسبب واضح.
+
+ابدأ Phase 7C.1 فقط:
+Apply Reviewed Migration 0001 to Dev Database.
+
+Scope:
+
+1. Backup / Snapshot قبل التطبيق
+
+قبل تشغيل migrate:
+- خذ backup snapshot أو dump من قاعدة dev الحالية إن أمكن.
+- إذا لا يمكن dump في Replit، وثّق السبب بوضوح.
+- على الأقل نفّذ queries توثيقية قبل التطبيق:
+
+report_definitions:
+- SELECT is_archived, COUNT(*) FROM report_definitions GROUP BY is_archived;
+
+tickets:
+- SELECT COUNT(*) total, COUNT(team_id) non_null FROM tickets;
+
+conversations:
+- SELECT COUNT(*) total, COUNT(team_id) non_null FROM conversations;
+
+2. Apply Migration
+
+طبّق فقط migration 0001 على dev DB:
+
+- pnpm --filter @workspace/db run migrate
+
+لا تستخدم db:push.
+لا تستخدم reset.
+لا تستخدم force.
+
+3. Post-Migration Verification
+
+بعد التطبيق، تحقق من:
+
+report_definitions:
+- is_archived أصبح boolean
+- القيم القديمة:
+  - 'true' أصبحت true
+  - 'false' أصبحت false
+
+tickets:
+- team_id أصبح uuid nullable
+- FK إلى teams(id) موجود
+
+conversations:
+- team_id أصبح uuid nullable
+- FK إلى teams(id) موجود
+
+drizzle migration journal:
+- 0001_common_serpent_society مسجل كمطبق
+
+4. App Verification
+
+شغّل:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+ثم تحقق:
+- GET /api/healthz → 200
+- GET /api/readyz → 200
+
+Smoke tests:
+- GET /api/reports/definitions يعمل
+- POST /api/reports/definitions يعمل
+- DELETE أو archive report definition يعمل ويستخدم boolean isArchived
+- GET /api/conversations يعمل
+- GET /api/tickets يعمل
+
+5. Destructive Safety
+
+أكد بعد التطبيق:
+- لم يتم تشغيل DROP
+- لم يتم تشغيل DELETE
+- لم يتم تشغيل TRUNCATE
+- لم تُفقد بيانات report_definitions
+- tickets/conversations ما زالت تعمل
+
+6. Report Back
+
+بعد التنفيذ أعطني:
+
+1. هل تم أخذ backup/dump؟ أو لماذا لم يمكن؟
+2. نتائج pre-check queries
+3. نتيجة تشغيل db:migrate
+4. هل 0001 تم تسجيله في migration journal؟
+5. نتائج فحص نوع is_archived بعد التطبيق
+6. نتائج فحص team_id + FK بعد التطبيق
+7. نتائج typecheck
+8. نتائج healthz/readyz
+9. نتائج smoke tests للتقارير والمحادثات والتذاكر
+10. أي خطأ أو خطر متبقٍ
+
+ثم توقف وانتظر الموافقة.

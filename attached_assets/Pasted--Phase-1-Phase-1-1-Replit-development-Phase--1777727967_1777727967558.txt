@@ -1,0 +1,253 @@
+ممتاز. نوافق على Phase 1 و Phase 1.1 ونعتبرهما مغلقتين لبيئة Replit development.
+
+الآن ابدأ Phase 2A فقط:
+Contacts + Contact Channels + Contact Timeline.
+
+ممنوع في هذه المرحلة:
+- لا تضف Debts
+- لا تضف AI
+- لا تضف Gemini
+- لا تضف integrations
+- لا تضف WhatsApp API
+- لا تضف Automation
+- لا تضف Voice
+- لا تبدأ Phase 2B Inbox/Channels بعد
+- لا تضف أي ميزة خارج نطاق العميل وقنواته والـ timeline
+
+Phase 2A Scope:
+
+1. Database / Schema
+أضف أو ثبّت الجداول التالية إذا لم تكن موجودة:
+- contact_channels
+- contact_notes
+- contact_timeline
+- contact_tags إن لم يكن موجوداً كنموذج صحيح
+
+contact_channels يجب أن يدعم:
+- id
+- workspace_id
+- contact_id
+- channel_type: phone | whatsapp | telegram | instagram | email | widget
+- identifier
+- normalized_identifier
+- is_primary
+- is_verified
+- opted_in
+- opted_out_at
+- provider_data JSONB
+- created_at
+- updated_at
+
+قيود مهمة:
+- UNIQUE(workspace_id, channel_type, normalized_identifier)
+- لا تقبل workspace_id من body
+- كل شيء workspace-scoped من session
+
+contact_notes:
+- id
+- workspace_id
+- contact_id
+- author_id
+- body
+- is_private
+- created_at
+- updated_at
+
+contact_timeline:
+- id
+- workspace_id
+- contact_id
+- event_type
+- entity_type
+- entity_id
+- title
+- description
+- metadata JSONB
+- created_by
+- occurred_at
+- created_at
+
+event_type أمثلة:
+- contact_created
+- contact_updated
+- channel_added
+- channel_updated
+- note_added
+- tag_added
+- tag_removed
+- conversation_created
+- ticket_created
+- order_created
+- payment_created
+
+2. Backend APIs
+
+Contacts:
+- GET /api/contacts
+- POST /api/contacts
+- GET /api/contacts/:id
+- PATCH /api/contacts/:id
+- DELETE /api/contacts/:id أو soft delete إذا schema يدعم ذلك
+
+Contact Channels:
+- GET /api/contacts/:id/channels
+- POST /api/contacts/:id/channels
+- PATCH /api/contacts/:id/channels/:channelId
+- DELETE /api/contacts/:id/channels/:channelId
+
+Contact Notes:
+- GET /api/contacts/:id/notes
+- POST /api/contacts/:id/notes
+- PATCH /api/contacts/:id/notes/:noteId
+- DELETE /api/contacts/:id/notes/:noteId
+
+Contact Timeline:
+- GET /api/contacts/:id/timeline
+
+كل API يجب أن:
+- يستخدم requireSession
+- يستخدم requirePermission المناسب
+- يكون workspace-scoped
+- لا يقبل workspace_id من body/query
+- يرجع رسائل عربية
+- يسجل audit log للكتابة
+- يضيف contact_timeline event للكتابة المهمة
+
+3. Permissions
+
+استخدم الصلاحيات الحالية إن وجدت:
+- contacts:read
+- contacts:create
+- contacts:update
+- contacts:delete
+
+إذا احتجت صلاحيات أعمق أضفها فقط لو ضرورية:
+- contacts:manage_channels
+- contacts:manage_notes
+
+لكن لا تعطها تلقائياً لأدوار غير مناسبة.
+
+الحد الأدنى:
+- owner/manager: كل شيء
+- agent: create/read/update وإضافة notes/channels إذا seed يسمح
+- accountant: read فقط غالباً
+- viewer: read فقط
+
+4. Deduplication / Normalization
+
+عند إضافة phone أو whatsapp:
+- طبّع الرقم قدر الإمكان
+- احذف المسافات والرموز غير الضرورية
+- ادعم أرقام اليمن
+- لا تنشئ duplicate لنفس workspace/channel/identifier
+- إذا حدث duplicate أرجع 409 برسالة عربية:
+  "هذه القناة مرتبطة بعميل آخر"
+
+لا تعمل auto-merge الآن.
+فقط امنع التكرار الواضح.
+
+5. Frontend
+
+طوّر صفحة العملاء إلى:
+- قائمة عملاء
+- بحث
+- فلترة بسيطة
+- إنشاء عميل
+- تعديل عميل
+- فتح ملف عميل
+
+أضف صفحة أو panel لملف العميل:
+- بيانات العميل
+- القنوات
+- الملاحظات
+- الـ timeline
+- quick actions placeholders فقط:
+  - إنشاء محادثة
+  - إنشاء تذكرة
+  - إنشاء طلب
+  - تسجيل دفعة
+لكن إذا لم تكن هذه العمليات ضمن Phase 2A، اجعل الأزرار disabled مع سبب عربي:
+"سيتم تفعيل هذا الإجراء في المرحلة التالية"
+
+UI states إلزامية:
+- loading
+- empty
+- error
+- retry
+- permission denied
+- disabled button reason
+
+6. Audit + Timeline Rules
+
+عند إنشاء contact:
+- audit_log action=contact_create
+- contact_timeline event=contact_created
+
+عند تعديل contact:
+- audit_log action=contact_update
+- contact_timeline event=contact_updated
+
+عند إضافة channel:
+- audit_log action=contact_channel_add
+- contact_timeline event=channel_added
+
+عند إضافة note:
+- audit_log action=contact_note_add
+- contact_timeline event=note_added
+
+لا تسجل old_data/new_data فيها passwords أو secrets.
+
+7. Typecheck / Verification
+
+بعد التنفيذ شغّل:
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+- pnpm run typecheck:libs إن لزم
+
+اختبارات إلزامية:
+
+RBAC:
+- viewer GET /api/contacts → 200
+- viewer POST /api/contacts → 403
+- viewer POST /api/contacts/:id/channels → 403
+- agent POST /api/contacts → حسب seed الحالي، اذكر النتيجة
+- agent POST /api/contacts/:id/notes → حسب seed الحالي، اذكر النتيجة
+- owner POST /api/contacts/:id/channels → 201
+- owner GET /api/contacts/:id/timeline → 200
+
+Workspace isolation:
+- أرسل workspace_id مختلف في body عند إنشاء contact/channel/note
+- يجب تجاهله واستخدام activeWorkspaceId من session
+
+Dedup:
+- إضافة نفس رقم الهاتف مرتين لنفس workspace → 409
+- إضافة نفس الرقم في workspace آخر يجب أن يكون مسموحاً
+
+Timeline:
+- إنشاء contact ينشئ timeline event
+- إضافة channel تنشئ timeline event
+- إضافة note تنشئ timeline event
+
+Audit:
+- contact create/update/channel add/note add تسجل audit logs
+
+UI:
+- صفحة العملاء RTL
+- ملف العميل RTL
+- لا نصوص إنجليزية للمستخدم
+- لا horizontal overflow على 375px قدر الإمكان
+- error states موجودة
+- permission denied موجودة
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. الجداول/الأعمدة الجديدة
+3. routes الجديدة والصلاحية المطلوبة لكل route
+4. نتائج typecheck
+5. نتائج اختبارات RBAC
+6. نتائج اختبارات workspace isolation
+7. نتائج اختبارات duplicate channel
+8. نتائج audit/timeline
+9. أي شيء لم تستطع تنفيذه ولماذا
+
+ثم توقف وانتظر الموافقة.

@@ -1,0 +1,166 @@
+ممتاز. لا تضف role-change UI الآن، ولا تضف أي ميزة جديدة بعد.
+
+قبل الموافقة على أي خطوة تالية، نحتاج Phase 1 Closure Verification Report.
+
+المطلوب تقرير تحقق نهائي فقط، بدون إضافة features جديدة وبدون تعديل كود إلا إذا كان هناك خطأ يمنع الاختبار.
+
+اعرض بالتفصيل:
+
+1. Changed Files
+- كل الملفات التي تغيرت في Stabilization Patch.
+- صنّفها: backend / frontend / db schema / config.
+
+2. Database Changes
+اعرض الأعمدة الجديدة في payments فعلياً، خصوصاً:
+- payment_method_id
+- method_snapshot
+- exchange_rate_id
+- exchange_rate_snapshot
+- base_amount_yer
+- paid_at
+
+واشرح:
+- هل method TEXT ما زال مستخدماً أم أصبح legacy؟
+- هل payment_method_id مربوط بجدول payment_methods؟
+- هل default payment_methods تُنشأ عند register لكل workspace؟
+- هل exchange_rates تُنشأ عند register؟
+
+3. Register Flow Verification
+اختبر register من الواجهة ومن API.
+يجب أن يثبت أن register ينشئ:
+- user
+- workspace
+- workspace_membership
+- owner role
+- subscription trial
+- default feature_flags
+- default payment_methods
+- default exchange_rates
+
+اعرض نتيجة الاختبار.
+
+4. Auth Verification
+اختبر:
+- login
+- logout
+- /api/auth/me
+
+اعرض أن /api/auth/me يعيد:
+- user
+- active workspace
+- membership
+- permissions
+
+5. RBAC Verification
+اختبر:
+- agent لا يستطيع payment confirm
+- owner يستطيع payment confirm
+- accountant يستطيع payment confirm
+- viewer لا يستطيع contacts:create
+- accountant لا يستطيع integrations:manage
+- المستخدم بدون users:manage_roles لا يستطيع تغيير دور موظف
+
+اعرض status code والرسالة العربية لكل حالة رفض.
+
+6. Payment Safety Verification
+اختبر:
+- إنشاء payment يبدأ pending دائماً
+- payment create يسجل audit log
+- payment confirm يسجل audit log severity=critical
+- payment reject يسجل audit log severity=critical
+- payment reject بدون reason يرجع 400 برسالة:
+  "يجب إدخال سبب رفض الدفعة"
+- payment reject مع reason ينجح
+- confirmed/rejected لا يمكن الرجوع منها
+
+7. Audit Logs Verification
+اعرض أمثلة audit logs فعلية للأحداث:
+- register
+- login
+- logout
+- payment_create
+- payment_confirm
+- payment_reject
+- workspace_update
+- user_role_change
+
+ويجب أن تحتوي:
+- workspace_id
+- actor_type
+- actor_id
+- action
+- severity
+- entity_type
+- entity_id
+- old_data
+- new_data
+
+8. Conversations Verification
+اختبر:
+- POST /api/conversations
+- POST /api/conversations/:id/messages
+
+ويجب أن تكون:
+- محمية بالجلسة
+- workspace-scoped
+- لا تقبل workspace_id من body
+- ترجع رسائل عربية عند الخطأ
+
+9. Workspace Update Verification
+اختبر:
+- PATCH /api/workspace
+- يجب أن يسجل audit log
+- يجب أن يحتاج permission مناسب
+- لا يسمح بتعديل workspace خارج active workspace
+
+10. Dev Seed Safety
+- هل ahmed@test.com / password123 ما زال موجوداً؟
+- إذا موجود، يجب أن يكون dev-only فقط.
+- لا تذكره في production UI.
+- لا تعتمد عليه في auth logic.
+- وضّح أين يتم إنشاء dev seed وكيف يُعطّل في production.
+
+11. UI Verification
+لكل صفحة من الصفحات التسع:
+- هل يوجد loading state؟
+- هل يوجد empty state؟
+- هل يوجد error state؟
+- هل يوجد زر إعادة المحاولة؟
+- هل يوجد permission denied state عند غياب الصلاحية؟
+- هل كل زر disabled له سبب عربي واضح؟
+- هل لا توجد نصوص إنجليزية ظاهرة للمستخدم العادي؟
+- هل الواجهة RTL؟
+- هل لا يوجد horizontal overflow على 375px؟
+
+12. Typecheck / Commands
+اعرض النتائج الفعلية للأوامر:
+- pnpm run typecheck للـ backend
+- pnpm run typecheck للـ frontend
+- أي db push أو migration command تم تشغيله
+
+13. Drizzle / Migration Status
+- أنت استخدمت drizzle push.
+- وضّح هل توجد migration files أم لا.
+- إن لم توجد، أكّد أن هذا مؤقت لبيئة التطوير فقط.
+- قبل Google Cloud SQL production سنحتاج migration files deterministic.
+
+14. Remaining Risks
+اكتب بصراحة:
+- ما الذي ما زال ناقصاً في Phase 1؟
+- هل يوجد أي route غير workspace-scoped؟
+- هل يوجد أي button يعمل ظاهرياً بدون backend؟
+- هل يوجد أي mock data في production path؟
+- هل يوجد أي secret داخل الكود؟
+- هل يوجد أي console.log أو temporary password يرجع من السيرفر؟
+
+ممنوع الآن:
+- لا تضف role-change UI.
+- لا تضف Debts.
+- لا تضف AI.
+- لا تضف integrations.
+- لا تضف channels جديدة.
+- لا تبدأ Phase 2.
+- لا تحذف ملفات.
+- لا تضف fake production data.
+
+بعد التقرير توقف وانتظر الموافقة.

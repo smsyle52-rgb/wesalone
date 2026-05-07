@@ -1,0 +1,232 @@
+ممتاز. لا تضف Gemini API integration الآن.
+لا تضف Gemini live provider.
+لا تضف embeddings.
+لا تضف Vector Search.
+لا تضف AI auto-send.
+لا تضف Automation.
+لا تضف Voice.
+لا تضف أي تكامل خارجي.
+لا تضف أي ميزة جديدة.
+
+قبل قبول Phase 5B وإغلاقها رسمياً، نحتاج Phase 5B Closure Verification Report كامل بالأدلة والاختبارات.
+
+المطلوب:
+
+1. Changed Files
+اعرض كل الملفات التي تغيرت:
+- db schema
+- ai routes
+- approvals routes
+- ai adapter/provider
+- safety guard
+- seed/permissions
+- audit
+- AgentsPage
+- InboxPage
+- أي components أو utils جديدة
+
+2. Database Changes
+اعرض الجداول والأعمدة الفعلية:
+- ai_agents
+- ai_agent_versions
+- ai_agent_instructions
+- ai_agent_tools
+- ai_agent_channels
+- ai_runs
+- ai_messages
+- ai_extractions
+- ai_usage
+- ai_feedback
+- ai_safety_events
+- approval_requests
+
+3. Routes + Permissions
+اعرض كل routes والصلاحية المطلوبة لها:
+
+AI Agents:
+- GET /api/ai/agents
+- POST /api/ai/agents
+- GET /api/ai/agents/:id
+- PATCH /api/ai/agents/:id
+- POST /api/ai/agents/:id/versions
+- PATCH /api/ai/agents/:id/instructions
+- GET /api/ai/agents/:id/tools
+- PATCH /api/ai/agents/:id/tools
+
+AI Runs:
+- GET /api/ai/runs
+- GET /api/ai/runs/:id
+- POST /api/ai/runs/summarize-conversation
+- POST /api/ai/runs/classify-conversation
+- POST /api/ai/runs/draft-reply
+- POST /api/ai/runs/extract
+- POST /api/ai/runs/suggest-actions
+
+Approvals:
+- GET /api/approvals
+- POST /api/approvals/:id/approve
+- POST /api/approvals/:id/reject
+
+4. Typecheck
+اعرض النتائج:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+5. RBAC Tests
+اختبر واعرض status code والرسائل العربية:
+- viewer POST /api/ai/runs/draft-reply → 403 أو حسب seed
+- agent POST /api/ai/runs/draft-reply → 201 إذا ai:use
+- accountant POST /api/ai/runs/draft-reply → 403
+- viewer POST /api/ai/agents → 403
+- owner POST /api/ai/agents → 201
+- agent PATCH /api/ai/agents/:id → 403
+- owner PATCH /api/ai/agents/:id → 200
+- agent GET /api/ai/runs → حسب seed، اذكر النتيجة
+- viewer GET /api/ai/runs → حسب seed، اذكر النتيجة
+
+6. Workspace Isolation
+اختبر:
+- AI agent من workspace آخر → 404 أو 403
+- AI run من workspace آخر → 404 أو 403
+- conversation من workspace آخر في summarize → 404 أو 403
+- message من workspace آخر في classify → 404 أو 403
+- approval request من workspace آخر → 404 أو 403
+- knowledge search لا يرجع نتائج workspace آخر
+- workspace_id في body يتم تجاهله
+
+7. AI Provider / Mock Mode
+أثبت:
+- mock provider يعمل بدون GEMINI_API_KEY
+- إذا GEMINI_API_KEY غير موجود لا يفشل النظام
+- provider في ai_runs = mock
+- لا يوجد أي Gemini API call فعلي في هذه المرحلة
+- لا يوجد API key في الكود
+- لا توجد secrets في DB
+
+8. AI Runs
+اختبر:
+- summarize conversation → ai_run status=succeeded
+- draft reply → ai_run status=succeeded
+- classify → ai_extraction محفوظة
+- suggest_actions → approval_requests محفوظة
+- كل run ينشئ ai_messages
+- كل run يسجل ai_usage
+- failed run يسجل error_message إن حدث
+- blocked run يسجل safety_status=blocked
+
+9. Safety Guard
+اختبر:
+- action payment.confirm → blocked
+- action payment.reject → blocked
+- action payment.update_status → blocked
+- action debt.write_off → blocked
+- action role.change → blocked
+- action user.invite → blocked إن كان ممنوعاً
+- action integration.activate → blocked
+- action message.auto_send → blocked
+- action data.delete → blocked
+
+ويجب إثبات:
+- ai_safety_event يُنشأ
+- ai_run.status = blocked
+- لا يحدث mutation على الكيان المستهدف
+- الرسالة العربية تظهر:
+  "تم منع هذا الإجراء لأنه يتطلب اعتماداً بشرياً أو غير مسموح للذكاء الاصطناعي"
+
+10. Human Approval
+اختبر:
+- suggest_actions ينشئ approval_request
+- approval_request status يبدأ pending
+- approve يغير status إلى approved فقط أو ينفذ safe action حسب implementation
+- reject يغير status إلى rejected
+- reject reason مطلوب إذا كان التصميم يتطلب ذلك
+- approve/reject يسجل audit
+- لا approval ينفذ payment confirm أو auto-send
+
+11. Knowledge Integration
+اختبر:
+- draft reply يستخدم knowledge search الحالي إذا وُجدت قاعدة معرفة
+- metadata يحتوي مصادر المعرفة المستخدمة إن وجدت
+- لا embeddings
+- لا Vector Search
+- لا Gemini RAG
+- لا external fetch
+
+12. UI Verification
+AgentsPage:
+- RTL
+- loading
+- empty
+- error
+- retry
+- permission denied
+- إنشاء وكيل
+- تعديل وكيل
+- اللهجة: فصحى / يمني خفيف / يمني تجاري
+- tools settings
+- test agent
+- AI runs list
+- usage summary
+- safety events
+- approval requests
+
+Inbox:
+- زر تلخيص المحادثة يعمل
+- زر اقتراح رد يعمل
+- زر تصنيف يعمل
+- زر اقتراحات يعمل
+- draft reply لا يرسل تلقائياً
+- زر استخدام الرد يملأ صندوق الكتابة فقط
+- زر الإرسال يبقى يدوي
+- لا يوجد auto-send
+
+13. Audit
+اعرض أمثلة:
+- ai_agent_create
+- ai_agent_update
+- ai_agent_disable
+- ai_run_create
+- ai_run_blocked
+- ai_approval_requested
+- ai_approval_approved
+- ai_approval_rejected
+- ai_feedback_create إن كان منفذاً
+
+14. External Safety
+أكد:
+- لا Gemini live call
+- لا OpenAI
+- لا embeddings provider
+- لا Vertex AI
+- لا WhatsApp API
+- لا auto-send
+- لا payment mutation
+- لا debt write-off by AI
+- لا permission mutation
+- لا delete by AI
+- لا integration activation
+- لا secrets in DB
+
+15. Remaining Risks
+اذكر بصراحة:
+- هل Gemini adapter موجود لكنه غير مستخدم؟
+- هل mock responses واضحة للمستخدم؟
+- هل ai_usage حقيقي أم تقريبي في mock؟
+- هل approvals تنفذ actions أم تغير status فقط؟
+- هل توجد أي route AI بدون requirePermission؟
+- هل توجد أي AI action يمكن أن يغير ماليات؟
+- هل draft reply يمكن أن يُرسل تلقائياً بأي مسار؟
+- هل يوجد أي API key hardcoded؟
+
+ممنوع:
+- لا تضف Gemini live provider
+- لا تضف GEMINI_API_KEY integration
+- لا تضف embeddings
+- لا تضف Vector Search
+- لا تضف Automation
+- لا تضف Voice
+- لا تضف Integrations
+- لا تضف أي feature جديدة
+
+بعد التقرير توقف وانتظر الموافقة.

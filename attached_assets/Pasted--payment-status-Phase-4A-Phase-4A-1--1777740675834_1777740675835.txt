@@ -1,0 +1,120 @@
+ممتاز. لا تضف فلترة الطلبات حسب payment_status الآن.
+
+قبل إغلاق Phase 4A رسمياً، نحتاج Phase 4A.1 Closure Verification Report بالأدلة والاختبارات، لأن التقرير الحالي ذكر أن التصحيحات طُبّقت لكنه لم يعرض نتائج الاختبارات.
+
+ملاحظة مهمة:
+في R3 كتبت: Block delete إذا وجدت دفعات مؤكدة.
+المطلوب ليس confirmed فقط.
+المطلوب منع حذف الطلب إذا وجدت أي payment مرتبطة به داخل نفس workspace:
+- pending
+- confirmed
+- rejected
+
+لا تضف أي ميزة جديدة.
+لا تضف filtering جديد.
+لا تضف Dashboard جديد.
+لا تضف Debts.
+لا تضف Collection.
+لا تضف Settings UI.
+لا تضف AI.
+لا تضف Automation.
+لا تضف Integrations.
+
+المطلوب الآن تقرير تحقق فقط، مع تصحيح R3 إذا كان مطبقاً على confirmed فقط.
+
+1. Changed Files
+اعرض كل الملفات التي تغيّرت:
+- payments.routes.ts
+- orders.routes.ts
+- أي schema أو utils أو tests
+
+2. Typecheck
+اعرض النتائج:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+3. Transaction Implementation
+اشرح كيف تم تنفيذ transaction في:
+- POST /api/payments/:id/confirm
+- POST /api/payments/:id/reject
+
+ويجب أن تكون داخل transaction واحدة:
+- update payment
+- update order.paid_amount عند confirm
+- update order.payment_status عند confirm
+- audit log
+- contact timeline
+
+إذا فشل أي جزء، لا يجب أن يحدث تحديث جزئي.
+
+4. Confirm Tests
+اختبر واعرض النتائج:
+- pending → confirmed يعمل
+- order.paid_amount يتغير داخل transaction
+- order.payment_status يتحدث داخل نفس transaction
+- overpayment → 422 ولا يغير payment ولا order
+- confirm مرتين → 400/422 ولا يزيد paid_amount مرة ثانية
+- فشل confirm لا ينشئ audit/timeline مضلل
+
+5. Reject Tests
+اختبر:
+- pending → rejected يعمل
+- reject بدون reason → 400
+- reject reason = مسافات فقط → 400
+- reject لا يغير order.paid_amount
+- reject مرتين → 400/422
+- rejected → confirmed يفشل
+
+6. Closed Order Payment Tests
+اختبر:
+- POST payment على cancelled order → 422
+- POST payment على returned order → 422
+- POST payment على delivered order مدفوع بالكامل → 422
+- POST payment على delivered order فيه remaining_amount > 0 → 201 إذا كان التصميم يسمح
+
+7. Delete Order With Payments Tests
+اختبر كل الحالات التالية:
+
+- DELETE order بدون payments → يعمل حسب التصميم
+- DELETE order لديه pending payment → 422
+- DELETE order لديه confirmed payment → 422
+- DELETE order لديه rejected payment → 422
+
+رسالة الخطأ العربية المطلوبة:
+"لا يمكن حذف طلب مرتبط بمدفوعات"
+
+لا تحذف الطلب.
+لا تحذف المدفوعات.
+لا تعمل cascade على payments.
+
+8. Payment Status Tests
+اختبر:
+- order بدون دفعات confirmed → payment_status = unpaid
+- دفعة جزئية confirmed → payment_status = partial
+- دفعات confirmed تساوي total_amount → payment_status = paid
+- حذف/تعديل order item يعيد حساب total_amount و payment_status بشكل صحيح
+- payment_status في DB يطابق القيمة المحسوبة في API
+
+9. Workspace Isolation
+اختبر:
+- confirm payment من workspace آخر → 404 أو 403
+- delete order من workspace آخر → 404 أو 403
+- payment linked to order من workspace آخر → 404 أو 403
+
+10. Audit + Timeline
+اعرض أمثلة تثبت:
+- payment_confirm audit severity=critical عند النجاح فقط
+- payment_reject audit severity=critical عند النجاح فقط
+- payment_confirm timeline عند النجاح فقط
+- فشل overpayment لا يضيف audit/timeline مضلل
+
+11. Remaining Risks
+اذكر بصراحة:
+- هل R3 يمنع أي payment أم confirmed فقط؟
+- هل توجد أي route مالية بدون requirePermission؟
+- هل توجد أي عملية مالية خارج transaction؟
+- هل يمكن paid_amount يتجاوز total_amount؟
+- هل payment_status column صار مصدر موثوق أم ما زال محسوباً في بعض الأماكن؟
+
+بعد التقرير توقف وانتظر الموافقة.

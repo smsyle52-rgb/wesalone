@@ -1,0 +1,371 @@
+ممتاز. نوافق على Phase 2B ونعتبرها مكتملة.
+
+لا نبدأ Contact Import / Merge / Export الآن.
+هذه تحسينات لاحقة وليست أولوية المرحلة التالية.
+
+الآن ابدأ Phase 3A فقط:
+Operations Core — Tickets + Tasks + Followups + Opportunities.
+
+ممنوع في هذه المرحلة:
+- لا تضف Debts
+- لا تضف Payments جديدة
+- لا تضف Orders الآن
+- لا تضف AI
+- لا تضف Gemini
+- لا تضف integrations
+- لا تضف Contact Import / Merge / Export
+- لا تضف Automation
+- لا تضف Voice
+- لا تبدأ Phase 3B
+
+Phase 3A Scope:
+
+1. الهدف
+
+ربط المحادثات والعملاء بأول طبقة عمليات:
+- تذكرة
+- مهمة
+- متابعة
+- فرصة مبيعات
+
+يجب أن يستطيع المستخدم من:
+- ملف العميل
+- المحادثة
+- صفحات العمليات
+
+إنشاء:
+- Ticket
+- Task
+- Followup
+- Opportunity
+
+مع:
+- RBAC
+- Workspace isolation
+- Audit logs
+- Contact timeline events
+- روابط source_conversation_id و source_message_id حيث ينطبق
+
+2. Database / Schema
+
+راجع الجداول الحالية وثبّت أو أضف الحقول الناقصة:
+
+tickets:
+- workspace_id
+- contact_id nullable
+- conversation_id nullable
+- source_message_id nullable
+- assigned_to nullable
+- team_id nullable
+- title
+- description
+- status: new | open | in_progress | waiting_on_customer | resolved | closed
+- priority: low | normal | high | urgent
+- category nullable
+- due_at nullable
+- resolved_at nullable
+- closed_at nullable
+- created_by
+- created_at
+- updated_at
+
+tasks:
+- workspace_id
+- contact_id nullable
+- conversation_id nullable
+- source_message_id nullable
+- assigned_to nullable
+- created_by
+- title
+- description
+- status: pending | in_progress | done | cancelled
+- priority: low | normal | high | urgent
+- due_at nullable
+- related_type nullable
+- related_id nullable
+- completed_at nullable
+- completed_by nullable
+- created_at
+- updated_at
+
+followups:
+- workspace_id
+- contact_id
+- conversation_id nullable
+- opportunity_id nullable
+- assigned_to nullable
+- created_by
+- type: manual | sales | support | collection | reminder
+- status: pending | done | skipped | overdue
+- due_at
+- notes nullable
+- completed_at nullable
+- completed_by nullable
+- skipped_reason nullable
+- created_at
+- updated_at
+
+opportunities:
+- workspace_id
+- contact_id
+- conversation_id nullable
+- source_message_id nullable
+- assigned_to nullable
+- title
+- value nullable
+- currency: YER | SAR | USD
+- stage: new | qualified | proposal | negotiation | won | lost
+- probability nullable
+- expected_close nullable
+- notes nullable
+- lost_reason nullable
+- created_by
+- created_at
+- updated_at
+
+3. State Machines
+
+Tickets:
+- new → open
+- open → in_progress
+- in_progress → waiting_on_customer
+- waiting_on_customer → in_progress
+- in_progress → resolved
+- resolved → closed
+- resolved → open
+- closed terminal
+
+Tasks:
+- pending → in_progress
+- in_progress → done
+- pending → done
+- pending → cancelled
+- in_progress → cancelled
+- done/cancelled terminal
+
+Followups:
+- pending → done
+- pending → skipped
+- pending → overdue
+- overdue → done
+- overdue → skipped
+- done/skipped terminal
+- skipped requires skipped_reason
+
+Opportunities:
+- new → qualified
+- qualified → proposal
+- proposal → negotiation
+- negotiation → won
+- negotiation → lost
+- any non-terminal → lost
+- won/lost terminal
+- lost requires lost_reason
+
+لا تسمح بحالات خارج هذه القوائم.
+
+4. Backend APIs
+
+Tickets:
+- GET /api/tickets
+- POST /api/tickets
+- GET /api/tickets/:id
+- PATCH /api/tickets/:id
+- PATCH /api/tickets/:id/status
+- DELETE /api/tickets/:id أو close حسب الموجود
+
+Tasks:
+- GET /api/tasks
+- POST /api/tasks
+- GET /api/tasks/:id
+- PATCH /api/tasks/:id
+- PATCH /api/tasks/:id/status
+- DELETE /api/tasks/:id أو cancel
+
+Followups:
+- GET /api/followups
+- POST /api/followups
+- GET /api/followups/:id
+- PATCH /api/followups/:id
+- PATCH /api/followups/:id/status
+- DELETE /api/followups/:id أو skip/cancel
+
+Opportunities:
+- GET /api/opportunities
+- POST /api/opportunities
+- GET /api/opportunities/:id
+- PATCH /api/opportunities/:id
+- PATCH /api/opportunities/:id/stage
+- DELETE /api/opportunities/:id أو mark lost
+
+كل API يجب أن:
+- يستخدم requireSession
+- يستخدم requirePermission المناسب
+- يكون workspace-scoped
+- لا يقبل workspace_id من body/query
+- يتحقق من contact/conversation/source_message داخل نفس workspace
+- يرجع رسائل عربية
+- يسجل audit log للكتابة
+- يضيف contact_timeline event عند وجود contact_id
+
+5. Permissions
+
+استخدم:
+- tickets:read/create/update/delete/assign
+- tasks:read/create/update/delete
+- followups:read/create/update/delete
+- opportunities:read/create/update/delete
+
+إن كانت ناقصة في seed أضفها بحذر.
+
+أدوار مبدئية:
+- owner/manager: كل شيء
+- agent: create/read/update للعمليات اليومية، بدون حذف نهائي
+- accountant: read فقط غالباً
+- viewer: read فقط
+
+6. Conversation Quick Actions
+
+في Inbox / Conversation detail:
+فعّل الأزرار التي كانت disabled:
+- إنشاء تذكرة
+- إنشاء مهمة
+- إنشاء متابعة
+- إنشاء فرصة
+
+عند الضغط:
+- افتح modal مختصر
+- املأ contact_id و conversation_id تلقائياً
+- إذا اختار المستخدم رسالة محددة، استخدم source_message_id
+- بعد الإنشاء أضف timeline event
+- لا تضف Orders أو Payments الآن؛ تبقى disabled مع سبب:
+  "سيتم تفعيل الطلبات والمدفوعات في المرحلة التالية"
+
+7. Contact Profile Quick Actions
+
+في ملف العميل:
+فعّل:
+- إنشاء تذكرة
+- إنشاء مهمة
+- إنشاء متابعة
+- إنشاء فرصة
+
+واترك:
+- إنشاء طلب
+- تسجيل دفعة
+- إنشاء دين
+
+disabled مع سبب عربي:
+"سيتم تفعيل هذا الإجراء في مرحلة الطلبات والمدفوعات"
+
+8. UI Pages
+
+طوّر أو ثبّت الصفحات:
+- TicketsPage
+- TasksPage
+- FollowupsPage
+- OpportunitiesPage
+
+كل صفحة يجب أن تحتوي:
+- list/table desktop
+- cards mobile إن أمكن
+- search/filter
+- status filter
+- assigned_to filter إن أمكن
+- create modal
+- edit/status modal
+- loading state
+- empty state
+- error state
+- retry
+- permission denied
+- disabled button reason
+- Arabic RTL
+
+9. Audit + Timeline
+
+Audit actions:
+- ticket_create/update/status_change
+- task_create/update/status_change
+- followup_create/update/status_change
+- opportunity_create/update/stage_change
+
+Timeline events:
+- ticket_created
+- ticket_updated
+- ticket_status_changed
+- task_created
+- task_completed
+- followup_created
+- followup_done
+- opportunity_created
+- opportunity_stage_changed
+
+10. Dashboard counters
+
+إن كان بسيطاً وآمناً:
+حدّث dashboard summary لعرض:
+- التذاكر المفتوحة
+- المهام المستحقة اليوم
+- المتابعات المتأخرة
+- الفرص المفتوحة
+
+لا تضف analytics عميقة الآن.
+
+11. اختبارات إلزامية
+
+Typecheck:
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+- pnpm run typecheck:libs إن لزم
+
+RBAC:
+- viewer GET /api/tickets → 200
+- viewer POST /api/tickets → 403
+- agent POST /api/tickets → 201
+- viewer POST /api/tasks → 403
+- agent POST /api/tasks → 201
+- viewer POST /api/followups → 403
+- agent POST /api/followups → 201
+- viewer POST /api/opportunities → 403
+- agent POST /api/opportunities → 201
+
+Workspace isolation:
+- POST ticket/task/followup/opportunity مع workspace_id مختلف في body → يتجاهله
+- إنشاء operation على contact من workspace آخر → 404 أو 403
+- إنشاء operation على conversation من workspace آخر → 404 أو 403
+
+State machines:
+- ticket closed لا يُعاد فتحه
+- task done لا يعود pending
+- followup skipped بدون skipped_reason → 400
+- opportunity lost بدون lost_reason → 400
+- opportunity won/lost terminal
+
+Quick actions:
+- من conversation يتم إنشاء ticket/task/followup/opportunity ويرتبط بـ conversation_id و contact_id
+- من contact profile يتم إنشاء ticket/task/followup/opportunity ويرتبط بـ contact_id
+
+Audit/Timeline:
+- كل create/update/status change يسجل audit
+- كل create/status change يظهر في contact timeline
+
+UI:
+- صفحات العمليات RTL
+- أزرار Orders/Payments/Debts لا تزال disabled مع سبب عربي
+- لا نصوص إنجليزية للمستخدم
+- error states موجودة
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. الجداول/الأعمدة الجديدة أو المعدلة
+3. routes والصلاحيات
+4. نتائج typecheck
+5. نتائج RBAC
+6. نتائج workspace isolation
+7. نتائج state machines
+8. نتائج quick actions
+9. نتائج audit/timeline
+10. أي شيء لم تستطع تنفيذه ولماذا
+
+ثم توقف وانتظر الموافقة.

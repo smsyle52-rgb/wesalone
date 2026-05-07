@@ -1,0 +1,117 @@
+ممتاز. تقرير Architecture Compliance Audit كشف أن الأساس جيد، لكن لا تضف Debts الآن ولا تضف أي ميزة جديدة.
+
+نحتاج Stabilization Patch فقط لإغلاق الثغرات الحرجة. نفّذ الإصلاحات التالية فقط، ولا تبدأ Phase 2 ولا تضف AI ولا integrations ولا debts.
+
+Stabilization Patch Scope:
+
+1. Fix Register Flow
+- أصلح mismatch بين frontend وbackend.
+- إما غيّر frontend ليرسل ownerName، أو غيّر backend ليقبل name ويحوّله إلى ownerName.
+- المطلوب: register من الواجهة يعمل فعلاً.
+- بعد التسجيل يجب إنشاء:
+  user
+  workspace
+  workspace_membership
+  owner role
+  subscription trial
+  default feature_flags
+  default payment_methods
+  default exchange_rates
+
+2. Payment Audit Logs
+أضف audit logs إلزامية للأحداث التالية:
+- payment create
+- payment confirm
+- payment reject
+- user role change
+- workspace settings update
+
+قواعد:
+- payment confirm/reject = severity critical
+- audit log يجب أن يحتوي old_data و new_data
+- لا تؤكد أو ترفض دفعة بدون audit log داخل نفس transaction
+
+3. Payment Schema Stabilization
+عدّل payments لتطابق معمارية اليمن المالية:
+- أضف payment_method_id
+- أضف method_snapshot
+- أضف exchange_rate_id nullable
+- أضف exchange_rate_snapshot nullable
+- أضف base_amount_yer
+- أضف paid_at nullable إذا لزم
+- لا تعتمد على method TEXT فقط
+- عند إنشاء payment:
+  status = pending دائماً
+  method_snapshot يؤخذ من payment_methods وقت الإنشاء
+  exchange_rate_snapshot يحفظ وقت العملية
+  base_amount_yer يحسب ويحفظ
+
+4. Reject Reason Required
+- اجعل reject_reason مطلوباً عند رفض الدفع.
+- إذا كان فارغاً أرجع 400 برسالة عربية:
+  "يجب إدخال سبب رفض الدفعة"
+
+5. Audit Logs Append-only Guard
+- لا تضف update أو delete لأي audit log.
+- أضف test أو guard يمنع أي محاولة حذف أو تعديل من service layer.
+- إن أمكن، أضف DB-level protection أو علّق بوضوح كيف سيتم تنفيذها لاحقاً في Cloud SQL.
+- لا توجد أي route لتعديل أو حذف audit_logs.
+
+6. Conversations Backend Alignment
+- إذا الواجهة تدعم إنشاء محادثة أو إرسال رسالة، نفّذ endpoints المطلوبة بشكل workspace-scoped:
+  POST /api/conversations
+  POST /api/conversations/:id/messages
+- أو عطّل أزرار الإنشاء/الإرسال برسالة عربية واضحة حتى تُنفذ في Phase 2.
+- لا تترك زر إرسال يعمل ظاهرياً بدون backend صحيح.
+
+7. UI Error and Permission States
+لكل الصفحات التي بنيتها:
+- استخدم isError أو equivalent لعرض error state عربي.
+- أضف زر "إعادة المحاولة".
+- أضف permission denied state واضح عند غياب الصلاحية.
+- أي زر disabled يجب أن يكون له سبب عربي واضح أو title/tooltip.
+- لا تضف صفحات جديدة.
+
+8. Dev Seed Safety
+- الحساب ahmed@test.com / password123 يجب أن يكون dev-only.
+- لا تذكره داخل production UI.
+- لا تعتمد عليه في auth logic.
+- أضف تعليق واضح أو آلية seed في dev فقط.
+
+9. Migrations / DB Safety
+- لا تستخدم destructive migrations.
+- اعرض ما إذا كان بإمكانك توليد migration files بدل الاعتماد فقط على drizzle push.
+- إن لم تنشئ migration files الآن، وثّق أن هذا مؤقت للتطوير وأن الإنتاج يحتاج drizzle migrations قبل Cloud SQL.
+
+10. Smoke Tests / Verification
+بعد الإصلاحات شغّل:
+- pnpm run typecheck للـ api-server
+- pnpm run typecheck للـ web
+- register من الواجهة
+- login
+- /api/auth/me
+- agent لا يستطيع payment confirm
+- owner أو accountant يستطيع confirm
+- payment confirm ينشئ audit log
+- payment reject بدون reject_reason يفشل
+- workspace_id في body لا يؤثر
+- feature flags الخارجية لا تزال false
+
+ممنوع:
+- لا تضف Debts.
+- لا تضف AI.
+- لا تضف integrations.
+- لا تضف channels جديدة.
+- لا تبدأ Phase 2.
+- لا تحذف ملفات.
+- لا تضف fake production data.
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. الجداول أو الأعمدة التي أُضيفت
+3. أي migrations أو drizzle changes
+4. نتائج typecheck
+5. نتائج اختبارات register/login/me
+6. نتيجة اختبار payment confirm/reject audit
+7. أي شيء لم تستطع إصلاحه ولماذا
+ثم توقف وانتظر الموافقة.

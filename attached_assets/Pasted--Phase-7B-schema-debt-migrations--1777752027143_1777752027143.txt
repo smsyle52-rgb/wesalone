@@ -1,0 +1,129 @@
+ممتاز. نوافق على Phase 7B ونعتبرها مغلقة رسمياً.
+
+لا تطبق schema debt migrations مباشرة الآن.
+لا تشغّل migration على production.
+لا تعمل reset.
+لا تحذف بيانات.
+لا تضف features جديدة.
+
+ابدأ Phase 7C فقط:
+Schema Debt Review & Safe Migration Plan.
+
+الهدف:
+مراجعة الديون التالية وإعداد migration plan آمن قابل للمراجعة، بدون تطبيقه على production:
+
+1. report_definitions.is_archived text → boolean
+2. team_id text → uuid FK في tickets و conversations
+
+Scope:
+
+1. افحص البيانات الحالية
+
+افحص:
+- report_definitions.is_archived values
+- هل القيم فقط 'true'/'false'
+- هل توجد nulls أو قيم غريبة
+
+افحص:
+- tickets.team_id
+- conversations.team_id
+- هل القيم null؟
+- هل القيم UUID صالحة؟
+- هل تشير إلى teams.id موجودة؟
+- هل توجد orphan values؟
+- هل توجد قيم نصية غير UUID؟
+
+2. is_archived migration plan
+
+إن كانت القيم آمنة:
+اقترح SQL مثل:
+ALTER TABLE report_definitions
+ALTER COLUMN is_archived TYPE boolean
+USING (is_archived = 'true');
+
+ثم:
+ALTER TABLE report_definitions
+ALTER COLUMN is_archived SET DEFAULT false;
+
+لكن لا تطبقه إلا بعد عرض الخطة.
+
+3. team_id migration plan
+
+لا تفترض أن التحويل آمن.
+
+المطلوب:
+- تقرير عن عدد السجلات التي فيها team_id
+- عدد null
+- عدد valid UUID
+- عدد invalid UUID
+- عدد orphan team_id لا يطابق teams.id
+
+إذا كل القيم آمنة:
+اقترح migration:
+- ALTER COLUMN TYPE uuid USING team_id::uuid
+- ADD FK إلى teams(id)
+- nullable يبقى nullable إذا كان هذا التصميم الحالي
+
+إذا توجد قيم غير صالحة:
+لا تطبق migration.
+اقترح cleanup strategy:
+- set invalid team_id to null
+- أو mapping يدوي
+- أو migration منفصلة بعد موافقة
+
+4. Generate reviewed migration فقط إذا كان آمناً
+
+إذا كانت البيانات الحالية آمنة:
+- أنشئ migration SQL منفصل لكل دين أو migration واحد واضح
+- لا يحتوي DROP
+- لا يحذف بيانات
+- لا يحدث mass update خطير بدون شرح
+
+إذا ليست آمنة:
+- لا تولّد migration تطبيقي
+- اكتب report فقط
+
+5. Tests
+
+شغّل:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+إذا ولدت migration:
+- اعرض اسم الملف
+- اعرض SQL
+- أكد عدم وجود destructive SQL
+- لا تشغله على production
+- إذا شغلته، فقط على dev/staging الحالي بعد موافقة صريحة، وليس الآن
+
+6. Documentation
+
+حدّث replit.md:
+- وضع كل schema debt
+- هل جاهز للترحيل؟
+- هل يحتاج cleanup؟
+- خطوات تطبيقه على staging
+- rollback notes
+
+ممنوع:
+- لا تضف features
+- لا تغير UX
+- لا تغير business logic
+- لا تمس payments/debts/AI
+- لا reset
+- لا destructive migration
+- لا production migrate
+
+بعد التنفيذ أعطني:
+1. نتائج فحص is_archived values
+2. نتائج فحص tickets.team_id
+3. نتائج فحص conversations.team_id
+4. هل migration آمن أم يحتاج cleanup
+5. migration SQL المقترح إن وُجد
+6. هل يوجد destructive SQL
+7. نتائج typecheck
+8. تحديثات replit.md
+9. توصيتك: نطبق على staging أم نؤجل؟
+
+ثم توقف وانتظر الموافقة.

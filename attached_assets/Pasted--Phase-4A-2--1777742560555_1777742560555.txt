@@ -1,0 +1,78 @@
+ممتاز. تقرير Phase 4A.2 قوي جداً، لكن لا نغلق المرحلة رسمياً قبل إغلاق المخاطرة المتبقية التي ذكرتها أنت:
+
+"لا يوجد حالياً فلتر server-side في POST /payments يمنع استخدام طريقة دفع معطّلة"
+
+هذا ليس feature جديدة؛ هذا Financial Integrity Patch صغير.
+
+نفّذ فقط:
+Phase 4A.2.1 — Block Deactivated Payment Methods
+
+Scope:
+
+1. Backend enforcement في POST /api/payments
+
+عند إنشاء payment:
+- إذا payment_method_id موجود:
+  - اجلب payment method داخل نفس workspace
+  - إذا غير موجود → 400 أو 404 برسالة عربية:
+    "طريقة الدفع غير موجودة"
+  - إذا is_active = false → 422 برسالة عربية:
+    "طريقة الدفع معطّلة ولا يمكن استخدامها لتسجيل دفعة جديدة"
+  - احفظ method_snapshot كالمعتاد
+
+2. PATCH /api/payments/:id
+
+إذا كان تعديل payment pending يسمح بتغيير payment_method_id:
+- طبّق نفس الفحص:
+  - method يجب أن تكون داخل نفس workspace
+  - method يجب أن تكون active
+- لا تسمح بتغيير method في دفعة confirmed/rejected كما هو معمول حالياً
+
+3. لا تغيّر المدفوعات القديمة
+
+إذا كانت هناك payment قديمة تستخدم method تم تعطيلها لاحقاً:
+- تبقى كما هي
+- method_snapshot يبقى محفوظاً
+- GET /payments يعرضها بشكل طبيعي
+- confirm/reject يعملان حسب حالة الدفعة، لأن snapshot محفوظ
+- المنع فقط على إنشاء/تعديل دفعة جديدة لاستخدام method معطّلة
+
+4. Tests
+
+Typecheck:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+اختبارات إلزامية:
+- POST /api/payments باستخدام payment_method_id نشط → 201
+- deactivate payment method
+- POST /api/payments باستخدام نفس payment_method_id المعطّل → 422
+- الرسالة العربية:
+  "طريقة الدفع معطّلة ولا يمكن استخدامها لتسجيل دفعة جديدة"
+- PATCH payment pending لتغييرها إلى method معطّلة → 422
+- payment قديمة تستخدم method أصبحت معطّلة لاحقاً تبقى قابلة للعرض
+- confirm payment قديمة pending تستخدم snapshot لطريقة معطّلة لاحقاً → حسب التصميم الحالي، يجب أن يعمل لأن الحظر على الإنشاء/التعديل فقط
+- workspace isolation: method من workspace آخر → 404 أو 400
+
+ممنوع:
+- لا تضف Debts
+- لا تضف Collection
+- لا تضف Settings UI جديدة
+- لا تضف Payment Gateway
+- لا تضف Kuraimi/Jawali API
+- لا تضف AI
+- لا تضف Automation
+- لا تضف Integrations
+- لا تضف أي feature جديدة
+
+بعد التنفيذ أعطني:
+1. الملفات التي تغيرت
+2. نتائج typecheck
+3. نتائج اختبار POST مع method نشطة
+4. نتائج اختبار POST مع method معطّلة
+5. نتائج اختبار PATCH مع method معطّلة
+6. نتائج اختبار payment قديمة بعد تعطيل method
+7. أي مخاطر متبقية
+
+ثم توقف وانتظر الموافقة.

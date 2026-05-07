@@ -1,0 +1,86 @@
+الخطة المعمارية الآن مقبولة كمنظومة كاملة لخدماتك Gabster Functional Parity - Yemen Edition.
+
+قبل كتابة أي كود، أضف ملحق تنفيذي قصير فقط، بدون كود، يحتوي على:
+
+1. State machines لكل الحالات:
+   - conversations
+   - tickets
+   - tasks
+   - followups
+   - opportunities
+   - orders
+   - payments
+   - debts
+   - approval_requests
+   - workflows
+   - ai_runs
+   - subscriptions
+
+2. Index strategy لكل الجداول الكبيرة:
+   - conversations
+   - messages
+   - contacts
+   - tickets
+   - tasks
+   - orders
+   - payments
+   - debts
+   - ai_runs
+   - metrics_events
+   - audit_logs
+
+3. API contract template:
+   لكل endpoint يجب تحديد:
+   - route
+   - method
+   - request schema
+   - response schema
+   - required permission
+   - audit log required or not
+   - workspace scoped or not
+   - possible errors
+
+4. UI completion rules:
+   كل شاشة يجب أن تحتوي:
+   - empty state
+   - loading state
+   - error state
+   - permission denied state
+   - mobile layout
+   - desktop layout
+   - primary action
+   - disabled buttons with Arabic reasons
+
+5. Seed data plan:
+   - system roles
+   - permissions
+   - default channels
+   - default payment methods for Yemen
+   - default currencies
+   - default plans
+   - default workflow templates
+   - default report definitions
+
+6. External integrations safety:
+   - Meta live integration disabled
+   - WhatsApp API disabled until Meta approved
+   - payment providers disabled
+   - AI auto-send disabled
+   - voice providers disabled
+   - outbound webhooks disabled by default
+
+7. Definition of Done for Phase 1:
+   - no TypeScript errors
+   - auth works
+   - workspace creation works
+   - RBAC works
+   - audit logs work
+   - Arabic RTL layout works
+   - mobile navigation works
+   - all protected routes require session
+   - no operational API accepts workspace_id from body
+   - all operational queries are workspace-scoped
+   - no fake production data
+   - no external integration enabled
+
+After this addendum, wait for approval. Do not code yet.

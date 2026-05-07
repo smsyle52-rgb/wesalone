@@ -1,0 +1,128 @@
+ممتاز. نوافق على Phase 9B ونعتبرها مغلقة رسمياً.
+
+لا تنشئ Dockerfile الآن.
+لا تبدأ Cloud Run الآن.
+لا تضف features جديدة.
+لا تضف integrations.
+لا تضف email provider.
+لا تضف payment gateway.
+لا تضف WhatsApp API.
+لا تغيّر business logic.
+لا تغيّر schema.
+لا تشغّل migrate على production.
+
+الآن ابدأ Phase 9C فقط:
+Replit Staging Deployment Execution.
+
+الهدف:
+تنفيذ أو تجهيز نشر staging على Replit باستخدام المسار الجاهز في artifact.toml و DEPLOYMENT_STAGING.md.
+
+Scope:
+
+1. Pre-Deployment Checklist
+
+تحقق أن هذه الملفات موجودة وصحيحة:
+- artifact.toml
+- DEPLOYMENT_STAGING.md
+- scripts/staging-smoke-test.sh
+- artifacts/api-server/dist/index.mjs بعد build
+- artifacts/web/dist/public بعد build
+- lib/db/drizzle migrations
+
+2. Secrets Checklist
+
+لا تطبع أي secret.
+لا تكتب أي secret في repo.
+لا تضع أي secret في replit.md.
+
+أعطني قائمة فقط بالأسماء المطلوبة:
+
+Required:
+- DATABASE_URL
+- SESSION_SECRET
+- NODE_ENV
+- PORT
+- ALLOWED_ORIGINS
+
+Optional:
+- GEMINI_API_KEY
+- STORAGE_PROVIDER
+- GCS_BUCKET
+- LOG_LEVEL
+
+قواعد:
+- SESSION_SECRET لا يقل عن 32 حرفاً.
+- NODE_ENV = production في Replit deployment.
+- PORT = 8080 أو حسب Replit deployment.
+- ALLOWED_ORIGINS يجب أن يكون domain الـ staging، وليس wildcard.
+
+3. Database Safety
+
+قبل تشغيل migrations:
+- تأكد أن DATABASE_URL يشير إلى staging DB وليس dev وليس production.
+- لا تشغّل migrate إذا لم يكن واضحاً أنها قاعدة staging.
+- لا تستخدم db:push.
+- لا تستخدم reset.
+- لا تستخدم force.
+
+إذا كانت قاعدة staging فارغة:
+- شغّل:
+  pnpm --filter @workspace/db run migrate
+- يجب أن يطبق 0000 + 0001.
+
+إذا كانت القاعدة غير فارغة:
+- اعرض حالة __drizzle_migrations أولاً.
+- لا تطبق شيئاً حتى توضح الحالة.
+
+4. Build Verification
+
+شغّل:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+- pnpm --filter @workspace/api-server run build
+- pnpm --filter @workspace/web run build
+
+5. Deployment Readiness
+
+تحقق من:
+- API start path واضح
+- frontend dist موجود
+- Replit deployment config صحيح
+- SERVE_STATIC غير مطلوب في Replit deployment إذا Replit CDN يخدم frontend
+- healthz/readyz يعملان بعد التشغيل
+
+6. Smoke Tests
+
+بعد توفر staging URL فقط، شغّل:
+
+BASE_URL=https://<staging-domain> bash scripts/staging-smoke-test.sh
+
+إذا لا يوجد staging URL بعد:
+- لا تخترع URL.
+- قل بوضوح إن smoke test الخارجي ينتظر domain.
+- شغّل smoke محلياً فقط إن أمكن.
+
+7. Report Back
+
+أعطني:
+1. هل artifact.toml موجود وصحيح؟
+2. أسماء الـ secrets المطلوبة فقط، بدون قيم.
+3. هل DATABASE_URL يشير إلى staging أم غير متوفر؟
+4. هل migrations جاهزة؟ وهل تم تشغيلها أم لا؟ ولماذا؟
+5. نتائج typecheck.
+6. نتائج build.
+7. هل deployment يمكن تنفيذه الآن من Replit UI؟
+8. هل يوجد staging URL؟
+9. نتائج smoke test إن توفر URL.
+10. أي blockers قبل الضغط على Deploy.
+
+ممنوع:
+- لا Dockerfile.
+- لا Cloud Run الآن.
+- لا features.
+- لا secrets في الرسائل.
+- لا db:push.
+- لا migrate إلا على staging DB مؤكدة.
+
+بعد التقرير توقف وانتظر الموافقة.

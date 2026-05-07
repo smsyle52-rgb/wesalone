@@ -1,0 +1,245 @@
+ممتاز. لا تضف bulk mark as overdue الآن.
+لا تضف scheduled check.
+لا تضف Automation.
+لا تضف AI.
+لا تضف Gemini.
+لا تضف Integrations.
+لا تضف أي ميزة جديدة.
+
+قبل قبول Phase 4B وإغلاقها رسمياً، نحتاج Phase 4B Closure Verification Report كامل بالأدلة والاختبارات.
+
+المطلوب:
+
+1. Changed Files
+اعرض كل الملفات التي تغيّرت:
+- db schema
+- debts routes
+- dashboard routes
+- ContactProfilePage
+- DebtsPage
+- Layout/navigation
+- timeline utils/icons
+- seed/permissions
+- أي ملفات أخرى
+
+2. Database Changes
+اعرض الجداول والأعمدة الفعلية:
+
+debts:
+- id
+- workspace_id
+- contact_id
+- order_id
+- source_payment_id
+- amount
+- currency
+- remaining_amount
+- status
+- due_at
+- description
+- notes
+- created_by
+- assigned_membership_id
+- paid_at
+- written_off_at
+- cancelled_at
+- cancel_reason
+- write_off_reason
+- created_at
+- updated_at
+
+collection_notes:
+- id
+- workspace_id
+- debt_id
+- contact_id
+- author_id
+- note
+- promised_payment_date
+- promised_amount
+- created_at
+
+3. Routes + Permissions
+اعرض كل routes والصلاحية المطلوبة لها:
+
+Debts:
+- GET /api/debts
+- POST /api/debts
+- GET /api/debts/:id
+- PATCH /api/debts/:id
+- PATCH /api/debts/:id/status
+- DELETE /api/debts/:id أو cancel حسب التصميم
+
+Collection Notes:
+- GET /api/debts/:id/notes
+- POST /api/debts/:id/notes
+- PATCH /api/debts/:id/notes/:noteId
+- DELETE /api/debts/:id/notes/:noteId
+
+Dashboard:
+- GET /api/dashboard/summary
+
+4. Typecheck
+اعرض النتائج:
+- pnpm run typecheck:libs
+- pnpm --filter @workspace/api-server run typecheck
+- pnpm --filter @workspace/web run typecheck
+
+5. RBAC Tests
+اختبر واعرض status code والرسائل العربية:
+
+- viewer GET /api/debts → 200
+- viewer POST /api/debts → 403
+- agent POST /api/debts → حسب seed، اذكر النتيجة
+- accountant POST /api/debts → 201 إذا seed يسمح
+- viewer PATCH /api/debts/:id/status → 403
+- accountant PATCH /api/debts/:id/status → حسب seed
+- agent POST /api/debts/:id/notes → حسب seed
+- viewer POST /api/debts/:id/notes → 403
+- viewer DELETE /api/debts/:id/notes/:noteId → 403
+
+6. Workspace Isolation
+اختبر:
+- POST debt مع workspace_id مختلف في body → يتم تجاهله
+- debt على contact من workspace آخر → 404 أو 403
+- debt على order من workspace آخر → 404 أو 403
+- note على debt من workspace آخر → 404 أو 403
+- GET debt من workspace آخر → 404 أو 403
+
+7. State Machine Tests
+اختبر:
+
+- open → partial ✅
+- partial → paid ✅
+- open → overdue ✅
+- overdue → paid ✅
+- open → written_off بدون write_off_reason → 400
+- open → written_off مع write_off_reason ✅
+- open → cancelled بدون cancel_reason → 400
+- open → cancelled مع cancel_reason ✅
+- paid → open يجب أن يفشل
+- written_off → open يجب أن يفشل
+- cancelled → open يجب أن يفشل
+- remaining_amount لا يصبح أقل من 0
+
+8. Order Integration
+اختبر:
+- order remaining > 0 → create debt works
+- paid order → create debt disabled في UI أو API يمنعها
+- cancelled order → create debt disabled أو API يمنعها
+- returned order → create debt disabled أو API يمنعها
+- debt يرتبط بـ order_id و contact_id بشكل صحيح
+- debt لا يغير order.paid_amount مباشرة
+
+9. Payment Integration Safety
+أكد:
+- confirm payment لا يغير debts تلقائياً، إن كان هذا قرار التصميم الحالي
+- لا توجد debt settlement automation
+- لا توجد scheduled jobs
+- لا يوجد bulk overdue action
+- لا يوجد AI/automation logic
+
+10. Validation Tests
+اختبر:
+- amount <= 0 → 400
+- remaining_amount > amount → 400
+- remaining_amount < 0 → 400
+- currency غير YER/SAR/USD → 400
+- contact_id مفقود → 400 أو حسب التصميم، اذكره
+- write_off_reason spaces only → 400
+- cancel_reason spaces only → 400
+- collection note فارغة → 400
+- promised_amount < 0 → 400
+
+11. Audit + Timeline
+اعرض أمثلة فعلية:
+
+Audit:
+- debt_create
+- debt_update
+- debt_status_change
+- debt_cancel
+- debt_write_off
+- collection_note_create
+- collection_note_update
+- collection_note_delete
+
+Timeline:
+- debt_created
+- debt_updated
+- debt_status_changed
+- debt_cancelled
+- debt_written_off
+- collection_note_added
+- debt_paid
+
+12. Dashboard Counters
+اعرض نتيجة /api/dashboard/summary بعد التعديل:
+- openDebtsCount
+- openDebtsAmount
+- overdueDebtsCount
+- overdueDebtsAmount
+
+وتحقق أنها workspace-scoped.
+
+13. UI Verification
+DebtsPage:
+- RTL
+- loading state
+- empty state
+- error state
+- retry
+- permission denied
+- filters: status / overdue / assigned / search
+- aging buckets
+- create debt modal
+- status change modal
+- collection notes UI
+- no English text for end users
+
+ContactProfilePage:
+- تبويب "الديون والتحصيل" يعمل
+- إجمالي الديون المفتوحة
+- إجمالي المتبقي
+- الديون المتأخرة
+- إضافة ملاحظة تحصيل
+- إنشاء دين يدوي حسب الصلاحية
+
+Navigation:
+- عنصر "الديون والتحصيل" موجود في القائمة
+- محمي بالصلاحيات المناسبة
+
+14. External / Automation Safety
+أكد:
+- لا يوجد scheduled check
+- لا يوجد cron
+- لا يوجد Cloud Tasks
+- لا يوجد Automation
+- لا يوجد AI
+- لا يوجد Gateway
+- لا يوجد API خارجي
+- كل شيء يدوي فقط
+
+15. Remaining Risks
+اذكر بصراحة:
+- هل توجد routes بدون requirePermission؟
+- هل يوجد workspaceId يُقرأ من body؟
+- هل توجد debts بلا contact_id؟
+- هل يمكن شطب دين بدون سبب؟
+- هل يمكن إلغاء دين بدون سبب؟
+- هل يمكن remaining_amount يتجاوز amount؟
+- هل يمكن debt يغير order.paid_amount؟
+- هل يوجد mock data في production path؟
+- هل يوجد أي scheduled overdue logic أُضيف بالخطأ؟
+
+ممنوع:
+- لا تضف bulk mark as overdue
+- لا تضف scheduled check
+- لا تضف Automation
+- لا تضف AI
+- لا تضف Gemini
+- لا تضف Integrations
+- لا تضف Payment Gateway
+- لا تضف أي feature جديدة
+
+بعد التقرير توقف وانتظر الموافقة.
