@@ -17,28 +17,34 @@ const apiFetch = async (path: string, opts?: RequestInit) => {
 
 type Tab = "workspace" | "security" | "users" | "invite" | "payment-methods" | "exchange-rates";
 
-function PasswordInput({ label, value, onChange, placeholder }: {
+function PasswordInput({ id, name, label, value, onChange, placeholder, autoComplete = "new-password" }: {
+  id: string;
+  name: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  autoComplete?: string;
 }) {
   const [show, setShow] = useState(false);
   return (
     <div>
-      <label className="block text-sm font-medium mb-1">{label}</label>
+      <label htmlFor={id} className="block text-sm font-medium mb-1">{label}</label>
       <div className="relative">
         <input
+          id={id}
+          name={name}
           type={show ? "text" : "password"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          autoComplete="new-password"
+          autoComplete={autoComplete}
           className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 pe-10"
         />
         <button
           type="button"
           onClick={() => setShow(!show)}
+          aria-label={show ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
           className="absolute inset-y-0 end-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
           tabIndex={-1}
         >
@@ -107,9 +113,11 @@ function WorkspaceTab() {
       )}
       <div className="bg-card rounded-xl border border-border p-5 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-muted-foreground mb-1">اسم المنشأة / مساحة العمل</label>
+          <label htmlFor="workspace-name" className="block text-sm font-medium text-muted-foreground mb-1">اسم المنشأة / مساحة العمل</label>
           {editing ? (
             <input
+              id="workspace-name"
+              name="workspaceName"
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") handleCancel(); }}
@@ -254,18 +262,25 @@ function SecurityTab() {
       <div className="bg-card rounded-xl border border-border p-5 space-y-4">
         <h3 className="text-sm font-semibold text-foreground">تغيير كلمة المرور</h3>
         <PasswordInput
+          id="current-password"
+          name="currentPassword"
           label="كلمة المرور الحالية"
           value={form.currentPassword}
           onChange={set("currentPassword")}
           placeholder="أدخل كلمة المرور الحالية"
+          autoComplete="current-password"
         />
         <PasswordInput
+          id="new-password"
+          name="newPassword"
           label="كلمة المرور الجديدة"
           value={form.newPassword}
           onChange={set("newPassword")}
           placeholder="8 أحرف على الأقل"
         />
         <PasswordInput
+          id="confirm-password"
+          name="confirmPassword"
           label="تأكيد كلمة المرور الجديدة"
           value={form.confirmPassword}
           onChange={set("confirmPassword")}
@@ -395,26 +410,26 @@ export default function SettingsPage() {
               )}
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">الاسم</label>
-                  <input value={inviteForm.name} onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                  <label htmlFor="invite-name" className="block text-sm font-medium mb-1">الاسم</label>
+                  <input id="invite-name" name="inviteName" value={inviteForm.name} onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                     placeholder="اسم الموظف" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">البريد الإلكتروني</label>
-                  <input type="email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                  <label htmlFor="invite-email" className="block text-sm font-medium mb-1">البريد الإلكتروني</label>
+                  <input id="invite-email" name="inviteEmail" type="email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                     placeholder="employee@company.com" dir="ltr" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">كلمة المرور</label>
-                  <input type="password" value={inviteForm.password} onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
+                  <label htmlFor="invite-password" className="block text-sm font-medium mb-1">كلمة المرور</label>
+                  <input id="invite-password" name="invitePassword" type="password" value={inviteForm.password} onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                     placeholder="8 أحرف على الأقل" minLength={8} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">الدور</label>
-                  <select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                  <label htmlFor="invite-role" className="block text-sm font-medium mb-1">الدور</label>
+                  <select id="invite-role" name="inviteRole" value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                     <option value="agent">موظف خدمة</option>
                     <option value="accountant">محاسب</option>

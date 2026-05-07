@@ -151,8 +151,8 @@ export function ExchangeRatesTab() {
       {/* Header + filter */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">تصفية:</span>
-          <select value={filterCurrency} onChange={e => setFilterCurrency(e.target.value as any)}
+          <label htmlFor="exchange-rate-filter-currency" className="text-sm text-muted-foreground">تصفية:</label>
+          <select id="exchange-rate-filter-currency" name="exchangeRateFilterCurrency" value={filterCurrency} onChange={e => setFilterCurrency(e.target.value as any)}
             className="text-sm px-2 py-1 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
             <option value="">الكل</option>
             <option value="SAR">SAR</option>
@@ -255,32 +255,38 @@ function RateForm({ form, setForm, showCurrency }: {
   setForm: (f: any) => void;
   showCurrency: boolean;
 }) {
+  const idPrefix = showCurrency ? "exchange-rate-add" : "exchange-rate-edit";
+
   return (
     <div className="space-y-3">
       {showCurrency && (
         <div>
-          <label className="block text-sm font-medium mb-1">العملة المصدر</label>
-          <select value={form.fromCurrency} onChange={e => setForm({ ...form, fromCurrency: e.target.value as any })}
+          <label htmlFor={`${idPrefix}-from-currency`} className="block text-sm font-medium mb-1">العملة المصدر</label>
+          <select id={`${idPrefix}-from-currency`} name="fromCurrency" value={form.fromCurrency} onChange={e => setForm({ ...form, fromCurrency: e.target.value as any })}
             className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             {CURRENCIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </div>
       )}
       <div>
-        <label className="block text-sm font-medium mb-1">
+        <label htmlFor={`${idPrefix}-rate`} className="block text-sm font-medium mb-1">
           سعر الصرف <span className="text-muted-foreground text-xs font-normal">(كم ريال يمني لكل وحدة)</span>
         </label>
         <input
+          id={`${idPrefix}-rate`}
+          name="rate"
           type="number" min="0.0001" step="any" value={form.rate}
           onChange={e => setForm({ ...form, rate: e.target.value })}
           className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           placeholder="مثال: 530.5" dir="ltr" />
       </div>
       <div>
-        <label className="block text-sm font-medium mb-1">
+        <label htmlFor={`${idPrefix}-effective-at`} className="block text-sm font-medium mb-1">
           تاريخ التفعيل <span className="text-muted-foreground text-xs font-normal">(اختياري — افتراضي: الآن)</span>
         </label>
         <input
+          id={`${idPrefix}-effective-at`}
+          name="effectiveAt"
           type="datetime-local" value={form.effectiveAt}
           onChange={e => setForm({ ...form, effectiveAt: e.target.value })}
           className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" dir="ltr" />

@@ -249,7 +249,7 @@ export default function PaymentsPage() {
               + تسجيل دفعة
             </button>
           ) : (
-            <button disabled className="px-4 py-2 rounded-lg bg-primary/40 text-primary-foreground text-sm font-semibold cursor-not-allowed opacity-50">
+            <button disabled title="ليس لديك صلاحية تسجيل دفعة" className="px-4 py-2 rounded-lg bg-primary/40 text-primary-foreground text-sm font-semibold cursor-not-allowed opacity-50">
               + تسجيل دفعة
             </button>
           )
@@ -301,12 +301,12 @@ export default function PaymentsPage() {
                 </button>
               ))}
             </div>
-            <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}
+            <select id="payments-method-filter" name="paymentsMethodFilter" aria-label="تصفية المدفوعات حسب طريقة الدفع" value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}
               className="px-3 py-1.5 rounded-lg border border-input bg-background text-xs focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="">كل الطرق</option>
               {payMethods.map((m: any) => <option key={m.id} value={m.slug}>{m.labelAr}</option>)}
             </select>
-            <select value={currencyFilter} onChange={(e) => setCurrencyFilter(e.target.value)}
+            <select id="payments-currency-filter" name="paymentsCurrencyFilter" aria-label="تصفية المدفوعات حسب العملة" value={currencyFilter} onChange={(e) => setCurrencyFilter(e.target.value)}
               className="px-3 py-1.5 rounded-lg border border-input bg-background text-xs focus:outline-none focus:ring-2 focus:ring-primary/30">
               {CURRENCIES.map((c) => <option key={c} value={c}>{c === "" ? "كل العملات" : c}</option>)}
             </select>
@@ -333,14 +333,14 @@ export default function PaymentsPage() {
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium mb-1">المبلغ *</label>
-              <input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              <label htmlFor="payment-amount" className="block text-xs font-medium mb-1">المبلغ *</label>
+              <input id="payment-amount" name="amount" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 placeholder="0" dir="ltr" />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">العملة</label>
-              <select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}
+              <label htmlFor="payment-currency" className="block text-xs font-medium mb-1">العملة</label>
+              <select id="payment-currency" name="currency" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}
                 className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                 <option value="YER">ريال يمني</option>
                 <option value="USD">دولار</option>
@@ -358,10 +358,10 @@ export default function PaymentsPage() {
           )}
 
           <div>
-            <label className="block text-xs font-medium mb-1">طريقة الدفع *</label>
-            <div className="grid grid-cols-3 gap-1.5">
+            <span id="payment-method-label" className="block text-xs font-medium mb-1">طريقة الدفع *</span>
+            <div className="grid grid-cols-3 gap-1.5" role="group" aria-labelledby="payment-method-label">
               {payMethods.map((m: any) => (
-                <button key={m.id} onClick={() => setForm({ ...form, paymentMethodId: m.id })}
+                <button key={m.id} type="button" onClick={() => setForm({ ...form, paymentMethodId: m.id })}
                   className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.paymentMethodId === m.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
                   {m.labelAr}
                 </button>
@@ -370,17 +370,17 @@ export default function PaymentsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1">
+            <label htmlFor="payment-reference" className="block text-xs font-medium mb-1">
               رقم الحوالة / المرجع {selectedMethodRequiresRef && <span className="text-destructive">*</span>}
             </label>
-            <input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })}
+            <input id="payment-reference" name="reference" value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })}
               className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               placeholder="اختياري..." dir="ltr" />
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1">ربط بطلب</label>
-            <select value={form.orderId} onChange={(e) => setForm({ ...form, orderId: e.target.value })}
+            <label htmlFor="payment-order" className="block text-xs font-medium mb-1">ربط بطلب</label>
+            <select id="payment-order" name="orderId" value={form.orderId} onChange={(e) => setForm({ ...form, orderId: e.target.value })}
               className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="">بدون طلب</option>
               {(orders?.orders ?? []).map((o: any) => (
@@ -390,8 +390,8 @@ export default function PaymentsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1">العميل</label>
-            <select value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })}
+            <label htmlFor="payment-contact" className="block text-xs font-medium mb-1">العميل</label>
+            <select id="payment-contact" name="contactId" value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })}
               className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="">بدون عميل</option>
               {contacts?.contacts?.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -399,14 +399,14 @@ export default function PaymentsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1">تاريخ الدفع</label>
-            <input type="datetime-local" value={form.paidAt} onChange={(e) => setForm({ ...form, paidAt: e.target.value })}
+            <label htmlFor="payment-paid-at" className="block text-xs font-medium mb-1">تاريخ الدفع</label>
+            <input id="payment-paid-at" name="paidAt" type="datetime-local" value={form.paidAt} onChange={(e) => setForm({ ...form, paidAt: e.target.value })}
               className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" dir="ltr" />
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1">ملاحظات</label>
-            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            <label htmlFor="payment-notes" className="block text-xs font-medium mb-1">ملاحظات</label>
+            <textarea id="payment-notes" name="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
               className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
               rows={2} placeholder="ملاحظات إضافية..." />
           </div>
@@ -468,8 +468,8 @@ export default function PaymentsPage() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium mb-1">سبب الرفض <span className="text-destructive">*</span></label>
-            <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+            <label htmlFor="payment-reject-reason" className="block text-sm font-medium mb-1">سبب الرفض <span className="text-destructive">*</span></label>
+            <textarea id="payment-reject-reason" name="rejectReason" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
               rows={3} placeholder="أدخل سبب الرفض بوضوح..." />
             {!rejectReason.trim() && rejectReason.length > 0 && (
