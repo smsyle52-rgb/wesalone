@@ -321,6 +321,8 @@ export default function BusinessSetupPage() {
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-foreground">اسم النشاط</span>
                 <input
+                  id="business-profile-name"
+                  name="businessName"
                   value={profile.businessName}
                   onChange={(e) => setProfile({ ...profile, businessName: e.target.value })}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
@@ -330,6 +332,8 @@ export default function BusinessSetupPage() {
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-foreground">مناطق الخدمة</span>
                 <input
+                  id="business-profile-service-areas"
+                  name="serviceAreas"
                   value={profile.serviceAreas}
                   onChange={(e) => setProfile({ ...profile, serviceAreas: e.target.value })}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
@@ -339,6 +343,8 @@ export default function BusinessSetupPage() {
               <label className="space-y-1 text-sm md:col-span-2">
                 <span className="font-medium text-foreground">وصف مختصر: ماذا تقدم؟</span>
                 <textarea
+                  id="business-profile-description"
+                  name="description"
                   value={profile.description}
                   onChange={(e) => setProfile({ ...profile, description: e.target.value })}
                   rows={3}
@@ -349,6 +355,8 @@ export default function BusinessSetupPage() {
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-foreground">طرق الدفع التي تقبلها</span>
                 <textarea
+                  id="business-profile-payment-methods"
+                  name="paymentMethods"
                   value={profile.paymentMethods}
                   onChange={(e) => setProfile({ ...profile, paymentMethods: e.target.value })}
                   rows={3}
@@ -359,6 +367,8 @@ export default function BusinessSetupPage() {
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-foreground">طريقة التسليم أو تقديم الخدمة</span>
                 <textarea
+                  id="business-profile-delivery-method"
+                  name="deliveryMethod"
                   value={profile.deliveryMethod}
                   onChange={(e) => setProfile({ ...profile, deliveryMethod: e.target.value })}
                   rows={3}
@@ -369,6 +379,8 @@ export default function BusinessSetupPage() {
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-foreground">سياسة الاسترجاع أو الإلغاء</span>
                 <textarea
+                  id="business-profile-refund-policy"
+                  name="refundPolicy"
                   value={profile.refundPolicy}
                   onChange={(e) => setProfile({ ...profile, refundPolicy: e.target.value })}
                   rows={3}
@@ -379,6 +391,8 @@ export default function BusinessSetupPage() {
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-foreground">نبرة الرد</span>
                 <select
+                  id="business-profile-tone"
+                  name="tone"
                   value={profile.tone}
                   onChange={(e) => setProfile({ ...profile, tone: e.target.value })}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
@@ -392,6 +406,8 @@ export default function BusinessSetupPage() {
               <label className="space-y-1 text-sm md:col-span-2">
                 <span className="font-medium text-foreground">أكثر 5 أسئلة تتكرر</span>
                 <textarea
+                  id="business-profile-common-questions"
+                  name="commonQuestions"
                   value={profile.commonQuestions}
                   onChange={(e) => setProfile({ ...profile, commonQuestions: e.target.value })}
                   rows={5}
@@ -463,6 +479,8 @@ export default function BusinessSetupPage() {
             <label className="space-y-1 text-sm">
               <span className="font-medium text-foreground">سؤال تجريبي</span>
               <textarea
+                id="assistant-playground-question"
+                name="question"
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 rows={5}
