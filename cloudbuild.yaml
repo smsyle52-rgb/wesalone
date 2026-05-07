@@ -5,6 +5,9 @@ substitutions:
   _IMAGE: app
   _CLOUDSQL_INSTANCE: khadamatk-auth:us-central1:khadamatak-prod
 
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 steps:
   - id: build-image
     name: gcr.io/cloud-builders/docker
