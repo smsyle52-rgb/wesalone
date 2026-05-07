@@ -270,6 +270,9 @@ export default function DebtsPage() {
         <div className="flex-1 min-w-40">
           <div className="flex gap-2">
             <input
+              id="debt-search"
+              name="debtSearch"
+              aria-label="بحث باسم العميل"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") setSearch(searchInput); }}
@@ -282,7 +285,7 @@ export default function DebtsPage() {
             </button>
           </div>
         </div>
-        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setOverdueOnly(false); }}
+        <select id="debt-status-filter" name="debtStatusFilter" aria-label="تصفية الديون حسب الحالة" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setOverdueOnly(false); }}
           className="px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
           <option value="">كل الحالات</option>
           <option value="open">مفتوح</option>

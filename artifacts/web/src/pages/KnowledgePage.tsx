@@ -242,6 +242,9 @@ export default function KnowledgePage() {
       {/* Search bar */}
       <div className="flex gap-2">
         <input
+          id="knowledge-search"
+          name="knowledgeSearch"
+          aria-label="بحث في قاعدة المعرفة"
           type="text"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
