@@ -371,18 +371,21 @@ export default function InboxPage() {
         )}>
           <div className="p-2 border-b border-border space-y-2">
             <input
+              id="inbox-search"
+              name="inboxSearch"
+              aria-label="بحث في المحادثات"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="بحث في المحادثات..."
               className="w-full px-3 py-1.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
             <div className="flex gap-1.5">
-              <select value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}
+              <select id="inbox-channel-filter" name="inboxChannelFilter" aria-label="تصفية المحادثات حسب القناة" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}
                 className="flex-1 px-2 py-1 rounded-lg border border-input bg-background text-xs focus:outline-none">
                 <option value="">كل القنوات</option>
                 {Object.entries(channelLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
-              <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}
+              <select id="inbox-assignee-filter" name="inboxAssigneeFilter" aria-label="تصفية المحادثات حسب الموظف" value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}
                 className="flex-1 px-2 py-1 rounded-lg border border-input bg-background text-xs focus:outline-none">
                 <option value="">كل الموظفين</option>
                 <option value="unassigned">غير مُعيَّن</option>
