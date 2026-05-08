@@ -11,22 +11,22 @@ const channels = [
     href: "/inbox",
   },
   {
-    name: "WhatsApp",
+    name: "واتساب",
     status: "soon",
     description: "قريباً. لا يوجد ربط مباشر أو إرسال تلقائي في هذه النسخة.",
   },
   {
-    name: "Instagram",
+    name: "إنستغرام",
     status: "soon",
     description: "قريباً بعد تجهيز الربط الرسمي ومراجعة الصلاحيات.",
   },
   {
-    name: "Messenger",
+    name: "ماسنجر",
     status: "soon",
     description: "قريباً. حالياً يمكن للفريق العمل من الصندوق اليدوي.",
   },
   {
-    name: "Telegram",
+    name: "تيليغرام",
     status: "soon",
     description: "قريباً. لن يتم إرسال رسائل خارجية قبل التفعيل الرسمي.",
   },
@@ -39,8 +39,8 @@ const channels = [
 
 const safeguards = [
   "لا يوجد إرسال تلقائي للعملاء",
-  "لا يوجد ربط WhatsApp مباشر الآن",
-  "لا يوجد Payment Gateway",
+  "لا يوجد ربط واتساب مباشر الآن",
+  "لا توجد بوابة دفع إلكتروني",
   "لا يتم تشغيل أي تكامل حي من هذه الصفحة",
 ];
 
