@@ -67,6 +67,7 @@ export default function RegisterPage() {
                 onChange={(e) => setForm({ ...form, workspaceName: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                 placeholder="شركتي للتجارة"
+                autoComplete="organization"
                 required
               />
             </div>
@@ -80,6 +81,7 @@ export default function RegisterPage() {
                 onChange={(e) => setForm({ ...form, ownerName: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                 placeholder="محمد أحمد"
+                autoComplete="name"
                 required
               />
             </div>
@@ -93,6 +95,7 @@ export default function RegisterPage() {
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                 placeholder="example@company.com"
+                autoComplete="email"
                 required
                 dir="ltr"
               />
@@ -107,6 +110,7 @@ export default function RegisterPage() {
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                 placeholder="••••••••"
+                autoComplete="new-password"
                 required
                 minLength={8}
               />

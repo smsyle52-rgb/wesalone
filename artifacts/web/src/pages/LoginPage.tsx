@@ -67,6 +67,7 @@ export default function LoginPage() {
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                 placeholder="example@company.com"
+                autoComplete="email"
                 required
                 dir="ltr"
               />
@@ -81,6 +82,7 @@ export default function LoginPage() {
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
                 placeholder="••••••••"
+                autoComplete="current-password"
                 required
               />
             </div>
