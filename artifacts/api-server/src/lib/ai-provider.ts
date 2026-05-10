@@ -83,6 +83,25 @@ const MOCK_RESPONSES: Record<string, (userContent: string) => string> = {
     const greeting = hasGreeting ? "وعليكم السلام ورحمة الله وبركاته،" : "مرحباً بك،";
     return `${greeting}\n\nشكراً لتواصلك معنا. لقد استلمنا رسالتك وسنعمل على مساعدتك في أقرب وقت ممكن.\n\nهل يمكنك تزويدنا بمزيد من التفاصيل حتى نتمكن من خدمتك بشكل أفضل؟\n\nمع تحياتنا،\nفريق الدعم\n\n[مسودة — يرجى المراجعة قبل الإرسال]\n[وضع تجريبي — لم يتم ربط Gemini بعد]`;
   },
+  knowledge_answer: (content) => {
+    const sourceMatch = content.match(/مراجع المعرفة:\s*([\s\S]*?)\n\nالسؤال:/);
+    const questionMatch = content.match(/السؤال:\s*([\s\S]*?)\n\nالمطلوب:/);
+    const sourceText = sourceMatch?.[1]?.replace(/\[[0-9]+\]/g, "").trim();
+    const question = questionMatch?.[1]?.trim() ?? "السؤال";
+
+    if (!sourceText || sourceText.includes("لا توجد مصادر معرفة")) {
+      return `لا توجد معلومة كافية في قاعدة المعرفة للإجابة على: ${question}\n\nيفضل إضافة إجابة واضحة في الأسئلة الشائعة قبل استخدام الرد مع العميل.\n\n[اختبار داخلي — لا يتم إرسال أي رسالة]\n[وضع تجريبي — لم يتم ربط Gemini بعد]`;
+    }
+
+    const compactSource = sourceText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 6)
+      .join("\n");
+
+    return `حسب معرفة النشاط المتوفرة:\n${compactSource}\n\nيمكن للموظف مراجعة هذه المسودة وتعديلها قبل الرد على العميل.\n\n[اختبار داخلي — لا يتم إرسال أي رسالة]\n[وضع تجريبي — لم يتم ربط Gemini بعد]`;
+  },
   extract: (content) => {
     return JSON.stringify({
       entities: [

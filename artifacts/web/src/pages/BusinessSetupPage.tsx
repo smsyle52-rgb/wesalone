@@ -28,13 +28,20 @@ type KnowledgeDocument = { id: string; title: string; contentText: string; statu
 type FaqEntry = { id: string; question: string; answer: string; category?: string | null; status: string };
 type Agent = { id: string; name: string; dialect?: string; defaultModel?: string; status: string };
 type ProviderStatus = { provider: string; hasGeminiKey: boolean; fallbackMode: boolean; message: string };
-type SearchResponse = {
-  total: number;
-  results?: {
-    faqs?: FaqEntry[];
-    documents?: { id: string; title: string }[];
-    chunks?: { id: string; chunkText: string; documentId: string; chunkIndex: number }[];
-  };
+type KnowledgeAnswerSource = {
+  type: "faq" | "document" | "chunk";
+  id: string;
+  title: string;
+  content: string;
+};
+
+type KnowledgeAnswerResponse = {
+  run: { id: string };
+  answer: string;
+  sources: KnowledgeAnswerSource[] | null;
+  knowledgeSourcesSummary?: string | null;
+  provider: string;
+  warning: string;
 };
 
 type BusinessProfile = {
@@ -131,8 +138,16 @@ export default function BusinessSetupPage() {
   const [profile, setProfile] = useState<BusinessProfile>(initialProfile);
   const [profileLoadedId, setProfileLoadedId] = useState<string | null>(null);
   const [question, setQuestion] = useState("كم سعر التوصيل؟");
-  const [playgroundResult, setPlaygroundResult] = useState<{ reply: string; source: string } | null>(null);
+  const [playgroundResult, setPlaygroundResult] = useState<{
+    reply: string;
+    sources: KnowledgeAnswerSource[];
+    sourceSummary?: string | null;
+    provider: string;
+    runId: string;
+  } | null>(null);
   const [playgroundError, setPlaygroundError] = useState("");
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState("");
 
   const basesQuery = useQuery({
     queryKey: ["business-setup", "knowledge-bases"],
@@ -175,6 +190,11 @@ export default function BusinessSetupPage() {
   const profileDoc = documents.find((doc) => doc.title === "ملف النشاط التجاري");
   const agents = agentsQuery.data?.agents ?? [];
   const providerStatus = providerStatusQuery.data;
+  const providerModeLabel = providerStatus?.hasGeminiKey && !providerStatus.fallbackMode
+    ? "Gemini مفعّل"
+    : providerStatus?.hasGeminiKey && providerStatus.fallbackMode
+      ? "Fallback إلى الوضع التجريبي"
+      : "وضع تجريبي";
 
   useEffect(() => {
     if (profileDoc && profileLoadedId !== profileDoc.id) {
@@ -218,41 +238,47 @@ export default function BusinessSetupPage() {
     mutationFn: async () => {
       setPlaygroundError("");
       setPlaygroundResult(null);
+      setFeedbackStatus("");
       if (!question.trim()) throw new Error("اكتب سؤالاً أولاً");
+      if (!canUseAi) throw new Error("تحتاج صلاحية استخدام المساعد للتجربة");
       if (!canReadKnowledge) throw new Error("تحتاج صلاحية قراءة المعرفة لتجربة المساعد");
 
-      const params = new URLSearchParams({ q: question.trim() });
-      if (selectedBaseId) params.set("baseId", selectedBaseId);
-      const search = await knowledgeFetch<SearchResponse>(`search?${params.toString()}`);
-      const faq = search.results?.faqs?.[0];
-      const chunk = search.results?.chunks?.[0];
-      const doc = search.results?.documents?.[0];
+      const result = await apiFetch<KnowledgeAnswerResponse>("ai/runs/knowledge-answer", {
+        method: "POST",
+        body: JSON.stringify({
+          question: question.trim(),
+          baseId: selectedBaseId,
+        }),
+      });
 
-      if (faq) {
-        return {
-          reply: faq.answer,
-          source: `سؤال شائع: ${faq.question}`,
-        };
-      }
-      if (chunk) {
-        return {
-          reply: `${chunk.chunkText.slice(0, 420)}${chunk.chunkText.length > 420 ? "..." : ""}`,
-          source: `مقطع من قاعدة المعرفة رقم ${chunk.chunkIndex + 1}`,
-        };
-      }
-      if (doc) {
-        return {
-          reply: "وجدت وثيقة مرتبطة بالسؤال. راجع محتواها في قاعدة المعرفة قبل اعتماد الرد.",
-          source: `وثيقة: ${doc.title}`,
-        };
-      }
       return {
-        reply: "لم أجد معلومة كافية في قاعدة المعرفة. أضف إجابة واضحة لهذا السؤال قبل استخدام الرد مع العميل.",
-        source: "بدون مصدر مناسب",
+        reply: result.answer,
+        sources: result.sources ?? [],
+        sourceSummary: result.knowledgeSourcesSummary,
+        provider: result.provider,
+        runId: result.run.id,
       };
     },
     onSuccess: (result) => setPlaygroundResult(result),
     onError: (error: Error) => setPlaygroundError(error.message),
+  });
+
+  const sendFeedback = useMutation({
+    mutationFn: async (rating: "positive" | "negative" | "neutral") => {
+      if (!playgroundResult?.runId) throw new Error("لا يوجد تشغيل لتقييمه");
+      return apiFetch(`ai/runs/${playgroundResult.runId}/feedback`, {
+        method: "POST",
+        body: JSON.stringify({
+          rating,
+          comment: feedbackComment.trim() || null,
+        }),
+      });
+    },
+    onSuccess: () => {
+      setFeedbackStatus("تم حفظ التقييم.");
+      setFeedbackComment("");
+    },
+    onError: (error: Error) => setFeedbackStatus(error.message),
   });
 
   const profileComplete = Boolean(profileDoc || profile.businessName || profile.description);
@@ -267,9 +293,9 @@ export default function BusinessSetupPage() {
     { label: "توجد أسئلة شائعة", ok: faqReady },
     { label: "تم اختيار نبرة الرد", ok: dialectReady },
     { label: "تم اختبار رد", ok: testedReady },
-    { label: providerStatus?.hasGeminiKey && !providerStatus.fallbackMode ? "Gemini مفعل" : "الوضع التجريبي مفعل", ok: true },
+    { label: providerModeLabel, ok: true },
     { label: "لا يوجد إرسال تلقائي", ok: true },
-  ], [dialectReady, faqReady, knowledgeReady, providerStatus?.fallbackMode, providerStatus?.hasGeminiKey, testedReady]);
+  ], [dialectReady, faqReady, knowledgeReady, providerModeLabel, testedReady]);
 
   return (
     <div dir="rtl" className="space-y-6">
@@ -452,7 +478,7 @@ export default function BusinessSetupPage() {
           </div>
           {providerStatus && (
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              وضع المساعد الحالي: {providerStatus.hasGeminiKey && !providerStatus.fallbackMode ? "Gemini مفعل" : "تجريبي"}. لا يوجد إرسال تلقائي.
+              وضع المساعد الحالي: {providerModeLabel}. لا يوجد إرسال تلقائي، ولا تظهر أي مفاتيح سرية هنا.
             </p>
           )}
         </div>
@@ -464,7 +490,13 @@ export default function BusinessSetupPage() {
           <p className="text-sm text-muted-foreground">هذا اختبار فقط، ولا يتم إرسال أي رسالة للعميل.</p>
         </div>
         <div className="flex flex-wrap gap-2 pb-3">
-          {["كم سعر التوصيل؟", "كيف أتابع طلبي؟", "هل عندكم دفع كريمي؟"].map((sample) => (
+          {[
+            "هل عندكم توصيل داخل صنعاء؟",
+            "هل أقدر أدفع كريمي؟",
+            "كم مدة التوصيل؟",
+            "هل يمكن استرجاع المنتج؟",
+            "كيف أطلب هدية مع تغليف؟",
+          ].map((sample) => (
             <button
               key={sample}
               onClick={() => setQuestion(sample)}
@@ -506,7 +538,48 @@ export default function BusinessSetupPage() {
               <div className="mt-3 space-y-3">
                 <p className="whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm leading-relaxed text-foreground">{playgroundResult.reply}</p>
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
-                  المصدر المستخدم: {playgroundResult.source}
+                  <div className="font-medium">{playgroundResult.sourceSummary ?? "مصادر المعرفة"}</div>
+                  {playgroundResult.sources.length > 0 ? (
+                    <ul className="mt-2 space-y-1">
+                      {playgroundResult.sources.map((source) => (
+                        <li key={`${source.type}-${source.id}`}>• {source.type === "faq" ? "سؤال شائع" : source.type === "document" ? "وثيقة" : "مقطع"}: {source.title}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="mt-2">لم يتم العثور على مصدر مناسب.</div>
+                  )}
+                </div>
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">المزود: {playgroundResult.provider === "gemini" ? "Gemini" : "وضع تجريبي"}</span>
+                    <span className="text-xs text-muted-foreground">تقييم الرد</span>
+                  </div>
+                  <textarea
+                    id="assistant-playground-feedback"
+                    name="feedbackComment"
+                    value={feedbackComment}
+                    onChange={(e) => setFeedbackComment(e.target.value)}
+                    rows={2}
+                    className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/30"
+                    placeholder="ملاحظة اختيارية عن جودة الرد"
+                  />
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => sendFeedback.mutate("positive")}
+                      disabled={sendFeedback.isPending}
+                      className="rounded-lg border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700 disabled:opacity-50"
+                    >
+                      مفيد
+                    </button>
+                    <button
+                      onClick={() => sendFeedback.mutate("negative")}
+                      disabled={sendFeedback.isPending}
+                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 disabled:opacity-50"
+                    >
+                      غير مفيد
+                    </button>
+                    {feedbackStatus && <span className="text-xs text-muted-foreground">{feedbackStatus}</span>}
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground">ملاحظة: هذا اختبار فقط، ولن يتم إرسال أي رسالة تلقائياً.</p>
               </div>

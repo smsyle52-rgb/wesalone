@@ -5,7 +5,7 @@ import {
   aiAgentsTable, aiAgentVersionsTable, aiAgentInstructionsTable,
   aiAgentToolsTable, aiRunsTable, aiMessagesTable, aiExtractionsTable,
   aiUsageTable, aiFeedbackTable, aiSafetyEventsTable, approvalRequestsTable,
-  conversationsTable, knowledgeChunksTable,
+  conversationsTable, knowledgeChunksTable, faqEntriesTable, knowledgeDocumentsTable,
 } from "@workspace/db";
 import { eq, and, desc, ilike, or, sql } from "drizzle-orm";
 import { requireSession } from "../../middlewares/requireSession";
@@ -75,25 +75,106 @@ async function upsertUsage(params: {
   }
 }
 
-async function searchKnowledge(workspaceId: string, query: string): Promise<string[]> {
+type KnowledgeAiSource = {
+  type: "faq" | "document" | "chunk";
+  id: string;
+  title: string;
+  content: string;
+};
+
+function knowledgeSearchWords(query: string): string[] {
+  return query
+    .split(/\s+/)
+    .map((w) => w.trim().replace(/[؟?،,.;:!]/g, ""))
+    .filter((w) => w.length > 2)
+    .slice(0, 5);
+}
+
+async function searchKnowledgeDetailed(workspaceId: string, query: string, baseId?: string): Promise<KnowledgeAiSource[]> {
   if (!query || query.length < 3) return [];
   try {
-    const words = query.split(/\s+/).filter((w) => w.length > 2).slice(0, 3);
+    const words = knowledgeSearchWords(query);
     if (words.length === 0) return [];
-    const chunks = await db
-      .select({ chunkText: knowledgeChunksTable.chunkText })
-      .from(knowledgeChunksTable)
-      .where(
-        and(
-          eq(knowledgeChunksTable.workspaceId, workspaceId),
-          or(...words.map((w) => ilike(knowledgeChunksTable.chunkText, `%${w}%`)))
-        )
-      )
+
+    const faqConditions = [
+      eq(faqEntriesTable.workspaceId, workspaceId),
+      eq(faqEntriesTable.status, "active"),
+      or(...words.flatMap((w) => [
+        ilike(faqEntriesTable.question, `%${w}%`),
+        ilike(faqEntriesTable.answer, `%${w}%`),
+      ]))!,
+    ];
+    if (baseId) faqConditions.splice(1, 0, eq(faqEntriesTable.knowledgeBaseId, baseId));
+
+    const docConditions = [
+      eq(knowledgeDocumentsTable.workspaceId, workspaceId),
+      or(...words.flatMap((w) => [
+        ilike(knowledgeDocumentsTable.title, `%${w}%`),
+        ilike(knowledgeDocumentsTable.contentText, `%${w}%`),
+      ]))!,
+    ];
+    if (baseId) docConditions.splice(1, 0, eq(knowledgeDocumentsTable.knowledgeBaseId, baseId));
+
+    const chunkConditions = [
+      eq(knowledgeChunksTable.workspaceId, workspaceId),
+      or(...words.map((w) => ilike(knowledgeChunksTable.chunkText, `%${w}%`)))!,
+    ];
+    if (baseId) chunkConditions.splice(1, 0, eq(knowledgeChunksTable.knowledgeBaseId, baseId));
+
+    const faqs = await db
+      .select({ id: faqEntriesTable.id, question: faqEntriesTable.question, answer: faqEntriesTable.answer })
+      .from(faqEntriesTable)
+      .where(and(...faqConditions))
       .limit(3);
-    return chunks.map((c) => c.chunkText);
+
+    const docs = await db
+      .select({ id: knowledgeDocumentsTable.id, title: knowledgeDocumentsTable.title, contentText: knowledgeDocumentsTable.contentText })
+      .from(knowledgeDocumentsTable)
+      .where(and(...docConditions))
+      .limit(2);
+
+    const chunks = await db
+      .select({ id: knowledgeChunksTable.id, chunkText: knowledgeChunksTable.chunkText, chunkIndex: knowledgeChunksTable.chunkIndex })
+      .from(knowledgeChunksTable)
+      .where(and(...chunkConditions))
+      .limit(3);
+
+    const sources: KnowledgeAiSource[] = [
+      ...faqs.map((faq) => ({
+        type: "faq" as const,
+        id: faq.id,
+        title: faq.question,
+        content: `سؤال: ${faq.question}\nإجابة: ${faq.answer}`,
+      })),
+      ...docs.map((doc) => ({
+        type: "document" as const,
+        id: doc.id,
+        title: doc.title,
+        content: doc.contentText.slice(0, 1200),
+      })),
+      ...chunks.map((chunk) => ({
+        type: "chunk" as const,
+        id: chunk.id,
+        title: `مقطع معرفة ${chunk.chunkIndex + 1}`,
+        content: chunk.chunkText,
+      })),
+    ];
+
+    const seen = new Set<string>();
+    return sources.filter((source) => {
+      const key = `${source.type}:${source.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 5);
   } catch {
     return [];
   }
+}
+
+async function searchKnowledge(workspaceId: string, query: string): Promise<string[]> {
+  const sources = await searchKnowledgeDetailed(workspaceId, query);
+  return sources.map((source) => source.content);
 }
 
 // ─── AI Agents ───────────────────────────────────────────────────────────────
@@ -613,6 +694,68 @@ router.post("/runs/summarize-conversation", aiRunLimiter, requirePermission("ai:
   });
 
   res.status(201).json({ run: result.run, summary: result.output, provider: result.provider });
+});
+
+// ─── Knowledge Answer Playground ─────────────────────────────────────────────
+
+router.post("/runs/knowledge-answer", aiRunLimiter, requirePermission("ai:use"), requirePermission("knowledge:read"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { activeWorkspaceId, userId } = req.sessionUser;
+  const parse = z.object({
+    question: z.string().trim().min(1, "السؤال مطلوب").max(1000),
+    baseId: z.string().uuid().optional().nullable(),
+    model: z.enum(["gemini_flash", "gemini_flash_lite", "gemini_pro", "mock"]).optional(),
+  }).safeParse(req.body);
+  if (!parse.success) { res.status(400).json({ error: "بيانات غير صالحة", details: parse.error.flatten() }); return; }
+
+  const { question, baseId, model = getDefaultModel() } = parse.data;
+  const sources = await searchKnowledgeDetailed(activeWorkspaceId, question, baseId ?? undefined);
+  const knowledgeSources = sources.map((source) => `${source.title}\n${source.content}`);
+  const knowledgeContext = sources.length > 0
+    ? sources.map((source, i) => `[${i + 1}] ${source.title}\n${source.content}`).join("\n\n")
+    : "لا توجد مصادر معرفة مطابقة.";
+
+  const userPrompt = `أجب على سؤال صاحب النشاط أو الموظف اعتماداً على مراجع المعرفة فقط قدر الإمكان.
+
+مراجع المعرفة:
+${knowledgeContext}
+
+السؤال:
+${question}
+
+المطلوب:
+- اكتب رداً عربياً واضحاً ومفيداً لصاحب نشاط يمني.
+- إذا كانت المعرفة غير كافية، قل ذلك واقترح سؤالاً للموظف.
+- لا ترسل أي رسالة للعميل، هذا اختبار داخلي فقط.
+- لا تؤكد دفعاً ولا تنشئ طلباً ولا تنفذ أي إجراء.`;
+
+  const result = await createAndRunAI({
+    workspaceId: activeWorkspaceId,
+    userId,
+    taskType: "knowledge_answer",
+    inputType: "manual",
+    model,
+    systemPrompt: "أنت مساعد معرفة داخلي لمنصة خدماتك. تجيب من معرفة النشاط فقط، وتذكر عند نقص المعلومة. كل الردود مسودات للاختبار ولا تُرسل تلقائياً.",
+    userPrompt,
+    knowledgeSources,
+  });
+
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "ai_run_create",
+    entityType: "ai_run",
+    entityId: result.run.id,
+    newData: { taskType: "knowledge_answer", sourceCount: sources.length },
+  });
+
+  res.status(201).json({
+    run: result.run,
+    answer: result.output,
+    sources: sources.length > 0 ? sources : null,
+    knowledgeSources: knowledgeSources.length > 0 ? knowledgeSources : null,
+    knowledgeSourcesSummary: sources.length > 0 ? `تم استخدام ${sources.length} مصدر من قاعدة المعرفة` : "لم يتم العثور على مصدر مطابق",
+    provider: result.provider,
+    warning: "هذا اختبار فقط — لن يتم إرسال أي رسالة تلقائياً",
+  });
 });
 
 // ─── Classify Conversation ────────────────────────────────────────────────────

@@ -209,7 +209,7 @@ export default function AgentsPage() {
       const res = await apiFetch("ai/runs/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "اختبار الوكيل: هل الوكيل يعمل بشكل صحيح؟", model: "mock" }),
+        body: JSON.stringify({ text: "اختبار الوكيل: هل الوكيل يعمل بشكل صحيح؟" }),
       });
       setTestResult(JSON.stringify(res.extracted, null, 2));
     } catch (e) {
@@ -759,8 +759,10 @@ export default function AgentsPage() {
       <Modal open={showTestModal} onClose={() => { setShowTestModal(false); setTestResult(null); }} title="اختبار تجريبي للوكيل" size="sm">
         <div className="space-y-4">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
-            <p className="text-xs font-medium text-yellow-700">وضع mock — لا يتم إرسال أي رسالة</p>
-            <p className="text-xs text-yellow-600 mt-0.5">هذا اختبار تجريبي فقط يعمل على نص وهمي. لا يتصل بـ Gemini ولا يؤثر على أي بيانات حقيقية.</p>
+            <p className="text-xs font-medium text-yellow-700">
+              {providerStatus?.hasGeminiKey && !providerStatus.fallbackMode ? "Gemini مفعّل — لا يتم إرسال أي رسالة" : "وضع تجريبي — لا يتم إرسال أي رسالة"}
+            </p>
+            <p className="text-xs text-yellow-600 mt-0.5">هذا اختبار داخلي فقط يعمل على نص وهمي ولا يؤثر على أي بيانات حقيقية.</p>
           </div>
           <p className="text-sm text-muted-foreground">المزود الحالي: <span className="font-medium">{providerStatus?.provider ?? "mock"}</span></p>
           <button
@@ -772,7 +774,7 @@ export default function AgentsPage() {
           </button>
           {testResult && (
             <div className="bg-muted/30 rounded-lg p-3">
-              <div className="text-xs font-medium text-muted-foreground mb-2">نتيجة الاختبار التجريبي (mock):</div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">نتيجة الاختبار الداخلي:</div>
               <pre className="text-xs text-foreground whitespace-pre-wrap">{testResult}</pre>
             </div>
           )}
