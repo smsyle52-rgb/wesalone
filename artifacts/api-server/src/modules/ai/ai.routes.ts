@@ -90,6 +90,33 @@ function knowledgeSearchWords(query: string): string[] {
     .slice(0, 5);
 }
 
+function normalizeKnowledgeText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[؟?،,.;:!]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scoreKnowledgeSource(source: KnowledgeAiSource, query: string, words: string[]): number {
+  const title = normalizeKnowledgeText(source.title);
+  const content = normalizeKnowledgeText(source.content);
+  const normalizedQuery = normalizeKnowledgeText(query);
+  let score = source.type === "faq" ? 3 : source.type === "document" ? 1 : 0;
+
+  if (title.includes(normalizedQuery)) score += 30;
+  if (content.includes(normalizedQuery)) score += 20;
+
+  for (const word of words) {
+    const normalizedWord = normalizeKnowledgeText(word);
+    if (!normalizedWord) continue;
+    if (title.includes(normalizedWord)) score += 6;
+    if (content.includes(normalizedWord)) score += 2;
+  }
+
+  return score;
+}
+
 async function searchKnowledgeDetailed(workspaceId: string, query: string, baseId?: string): Promise<KnowledgeAiSource[]> {
   if (!query || query.length < 3) return [];
   try {
@@ -166,7 +193,7 @@ async function searchKnowledgeDetailed(workspaceId: string, query: string, baseI
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).slice(0, 5);
+    }).sort((a, b) => scoreKnowledgeSource(b, query, words) - scoreKnowledgeSource(a, query, words)).slice(0, 5);
   } catch {
     return [];
   }
