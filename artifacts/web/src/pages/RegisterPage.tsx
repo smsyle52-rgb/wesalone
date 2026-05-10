@@ -58,8 +58,10 @@ export default function RegisterPage() {
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">اسم الشركة / المساحة</label>
+              <label htmlFor="register-workspace-name" className="block text-sm font-medium text-foreground mb-1.5">اسم الشركة / المساحة</label>
               <input
+                id="register-workspace-name"
+                name="workspaceName"
                 type="text"
                 value={form.workspaceName}
                 onChange={(e) => setForm({ ...form, workspaceName: e.target.value })}
@@ -69,8 +71,10 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">اسمك</label>
+              <label htmlFor="register-owner-name" className="block text-sm font-medium text-foreground mb-1.5">اسمك</label>
               <input
+                id="register-owner-name"
+                name="ownerName"
                 type="text"
                 value={form.ownerName}
                 onChange={(e) => setForm({ ...form, ownerName: e.target.value })}
@@ -80,8 +84,10 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">البريد الإلكتروني</label>
+              <label htmlFor="register-email" className="block text-sm font-medium text-foreground mb-1.5">البريد الإلكتروني</label>
               <input
+                id="register-email"
+                name="email"
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -92,8 +98,10 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">كلمة المرور</label>
+              <label htmlFor="register-password" className="block text-sm font-medium text-foreground mb-1.5">كلمة المرور</label>
               <input
+                id="register-password"
+                name="password"
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
