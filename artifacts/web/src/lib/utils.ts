@@ -71,7 +71,7 @@ export const channelLabels: Record<string, string> = {
   whatsapp: "واتساب",
   whatsapp_manual: "واتساب يدوي",
   whatsapp_api: "واتساب مباشر (لاحقاً)",
-  website_widget: "ويدجت الموقع",
+    website_widget: "موقعك الإلكتروني (لاحقاً)",
   telegram: "تيليغرام",
   instagram: "إنستغرام",
   messenger: "ماسنجر",
@@ -90,8 +90,8 @@ export const channelStatusLabels: Record<string, string> = {
 };
 
 export const CHANNEL_CATALOG = [
-  { type: "whatsapp_manual", label: "واتساب يدوي", status: "active", description: "إرسال رسائل يدوياً عبر واتساب" },
-  { type: "website_widget", label: "ويدجت الموقع", status: "active", description: "دردشة مباشرة من موقعك الإلكتروني" },
+  { type: "whatsapp_manual", label: "واتساب يدوي", status: "active", description: "فتح واتساب يدوياً عند الحاجة بدون إرسال تلقائي من النظام" },
+  { type: "website_widget", label: "موقعك الإلكتروني (لاحقاً)", status: "coming_soon", description: "سيتم تفعيل استقبال رسائل الموقع لاحقاً" },
   { type: "whatsapp_api", label: "واتساب مباشر (لاحقاً)", status: "pending_meta_review", description: "سيتم تفعيل الربط المباشر لاحقاً" },
   { type: "telegram", label: "تيليغرام", status: "coming_soon", description: "سيتم إضافته قريباً" },
   { type: "instagram", label: "إنستغرام", status: "coming_soon", description: "سيتم إضافته قريباً" },
