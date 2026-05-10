@@ -152,19 +152,19 @@ async function searchKnowledgeDetailed(workspaceId: string, query: string, baseI
       .select({ id: faqEntriesTable.id, question: faqEntriesTable.question, answer: faqEntriesTable.answer })
       .from(faqEntriesTable)
       .where(and(...faqConditions))
-      .limit(3);
+      .limit(10);
 
     const docs = await db
       .select({ id: knowledgeDocumentsTable.id, title: knowledgeDocumentsTable.title, contentText: knowledgeDocumentsTable.contentText })
       .from(knowledgeDocumentsTable)
       .where(and(...docConditions))
-      .limit(2);
+      .limit(5);
 
     const chunks = await db
       .select({ id: knowledgeChunksTable.id, chunkText: knowledgeChunksTable.chunkText, chunkIndex: knowledgeChunksTable.chunkIndex })
       .from(knowledgeChunksTable)
       .where(and(...chunkConditions))
-      .limit(3);
+      .limit(5);
 
     const sources: KnowledgeAiSource[] = [
       ...faqs.map((faq) => ({
