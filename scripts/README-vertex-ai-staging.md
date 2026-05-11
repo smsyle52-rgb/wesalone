@@ -12,6 +12,14 @@ This runbook activates Vertex AI for Google Cloud Run staging without API keys, 
 
 ## Preflight
 
+One-command Cloud Shell path:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/smsyle52-rgb/khadamatak/main/scripts/phase11a2-vertex-cloud.sh | bash
+```
+
+Manual path:
+
 ```bash
 PROJECT_ID="khadamatk-auth"
 REGION="us-central1"
@@ -106,4 +114,3 @@ curl -fsS "$SERVICE_URL/api/readyz"; echo
 ```
 
 Check `/api/ai/provider-status` from an authenticated browser session. It should show `provider=vertex` and `fallbackMode=false` after the first successful AI run.
-
