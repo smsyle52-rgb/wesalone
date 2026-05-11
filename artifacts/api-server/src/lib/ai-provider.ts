@@ -10,6 +10,17 @@ const MODEL_MAP: Record<string, string> = {
 };
 
 const JSON_TASK_TYPES = new Set(["classify", "extract", "suggest_action"]);
+const AI_PROVIDER = (process.env.AI_PROVIDER ?? "").trim().toLowerCase();
+const VERTEX_PROJECT_ID =
+  process.env.VERTEX_PROJECT_ID ??
+  process.env.GCP_PROJECT_ID ??
+  process.env.GOOGLE_CLOUD_PROJECT ??
+  process.env.GCLOUD_PROJECT;
+const VERTEX_LOCATION = process.env.VERTEX_LOCATION ?? process.env.GCP_LOCATION ?? process.env.GOOGLE_CLOUD_LOCATION ?? "us-central1";
+const VERTEX_MODEL = process.env.VERTEX_MODEL ?? "gemini-2.5-flash";
+const DEFAULT_TEMPERATURE = Number(process.env.AI_TEMPERATURE ?? "0.2");
+const DEFAULT_MAX_OUTPUT_TOKENS = Number(process.env.AI_MAX_OUTPUT_TOKENS ?? "1024");
+const VERTEX_CONFIGURED = AI_PROVIDER === "vertex" && !!VERTEX_PROJECT_ID && !!VERTEX_LOCATION;
 
 // ─── Safety system prompt ─────────────────────────────────────────────────────
 
@@ -27,13 +38,15 @@ const SAFETY_SYSTEM_PROMPT = `
 
 // ─── Provider detection ───────────────────────────────────────────────────────
 
+export type AiProviderName = "vertex" | "gemini" | "mock";
+
 export const GEMINI_AVAILABLE = !!process.env.GEMINI_API_KEY;
-export const ACTIVE_PROVIDER: "gemini" | "mock" = GEMINI_AVAILABLE ? "gemini" : "mock";
+export const ACTIVE_PROVIDER: AiProviderName = VERTEX_CONFIGURED ? "vertex" : GEMINI_AVAILABLE ? "gemini" : "mock";
 
 let _fallbackMode = false;
 
 export function getDefaultModel(): string {
-  return GEMINI_AVAILABLE ? "gemini_flash" : "mock";
+  return ACTIVE_PROVIDER === "vertex" || GEMINI_AVAILABLE ? "gemini_flash" : "mock";
 }
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -51,7 +64,7 @@ export interface AiRunInput {
 }
 
 export interface AiRunOutput {
-  provider: "gemini" | "mock";
+  provider: AiProviderName;
   model: string;
   content: string;
   promptTokens: number;
@@ -59,6 +72,27 @@ export interface AiRunOutput {
   totalTokens: number;
   estimatedCost: number;
   fallbackUsed?: boolean;
+}
+
+function getMaxOutputTokens(input: AiRunInput): number {
+  const requested = input.maxTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
+  if (!Number.isFinite(requested) || requested <= 0) return 1024;
+  return Math.min(Math.floor(requested), 2048);
+}
+
+function getTemperature(): number {
+  if (!Number.isFinite(DEFAULT_TEMPERATURE)) return 0.2;
+  return Math.min(Math.max(DEFAULT_TEMPERATURE, 0), 1);
+}
+
+function summarizeError(err: unknown): Record<string, unknown> {
+  if (err instanceof Error) {
+    return {
+      name: err.name,
+      message: err.message.slice(0, 300),
+    };
+  }
+  return { message: String(err).slice(0, 300) };
 }
 
 // ─── Mock provider ────────────────────────────────────────────────────────────
@@ -180,6 +214,10 @@ async function runGemini(input: AiRunInput): Promise<AiRunOutput> {
     const result = await model.generateContent({
       systemInstruction,
       contents: [{ role: "user", parts: [{ text: combined }] }],
+      generationConfig: {
+        maxOutputTokens: getMaxOutputTokens(input),
+        temperature: getTemperature(),
+      },
     });
 
     const content = result.response.text();
@@ -209,7 +247,125 @@ async function runGemini(input: AiRunInput): Promise<AiRunOutput> {
       fallbackUsed: false,
     };
   } catch (err) {
-    logger.error({ err }, "Gemini API error — تعذر الاتصال بـ Gemini، تم استخدام الوضع التجريبي");
+    logger.error({ err: summarizeError(err) }, "Gemini API error — تعذر الاتصال بـ Gemini، تم استخدام الوضع التجريبي");
+    _fallbackMode = true;
+    return { ...(await runMock(input)), fallbackUsed: true };
+  }
+}
+
+// ─── Vertex AI provider ──────────────────────────────────────────────────────
+
+type VertexGenerateContentResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
+  }>;
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
+};
+
+async function getMetadataAccessToken(): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+
+  try {
+    const res = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", {
+      headers: { "Metadata-Flavor": "Google" },
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`metadata server token request failed with status ${res.status}`);
+    }
+
+    const data = await res.json() as { access_token?: string };
+    if (!data.access_token) {
+      throw new Error("metadata server did not return access_token");
+    }
+    return data.access_token;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
+  if (!VERTEX_CONFIGURED || !VERTEX_PROJECT_ID) {
+    logger.warn("Vertex AI is not configured, falling back to mock");
+    _fallbackMode = true;
+    return { ...(await runMock(input)), fallbackUsed: true };
+  }
+
+  try {
+    const token = await getMetadataAccessToken();
+    const originalSystem = input.messages.find((m) => m.role === "system")?.content ?? "";
+    const systemInstruction = [SAFETY_SYSTEM_PROMPT, originalSystem].filter(Boolean).join("\n\n");
+    const userMsgs = input.messages.filter((m) => m.role !== "system");
+    const combined = userMsgs.map((m) => m.content).join("\n\n");
+    const host = VERTEX_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_LOCATION}-aiplatform.googleapis.com`;
+    const modelPath = `projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_LOCATION}/publishers/google/models/${VERTEX_MODEL}`;
+    const endpoint = `https://${host}/v1/${modelPath}:generateContent`;
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ role: "user", parts: [{ text: combined }] }],
+        generationConfig: {
+          maxOutputTokens: getMaxOutputTokens(input),
+          temperature: getTemperature(),
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Vertex AI generateContent failed with status ${res.status}: ${body.slice(0, 300)}`);
+    }
+
+    const data = await res.json() as VertexGenerateContentResponse;
+    const content = data.candidates
+      ?.flatMap((candidate) => candidate.content?.parts?.map((part) => part.text ?? "") ?? [])
+      .join("\n")
+      .trim();
+
+    if (!content) {
+      throw new Error("Vertex AI returned an empty response");
+    }
+
+    const promptTokens = data.usageMetadata?.promptTokenCount ?? Math.ceil(combined.length / 4);
+    const completionTokens = data.usageMetadata?.candidatesTokenCount ?? Math.ceil(content.length / 4);
+
+    if (JSON_TASK_TYPES.has(input.taskType)) {
+      const hasJson = /[\[{]/.test(content);
+      if (!hasJson) {
+        logger.warn({ taskType: input.taskType }, "Vertex AI returned non-JSON for structured task, falling back to mock");
+        _fallbackMode = true;
+        return { ...(await runMock(input)), fallbackUsed: true };
+      }
+    }
+
+    _fallbackMode = false;
+
+    return {
+      provider: "vertex",
+      model: VERTEX_MODEL,
+      content,
+      promptTokens,
+      completionTokens,
+      totalTokens: data.usageMetadata?.totalTokenCount ?? promptTokens + completionTokens,
+      estimatedCost: 0,
+      fallbackUsed: false,
+    };
+  } catch (err) {
+    logger.error({ err: summarizeError(err) }, "Vertex AI error — تعذر الاتصال بـ Vertex AI، تم استخدام الوضع التجريبي");
     _fallbackMode = true;
     return { ...(await runMock(input)), fallbackUsed: true };
   }
@@ -218,6 +374,9 @@ async function runGemini(input: AiRunInput): Promise<AiRunOutput> {
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
 export async function runAI(input: AiRunInput): Promise<AiRunOutput> {
+  if (ACTIVE_PROVIDER === "vertex") {
+    return runVertex(input);
+  }
   if (ACTIVE_PROVIDER === "gemini" || input.model.startsWith("gemini")) {
     return runGemini(input);
   }
@@ -227,19 +386,56 @@ export async function runAI(input: AiRunInput): Promise<AiRunOutput> {
 // ─── Provider status ──────────────────────────────────────────────────────────
 
 export function getProviderStatus(): {
-  provider: "gemini" | "mock";
+  provider: AiProviderName;
   available: boolean;
   hasGeminiKey: boolean;
+  hasVertex: boolean;
+  vertexProjectConfigured: boolean;
+  vertexLocation: string | null;
+  model: string;
   fallbackMode: boolean;
   message: string;
 } {
   const hasGeminiKey = GEMINI_AVAILABLE;
+  const hasVertex = VERTEX_CONFIGURED;
+
+  if (ACTIVE_PROVIDER === "vertex" && hasVertex && !_fallbackMode) {
+    return {
+      provider: "vertex",
+      available: true,
+      hasGeminiKey,
+      hasVertex: true,
+      vertexProjectConfigured: true,
+      vertexLocation: VERTEX_LOCATION,
+      model: VERTEX_MODEL,
+      fallbackMode: false,
+      message: "Vertex AI مفعّل وجاهز",
+    };
+  }
+
+  if (ACTIVE_PROVIDER === "vertex" && hasVertex && _fallbackMode) {
+    return {
+      provider: "mock",
+      available: true,
+      hasGeminiKey,
+      hasVertex: true,
+      vertexProjectConfigured: true,
+      vertexLocation: VERTEX_LOCATION,
+      model: VERTEX_MODEL,
+      fallbackMode: true,
+      message: "Vertex AI غير متاح — استخدام الوضع التجريبي",
+    };
+  }
 
   if (hasGeminiKey && !_fallbackMode) {
     return {
       provider: "gemini",
       available: true,
       hasGeminiKey: true,
+      hasVertex,
+      vertexProjectConfigured: !!VERTEX_PROJECT_ID,
+      vertexLocation: VERTEX_LOCATION ?? null,
+      model: MODEL_MAP["gemini_flash"],
       fallbackMode: false,
       message: "Gemini مفعّل وجاهز",
     };
@@ -250,6 +446,10 @@ export function getProviderStatus(): {
       provider: "mock",
       available: true,
       hasGeminiKey: true,
+      hasVertex,
+      vertexProjectConfigured: !!VERTEX_PROJECT_ID,
+      vertexLocation: VERTEX_LOCATION ?? null,
+      model: MODEL_MAP["gemini_flash"],
       fallbackMode: true,
       message: "Gemini غير متاح — استخدام الوضع التجريبي",
     };
@@ -259,6 +459,10 @@ export function getProviderStatus(): {
     provider: "mock",
     available: true,
     hasGeminiKey: false,
+    hasVertex,
+    vertexProjectConfigured: !!VERTEX_PROJECT_ID,
+    vertexLocation: VERTEX_LOCATION ?? null,
+    model: hasVertex ? VERTEX_MODEL : "mock",
     fallbackMode: false,
     message: "وضع تجريبي — لم يتم ربط Gemini بعد",
   };

@@ -70,6 +70,17 @@ const APPROVAL_STATUS_LABELS: Record<string, string> = {
   cancelled: "ملغي",
 };
 
+function isProviderLive(providerStatus: any): boolean {
+  return (providerStatus?.provider === "vertex" || providerStatus?.provider === "gemini") && !providerStatus?.fallbackMode;
+}
+
+function providerLiveLabel(providerStatus: any): string {
+  if (providerStatus?.provider === "vertex" && !providerStatus?.fallbackMode) return "Vertex AI مفعّل";
+  if (providerStatus?.provider === "gemini" && !providerStatus?.fallbackMode) return "Gemini مفعّل";
+  if (providerStatus?.fallbackMode) return "وضع تجريبي (Fallback)";
+  return "وضع تجريبي";
+}
+
 type Tab = "agents" | "runs" | "usage" | "safety" | "approvals";
 
 export default function AgentsPage() {
@@ -256,24 +267,24 @@ export default function AgentsPage() {
       {providerStatus && (
         <div className={cn(
           "mb-4 px-4 py-2 rounded-lg text-sm border flex items-center gap-2",
-          providerStatus.hasGeminiKey && !providerStatus.fallbackMode
+          isProviderLive(providerStatus)
             ? "bg-green-50 text-green-700 border-green-200"
-            : providerStatus.hasGeminiKey && providerStatus.fallbackMode
+            : providerStatus.fallbackMode
               ? "bg-orange-50 text-orange-700 border-orange-200"
               : "bg-yellow-50 text-yellow-700 border-yellow-200"
         )}>
           <span>
-            {providerStatus.hasGeminiKey && !providerStatus.fallbackMode ? "🟢" :
-             providerStatus.hasGeminiKey && providerStatus.fallbackMode ? "🟠" : "🟡"}
+            {isProviderLive(providerStatus) ? "🟢" :
+             providerStatus.fallbackMode ? "🟠" : "🟡"}
           </span>
           <span>{providerStatus.message}</span>
-          {providerStatus.hasGeminiKey && !providerStatus.fallbackMode && (
-            <span className="mr-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Gemini مفعّل</span>
+          {isProviderLive(providerStatus) && (
+            <span className="mr-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">{providerLiveLabel(providerStatus)}</span>
           )}
-          {providerStatus.hasGeminiKey && providerStatus.fallbackMode && (
+          {providerStatus.fallbackMode && (
             <span className="mr-auto text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-medium">وضع تجريبي (Fallback)</span>
           )}
-          {!providerStatus.hasGeminiKey && (
+          {!isProviderLive(providerStatus) && !providerStatus.fallbackMode && (
             <span className="mr-auto text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-medium">وضع تجريبي</span>
           )}
         </div>
@@ -760,7 +771,7 @@ export default function AgentsPage() {
         <div className="space-y-4">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
             <p className="text-xs font-medium text-yellow-700">
-              {providerStatus?.hasGeminiKey && !providerStatus.fallbackMode ? "Gemini مفعّل — لا يتم إرسال أي رسالة" : "وضع تجريبي — لا يتم إرسال أي رسالة"}
+              {isProviderLive(providerStatus) ? `${providerLiveLabel(providerStatus)} — لا يتم إرسال أي رسالة` : "وضع تجريبي — لا يتم إرسال أي رسالة"}
             </p>
             <p className="text-xs text-yellow-600 mt-0.5">هذا اختبار داخلي فقط يعمل على نص وهمي ولا يؤثر على أي بيانات حقيقية.</p>
           </div>

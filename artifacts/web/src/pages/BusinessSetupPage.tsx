@@ -27,7 +27,16 @@ type KnowledgeBase = { id: string; name: string; description?: string | null; st
 type KnowledgeDocument = { id: string; title: string; contentText: string; status: string };
 type FaqEntry = { id: string; question: string; answer: string; category?: string | null; status: string };
 type Agent = { id: string; name: string; dialect?: string; defaultModel?: string; status: string };
-type ProviderStatus = { provider: string; hasGeminiKey: boolean; fallbackMode: boolean; message: string };
+type ProviderStatus = {
+  provider: string;
+  hasGeminiKey: boolean;
+  hasVertex?: boolean;
+  vertexProjectConfigured?: boolean;
+  vertexLocation?: string | null;
+  model?: string;
+  fallbackMode: boolean;
+  message: string;
+};
 type KnowledgeAnswerSource = {
   type: "faq" | "document" | "chunk";
   id: string;
@@ -190,11 +199,13 @@ export default function BusinessSetupPage() {
   const profileDoc = documents.find((doc) => doc.title === "ملف النشاط التجاري");
   const agents = agentsQuery.data?.agents ?? [];
   const providerStatus = providerStatusQuery.data;
-  const providerModeLabel = providerStatus?.hasGeminiKey && !providerStatus.fallbackMode
-    ? "Gemini مفعّل"
-    : providerStatus?.hasGeminiKey && providerStatus.fallbackMode
-      ? "Fallback إلى الوضع التجريبي"
-      : "وضع تجريبي";
+  const providerModeLabel = providerStatus?.provider === "vertex" && !providerStatus.fallbackMode
+    ? "Vertex AI مفعّل"
+    : providerStatus?.provider === "gemini" && !providerStatus.fallbackMode
+      ? "Gemini مفعّل"
+      : providerStatus?.fallbackMode
+        ? "Fallback إلى الوضع التجريبي"
+        : "وضع تجريبي";
 
   useEffect(() => {
     if (profileDoc && profileLoadedId !== profileDoc.id) {

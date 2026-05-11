@@ -4,6 +4,7 @@ substitutions:
   _REPOSITORY: khadamatak
   _IMAGE: app
   _CLOUDSQL_INSTANCE: khadamatk-auth:us-central1:khadamatak-prod
+  _RUNTIME_SERVICE_ACCOUNT: khadamatak-staging-runtime@khadamatk-auth.iam.gserviceaccount.com
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -36,7 +37,8 @@ steps:
       - --port=8080
       - --allow-unauthenticated
       - --add-cloudsql-instances=$_CLOUDSQL_INSTANCE
-      - --set-env-vars=NODE_ENV=production,SERVE_STATIC=true
+      - --service-account=$_RUNTIME_SERVICE_ACCOUNT
+      - --set-env-vars=NODE_ENV=production,SERVE_STATIC=true,AI_PROVIDER=vertex,VERTEX_PROJECT_ID=${PROJECT_ID},VERTEX_LOCATION=${_REGION},VERTEX_MODEL=gemini-2.5-flash,AI_MAX_OUTPUT_TOKENS=1024,AI_TEMPERATURE=0.2
       - --set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest
       - --quiet
 

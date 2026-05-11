@@ -23,7 +23,7 @@ export type AiInputType = (typeof AI_INPUT_TYPES)[number];
 export const AI_RUN_STATUSES = ["queued", "running", "succeeded", "failed", "blocked"] as const;
 export type AiRunStatus = (typeof AI_RUN_STATUSES)[number];
 
-export const AI_PROVIDERS = ["gemini", "mock"] as const;
+export const AI_PROVIDERS = ["vertex", "gemini", "mock"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
 export const AI_SAFETY_STATUSES = ["ok", "blocked", "needs_approval"] as const;

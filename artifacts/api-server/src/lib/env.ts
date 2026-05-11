@@ -31,6 +31,12 @@ if (isProduction && SESSION_SECRET.length < 32) {
 // ── Optional ──────────────────────────────────────────────────────────────────
 const NODE_ENV         = optionalEnv("NODE_ENV", "development")!;
 const GEMINI_API_KEY   = optionalEnv("GEMINI_API_KEY");        // AI features optional
+const AI_PROVIDER      = optionalEnv("AI_PROVIDER");           // 'vertex' | 'gemini' | 'mock'
+const VERTEX_PROJECT_ID = optionalEnv("VERTEX_PROJECT_ID") ?? optionalEnv("GCP_PROJECT_ID") ?? optionalEnv("GOOGLE_CLOUD_PROJECT");
+const VERTEX_LOCATION  = optionalEnv("VERTEX_LOCATION") ?? optionalEnv("GCP_LOCATION");
+const VERTEX_MODEL     = optionalEnv("VERTEX_MODEL");
+const AI_MAX_OUTPUT_TOKENS = optionalEnv("AI_MAX_OUTPUT_TOKENS");
+const AI_TEMPERATURE   = optionalEnv("AI_TEMPERATURE");
 const ALLOWED_ORIGINS  = optionalEnv("ALLOWED_ORIGINS");       // CORS allow list (comma-sep)
 const STORAGE_PROVIDER = optionalEnv("STORAGE_PROVIDER");      // 'gcs' | 'local'
 const GCS_BUCKET       = optionalEnv("GCS_BUCKET");            // Google Cloud Storage bucket
@@ -43,6 +49,12 @@ export const env = {
   SESSION_SECRET,
   PORT: Number(PORT),
   GEMINI_API_KEY,
+  AI_PROVIDER,
+  VERTEX_PROJECT_ID,
+  VERTEX_LOCATION,
+  VERTEX_MODEL,
+  AI_MAX_OUTPUT_TOKENS,
+  AI_TEMPERATURE,
   ALLOWED_ORIGINS,
   STORAGE_PROVIDER,
   GCS_BUCKET,

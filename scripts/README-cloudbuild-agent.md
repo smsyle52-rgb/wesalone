@@ -11,7 +11,7 @@ TAG="$(date +%Y%m%d%H%M%S)"
 
 gcloud builds submit \
   --config cloudbuild.yaml \
-  --substitutions=SHORT_SHA="$TAG",_REGION=us-central1,_SERVICE=khadamatak-staging,_REPOSITORY=khadamatak,_IMAGE=app,_CLOUDSQL_INSTANCE=khadamatk-auth:us-central1:khadamatak-prod \
+  --substitutions=SHORT_SHA="$TAG",_REGION=us-central1,_SERVICE=khadamatak-staging,_REPOSITORY=khadamatak,_IMAGE=app,_CLOUDSQL_INSTANCE=khadamatk-auth:us-central1:khadamatak-prod,_RUNTIME_SERVICE_ACCOUNT=khadamatak-staging-runtime@khadamatk-auth.iam.gserviceaccount.com \
   .
 ```
 
@@ -47,7 +47,7 @@ printf '<DATABASE_URL>' | gcloud secrets versions add DATABASE_URL --data-file=-
 printf '<SESSION_SECRET>' | gcloud secrets versions add SESSION_SECRET --data-file=-
 ```
 
-`GEMINI_API_KEY` is optional and is not configured by this pipeline. Add it manually only if the staging service is meant to use Gemini, or create a separate reviewed variant later.
+`GEMINI_API_KEY` is optional and is not configured by this pipeline. The current staging pipeline is configured for Vertex AI through the Cloud Run runtime service account.
 
 ## GitHub Trigger
 
@@ -64,6 +64,7 @@ printf '<SESSION_SECRET>' | gcloud secrets versions add SESSION_SECRET --data-fi
    - `_REPOSITORY=khadamatak`
    - `_IMAGE=app`
    - `_CLOUDSQL_INSTANCE=khadamatk-auth:us-central1:khadamatak-prod`
+   - `_RUNTIME_SERVICE_ACCOUNT=khadamatak-staging-runtime@khadamatk-auth.iam.gserviceaccount.com`
 9. Save the trigger and run it manually once for the first staging deploy.
 
 Do not create a production trigger from this file. Production deployment should use a separate reviewed pipeline and separate service substitutions.
@@ -81,6 +82,8 @@ Grant the Cloud Run runtime service account access to runtime secrets:
 
 - `roles/secretmanager.secretAccessor` on `DATABASE_URL`.
 - `roles/secretmanager.secretAccessor` on `SESSION_SECRET`.
+- `roles/cloudsql.client` on the project.
+- `roles/aiplatform.user` on the project for Vertex AI.
 
 ## Runtime Secrets
 

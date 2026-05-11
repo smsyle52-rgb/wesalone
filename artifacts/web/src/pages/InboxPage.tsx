@@ -66,6 +66,17 @@ function ChannelBadge({ channel }: { channel: string }) {
   );
 }
 
+function isProviderLive(providerStatus: any): boolean {
+  return (providerStatus?.provider === "vertex" || providerStatus?.provider === "gemini") && !providerStatus?.fallbackMode;
+}
+
+function providerLiveLabel(providerStatus: any): string {
+  if (providerStatus?.provider === "vertex" && !providerStatus?.fallbackMode) return "Vertex AI مفعّل";
+  if (providerStatus?.provider === "gemini" && !providerStatus?.fallbackMode) return "Gemini مفعّل";
+  if (providerStatus?.fallbackMode) return "وضع تجريبي (Fallback)";
+  return "وضع تجريبي";
+}
+
 export default function InboxPage() {
   const { hasPermission } = useAuth();
   const qc = useQueryClient();
@@ -659,16 +670,16 @@ export default function InboxPage() {
                     {providerStatus && (
                       <span className={cn(
                         "text-xs px-2 py-0.5 rounded font-medium mr-auto",
-                        providerStatus.hasGeminiKey && !providerStatus.fallbackMode
+                        isProviderLive(providerStatus)
                           ? "bg-green-100 text-green-700"
-                          : providerStatus.hasGeminiKey && providerStatus.fallbackMode
+                          : providerStatus.fallbackMode
                             ? "bg-orange-100 text-orange-700"
                             : "bg-yellow-100 text-yellow-700"
                       )}>
-                        {providerStatus.hasGeminiKey && !providerStatus.fallbackMode
-                          ? "🟢 Gemini مفعّل"
-                          : providerStatus.hasGeminiKey && providerStatus.fallbackMode
-                            ? "🟠 Gemini غير متاح — وضع تجريبي"
+                        {isProviderLive(providerStatus)
+                          ? `🟢 ${providerLiveLabel(providerStatus)}`
+                          : providerStatus.fallbackMode
+                            ? "🟠 وضع تجريبي (Fallback)"
                             : "🟡 وضع تجريبي"}
                       </span>
                     )}
