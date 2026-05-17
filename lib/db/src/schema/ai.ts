@@ -1,6 +1,7 @@
-import { pgTable, text, timestamp, uuid, integer, jsonb, boolean, numeric, date } from "drizzle-orm/pg-core";
+import { index, pgTable, text, timestamp, uuid, integer, jsonb, boolean, numeric, date } from "drizzle-orm/pg-core";
 import { workspacesTable } from "./workspaces";
 import { usersTable } from "./users";
+import { conversationsTable, messagesTable } from "./conversations";
 
 export const AI_AGENT_TYPES = ["support", "sales", "followup", "summarizer", "classifier", "reports", "collections"] as const;
 export type AiAgentType = (typeof AI_AGENT_TYPES)[number];
@@ -62,10 +63,38 @@ export const aiAgentsTable = pgTable("ai_agents", {
   knowledgeBaseIds: jsonb("knowledge_base_ids").$type<string[]>().notNull().default([]),
   dialect: text("dialect").notNull().default("standard_arabic"),
   tone: text("tone"),
+  trustMode: text("trust_mode").notNull().default("suggest"),
+  trustConfidenceThreshold: numeric("trust_confidence_threshold", { precision: 3, scale: 2 }).notNull().default("0.80"),
+  trustTopics: jsonb("trust_topics").$type<string[]>().notNull().default([]),
+  trustBlocklist: jsonb("trust_blocklist").$type<string[]>().notNull().default([]),
+  maxAutoRepliesPerConversation: integer("max_auto_replies_per_conversation").notNull().default(3),
+  escalateAfterFailedAuto: integer("escalate_after_failed_auto").notNull().default(1),
+  dailyAutoSendQuota: integer("daily_auto_send_quota").notNull().default(200),
   createdBy: uuid("created_by").notNull().references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const autoReplyDecisionsTable = pgTable(
+  "auto_reply_decisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspacesTable.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id").notNull().references(() => conversationsTable.id, { onDelete: "cascade" }),
+    agentId: uuid("agent_id").notNull().references(() => aiAgentsTable.id, { onDelete: "cascade" }),
+    messageId: uuid("message_id").notNull().references(() => messagesTable.id, { onDelete: "cascade" }),
+    decision: text("decision").notNull(),
+    reason: text("reason").notNull(),
+    confidence: numeric("confidence", { precision: 3, scale: 2 }),
+    topicDetected: text("topic_detected"),
+    sentMessageId: uuid("sent_message_id").references(() => messagesTable.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_auto_decisions_conv").on(table.conversationId, table.createdAt),
+    index("idx_auto_decisions_ws_day").on(table.workspaceId, table.createdAt),
+  ],
+);
 
 export const aiAgentVersionsTable = pgTable("ai_agent_versions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -208,6 +237,7 @@ export const approvalRequestsTable = pgTable("approval_requests", {
 });
 
 export type AiAgent = typeof aiAgentsTable.$inferSelect;
+export type AutoReplyDecision = typeof autoReplyDecisionsTable.$inferSelect;
 export type AiAgentVersion = typeof aiAgentVersionsTable.$inferSelect;
 export type AiAgentInstruction = typeof aiAgentInstructionsTable.$inferSelect;
 export type AiAgentTool = typeof aiAgentToolsTable.$inferSelect;

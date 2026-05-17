@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatDateTime } from "@/lib/utils";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
-const tabs = ["settings", "instructions", "knowledge", "channels", "runs", "playground"] as const;
+const tabs = ["settings", "instructions", "knowledge", "channels", "runs", "trust", "playground"] as const;
 
 async function apiFetch(path: string, opts?: RequestInit) {
   const res = await fetch(`${BASE}/${path}`, { credentials: "include", ...opts });
@@ -32,6 +32,17 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const [settings, setSettings] = useState({ name: "", defaultModel: "mock", temperature: "0.30", maxOutputTokens: "1024", knowledgeBaseIds: [] as string[] });
   const [instructions, setInstructions] = useState({ rolePrompt: "", businessRules: "", forbiddenActions: "", escalationRules: "" });
+  const [trustSettings, setTrustSettings] = useState({
+    trustMode: "suggest",
+    trustConfidenceThreshold: "0.80",
+    trustTopics: [] as string[],
+    trustBlocklist: [] as string[],
+    maxAutoRepliesPerConversation: "3",
+    escalateAfterFailedAuto: "1",
+    dailyAutoSendQuota: "200",
+  });
+  const [topicInput, setTopicInput] = useState("");
+  const [blockInput, setBlockInput] = useState("");
   const [playgroundQuestion, setPlaygroundQuestion] = useState("");
   const [playgroundResult, setPlaygroundResult] = useState<any>(null);
   const canRead = hasPermission("ai:read");
@@ -65,6 +76,15 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
       businessRules: detailQuery.data?.instructions?.businessRules ?? "",
       forbiddenActions: detailQuery.data?.instructions?.forbiddenActions ?? "",
       escalationRules: detailQuery.data?.instructions?.escalationRules ?? "",
+    });
+    setTrustSettings({
+      trustMode: agent.trustMode ?? "suggest",
+      trustConfidenceThreshold: String(agent.trustConfidenceThreshold ?? "0.80"),
+      trustTopics: Array.isArray(agent.trustTopics) ? agent.trustTopics : [],
+      trustBlocklist: Array.isArray(agent.trustBlocklist) ? agent.trustBlocklist : [],
+      maxAutoRepliesPerConversation: String(agent.maxAutoRepliesPerConversation ?? 3),
+      escalateAfterFailedAuto: String(agent.escalateAfterFailedAuto ?? 1),
+      dailyAutoSendQuota: String(agent.dailyAutoSendQuota ?? 200),
     });
   }, [detailQuery.data]);
 
@@ -100,6 +120,27 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
     onError: (err) => setMessage((err as Error).message),
   });
 
+  const saveTrust = useMutation({
+    mutationFn: () => apiFetch(`ai/agents/${agentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        trustMode: trustSettings.trustMode,
+        trustConfidenceThreshold: Number(trustSettings.trustConfidenceThreshold),
+        trustTopics: trustSettings.trustTopics,
+        trustBlocklist: trustSettings.trustBlocklist,
+        maxAutoRepliesPerConversation: Number(trustSettings.maxAutoRepliesPerConversation),
+        escalateAfterFailedAuto: Number(trustSettings.escalateAfterFailedAuto),
+        dailyAutoSendQuota: Number(trustSettings.dailyAutoSendQuota),
+      }),
+    }),
+    onSuccess: () => {
+      setMessage(t("agents.detail.saved"));
+      qc.invalidateQueries({ queryKey: ["ai-agent", agentId] });
+    },
+    onError: (err) => setMessage((err as Error).message),
+  });
+
   const runPlayground = useMutation({
     mutationFn: () => apiFetch("ai/runs/draft-reply", {
       method: "POST",
@@ -117,6 +158,19 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
         ? current.knowledgeBaseIds.filter((item) => item !== id)
         : [...current.knowledgeBaseIds, id],
     }));
+  }
+
+  function addTrustChip(field: "trustTopics" | "trustBlocklist", value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setTrustSettings((current) => ({
+      ...current,
+      [field]: current[field].includes(trimmed) ? current[field] : [...current[field], trimmed],
+    }));
+  }
+
+  function removeTrustChip(field: "trustTopics" | "trustBlocklist", value: string) {
+    setTrustSettings((current) => ({ ...current, [field]: current[field].filter((item) => item !== value) }));
   }
 
   if (!canRead) {
@@ -244,6 +298,74 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {activeTab === "trust" && (
+          <div className="space-y-5">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{t("agents.detail.trust.info")}</div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-1 text-sm">
+                <span className="font-medium">{t("agents.detail.trust.mode")}</span>
+                <select value={trustSettings.trustMode} onChange={(event) => setTrustSettings({ ...trustSettings, trustMode: event.target.value })} disabled={!canConfigure} className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60">
+                  <option value="suggest">{t("agents.detail.trust.modes.suggest")}</option>
+                  <option value="auto">{t("agents.detail.trust.modes.auto")}</option>
+                  <option value="auto_after_hours">{t("agents.detail.trust.modes.autoAfterHours")}</option>
+                </select>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium">{t("agents.detail.trust.threshold")}</span>
+                <input type="range" min="0.5" max="0.95" step="0.05" value={trustSettings.trustConfidenceThreshold} onChange={(event) => setTrustSettings({ ...trustSettings, trustConfidenceThreshold: event.target.value })} disabled={!canConfigure} className="w-full" />
+                <span className="text-xs text-muted-foreground">{Number(trustSettings.trustConfidenceThreshold).toFixed(2)}</span>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium">{t("agents.detail.trust.maxPerConversation")}</span>
+                <input type="number" min="0" max="50" value={trustSettings.maxAutoRepliesPerConversation} onChange={(event) => setTrustSettings({ ...trustSettings, maxAutoRepliesPerConversation: event.target.value })} disabled={!canConfigure} className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60" />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium">{t("agents.detail.trust.escalateAfter")}</span>
+                <input type="number" min="0" max="20" value={trustSettings.escalateAfterFailedAuto} onChange={(event) => setTrustSettings({ ...trustSettings, escalateAfterFailedAuto: event.target.value })} disabled={!canConfigure} className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60" />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium">{t("agents.detail.trust.dailyQuota")}</span>
+                <input type="number" min="0" max="10000" value={trustSettings.dailyAutoSendQuota} onChange={(event) => setTrustSettings({ ...trustSettings, dailyAutoSendQuota: event.target.value })} disabled={!canConfigure} className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60" />
+              </label>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{t("agents.detail.trust.topics")}</div>
+                <div className="flex gap-2">
+                  <input value={topicInput} onChange={(event) => setTopicInput(event.target.value)} disabled={!canConfigure} className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60" placeholder={t("agents.detail.trust.topicPlaceholder")} />
+                  <button type="button" onClick={() => { addTrustChip("trustTopics", topicInput); setTopicInput(""); }} disabled={!canConfigure} className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted disabled:opacity-60">{t("common.create")}</button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {trustSettings.trustTopics.map((topic) => (
+                    <button key={topic} type="button" onClick={() => removeTrustChip("trustTopics", topic)} className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">{topic}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{t("agents.detail.trust.blocklist")}</div>
+                <div className="flex gap-2">
+                  <input value={blockInput} onChange={(event) => setBlockInput(event.target.value)} disabled={!canConfigure} className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60" placeholder={t("agents.detail.trust.blockPlaceholder")} />
+                  <button type="button" onClick={() => { addTrustChip("trustBlocklist", blockInput); setBlockInput(""); }} disabled={!canConfigure} className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted disabled:opacity-60">{t("common.create")}</button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {trustSettings.trustBlocklist.map((keyword) => (
+                    <button key={keyword} type="button" onClick={() => removeTrustChip("trustBlocklist", keyword)} className="rounded-full bg-destructive/10 px-3 py-1 text-xs text-destructive">{keyword}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {canConfigure && (
+              <button onClick={() => saveTrust.mutate()} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                <Save className="h-4 w-4" />
+                {t("common.save")}
+              </button>
+            )}
           </div>
         )}
 

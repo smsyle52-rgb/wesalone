@@ -5,10 +5,11 @@ import {
   aiAgentsTable, aiAgentVersionsTable, aiAgentInstructionsTable, aiAgentChannelsTable,
   aiAgentToolsTable, aiRunsTable, aiMessagesTable, aiExtractionsTable,
   aiUsageTable, aiFeedbackTable, aiSafetyEventsTable, approvalRequestsTable,
+  autoReplyDecisionsTable, outboxEventsTable, messagesTable, contactsTable, contactChannelsTable,
   conversationsTable, knowledgeChunksTable, faqEntriesTable, knowledgeDocumentsTable,
   channelAccountsTable,
 } from "@workspace/db";
-import { eq, and, desc, ilike, or, sql } from "drizzle-orm";
+import { eq, and, desc, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
@@ -18,6 +19,7 @@ import { checkActionSafety, recordSafetyBlock, isSuggestionSafe } from "../../li
 import { aiRunLimiter } from "../../lib/rateLimiter";
 import { appendTurn, clear as clearAgentMemory, loadContext, rotate, shouldRotate } from "../../services/agent-memory";
 import { searchKnowledgeForAi } from "../../services/knowledge-retrieval";
+import { shouldAutoSend, type TrustDecision } from "../../services/trust-gate";
 
 const router = Router();
 router.use(requireSession);
@@ -148,6 +150,7 @@ type KnowledgeAiSource = {
   id: string;
   title: string;
   content: string;
+  score?: number;
 };
 
 function knowledgeSearchWords(query: string): string[] {
@@ -198,6 +201,7 @@ async function searchKnowledgeDetailed(workspaceId: string, query: string, baseI
     id: source.id,
     title: source.title,
     content: source.content,
+    score: source.score,
   }));
   try {
     const words = knowledgeSearchWords(query);
@@ -279,6 +283,48 @@ async function searchKnowledgeDetailed(workspaceId: string, query: string, baseI
   }
 }
 
+async function resolveAutoReplyDestination(
+  workspaceId: string,
+  conversation: typeof conversationsTable.$inferSelect
+): Promise<{ channelAccountId: string | null; to: string | null }> {
+  let channelAccountId = conversation.channelAccountId;
+  if (!channelAccountId) {
+    const [account] = await db
+      .select({ id: channelAccountsTable.id })
+      .from(channelAccountsTable)
+      .where(and(eq(channelAccountsTable.workspaceId, workspaceId), eq(channelAccountsTable.channelType, "whatsapp")))
+      .limit(1);
+    channelAccountId = account?.id ?? null;
+  }
+
+  if (conversation.contactChannelId) {
+    const [channel] = await db
+      .select({ normalizedIdentifier: contactChannelsTable.normalizedIdentifier })
+      .from(contactChannelsTable)
+      .where(and(eq(contactChannelsTable.id, conversation.contactChannelId), eq(contactChannelsTable.workspaceId, workspaceId)))
+      .limit(1);
+    if (channel?.normalizedIdentifier) return { channelAccountId, to: channel.normalizedIdentifier };
+  }
+
+  if (conversation.contactId) {
+    const [channel] = await db
+      .select({ normalizedIdentifier: contactChannelsTable.normalizedIdentifier })
+      .from(contactChannelsTable)
+      .where(and(eq(contactChannelsTable.contactId, conversation.contactId), eq(contactChannelsTable.workspaceId, workspaceId)))
+      .limit(1);
+    if (channel?.normalizedIdentifier) return { channelAccountId, to: channel.normalizedIdentifier };
+
+    const [contact] = await db
+      .select({ phone: contactsTable.phone })
+      .from(contactsTable)
+      .where(and(eq(contactsTable.id, conversation.contactId), eq(contactsTable.workspaceId, workspaceId)))
+      .limit(1);
+    if (contact?.phone) return { channelAccountId, to: contact.phone };
+  }
+
+  return { channelAccountId, to: null };
+}
+
 async function searchKnowledge(workspaceId: string, query: string): Promise<string[]> {
   const sources = await searchKnowledgeDetailed(workspaceId, query);
   return sources.map((source) => source.content);
@@ -307,6 +353,13 @@ const agentUpdateSchema = z.object({
   knowledgeBaseIds: z.array(z.string().uuid()).optional(),
   dialect: z.enum(["standard_arabic", "yemeni_light", "yemeni_business"]).optional(),
   tone: z.string().trim().max(200).optional().nullable(),
+  trustMode: z.enum(["suggest", "auto", "auto_after_hours"]).optional(),
+  trustConfidenceThreshold: z.coerce.number().min(0.5).max(0.95).optional(),
+  trustTopics: z.array(z.string().trim().min(1).max(100)).optional(),
+  trustBlocklist: z.array(z.string().trim().min(1).max(100)).optional(),
+  maxAutoRepliesPerConversation: z.coerce.number().int().min(0).max(50).optional(),
+  escalateAfterFailedAuto: z.coerce.number().int().min(0).max(20).optional(),
+  dailyAutoSendQuota: z.coerce.number().int().min(0).max(10000).optional(),
 });
 
 router.get("/agents", requirePermission("ai:read"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -397,6 +450,33 @@ router.get("/agents/:id", requirePermission("ai:read"), async (req: Authenticate
   res.json({ agent, instructions: instructions ?? null, tools, versions, channels, runs });
 });
 
+router.get("/agents/:id/auto-decisions", requirePermission("ai:read"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const agentId = String(req.params.id);
+  const [agent] = await db.select({ id: aiAgentsTable.id }).from(aiAgentsTable).where(
+    and(eq(aiAgentsTable.id, agentId), eq(aiAgentsTable.workspaceId, activeWorkspaceId))
+  ).limit(1);
+  if (!agent) { res.status(404).json({ error: "الوكيل غير موجود" }); return; }
+
+  const filters = [
+    eq(autoReplyDecisionsTable.workspaceId, activeWorkspaceId),
+    eq(autoReplyDecisionsTable.agentId, agentId),
+  ];
+  const from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
+  const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
+  if (from && Number.isFinite(from.getTime())) filters.push(gte(autoReplyDecisionsTable.createdAt, from));
+  if (to && Number.isFinite(to.getTime())) filters.push(lte(autoReplyDecisionsTable.createdAt, to));
+
+  const decisions = await db
+    .select()
+    .from(autoReplyDecisionsTable)
+    .where(and(...filters))
+    .orderBy(desc(autoReplyDecisionsTable.createdAt))
+    .limit(100);
+
+  res.json({ decisions });
+});
+
 router.patch("/agents/:id", requirePermission("ai:configure"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { activeWorkspaceId } = req.sessionUser;
   const agentId = String(req.params.id);
@@ -419,6 +499,13 @@ router.patch("/agents/:id", requirePermission("ai:configure"), async (req: Authe
     ...(data.knowledgeBaseIds !== undefined && { knowledgeBaseIds: data.knowledgeBaseIds }),
     ...(data.dialect !== undefined && { dialect: data.dialect }),
     ...(data.tone !== undefined && { tone: data.tone ?? null }),
+    ...(data.trustMode !== undefined && { trustMode: data.trustMode }),
+    ...(data.trustConfidenceThreshold !== undefined && { trustConfidenceThreshold: String(data.trustConfidenceThreshold) }),
+    ...(data.trustTopics !== undefined && { trustTopics: data.trustTopics }),
+    ...(data.trustBlocklist !== undefined && { trustBlocklist: data.trustBlocklist }),
+    ...(data.maxAutoRepliesPerConversation !== undefined && { maxAutoRepliesPerConversation: data.maxAutoRepliesPerConversation }),
+    ...(data.escalateAfterFailedAuto !== undefined && { escalateAfterFailedAuto: data.escalateAfterFailedAuto }),
+    ...(data.dailyAutoSendQuota !== undefined && { dailyAutoSendQuota: data.dailyAutoSendQuota }),
   };
   const [agent] = await db.update(aiAgentsTable).set({
     ...updates,
@@ -462,6 +549,13 @@ router.post("/agents/:id/duplicate", requirePermission("ai:configure"), async (r
     knowledgeBaseIds: existing.knowledgeBaseIds,
     dialect: existing.dialect,
     tone: existing.tone,
+    trustMode: existing.trustMode,
+    trustConfidenceThreshold: existing.trustConfidenceThreshold,
+    trustTopics: existing.trustTopics,
+    trustBlocklist: existing.trustBlocklist,
+    maxAutoRepliesPerConversation: existing.maxAutoRepliesPerConversation,
+    escalateAfterFailedAuto: existing.escalateAfterFailedAuto,
+    dailyAutoSendQuota: existing.dailyAutoSendQuota,
     createdBy: userId,
   }).returning();
 
@@ -1059,12 +1153,16 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   let systemPrompt = "أنت مساعد خدمة عملاء محترف. اكتب ردوداً باللغة العربية تكون ودية ومهنية. هذه مسودات فقط ولا تُرسل تلقائياً.";
   let agentKnowledgeBaseIds: string[] = [];
   let memoryContext: Awaited<ReturnType<typeof loadContext>> | null = null;
+  let selectedAgent: (typeof aiAgentsTable.$inferSelect) | null = null;
+  let conversationForDraft: (typeof conversationsTable.$inferSelect) | null = null;
+  let latestMessageForDecision: (typeof messagesTable.$inferSelect) | null = null;
 
   if (agentId) {
     const [agent] = await db.select().from(aiAgentsTable).where(
       and(eq(aiAgentsTable.id, agentId), eq(aiAgentsTable.workspaceId, activeWorkspaceId))
     );
     if (!agent) { res.status(404).json({ error: "الوكيل غير موجود" }); return; }
+    selectedAgent = agent;
     model = parse.data.model ?? agent.defaultModel;
     agentKnowledgeBaseIds = Array.isArray(agent.knowledgeBaseIds) ? agent.knowledgeBaseIds : [];
     const [agentInstructions] = await db.select().from(aiAgentInstructionsTable).where(
@@ -1080,21 +1178,18 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   }
 
   if (conversationId) {
-    const { conversationsTable: ct, messagesTable: mt } = await import("@workspace/db").then((m) => ({
-      conversationsTable: m.conversationsTable,
-      messagesTable: m.messagesTable,
-    }));
-
-    const [conv] = await db.select().from(ct).where(
-      and(eq(ct.id, conversationId), eq(ct.workspaceId, activeWorkspaceId))
+    const [conv] = await db.select().from(conversationsTable).where(
+      and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, activeWorkspaceId))
     );
     if (!conv) { res.status(404).json({ error: "المحادثة غير موجودة أو لا تنتمي لهذا النظام" }); return; }
 
-    const messages = await db.select().from(mt).where(
-      and(eq(mt.conversationId, conversationId), eq(mt.workspaceId, activeWorkspaceId))
-    ).orderBy(mt.createdAt).limit(20);
+    const messages = await db.select().from(messagesTable).where(
+      and(eq(messagesTable.conversationId, conversationId), eq(messagesTable.workspaceId, activeWorkspaceId))
+    ).orderBy(messagesTable.createdAt).limit(20);
 
     const lastMsg = messages[messages.length - 1];
+    conversationForDraft = conv;
+    latestMessageForDecision = [...messages].reverse().find((item) => item.direction === "inbound") ?? lastMsg ?? null;
     searchQuery = lastMsg?.content ?? "";
     memoryContext = await loadContext(activeWorkspaceId, conversationId, agentId ?? null);
     transcript = messages.slice(-10).map((m) => `[${m.direction === "inbound" ? "العميل" : "الموظف"}]: ${m.content}`).join("\n");
@@ -1173,6 +1268,61 @@ ${transcript}${knowledgeContext}
     }
   }
 
+  let trustDecision: TrustDecision | null = null;
+  let autoReplyOutboxEventId: string | null = null;
+  if (conversationId && agentId && selectedAgent && conversationForDraft && latestMessageForDecision) {
+    trustDecision = await shouldAutoSend({
+      workspaceId: activeWorkspaceId,
+      agent: selectedAgent,
+      conversationId,
+      userMessage: latestMessageForDecision.content || searchQuery,
+      draftReply: result.output,
+      kbHits: uniqueSources,
+    });
+
+    if (trustDecision.decision === "auto_sent") {
+      const destination = await resolveAutoReplyDestination(activeWorkspaceId, conversationForDraft);
+      if (!destination.channelAccountId || !destination.to) {
+        trustDecision = {
+          ...trustDecision,
+          decision: "suggest_only",
+          reason: "missing_destination",
+        };
+      } else {
+        const [event] = await db.insert(outboxEventsTable).values({
+          workspaceId: activeWorkspaceId,
+          eventType: "message.send.whatsapp.text",
+          entityType: "conversation",
+          entityId: conversationId,
+          idempotencyKey: `auto:${agentId}:${latestMessageForDecision.id}`,
+          payload: {
+            channelAccountId: destination.channelAccountId,
+            conversationId,
+            to: destination.to,
+            body: result.output,
+            aiRunId: result.run.id,
+            autoReply: true,
+          },
+          status: "pending",
+          nextAttemptAt: new Date(),
+        }).onConflictDoNothing().returning({ id: outboxEventsTable.id });
+        autoReplyOutboxEventId = event?.id ?? null;
+      }
+    }
+
+    await db.insert(autoReplyDecisionsTable).values({
+      workspaceId: activeWorkspaceId,
+      conversationId,
+      agentId,
+      messageId: latestMessageForDecision.id,
+      decision: trustDecision.decision,
+      reason: trustDecision.reason,
+      confidence: trustDecision.confidence !== undefined ? String(trustDecision.confidence) : null,
+      topicDetected: trustDecision.topic ?? null,
+      sentMessageId: null,
+    });
+  }
+
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "ai_run_create",
@@ -1184,6 +1334,8 @@ ${transcript}${knowledgeContext}
   res.status(201).json({
     run: result.run,
     draft: result.output,
+    trustDecision,
+    autoReplyOutboxEventId,
     sources: uniqueSources.length > 0 ? uniqueSources : null,
     knowledgeSources: knowledgeSources.length > 0 ? knowledgeSources : null,
     knowledgeSourcesSummary: knowledgeSources.length > 0 ? `تم استخدام ${knowledgeSources.length} مصدر من قاعدة المعرفة` : null,

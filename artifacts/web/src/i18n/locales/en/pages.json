@@ -361,7 +361,25 @@
         "knowledge": "Knowledge base",
         "channels": "Channels",
         "runs": "Log",
+        "trust": "Trust mode",
         "playground": "Playground"
+      },
+      "trust": {
+        "info": "Even when automatic replies are enabled, staff can intervene at any time. Every automatic reply decision is logged with its reason.",
+        "mode": "Operating mode",
+        "modes": {
+          "suggest": "Suggest only",
+          "auto": "Automatic",
+          "autoAfterHours": "Automatic after hours"
+        },
+        "threshold": "Minimum confidence",
+        "topics": "Automatic reply topics",
+        "topicPlaceholder": "Example: pricing or payment methods",
+        "blocklist": "Auto-reply block words",
+        "blockPlaceholder": "Example: complaint or cancellation",
+        "maxPerConversation": "Maximum per conversation",
+        "escalateAfter": "Escalate after failures",
+        "dailyQuota": "Daily automatic reply limit"
       }
     }
   }
