@@ -34,6 +34,12 @@ tags:
     description: Payment management
   - name: dashboard
     description: Dashboard analytics
+  - name: templates
+    description: WhatsApp template management
+  - name: broadcasts
+    description: Broadcast campaign management
+  - name: automations
+    description: Automation management
 
 paths:
   /healthz:
@@ -843,6 +849,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ActivityFeedResponse"
+
+  /templates:
+    get:
+      operationId: listTemplates
+      tags: [templates]
+      summary: List templates
+      responses:
+        "200":
+          description: Templates list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplatesListResponse"
+    post:
+      operationId: createTemplate
+      tags: [templates]
+      summary: Create template draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTemplateBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateResponse"
+
+  /broadcasts:
+    get:
+      operationId: listBroadcasts
+      tags: [broadcasts]
+      summary: List broadcasts
+      responses:
+        "200":
+          description: Broadcasts list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastsListResponse"
+    post:
+      operationId: createBroadcast
+      tags: [broadcasts]
+      summary: Create broadcast draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBroadcastBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastResponse"
+
+  /automations:
+    get:
+      operationId: listAutomations
+      tags: [automations]
+      summary: List automations
+      responses:
+        "200":
+          description: Automations list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationsListResponse"
+    post:
+      operationId: createAutomation
+      tags: [automations]
+      summary: Create automation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAutomationBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationResponse"
 
 components:
   schemas:
@@ -1671,3 +1767,159 @@ components:
             $ref: "#/components/schemas/ActivityItem"
         total:
           type: integer
+
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        language:
+          type: string
+          default: ar
+        category:
+          type: string
+          enum: [marketing, utility, authentication]
+        status:
+          type: string
+          enum: [draft, submitted, approved, rejected, paused, disabled]
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, language, category, status]
+
+    TemplateResponse:
+      type: object
+      properties:
+        template:
+          $ref: "#/components/schemas/Template"
+
+    TemplatesListResponse:
+      type: object
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: "#/components/schemas/Template"
+        total:
+          type: integer
+
+    CreateTemplateBody:
+      type: object
+      properties:
+        name:
+          type: string
+        language:
+          type: string
+          default: ar
+        category:
+          type: string
+          enum: [marketing, utility, authentication]
+        components:
+          type: array
+          items:
+            type: object
+      required: [name, category, components]
+
+    Broadcast:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        templateId:
+          type: string
+        channelAccountId:
+          type: string
+        status:
+          type: string
+          enum: [draft, scheduled, sending, completed, cancelled, failed]
+        scheduledAt:
+          type: string
+          format: date-time
+      required: [id, name, templateId, channelAccountId, status]
+
+    BroadcastResponse:
+      type: object
+      properties:
+        broadcast:
+          $ref: "#/components/schemas/Broadcast"
+
+    BroadcastsListResponse:
+      type: object
+      properties:
+        broadcasts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Broadcast"
+        total:
+          type: integer
+
+    CreateBroadcastBody:
+      type: object
+      properties:
+        name:
+          type: string
+        templateId:
+          type: string
+        channelAccountId:
+          type: string
+        audienceFilter:
+          type: object
+        variableMapping:
+          type: object
+      required: [name, templateId, channelAccountId]
+
+    Automation:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, paused]
+        trigger:
+          type: object
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, status, trigger]
+
+    AutomationResponse:
+      type: object
+      properties:
+        automation:
+          $ref: "#/components/schemas/Automation"
+
+    AutomationsListResponse:
+      type: object
+      properties:
+        automations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Automation"
+        total:
+          type: integer
+
+    CreateAutomationBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        trigger:
+          type: object
+        conditions:
+          type: array
+          items:
+            type: object
+        actions:
+          type: array
+          items:
+            type: object
+      required: [name, trigger]

@@ -29,6 +29,13 @@
       "when": 1779000000000,
       "tag": "0003_critical_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779003600000,
+      "tag": "0004_phase2_modules",
+      "breakpoints": true
     }
   ]
 }
