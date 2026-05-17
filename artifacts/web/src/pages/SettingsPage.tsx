@@ -15,7 +15,20 @@ const apiFetch = async (path: string, opts?: RequestInit) => {
   return res.json();
 };
 
-type Tab = "workspace" | "security" | "users" | "invite" | "payment-methods" | "exchange-rates";
+type Tab =
+  | "workspace"
+  | "users"
+  | "invite"
+  | "business-hours"
+  | "sla"
+  | "quick-replies"
+  | "payment-methods"
+  | "exchange-rates"
+  | "notifications"
+  | "security"
+  | "billing"
+  | "api-keys"
+  | "danger";
 
 function PasswordInput({ id, name, label, value, onChange, placeholder, autoComplete = "new-password" }: {
   id: string;
@@ -301,6 +314,179 @@ function SecurityTab() {
   );
 }
 
+function BusinessHoursTab() {
+  const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  const defaults = days.map((_, dayOfWeek) => ({ dayOfWeek, openTime: "09:00", closeTime: "17:00", isClosed: dayOfWeek === 5, timezone: "Asia/Aden" }));
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["business-hours"], queryFn: () => apiFetch("business-hours") });
+  const current = days.map((_, dayOfWeek) => data?.businessHours?.find((d: any) => d.dayOfWeek === dayOfWeek) ?? defaults[dayOfWeek]);
+  const save = useMutation({
+    mutationFn: () => apiFetch("business-hours", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ days: current }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["business-hours"] }),
+  });
+  return (
+    <div className="max-w-3xl space-y-3">
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        {isLoading ? <div className="p-6 text-sm text-muted-foreground">جار التحميل...</div> : current.map((day, index) => (
+          <div key={day.dayOfWeek} className="grid grid-cols-4 gap-3 items-center p-3 border-b border-border/50 last:border-0 text-sm">
+            <div className="font-medium">{days[index]}</div>
+            <div>{day.isClosed ? "مغلق" : `${day.openTime} - ${day.closeTime}`}</div>
+            <div className="text-muted-foreground">{day.timezone}</div>
+            <div className="text-xs text-muted-foreground">تعديل الجدول التفصيلي محفوظ للمرحلة القادمة</div>
+          </div>
+        ))}
+      </div>
+      <button onClick={() => save.mutate()} disabled={save.isPending} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">حفظ الجدول الافتراضي</button>
+    </div>
+  );
+}
+
+function SlaRulesTab() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ name: "قاعدة الرد الأولى", firstResponseMinutes: 30, resolutionMinutes: 1440 });
+  const { data, isLoading } = useQuery({ queryKey: ["sla-rules"], queryFn: () => apiFetch("sla-rules") });
+  const create = useMutation({
+    mutationFn: () => apiFetch("sla-rules", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, active: true }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sla-rules"] }),
+  });
+  return (
+    <div className="grid lg:grid-cols-[1fr_320px] gap-4">
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        {isLoading ? <div className="p-6 text-sm text-muted-foreground">جار التحميل...</div> : !(data?.slaRules ?? []).length ? (
+          <div className="p-8 text-sm text-muted-foreground text-center">لا توجد قواعد استجابة بعد</div>
+        ) : data.slaRules.map((rule: any) => (
+          <div key={rule.id} className="p-4 border-b border-border/50 last:border-0">
+            <div className="font-medium">{rule.name}</div>
+            <div className="text-xs text-muted-foreground mt-1">مهلة الرد: {rule.firstResponseMinutes} دقيقة · الحل: {rule.resolutionMinutes ?? "غير محدد"} دقيقة</div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+        <h3 className="text-sm font-semibold">قاعدة جديدة</h3>
+        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm" />
+        <input type="number" value={form.firstResponseMinutes} onChange={(e) => setForm({ ...form, firstResponseMinutes: Number(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm" />
+        <button onClick={() => create.mutate()} disabled={create.isPending} className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">حفظ</button>
+      </div>
+    </div>
+  );
+}
+
+function QuickRepliesTab() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ shortcut: "/hello", title: "", body: "" });
+  const { data, isLoading } = useQuery({ queryKey: ["quick-replies"], queryFn: () => apiFetch("quick-replies") });
+  const create = useMutation({
+    mutationFn: () => apiFetch("quick-replies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["quick-replies"] }); setForm({ shortcut: "/hello", title: "", body: "" }); },
+  });
+  return (
+    <div className="grid lg:grid-cols-[1fr_360px] gap-4">
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        {isLoading ? <div className="p-6 text-sm text-muted-foreground">جار التحميل...</div> : !(data?.quickReplies ?? []).length ? (
+          <div className="p-8 text-sm text-muted-foreground text-center">لا توجد ردود سريعة بعد</div>
+        ) : data.quickReplies.map((reply: any) => (
+          <div key={reply.id} className="p-4 border-b border-border/50 last:border-0">
+            <div className="font-medium">{reply.shortcut} · {reply.title}</div>
+            <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{reply.body}</div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+        <h3 className="text-sm font-semibold">رد سريع جديد</h3>
+        <input value={form.shortcut} onChange={(e) => setForm({ ...form, shortcut: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm" />
+        <input placeholder="العنوان" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm" />
+        <textarea rows={4} placeholder="نص الرد" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm resize-none" />
+        <button onClick={() => create.mutate()} disabled={create.isPending || !form.title || !form.body} className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">حفظ</button>
+      </div>
+    </div>
+  );
+}
+
+function NotificationsTab() {
+  const qc = useQueryClient();
+  const [events, setEvents] = useState(["message.received", "sla.breached"]);
+  const { data } = useQuery({ queryKey: ["notification-preferences"], queryFn: () => apiFetch("workspace/notification-preferences") });
+  const save = useMutation({
+    mutationFn: () => apiFetch("workspace/notification-preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferences: [{ channel: "in_app", events }] }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notification-preferences"] }),
+  });
+  return (
+    <div className="max-w-xl bg-card rounded-xl border border-border p-5 space-y-4">
+      <h3 className="text-sm font-semibold">التنبيهات</h3>
+      <p className="text-sm text-muted-foreground">هذه الإعدادات تُحفظ الآن، وتسليم التنبيهات الفعلي مؤجل لمرحلة لاحقة.</p>
+      <div className="text-xs text-muted-foreground">الحالي: {(data?.preferences ?? []).map((p: any) => `${p.channel}: ${p.events?.length ?? 0}`).join(" · ") || "لا يوجد"}</div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={events.includes("message.received")} onChange={(e) => setEvents(e.target.checked ? [...events, "message.received"] : events.filter((x) => x !== "message.received"))} /> رسائل جديدة</label>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={events.includes("sla.breached")} onChange={(e) => setEvents(e.target.checked ? [...events, "sla.breached"] : events.filter((x) => x !== "sla.breached"))} /> تجاوز مهلة الرد</label>
+      <button onClick={() => save.mutate()} disabled={save.isPending} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">حفظ</button>
+    </div>
+  );
+}
+
+function BillingTab() {
+  const { data } = useQuery({ queryKey: ["workspace-usage"], queryFn: () => apiFetch("workspace/usage") });
+  const plan = data?.subscription;
+  return (
+    <div className="grid lg:grid-cols-2 gap-4">
+      <div className="bg-card rounded-xl border border-border p-5">
+        <h3 className="text-sm font-semibold mb-3">الفوترة</h3>
+        <div className="text-2xl font-bold">{plan?.planName ?? "تجريبي"}</div>
+        <p className="mt-2 text-sm text-muted-foreground">الدفع يدوي حالياً عبر التحويل البنكي أو كريمي/جوالي حسب الاتفاق. لا يوجد بوابة دفع مفعّلة.</p>
+      </div>
+      <div className="bg-card rounded-xl border border-border p-5">
+        <h3 className="text-sm font-semibold mb-3">الفواتير</h3>
+        <div className="text-sm text-muted-foreground text-center py-8">لا توجد فواتير مولدة بعد</div>
+      </div>
+    </div>
+  );
+}
+
+function ApiKeysTab() {
+  const qc = useQueryClient();
+  const [label, setLabel] = useState("مفتاح داخلي");
+  const [newKey, setNewKey] = useState("");
+  const { data, isLoading } = useQuery({ queryKey: ["api-keys"], queryFn: () => apiFetch("workspace/api-keys") });
+  const create = useMutation({
+    mutationFn: () => apiFetch("workspace/api-keys", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label, scopes: ["read"] }) }),
+    onSuccess: (res) => { setNewKey(res.key); qc.invalidateQueries({ queryKey: ["api-keys"] }); },
+  });
+  const revoke = useMutation({
+    mutationFn: (id: string) => apiFetch(`workspace/api-keys/${id}/revoke`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["api-keys"] }),
+  });
+  return (
+    <div className="grid lg:grid-cols-[1fr_360px] gap-4">
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        {isLoading ? <div className="p-6 text-sm text-muted-foreground">جار التحميل...</div> : !(data?.apiKeys ?? []).length ? (
+          <div className="p-8 text-sm text-muted-foreground text-center">لا توجد مفاتيح API بعد</div>
+        ) : data.apiKeys.map((key: any) => (
+          <div key={key.id} className="p-4 border-b border-border/50 last:border-0 flex items-center justify-between gap-3">
+            <div>
+              <div className="font-medium">{key.label}</div>
+              <div className="text-xs text-muted-foreground">ينتهي بـ {key.last4} · {key.revokedAt ? "ملغى" : "نشط"}</div>
+            </div>
+            {!key.revokedAt && <button onClick={() => revoke.mutate(key.id)} className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 text-xs">إلغاء</button>}
+          </div>
+        ))}
+      </div>
+      <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+        <h3 className="text-sm font-semibold">مفتاح جديد</h3>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm" />
+        <button onClick={() => create.mutate()} disabled={create.isPending || !label.trim()} className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">إنشاء</button>
+        {newKey && <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs break-all" dir="ltr">{newKey}</div>}
+      </div>
+    </div>
+  );
+}
+
+function DangerZoneTab() {
+  return (
+    <div className="max-w-xl rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">
+      <h3 className="text-sm font-semibold mb-2">المنطقة الخطرة</h3>
+      <p className="text-sm">نقل الملكية أو حذف مساحة العمل يحتاج تدفق تأكيد منفصل. لا توجد عملية حذف مفعّلة من هذه الصفحة الآن.</p>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { hasPermission } = useAuth();
   const qc = useQueryClient();
@@ -335,12 +521,19 @@ export default function SettingsPage() {
   const members = usersData?.members ?? usersData?.users ?? [];
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "workspace", label: "معلومات المساحة" },
-    { id: "security", label: "الأمان" },
-    { id: "users", label: "أعضاء الفريق" },
+    { id: "workspace", label: "مساحة العمل" },
+    { id: "users", label: "الفريق" },
     { id: "invite", label: "دعوة عضو" },
+    { id: "business-hours", label: "ساعات العمل" },
+    { id: "sla", label: "قواعد الاستجابة" },
+    { id: "quick-replies", label: "الردود السريعة" },
     { id: "payment-methods", label: "طرق الدفع" },
     { id: "exchange-rates", label: "أسعار الصرف" },
+    { id: "notifications", label: "التنبيهات" },
+    { id: "security", label: "الأمان" },
+    { id: "billing", label: "الفوترة" },
+    { id: "api-keys", label: "مفاتيح API" },
+    { id: "danger", label: "المنطقة الخطرة" },
   ];
 
   return (
@@ -357,7 +550,6 @@ export default function SettingsPage() {
       </div>
 
       {tab === "workspace" && <WorkspaceTab />}
-      {tab === "security" && <SecurityTab />}
 
       {tab === "users" && (
         <div className="max-w-2xl">
@@ -449,8 +641,16 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {tab === "business-hours" && <BusinessHoursTab />}
+      {tab === "sla" && <SlaRulesTab />}
+      {tab === "quick-replies" && <QuickRepliesTab />}
       {tab === "payment-methods" && <PaymentMethodsTab />}
       {tab === "exchange-rates" && <ExchangeRatesTab />}
+      {tab === "notifications" && <NotificationsTab />}
+      {tab === "security" && <SecurityTab />}
+      {tab === "billing" && <BillingTab />}
+      {tab === "api-keys" && <ApiKeysTab />}
+      {tab === "danger" && <DangerZoneTab />}
     </div>
   );
 }

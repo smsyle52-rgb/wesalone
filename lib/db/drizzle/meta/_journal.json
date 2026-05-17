@@ -64,6 +64,13 @@
       "when": 1779018000000,
       "tag": "0008_inbox_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779021600000,
+      "tag": "0009_settings_depth",
+      "breakpoints": true
     }
   ]
 }
