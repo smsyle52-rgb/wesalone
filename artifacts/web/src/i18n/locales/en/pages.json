@@ -63,5 +63,88 @@
       "title": "Start your business",
       "subtitle": "Prepare business information and knowledge before demo or operation"
     }
+  },
+  "common": {
+    "edit": "Edit",
+    "delete": "Delete",
+    "duplicate": "Duplicate",
+    "retry": "Retry"
+  },
+  "templates": {
+    "title": "Templates",
+    "subtitle": "Manage WhatsApp templates before review",
+    "newTemplate": "Create new template",
+    "permissionDenied": "You do not have permission to view templates",
+    "loadError": "Could not load templates",
+    "empty": "No templates yet",
+    "table": {
+      "name": "Name",
+      "category": "Category",
+      "language": "Language",
+      "status": "Status",
+      "updatedAt": "Last updated",
+      "actions": "Actions"
+    },
+    "filters": {
+      "status": "Status",
+      "category": "Category",
+      "language": "Language",
+      "allStatuses": "All statuses",
+      "allCategories": "All categories",
+      "allLanguages": "All languages"
+    },
+    "statuses": {
+      "draft": "Draft",
+      "submitted": "Submitted",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "active": "Active",
+      "paused": "Paused",
+      "disabled": "Disabled",
+      "scheduled": "Scheduled",
+      "sending": "Sending",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "categories": {
+      "marketing": "Marketing",
+      "utility": "Utility",
+      "authentication": "Authentication"
+    },
+    "actions": {
+      "submit": "Submit for review",
+      "sync": "Sync"
+    },
+    "editor": {
+      "createTitle": "Create template",
+      "editTitle": "Edit template",
+      "subtitle": "Prepare text and variables, then submit when ready",
+      "saveDraft": "Save as draft",
+      "submit": "Submit for review",
+      "saved": "Template saved",
+      "submitted": "Template submitted for review",
+      "currentStatus": "Current status",
+      "addComponent": "Add component",
+      "noVariables": "No variables detected",
+      "previewEmpty": "Template preview appears here",
+      "tabs": {
+        "general": "General",
+        "components": "Components",
+        "variables": "Variables",
+        "preview": "Preview"
+      },
+      "fields": {
+        "name": "Name",
+        "language": "Language",
+        "category": "Category",
+        "channelAccount": "Account",
+        "noChannelAccount": "No account selected",
+        "componentText": "Component text. You can use {{1}} or {{name}}",
+        "example": "Preview example",
+        "variableExample": "Example value",
+        "variableDescription": "Variable description"
+      }
+    }
   }
 }

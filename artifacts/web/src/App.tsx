@@ -27,6 +27,8 @@ import AnalyticsPage from "@/pages/AnalyticsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import IntegrationsPage from "@/pages/IntegrationsPage";
 import BusinessSetupPage from "@/pages/BusinessSetupPage";
+import TemplatesPage from "@/pages/TemplatesPage";
+import TemplateEditorPage from "@/pages/TemplateEditorPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -101,6 +103,11 @@ function Router() {
       <Route path="/analytics" component={() => <ProtectedRoute component={AnalyticsPage} />} />
       <Route path="/reports" component={() => <ProtectedRoute component={ReportsPage} />} />
       <Route path="/integrations" component={() => <ProtectedRoute component={IntegrationsPage} />} />
+      <Route path="/templates/new" component={() => <ProtectedRoute component={() => <TemplateEditorPage />} />} />
+      <Route path="/templates/:id" component={({ params }) => (
+        <ProtectedRoute component={() => <TemplateEditorPage templateId={params.id} />} />
+      )} />
+      <Route path="/templates" component={() => <ProtectedRoute component={TemplatesPage} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
       <Route path="/" component={() => <Redirect to="/dashboard" />} />
       <Route component={NotFound} />

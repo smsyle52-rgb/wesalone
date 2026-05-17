@@ -1010,3 +1010,294 @@ export const GetRecentActivityResponse = zod.object({
     .optional(),
   total: zod.number().optional(),
 });
+
+/**
+ * @summary List templates
+ */
+export const listTemplatesResponseTemplatesItemLanguageDefault = `ar`;
+
+export const ListTemplatesResponse = zod.object({
+  templates: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        name: zod.string(),
+        language: zod
+          .string()
+          .default(listTemplatesResponseTemplatesItemLanguageDefault),
+        category: zod.enum(["marketing", "utility", "authentication"]),
+        channelAccountId: zod.string().nullish(),
+        status: zod.enum([
+          "draft",
+          "submitted",
+          "approved",
+          "rejected",
+          "paused",
+          "disabled",
+        ]),
+        components: zod.array(zod.object({}).passthrough()).optional(),
+        variables: zod.array(zod.object({}).passthrough()).optional(),
+        updatedAt: zod.coerce.date().optional(),
+      }),
+    )
+    .optional(),
+  total: zod.number().optional(),
+});
+
+/**
+ * @summary Create template draft
+ */
+export const createTemplateBodyLanguageDefault = `ar`;
+
+export const CreateTemplateBody = zod.object({
+  name: zod.string(),
+  language: zod.string().default(createTemplateBodyLanguageDefault),
+  category: zod.enum(["marketing", "utility", "authentication"]),
+  channelAccountId: zod.string().nullish(),
+  components: zod.array(zod.object({}).passthrough()),
+  variables: zod.array(zod.object({}).passthrough()).optional(),
+});
+
+/**
+ * @summary Get template details
+ */
+export const GetTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const getTemplateResponseTemplateLanguageDefault = `ar`;
+
+export const GetTemplateResponse = zod.object({
+  template: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      language: zod
+        .string()
+        .default(getTemplateResponseTemplateLanguageDefault),
+      category: zod.enum(["marketing", "utility", "authentication"]),
+      channelAccountId: zod.string().nullish(),
+      status: zod.enum([
+        "draft",
+        "submitted",
+        "approved",
+        "rejected",
+        "paused",
+        "disabled",
+      ]),
+      components: zod.array(zod.object({}).passthrough()).optional(),
+      variables: zod.array(zod.object({}).passthrough()).optional(),
+      updatedAt: zod.coerce.date().optional(),
+    })
+    .optional(),
+  versions: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        templateId: zod.string(),
+        versionNumber: zod.number(),
+        status: zod.string(),
+        submittedAt: zod.coerce.date().optional(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * @summary Update template draft
+ */
+export const UpdateTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateTemplateBody = zod.object({
+  name: zod.string().optional(),
+  language: zod.string().optional(),
+  category: zod.enum(["marketing", "utility", "authentication"]).optional(),
+  channelAccountId: zod.string().nullish(),
+  components: zod.array(zod.object({}).passthrough()).optional(),
+  variables: zod.array(zod.object({}).passthrough()).optional(),
+});
+
+export const updateTemplateResponseTemplateLanguageDefault = `ar`;
+
+export const UpdateTemplateResponse = zod.object({
+  template: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      language: zod
+        .string()
+        .default(updateTemplateResponseTemplateLanguageDefault),
+      category: zod.enum(["marketing", "utility", "authentication"]),
+      channelAccountId: zod.string().nullish(),
+      status: zod.enum([
+        "draft",
+        "submitted",
+        "approved",
+        "rejected",
+        "paused",
+        "disabled",
+      ]),
+      components: zod.array(zod.object({}).passthrough()).optional(),
+      variables: zod.array(zod.object({}).passthrough()).optional(),
+      updatedAt: zod.coerce.date().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Delete template
+ */
+export const DeleteTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const DeleteTemplateResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Duplicate template as draft
+ */
+export const DuplicateTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary Submit template for review
+ */
+export const SubmitTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const submitTemplateResponseTemplateLanguageDefault = `ar`;
+
+export const SubmitTemplateResponse = zod.object({
+  template: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      language: zod
+        .string()
+        .default(submitTemplateResponseTemplateLanguageDefault),
+      category: zod.enum(["marketing", "utility", "authentication"]),
+      channelAccountId: zod.string().nullish(),
+      status: zod.enum([
+        "draft",
+        "submitted",
+        "approved",
+        "rejected",
+        "paused",
+        "disabled",
+      ]),
+      components: zod.array(zod.object({}).passthrough()).optional(),
+      variables: zod.array(zod.object({}).passthrough()).optional(),
+      updatedAt: zod.coerce.date().optional(),
+    })
+    .optional(),
+  submitted: zod.boolean().optional(),
+  externalCall: zod.boolean().optional(),
+});
+
+/**
+ * @summary Sync template status
+ */
+export const SyncTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const syncTemplateResponseTemplateLanguageDefault = `ar`;
+
+export const SyncTemplateResponse = zod.object({
+  template: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      language: zod
+        .string()
+        .default(syncTemplateResponseTemplateLanguageDefault),
+      category: zod.enum(["marketing", "utility", "authentication"]),
+      channelAccountId: zod.string().nullish(),
+      status: zod.enum([
+        "draft",
+        "submitted",
+        "approved",
+        "rejected",
+        "paused",
+        "disabled",
+      ]),
+      components: zod.array(zod.object({}).passthrough()).optional(),
+      variables: zod.array(zod.object({}).passthrough()).optional(),
+      updatedAt: zod.coerce.date().optional(),
+    })
+    .optional(),
+  synced: zod.boolean().optional(),
+  mode: zod.string().optional(),
+});
+
+/**
+ * @summary List broadcasts
+ */
+export const ListBroadcastsResponse = zod.object({
+  broadcasts: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        name: zod.string(),
+        templateId: zod.string(),
+        channelAccountId: zod.string(),
+        status: zod.enum([
+          "draft",
+          "scheduled",
+          "sending",
+          "completed",
+          "cancelled",
+          "failed",
+        ]),
+        scheduledAt: zod.coerce.date().optional(),
+      }),
+    )
+    .optional(),
+  total: zod.number().optional(),
+});
+
+/**
+ * @summary Create broadcast draft
+ */
+export const CreateBroadcastBody = zod.object({
+  name: zod.string(),
+  templateId: zod.string(),
+  channelAccountId: zod.string(),
+  audienceFilter: zod.object({}).passthrough().optional(),
+  variableMapping: zod.object({}).passthrough().optional(),
+});
+
+/**
+ * @summary List automations
+ */
+export const ListAutomationsResponse = zod.object({
+  automations: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        name: zod.string(),
+        status: zod.enum(["draft", "active", "paused"]),
+        trigger: zod.object({}).passthrough(),
+        updatedAt: zod.coerce.date().optional(),
+      }),
+    )
+    .optional(),
+  total: zod.number().optional(),
+});
+
+/**
+ * @summary Create automation
+ */
+export const CreateAutomationBody = zod.object({
+  name: zod.string(),
+  description: zod.string().optional(),
+  trigger: zod.object({}).passthrough(),
+  conditions: zod.array(zod.object({}).passthrough()).optional(),
+  actions: zod.array(zod.object({}).passthrough()).optional(),
+});

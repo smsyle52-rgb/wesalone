@@ -63,5 +63,88 @@
       "title": "ابدأ تشغيل نشاطك",
       "subtitle": "جهز معلومات النشاط والمعرفة قبل العرض أو التشغيل"
     }
+  },
+  "common": {
+    "edit": "تعديل",
+    "delete": "حذف",
+    "duplicate": "تكرار",
+    "retry": "إعادة المحاولة"
+  },
+  "templates": {
+    "title": "القوالب",
+    "subtitle": "إدارة قوالب واتساب قبل إرسالها للمراجعة",
+    "newTemplate": "إنشاء قالب جديد",
+    "permissionDenied": "ليس لديك صلاحية عرض القوالب",
+    "loadError": "تعذر تحميل القوالب",
+    "empty": "لا توجد قوالب بعد",
+    "table": {
+      "name": "الاسم",
+      "category": "الفئة",
+      "language": "اللغة",
+      "status": "الحالة",
+      "updatedAt": "آخر تحديث",
+      "actions": "الإجراءات"
+    },
+    "filters": {
+      "status": "الحالة",
+      "category": "الفئة",
+      "language": "اللغة",
+      "allStatuses": "كل الحالات",
+      "allCategories": "كل الفئات",
+      "allLanguages": "كل اللغات"
+    },
+    "statuses": {
+      "draft": "مسودة",
+      "submitted": "مُرسل",
+      "approved": "معتمد",
+      "rejected": "مرفوض",
+      "active": "نشط",
+      "paused": "متوقف",
+      "disabled": "معطل",
+      "scheduled": "مجدول",
+      "sending": "جارٍ الإرسال",
+      "completed": "مكتمل",
+      "failed": "فشل",
+      "cancelled": "ملغى"
+    },
+    "categories": {
+      "marketing": "تسويقي",
+      "utility": "خدمي",
+      "authentication": "تحقق"
+    },
+    "actions": {
+      "submit": "إرسال للمراجعة",
+      "sync": "مزامنة"
+    },
+    "editor": {
+      "createTitle": "إنشاء قالب",
+      "editTitle": "تعديل قالب",
+      "subtitle": "جهز النص والمتغيرات ثم أرسله للمراجعة عند اكتماله",
+      "saveDraft": "حفظ كمسودة",
+      "submit": "إرسال للمراجعة",
+      "saved": "تم حفظ القالب",
+      "submitted": "تم إرسال القالب للمراجعة",
+      "currentStatus": "الحالة الحالية",
+      "addComponent": "إضافة مكون",
+      "noVariables": "لا توجد متغيرات مكتشفة",
+      "previewEmpty": "ستظهر معاينة القالب هنا",
+      "tabs": {
+        "general": "تفاصيل عامة",
+        "components": "المكونات",
+        "variables": "المتغيرات",
+        "preview": "المعاينة"
+      },
+      "fields": {
+        "name": "الاسم",
+        "language": "اللغة",
+        "category": "الفئة",
+        "channelAccount": "الحساب",
+        "noChannelAccount": "بدون حساب محدد",
+        "componentText": "نص المكون. يمكنك استخدام {{1}} أو {{name}}",
+        "example": "مثال للمعاينة",
+        "variableExample": "قيمة مثال",
+        "variableDescription": "وصف المتغير"
+      }
+    }
   }
 }

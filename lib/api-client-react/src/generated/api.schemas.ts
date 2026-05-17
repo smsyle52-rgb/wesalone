@@ -695,6 +695,205 @@ export interface ActivityFeedResponse {
   total?: number;
 }
 
+export type TemplateCategory =
+  (typeof TemplateCategory)[keyof typeof TemplateCategory];
+
+export const TemplateCategory = {
+  marketing: "marketing",
+  utility: "utility",
+  authentication: "authentication",
+} as const;
+
+export type TemplateStatus =
+  (typeof TemplateStatus)[keyof typeof TemplateStatus];
+
+export const TemplateStatus = {
+  draft: "draft",
+  submitted: "submitted",
+  approved: "approved",
+  rejected: "rejected",
+  paused: "paused",
+  disabled: "disabled",
+} as const;
+
+export type TemplateComponentsItem = { [key: string]: unknown };
+
+export type TemplateVariablesItem = { [key: string]: unknown };
+
+export interface Template {
+  id: string;
+  name: string;
+  language: string;
+  category: TemplateCategory;
+  channelAccountId?: string | null;
+  status: TemplateStatus;
+  components?: TemplateComponentsItem[];
+  variables?: TemplateVariablesItem[];
+  updatedAt?: string;
+}
+
+export interface TemplateResponse {
+  template?: Template;
+}
+
+export interface TemplateVersion {
+  id: string;
+  templateId: string;
+  versionNumber: number;
+  status: string;
+  submittedAt?: string;
+}
+
+export interface TemplateDetailResponse {
+  template?: Template;
+  versions?: TemplateVersion[];
+}
+
+export interface TemplatesListResponse {
+  templates?: Template[];
+  total?: number;
+}
+
+export type CreateTemplateBodyCategory =
+  (typeof CreateTemplateBodyCategory)[keyof typeof CreateTemplateBodyCategory];
+
+export const CreateTemplateBodyCategory = {
+  marketing: "marketing",
+  utility: "utility",
+  authentication: "authentication",
+} as const;
+
+export type CreateTemplateBodyComponentsItem = { [key: string]: unknown };
+
+export type CreateTemplateBodyVariablesItem = { [key: string]: unknown };
+
+export interface CreateTemplateBody {
+  name: string;
+  language?: string;
+  category: CreateTemplateBodyCategory;
+  channelAccountId?: string | null;
+  components: CreateTemplateBodyComponentsItem[];
+  variables?: CreateTemplateBodyVariablesItem[];
+}
+
+export type UpdateTemplateBodyCategory =
+  (typeof UpdateTemplateBodyCategory)[keyof typeof UpdateTemplateBodyCategory];
+
+export const UpdateTemplateBodyCategory = {
+  marketing: "marketing",
+  utility: "utility",
+  authentication: "authentication",
+} as const;
+
+export type UpdateTemplateBodyComponentsItem = { [key: string]: unknown };
+
+export type UpdateTemplateBodyVariablesItem = { [key: string]: unknown };
+
+export interface UpdateTemplateBody {
+  name?: string;
+  language?: string;
+  category?: UpdateTemplateBodyCategory;
+  channelAccountId?: string | null;
+  components?: UpdateTemplateBodyComponentsItem[];
+  variables?: UpdateTemplateBodyVariablesItem[];
+}
+
+export interface TemplateSubmitResponse {
+  template?: Template;
+  submitted?: boolean;
+  externalCall?: boolean;
+}
+
+export interface TemplateSyncResponse {
+  template?: Template;
+  synced?: boolean;
+  mode?: string;
+}
+
+export type BroadcastStatus =
+  (typeof BroadcastStatus)[keyof typeof BroadcastStatus];
+
+export const BroadcastStatus = {
+  draft: "draft",
+  scheduled: "scheduled",
+  sending: "sending",
+  completed: "completed",
+  cancelled: "cancelled",
+  failed: "failed",
+} as const;
+
+export interface Broadcast {
+  id: string;
+  name: string;
+  templateId: string;
+  channelAccountId: string;
+  status: BroadcastStatus;
+  scheduledAt?: string;
+}
+
+export interface BroadcastResponse {
+  broadcast?: Broadcast;
+}
+
+export interface BroadcastsListResponse {
+  broadcasts?: Broadcast[];
+  total?: number;
+}
+
+export type CreateBroadcastBodyAudienceFilter = { [key: string]: unknown };
+
+export type CreateBroadcastBodyVariableMapping = { [key: string]: unknown };
+
+export interface CreateBroadcastBody {
+  name: string;
+  templateId: string;
+  channelAccountId: string;
+  audienceFilter?: CreateBroadcastBodyAudienceFilter;
+  variableMapping?: CreateBroadcastBodyVariableMapping;
+}
+
+export type AutomationStatus =
+  (typeof AutomationStatus)[keyof typeof AutomationStatus];
+
+export const AutomationStatus = {
+  draft: "draft",
+  active: "active",
+  paused: "paused",
+} as const;
+
+export type AutomationTrigger = { [key: string]: unknown };
+
+export interface Automation {
+  id: string;
+  name: string;
+  status: AutomationStatus;
+  trigger: AutomationTrigger;
+  updatedAt?: string;
+}
+
+export interface AutomationResponse {
+  automation?: Automation;
+}
+
+export interface AutomationsListResponse {
+  automations?: Automation[];
+  total?: number;
+}
+
+export type CreateAutomationBodyTrigger = { [key: string]: unknown };
+
+export type CreateAutomationBodyConditionsItem = { [key: string]: unknown };
+
+export type CreateAutomationBodyActionsItem = { [key: string]: unknown };
+
+export interface CreateAutomationBody {
+  name: string;
+  description?: string;
+  trigger: CreateAutomationBodyTrigger;
+  conditions?: CreateAutomationBodyConditionsItem[];
+  actions?: CreateAutomationBodyActionsItem[];
+}
+
 export type ListContactsParams = {
   search?: string;
   page?: number;

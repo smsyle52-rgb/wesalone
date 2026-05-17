@@ -42,7 +42,8 @@ export type AuditAction =
   | "provider_account_create" | "provider_account_update" | "provider_account_disable"
   | "webhook_event_replay"
   | "outbox_retry" | "outbox_cancel"
-  | "integration_health_update";
+  | "integration_health_update"
+  | "template_create" | "template_update" | "template_delete" | "template_duplicate" | "template_submit" | "template_sync";
 
 export type AuditSeverity = "info" | "warning" | "critical";
 
