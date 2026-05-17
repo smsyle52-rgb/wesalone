@@ -64,6 +64,7 @@ const SYSTEM_PERMISSIONS = [
   { resource: "ai", action: "read", slug: "ai:read", description: "عرض بيانات الذكاء الاصطناعي" },
   { resource: "ai", action: "use", slug: "ai:use", description: "استخدام الذكاء الاصطناعي" },
   { resource: "ai", action: "configure", slug: "ai:configure", description: "إعداد وكلاء الذكاء الاصطناعي" },
+  { resource: "ai", action: "manage", slug: "ai:manage", description: "إدارة ذاكرة الوكلاء وإعداداتها" },
   { resource: "ai", action: "approve", slug: "ai:approve", description: "اعتماد اقتراحات الذكاء الاصطناعي" },
   { resource: "ai", action: "view_usage", slug: "ai:view_usage", description: "عرض استخدام الذكاء الاصطناعي" },
   { resource: "ai", action: "view_safety", slug: "ai:view_safety", description: "عرض أحداث الأمان" },

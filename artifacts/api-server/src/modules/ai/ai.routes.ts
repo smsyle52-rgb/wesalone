@@ -13,9 +13,10 @@ import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
-import { runAI, getProviderStatus, ACTIVE_PROVIDER, getDefaultModel } from "../../lib/ai-provider";
+import { runAI, getProviderStatus, ACTIVE_PROVIDER, getDefaultModel, type AiMessage } from "../../lib/ai-provider";
 import { checkActionSafety, recordSafetyBlock, isSuggestionSafe } from "../../lib/ai-safety";
 import { aiRunLimiter } from "../../lib/rateLimiter";
+import { appendTurn, clear as clearAgentMemory, loadContext, rotate, shouldRotate } from "../../services/agent-memory";
 
 const router = Router();
 router.use(requireSession);
@@ -24,6 +25,71 @@ router.use(requireSession);
 
 router.get("/provider-status", requirePermission("ai:read"), (req: AuthenticatedRequest, res: Response): void => {
   res.json(getProviderStatus());
+});
+
+router.get("/conversations/:id/memory", requirePermission("ai:read"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const parse = z.object({ agentId: z.string().uuid().optional() }).safeParse(req.query);
+  if (!parse.success) {
+    res.status(400).json({ error: "بيانات غير صالحة", details: parse.error.flatten() });
+    return;
+  }
+
+  const conversationId = String(req.params.id);
+  const [conversation] = await db
+    .select({ id: conversationsTable.id })
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, activeWorkspaceId)))
+    .limit(1);
+  if (!conversation) {
+    res.status(404).json({ error: "المحادثة غير موجودة" });
+    return;
+  }
+
+  const context = await loadContext(activeWorkspaceId, conversationId, parse.data.agentId ?? null);
+  res.json({
+    memory: {
+      id: context.snapshot.id,
+      conversationId,
+      agentId: context.snapshot.agentId,
+      summary: context.summary,
+      recentTurns: context.recentTurns,
+      lastMessageId: context.snapshot.lastMessageId,
+      tokenEstimate: context.tokenEstimate,
+      updatedAt: context.snapshot.updatedAt,
+    },
+  });
+});
+
+router.delete("/conversations/:id/memory", requirePermission("ai:manage"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const parse = z.object({ agentId: z.string().uuid().optional() }).safeParse(req.query);
+  if (!parse.success) {
+    res.status(400).json({ error: "بيانات غير صالحة", details: parse.error.flatten() });
+    return;
+  }
+
+  const conversationId = String(req.params.id);
+  const [conversation] = await db
+    .select({ id: conversationsTable.id })
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, activeWorkspaceId)))
+    .limit(1);
+  if (!conversation) {
+    res.status(404).json({ error: "المحادثة غير موجودة" });
+    return;
+  }
+
+  await clearAgentMemory(activeWorkspaceId, conversationId, parse.data.agentId ?? null);
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "agent_memory_clear",
+    severity: "info",
+    entityType: "conversation",
+    entityId: conversationId,
+    newData: { agentId: parse.data.agentId ?? null },
+  });
+  res.json({ ok: true });
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -712,6 +778,7 @@ async function createAndRunAI(params: {
   model: string;
   systemPrompt: string;
   userPrompt: string;
+  messages?: AiMessage[];
   knowledgeSources?: string[];
   extractionType?: string;
 }): Promise<{
@@ -737,7 +804,7 @@ async function createAndRunAI(params: {
     createdBy: userId,
   }).returning();
 
-  const messages = [
+  const messages = params.messages ?? [
     { role: "system" as const, content: systemPrompt },
     { role: "user" as const, content: userPrompt },
   ];
@@ -745,8 +812,7 @@ async function createAndRunAI(params: {
   const aiOutput = await runAI({ messages, model, taskType });
 
   await db.insert(aiMessagesTable).values([
-    { workspaceId, aiRunId: run.id, role: "system", content: systemPrompt, metadata: {} },
-    { workspaceId, aiRunId: run.id, role: "user", content: userPrompt, metadata: {} },
+    ...messages.map((message) => ({ workspaceId, aiRunId: run.id, role: message.role, content: message.content, metadata: {} })),
     { workspaceId, aiRunId: run.id, role: "assistant", content: aiOutput.content, metadata: { knowledgeSources: params.knowledgeSources ?? [] } },
   ]);
 
@@ -979,6 +1045,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   let searchQuery = message ?? "";
   let systemPrompt = "أنت مساعد خدمة عملاء محترف. اكتب ردوداً باللغة العربية تكون ودية ومهنية. هذه مسودات فقط ولا تُرسل تلقائياً.";
   let agentKnowledgeBaseIds: string[] = [];
+  let memoryContext: Awaited<ReturnType<typeof loadContext>> | null = null;
 
   if (agentId) {
     const [agent] = await db.select().from(aiAgentsTable).where(
@@ -1016,6 +1083,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
 
     const lastMsg = messages[messages.length - 1];
     searchQuery = lastMsg?.content ?? "";
+    memoryContext = await loadContext(activeWorkspaceId, conversationId, agentId ?? null);
     transcript = messages.slice(-10).map((m) => `[${m.direction === "inbound" ? "العميل" : "الموظف"}]: ${m.content}`).join("\n");
   }
 
@@ -1053,8 +1121,44 @@ ${transcript}${knowledgeContext}
     model,
     systemPrompt,
     userPrompt,
+    messages: memoryContext ? [
+      { role: "system", content: systemPrompt },
+      ...(memoryContext.summary ? [{ role: "system" as const, content: `ذاكرة مختصرة للمحادثة السابقة:\n${memoryContext.summary}` }] : []),
+      ...memoryContext.recentTurns.map((turn) => ({ role: turn.role, content: turn.content })),
+      { role: "user", content: userPrompt },
+    ] : undefined,
     knowledgeSources,
   });
+
+  if (conversationId) {
+    if (message) {
+      await appendTurn(activeWorkspaceId, conversationId, agentId ?? null, {
+        role: "user",
+        content: message,
+        ts: new Date().toISOString(),
+        message_id: null,
+      });
+    }
+    const updatedMemory = await appendTurn(activeWorkspaceId, conversationId, agentId ?? null, {
+      role: "assistant",
+      content: result.output,
+      ts: new Date().toISOString(),
+      message_id: null,
+    });
+    if (shouldRotate(updatedMemory.tokenEstimate)) {
+      void rotate(activeWorkspaceId, conversationId, agentId ?? null).then(async (rotation) => {
+        if (!rotation.rotated) return;
+        await createAuditLog({
+          ...auditFromRequest(req, req.sessionUser),
+          action: "agent_memory_rotate",
+          severity: "info",
+          entityType: "conversation",
+          entityId: conversationId,
+          newData: { agentId: agentId ?? null },
+        });
+      });
+    }
+  }
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
