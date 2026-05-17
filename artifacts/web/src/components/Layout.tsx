@@ -118,6 +118,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const { t, i18n } = useTranslation("common");
   const direction = i18n.language?.startsWith("en") ? "ltr" : "rtl";
+  const languageLabel = i18n.language?.startsWith("en") ? "AR" : "EN";
 
   const logoutMut = useMutation({
     mutationFn: async () => {
@@ -137,6 +138,12 @@ export default function Layout({ children }: { children: ReactNode }) {
       window.localStorage.setItem(`sidebar.group.${slug}`, nextValue ? "collapsed" : "expanded");
       return next;
     });
+  };
+
+  const toggleLanguage = () => {
+    const nextLanguage = i18n.language?.startsWith("en") ? "ar" : "en";
+    void i18n.changeLanguage(nextLanguage);
+    window.localStorage.setItem("i18nextLng", nextLanguage);
   };
 
   const visibleGroups = navGroups
@@ -225,6 +232,13 @@ export default function Layout({ children }: { children: ReactNode }) {
               <div className="truncate text-xs text-sidebar-foreground/50">{user?.email}</div>
             </div>
             <button
+              onClick={toggleLanguage}
+              className="rounded-md px-2 py-1 text-xs font-semibold text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+              title={t("language.switch")}
+            >
+              {languageLabel}
+            </button>
+            <button
               onClick={() => logoutMut.mutate()}
               className="rounded-md p-2 text-sidebar-foreground/45 transition-colors hover:bg-sidebar-accent/60 hover:text-red-400"
               title={t("auth.logout")}
@@ -238,13 +252,22 @@ export default function Layout({ children }: { children: ReactNode }) {
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
           <h1 className="font-bold text-foreground">{t("brand.name")}</h1>
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="rounded-md p-2 text-muted-foreground hover:bg-muted"
-            aria-label={t("nav.openMenu")}
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleLanguage}
+              className="rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted"
+              title={t("language.switch")}
+            >
+              {languageLabel}
+            </button>
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="rounded-md p-2 text-muted-foreground hover:bg-muted"
+              aria-label={t("nav.openMenu")}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>

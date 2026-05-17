@@ -6,6 +6,9 @@
   "auth": {
     "logout": "خروج"
   },
+  "language": {
+    "switch": "تبديل اللغة"
+  },
   "nav": {
     "openMenu": "فتح القائمة",
     "groupOverview": "نظرة عامة",
