@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import express, { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import authRouter from "../modules/auth/auth.routes";
 import workspaceRouter from "../modules/workspace/workspace.routes";
@@ -24,6 +24,7 @@ import analyticsRouter from "../modules/analytics/analytics.routes";
 import reportsRouter from "../modules/reports/reports.routes";
 import integrationsRouter from "../modules/integrations/integrations.routes";
 import webhooksRouter from "../modules/integrations/webhooks.routes";
+import { idempotencyMiddleware } from "../middleware/idempotency";
 
 const router: IRouter = Router();
 
@@ -38,8 +39,8 @@ router.use("/tickets", ticketsRouter);
 router.use("/tasks", tasksRouter);
 router.use("/followups", followupsRouter);
 router.use("/opportunities", opportunitiesRouter);
-router.use("/orders", ordersRouter);
-router.use("/payments", paymentsRouter);
+router.use("/orders", idempotencyMiddleware, ordersRouter);
+router.use("/payments", idempotencyMiddleware, paymentsRouter);
 router.use("/payment-methods", paymentMethodsRouter);
 router.use("/exchange-rates", exchangeRatesRouter);
 router.use("/dashboard", dashboardRouter);
@@ -50,7 +51,8 @@ router.use("/ai", aiRouter);
 router.use("/approvals", approvalsRouter);
 router.use("/analytics", analyticsRouter);
 router.use("/reports", reportsRouter);
+router.use("/integrations/outbox", idempotencyMiddleware);
 router.use("/integrations", integrationsRouter);
-router.use("/webhooks", webhooksRouter);
+router.use("/webhooks", express.raw({ type: "application/json", limit: "2mb" }), webhooksRouter);
 
 export default router;

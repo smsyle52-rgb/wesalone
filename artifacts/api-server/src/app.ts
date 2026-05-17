@@ -1,26 +1,40 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { v4 as uuidv4 } from "uuid";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { sessionMiddleware } from "./lib/session";
 import { AppError } from "./lib/errors";
 import { securityHeaders, requestId } from "./middlewares/securityHeaders";
 import { env } from "./lib/env";
+import { apiLimiter, webhookLimiter } from "./lib/rateLimiter";
 
 const app: Express = express();
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "").split(",").filter(Boolean);
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/$/, ""))
+  .filter(Boolean);
 
 app.set("trust proxy", 1);
 
+app.use(helmet());
 app.use(securityHeaders);
 
 app.use(
   pinoHttp({
     logger,
+    genReqId: (req, res) => {
+      const headerValue = req.headers["x-request-id"];
+      const requestIdValue = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+      const id = requestIdValue?.trim() || uuidv4();
+      res.setHeader("X-Request-Id", id);
+      return id;
+    },
     serializers: {
       req(req) {
         return {
@@ -40,8 +54,11 @@ app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.length === 0) return callback(null, true);
-      if (allowedOrigins.some((o) => origin.includes(o))) return callback(null, true);
+      if (allowedOrigins.length === 0 || allowedOrigins.includes("*")) {
+        return callback(new Error("Not allowed by CORS"));
+      }
+      const normalizedOrigin = origin.replace(/\/$/, "");
+      if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
@@ -49,7 +66,15 @@ app.use(
 );
 
 app.use(requestId);
-app.use(express.json({ limit: "10mb" }));
+app.use("/api/webhooks", webhookLimiter);
+app.use("/api", apiLimiter);
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/webhooks/")) {
+    next();
+    return;
+  }
+  express.json({ limit: "10mb" })(req, res, next);
+});
 app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
 

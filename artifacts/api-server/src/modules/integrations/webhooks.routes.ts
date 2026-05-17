@@ -1,9 +1,67 @@
-import { Router, type Request, type Response } from "express";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import { ingestWebhookEvent } from "./webhookIngest.service";
+import { logger } from "../../lib/logger";
 
 const router = Router();
 
-router.post("/:provider", async (req: Request, res: Response) => {
+const metaWebhookProviders = new Set(["whatsapp", "whatsapp_cloud", "meta", "instagram", "messenger"]);
+
+function getRawBody(req: Request): Buffer {
+  if (Buffer.isBuffer(req.body)) return req.body;
+  if (typeof req.body === "string") return Buffer.from(req.body);
+  return Buffer.from(JSON.stringify(req.body ?? {}));
+}
+
+function isValidMetaSignature(rawBody: Buffer, signatureHeader: string, appSecret: string): boolean {
+  const providedHex = signatureHeader.replace(/^sha256=/i, "").trim();
+  const expectedHex = createHmac("sha256", appSecret).update(rawBody).digest("hex");
+  const provided = Buffer.from(providedHex, "hex");
+  const expected = Buffer.from(expectedHex, "hex");
+
+  if (provided.length !== expected.length) return false;
+  return timingSafeEqual(provided, expected);
+}
+
+function verifyWebhookSignature(req: Request, res: Response, next: NextFunction): void {
+  const provider = String(req.params.provider ?? "");
+
+  if (!metaWebhookProviders.has(provider)) {
+    req.log?.warn({ provider }, "unverified provider");
+    next();
+    return;
+  }
+
+  const appSecret = process.env.META_APP_SECRET;
+  const signatureHeader = req.header("x-hub-signature-256");
+
+  if (!appSecret || !signatureHeader) {
+    req.log?.warn({ provider, hasAppSecret: Boolean(appSecret), hasSignature: Boolean(signatureHeader) }, "webhook signature missing");
+    res.status(401).json({ accepted: false, reason: "invalid_signature" });
+    return;
+  }
+
+  if (!isValidMetaSignature(getRawBody(req), signatureHeader, appSecret)) {
+    req.log?.warn({ provider }, "webhook signature mismatch");
+    res.status(401).json({ accepted: false, reason: "invalid_signature" });
+    return;
+  }
+
+  next();
+}
+
+function parseWebhookPayload(req: Request, res: Response, next: NextFunction): void {
+  try {
+    const rawBody = getRawBody(req);
+    req.body = rawBody.length > 0 ? JSON.parse(rawBody.toString("utf8")) : {};
+    next();
+  } catch (err) {
+    logger.warn({ err, provider: req.params.provider }, "Invalid webhook JSON payload");
+    res.status(400).json({ accepted: false, reason: "invalid_json" });
+  }
+}
+
+router.post("/:provider", verifyWebhookSignature, parseWebhookPayload, async (req: Request, res: Response) => {
   const result = await ingestWebhookEvent({
     provider: String(req.params.provider),
     headers: req.headers,

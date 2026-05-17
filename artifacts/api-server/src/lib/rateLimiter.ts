@@ -1,6 +1,15 @@
-import rateLimit from "express-rate-limit";
+import type { Request } from "express";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 const msg = { error: "عدد المحاولات كبير، حاول لاحقاً", code: "RATE_LIMIT" };
+
+function sessionOrIpKey(req: Request): string {
+  const sessionUser = req.session.user;
+  if (sessionUser?.activeWorkspaceId && sessionUser.userId) {
+    return `${sessionUser.activeWorkspaceId}:${sessionUser.userId}`;
+  }
+  return ipKeyGenerator(req.ip ?? "unknown");
+}
 
 /** Auth: 10 requests per 15 minutes per IP */
 export const authLimiter = rateLimit({
@@ -45,4 +54,24 @@ export const changePasswordLimiter = rateLimit({
   message: msg,
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+/** Webhooks: 600 requests per minute per IP */
+export const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 600,
+  message: msg,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/** General API: 300 requests per minute per session-or-IP */
+export const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  message: msg,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: sessionOrIpKey,
+  skip: (req) => req.path.startsWith("/webhooks"),
 });
