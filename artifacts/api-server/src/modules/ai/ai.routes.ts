@@ -17,6 +17,7 @@ import { runAI, getProviderStatus, ACTIVE_PROVIDER, getDefaultModel, type AiMess
 import { checkActionSafety, recordSafetyBlock, isSuggestionSafe } from "../../lib/ai-safety";
 import { aiRunLimiter } from "../../lib/rateLimiter";
 import { appendTurn, clear as clearAgentMemory, loadContext, rotate, shouldRotate } from "../../services/agent-memory";
+import { searchKnowledgeForAi } from "../../services/knowledge-retrieval";
 
 const router = Router();
 router.use(requireSession);
@@ -186,6 +187,18 @@ function scoreKnowledgeSource(source: KnowledgeAiSource, query: string, words: s
 
 async function searchKnowledgeDetailed(workspaceId: string, query: string, baseId?: string): Promise<KnowledgeAiSource[]> {
   if (!query || query.length < 3) return [];
+  const retrieved = await searchKnowledgeForAi({
+    workspaceId,
+    query,
+    knowledgeBaseIds: baseId ? [baseId] : undefined,
+    limit: 5,
+  });
+  return retrieved.map((source) => ({
+    type: source.type,
+    id: source.id,
+    title: source.title,
+    content: source.content,
+  }));
   try {
     const words = knowledgeSearchWords(query);
     if (words.length === 0) return [];
@@ -198,7 +211,7 @@ async function searchKnowledgeDetailed(workspaceId: string, query: string, baseI
         ilike(faqEntriesTable.answer, `%${w}%`),
       ]))!,
     ];
-    if (baseId) faqConditions.splice(1, 0, eq(faqEntriesTable.knowledgeBaseId, baseId));
+    if (baseId) faqConditions.splice(1, 0, eq(faqEntriesTable.knowledgeBaseId, baseId as string));
 
     const docConditions = [
       eq(knowledgeDocumentsTable.workspaceId, workspaceId),
@@ -207,13 +220,13 @@ async function searchKnowledgeDetailed(workspaceId: string, query: string, baseI
         ilike(knowledgeDocumentsTable.contentText, `%${w}%`),
       ]))!,
     ];
-    if (baseId) docConditions.splice(1, 0, eq(knowledgeDocumentsTable.knowledgeBaseId, baseId));
+    if (baseId) docConditions.splice(1, 0, eq(knowledgeDocumentsTable.knowledgeBaseId, baseId as string));
 
     const chunkConditions = [
       eq(knowledgeChunksTable.workspaceId, workspaceId),
       or(...words.map((w) => ilike(knowledgeChunksTable.chunkText, `%${w}%`)))!,
     ];
-    if (baseId) chunkConditions.splice(1, 0, eq(knowledgeChunksTable.knowledgeBaseId, baseId));
+    if (baseId) chunkConditions.splice(1, 0, eq(knowledgeChunksTable.knowledgeBaseId, baseId as string));
 
     const faqs = await db
       .select({ id: faqEntriesTable.id, question: faqEntriesTable.question, answer: faqEntriesTable.answer })

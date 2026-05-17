@@ -10,6 +10,8 @@ import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
+import { estimateKnowledgeTokens, rebuildDocumentChunks } from "../../services/kb-chunker";
+import { searchKnowledge } from "../../services/knowledge-retrieval";
 
 const router = Router();
 router.use(requireSession);
@@ -290,7 +292,7 @@ router.post("/bases/:id/documents", requirePermission("knowledge:create"), async
     res.status(400).json({ error: parsed.error.errors[0]?.message ?? "بيانات غير صحيحة", code: "VALIDATION_ERROR" });
     return;
   }
-  const tokenEstimate = estimateTokens(parsed.data.contentText);
+  const tokenEstimate = estimateKnowledgeTokens(parsed.data.contentText);
   const [doc] = await db.insert(knowledgeDocumentsTable).values({
     workspaceId: activeWorkspaceId,
     knowledgeBaseId: baseId,
@@ -301,7 +303,7 @@ router.post("/bases/:id/documents", requirePermission("knowledge:create"), async
     tokenEstimate,
     createdBy: userId,
   }).returning();
-  await createChunksForDocument(doc.id, activeWorkspaceId, baseId, parsed.data.contentText);
+  await rebuildDocumentChunks({ documentId: doc.id, workspaceId: activeWorkspaceId, knowledgeBaseId: baseId, contentText: parsed.data.contentText });
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "knowledge_document_create",
@@ -335,11 +337,14 @@ router.patch("/documents/:documentId", requirePermission("knowledge:update"), as
   if (parsed.data.title !== undefined) updates.title = parsed.data.title;
   if (parsed.data.contentText !== undefined) {
     updates.contentText = parsed.data.contentText;
-    updates.tokenEstimate = estimateTokens(parsed.data.contentText);
+    updates.tokenEstimate = estimateKnowledgeTokens(parsed.data.contentText);
   }
   if (parsed.data.status !== undefined) updates.status = parsed.data.status;
   const [updated] = await db.update(knowledgeDocumentsTable).set(updates)
     .where(and(eq(knowledgeDocumentsTable.id, docId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId))).returning();
+  if (parsed.data.contentText !== undefined) {
+    await rebuildDocumentChunks({ documentId: docId, workspaceId: activeWorkspaceId, knowledgeBaseId: updated.knowledgeBaseId, contentText: parsed.data.contentText });
+  }
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "knowledge_document_update",
@@ -384,9 +389,7 @@ router.post("/documents/:documentId/rechunk", requirePermission("knowledge:updat
   const [doc] = await db.select().from(knowledgeDocumentsTable)
     .where(and(eq(knowledgeDocumentsTable.id, docId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId))).limit(1);
   if (!doc) { res.status(404).json({ error: "الوثيقة غير موجودة", code: "NOT_FOUND" }); return; }
-  await db.delete(knowledgeChunksTable)
-    .where(and(eq(knowledgeChunksTable.documentId, docId), eq(knowledgeChunksTable.workspaceId, activeWorkspaceId)));
-  await createChunksForDocument(docId, activeWorkspaceId, doc.knowledgeBaseId, doc.contentText);
+  await rebuildDocumentChunks({ documentId: docId, workspaceId: activeWorkspaceId, knowledgeBaseId: doc.knowledgeBaseId, contentText: doc.contentText });
   const chunks = await db.select().from(knowledgeChunksTable)
     .where(and(eq(knowledgeChunksTable.documentId, docId), eq(knowledgeChunksTable.workspaceId, activeWorkspaceId)))
     .orderBy(asc(knowledgeChunksTable.chunkIndex));
@@ -501,6 +504,39 @@ router.patch("/faqs/:faqId/archive", requirePermission("knowledge:delete"), asyn
 });
 
 // ─── Search ──────────────────────────────────────────────────────────────────
+
+router.post("/search", requirePermission("knowledge:read"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const parsed = z.object({
+    query: z.string().trim().min(2),
+    knowledge_base_ids: z.array(z.string().uuid()).optional(),
+    limit: z.coerce.number().int().min(1).max(20).optional(),
+  }).safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({ error: "بيانات البحث غير صحيحة", code: "VALIDATION_ERROR" });
+    return;
+  }
+
+  const results = await searchKnowledge({
+    workspaceId: activeWorkspaceId,
+    query: parsed.data.query,
+    knowledgeBaseIds: parsed.data.knowledge_base_ids,
+    limit: parsed.data.limit ?? 5,
+  });
+
+  res.json({
+    query: parsed.data.query,
+    mode: "hybrid",
+    results: {
+      documents: results.filter((item) => item.type === "document"),
+      faqs: results.filter((item) => item.type === "faq"),
+      chunks: results.filter((item) => item.type === "chunk"),
+      combined: results,
+    },
+    total: results.length,
+  });
+});
 
 router.get("/search", requirePermission("knowledge:read"), async (req: AuthenticatedRequest, res: Response) => {
   const { activeWorkspaceId } = req.sessionUser;

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, integer, jsonb } from "drizzle-orm/pg-core";
+import { customType, pgTable, text, timestamp, uuid, integer, jsonb } from "drizzle-orm/pg-core";
 import { workspacesTable } from "./workspaces";
 import { usersTable } from "./users";
 
@@ -25,6 +25,12 @@ export type EmbeddingsProvider = (typeof EMBEDDINGS_PROVIDERS)[number];
 
 export const EMBEDDINGS_INDEX_STATUSES = ["not_configured", "configured", "disabled"] as const;
 export type EmbeddingsIndexStatus = (typeof EMBEDDINGS_INDEX_STATUSES)[number];
+
+const tsvector = customType<{ data: string | null; driverData: string | null }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 export const knowledgeBasesTable = pgTable("knowledge_bases", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -77,6 +83,9 @@ export const knowledgeChunksTable = pgTable("knowledge_chunks", {
   tokenEstimate: integer("token_estimate"),
   embeddingStatus: text("embedding_status").notNull().default("pending"),
   embeddingRef: text("embedding_ref"),
+  embeddingModel: text("embedding_model"),
+  embeddedAt: timestamp("embedded_at", { withTimezone: true }),
+  tsv: tsvector("tsv"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
