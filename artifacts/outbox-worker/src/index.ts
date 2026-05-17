@@ -2,6 +2,7 @@ import http from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
 import { pool } from "@workspace/db";
 import pino from "pino";
+import { pollAutomationEngine } from "./automation-engine";
 
 type OutboxEventRow = {
   id: string;
@@ -20,6 +21,7 @@ const maxAttempts = 6;
 const port = Number(process.env.PORT ?? "8080");
 let shuttingDown = false;
 let polling = false;
+let automationPolling = false;
 const processedTimestamps: number[] = [];
 
 function markProcessed(): void {
@@ -169,6 +171,19 @@ async function pollOnce(): Promise<void> {
   }
 }
 
+async function pollAutomationOnce(): Promise<void> {
+  if (automationPolling || shuttingDown) return;
+  automationPolling = true;
+  try {
+    const processed = await pollAutomationEngine(logger);
+    for (let i = 0; i < processed; i++) markProcessed();
+  } catch (err) {
+    logger.error({ err }, "Automation engine poll failed");
+  } finally {
+    automationPolling = false;
+  }
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === "/healthz" || req.url === "/") {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -188,13 +203,19 @@ const interval = setInterval(() => {
   void pollOnce();
 }, pollIntervalMs);
 
+const automationInterval = setInterval(() => {
+  void pollAutomationOnce();
+}, 3_000);
+
 void pollOnce();
+void pollAutomationOnce();
 
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info({ signal }, "Outbox worker shutting down");
   clearInterval(interval);
+  clearInterval(automationInterval);
 
   const shutdownDeadline = delay(9_000).then(() => "timeout" as const);
   const closeServer = new Promise<"closed">((resolve) => {

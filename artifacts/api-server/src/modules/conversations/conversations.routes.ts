@@ -9,6 +9,7 @@ import {
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
+import { publishDomainEvent } from "../../lib/events";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
 
@@ -255,6 +256,14 @@ router.post("/", requirePermission("conversations:create"), async (req: Authenti
       title: `تم إنشاء محادثة جديدة`,
       description: subject ?? undefined,
       createdBy: userId,
+    });
+
+    await publishDomainEvent({
+      eventType: "conversation.opened",
+      entityType: "conversation",
+      entityId: conversation.id,
+      payload: { channel, contactId: contactId ?? null, priority, status: conversation.status },
+      sessionUser: req.sessionUser,
     });
 
     res.status(201).json({ conversation, firstMessage });
@@ -647,6 +656,16 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
         description: content.slice(0, 80),
         createdBy: userId,
       });
+
+      if (effectiveDirection === "inbound") {
+        await publishDomainEvent({
+          eventType: "message.received",
+          entityType: "message",
+          entityId: message.id,
+          payload: { conversationId: conv.id, contactId: conv.contactId, source, contentType },
+          sessionUser: req.sessionUser,
+        });
+      }
     }
 
     res.status(201).json({ message });

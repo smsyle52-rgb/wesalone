@@ -50,6 +50,13 @@
       "when": 1779010800000,
       "tag": "0006_agent_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779014400000,
+      "tag": "0007_domain_events",
+      "breakpoints": true
     }
   ]
 }

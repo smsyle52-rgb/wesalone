@@ -6,6 +6,7 @@ import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import { addContactTimeline } from "../../lib/contactTimeline";
+import { publishDomainEvent } from "../../lib/events";
 import type { AuthenticatedRequest } from "../../lib/types";
 
 const router = Router();
@@ -181,6 +182,20 @@ router.post("/", requirePermission("orders:create"), async (req: AuthenticatedRe
       entityType: "order", entityId: order.id, createdBy: userId,
     });
   }
+
+  await publishDomainEvent({
+    eventType: "order.created",
+    entityType: "order",
+    entityId: order.id,
+    payload: {
+      orderNumber: order.orderNumber,
+      contactId: order.contactId,
+      conversationId: order.conversationId,
+      currency: order.currency,
+      channel: order.channel,
+    },
+    sessionUser: req.sessionUser,
+  });
 
   res.status(201).json({ order });
 });

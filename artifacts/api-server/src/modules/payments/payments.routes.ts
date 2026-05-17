@@ -9,6 +9,7 @@ import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import { addContactTimeline } from "../../lib/contactTimeline";
+import { publishDomainEvent } from "../../lib/events";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
 import { paymentActionLimiter } from "../../lib/rateLimiter";
@@ -464,6 +465,20 @@ router.post("/:id/confirm", paymentActionLimiter, requirePermission("payments:co
         entityType: "payment", entityId: payment.id, createdBy: userId,
       });
     }
+
+    await publishDomainEvent({
+      eventType: "payment.confirmed",
+      entityType: "payment",
+      entityId: payment.id,
+      payload: {
+        contactId: existing.contactId,
+        orderId: existing.orderId,
+        amount: existing.amount,
+        currency: existing.currency,
+        method: existing.method,
+      },
+      sessionUser: req.sessionUser,
+    });
 
     res.json({
       payment,

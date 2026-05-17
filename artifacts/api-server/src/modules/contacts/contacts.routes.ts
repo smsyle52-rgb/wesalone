@@ -11,6 +11,7 @@ import {
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
+import { publishDomainEvent } from "../../lib/events";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
 
@@ -247,6 +248,20 @@ router.patch(
         )
       )
       .returning();
+
+    if (parsed.data.tags) {
+      const previousTags = new Set(existing.tags ?? []);
+      const addedTags = parsed.data.tags.filter((tag) => !previousTags.has(tag));
+      for (const tag of addedTags) {
+        await publishDomainEvent({
+          eventType: "contact.tag.added",
+          entityType: "contact",
+          entityId: contact.id,
+          payload: { tag, contactId: contact.id },
+          sessionUser: req.sessionUser,
+        });
+      }
+    }
 
     await Promise.all([
       createAuditLog({

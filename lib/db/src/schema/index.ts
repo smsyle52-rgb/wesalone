@@ -10,6 +10,7 @@ export * from "./integrations";
 export * from "./templates";
 export * from "./broadcasts";
 export * from "./automations";
+export * from "./domain_events";
 export * from "./contacts";
 export * from "./conversations";
 export * from "./tickets";
