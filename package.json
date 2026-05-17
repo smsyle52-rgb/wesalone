@@ -6,10 +6,17 @@
   "scripts": {
     "preinstall": "node -e \"const fs=require('fs'); for (const f of ['package-lock.json','yarn.lock']) fs.rmSync(f,{force:true}); const ua=process.env.npm_config_user_agent||''; if (process.env.CI==='true'||ua.startsWith('pnpm/')) process.exit(0); console.error('Use pnpm instead'); process.exit(1);\"",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "build:prod": "node -e \"const { spawnSync } = require('node:child_process'); process.env.BASE_PATH ||= '/'; const result = spawnSync('corepack', ['pnpm', '--filter=!workspace', '--filter=!@workspace/mockup-sandbox', '-r', 'build'], { stdio: 'inherit', env: process.env, shell: process.platform === 'win32' }); process.exit(result.status ?? 1);\"",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "private": true,
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": ["current", "linux", "darwin", "win32"],
+      "cpu": ["current", "x64", "arm64"]
+    }
+  },
   "devDependencies": {
     "typescript": "~5.9.2",
     "prettier": "^3.8.1"
