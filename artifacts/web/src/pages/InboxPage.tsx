@@ -103,6 +103,9 @@ export default function InboxPage() {
   const canCreateOpportunity = hasPermission("opportunities:create");
   const canCreateOrder = hasPermission("orders:create");
   const canUseAI = hasPermission("ai:use");
+  const canReadQuickReplies = hasPermission("quick_replies:read");
+  const canWriteSavedViews = hasPermission("saved_views:write");
+  const canReadSavedViews = hasPermission("saved_views:read");
 
   const [statusFilter, setStatusFilter] = useState("");
   const [viewFilter, setViewFilter] = useState("");
@@ -113,6 +116,11 @@ export default function InboxPage() {
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [messageText, setMessageText] = useState("");
   const [messageMode, setMessageMode] = useState<"reply" | "note">("reply");
+  const [detailTab, setDetailTab] = useState<"conversation" | "notes" | "customer" | "timeline">("conversation");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [sortMode, setSortMode] = useState<"newest" | "oldest" | "priority" | "sla">("newest");
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedBulk, setSelectedBulk] = useState<string[]>([]);
   const [showNewConv, setShowNewConv] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState("");
@@ -167,6 +175,39 @@ export default function InboxPage() {
     queryKey: ["contacts-mini"],
     queryFn: () => apiFetch("contacts?limit=200"),
     enabled: canCreate,
+  });
+
+  const { data: quickRepliesData } = useQuery({
+    queryKey: ["quick-replies"],
+    queryFn: () => apiFetch("quick-replies"),
+    enabled: canReadQuickReplies,
+  });
+
+  const { data: savedViewsData } = useQuery({
+    queryKey: ["saved-views", "conversations"],
+    queryFn: () => apiFetch("saved-views?resource=conversations"),
+    enabled: canReadSavedViews,
+  });
+
+  const { data: slaRulesData } = useQuery({
+    queryKey: ["sla-rules"],
+    queryFn: () => apiFetch("sla-rules"),
+    enabled: canRead,
+  });
+
+  const createSavedView = useMutation({
+    mutationFn: () => apiFetch("saved-views", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `عرض محفوظ ${new Date().toLocaleTimeString("ar-YE", { hour: "2-digit", minute: "2-digit" })}`,
+        resource: "conversations",
+        filters: { view: viewFilter, status: statusFilter, search: searchQuery, channel: channelFilter, assignee: assigneeFilter },
+        isPinned: true,
+        sortOrder: 0,
+      }),
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-views", "conversations"] }),
   });
 
   useEffect(() => {
@@ -261,6 +302,23 @@ export default function InboxPage() {
   const list: any[] = data?.conversations ?? [];
   const counts: Record<string, number> = data?.counts ?? {};
   const members: any[] = membersData?.members ?? membersData?.users ?? [];
+  const quickReplies: any[] = quickRepliesData?.quickReplies ?? [];
+  const savedViews: any[] = savedViewsData?.savedViews ?? [];
+  const slaRules: any[] = slaRulesData?.slaRules ?? [];
+  const sortedList = [...list].sort((a, b) => {
+    if (sortMode === "oldest") return new Date(a.lastMessageAt ?? a.createdAt).getTime() - new Date(b.lastMessageAt ?? b.createdAt).getTime();
+    if (sortMode === "priority") {
+      const weight: Record<string, number> = { urgent: 4, high: 3, normal: 2, low: 1 };
+      return (weight[b.priority] ?? 0) - (weight[a.priority] ?? 0);
+    }
+    if (sortMode === "sla") {
+      const slaA = a.unreadCount > 0 && a.lastMessageAt ? Date.now() - new Date(a.lastMessageAt).getTime() : 0;
+      const slaB = b.unreadCount > 0 && b.lastMessageAt ? Date.now() - new Date(b.lastMessageAt).getTime() : 0;
+      return slaB - slaA;
+    }
+    return new Date(b.lastMessageAt ?? b.createdAt).getTime() - new Date(a.lastMessageAt ?? a.createdAt).getTime();
+  });
+  const defaultSlaMinutes = Math.max(1, Number(slaRules.find((rule) => rule.active)?.firstResponseMinutes ?? 30));
 
   async function runAISummarize() {
     if (!selectedConvId) return;
@@ -316,7 +374,27 @@ export default function InboxPage() {
 
   function selectConv(conv: any) {
     setSelectedConvId(conv.id);
+    setDetailTab("conversation");
+    setSelectedBulk([]);
     setMobileView("detail");
+  }
+
+  function toggleBulk(id: string) {
+    setSelectedBulk((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
+  }
+
+  function applySavedView(view: any) {
+    const filters = view.filters ?? {};
+    setViewFilter(String(filters.view ?? ""));
+    setStatusFilter(String(filters.status ?? ""));
+    setSearchQuery(String(filters.search ?? ""));
+    setChannelFilter(String(filters.channel ?? ""));
+    setAssigneeFilter(String(filters.assignee ?? ""));
+  }
+
+  function insertQuickReply(reply: any) {
+    setMessageText(reply.body);
+    setMessageMode("reply");
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -329,9 +407,19 @@ export default function InboxPage() {
   const conv = detail?.conversation;
   const ticket = detail?.ticket;
   const messages: any[] = detail?.messages ?? [];
+  const visibleMessages = messages.filter((msg: any) => {
+    const isInternal = msg.direction === "internal" || msg.isPrivateNote;
+    if (detailTab === "notes") return isInternal;
+    if (detailTab === "conversation") return !isInternal;
+    return true;
+  });
+  const timelineMessages = messages.slice(-8).reverse();
   const contactChannels: any[] = detail?.contactChannels ?? [];
   const waLink: string | null = detail?.waLink ?? null;
   const assignedMember = detail?.assignedMember;
+  const filteredQuickReplies = messageText.trim().startsWith("/")
+    ? quickReplies.filter((reply) => reply.shortcut?.startsWith(messageText.trim()) || reply.title?.includes(messageText.trim().slice(1))).slice(0, 6)
+    : [];
 
   const statusActions = conv ? (STATUS_ACTIONS[conv.status] ?? []) : [];
 
@@ -406,9 +494,81 @@ export default function InboxPage() {
       </div>
 
       <div className="flex flex-1 gap-0 overflow-hidden px-4 pb-4">
+        <div className="hidden xl:flex flex-col w-72 shrink-0 rounded-xl border border-border bg-card overflow-hidden ml-3">
+          <div className="p-3 border-b border-border">
+            <div className="text-xs font-semibold text-muted-foreground mb-2">العروض المحفوظة</div>
+            <div className="space-y-1">
+              {SAVED_VIEWS.map((view) => (
+                <button
+                  key={view.value || "all"}
+                  type="button"
+                  onClick={() => setViewFilter(view.value)}
+                  className={cn(
+                    "w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm text-right transition-colors",
+                    viewFilter === view.value ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground",
+                  )}
+                >
+                  <span>{view.label}</span>
+                </button>
+              ))}
+              {savedViews.map((view) => (
+                <button
+                  key={view.id}
+                  type="button"
+                  onClick={() => applySavedView(view)}
+                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm text-right hover:bg-muted text-foreground transition-colors"
+                >
+                  <span>{view.name}</span>
+                  {view.isPinned && <span className="text-xs text-primary">مثبت</span>}
+                </button>
+              ))}
+            </div>
+            {canWriteSavedViews && (
+              <button
+                type="button"
+                onClick={() => createSavedView.mutate()}
+                disabled={createSavedView.isPending}
+                className="mt-3 w-full px-3 py-2 rounded-lg border border-dashed border-border text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
+              >
+                + عرض محفوظ جديد
+              </button>
+            )}
+          </div>
+
+          <div className="p-3 space-y-3 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters((value) => !value)}
+              className="w-full flex items-center justify-between text-sm font-medium"
+            >
+              <span>فلاتر متقدمة</span>
+              <span>{showAdvancedFilters ? "−" : "+"}</span>
+            </button>
+            {showAdvancedFilters && (
+              <div className="space-y-2">
+                <label htmlFor="advanced-channel" className="block text-xs text-muted-foreground">القناة</label>
+                <select id="advanced-channel" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}
+                  className="w-full px-2 py-2 rounded-lg border border-input bg-background text-xs">
+                  <option value="">كل القنوات</option>
+                  {Object.entries(channelLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+                <label htmlFor="advanced-assignee" className="block text-xs text-muted-foreground">المسؤول</label>
+                <select id="advanced-assignee" value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}
+                  className="w-full px-2 py-2 rounded-lg border border-input bg-background text-xs">
+                  <option value="">كل الموظفين</option>
+                  <option value="unassigned">بدون مسؤول</option>
+                  {members.map((m: any) => <option key={m.membershipId ?? m.id} value={m.membershipId ?? m.id}>{m.name}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
+              المساعد يقترح فقط، والموظف يقرر الإرسال. الملاحظات الداخلية لا تظهر للعميل.
+            </div>
+          </div>
+        </div>
         <div className={cn(
           "flex flex-col shrink-0 rounded-xl border border-border bg-card overflow-hidden",
-          "w-full lg:w-80",
+          "w-full lg:w-96",
           mobileView === "detail" ? "hidden lg:flex" : "flex"
         )}>
           <div className="p-2 border-b border-border space-y-2">
@@ -434,24 +594,54 @@ export default function InboxPage() {
                 {members.map((m: any) => <option key={m.membershipId ?? m.id} value={m.membershipId ?? m.id}>{m.name}</option>)}
               </select>
             </div>
+            <div className="flex items-center gap-1.5">
+              <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
+                className="flex-1 px-2 py-1 rounded-lg border border-input bg-background text-xs focus:outline-none">
+                <option value="newest">الأحدث</option>
+                <option value="oldest">الأقدم</option>
+                <option value="priority">الأعلى أولوية</option>
+                <option value="sla">SLA منتهي</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => { setBulkMode((value) => !value); setSelectedBulk([]); }}
+                className={cn("px-2.5 py-1 rounded-lg border text-xs", bulkMode ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground")}
+              >
+                تحديد
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
+            {bulkMode && selectedBulk.length > 0 && (
+              <div className="sticky top-0 z-10 m-2 p-2 rounded-lg bg-primary text-primary-foreground shadow-sm flex items-center justify-between gap-2 text-xs">
+                <span>{selectedBulk.length} محدد</span>
+                <div className="flex gap-1">
+                  <button className="px-2 py-1 rounded bg-white/15">إسناد</button>
+                  <button className="px-2 py-1 rounded bg-white/15">إغلاق</button>
+                  <button className="px-2 py-1 rounded bg-white/15">وسم</button>
+                </div>
+              </div>
+            )}
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-muted-foreground text-sm animate-pulse">جار التحميل...</div>
-            ) : list.length === 0 ? (
+            ) : sortedList.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground text-sm">
                 <span className="text-2xl">📭</span>
                 <span>لا توجد محادثات</span>
               </div>
             ) : (
-              list.map((c: any) => (
-                <button key={c.id} onClick={() => selectConv(c)} className={cn(
+              sortedList.map((c: any) => (
+                <button key={c.id} onClick={() => bulkMode ? toggleBulk(c.id) : selectConv(c)} className={cn(
                   "w-full flex flex-col gap-1 px-3 py-3 border-b border-border/50 transition-colors text-right",
-                  selectedConvId === c.id ? "bg-primary/10 border-r-2 border-r-primary" : "hover:bg-muted/40"
+                  selectedConvId === c.id ? "bg-primary/10 border-r-2 border-r-primary" : "hover:bg-muted/40",
+                  selectedBulk.includes(c.id) && "bg-primary/10"
                 )}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-sm text-foreground truncate">{c.contactName ?? "عميل غير معروف"}</span>
+                    <span className="font-medium text-sm text-foreground truncate">
+                      {bulkMode && <span className="inline-flex w-4 h-4 rounded border border-border ml-1 align-middle items-center justify-center text-[10px]">{selectedBulk.includes(c.id) ? "✓" : ""}</span>}
+                      {c.contactName ?? "عميل غير معروف"}
+                    </span>
                     <div className="flex items-center gap-1 shrink-0">
                       {c.unreadCount > 0 && (
                         <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 font-bold">{c.unreadCount}</span>
@@ -475,7 +665,7 @@ export default function InboxPage() {
                     )}
                     {c.unreadCount > 0 && c.lastMessageAt && (
                       <span className="text-xs px-1.5 py-0.5 rounded border border-red-200 bg-red-50 text-red-700">
-                        {new Date(c.lastMessageAt).getTime() < Date.now() - 30 * 60 * 1000 ? "SLA متجاوز" : "مهلة الرد"}
+                        {new Date(c.lastMessageAt).getTime() < Date.now() - defaultSlaMinutes * 60 * 1000 ? "SLA متجاوز" : "مهلة الرد"}
                       </span>
                     )}
                     {c.contactCompany && (
@@ -639,15 +829,70 @@ export default function InboxPage() {
                     <span className="font-medium">الموضوع: </span>{conv.subject}
                   </div>
                 )}
+                <div className="flex gap-1 pt-1 border-t border-border/60">
+                  {[
+                    ["conversation", "المحادثة"],
+                    ["notes", "ملاحظات داخلية"],
+                    ["customer", "معلومات العميل"],
+                    ["timeline", "السجل"],
+                  ].map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        setDetailTab(key as typeof detailTab);
+                        if (key === "notes") setMessageMode("note");
+                        if (key === "conversation") setMessageMode("reply");
+                      }}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-xs font-medium",
+                        detailTab === key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {messages.length === 0 && (
+                {detailTab === "customer" ? (
+                  <div className="grid md:grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-xl border border-border bg-background p-4 space-y-2">
+                      <div className="text-xs text-muted-foreground">العميل</div>
+                      <div className="font-semibold">{conv.contactName ?? "عميل غير معروف"}</div>
+                      <div className="text-muted-foreground">{conv.contactPhone ?? "لا يوجد رقم محفوظ"}</div>
+                      <div className="text-muted-foreground">{conv.contactCompany ?? "لا توجد شركة"}</div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background p-4 space-y-2">
+                      <div className="text-xs text-muted-foreground">القنوات المرتبطة</div>
+                      {contactChannels.length === 0 ? (
+                        <div className="text-muted-foreground">لا توجد قنوات محفوظة</div>
+                      ) : contactChannels.map((channel: any) => (
+                        <div key={channel.id} className="flex justify-between gap-2">
+                          <span>{channel.channelType}</span>
+                          <span dir="ltr" className="text-muted-foreground">{channel.identifier}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : detailTab === "timeline" ? (
+                  <div className="space-y-2">
+                    {timelineMessages.length === 0 ? (
+                      <div className="flex items-center justify-center h-20 text-muted-foreground text-sm">لا يوجد سجل بعد</div>
+                    ) : timelineMessages.map((msg: any) => (
+                      <div key={msg.id} className="rounded-lg border border-border bg-background p-3 text-sm">
+                        <div className="text-xs text-muted-foreground mb-1">{formatDateTime(msg.sentAt)} · {msg.senderName ?? msg.senderType}</div>
+                        <div className="line-clamp-2">{msg.isPrivateNote ? "ملاحظة داخلية" : msg.content}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : visibleMessages.length === 0 && (
                   <div className="flex items-center justify-center h-20 text-muted-foreground text-sm">
-                    لا توجد رسائل بعد
+                    {detailTab === "notes" ? "لا توجد ملاحظات داخلية بعد" : "لا توجد رسائل بعد"}
                   </div>
                 )}
-                {messages.map((msg: any) => {
+                {(detailTab === "conversation" || detailTab === "notes") && visibleMessages.map((msg: any) => {
                   const isOutbound = msg.direction === "outbound";
                   const isInternal = msg.direction === "internal" || msg.isPrivateNote;
                   return (
@@ -811,6 +1056,34 @@ export default function InboxPage() {
                       </button>
                     </div>
                   </div>
+                  {messageMode === "reply" && (
+                    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                      <button disabled title="سيتم تفعيل رفع الملفات لاحقاً"
+                        className="px-2.5 py-1 rounded-md bg-muted/60 text-muted-foreground border border-dashed border-border cursor-not-allowed">
+                        إرفاق ملف
+                      </button>
+                      <button disabled title="إدراج القوالب يحتاج قناة واتساب مربوطة"
+                        className="px-2.5 py-1 rounded-md bg-muted/60 text-muted-foreground border border-dashed border-border cursor-not-allowed">
+                        إدراج قالب
+                      </button>
+                      <span className="text-muted-foreground">اكتب / لاختيار رد سريع</span>
+                    </div>
+                  )}
+                  {filteredQuickReplies.length > 0 && (
+                    <div className="rounded-lg border border-border bg-background p-2 shadow-sm space-y-1">
+                      {filteredQuickReplies.map((reply) => (
+                        <button
+                          key={reply.id}
+                          type="button"
+                          onClick={() => insertQuickReply(reply)}
+                          className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-xs text-right hover:bg-muted"
+                        >
+                          <span className="font-semibold">{reply.shortcut}</span>
+                          <span className="flex-1 truncate text-muted-foreground">{reply.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <textarea
                       id="inbox-message-text"

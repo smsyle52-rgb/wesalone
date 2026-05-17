@@ -57,6 +57,13 @@
       "when": 1779014400000,
       "tag": "0007_domain_events",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779018000000,
+      "tag": "0008_inbox_depth",
+      "breakpoints": true
     }
   ]
 }

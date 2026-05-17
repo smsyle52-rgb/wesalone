@@ -11,6 +11,7 @@ export * from "./templates";
 export * from "./broadcasts";
 export * from "./automations";
 export * from "./domain_events";
+export * from "./inbox_ops";
 export * from "./contacts";
 export * from "./conversations";
 export * from "./tickets";
