@@ -1246,6 +1246,7 @@ export const ListBroadcastsResponse = zod.object({
         id: zod.string(),
         name: zod.string(),
         templateId: zod.string(),
+        templateName: zod.string().optional(),
         channelAccountId: zod.string(),
         status: zod.enum([
           "draft",
@@ -1256,6 +1257,7 @@ export const ListBroadcastsResponse = zod.object({
           "failed",
         ]),
         scheduledAt: zod.coerce.date().optional(),
+        stats: zod.object({}).passthrough().optional(),
       }),
     )
     .optional(),
@@ -1271,6 +1273,189 @@ export const CreateBroadcastBody = zod.object({
   channelAccountId: zod.string(),
   audienceFilter: zod.object({}).passthrough().optional(),
   variableMapping: zod.object({}).passthrough().optional(),
+  scheduledAt: zod.coerce.date().nullish(),
+});
+
+/**
+ * @summary Get broadcast details
+ */
+export const GetBroadcastParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetBroadcastResponse = zod.object({
+  broadcast: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      templateId: zod.string(),
+      templateName: zod.string().optional(),
+      channelAccountId: zod.string(),
+      status: zod.enum([
+        "draft",
+        "scheduled",
+        "sending",
+        "completed",
+        "cancelled",
+        "failed",
+      ]),
+      scheduledAt: zod.coerce.date().optional(),
+      stats: zod.object({}).passthrough().optional(),
+    })
+    .optional(),
+  audienceCount: zod.number().optional(),
+});
+
+/**
+ * @summary Update broadcast draft
+ */
+export const UpdateBroadcastParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateBroadcastBody = zod.object({
+  name: zod.string().optional(),
+  templateId: zod.string().optional(),
+  channelAccountId: zod.string().optional(),
+  audienceFilter: zod.object({}).passthrough().optional(),
+  variableMapping: zod.object({}).passthrough().optional(),
+  scheduledAt: zod.coerce.date().nullish(),
+});
+
+export const UpdateBroadcastResponse = zod.object({
+  broadcast: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      templateId: zod.string(),
+      templateName: zod.string().optional(),
+      channelAccountId: zod.string(),
+      status: zod.enum([
+        "draft",
+        "scheduled",
+        "sending",
+        "completed",
+        "cancelled",
+        "failed",
+      ]),
+      scheduledAt: zod.coerce.date().optional(),
+      stats: zod.object({}).passthrough().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Preview broadcast audience
+ */
+export const PreviewBroadcastParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const PreviewBroadcastResponse = zod.object({
+  count: zod.number().optional(),
+  samples: zod
+    .array(
+      zod.object({
+        id: zod.string().optional(),
+        name: zod.string().optional(),
+        phoneLast4: zod.string().nullish(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * @summary Start broadcast
+ */
+export const StartBroadcastParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const StartBroadcastResponse = zod.object({
+  broadcast: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      templateId: zod.string(),
+      templateName: zod.string().optional(),
+      channelAccountId: zod.string(),
+      status: zod.enum([
+        "draft",
+        "scheduled",
+        "sending",
+        "completed",
+        "cancelled",
+        "failed",
+      ]),
+      scheduledAt: zod.coerce.date().optional(),
+      stats: zod.object({}).passthrough().optional(),
+    })
+    .optional(),
+  audienceCount: zod.number().optional(),
+});
+
+/**
+ * @summary Cancel broadcast
+ */
+export const CancelBroadcastParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const CancelBroadcastResponse = zod.object({
+  broadcast: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      templateId: zod.string(),
+      templateName: zod.string().optional(),
+      channelAccountId: zod.string(),
+      status: zod.enum([
+        "draft",
+        "scheduled",
+        "sending",
+        "completed",
+        "cancelled",
+        "failed",
+      ]),
+      scheduledAt: zod.coerce.date().optional(),
+      stats: zod.object({}).passthrough().optional(),
+    })
+    .optional(),
+  audienceCount: zod.number().optional(),
+});
+
+/**
+ * @summary List broadcast recipients
+ */
+export const ListBroadcastRecipientsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ListBroadcastRecipientsResponse = zod.object({
+  recipients: zod
+    .array(
+      zod.object({
+        id: zod.string().optional(),
+        contactId: zod.string().optional(),
+        contactName: zod.string().optional(),
+        status: zod.string().optional(),
+        sentAt: zod.coerce.date().nullish(),
+        errorMessage: zod.string().nullish(),
+      }),
+    )
+    .optional(),
+  total: zod.number().optional(),
+});
+
+/**
+ * @summary Get broadcast stats
+ */
+export const GetBroadcastStatsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetBroadcastStatsResponse = zod.object({
+  stats: zod.object({}).passthrough().optional(),
 });
 
 /**

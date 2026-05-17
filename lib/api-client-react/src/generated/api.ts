@@ -21,7 +21,11 @@ import type {
   AuthResponse,
   AutomationResponse,
   AutomationsListResponse,
+  BroadcastDetailResponse,
+  BroadcastPreviewResponse,
+  BroadcastRecipientsResponse,
   BroadcastResponse,
+  BroadcastStatsResponse,
   BroadcastsListResponse,
   ContactResponse,
   ContactsListResponse,
@@ -74,6 +78,7 @@ import type {
   TemplatesListResponse,
   TicketResponse,
   TicketsListResponse,
+  UpdateBroadcastBody,
   UpdateContactBody,
   UpdateOpportunityBody,
   UpdateOrderBody,
@@ -4200,6 +4205,611 @@ export const useCreateBroadcast = <
 > => {
   return useMutation(getCreateBroadcastMutationOptions(options));
 };
+
+/**
+ * @summary Get broadcast details
+ */
+export const getGetBroadcastUrl = (id: string) => {
+  return `/api/broadcasts/${id}`;
+};
+
+export const getBroadcast = async (
+  id: string,
+  options?: RequestInit,
+): Promise<BroadcastDetailResponse> => {
+  return customFetch<BroadcastDetailResponse>(getGetBroadcastUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBroadcastQueryKey = (id: string) => {
+  return [`/api/broadcasts/${id}`] as const;
+};
+
+export const getGetBroadcastQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBroadcast>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBroadcast>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBroadcastQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBroadcast>>> = ({
+    signal,
+  }) => getBroadcast(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBroadcast>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBroadcastQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBroadcast>>
+>;
+export type GetBroadcastQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get broadcast details
+ */
+
+export function useGetBroadcast<
+  TData = Awaited<ReturnType<typeof getBroadcast>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBroadcast>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBroadcastQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update broadcast draft
+ */
+export const getUpdateBroadcastUrl = (id: string) => {
+  return `/api/broadcasts/${id}`;
+};
+
+export const updateBroadcast = async (
+  id: string,
+  updateBroadcastBody: UpdateBroadcastBody,
+  options?: RequestInit,
+): Promise<BroadcastResponse> => {
+  return customFetch<BroadcastResponse>(getUpdateBroadcastUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateBroadcastBody),
+  });
+};
+
+export const getUpdateBroadcastMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBroadcast>>,
+    TError,
+    { id: string; data: BodyType<UpdateBroadcastBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBroadcast>>,
+  TError,
+  { id: string; data: BodyType<UpdateBroadcastBody> },
+  TContext
+> => {
+  const mutationKey = ["updateBroadcast"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBroadcast>>,
+    { id: string; data: BodyType<UpdateBroadcastBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateBroadcast(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBroadcastMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBroadcast>>
+>;
+export type UpdateBroadcastMutationBody = BodyType<UpdateBroadcastBody>;
+export type UpdateBroadcastMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update broadcast draft
+ */
+export const useUpdateBroadcast = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBroadcast>>,
+    TError,
+    { id: string; data: BodyType<UpdateBroadcastBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBroadcast>>,
+  TError,
+  { id: string; data: BodyType<UpdateBroadcastBody> },
+  TContext
+> => {
+  return useMutation(getUpdateBroadcastMutationOptions(options));
+};
+
+/**
+ * @summary Preview broadcast audience
+ */
+export const getPreviewBroadcastUrl = (id: string) => {
+  return `/api/broadcasts/${id}/preview`;
+};
+
+export const previewBroadcast = async (
+  id: string,
+  options?: RequestInit,
+): Promise<BroadcastPreviewResponse> => {
+  return customFetch<BroadcastPreviewResponse>(getPreviewBroadcastUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getPreviewBroadcastMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewBroadcast>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewBroadcast>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["previewBroadcast"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewBroadcast>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return previewBroadcast(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewBroadcastMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewBroadcast>>
+>;
+
+export type PreviewBroadcastMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Preview broadcast audience
+ */
+export const usePreviewBroadcast = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewBroadcast>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof previewBroadcast>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getPreviewBroadcastMutationOptions(options));
+};
+
+/**
+ * @summary Start broadcast
+ */
+export const getStartBroadcastUrl = (id: string) => {
+  return `/api/broadcasts/${id}/start`;
+};
+
+export const startBroadcast = async (
+  id: string,
+  options?: RequestInit,
+): Promise<BroadcastDetailResponse> => {
+  return customFetch<BroadcastDetailResponse>(getStartBroadcastUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getStartBroadcastMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startBroadcast>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startBroadcast>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["startBroadcast"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startBroadcast>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return startBroadcast(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartBroadcastMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startBroadcast>>
+>;
+
+export type StartBroadcastMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Start broadcast
+ */
+export const useStartBroadcast = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startBroadcast>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof startBroadcast>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getStartBroadcastMutationOptions(options));
+};
+
+/**
+ * @summary Cancel broadcast
+ */
+export const getCancelBroadcastUrl = (id: string) => {
+  return `/api/broadcasts/${id}/cancel`;
+};
+
+export const cancelBroadcast = async (
+  id: string,
+  options?: RequestInit,
+): Promise<BroadcastDetailResponse> => {
+  return customFetch<BroadcastDetailResponse>(getCancelBroadcastUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCancelBroadcastMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelBroadcast>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelBroadcast>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["cancelBroadcast"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelBroadcast>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return cancelBroadcast(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelBroadcastMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelBroadcast>>
+>;
+
+export type CancelBroadcastMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cancel broadcast
+ */
+export const useCancelBroadcast = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelBroadcast>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelBroadcast>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getCancelBroadcastMutationOptions(options));
+};
+
+/**
+ * @summary List broadcast recipients
+ */
+export const getListBroadcastRecipientsUrl = (id: string) => {
+  return `/api/broadcasts/${id}/recipients`;
+};
+
+export const listBroadcastRecipients = async (
+  id: string,
+  options?: RequestInit,
+): Promise<BroadcastRecipientsResponse> => {
+  return customFetch<BroadcastRecipientsResponse>(
+    getListBroadcastRecipientsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListBroadcastRecipientsQueryKey = (id: string) => {
+  return [`/api/broadcasts/${id}/recipients`] as const;
+};
+
+export const getListBroadcastRecipientsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBroadcastRecipients>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBroadcastRecipients>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListBroadcastRecipientsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBroadcastRecipients>>
+  > = ({ signal }) =>
+    listBroadcastRecipients(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBroadcastRecipients>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBroadcastRecipientsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBroadcastRecipients>>
+>;
+export type ListBroadcastRecipientsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List broadcast recipients
+ */
+
+export function useListBroadcastRecipients<
+  TData = Awaited<ReturnType<typeof listBroadcastRecipients>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBroadcastRecipients>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBroadcastRecipientsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get broadcast stats
+ */
+export const getGetBroadcastStatsUrl = (id: string) => {
+  return `/api/broadcasts/${id}/stats`;
+};
+
+export const getBroadcastStats = async (
+  id: string,
+  options?: RequestInit,
+): Promise<BroadcastStatsResponse> => {
+  return customFetch<BroadcastStatsResponse>(getGetBroadcastStatsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBroadcastStatsQueryKey = (id: string) => {
+  return [`/api/broadcasts/${id}/stats`] as const;
+};
+
+export const getGetBroadcastStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBroadcastStats>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBroadcastStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBroadcastStatsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBroadcastStats>>
+  > = ({ signal }) => getBroadcastStats(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBroadcastStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBroadcastStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBroadcastStats>>
+>;
+export type GetBroadcastStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get broadcast stats
+ */
+
+export function useGetBroadcastStats<
+  TData = Awaited<ReturnType<typeof getBroadcastStats>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBroadcastStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBroadcastStatsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List automations

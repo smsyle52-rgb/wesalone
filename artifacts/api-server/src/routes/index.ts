@@ -25,6 +25,7 @@ import reportsRouter from "../modules/reports/reports.routes";
 import integrationsRouter from "../modules/integrations/integrations.routes";
 import webhooksRouter from "../modules/integrations/webhooks.routes";
 import templatesRouter from "../modules/templates/templates.routes";
+import broadcastsRouter from "../modules/broadcasts/broadcasts.routes";
 import { idempotencyMiddleware } from "../middleware/idempotency";
 
 const router: IRouter = Router();
@@ -53,6 +54,7 @@ router.use("/approvals", approvalsRouter);
 router.use("/analytics", analyticsRouter);
 router.use("/reports", reportsRouter);
 router.use("/templates", templatesRouter);
+router.use("/broadcasts", broadcastsRouter);
 router.use("/integrations/outbox", idempotencyMiddleware);
 router.use("/integrations", integrationsRouter);
 router.use("/webhooks", express.raw({ type: "application/json", limit: "2mb" }), webhooksRouter);

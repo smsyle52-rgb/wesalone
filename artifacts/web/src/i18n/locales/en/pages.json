@@ -68,7 +68,10 @@
     "edit": "Edit",
     "delete": "Delete",
     "duplicate": "Duplicate",
-    "retry": "Retry"
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "sendNow": "Send now",
+    "schedule": "Schedule"
   },
   "templates": {
     "title": "Templates",
@@ -145,6 +148,80 @@
         "variableExample": "Example value",
         "variableDescription": "Variable description"
       }
+    }
+  },
+  "broadcasts": {
+    "title": "Broadcasts",
+    "subtitle": "Create structured campaigns using approved templates",
+    "newBroadcast": "Create new broadcast",
+    "permissionDenied": "You do not have permission to view broadcasts",
+    "loadError": "Could not load broadcasts",
+    "empty": "No broadcasts yet",
+    "table": {
+      "name": "Name",
+      "template": "Template",
+      "status": "Status",
+      "audience": "Audience",
+      "sent": "Sent",
+      "scheduledAt": "Scheduled",
+      "actions": "Actions"
+    },
+    "filters": {
+      "allStatuses": "All statuses"
+    },
+    "statuses": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "sending": "Sending",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "failed": "Failed"
+    },
+    "actions": {
+      "viewDetails": "View details"
+    },
+    "stats": {
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "read": "Read",
+      "replied": "Replies",
+      "failed": "Failed"
+    },
+    "editor": {
+      "title": "Create broadcast",
+      "subtitle": "Choose the template and audience, then save or start",
+      "saveDraft": "Save as draft",
+      "invalidMapping": "Variable mapping must be valid JSON",
+      "variablesHint": "Write variable mapping as simple JSON",
+      "audienceCount": "Selected contacts: {{count}}",
+      "tabs": {
+        "basics": "Basics",
+        "audience": "Audience",
+        "variables": "Variables",
+        "schedule": "Schedule",
+        "review": "Review"
+      },
+      "fields": {
+        "name": "Campaign name",
+        "template": "Template",
+        "selectTemplate": "Select an approved template",
+        "channelAccount": "Channel account",
+        "selectChannel": "Select account",
+        "tags": "Audience tags",
+        "tagsPlaceholder": "Example: vip, sanaa",
+        "contacts": "Contacts",
+        "scheduleMode": "Send time",
+        "scheduledAt": "Scheduled date and time"
+      }
+    },
+    "detail": {
+      "title": "Broadcast details",
+      "subtitle": "Review campaign status and recipients",
+      "audienceCount": "Audience count: {{count}}",
+      "contact": "Contact",
+      "sentAt": "Sent at",
+      "error": "Error",
+      "noRecipients": "No recipients yet"
     }
   }
 }

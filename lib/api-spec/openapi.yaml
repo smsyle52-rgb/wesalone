@@ -1026,6 +1026,143 @@ paths:
               schema:
                 $ref: "#/components/schemas/BroadcastResponse"
 
+  /broadcasts/{id}:
+    get:
+      operationId: getBroadcast
+      tags: [broadcasts]
+      summary: Get broadcast details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Broadcast details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastDetailResponse"
+    patch:
+      operationId: updateBroadcast
+      tags: [broadcasts]
+      summary: Update broadcast draft
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBroadcastBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastResponse"
+
+  /broadcasts/{id}/preview:
+    post:
+      operationId: previewBroadcast
+      tags: [broadcasts]
+      summary: Preview broadcast audience
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audience preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastPreviewResponse"
+
+  /broadcasts/{id}/start:
+    post:
+      operationId: startBroadcast
+      tags: [broadcasts]
+      summary: Start broadcast
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastDetailResponse"
+
+  /broadcasts/{id}/cancel:
+    post:
+      operationId: cancelBroadcast
+      tags: [broadcasts]
+      summary: Cancel broadcast
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastDetailResponse"
+
+  /broadcasts/{id}/recipients:
+    get:
+      operationId: listBroadcastRecipients
+      tags: [broadcasts]
+      summary: List broadcast recipients
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Recipients list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastRecipientsResponse"
+
+  /broadcasts/{id}/stats:
+    get:
+      operationId: getBroadcastStats
+      tags: [broadcasts]
+      summary: Get broadcast stats
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Broadcast stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastStatsResponse"
+
   /automations:
     get:
       operationId: listAutomations
@@ -2033,6 +2170,8 @@ components:
           type: string
         templateId:
           type: string
+        templateName:
+          type: string
         channelAccountId:
           type: string
         status:
@@ -2041,6 +2180,8 @@ components:
         scheduledAt:
           type: string
           format: date-time
+        stats:
+          type: object
       required: [id, name, templateId, channelAccountId, status]
 
     BroadcastResponse:
@@ -2048,6 +2189,14 @@ components:
       properties:
         broadcast:
           $ref: "#/components/schemas/Broadcast"
+
+    BroadcastDetailResponse:
+      type: object
+      properties:
+        broadcast:
+          $ref: "#/components/schemas/Broadcast"
+        audienceCount:
+          type: integer
 
     BroadcastsListResponse:
       type: object
@@ -2072,7 +2221,82 @@ components:
           type: object
         variableMapping:
           type: object
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
       required: [name, templateId, channelAccountId]
+
+    UpdateBroadcastBody:
+      type: object
+      properties:
+        name:
+          type: string
+        templateId:
+          type: string
+        channelAccountId:
+          type: string
+        audienceFilter:
+          type: object
+        variableMapping:
+          type: object
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    BroadcastPreviewResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        samples:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              phoneLast4:
+                type: string
+                nullable: true
+
+    BroadcastRecipient:
+      type: object
+      properties:
+        id:
+          type: string
+        contactId:
+          type: string
+        contactName:
+          type: string
+        status:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+
+    BroadcastRecipientsResponse:
+      type: object
+      properties:
+        recipients:
+          type: array
+          items:
+            $ref: "#/components/schemas/BroadcastRecipient"
+        total:
+          type: integer
+
+    BroadcastStatsResponse:
+      type: object
+      properties:
+        stats:
+          type: object
 
     Automation:
       type: object

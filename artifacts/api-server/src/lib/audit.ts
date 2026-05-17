@@ -43,7 +43,8 @@ export type AuditAction =
   | "webhook_event_replay"
   | "outbox_retry" | "outbox_cancel"
   | "integration_health_update"
-  | "template_create" | "template_update" | "template_delete" | "template_duplicate" | "template_submit" | "template_sync";
+  | "template_create" | "template_update" | "template_delete" | "template_duplicate" | "template_submit" | "template_sync"
+  | "broadcast_create" | "broadcast_update" | "broadcast_start" | "broadcast_cancel";
 
 export type AuditSeverity = "info" | "warning" | "critical";
 

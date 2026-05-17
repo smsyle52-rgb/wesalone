@@ -822,17 +822,26 @@ export const BroadcastStatus = {
   failed: "failed",
 } as const;
 
+export type BroadcastStats = { [key: string]: unknown };
+
 export interface Broadcast {
   id: string;
   name: string;
   templateId: string;
+  templateName?: string;
   channelAccountId: string;
   status: BroadcastStatus;
   scheduledAt?: string;
+  stats?: BroadcastStats;
 }
 
 export interface BroadcastResponse {
   broadcast?: Broadcast;
+}
+
+export interface BroadcastDetailResponse {
+  broadcast?: Broadcast;
+  audienceCount?: number;
 }
 
 export interface BroadcastsListResponse {
@@ -850,6 +859,51 @@ export interface CreateBroadcastBody {
   channelAccountId: string;
   audienceFilter?: CreateBroadcastBodyAudienceFilter;
   variableMapping?: CreateBroadcastBodyVariableMapping;
+  scheduledAt?: string | null;
+}
+
+export type UpdateBroadcastBodyAudienceFilter = { [key: string]: unknown };
+
+export type UpdateBroadcastBodyVariableMapping = { [key: string]: unknown };
+
+export interface UpdateBroadcastBody {
+  name?: string;
+  templateId?: string;
+  channelAccountId?: string;
+  audienceFilter?: UpdateBroadcastBodyAudienceFilter;
+  variableMapping?: UpdateBroadcastBodyVariableMapping;
+  scheduledAt?: string | null;
+}
+
+export type BroadcastPreviewResponseSamplesItem = {
+  id?: string;
+  name?: string;
+  phoneLast4?: string | null;
+};
+
+export interface BroadcastPreviewResponse {
+  count?: number;
+  samples?: BroadcastPreviewResponseSamplesItem[];
+}
+
+export interface BroadcastRecipient {
+  id?: string;
+  contactId?: string;
+  contactName?: string;
+  status?: string;
+  sentAt?: string | null;
+  errorMessage?: string | null;
+}
+
+export interface BroadcastRecipientsResponse {
+  recipients?: BroadcastRecipient[];
+  total?: number;
+}
+
+export type BroadcastStatsResponseStats = { [key: string]: unknown };
+
+export interface BroadcastStatsResponse {
+  stats?: BroadcastStatsResponseStats;
 }
 
 export type AutomationStatus =

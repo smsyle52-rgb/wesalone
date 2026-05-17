@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid, jsonb, integer } from "drizzle-orm/pg-core";
+import { index, pgTable, text, timestamp, uuid, jsonb, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { workspacesTable } from "./workspaces";
 
 export const outboxEventsTable = pgTable(
@@ -9,6 +9,7 @@ export const outboxEventsTable = pgTable(
     eventType: text("event_type").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: uuid("entity_id").notNull(),
+    idempotencyKey: text("idempotency_key"),
     payload: jsonb("payload").notNull().default({}),
     status: text("status").notNull().default("pending"),
     attempts: integer("attempts").notNull().default(0),
@@ -16,7 +17,11 @@ export const outboxEventsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
   },
-  (table) => [index("idx_outbox_events_status").on(table.status, table.nextAttemptAt)],
+  (table) => [
+    uniqueIndex("uq_outbox_events_workspace_idempotency").on(table.workspaceId, table.idempotencyKey),
+    index("idx_outbox_events_status").on(table.status, table.nextAttemptAt),
+    index("idx_outbox_events_entity").on(table.entityType, table.entityId),
+  ],
 );
 
 export type OutboxEvent = typeof outboxEventsTable.$inferSelect;

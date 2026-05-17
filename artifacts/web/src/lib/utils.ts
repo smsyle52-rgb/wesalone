@@ -39,6 +39,7 @@ export const statusLabels: Record<string, string> = {
   in_progress: "قيد التنفيذ", waiting_on_customer: "بانتظار العميل",
   todo: "للإنجاز", done: "منجز", cancelled: "ملغى",
   completed: "مكتمل", draft: "مسودة", submitted: "مُرسل", approved: "معتمد", paused: "متوقف", disabled: "معطل",
+  scheduled: "مجدول", sending: "جارٍ الإرسال", failed: "فشل",
   confirmed: "مؤكد", processing: "قيد المعالجة",
   ready: "جاهز", shipped: "مشحون", delivered: "مسلّم", returned: "مُرتجع", refunded: "مسترد", rejected: "مرفوض",
   qualified: "مؤهل", proposal: "عرض", negotiation: "تفاوض", won: "ربح", lost: "خسارة",

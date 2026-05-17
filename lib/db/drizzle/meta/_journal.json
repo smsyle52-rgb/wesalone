@@ -36,6 +36,13 @@
       "when": 1779003600000,
       "tag": "0004_phase2_modules",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779007200000,
+      "tag": "0005_broadcast_outbox_idempotency",
+      "breakpoints": true
     }
   ]
 }

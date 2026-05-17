@@ -68,7 +68,10 @@
     "edit": "تعديل",
     "delete": "حذف",
     "duplicate": "تكرار",
-    "retry": "إعادة المحاولة"
+    "retry": "إعادة المحاولة",
+    "cancel": "إلغاء",
+    "sendNow": "إرسال الآن",
+    "schedule": "جدولة"
   },
   "templates": {
     "title": "القوالب",
@@ -145,6 +148,80 @@
         "variableExample": "قيمة مثال",
         "variableDescription": "وصف المتغير"
       }
+    }
+  },
+  "broadcasts": {
+    "title": "الحملات",
+    "subtitle": "إنشاء حملات رسائل منظمة باستخدام قوالب معتمدة",
+    "newBroadcast": "إنشاء حملة جديدة",
+    "permissionDenied": "ليس لديك صلاحية عرض الحملات",
+    "loadError": "تعذر تحميل الحملات",
+    "empty": "لا توجد حملات بعد",
+    "table": {
+      "name": "الاسم",
+      "template": "القالب",
+      "status": "الحالة",
+      "audience": "الجمهور",
+      "sent": "تم الإرسال",
+      "scheduledAt": "المجدولة",
+      "actions": "الإجراءات"
+    },
+    "filters": {
+      "allStatuses": "كل الحالات"
+    },
+    "statuses": {
+      "draft": "مسودة",
+      "scheduled": "مجدول",
+      "sending": "جارٍ الإرسال",
+      "completed": "مكتمل",
+      "cancelled": "ملغى",
+      "failed": "فشل"
+    },
+    "actions": {
+      "viewDetails": "عرض التفاصيل"
+    },
+    "stats": {
+      "sent": "المرسلة",
+      "delivered": "المستلمة",
+      "read": "المقروءة",
+      "replied": "الردود",
+      "failed": "الفشل"
+    },
+    "editor": {
+      "title": "إنشاء حملة",
+      "subtitle": "اختر القالب والجمهور ثم احفظ الحملة أو ابدأها",
+      "saveDraft": "حفظ كمسودة",
+      "invalidMapping": "صيغة ربط المتغيرات غير صحيحة",
+      "variablesHint": "اكتب ربط المتغيرات بصيغة JSON بسيطة",
+      "audienceCount": "عدد جهات الاتصال المحددة: {{count}}",
+      "tabs": {
+        "basics": "الأساسيات",
+        "audience": "الجمهور",
+        "variables": "المتغيرات",
+        "schedule": "الجدولة",
+        "review": "المراجعة"
+      },
+      "fields": {
+        "name": "اسم الحملة",
+        "template": "القالب",
+        "selectTemplate": "اختر قالباً معتمداً",
+        "channelAccount": "حساب القناة",
+        "selectChannel": "اختر الحساب",
+        "tags": "وسوم الجمهور",
+        "tagsPlaceholder": "مثال: vip, صنعاء",
+        "contacts": "جهات الاتصال",
+        "scheduleMode": "وقت الإرسال",
+        "scheduledAt": "تاريخ ووقت الجدولة"
+      }
+    },
+    "detail": {
+      "title": "تفاصيل الحملة",
+      "subtitle": "مراجعة حالة الحملة والمستلمين",
+      "audienceCount": "عدد الجمهور: {{count}}",
+      "contact": "جهة الاتصال",
+      "sentAt": "وقت الإرسال",
+      "error": "الخطأ",
+      "noRecipients": "لا يوجد مستلمون بعد"
     }
   }
 }
