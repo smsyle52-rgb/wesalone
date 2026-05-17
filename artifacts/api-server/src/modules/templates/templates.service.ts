@@ -1,6 +1,7 @@
 import { and, count, desc, eq } from "drizzle-orm";
-import { db, templateVersionsTable, whatsappTemplatesTable } from "@workspace/db";
+import { channelAccountsTable, db, templateVersionsTable, whatsappTemplatesTable } from "@workspace/db";
 import { errors } from "../../lib/errors";
+import { fetchTemplateStatus, submitTemplate as submitMetaTemplate } from "../../services/meta-graph";
 import type { createTemplateSchema, updateTemplateSchema } from "./templates.schema";
 import type { z } from "zod";
 
@@ -135,11 +136,29 @@ export async function submitTemplate(workspaceId: string, id: string) {
 
   const versionNumber = Number(total) + 1;
   const submittedAt = new Date();
+  const [channelAccount] = template.channelAccountId
+    ? await db
+        .select()
+        .from(channelAccountsTable)
+        .where(and(eq(channelAccountsTable.id, template.channelAccountId), eq(channelAccountsTable.workspaceId, workspaceId)))
+        .limit(1)
+    : [];
+  const metaResult = await submitMetaTemplate(channelAccount ?? null, {
+    name: template.name,
+    language: template.language,
+    category: template.category,
+    components: template.components,
+  });
 
   const [updated] = await db.transaction(async (tx) => {
     const [nextTemplate] = await tx
       .update(whatsappTemplatesTable)
-      .set({ status: "submitted", submittedAt, updatedAt: submittedAt })
+      .set({
+        status: "submitted",
+        submittedAt,
+        metaTemplateId: metaResult.id ?? template.metaTemplateId,
+        updatedAt: submittedAt,
+      })
       .where(and(eq(whatsappTemplatesTable.id, id), eq(whatsappTemplatesTable.workspaceId, workspaceId)))
       .returning();
 
@@ -149,7 +168,7 @@ export async function submitTemplate(workspaceId: string, id: string) {
       versionNumber,
       status: "submitted",
       components: template.components,
-      responseJson: { mode: "stub", externalCall: false },
+      responseJson: { mode: metaResult.dryRun ? "dry_run" : "meta", externalCall: !metaResult.dryRun, requestId: metaResult.requestId, payload: metaResult.payload },
       submittedAt,
     });
 
@@ -161,5 +180,23 @@ export async function submitTemplate(workspaceId: string, id: string) {
 
 export async function syncTemplate(workspaceId: string, id: string) {
   const { template } = await getTemplate(workspaceId, id);
-  return { template, synced: false, mode: "stub" as const };
+  const [channelAccount] = template.channelAccountId
+    ? await db
+        .select()
+        .from(channelAccountsTable)
+        .where(and(eq(channelAccountsTable.id, template.channelAccountId), eq(channelAccountsTable.workspaceId, workspaceId)))
+        .limit(1)
+    : [];
+  if (!template.metaTemplateId) return { template, synced: false, mode: "dry_run" as const };
+
+  const metaResult = await fetchTemplateStatus(channelAccount ?? null, template.metaTemplateId);
+  const payload = metaResult.payload as Record<string, unknown> | undefined;
+  const status = typeof payload?.status === "string" ? payload.status.toLowerCase() : template.status;
+  const rejectionReason = typeof payload?.rejected_reason === "string" ? payload.rejected_reason : template.rejectionReason;
+  const [updated] = await db
+    .update(whatsappTemplatesTable)
+    .set({ status, rejectionReason, updatedAt: new Date() })
+    .where(and(eq(whatsappTemplatesTable.id, id), eq(whatsappTemplatesTable.workspaceId, workspaceId)))
+    .returning();
+  return { template: updated, synced: true, mode: metaResult.dryRun ? "dry_run" as const : "meta" as const };
 }

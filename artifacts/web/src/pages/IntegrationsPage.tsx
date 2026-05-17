@@ -1,6 +1,9 @@
 import { Link } from "wouter";
+import { useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { cn } from "@/lib/utils";
+
+const BASE = `${import.meta.env.BASE_URL}api`;
 
 const channels = [
   {
@@ -80,6 +83,24 @@ function ChannelCard({ channel }: { channel: (typeof channels)[number] }) {
 }
 
 export default function IntegrationsPage() {
+  const [isStartingMeta, setIsStartingMeta] = useState(false);
+  const [metaError, setMetaError] = useState<string | null>(null);
+
+  async function startMetaSignup() {
+    setIsStartingMeta(true);
+    setMetaError(null);
+    try {
+      const res = await fetch(`${BASE}/integrations/meta/embedded-signup/start`, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error ?? data.missing?.join(", ") ?? "تعذر تجهيز ربط واتساب");
+      window.open(data.url, "meta-whatsapp-signup", "width=760,height=760,noopener,noreferrer");
+    } catch (err) {
+      setMetaError((err as Error).message);
+    } finally {
+      setIsStartingMeta(false);
+    }
+  }
+
   return (
     <div dir="rtl" className="space-y-6">
       <PageHeader
@@ -98,6 +119,26 @@ export default function IntegrationsPage() {
         {channels.map((channel) => (
           <ChannelCard key={channel.name} channel={channel} />
         ))}
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">ربط واتساب عبر Meta</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              الربط يعمل عبر نافذة Meta الرسمية. الإرسال يبقى في وضع DRY_RUN ما لم تكتمل أسرار Meta وحساب القناة.
+            </p>
+            {metaError && <p className="mt-2 text-sm text-destructive">{metaError}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={startMetaSignup}
+            disabled={isStartingMeta}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {isStartingMeta ? "جارٍ التجهيز..." : "ربط واتساب"}
+          </button>
+        </div>
       </section>
 
       <section className="rounded-xl border border-border bg-card p-5">

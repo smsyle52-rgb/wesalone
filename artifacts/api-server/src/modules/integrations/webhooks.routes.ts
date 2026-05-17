@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { ingestWebhookEvent } from "./webhookIngest.service";
+import { handleMetaWhatsAppWebhook } from "./meta-webhook.handler";
 import { logger } from "../../lib/logger";
 
 const router = Router();
@@ -35,8 +36,14 @@ function verifyWebhookSignature(req: Request, res: Response, next: NextFunction)
   const appSecret = process.env.META_APP_SECRET;
   const signatureHeader = req.header("x-hub-signature-256");
 
-  if (!appSecret || !signatureHeader) {
-    req.log?.warn({ provider, hasAppSecret: Boolean(appSecret), hasSignature: Boolean(signatureHeader) }, "webhook signature missing");
+  if (!appSecret) {
+    req.log?.warn({ provider }, "webhook signature verification skipped because META_APP_SECRET is not configured");
+    next();
+    return;
+  }
+
+  if (!signatureHeader) {
+    req.log?.warn({ provider, hasSignature: false }, "webhook signature missing");
     res.status(401).json({ accepted: false, reason: "invalid_signature" });
     return;
   }
@@ -78,11 +85,16 @@ router.post("/:provider", verifyWebhookSignature, parseWebhookPayload, async (re
     return;
   }
 
+  const metaResult = metaWebhookProviders.has(String(req.params.provider))
+    ? await handleMetaWhatsAppWebhook(req.body)
+    : null;
+
   res.status(result.duplicate ? 200 : 202).json({
     accepted: true,
     duplicate: result.duplicate,
     eventId: result.event.id,
     status: result.duplicate ? "ignored" : result.event.status,
+    meta: metaResult,
   });
 });
 

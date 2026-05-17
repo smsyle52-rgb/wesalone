@@ -73,6 +73,41 @@ function stringField(payload: Record<string, unknown>, key: string): string | nu
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+async function loadChannelAccount(channelAccountId: string | null) {
+  if (!channelAccountId) return null;
+  const result = await pool.query<{
+    id: string;
+    provider_config: Record<string, unknown> | null;
+    credentials_secret_ref: string | null;
+  }>("SELECT id, provider_config, credentials_secret_ref FROM channel_accounts WHERE id = $1 LIMIT 1", [channelAccountId]);
+  return result.rows[0] ?? null;
+}
+
+async function metaSend(path: string, body: Record<string, unknown>): Promise<{ id: string; dryRun: boolean }> {
+  const token = process.env.META_SYSTEM_USER_TOKEN ?? process.env.META_ACCESS_TOKEN;
+  if (!process.env.META_APP_SECRET || !token || process.env.META_DRY_RUN === "true") {
+    logger.info({ path }, "Meta outbox send DRY_RUN");
+    return { id: `dry_${Date.now().toString(36)}`, dryRun: true };
+  }
+
+  const graphVersion = process.env.META_GRAPH_VERSION ?? "v21.0";
+  const response = await fetch(`https://graph.facebook.com/${graphVersion}/${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Meta Graph API returned ${response.status}`);
+  }
+
+  const payload: any = await response.json().catch(() => ({}));
+  return { id: payload?.messages?.[0]?.id ?? payload?.id ?? `meta_${Date.now().toString(36)}`, dryRun: false };
+}
+
 async function dispatchWhatsAppSend(event: OutboxEventRow): Promise<void> {
   if (!process.env.META_APP_SECRET) {
     logger.info({ eventId: event.id }, "WhatsApp outbox send stubbed");
@@ -98,6 +133,86 @@ async function dispatchWhatsAppSend(event: OutboxEventRow): Promise<void> {
 
   if (!response.ok) {
     throw new Error(`Meta Graph API returned ${response.status}`);
+  }
+}
+
+async function dispatchWhatsAppTemplate(event: OutboxEventRow): Promise<void> {
+  const channelAccountId = stringField(event.payload, "channelAccountId");
+  const templateId = stringField(event.payload, "templateId");
+  const contactId = stringField(event.payload, "contactId");
+  const channelAccount = await loadChannelAccount(channelAccountId);
+  const providerConfig = channelAccount?.provider_config ?? {};
+  const phoneNumberId = typeof providerConfig.phoneNumberId === "string" ? providerConfig.phoneNumberId : process.env.META_PHONE_NUMBER_ID;
+  if (!phoneNumberId || !templateId || !contactId) throw new Error("Missing WhatsApp template outbox payload");
+
+  const [templateResult, destinationResult] = await Promise.all([
+    pool.query<{ name: string; language: string }>("SELECT name, language FROM whatsapp_templates WHERE id = $1 LIMIT 1", [templateId]),
+    pool.query<{ destination: string }>(
+      `
+      SELECT COALESCE(cc.normalized_identifier, c.phone) AS destination
+      FROM contacts c
+      LEFT JOIN contact_channels cc ON cc.contact_id = c.id AND cc.channel_type IN ('whatsapp', 'phone')
+      WHERE c.id = $1
+      ORDER BY cc.is_primary DESC NULLS LAST
+      LIMIT 1
+      `,
+      [contactId],
+    ),
+  ]);
+
+  const template = templateResult.rows[0];
+  const destination = destinationResult.rows[0]?.destination?.replace(/^\+/, "");
+  if (!template || !destination) throw new Error("Unable to resolve WhatsApp template destination");
+
+  const result = await metaSend(`${phoneNumberId}/messages`, {
+    messaging_product: "whatsapp",
+    to: destination,
+    type: "template",
+    template: { name: template.name, language: { code: template.language }, components: [] },
+  });
+
+  if (event.entity_type === "broadcast_recipient") {
+    await pool.query(
+      "UPDATE broadcast_recipients SET status = 'sent', sent_at = now() WHERE id = $1 AND status = 'queued'",
+      [event.entity_id],
+    );
+  }
+
+  if (stringField(event.payload, "conversationId")) {
+    await pool.query(
+      `
+      INSERT INTO messages (workspace_id, conversation_id, provider_message_id, direction, sender_type, source, content_type, content, delivery_status, provider_payload, sent_at)
+      VALUES ($1, $2, $3, 'outbound', 'system', 'automation', 'template', $4, 'sent', $5::jsonb, now())
+      `,
+      [event.workspace_id, stringField(event.payload, "conversationId"), result.id, template.name, JSON.stringify({ dryRun: result.dryRun, outboxEventId: event.id })],
+    );
+  }
+}
+
+async function dispatchWhatsAppText(event: OutboxEventRow): Promise<void> {
+  const channelAccountId = stringField(event.payload, "channelAccountId");
+  const channelAccount = await loadChannelAccount(channelAccountId);
+  const providerConfig = channelAccount?.provider_config ?? {};
+  const phoneNumberId = typeof providerConfig.phoneNumberId === "string" ? providerConfig.phoneNumberId : process.env.META_PHONE_NUMBER_ID;
+  const destination = stringField(event.payload, "to")?.replace(/^\+/, "");
+  const body = stringField(event.payload, "body");
+  if (!phoneNumberId || !destination || !body) throw new Error("Missing WhatsApp text outbox payload");
+
+  const result = await metaSend(`${phoneNumberId}/messages`, {
+    messaging_product: "whatsapp",
+    to: destination,
+    type: "text",
+    text: { body },
+  });
+
+  if (stringField(event.payload, "conversationId")) {
+    await pool.query(
+      `
+      INSERT INTO messages (workspace_id, conversation_id, provider_message_id, direction, sender_type, source, content_type, content, delivery_status, provider_payload, sent_at)
+      VALUES ($1, $2, $3, 'outbound', 'system', 'automation', 'text', $4, 'sent', $5::jsonb, now())
+      `,
+      [event.workspace_id, stringField(event.payload, "conversationId"), result.id, body, JSON.stringify({ dryRun: result.dryRun, outboxEventId: event.id })],
+    );
   }
 }
 
@@ -144,6 +259,16 @@ async function processEvent(event: OutboxEventRow): Promise<void> {
   try {
     if (event.event_type === "message.send.whatsapp") {
       await dispatchWhatsAppSend(event);
+      await markSent(event.id);
+      return;
+    }
+    if (event.event_type === "message.send.whatsapp.template") {
+      await dispatchWhatsAppTemplate(event);
+      await markSent(event.id);
+      return;
+    }
+    if (event.event_type === "message.send.whatsapp.text") {
+      await dispatchWhatsAppText(event);
       await markSent(event.id);
       return;
     }
