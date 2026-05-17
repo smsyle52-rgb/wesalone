@@ -48,10 +48,10 @@ export async function idempotencyMiddleware(req: Request, res: Response, next: N
       `
       SELECT status, response_status, response_body
       FROM idempotency_keys
-      WHERE scope = $1 AND key = $2 AND (expires_at IS NULL OR expires_at > now())
+      WHERE workspace_id = $1 AND key = $2 AND (expires_at IS NULL OR expires_at > now())
       LIMIT 1
       `,
-      [scope, key],
+      [workspaceId, key],
     );
 
     const existingRow = existing.rows[0];
@@ -70,7 +70,7 @@ export async function idempotencyMiddleware(req: Request, res: Response, next: N
       `
       INSERT INTO idempotency_keys (workspace_id, key, scope, status, method, path, expires_at)
       VALUES ($1, $2, $3, 'processing', $4, $5, $6)
-      ON CONFLICT (scope, key) DO NOTHING
+      ON CONFLICT (workspace_id, key) DO NOTHING
       `,
       [workspaceId, key, scope, req.method, path, expiresAt],
     );
@@ -104,9 +104,9 @@ export async function idempotencyMiddleware(req: Request, res: Response, next: N
             response_hash = $2,
             response_status = $3,
             response_body = $4
-        WHERE scope = $5 AND key = $6
+        WHERE workspace_id = $5 AND key = $6
         `,
-        [status, hashValue(capturedBody), res.statusCode, capturedBody ?? {}, scope, key],
+        [status, hashValue(capturedBody), res.statusCode, capturedBody ?? {}, workspaceId, key],
       )
       .catch((err: unknown) => {
         logger.warn({ err, path, method: req.method }, "Failed to persist idempotency result");
