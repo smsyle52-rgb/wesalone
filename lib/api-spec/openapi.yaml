@@ -1193,6 +1193,147 @@ paths:
               schema:
                 $ref: "#/components/schemas/AutomationResponse"
 
+  /automations/{id}:
+    get:
+      operationId: getAutomation
+      tags: [automations]
+      summary: Get automation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Automation detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationResponse"
+    patch:
+      operationId: updateAutomation
+      tags: [automations]
+      summary: Update automation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAutomationBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationResponse"
+    delete:
+      operationId: deleteAutomation
+      tags: [automations]
+      summary: Delete automation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /automations/{id}/activate:
+    post:
+      operationId: activateAutomation
+      tags: [automations]
+      summary: Activate automation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationResponse"
+
+  /automations/{id}/pause:
+    post:
+      operationId: pauseAutomation
+      tags: [automations]
+      summary: Pause automation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationResponse"
+
+  /automations/{id}/test-run:
+    post:
+      operationId: testRunAutomation
+      tags: [automations]
+      summary: Dry-run automation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationTestRunBody"
+      responses:
+        "200":
+          description: Dry-run result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationTestRunResponse"
+
+  /automations/{id}/runs:
+    get:
+      operationId: listAutomationRuns
+      tags: [automations]
+      summary: List automation runs
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Automation run history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRunsResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -2305,11 +2446,28 @@ components:
           type: string
         name:
           type: string
+        description:
+          type: string
+          nullable: true
         status:
           type: string
           enum: [draft, active, paused]
         trigger:
           type: object
+        conditions:
+          type: array
+          items:
+            type: object
+        actions:
+          type: array
+          items:
+            type: object
+        runCount:
+          type: integer
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
         updatedAt:
           type: string
           format: date-time
@@ -2349,3 +2507,86 @@ components:
           items:
             type: object
       required: [name, trigger]
+
+    UpdateAutomationBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        trigger:
+          type: object
+        conditions:
+          type: array
+          items:
+            type: object
+        actions:
+          type: array
+          items:
+            type: object
+
+    AutomationRun:
+      type: object
+      properties:
+        id:
+          type: string
+        automationId:
+          type: string
+        status:
+          type: string
+        triggerPayload:
+          type: object
+        conditionsEvaluated:
+          type: array
+          items:
+            type: object
+        actionsExecuted:
+          type: array
+          items:
+            type: object
+        error:
+          type: string
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    AutomationTestRunBody:
+      type: object
+      properties:
+        triggerPayload:
+          type: object
+
+    AutomationTestRunResponse:
+      type: object
+      properties:
+        run:
+          $ref: "#/components/schemas/AutomationRun"
+        shouldRun:
+          type: boolean
+        conditions:
+          type: array
+          items:
+            type: object
+        actions:
+          type: array
+          items:
+            type: object
+        dryRun:
+          type: boolean
+
+    AutomationRunsResponse:
+      type: object
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationRun"
+        total:
+          type: integer

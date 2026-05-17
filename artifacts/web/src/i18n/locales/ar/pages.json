@@ -71,7 +71,11 @@
     "retry": "إعادة المحاولة",
     "cancel": "إلغاء",
     "sendNow": "إرسال الآن",
-    "schedule": "جدولة"
+    "schedule": "جدولة",
+    "save": "حفظ",
+    "activate": "تفعيل",
+    "pause": "إيقاف مؤقت",
+    "testRun": "تشغيل تجريبي"
   },
   "templates": {
     "title": "القوالب",
@@ -222,6 +226,78 @@
       "sentAt": "وقت الإرسال",
       "error": "الخطأ",
       "noRecipients": "لا يوجد مستلمون بعد"
+    }
+  },
+  "automations": {
+    "title": "الأتمتة",
+    "subtitle": "بناء قواعد تشغيل واضحة بدون تنفيذ تلقائي مباشر في هذه المرحلة",
+    "newAutomation": "إنشاء أتمتة جديدة",
+    "permissionDenied": "ليس لديك صلاحية عرض الأتمتة",
+    "loadError": "تعذر تحميل الأتمتة",
+    "empty": "لا توجد أتمتة بعد",
+    "table": {
+      "name": "الاسم",
+      "trigger": "المشغل",
+      "status": "الحالة",
+      "runCount": "مرات التشغيل",
+      "lastRunAt": "آخر تشغيل",
+      "actions": "الإجراءات"
+    },
+    "filters": {
+      "allStatuses": "كل الحالات"
+    },
+    "statuses": {
+      "draft": "مسودة",
+      "active": "نشط",
+      "paused": "متوقف"
+    },
+    "triggers": {
+      "message.received": "عند وصول رسالة",
+      "conversation.opened": "عند فتح محادثة",
+      "contact.tag.added": "عند إضافة وسم لعميل",
+      "order.created": "عند إنشاء طلب",
+      "payment.confirmed": "عند تأكيد دفعة",
+      "unknown": "غير محدد"
+    },
+    "operators": {
+      "equals": "يساوي",
+      "not_equals": "لا يساوي",
+      "contains": "يحتوي",
+      "exists": "موجود",
+      "not_exists": "غير موجود"
+    },
+    "actions": {
+      "send.template": "إرسال قالب",
+      "add.tag": "إضافة وسم",
+      "assign.conversation": "إسناد محادثة",
+      "create.task": "إنشاء مهمة",
+      "create.followup": "إنشاء متابعة"
+    },
+    "editor": {
+      "createTitle": "إنشاء أتمتة",
+      "editTitle": "تعديل أتمتة",
+      "subtitle": "عرّف المشغل والشروط والإجراءات. التنفيذ الفعلي مؤجل، والتشغيل هنا تجريبي فقط.",
+      "saved": "تم حفظ الأتمتة",
+      "invalidTriggerFilters": "صيغة فلاتر المشغل غير صحيحة",
+      "addCondition": "إضافة شرط",
+      "addAction": "إضافة إجراء",
+      "noConditions": "لا توجد شروط. ستعمل القاعدة عند تحقق المشغل.",
+      "noActions": "لا توجد إجراءات بعد.",
+      "testRunTitle": "تشغيل تجريبي",
+      "steps": {
+        "trigger": "متى يحدث",
+        "conditions": "شروط اختياري",
+        "actions": "إجراءات"
+      },
+      "fields": {
+        "name": "اسم الأتمتة",
+        "description": "وصف مختصر",
+        "triggerType": "نوع المشغل",
+        "channel": "القناة",
+        "filters": "فلاتر المشغل",
+        "conditionField": "الحقل",
+        "conditionValue": "القيمة"
+      }
     }
   }
 }

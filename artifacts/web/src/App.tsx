@@ -32,6 +32,8 @@ import TemplateEditorPage from "@/pages/TemplateEditorPage";
 import BroadcastsPage from "@/pages/BroadcastsPage";
 import BroadcastEditorPage from "@/pages/BroadcastEditorPage";
 import BroadcastDetailPage from "@/pages/BroadcastDetailPage";
+import AutomationsPage from "@/pages/AutomationsPage";
+import AutomationEditorPage from "@/pages/AutomationEditorPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -116,6 +118,11 @@ function Router() {
         <ProtectedRoute component={() => <BroadcastDetailPage broadcastId={params.id} />} />
       )} />
       <Route path="/broadcasts" component={() => <ProtectedRoute component={BroadcastsPage} />} />
+      <Route path="/automations/new" component={() => <ProtectedRoute component={AutomationEditorPage} />} />
+      <Route path="/automations/:id" component={({ params }) => (
+        <ProtectedRoute component={() => <AutomationEditorPage automationId={params.id} />} />
+      )} />
+      <Route path="/automations" component={() => <ProtectedRoute component={AutomationsPage} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
       <Route path="/" component={() => <Redirect to="/dashboard" />} />
       <Route component={NotFound} />

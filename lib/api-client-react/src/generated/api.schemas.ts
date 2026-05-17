@@ -917,11 +917,20 @@ export const AutomationStatus = {
 
 export type AutomationTrigger = { [key: string]: unknown };
 
+export type AutomationConditionsItem = { [key: string]: unknown };
+
+export type AutomationActionsItem = { [key: string]: unknown };
+
 export interface Automation {
   id: string;
   name: string;
+  description?: string | null;
   status: AutomationStatus;
   trigger: AutomationTrigger;
+  conditions?: AutomationConditionsItem[];
+  actions?: AutomationActionsItem[];
+  runCount?: number;
+  lastRunAt?: string | null;
   updatedAt?: string;
 }
 
@@ -946,6 +955,63 @@ export interface CreateAutomationBody {
   trigger: CreateAutomationBodyTrigger;
   conditions?: CreateAutomationBodyConditionsItem[];
   actions?: CreateAutomationBodyActionsItem[];
+}
+
+export type UpdateAutomationBodyTrigger = { [key: string]: unknown };
+
+export type UpdateAutomationBodyConditionsItem = { [key: string]: unknown };
+
+export type UpdateAutomationBodyActionsItem = { [key: string]: unknown };
+
+export interface UpdateAutomationBody {
+  name?: string;
+  description?: string | null;
+  trigger?: UpdateAutomationBodyTrigger;
+  conditions?: UpdateAutomationBodyConditionsItem[];
+  actions?: UpdateAutomationBodyActionsItem[];
+}
+
+export type AutomationRunTriggerPayload = { [key: string]: unknown };
+
+export type AutomationRunConditionsEvaluatedItem = { [key: string]: unknown };
+
+export type AutomationRunActionsExecutedItem = { [key: string]: unknown };
+
+export interface AutomationRun {
+  id?: string;
+  automationId?: string;
+  status?: string;
+  triggerPayload?: AutomationRunTriggerPayload;
+  conditionsEvaluated?: AutomationRunConditionsEvaluatedItem[];
+  actionsExecuted?: AutomationRunActionsExecutedItem[];
+  error?: string | null;
+  startedAt?: string;
+  finishedAt?: string | null;
+}
+
+export type AutomationTestRunBodyTriggerPayload = { [key: string]: unknown };
+
+export interface AutomationTestRunBody {
+  triggerPayload?: AutomationTestRunBodyTriggerPayload;
+}
+
+export type AutomationTestRunResponseConditionsItem = {
+  [key: string]: unknown;
+};
+
+export type AutomationTestRunResponseActionsItem = { [key: string]: unknown };
+
+export interface AutomationTestRunResponse {
+  run?: AutomationRun;
+  shouldRun?: boolean;
+  conditions?: AutomationTestRunResponseConditionsItem[];
+  actions?: AutomationTestRunResponseActionsItem[];
+  dryRun?: boolean;
+}
+
+export interface AutomationRunsResponse {
+  runs?: AutomationRun[];
+  total?: number;
 }
 
 export type ListContactsParams = {

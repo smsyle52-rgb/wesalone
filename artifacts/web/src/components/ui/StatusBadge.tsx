@@ -16,6 +16,7 @@ const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
   submitted: "bg-blue-100 text-blue-700",
   approved: "bg-green-100 text-green-700",
+  active: "bg-green-100 text-green-700",
   paused: "bg-yellow-100 text-yellow-700",
   disabled: "bg-gray-200 text-gray-600",
   scheduled: "bg-purple-100 text-purple-700",

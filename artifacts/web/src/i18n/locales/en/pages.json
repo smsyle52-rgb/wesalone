@@ -71,7 +71,11 @@
     "retry": "Retry",
     "cancel": "Cancel",
     "sendNow": "Send now",
-    "schedule": "Schedule"
+    "schedule": "Schedule",
+    "save": "Save",
+    "activate": "Activate",
+    "pause": "Pause",
+    "testRun": "Test run"
   },
   "templates": {
     "title": "Templates",
@@ -222,6 +226,78 @@
       "sentAt": "Sent at",
       "error": "Error",
       "noRecipients": "No recipients yet"
+    }
+  },
+  "automations": {
+    "title": "Automations",
+    "subtitle": "Build clear operating rules without live automatic execution in this phase",
+    "newAutomation": "Create new automation",
+    "permissionDenied": "You do not have permission to view automations",
+    "loadError": "Could not load automations",
+    "empty": "No automations yet",
+    "table": {
+      "name": "Name",
+      "trigger": "Trigger",
+      "status": "Status",
+      "runCount": "Run count",
+      "lastRunAt": "Last run",
+      "actions": "Actions"
+    },
+    "filters": {
+      "allStatuses": "All statuses"
+    },
+    "statuses": {
+      "draft": "Draft",
+      "active": "Active",
+      "paused": "Paused"
+    },
+    "triggers": {
+      "message.received": "When a message is received",
+      "conversation.opened": "When a conversation opens",
+      "contact.tag.added": "When a contact tag is added",
+      "order.created": "When an order is created",
+      "payment.confirmed": "When a payment is confirmed",
+      "unknown": "Unknown"
+    },
+    "operators": {
+      "equals": "Equals",
+      "not_equals": "Does not equal",
+      "contains": "Contains",
+      "exists": "Exists",
+      "not_exists": "Does not exist"
+    },
+    "actions": {
+      "send.template": "Send template",
+      "add.tag": "Add tag",
+      "assign.conversation": "Assign conversation",
+      "create.task": "Create task",
+      "create.followup": "Create followup"
+    },
+    "editor": {
+      "createTitle": "Create automation",
+      "editTitle": "Edit automation",
+      "subtitle": "Define the trigger, conditions, and actions. Live execution is deferred; this phase supports dry runs only.",
+      "saved": "Automation saved",
+      "invalidTriggerFilters": "Trigger filters must be valid JSON",
+      "addCondition": "Add condition",
+      "addAction": "Add action",
+      "noConditions": "No conditions. The rule will match when the trigger matches.",
+      "noActions": "No actions yet.",
+      "testRunTitle": "Test run",
+      "steps": {
+        "trigger": "When it happens",
+        "conditions": "Optional conditions",
+        "actions": "Actions"
+      },
+      "fields": {
+        "name": "Automation name",
+        "description": "Short description",
+        "triggerType": "Trigger type",
+        "channel": "Channel",
+        "filters": "Trigger filters",
+        "conditionField": "Field",
+        "conditionValue": "Value"
+      }
     }
   }
 }

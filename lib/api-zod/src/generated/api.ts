@@ -1467,8 +1467,13 @@ export const ListAutomationsResponse = zod.object({
       zod.object({
         id: zod.string(),
         name: zod.string(),
+        description: zod.string().nullish(),
         status: zod.enum(["draft", "active", "paused"]),
         trigger: zod.object({}).passthrough(),
+        conditions: zod.array(zod.object({}).passthrough()).optional(),
+        actions: zod.array(zod.object({}).passthrough()).optional(),
+        runCount: zod.number().optional(),
+        lastRunAt: zod.coerce.date().nullish(),
         updatedAt: zod.coerce.date().optional(),
       }),
     )
@@ -1485,4 +1490,176 @@ export const CreateAutomationBody = zod.object({
   trigger: zod.object({}).passthrough(),
   conditions: zod.array(zod.object({}).passthrough()).optional(),
   actions: zod.array(zod.object({}).passthrough()).optional(),
+});
+
+/**
+ * @summary Get automation
+ */
+export const GetAutomationParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetAutomationResponse = zod.object({
+  automation: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      description: zod.string().nullish(),
+      status: zod.enum(["draft", "active", "paused"]),
+      trigger: zod.object({}).passthrough(),
+      conditions: zod.array(zod.object({}).passthrough()).optional(),
+      actions: zod.array(zod.object({}).passthrough()).optional(),
+      runCount: zod.number().optional(),
+      lastRunAt: zod.coerce.date().nullish(),
+      updatedAt: zod.coerce.date().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Update automation
+ */
+export const UpdateAutomationParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateAutomationBody = zod.object({
+  name: zod.string().optional(),
+  description: zod.string().nullish(),
+  trigger: zod.object({}).passthrough().optional(),
+  conditions: zod.array(zod.object({}).passthrough()).optional(),
+  actions: zod.array(zod.object({}).passthrough()).optional(),
+});
+
+export const UpdateAutomationResponse = zod.object({
+  automation: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      description: zod.string().nullish(),
+      status: zod.enum(["draft", "active", "paused"]),
+      trigger: zod.object({}).passthrough(),
+      conditions: zod.array(zod.object({}).passthrough()).optional(),
+      actions: zod.array(zod.object({}).passthrough()).optional(),
+      runCount: zod.number().optional(),
+      lastRunAt: zod.coerce.date().nullish(),
+      updatedAt: zod.coerce.date().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Delete automation
+ */
+export const DeleteAutomationParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const DeleteAutomationResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Activate automation
+ */
+export const ActivateAutomationParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ActivateAutomationResponse = zod.object({
+  automation: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      description: zod.string().nullish(),
+      status: zod.enum(["draft", "active", "paused"]),
+      trigger: zod.object({}).passthrough(),
+      conditions: zod.array(zod.object({}).passthrough()).optional(),
+      actions: zod.array(zod.object({}).passthrough()).optional(),
+      runCount: zod.number().optional(),
+      lastRunAt: zod.coerce.date().nullish(),
+      updatedAt: zod.coerce.date().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Pause automation
+ */
+export const PauseAutomationParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const PauseAutomationResponse = zod.object({
+  automation: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      description: zod.string().nullish(),
+      status: zod.enum(["draft", "active", "paused"]),
+      trigger: zod.object({}).passthrough(),
+      conditions: zod.array(zod.object({}).passthrough()).optional(),
+      actions: zod.array(zod.object({}).passthrough()).optional(),
+      runCount: zod.number().optional(),
+      lastRunAt: zod.coerce.date().nullish(),
+      updatedAt: zod.coerce.date().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Dry-run automation
+ */
+export const TestRunAutomationParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const TestRunAutomationBody = zod.object({
+  triggerPayload: zod.object({}).passthrough().optional(),
+});
+
+export const TestRunAutomationResponse = zod.object({
+  run: zod
+    .object({
+      id: zod.string().optional(),
+      automationId: zod.string().optional(),
+      status: zod.string().optional(),
+      triggerPayload: zod.object({}).passthrough().optional(),
+      conditionsEvaluated: zod.array(zod.object({}).passthrough()).optional(),
+      actionsExecuted: zod.array(zod.object({}).passthrough()).optional(),
+      error: zod.string().nullish(),
+      startedAt: zod.coerce.date().optional(),
+      finishedAt: zod.coerce.date().nullish(),
+    })
+    .optional(),
+  shouldRun: zod.boolean().optional(),
+  conditions: zod.array(zod.object({}).passthrough()).optional(),
+  actions: zod.array(zod.object({}).passthrough()).optional(),
+  dryRun: zod.boolean().optional(),
+});
+
+/**
+ * @summary List automation runs
+ */
+export const ListAutomationRunsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ListAutomationRunsResponse = zod.object({
+  runs: zod
+    .array(
+      zod.object({
+        id: zod.string().optional(),
+        automationId: zod.string().optional(),
+        status: zod.string().optional(),
+        triggerPayload: zod.object({}).passthrough().optional(),
+        conditionsEvaluated: zod.array(zod.object({}).passthrough()).optional(),
+        actionsExecuted: zod.array(zod.object({}).passthrough()).optional(),
+        error: zod.string().nullish(),
+        startedAt: zod.coerce.date().optional(),
+        finishedAt: zod.coerce.date().nullish(),
+      }),
+    )
+    .optional(),
+  total: zod.number().optional(),
 });
