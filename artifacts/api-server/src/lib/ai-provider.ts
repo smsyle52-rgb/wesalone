@@ -18,9 +18,20 @@ const VERTEX_PROJECT_ID =
   process.env.GCLOUD_PROJECT;
 const VERTEX_LOCATION = process.env.VERTEX_LOCATION ?? process.env.GCP_LOCATION ?? process.env.GOOGLE_CLOUD_LOCATION ?? "us-central1";
 const VERTEX_MODEL = process.env.VERTEX_MODEL ?? "gemini-2.5-flash";
-const DEFAULT_TEMPERATURE = Number(process.env.AI_TEMPERATURE ?? "0.2");
-const DEFAULT_MAX_OUTPUT_TOKENS = Number(process.env.AI_MAX_OUTPUT_TOKENS ?? "1024");
+const VERTEX_EMBEDDING_MODEL = process.env.VERTEX_EMBEDDING_MODEL ?? "text-embedding-005";
+const DEFAULT_TEMPERATURE = Number(process.env.AI_TEMPERATURE ?? "0.3");
+const DEFAULT_MAX_OUTPUT_TOKENS = Number(process.env.AI_MAX_OUTPUT_TOKENS ?? "2048");
 const VERTEX_CONFIGURED = AI_PROVIDER === "vertex" && !!VERTEX_PROJECT_ID && !!VERTEX_LOCATION;
+
+logger.info(
+  {
+    model: VERTEX_MODEL,
+    embedding: VERTEX_EMBEDDING_MODEL,
+    location: VERTEX_LOCATION,
+    dry_run: !VERTEX_CONFIGURED,
+  },
+  `AI provider initialized: model=${VERTEX_MODEL}, embedding=${VERTEX_EMBEDDING_MODEL}, location=${VERTEX_LOCATION}, dry_run=${!VERTEX_CONFIGURED}`,
+);
 
 // ─── Safety system prompt ─────────────────────────────────────────────────────
 
@@ -76,12 +87,12 @@ export interface AiRunOutput {
 
 function getMaxOutputTokens(input: AiRunInput): number {
   const requested = input.maxTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
-  if (!Number.isFinite(requested) || requested <= 0) return 1024;
+  if (!Number.isFinite(requested) || requested <= 0) return 2048;
   return Math.min(Math.floor(requested), 2048);
 }
 
 function getTemperature(): number {
-  if (!Number.isFinite(DEFAULT_TEMPERATURE)) return 0.2;
+  if (!Number.isFinite(DEFAULT_TEMPERATURE)) return 0.3;
   return Math.min(Math.max(DEFAULT_TEMPERATURE, 0), 1);
 }
 

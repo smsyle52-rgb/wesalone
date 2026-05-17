@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { logger } from "../lib/logger";
 
-const VECTOR_SIZE = 1536;
+// Vertex AI text-embedding-005 returns 768-dimensional vectors for retrieval embeddings.
+const VECTOR_SIZE = 768;
 const CACHE_LIMIT = 1000;
 const EMBEDDING_MODEL = process.env.VERTEX_EMBEDDING_MODEL ?? "text-embedding-005";
 const EMBEDDINGS_DRY_RUN = process.env.AI_EMBEDDINGS_DRY_RUN !== "false";
