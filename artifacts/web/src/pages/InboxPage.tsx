@@ -494,7 +494,7 @@ export default function InboxPage() {
       </div>
 
       <div className="flex flex-1 gap-0 overflow-hidden px-4 pb-4">
-        <div className="hidden xl:flex flex-col w-72 shrink-0 rounded-xl border border-border bg-card overflow-hidden ml-3">
+        <div className="hidden xl:flex flex-col w-72 shrink-0 rounded-xl border border-border bg-card overflow-hidden ms-3">
           <div className="p-3 border-b border-border">
             <div className="text-xs font-semibold text-muted-foreground mb-2">العروض المحفوظة</div>
             <div className="space-y-1">
@@ -639,7 +639,7 @@ export default function InboxPage() {
                 )}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-sm text-foreground truncate">
-                      {bulkMode && <span className="inline-flex w-4 h-4 rounded border border-border ml-1 align-middle items-center justify-center text-[10px]">{selectedBulk.includes(c.id) ? "✓" : ""}</span>}
+                      {bulkMode && <span className="inline-flex w-4 h-4 rounded border border-border ms-1 align-middle items-center justify-center text-[10px]">{selectedBulk.includes(c.id) ? "✓" : ""}</span>}
                       {c.contactName ?? "عميل غير معروف"}
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
@@ -679,7 +679,7 @@ export default function InboxPage() {
         </div>
 
         <div className={cn(
-          "flex flex-col flex-1 overflow-hidden rounded-xl border border-border bg-card mr-0 lg:mr-3",
+          "flex flex-col flex-1 overflow-hidden rounded-xl border border-border bg-card me-0 lg:me-3",
           mobileView === "list" && !selectedConvId ? "hidden lg:flex" : "flex",
           mobileView === "list" && selectedConvId ? "hidden lg:flex" : ""
         )}>
@@ -758,7 +758,7 @@ export default function InboxPage() {
                     </button>
                   )}
 
-                  <div className="flex gap-1 mr-auto">
+                  <div className="flex gap-1 ms-auto">
                     {canCreateTicket ? (
                       <button onClick={() => setQuickCreate("ticket")}
                         className="px-2 py-1 rounded-md text-xs bg-muted hover:bg-muted/70 text-foreground border border-border transition-colors">
@@ -952,7 +952,7 @@ export default function InboxPage() {
                     </button>
                     {aiPanel && (
                       <button onClick={() => { setAiPanel(null); setAiSummary(null); setAiDraft(null); setAiClassify(null); setAiSuggestions([]); setAiError(null); }}
-                        className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground rounded-md bg-muted border border-border ml-auto">
+                        className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground rounded-md bg-muted border border-border me-auto">
                         ✕ إغلاق
                       </button>
                     )}
@@ -963,7 +963,7 @@ export default function InboxPage() {
                     )}
                     {providerStatus && (
                       <span className={cn(
-                        "text-xs px-2 py-0.5 rounded font-medium mr-auto",
+                        "text-xs px-2 py-0.5 rounded font-medium ms-auto",
                         isProviderLive(providerStatus)
                           ? "bg-green-100 text-green-700"
                           : providerStatus.fallbackMode
@@ -1020,7 +1020,7 @@ export default function InboxPage() {
                           <span className="text-purple-400 mt-0.5">•</span>
                           <div>
                             <span className="font-medium">{s.label ?? s.action_type}</span>
-                            {s.reason && <span className="text-purple-600 mr-1">— {s.reason}</span>}
+                            {s.reason && <span className="text-purple-600 ms-1">— {s.reason}</span>}
                           </div>
                         </div>
                       ))}
@@ -1048,7 +1048,7 @@ export default function InboxPage() {
                         messageMode === "note" ? "bg-yellow-500 text-white" : "bg-muted text-muted-foreground hover:bg-muted/80")}>
                       🔒 ملاحظة داخلية
                     </button>
-                    <div className="mr-auto">
+                    <div className="ms-auto">
                       <button
                         onClick={() => setShowImport(true)}
                         className="px-3 py-1 rounded-md text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80 border border-border">
