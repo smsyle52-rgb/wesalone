@@ -1,10 +1,10 @@
 import { Router, type Response } from "express";
-import { eq, and, count, sum, gte, inArray } from "drizzle-orm";
+import { eq, and, count, sum, gte, inArray, sql } from "drizzle-orm";
 import {
   db,
   conversationsTable, ticketsTable, tasksTable, followupsTable,
   ordersTable, paymentsTable, contactsTable, opportunitiesTable,
-  auditLogsTable, debtsTable,
+  auditLogsTable, debtsTable, messagesTable,
 } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
@@ -34,6 +34,11 @@ router.get("/summary", requirePermission("analytics:read"), async (req: Authenti
     [{ openDebtsAmount }],
     [{ overdueDebtsCount }],
     [{ overdueDebtsAmount }],
+    [{ messagesToday }],
+    [{ inboundMessagesToday }],
+    [{ closedConversationsToday }],
+    [{ slaBreachedConversations }],
+    [{ confirmedPaymentsToday }],
   ] = await Promise.all([
     db.select({ openConversations: count() }).from(conversationsTable)
       .where(and(eq(conversationsTable.workspaceId, activeWorkspaceId), eq(conversationsTable.status, "open"))),
@@ -65,6 +70,20 @@ router.get("/summary", requirePermission("analytics:read"), async (req: Authenti
       .where(and(eq(debtsTable.workspaceId, activeWorkspaceId), eq(debtsTable.status, "overdue"))),
     db.select({ overdueDebtsAmount: sum(debtsTable.remainingAmount) }).from(debtsTable)
       .where(and(eq(debtsTable.workspaceId, activeWorkspaceId), eq(debtsTable.status, "overdue"))),
+    db.select({ messagesToday: count() }).from(messagesTable)
+      .where(and(eq(messagesTable.workspaceId, activeWorkspaceId), gte(messagesTable.createdAt, todayStart))),
+    db.select({ inboundMessagesToday: count() }).from(messagesTable)
+      .where(and(eq(messagesTable.workspaceId, activeWorkspaceId), eq(messagesTable.direction, "inbound"), gte(messagesTable.createdAt, todayStart))),
+    db.select({ closedConversationsToday: count() }).from(conversationsTable)
+      .where(and(eq(conversationsTable.workspaceId, activeWorkspaceId), inArray(conversationsTable.status, ["resolved", "closed"]), gte(conversationsTable.updatedAt, todayStart))),
+    db.select({ slaBreachedConversations: count() }).from(conversationsTable)
+      .where(and(
+        eq(conversationsTable.workspaceId, activeWorkspaceId),
+        sql`${conversationsTable.unreadCount} > 0`,
+        sql`${conversationsTable.lastMessageAt} < now() - interval '30 minutes'`,
+      )),
+    db.select({ confirmedPaymentsToday: sum(paymentsTable.amount) }).from(paymentsTable)
+      .where(and(eq(paymentsTable.workspaceId, activeWorkspaceId), eq(paymentsTable.status, "confirmed"), gte(paymentsTable.createdAt, todayStart))),
   ]);
 
   res.json({
@@ -83,6 +102,11 @@ router.get("/summary", requirePermission("analytics:read"), async (req: Authenti
     openDebtsAmount: Number(openDebtsAmount ?? 0),
     overdueDebtsCount: Number(overdueDebtsCount),
     overdueDebtsAmount: Number(overdueDebtsAmount ?? 0),
+    messagesToday: Number(messagesToday),
+    inboundMessagesToday: Number(inboundMessagesToday),
+    closedConversationsToday: Number(closedConversationsToday),
+    slaBreachedConversations: Number(slaBreachedConversations),
+    confirmedPaymentsToday: Number(confirmedPaymentsToday ?? 0),
   });
 });
 

@@ -15,11 +15,11 @@ async function apiFetch(path: string, opts?: RequestInit) {
   return res.json();
 }
 
-type AnalyticsTab = "overview" | "operations" | "sales" | "finance" | "ai" | "team" | "channels";
+type AnalyticsTab = "overview" | "conversations" | "sales" | "finance" | "ai" | "team" | "channels";
 
 const TABS: { key: AnalyticsTab; label: string }[] = [
   { key: "overview", label: "نظرة عامة" },
-  { key: "operations", label: "العمليات" },
+  { key: "conversations", label: "المحادثات" },
   { key: "sales", label: "المبيعات" },
   { key: "finance", label: "الماليات" },
   { key: "ai", label: "الذكاء الاصطناعي" },
@@ -111,7 +111,7 @@ export default function AnalyticsPage() {
   const params = `date_from=${dateFrom}&date_to=${dateTo}`;
 
   const overview = useQuery({ queryKey: ["analytics-overview", dateFrom, dateTo], queryFn: () => apiFetch(`analytics/overview?${params}`), enabled: canRead && tab === "overview" });
-  const operations = useQuery({ queryKey: ["analytics-operations", dateFrom, dateTo], queryFn: () => apiFetch(`analytics/operations?${params}`), enabled: canRead && tab === "operations" });
+  const operations = useQuery({ queryKey: ["analytics-operations", dateFrom, dateTo], queryFn: () => apiFetch(`analytics/operations?${params}`), enabled: canRead && tab === "conversations" });
   const sales = useQuery({ queryKey: ["analytics-sales", dateFrom, dateTo], queryFn: () => apiFetch(`analytics/sales?${params}`), enabled: canRead && tab === "sales" });
   const finance = useQuery({ queryKey: ["analytics-finance", dateFrom, dateTo], queryFn: () => apiFetch(`analytics/finance?${params}`), enabled: canRead && tab === "finance" });
   const ai = useQuery({ queryKey: ["analytics-ai", dateFrom, dateTo], queryFn: () => apiFetch(`analytics/ai?${params}`), enabled: canRead && tab === "ai" });
@@ -129,7 +129,7 @@ export default function AnalyticsPage() {
     );
   }
 
-  const currentQuery = { overview, operations, sales, finance, ai, team, channels }[tab];
+  const currentQuery = { overview, conversations: operations, sales, finance, ai, team, channels }[tab];
 
   return (
     <div dir="rtl">
@@ -174,7 +174,7 @@ export default function AnalyticsPage() {
       )}
 
       {/* OPERATIONS */}
-      {tab === "operations" && operations.data && (
+      {tab === "conversations" && operations.data && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <SectionCard title="التذاكر حسب الحالة">
             <StatusTable rows={operations.data.ticketsByStatus ?? []} />

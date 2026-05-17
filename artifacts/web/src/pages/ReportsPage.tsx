@@ -88,7 +88,7 @@ export default function ReportsPage() {
   const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const [createForm, setCreateForm] = useState({ name: "", type: "overview", description: "" });
-  const [generateForm, setGenerateForm] = useState({ type: "overview", title: "", dateFrom: thirtyDaysAgo.toISOString().split("T")[0], dateTo: today, reportDefinitionId: "" });
+  const [generateForm, setGenerateForm] = useState({ type: "overview", title: "", dateFrom: thirtyDaysAgo.toISOString().split("T")[0], dateTo: today, reportDefinitionId: "", exportFormat: "csv" });
 
   const definitions = useQuery({ queryKey: ["report-definitions"], queryFn: () => apiFetch("reports/definitions"), enabled: canRead });
   const generated = useQuery({ queryKey: ["generated-reports"], queryFn: () => apiFetch("reports/generated"), enabled: canRead });
@@ -128,7 +128,7 @@ export default function ReportsPage() {
           <div className="flex gap-2">
             {canGenerate && (
               <button onClick={() => setShowGenerateModal(true)} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
-                توليد تقرير
+                تقرير جديد
               </button>
             )}
             {canCreate && (
@@ -288,6 +288,15 @@ export default function ReportsPage() {
               <input type="date" value={generateForm.dateTo} onChange={(e) => setGenerateForm((f) => ({ ...f, dateTo: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/20" />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">صيغة التصدير</label>
+            <select value={generateForm.exportFormat} onChange={(e) => setGenerateForm((f) => ({ ...f, exportFormat: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/20">
+              <option value="csv">CSV</option>
+              <option value="excel">Excel</option>
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">التوليد آمن داخل المنصة، والتنزيل يعتمد على رابط التقرير إن توفر.</p>
           </div>
           {generate.isError && <div className="text-xs text-destructive">{(generate.error as Error).message}</div>}
           <div className="flex gap-2 justify-end pt-1">

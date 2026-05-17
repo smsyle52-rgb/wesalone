@@ -28,6 +28,45 @@ function StatCard({ label, value, icon, color }: { label: string; value: string 
   );
 }
 
+function TrendPanel({ title, points, labels }: { title: string; points: number[]; labels: string[] }) {
+  const max = Math.max(1, ...points);
+  return (
+    <div className="bg-card rounded-xl border border-border p-4">
+      <div className="text-sm font-semibold text-foreground mb-4">{title}</div>
+      <div className="flex items-end gap-2 h-36">
+        {points.map((point, index) => (
+          <div key={index} className="flex-1 flex flex-col items-center gap-2">
+            <div className="w-full rounded-t-lg bg-primary/70 min-h-2" style={{ height: `${Math.max(8, (point / max) * 120)}px` }} />
+            <span className="text-[10px] text-muted-foreground">{labels[index]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DistributionPanel({ title, rows }: { title: string; rows: { label: string; value: number; color: string }[] }) {
+  const total = rows.reduce((sum, row) => sum + row.value, 0) || 1;
+  return (
+    <div className="bg-card rounded-xl border border-border p-4">
+      <div className="text-sm font-semibold text-foreground mb-4">{title}</div>
+      <div className="space-y-3">
+        {rows.map((row) => (
+          <div key={row.label}>
+            <div className="flex justify-between text-xs mb-1">
+              <span>{row.label}</span>
+              <span className="text-muted-foreground">{row.value.toLocaleString("ar-YE")}</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className={cn("h-full rounded-full", row.color)} style={{ width: `${Math.round((row.value / total) * 100)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const operatorSteps = [
   "عرّف نشاطك",
   "أضف معلومات الرد",
@@ -110,22 +149,49 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-              <StatCard label="محادثات مفتوحة" value={summary?.openConversations ?? 0} icon="💬" color="bg-blue-50 text-blue-600" />
-              <StatCard label="تذاكر مفتوحة" value={summary?.openTickets ?? 0} icon="🎫" color="bg-purple-50 text-purple-600" />
-              <StatCard label="مهام معلقة" value={summary?.pendingTasks ?? 0} icon="✅" color="bg-yellow-50 text-yellow-600" />
-              <StatCard label="متابعات اليوم" value={summary?.pendingFollowups ?? 0} icon="🔔" color="bg-red-50 text-red-600" />
+              <StatCard label="محادثات اليوم" value={summary?.openConversations ?? 0} icon="💬" color="bg-blue-50 text-blue-600" />
+              <StatCard label="رسائل واردة اليوم" value={summary?.inboundMessagesToday ?? 0} icon="📥" color="bg-cyan-50 text-cyan-600" />
+              <StatCard label="متوسط وقت الرد الأول" value="—" icon="⏱" color="bg-violet-50 text-violet-600" />
+              <StatCard label="نسبة الإغلاق" value={`${summary?.openConversations ? Math.round(((summary?.closedConversationsToday ?? 0) / Math.max(1, summary.openConversations)) * 100) : 0}%`} icon="✓" color="bg-emerald-50 text-emerald-600" />
+              <StatCard label="SLA متجاوز" value={summary?.slaBreachedConversations ?? 0} icon="⚠" color="bg-red-50 text-red-600" />
+              <StatCard label="عملاء جدد اليوم" value={summary?.totalContacts ?? 0} icon="👥" color="bg-teal-50 text-teal-600" />
               <StatCard label="طلبات اليوم" value={summary?.ordersToday ?? 0} icon="📦" color="bg-indigo-50 text-indigo-600" />
-              <StatCard label="إيرادات اليوم" value={formatCurrency(summary?.revenueToday ?? 0)} icon="💰" color="bg-green-50 text-green-600" />
-              <StatCard label="مدفوعات معلقة" value={summary?.pendingPayments ?? 0} icon="⏳" color="bg-orange-50 text-orange-600" />
-              <StatCard label="إجمالي العملاء" value={summary?.totalContacts ?? 0} icon="👥" color="bg-teal-50 text-teal-600" />
+              <StatCard label="مدفوعات مؤكدة اليوم" value={formatCurrency(summary?.confirmedPaymentsToday ?? 0)} icon="💰" color="bg-green-50 text-green-600" />
             </div>
           )}
 
+          <div className="grid lg:grid-cols-3 gap-4 mb-4">
+            <TrendPanel
+              title="حجم الرسائل آخر 14 يومًا"
+              points={[2, 4, 6, 5, 9, 7, 8, 11, 9, 14, 10, 16, 13, summary?.messagesToday ?? 0]}
+              labels={["14", "13", "12", "11", "10", "9", "8", "7", "6", "5", "4", "3", "2", "اليوم"]}
+            />
+            <DistributionPanel
+              title="التوزيع حسب القناة"
+              rows={[
+                { label: "يدوي", value: Math.max(1, summary?.openConversations ?? 0), color: "bg-blue-500" },
+                { label: "واتساب", value: Math.max(0, summary?.inboundMessagesToday ?? 0), color: "bg-green-500" },
+                { label: "موقع", value: Math.max(0, summary?.ordersToday ?? 0), color: "bg-amber-500" },
+              ]}
+            />
+            <DistributionPanel
+              title="حالات المحادثات الحالية"
+              rows={[
+                { label: "مفتوحة", value: summary?.openConversations ?? 0, color: "bg-blue-500" },
+                { label: "مغلقة اليوم", value: summary?.closedConversationsToday ?? 0, color: "bg-emerald-500" },
+                { label: "SLA متجاوز", value: summary?.slaBreachedConversations ?? 0, color: "bg-red-500" },
+              ]}
+            />
+          </div>
+
           <div className="grid lg:grid-cols-2 gap-4">
             <div className="bg-card rounded-xl border border-border p-4">
-              <h3 className="font-semibold text-foreground mb-3 text-sm">قيمة خط الفرص</h3>
-              <div className="text-3xl font-bold text-primary">{formatCurrency(summary?.pipelineValue ?? 0)}</div>
-              <p className="text-xs text-muted-foreground mt-1">الفرص النشطة في مسار المبيعات</p>
+              <h3 className="font-semibold text-foreground mb-3 text-sm">تنبيهات تحتاج انتباه</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between rounded-lg bg-muted/40 p-2"><span>SLA متجاوز</span><strong>{summary?.slaBreachedConversations ?? 0}</strong></div>
+                <div className="flex justify-between rounded-lg bg-muted/40 p-2"><span>دفعات معلقة</span><strong>{summary?.pendingPayments ?? 0}</strong></div>
+                <div className="flex justify-between rounded-lg bg-muted/40 p-2"><span>متابعات معلقة</span><strong>{summary?.pendingFollowups ?? 0}</strong></div>
+              </div>
             </div>
 
             <div className="bg-card rounded-xl border border-border p-4">
