@@ -1,0 +1,29 @@
+{
+  "brand": {
+    "name": "Khadamatak",
+    "dashboard": "Dashboard"
+  },
+  "auth": {
+    "logout": "Sign out"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "start": "Start your business",
+    "inbox": "Inbox",
+    "tickets": "Tickets",
+    "tasks": "Tasks",
+    "followups": "Followups",
+    "contacts": "Contacts",
+    "opportunities": "Opportunities",
+    "orders": "Orders",
+    "payments": "Payments",
+    "debts": "Debts and collection",
+    "knowledge": "Knowledge base",
+    "agents": "AI assistant",
+    "integrations": "Channels",
+    "analytics": "Analytics",
+    "reports": "Reports",
+    "auditLogs": "Activity logs",
+    "settings": "Settings"
+  }
+}

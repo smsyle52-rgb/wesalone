@@ -1,8 +1,11 @@
+import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { I18nextProvider, useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Layout from "@/components/Layout";
+import i18n from "@/i18n";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -41,6 +44,18 @@ function LoadingScreen() {
       </div>
     </div>
   );
+}
+
+function DirectionManager() {
+  const { i18n } = useTranslation();
+
+  useEffect(() => {
+    const language = i18n.language?.startsWith("en") ? "en" : "ar";
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+  }, [i18n.language]);
+
+  return null;
 }
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -96,13 +111,16 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-        </AuthProvider>
-      </QueryClientProvider>
+      <I18nextProvider i18n={i18n}>
+        <DirectionManager />
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+          </AuthProvider>
+        </QueryClientProvider>
+      </I18nextProvider>
     </ErrorBoundary>
   );
 }

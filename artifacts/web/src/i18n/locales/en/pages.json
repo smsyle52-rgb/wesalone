@@ -1,0 +1,67 @@
+{
+  "headers": {
+    "analytics": {
+      "title": "Analytics",
+      "subtitle": "Performance and operational analytics"
+    },
+    "agents": {
+      "title": "AI assistant",
+      "subtitle": "Test replies and prepare assistant tone. No reply is sent automatically."
+    },
+    "auditLogs": {
+      "title": "Activity logs",
+      "subtitle": "Monitor every action inside the workspace"
+    },
+    "followups": {
+      "title": "Followups",
+      "subtitle": "Customer reminders and followups"
+    },
+    "debts": {
+      "title": "Debts and collection",
+      "subtitle": "Manage customer balances and collection work"
+    },
+    "contacts": {
+      "title": "Contacts",
+      "subtitle": "Customer and partner database"
+    },
+    "integrations": {
+      "title": "Channels",
+      "subtitle": "Manage available channels and see what is coming later"
+    },
+    "inbox": {
+      "title": "Inbox",
+      "subtitle": "Manage customer conversations"
+    },
+    "opportunities": {
+      "title": "Opportunities"
+    },
+    "orders": {
+      "title": "Orders",
+      "subtitle": "Manage customer orders and fulfillment stages"
+    },
+    "payments": {
+      "title": "Payments",
+      "subtitle": "Record and review manual payments"
+    },
+    "reports": {
+      "title": "Reports",
+      "subtitle": "Manage and generate performance reports"
+    },
+    "settings": {
+      "title": "Settings",
+      "subtitle": "Manage workspace, team, and finance"
+    },
+    "tasks": {
+      "title": "Tasks",
+      "subtitle": "Organize and track team tasks"
+    },
+    "tickets": {
+      "title": "Tickets",
+      "subtitle": "Track customer issues and requests"
+    },
+    "businessSetup": {
+      "title": "Start your business",
+      "subtitle": "Prepare business information and knowledge before demo or operation"
+    }
+  }
+}

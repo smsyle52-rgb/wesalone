@@ -1,0 +1,29 @@
+{
+  "brand": {
+    "name": "خدماتك",
+    "dashboard": "لوحة التحكم"
+  },
+  "auth": {
+    "logout": "خروج"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "start": "ابدأ تشغيل نشاطك",
+    "inbox": "صندوق الوارد",
+    "tickets": "التذاكر",
+    "tasks": "المهام",
+    "followups": "المتابعات",
+    "contacts": "جهات الاتصال",
+    "opportunities": "الفرص",
+    "orders": "الطلبات",
+    "payments": "المدفوعات",
+    "debts": "الديون والتحصيل",
+    "knowledge": "قاعدة المعرفة",
+    "agents": "المساعد الذكي",
+    "integrations": "القنوات",
+    "analytics": "التحليلات",
+    "reports": "التقارير",
+    "auditLogs": "سجلات النشاط",
+    "settings": "الإعدادات"
+  }
+}
