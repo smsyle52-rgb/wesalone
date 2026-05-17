@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   BarChart3,
-  Bell,
   BookOpen,
   Bot,
   CheckSquare,
@@ -24,7 +23,6 @@ import {
   ScrollText,
   Settings,
   Target,
-  Ticket,
   Users,
   Workflow,
   type LucideIcon,
@@ -55,10 +53,12 @@ const navGroups: NavGroup[] = [
     key: "groupConversations",
     items: [
       { path: "/inbox", key: "inbox", permission: "conversations:read", icon: Inbox },
-      { path: "/tickets", key: "tickets", permission: "tickets:read", icon: Ticket },
-      { path: "/tasks", key: "tasks", permission: "tasks:read", icon: CheckSquare },
-      { path: "/followups", key: "followups", permission: "followups:read", icon: Bell },
     ],
+  },
+  {
+    slug: "tasks",
+    key: "groupTasks",
+    items: [{ path: "/tasks", key: "tasks", permission: "tasks:read", icon: CheckSquare }],
   },
   {
     slug: "customers",

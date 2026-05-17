@@ -28,6 +28,15 @@ const CONV_STATUSES = [
   { value: "closed", label: "مغلق" },
 ];
 
+const SAVED_VIEWS = [
+  { value: "", label: "كل المحادثات" },
+  { value: "mine", label: "الموكلة لي" },
+  { value: "unassigned", label: "بدون مسؤول" },
+  { value: "open_tickets", label: "تذاكر مفتوحة" },
+  { value: "closed", label: "مغلقة" },
+  { value: "sla_breached", label: "مع SLA متجاوز" },
+];
+
 const STATUS_ACTIONS: Record<string, { label: string; next: string }[]> = {
   new: [{ label: "فتح", next: "open" }],
   open: [{ label: "إيقاف مؤقت", next: "pending" }, { label: "حل", next: "resolved" }],
@@ -96,6 +105,7 @@ export default function InboxPage() {
   const canUseAI = hasPermission("ai:use");
 
   const [statusFilter, setStatusFilter] = useState("");
+  const [viewFilter, setViewFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
@@ -119,6 +129,7 @@ export default function InboxPage() {
   const [orderForm, setOrderForm] = useState({ channel: "manual", currency: "YER", notes: "" });
 
   const params = new URLSearchParams();
+  if (viewFilter) params.set("view", viewFilter);
   if (statusFilter) params.set("status", statusFilter);
   if (searchQuery) params.set("search", searchQuery);
   if (channelFilter) params.set("channel", channelFilter);
@@ -126,7 +137,7 @@ export default function InboxPage() {
   params.set("limit", "50");
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["conversations", statusFilter, searchQuery, channelFilter, assigneeFilter],
+    queryKey: ["conversations", viewFilter, statusFilter, searchQuery, channelFilter, assigneeFilter],
     queryFn: () => apiFetch(`conversations?${params.toString()}`),
     enabled: canRead,
     refetchInterval: 10000,
@@ -316,6 +327,7 @@ export default function InboxPage() {
   }
 
   const conv = detail?.conversation;
+  const ticket = detail?.ticket;
   const messages: any[] = detail?.messages ?? [];
   const contactChannels: any[] = detail?.contactChannels ?? [];
   const waLink: string | null = detail?.waLink ?? null;
@@ -354,6 +366,25 @@ export default function InboxPage() {
             )
           }
         />
+
+        <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 scrollbar-none">
+          {SAVED_VIEWS.map((view) => (
+            <button
+              key={view.value}
+              type="button"
+              onClick={() => {
+                setViewFilter(view.value);
+                if (view.value === "closed") setStatusFilter("");
+              }}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors shrink-0",
+                viewFilter === view.value ? "bg-foreground text-background" : "bg-card text-muted-foreground border border-border hover:bg-muted",
+              )}
+            >
+              {view.label}
+            </button>
+          ))}
+        </div>
 
         <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 scrollbar-none">
           {CONV_STATUSES.map((s) => (
@@ -437,6 +468,16 @@ export default function InboxPage() {
                   <div className="flex items-center gap-1">
                     <ChannelBadge channel={c.channel} />
                     {c.priority && c.priority !== "normal" && <PriorityBadge priority={c.priority} />}
+                    {c.ticketNumber && (
+                      <span className="text-xs px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 font-medium">
+                        تذكرة #{c.ticketNumber}
+                      </span>
+                    )}
+                    {c.unreadCount > 0 && c.lastMessageAt && (
+                      <span className="text-xs px-1.5 py-0.5 rounded border border-red-200 bg-red-50 text-red-700">
+                        {new Date(c.lastMessageAt).getTime() < Date.now() - 30 * 60 * 1000 ? "SLA متجاوز" : "مهلة الرد"}
+                      </span>
+                    )}
                     {c.contactCompany && (
                       <span className="text-xs text-muted-foreground truncate">{c.contactCompany}</span>
                     )}
@@ -479,6 +520,14 @@ export default function InboxPage() {
                     <ChannelBadge channel={conv.channel} />
                     <PriorityBadge priority={conv.priority} />
                     <StatusBadge status={conv.status} />
+                    {ticket && (
+                      <a
+                        href={`/tickets?id=${ticket.id}`}
+                        className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold hover:bg-amber-100"
+                      >
+                        تذكرة #{ticket.number}
+                      </a>
+                    )}
                   </div>
                 </div>
 

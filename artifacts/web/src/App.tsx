@@ -11,8 +11,7 @@ import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
 import InboxPage from "@/pages/InboxPage";
 import TicketsPage from "@/pages/TicketsPage";
-import TasksPage from "@/pages/TasksPage";
-import FollowupsPage from "@/pages/FollowupsPage";
+import TasksFollowupsPage from "@/pages/TasksFollowupsPage";
 import ContactsPage from "@/pages/ContactsPage";
 import OpportunitiesPage from "@/pages/OpportunitiesPage";
 import OrdersPage from "@/pages/OrdersPage";
@@ -93,8 +92,8 @@ function Router() {
       <Route path="/start" component={() => <ProtectedRoute component={BusinessSetupPage} />} />
       <Route path="/inbox" component={() => <ProtectedRoute component={InboxPage} />} />
       <Route path="/tickets" component={() => <ProtectedRoute component={TicketsPage} />} />
-      <Route path="/tasks" component={() => <ProtectedRoute component={TasksPage} />} />
-      <Route path="/followups" component={() => <ProtectedRoute component={FollowupsPage} />} />
+      <Route path="/tasks" component={() => <ProtectedRoute component={TasksFollowupsPage} />} />
+      <Route path="/followups" component={() => <Redirect to="/tasks?tab=followups" />} />
       <Route path="/contacts/:id" component={({ params }) => (
         <ProtectedRoute component={() => <ContactProfilePage contactId={params.id} />} />
       )} />

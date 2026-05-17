@@ -4,6 +4,7 @@ import { eq, and, desc, asc, count, ilike, or, sql } from "drizzle-orm";
 import {
   db, conversationsTable, messagesTable, contactsTable,
   contactChannelsTable, contactTimelineTable, workspaceMembershipsTable, usersTable,
+  ticketsTable,
 } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
@@ -97,11 +98,27 @@ router.get("/", requirePermission("conversations:read"), async (req: Authenticat
   const search = (req.query.search as string) || "";
   const channel = (req.query.channel as string) || "";
   const assignee = (req.query.assignee as string) || "";
+  const view = (req.query.view as string) || "";
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
   const offset = (page - 1) * limit;
 
   const conditions = [eq(conversationsTable.workspaceId, activeWorkspaceId)];
+  if (view === "mine") {
+    conditions.push(eq(conversationsTable.assignedMembershipId, req.sessionUser.activeMembershipId));
+  }
+  if (view === "unassigned") {
+    conditions.push(sql`${conversationsTable.assignedMembershipId} IS NULL`);
+  }
+  if (view === "open_tickets") {
+    conditions.push(eq(ticketsTable.status, "open"));
+  }
+  if (view === "closed") {
+    conditions.push(eq(conversationsTable.status, "closed"));
+  }
+  if (view === "sla_breached") {
+    conditions.push(sql`${conversationsTable.unreadCount} > 0 AND ${conversationsTable.lastMessageAt} < now() - interval '30 minutes'`);
+  }
   if (status) conditions.push(eq(conversationsTable.status, status));
   if (channel) conditions.push(eq(conversationsTable.channel, channel));
   if (assignee === "unassigned") {
@@ -133,9 +150,13 @@ router.get("/", requirePermission("conversations:read"), async (req: Authenticat
       contactName: contactsTable.name,
       contactPhone: contactsTable.phone,
       contactCompany: contactsTable.company,
+      ticketId: ticketsTable.id,
+      ticketNumber: ticketsTable.number,
+      ticketStatus: ticketsTable.status,
     })
     .from(conversationsTable)
     .leftJoin(contactsTable, eq(conversationsTable.contactId, contactsTable.id))
+    .leftJoin(ticketsTable, and(eq(ticketsTable.conversationId, conversationsTable.id), eq(ticketsTable.workspaceId, activeWorkspaceId)))
     .where(and(...conditions));
 
   const [rows, [{ total }], countRows] = await Promise.all([
@@ -146,6 +167,7 @@ router.get("/", requirePermission("conversations:read"), async (req: Authenticat
     db.select({ total: count() })
       .from(conversationsTable)
       .leftJoin(contactsTable, eq(conversationsTable.contactId, contactsTable.id))
+      .leftJoin(ticketsTable, and(eq(ticketsTable.conversationId, conversationsTable.id), eq(ticketsTable.workspaceId, activeWorkspaceId)))
       .where(and(...conditions)),
     db.select({ status: conversationsTable.status, cnt: count() })
       .from(conversationsTable)
@@ -280,7 +302,7 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
 
   if (!conv) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
 
-  const [messages, contactChannels, assignedMember] = await Promise.all([
+  const [messages, contactChannels, assignedMember, activeTicket] = await Promise.all([
     db.select().from(messagesTable)
       .where(eq(messagesTable.conversationId, conv.id))
       .orderBy(asc(messagesTable.sentAt))
@@ -296,6 +318,16 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
       .leftJoin(usersTable, eq(workspaceMembershipsTable.userId, usersTable.id))
       .where(eq(workspaceMembershipsTable.id, conv.assignedMembershipId))
       .limit(1) : Promise.resolve([] as { id: string; userId: string | null; name: string | null }[]),
+    db.select({
+      id: ticketsTable.id,
+      number: ticketsTable.number,
+      status: ticketsTable.status,
+      priority: ticketsTable.priority,
+      title: ticketsTable.title,
+    }).from(ticketsTable)
+      .where(and(eq(ticketsTable.conversationId, conv.id), eq(ticketsTable.workspaceId, activeWorkspaceId)))
+      .orderBy(desc(ticketsTable.createdAt))
+      .limit(1),
   ]);
 
   const whatsappChannel = contactChannels.find(
@@ -310,6 +342,7 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
     messages,
     contactChannels,
     assignedMember: assignedMember[0] ?? null,
+    ticket: activeTicket[0] ?? null,
     waLink,
   });
 });
