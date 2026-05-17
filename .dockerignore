@@ -6,6 +6,8 @@ node_modules
 **/node_modules
 
 artifacts/**/dist
+artifacts/mockup-sandbox/**
+!artifacts/mockup-sandbox/package.json
 lib/**/dist
 **/*.tsbuildinfo
 

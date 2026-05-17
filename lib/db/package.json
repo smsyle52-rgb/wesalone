@@ -11,8 +11,8 @@
     "generate": "drizzle-kit generate --config ./drizzle.config.ts",
     "migrate": "drizzle-kit migrate --config ./drizzle.config.ts",
     "studio": "drizzle-kit studio --config ./drizzle.config.ts",
-    "push": "echo '[DEV ONLY] Running drizzle push — NOT for production use' && drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "echo '[DEV ONLY] Running drizzle push --force — NOT for production use' && drizzle-kit push --force --config ./drizzle.config.ts"
+    "push": "sh -c 'if [ \"$NODE_ENV\" = \"production\" ]; then echo \"db:push is forbidden in production. Use migrations.\" >&2; exit 1; fi; echo \"[DEV ONLY] Running drizzle push - NOT for production use\" && drizzle-kit push --config ./drizzle.config.ts'",
+    "push-force": "sh -c 'if [ \"$NODE_ENV\" = \"production\" ]; then echo \"db:push is forbidden in production. Use migrations.\" >&2; exit 1; fi; echo \"[DEV ONLY] Running drizzle push --force - NOT for production use\" && drizzle-kit push --force --config ./drizzle.config.ts'"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
