@@ -5,8 +5,8 @@
       "subtitle": "تحليلات الأداء والبيانات التشغيلية"
     },
     "agents": {
-      "title": "المساعد الذكي",
-      "subtitle": "اختبر الردود وجهز أسلوب المساعد. لا يتم إرسال أي رد تلقائياً."
+      "title": "الوكلاء",
+      "subtitle": "إعداد وكلاء المساعدة وتجربة الردود دون إرسال تلقائي"
     },
     "auditLogs": {
       "title": "سجلات النشاط",
@@ -75,7 +75,8 @@
     "save": "حفظ",
     "activate": "تفعيل",
     "pause": "إيقاف مؤقت",
-    "testRun": "تشغيل تجريبي"
+    "testRun": "تشغيل تجريبي",
+    "create": "إنشاء"
   },
   "templates": {
     "title": "القوالب",
@@ -297,6 +298,70 @@
         "filters": "فلاتر المشغل",
         "conditionField": "الحقل",
         "conditionValue": "القيمة"
+      }
+    }
+  },
+  "agents": {
+    "title": "الوكلاء",
+    "subtitle": "إدارة وكلاء المساعدة، التعليمات، المعرفة، والتجربة الآمنة",
+    "newAgent": "إنشاء وكيل جديد",
+    "empty": "لا توجد وكلاء بعد",
+    "permissionDenied": "ليس لديك صلاحية عرض الوكلاء",
+    "providerStatus": "حالة المزود",
+    "provider": {
+      "vertex": "Vertex AI مفعّل",
+      "gemini": "Gemini مفعّل",
+      "fallback": "وضع تجريبي احتياطي",
+      "mock": "وضع تجريبي"
+    },
+    "table": {
+      "name": "الاسم",
+      "model": "النموذج",
+      "status": "الحالة",
+      "updatedAt": "آخر تحديث",
+      "actions": "الإجراءات"
+    },
+    "actions": {
+      "disable": "إيقاف"
+    },
+    "create": {
+      "title": "إنشاء وكيل جديد"
+    },
+    "fields": {
+      "name": "الاسم",
+      "model": "النموذج",
+      "temperature": "الحرارة",
+      "maxTokens": "الحد الأقصى للرموز",
+      "rolePrompt": "التعليمات الأساسية",
+      "businessRules": "قواعد النشاط",
+      "forbiddenActions": "الإجراءات الممنوعة",
+      "escalationRules": "قواعد التصعيد"
+    },
+    "models": {
+      "mock": "وضع تجريبي",
+      "gemini_flash_lite": "Gemini Flash Lite",
+      "gemini_flash": "Gemini Flash",
+      "gemini_pro": "Gemini Pro"
+    },
+    "detail": {
+      "title": "تفاصيل الوكيل",
+      "subtitle": "إعدادات الوكيل، التعليمات، المعرفة، القنوات، السجل، والتجربة",
+      "saved": "تم الحفظ",
+      "noKnowledge": "لا توجد قواعد معرفة متاحة",
+      "noChannels": "لا توجد قنوات مرتبطة بهذا الوكيل",
+      "noRuns": "لا توجد تشغيلات لهذا الوكيل بعد",
+      "channel": "قناة",
+      "playgroundNotice": "هذه تجربة فقط. لا يتم إرسال أي رسالة للعميل.",
+      "playgroundPlaceholder": "اكتب سؤالاً أو رسالة عميل لتجربة الرد المقترح",
+      "suggestedReply": "الرد المقترح",
+      "sources": "المصادر",
+      "tabs": {
+        "settings": "الإعدادات",
+        "instructions": "التعليمات",
+        "knowledge": "قاعدة المعرفة",
+        "channels": "القنوات",
+        "runs": "السجل",
+        "playground": "التجربة"
       }
     }
   }

@@ -5,8 +5,8 @@
       "subtitle": "Performance and operational analytics"
     },
     "agents": {
-      "title": "AI assistant",
-      "subtitle": "Test replies and prepare assistant tone. No reply is sent automatically."
+      "title": "Agents",
+      "subtitle": "Configure assistant agents and test replies without automatic sending"
     },
     "auditLogs": {
       "title": "Activity logs",
@@ -75,7 +75,8 @@
     "save": "Save",
     "activate": "Activate",
     "pause": "Pause",
-    "testRun": "Test run"
+    "testRun": "Test run",
+    "create": "Create"
   },
   "templates": {
     "title": "Templates",
@@ -297,6 +298,70 @@
         "filters": "Trigger filters",
         "conditionField": "Field",
         "conditionValue": "Value"
+      }
+    }
+  },
+  "agents": {
+    "title": "Agents",
+    "subtitle": "Manage assistant agents, instructions, knowledge, and safe playground testing",
+    "newAgent": "Create new agent",
+    "empty": "No agents yet",
+    "permissionDenied": "You do not have permission to view agents",
+    "providerStatus": "Provider status",
+    "provider": {
+      "vertex": "Vertex AI active",
+      "gemini": "Gemini active",
+      "fallback": "Fallback mode",
+      "mock": "Mock mode"
+    },
+    "table": {
+      "name": "Name",
+      "model": "Model",
+      "status": "Status",
+      "updatedAt": "Last updated",
+      "actions": "Actions"
+    },
+    "actions": {
+      "disable": "Disable"
+    },
+    "create": {
+      "title": "Create new agent"
+    },
+    "fields": {
+      "name": "Name",
+      "model": "Model",
+      "temperature": "Temperature",
+      "maxTokens": "Max tokens",
+      "rolePrompt": "System instructions",
+      "businessRules": "Business rules",
+      "forbiddenActions": "Forbidden actions",
+      "escalationRules": "Escalation rules"
+    },
+    "models": {
+      "mock": "Mock mode",
+      "gemini_flash_lite": "Gemini Flash Lite",
+      "gemini_flash": "Gemini Flash",
+      "gemini_pro": "Gemini Pro"
+    },
+    "detail": {
+      "title": "Agent details",
+      "subtitle": "Agent settings, instructions, knowledge, channels, log, and playground",
+      "saved": "Saved",
+      "noKnowledge": "No knowledge bases available",
+      "noChannels": "No channels are linked to this agent",
+      "noRuns": "No runs for this agent yet",
+      "channel": "Channel",
+      "playgroundNotice": "This is a test only. No message is sent to the customer.",
+      "playgroundPlaceholder": "Write a customer question or message to test the suggested reply",
+      "suggestedReply": "Suggested reply",
+      "sources": "Sources",
+      "tabs": {
+        "settings": "Settings",
+        "instructions": "Instructions",
+        "knowledge": "Knowledge base",
+        "channels": "Channels",
+        "runs": "Log",
+        "playground": "Playground"
       }
     }
   }

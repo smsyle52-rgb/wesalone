@@ -2,10 +2,11 @@ import { Router, type Response } from "express";
 import { z } from "zod";
 import { db } from "@workspace/db";
 import {
-  aiAgentsTable, aiAgentVersionsTable, aiAgentInstructionsTable,
+  aiAgentsTable, aiAgentVersionsTable, aiAgentInstructionsTable, aiAgentChannelsTable,
   aiAgentToolsTable, aiRunsTable, aiMessagesTable, aiExtractionsTable,
   aiUsageTable, aiFeedbackTable, aiSafetyEventsTable, approvalRequestsTable,
   conversationsTable, knowledgeChunksTable, faqEntriesTable, knowledgeDocumentsTable,
+  channelAccountsTable,
 } from "@workspace/db";
 import { eq, and, desc, ilike, or, sql } from "drizzle-orm";
 import { requireSession } from "../../middlewares/requireSession";
@@ -210,6 +211,9 @@ const agentCreateSchema = z.object({
   name: z.string().trim().min(1, "الاسم مطلوب").max(200),
   type: z.enum(["support", "sales", "followup", "summarizer", "classifier", "reports", "collections"]).default("support"),
   defaultModel: z.enum(["gemini_flash", "gemini_flash_lite", "gemini_pro", "mock"]).default("mock"),
+  temperature: z.coerce.number().min(0).max(2).default(0.3),
+  maxOutputTokens: z.coerce.number().int().min(128).max(8192).default(1024),
+  knowledgeBaseIds: z.array(z.string().uuid()).default([]),
   dialect: z.enum(["standard_arabic", "yemeni_light", "yemeni_business"]).default("standard_arabic"),
   tone: z.string().trim().max(200).optional().nullable(),
 });
@@ -219,6 +223,9 @@ const agentUpdateSchema = z.object({
   type: z.enum(["support", "sales", "followup", "summarizer", "classifier", "reports", "collections"]).optional(),
   status: z.enum(["active", "disabled"]).optional(),
   defaultModel: z.enum(["gemini_flash", "gemini_flash_lite", "gemini_pro", "mock"]).optional(),
+  temperature: z.coerce.number().min(0).max(2).optional(),
+  maxOutputTokens: z.coerce.number().int().min(128).max(8192).optional(),
+  knowledgeBaseIds: z.array(z.string().uuid()).optional(),
   dialect: z.enum(["standard_arabic", "yemeni_light", "yemeni_business"]).optional(),
   tone: z.string().trim().max(200).optional().nullable(),
 });
@@ -246,6 +253,9 @@ router.post("/agents", requirePermission("ai:configure"), async (req: Authentica
     name: data.name,
     type: data.type,
     defaultModel: data.defaultModel,
+    temperature: String(data.temperature),
+    maxOutputTokens: data.maxOutputTokens,
+    knowledgeBaseIds: data.knowledgeBaseIds,
     dialect: data.dialect,
     tone: data.tone ?? null,
     status: "active",
@@ -287,8 +297,25 @@ router.get("/agents/:id", requirePermission("ai:read"), async (req: Authenticate
   const versions = await db.select().from(aiAgentVersionsTable).where(
     and(eq(aiAgentVersionsTable.agentId, agentId), eq(aiAgentVersionsTable.workspaceId, activeWorkspaceId))
   ).orderBy(desc(aiAgentVersionsTable.versionNumber)).limit(5);
+  const channels = await db
+    .select({
+      id: aiAgentChannelsTable.id,
+      mode: aiAgentChannelsTable.mode,
+      channelAccountId: aiAgentChannelsTable.channelAccountId,
+      channelType: channelAccountsTable.channelType,
+      displayName: channelAccountsTable.displayName,
+    })
+    .from(aiAgentChannelsTable)
+    .leftJoin(channelAccountsTable, eq(aiAgentChannelsTable.channelAccountId, channelAccountsTable.id))
+    .where(and(eq(aiAgentChannelsTable.agentId, agentId), eq(aiAgentChannelsTable.workspaceId, activeWorkspaceId)));
+  const runs = await db
+    .select()
+    .from(aiRunsTable)
+    .where(and(eq(aiRunsTable.agentId, agentId), eq(aiRunsTable.workspaceId, activeWorkspaceId)))
+    .orderBy(desc(aiRunsTable.createdAt))
+    .limit(20);
 
-  res.json({ agent, instructions: instructions ?? null, tools, versions });
+  res.json({ agent, instructions: instructions ?? null, tools, versions, channels, runs });
 });
 
 router.patch("/agents/:id", requirePermission("ai:configure"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -303,8 +330,19 @@ router.patch("/agents/:id", requirePermission("ai:configure"), async (req: Authe
   if (!parse.success) { res.status(400).json({ error: "بيانات غير صالحة", details: parse.error.flatten() }); return; }
 
   const data = parse.data;
+  const updates = {
+    ...(data.name !== undefined && { name: data.name }),
+    ...(data.type !== undefined && { type: data.type }),
+    ...(data.status !== undefined && { status: data.status }),
+    ...(data.defaultModel !== undefined && { defaultModel: data.defaultModel }),
+    ...(data.temperature !== undefined && { temperature: String(data.temperature) }),
+    ...(data.maxOutputTokens !== undefined && { maxOutputTokens: data.maxOutputTokens }),
+    ...(data.knowledgeBaseIds !== undefined && { knowledgeBaseIds: data.knowledgeBaseIds }),
+    ...(data.dialect !== undefined && { dialect: data.dialect }),
+    ...(data.tone !== undefined && { tone: data.tone ?? null }),
+  };
   const [agent] = await db.update(aiAgentsTable).set({
-    ...data,
+    ...updates,
     updatedAt: new Date(),
   }).where(eq(aiAgentsTable.id, agentId)).returning();
 
@@ -320,6 +358,77 @@ router.patch("/agents/:id", requirePermission("ai:configure"), async (req: Authe
   });
 
   res.json({ agent });
+});
+
+router.post("/agents/:id/duplicate", requirePermission("ai:configure"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { activeWorkspaceId, userId } = req.sessionUser;
+  const agentId = String(req.params.id);
+  const [existing] = await db.select().from(aiAgentsTable).where(
+    and(eq(aiAgentsTable.id, agentId), eq(aiAgentsTable.workspaceId, activeWorkspaceId))
+  );
+  if (!existing) { res.status(404).json({ error: "الوكيل غير موجود" }); return; }
+
+  const [instructions] = await db.select().from(aiAgentInstructionsTable).where(
+    and(eq(aiAgentInstructionsTable.agentId, agentId), eq(aiAgentInstructionsTable.workspaceId, activeWorkspaceId))
+  );
+
+  const [agent] = await db.insert(aiAgentsTable).values({
+    workspaceId: activeWorkspaceId,
+    name: `${existing.name} copy`,
+    type: existing.type,
+    status: "active",
+    defaultModel: existing.defaultModel,
+    temperature: existing.temperature,
+    maxOutputTokens: existing.maxOutputTokens,
+    knowledgeBaseIds: existing.knowledgeBaseIds,
+    dialect: existing.dialect,
+    tone: existing.tone,
+    createdBy: userId,
+  }).returning();
+
+  if (instructions) {
+    await db.insert(aiAgentInstructionsTable).values({
+      workspaceId: activeWorkspaceId,
+      agentId: agent.id,
+      rolePrompt: instructions.rolePrompt,
+      businessRules: instructions.businessRules,
+      forbiddenActions: instructions.forbiddenActions,
+      escalationRules: instructions.escalationRules,
+    });
+  }
+
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "ai_agent_duplicate",
+    entityType: "ai_agent",
+    entityId: agent.id,
+    entityLabel: agent.name,
+    newData: { sourceAgentId: agentId },
+  });
+
+  res.status(201).json({ agent });
+});
+
+router.delete("/agents/:id", requirePermission("ai:configure"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const agentId = String(req.params.id);
+  const [existing] = await db.select().from(aiAgentsTable).where(
+    and(eq(aiAgentsTable.id, agentId), eq(aiAgentsTable.workspaceId, activeWorkspaceId))
+  );
+  if (!existing) { res.status(404).json({ error: "الوكيل غير موجود" }); return; }
+
+  await db.delete(aiAgentsTable).where(and(eq(aiAgentsTable.id, agentId), eq(aiAgentsTable.workspaceId, activeWorkspaceId)));
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "ai_agent_delete",
+    severity: "warning",
+    entityType: "ai_agent",
+    entityId: agentId,
+    entityLabel: existing.name,
+    oldData: { status: existing.status },
+  });
+
+  res.json({ message: "تم حذف الوكيل" });
 });
 
 router.post("/agents/:id/versions", requirePermission("ai:configure"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -350,7 +459,7 @@ router.post("/agents/:id/versions", requirePermission("ai:configure"), async (re
     status: "active",
     instructionsSnapshot: instructions ? { rolePrompt: instructions.rolePrompt, businessRules: instructions.businessRules, forbiddenActions: instructions.forbiddenActions, escalationRules: instructions.escalationRules } : {},
     toolsSnapshot: { tools: tools.map((t) => ({ toolKey: t.toolKey, isEnabled: t.isEnabled, requiresApproval: t.requiresApproval })) },
-    modelConfig: { defaultModel: agent.defaultModel, dialect: agent.dialect, tone: agent.tone },
+    modelConfig: { defaultModel: agent.defaultModel, temperature: agent.temperature, maxOutputTokens: agent.maxOutputTokens, dialect: agent.dialect, tone: agent.tone },
     createdBy: userId,
   }).returning();
 
@@ -596,6 +705,7 @@ router.get("/safety-events", requirePermission("ai:view_safety"), async (req: Au
 async function createAndRunAI(params: {
   workspaceId: string;
   userId: string;
+  agentId?: string;
   taskType: string;
   inputType: string;
   inputRefId?: string;
@@ -612,10 +722,11 @@ async function createAndRunAI(params: {
   promptTokens: number;
   completionTokens: number;
 }> {
-  const { workspaceId, userId, taskType, inputType, inputRefId, model, systemPrompt, userPrompt } = params;
+  const { workspaceId, userId, agentId, taskType, inputType, inputRefId, model, systemPrompt, userPrompt } = params;
 
   const [run] = await db.insert(aiRunsTable).values({
     workspaceId,
+    agentId: agentId ?? null,
     taskType,
     inputType,
     inputRefId: inputRefId ?? null,
@@ -853,40 +964,79 @@ router.post("/runs/classify-conversation", aiRunLimiter, requirePermission("ai:u
 router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { activeWorkspaceId, userId } = req.sessionUser;
   const parse = z.object({
-    conversationId: z.string().uuid("معرف محادثة غير صالح"),
+    conversationId: z.string().uuid("معرف محادثة غير صالح").optional(),
+    message: z.string().trim().min(1).max(5000).optional(),
+    agentId: z.string().uuid().optional(),
     instructions: z.string().trim().max(1000).optional().nullable(),
     model: z.enum(["gemini_flash", "gemini_flash_lite", "gemini_pro", "mock"]).optional(),
-  }).safeParse(req.body);
+  }).refine((data) => data.conversationId || data.message, { message: "يجب تقديم محادثة أو رسالة اختبار" }).safeParse(req.body);
   if (!parse.success) { res.status(400).json({ error: "بيانات غير صالحة", details: parse.error.flatten() }); return; }
 
-  const { conversationId, instructions, model = getDefaultModel() } = parse.data;
+  const { conversationId, message, agentId, instructions } = parse.data;
+  let model = parse.data.model ?? getDefaultModel();
+  let inputRefId: string | undefined = conversationId;
+  let transcript = message ? `[العميل]: ${message}` : "";
+  let searchQuery = message ?? "";
+  let systemPrompt = "أنت مساعد خدمة عملاء محترف. اكتب ردوداً باللغة العربية تكون ودية ومهنية. هذه مسودات فقط ولا تُرسل تلقائياً.";
+  let agentKnowledgeBaseIds: string[] = [];
 
-  const { conversationsTable: ct, messagesTable: mt } = await import("@workspace/db").then((m) => ({
-    conversationsTable: m.conversationsTable,
-    messagesTable: m.messagesTable,
-  }));
-
-  const [conv] = await db.select().from(ct).where(
-    and(eq(ct.id, conversationId), eq(ct.workspaceId, activeWorkspaceId))
-  );
-  if (!conv) { res.status(404).json({ error: "المحادثة غير موجودة أو لا تنتمي لهذا النظام" }); return; }
-
-  const messages = await db.select().from(mt).where(
-    and(eq(mt.conversationId, conversationId), eq(mt.workspaceId, activeWorkspaceId))
-  ).orderBy(mt.createdAt).limit(20);
-
-  const lastMsg = messages[messages.length - 1];
-  const searchQuery = lastMsg?.content ?? "";
-  const knowledgeSources = await searchKnowledge(activeWorkspaceId, searchQuery);
-
-  const transcript = messages.slice(-10).map((m) => `[${m.direction === "inbound" ? "العميل" : "الموظف"}]: ${m.content}`).join("\n");
-
-  let knowledgeContext = "";
-  if (knowledgeSources.length > 0) {
-    knowledgeContext = `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((k, i) => `[${i + 1}] ${k}`).join("\n")}`;
+  if (agentId) {
+    const [agent] = await db.select().from(aiAgentsTable).where(
+      and(eq(aiAgentsTable.id, agentId), eq(aiAgentsTable.workspaceId, activeWorkspaceId))
+    );
+    if (!agent) { res.status(404).json({ error: "الوكيل غير موجود" }); return; }
+    model = parse.data.model ?? agent.defaultModel;
+    agentKnowledgeBaseIds = Array.isArray(agent.knowledgeBaseIds) ? agent.knowledgeBaseIds : [];
+    const [agentInstructions] = await db.select().from(aiAgentInstructionsTable).where(
+      and(eq(aiAgentInstructionsTable.agentId, agentId), eq(aiAgentInstructionsTable.workspaceId, activeWorkspaceId))
+    );
+    if (agentInstructions?.rolePrompt) systemPrompt = agentInstructions.rolePrompt;
+    const extraRules = [
+      agentInstructions?.businessRules && `قواعد النشاط: ${agentInstructions.businessRules}`,
+      agentInstructions?.forbiddenActions && `ممنوعات: ${agentInstructions.forbiddenActions}`,
+      agentInstructions?.escalationRules && `قواعد التصعيد: ${agentInstructions.escalationRules}`,
+    ].filter(Boolean).join("\n");
+    if (extraRules) systemPrompt = `${systemPrompt}\n${extraRules}`;
   }
 
-  const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.${instructions ? `\nتعليمات إضافية: ${instructions}` : ""}
+  if (conversationId) {
+    const { conversationsTable: ct, messagesTable: mt } = await import("@workspace/db").then((m) => ({
+      conversationsTable: m.conversationsTable,
+      messagesTable: m.messagesTable,
+    }));
+
+    const [conv] = await db.select().from(ct).where(
+      and(eq(ct.id, conversationId), eq(ct.workspaceId, activeWorkspaceId))
+    );
+    if (!conv) { res.status(404).json({ error: "المحادثة غير موجودة أو لا تنتمي لهذا النظام" }); return; }
+
+    const messages = await db.select().from(mt).where(
+      and(eq(mt.conversationId, conversationId), eq(mt.workspaceId, activeWorkspaceId))
+    ).orderBy(mt.createdAt).limit(20);
+
+    const lastMsg = messages[messages.length - 1];
+    searchQuery = lastMsg?.content ?? "";
+    transcript = messages.slice(-10).map((m) => `[${m.direction === "inbound" ? "العميل" : "الموظف"}]: ${m.content}`).join("\n");
+  }
+
+  const sourceGroups = agentKnowledgeBaseIds.length > 0
+    ? await Promise.all(agentKnowledgeBaseIds.map((baseId) => searchKnowledgeDetailed(activeWorkspaceId, searchQuery, baseId)))
+    : [await searchKnowledgeDetailed(activeWorkspaceId, searchQuery)];
+  const sources = sourceGroups.flat();
+  const seen = new Set<string>();
+  const uniqueSources = sources.filter((source) => {
+    const key = `${source.type}:${source.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 5);
+  const knowledgeSources = uniqueSources.map((source) => `${source.title}\n${source.content}`);
+
+  const knowledgeContext = knowledgeSources.length > 0
+    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item}`).join("\n")}`
+    : "";
+
+  const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة أو التجربة.${instructions ? `\nتعليمات إضافية: ${instructions}` : ""}
 
 المحادثة:
 ${transcript}${knowledgeContext}
@@ -896,11 +1046,12 @@ ${transcript}${knowledgeContext}
   const result = await createAndRunAI({
     workspaceId: activeWorkspaceId,
     userId,
+    agentId,
     taskType: "draft_reply",
-    inputType: "conversation",
-    inputRefId: conversationId,
+    inputType: conversationId ? "conversation" : "manual",
+    inputRefId,
     model,
-    systemPrompt: "أنت مساعد خدمة عملاء محترف. اكتب ردوداً باللغة العربية تكون ودية ومهنية. هذه مسودات فقط ولا تُرسل تلقائياً.",
+    systemPrompt,
     userPrompt,
     knowledgeSources,
   });
@@ -910,12 +1061,13 @@ ${transcript}${knowledgeContext}
     action: "ai_run_create",
     entityType: "ai_run",
     entityId: result.run.id,
-    newData: { taskType: "draft_reply", conversationId },
+    newData: { taskType: "draft_reply", conversationId: conversationId ?? null, agentId: agentId ?? null },
   });
 
   res.status(201).json({
     run: result.run,
     draft: result.output,
+    sources: uniqueSources.length > 0 ? uniqueSources : null,
     knowledgeSources: knowledgeSources.length > 0 ? knowledgeSources : null,
     knowledgeSourcesSummary: knowledgeSources.length > 0 ? `تم استخدام ${knowledgeSources.length} مصدر من قاعدة المعرفة` : null,
     provider: result.provider,

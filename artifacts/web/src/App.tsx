@@ -23,6 +23,7 @@ import ContactProfilePage from "@/pages/ContactProfilePage";
 import DebtsPage from "@/pages/DebtsPage";
 import KnowledgePage from "@/pages/KnowledgePage";
 import AgentsPage from "@/pages/AgentsPage";
+import AgentDetailPage from "@/pages/AgentDetailPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import IntegrationsPage from "@/pages/IntegrationsPage";
@@ -103,6 +104,9 @@ function Router() {
       <Route path="/payments" component={() => <ProtectedRoute component={PaymentsPage} />} />
       <Route path="/debts" component={() => <ProtectedRoute component={DebtsPage} />} />
       <Route path="/knowledge" component={() => <ProtectedRoute component={KnowledgePage} />} />
+      <Route path="/agents/:id" component={({ params }) => (
+        <ProtectedRoute component={() => <AgentDetailPage agentId={params.id} />} />
+      )} />
       <Route path="/agents" component={() => <ProtectedRoute component={AgentsPage} />} />
       <Route path="/audit-logs" component={() => <ProtectedRoute component={AuditLogsPage} />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={AnalyticsPage} />} />

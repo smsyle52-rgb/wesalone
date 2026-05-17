@@ -33,7 +33,7 @@ export type AuditAction =
   | "knowledge_source_create" | "knowledge_source_update" | "knowledge_source_archive"
   | "knowledge_document_create" | "knowledge_document_update" | "knowledge_document_archive" | "knowledge_document_rechunk"
   | "faq_create" | "faq_update" | "faq_archive"
-  | "ai_agent_create" | "ai_agent_update" | "ai_agent_disable"
+  | "ai_agent_create" | "ai_agent_update" | "ai_agent_disable" | "ai_agent_duplicate" | "ai_agent_delete"
   | "ai_run_create" | "ai_run_blocked"
   | "ai_approval_requested" | "ai_approval_approved" | "ai_approval_rejected"
   | "ai_feedback_create"
