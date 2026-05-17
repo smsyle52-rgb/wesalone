@@ -37,6 +37,23 @@ function processedLastMinute(): number {
   return processedTimestamps.filter((timestamp) => timestamp >= cutoff).length;
 }
 
+async function writeHeartbeat(): Promise<void> {
+  await pool.query(
+    `
+    INSERT INTO service_heartbeats (service_name, last_beat_at, version, metadata)
+    VALUES ('outbox-worker', now(), $1, $2::jsonb)
+    ON CONFLICT (service_name)
+    DO UPDATE SET last_beat_at = excluded.last_beat_at,
+                  version = excluded.version,
+                  metadata = excluded.metadata
+    `,
+    [
+      process.env.npm_package_version ?? "0.0.0",
+      JSON.stringify({ processedLastMinute: processedLastMinute(), pid: process.pid }),
+    ],
+  );
+}
+
 async function claimEvents(): Promise<OutboxEventRow[]> {
   const client = await pool.connect();
   try {
@@ -332,8 +349,13 @@ const automationInterval = setInterval(() => {
   void pollAutomationOnce();
 }, 3_000);
 
+const heartbeatInterval = setInterval(() => {
+  void writeHeartbeat().catch((err) => logger.warn({ err }, "Outbox worker heartbeat failed"));
+}, 15_000);
+
 void pollOnce();
 void pollAutomationOnce();
+void writeHeartbeat().catch((err) => logger.warn({ err }, "Initial outbox worker heartbeat failed"));
 
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
@@ -341,6 +363,7 @@ async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, "Outbox worker shutting down");
   clearInterval(interval);
   clearInterval(automationInterval);
+  clearInterval(heartbeatInterval);
 
   const shutdownDeadline = delay(9_000).then(() => "timeout" as const);
   const closeServer = new Promise<"closed">((resolve) => {

@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { formatDateTime, timeAgo, channelLabels, statusLabels, priorityLabels, channelStatusLabels, CHANNEL_CATALOG } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { openInboxStream, type InboxStreamStatus } from "@/lib/realtime";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
 
@@ -135,6 +136,7 @@ export default function InboxPage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [quickForm, setQuickForm] = useState({ title: "", priority: "normal", type: "manual", dueAt: "", notes: "" });
   const [orderForm, setOrderForm] = useState({ channel: "manual", currency: "YER", notes: "" });
+  const [realtimeStatus, setRealtimeStatus] = useState<InboxStreamStatus>("reconnecting");
 
   const params = new URLSearchParams();
   if (viewFilter) params.set("view", viewFilter);
@@ -213,6 +215,21 @@ export default function InboxPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [detail?.messages?.length]);
+
+  useEffect(() => {
+    if (!canRead) return;
+    const stream = openInboxStream({
+      onStatus: setRealtimeStatus,
+      onMessageReceived: () => {
+        qc.invalidateQueries({ queryKey: ["conversations"] });
+        if (selectedConvId) qc.invalidateQueries({ queryKey: ["conversation", selectedConvId] });
+      },
+    });
+    return () => {
+      setRealtimeStatus("closed");
+      stream.close();
+    };
+  }, [canRead, qc, selectedConvId]);
 
   const invalidateDetail = () => {
     qc.invalidateQueries({ queryKey: ["conversation", selectedConvId] });
@@ -572,6 +589,13 @@ export default function InboxPage() {
           mobileView === "detail" ? "hidden lg:flex" : "flex"
         )}>
           <div className="p-2 border-b border-border space-y-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>التحديث اللحظي</span>
+              <span className="inline-flex items-center gap-1">
+                <span className={cn("h-2 w-2 rounded-full", realtimeStatus === "live" ? "bg-emerald-500" : "bg-muted-foreground")} />
+                {realtimeStatus === "live" ? "مباشر" : "إعادة اتصال"}
+              </span>
+            </div>
             <input
               id="inbox-search"
               name="inboxSearch"

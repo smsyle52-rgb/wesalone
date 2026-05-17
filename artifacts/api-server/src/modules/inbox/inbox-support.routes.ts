@@ -11,6 +11,7 @@ import {
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { auditFromRequest, createAuditLog } from "../../lib/audit";
+import { subscribeWorkspaceEvents, type WorkspaceRealtimeEvent } from "../../lib/events";
 import type { AuthenticatedRequest } from "../../lib/types";
 
 const router = Router();
@@ -55,6 +56,33 @@ const businessHourSchema = z.object({
 function zodError(error: z.ZodError): string {
   return error.issues[0]?.message ?? "بيانات غير صحيحة";
 }
+
+router.get("/inbox/stream", requirePermission("conversations:read"), (req: AuthenticatedRequest, res: Response) => {
+  const workspaceId = req.sessionUser.activeWorkspaceId;
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+
+  const send = (event: WorkspaceRealtimeEvent) => {
+    res.write(`event: ${event.type}\n`);
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+  };
+
+  send({ type: "connected", workspaceId, createdAt: new Date().toISOString() });
+  const unsubscribe = subscribeWorkspaceEvents(workspaceId, send);
+  const heartbeat = setInterval(() => {
+    res.write("event: heartbeat\n");
+    res.write(`data: ${JSON.stringify({ ok: true, ts: new Date().toISOString() })}\n\n`);
+  }, 25_000);
+
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+    res.end();
+  });
+});
 
 router.get("/quick-replies", requirePermission("quick_replies:read"), async (req: AuthenticatedRequest, res: Response) => {
   const rows = await db.select()

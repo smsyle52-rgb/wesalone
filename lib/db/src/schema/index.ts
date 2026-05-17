@@ -14,6 +14,7 @@ export * from "./domain_events";
 export * from "./inbox_ops";
 export * from "./settings_ext";
 export * from "./agent_memory";
+export * from "./service_health";
 export * from "./contacts";
 export * from "./conversations";
 export * from "./tickets";

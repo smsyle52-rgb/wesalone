@@ -9,6 +9,7 @@ import {
   messagesTable,
 } from "@workspace/db";
 import { logger } from "../../lib/logger";
+import { emitWorkspaceEvent } from "../../lib/events";
 
 type MetaWebhookResult = {
   handled: boolean;
@@ -194,6 +195,13 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
     await db.insert(domainEventsTable).values({
       workspaceId,
       eventType: "message.received",
+      entityType: "message",
+      entityId: message.id,
+      payload: { conversationId: conversation.id, contactId, channelAccountId: channelAccount.id, providerMessageId },
+    });
+    emitWorkspaceEvent({
+      workspaceId,
+      type: "message.received",
       entityType: "message",
       entityId: message.id,
       payload: { conversationId: conversation.id, contactId, channelAccountId: channelAccount.id, providerMessageId },

@@ -92,6 +92,13 @@
       "when": 1779032400000,
       "tag": "0012_phase4_trust_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779036000000,
+      "tag": "0013_phase4_realtime_health",
+      "breakpoints": true
     }
   ]
 }
