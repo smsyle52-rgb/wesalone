@@ -1,0 +1,46 @@
+substitutions:
+  _REGION: us-central1
+  _SERVICE: khadamatak-outbox-worker
+  _REPOSITORY: khadamatak
+  _IMAGE: outbox-worker
+
+steps:
+  - id: build-worker-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.worker
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_IMAGE:$SHORT_SHA
+      - .
+
+  - id: push-worker-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_IMAGE:$SHORT_SHA
+
+  - id: deploy-worker
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_IMAGE:$SHORT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --port=8080
+      - --min-instances=1
+      - --max-instances=1
+      - --no-cpu-throttling
+      - --set-secrets=DATABASE_URL=DATABASE_URL:latest
+      - --set-env-vars=NODE_ENV=production
+      - --quiet
+
+images:
+  - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_IMAGE:$SHORT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY
