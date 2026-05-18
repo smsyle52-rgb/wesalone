@@ -10,8 +10,10 @@ import {
 } from "@workspace/db";
 import { logger } from "../../lib/logger";
 import { emitWorkspaceEvent } from "../../lib/events";
+import { handleInstagramWebhook } from "./instagram.handler";
+import { handleMessengerWebhook } from "./messenger.handler";
 
-type MetaWebhookResult = {
+export type MetaWebhookResult = {
   handled: boolean;
   messagesCreated: number;
   statusesUpdated: number;
@@ -222,4 +224,25 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
   }
 
   return { handled: true, messagesCreated, statusesUpdated };
+}
+
+export async function handleMetaWebhook(payload: unknown): Promise<MetaWebhookResult> {
+  const objectType = (payload as any)?.object;
+
+  if (objectType === "whatsapp_business_account") {
+    return handleMetaWhatsAppWebhook(payload);
+  }
+
+  if (objectType === "instagram") {
+    const messagesCreated = await handleInstagramWebhook(payload);
+    return { handled: messagesCreated > 0, messagesCreated, statusesUpdated: 0 };
+  }
+
+  if (objectType === "page") {
+    const messagesCreated = await handleMessengerWebhook(payload);
+    return { handled: messagesCreated > 0, messagesCreated, statusesUpdated: 0 };
+  }
+
+  logger.warn({ objectType }, "Unsupported Meta webhook object type");
+  return { handled: false, messagesCreated: 0, statusesUpdated: 0 };
 }

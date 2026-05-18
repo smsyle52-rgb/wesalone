@@ -1,7 +1,7 @@
 import { Router, type Response } from "express";
-import { randomBytes } from "node:crypto";
+import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { channelAccountsTable, db } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
@@ -61,6 +61,239 @@ function appBaseUrl(req: AuthenticatedRequest) {
 
 function metaRedirectUri(req: AuthenticatedRequest) {
   return process.env.META_REDIRECT_URI ?? `${appBaseUrl(req)}/api/integrations/meta/embedded-signup/callback`;
+}
+
+type MetaPhoneNumber = {
+  phone_number_id: string;
+  display_number: string;
+  verified_name?: string;
+};
+
+type MetaChannelOptions = {
+  whatsapp_accounts: Array<{
+    waba_id: string;
+    name: string;
+    phone_numbers: MetaPhoneNumber[];
+  }>;
+  facebook_pages: Array<{
+    page_id: string;
+    name: string;
+  }>;
+  instagram_accounts: Array<{
+    ig_account_id: string;
+    username: string;
+    linked_page_id: string;
+  }>;
+};
+
+type MetaTokenRefs = {
+  userTokenRef?: string;
+  pageTokenRefs: Record<string, string>;
+};
+
+function graphVersion() {
+  return process.env.META_GRAPH_VERSION ?? "v21.0";
+}
+
+function metaEncryptionKey(): Buffer {
+  const material = process.env.META_OAUTH_STATE_SECRET ?? process.env.SESSION_SECRET ?? "khadamatak-dev-meta-token-key";
+  return createHash("sha256").update(material).digest();
+}
+
+function encryptedTokenRef(token: string | null | undefined): string | null {
+  if (!token) return process.env.META_ACCESS_TOKEN_SECRET_REF ?? null;
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", metaEncryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `enc:v1:${iv.toString("base64url")}:${tag.toString("base64url")}:${encrypted.toString("base64url")}`;
+}
+
+function sanitizeMetaOptions(options: MetaChannelOptions): MetaChannelOptions {
+  return {
+    whatsapp_accounts: options.whatsapp_accounts,
+    facebook_pages: options.facebook_pages.map((page) => ({ page_id: page.page_id, name: page.name })),
+    instagram_accounts: options.instagram_accounts,
+  };
+}
+
+async function callMetaGraph(path: string, token: string): Promise<any> {
+  const response = await fetch(`https://graph.facebook.com/${graphVersion()}/${path.replace(/^\//, "")}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(`Meta Graph API returned ${response.status}`);
+  return response.json();
+}
+
+async function exchangeCodeForToken(req: AuthenticatedRequest, code: string): Promise<string | null> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret || !code) return null;
+
+  const url = new URL(`https://graph.facebook.com/${graphVersion()}/oauth/access_token`);
+  url.searchParams.set("client_id", appId);
+  url.searchParams.set("client_secret", appSecret);
+  url.searchParams.set("redirect_uri", metaRedirectUri(req));
+  url.searchParams.set("code", code);
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Meta OAuth exchange returned ${response.status}`);
+  const payload: any = await response.json();
+  return typeof payload.access_token === "string" ? payload.access_token : null;
+}
+
+function fallbackMetaOptions(): { options: MetaChannelOptions; tokenRefs: MetaTokenRefs } {
+  const wabaId = process.env.META_WABA_ID ?? "";
+  const phoneNumberId = process.env.META_PHONE_NUMBER_ID ?? "";
+  const facebookPageId = process.env.META_FACEBOOK_PAGE_ID ?? "";
+  const instagramBusinessId = process.env.META_INSTAGRAM_BUSINESS_ID ?? "";
+
+  return {
+    options: {
+      whatsapp_accounts: wabaId && phoneNumberId ? [{
+        waba_id: wabaId,
+        name: "WhatsApp Business",
+        phone_numbers: [{
+          phone_number_id: phoneNumberId,
+          display_number: process.env.META_DISPLAY_PHONE_NUMBER ?? "",
+          verified_name: process.env.META_VERIFIED_NAME,
+        }],
+      }] : [],
+      facebook_pages: facebookPageId ? [{ page_id: facebookPageId, name: "Facebook Page" }] : [],
+      instagram_accounts: instagramBusinessId ? [{
+        ig_account_id: instagramBusinessId,
+        username: process.env.META_INSTAGRAM_USERNAME ?? "instagram",
+        linked_page_id: facebookPageId,
+      }] : [],
+    },
+    tokenRefs: {
+      userTokenRef: process.env.META_ACCESS_TOKEN_SECRET_REF ?? undefined,
+      pageTokenRefs: facebookPageId && process.env.META_PAGE_ACCESS_TOKEN_SECRET_REF
+        ? { [facebookPageId]: process.env.META_PAGE_ACCESS_TOKEN_SECRET_REF }
+        : {},
+    },
+  };
+}
+
+async function fetchMetaChannelOptions(userToken: string): Promise<{ options: MetaChannelOptions; tokenRefs: MetaTokenRefs }> {
+  const [businesses, pages] = await Promise.all([
+    callMetaGraph("me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name}}", userToken),
+    callMetaGraph("me/accounts?fields=id,name,access_token,instagram_business_account{id,username}", userToken),
+  ]);
+
+  const whatsappAccounts: MetaChannelOptions["whatsapp_accounts"] = [];
+  for (const business of businesses?.data ?? []) {
+    for (const waba of business?.owned_whatsapp_business_accounts?.data ?? []) {
+      whatsappAccounts.push({
+        waba_id: String(waba.id),
+        name: String(waba.name ?? business.name ?? "WhatsApp Business"),
+        phone_numbers: (waba.phone_numbers?.data ?? []).map((phone: any) => ({
+          phone_number_id: String(phone.id),
+          display_number: String(phone.display_phone_number ?? ""),
+          verified_name: phone.verified_name ? String(phone.verified_name) : undefined,
+        })),
+      });
+    }
+  }
+
+  const facebookPages: MetaChannelOptions["facebook_pages"] = [];
+  const instagramAccounts: MetaChannelOptions["instagram_accounts"] = [];
+  const pageTokenRefs: Record<string, string> = {};
+
+  for (const page of pages?.data ?? []) {
+    const pageId = String(page.id);
+    facebookPages.push({ page_id: pageId, name: String(page.name ?? "Facebook Page") });
+    const ref = encryptedTokenRef(typeof page.access_token === "string" ? page.access_token : null);
+    if (ref) pageTokenRefs[pageId] = ref;
+    if (page.instagram_business_account?.id) {
+      instagramAccounts.push({
+        ig_account_id: String(page.instagram_business_account.id),
+        username: String(page.instagram_business_account.username ?? page.instagram_business_account.id),
+        linked_page_id: pageId,
+      });
+    }
+  }
+
+  return {
+    options: {
+      whatsapp_accounts: whatsappAccounts,
+      facebook_pages: facebookPages,
+      instagram_accounts: instagramAccounts,
+    },
+    tokenRefs: {
+      userTokenRef: encryptedTokenRef(userToken) ?? undefined,
+      pageTokenRefs,
+    },
+  };
+}
+
+const metaChannelSelectionSchema = z.object({
+  whatsapp_phone_ids: z.array(z.string()).default([]),
+  instagram_account_ids: z.array(z.string()).default([]),
+  page_ids: z.array(z.string()).default([]),
+});
+
+function currentMetaSession(req: AuthenticatedRequest): { options: MetaChannelOptions; tokenRefs: MetaTokenRefs } {
+  const stored = (req.session as any).metaChannelOptions;
+  if (stored?.workspaceId === req.sessionUser.activeWorkspaceId && Date.now() - stored.createdAt < 30 * 60_000) {
+    return { options: stored.options, tokenRefs: stored.tokenRefs ?? { pageTokenRefs: {} } };
+  }
+  return fallbackMetaOptions();
+}
+
+async function upsertMetaChannelAccount(params: {
+  req: AuthenticatedRequest;
+  channelType: "whatsapp" | "instagram" | "messenger";
+  name: string;
+  displayName: string;
+  providerConfig: Record<string, unknown>;
+  lookupKey: string;
+  lookupValue: string;
+  credentialsSecretRef: string | null;
+}) {
+  const [existing] = await db
+    .select()
+    .from(channelAccountsTable)
+    .where(and(
+      eq(channelAccountsTable.workspaceId, params.req.sessionUser.activeWorkspaceId),
+      eq(channelAccountsTable.channelType, params.channelType),
+      sql`${channelAccountsTable.providerConfig}->>${params.lookupKey} = ${params.lookupValue}`,
+    ))
+    .limit(1);
+
+  const values = {
+    workspaceId: params.req.sessionUser.activeWorkspaceId,
+    channelType: params.channelType,
+    name: params.name,
+    displayName: params.displayName,
+    status: "active",
+    providerConfig: params.providerConfig,
+    credentialsSecretRef: params.credentialsSecretRef,
+    createdBy: params.req.sessionUser.userId,
+    updatedAt: new Date(),
+  };
+
+  const [account] = existing
+    ? await db.update(channelAccountsTable).set(values).where(eq(channelAccountsTable.id, existing.id)).returning()
+    : await db.insert(channelAccountsTable).values(values).returning();
+
+  await createAuditLog({
+    ...auditFromRequest(params.req, params.req.sessionUser),
+    action: "meta_channel_connected",
+    severity: "info",
+    entityType: "channel_account",
+    entityId: account.id,
+    entityLabel: account.displayName,
+    newData: {
+      channelType: params.channelType,
+      provider: "meta",
+      lookupKey: params.lookupKey,
+      lookupValue: params.lookupValue,
+      tokenStoredAsReference: Boolean(params.credentialsSecretRef),
+    },
+  });
+
+  return account;
 }
 
 router.get("/provider-accounts", requirePermission("integrations:read"), async (req: AuthenticatedRequest, res: Response) => {
@@ -254,7 +487,16 @@ router.get("/meta/embedded-signup/start", requirePermission("integrations:update
   }
 
   const redirectUri = metaRedirectUri(req);
-  const scopes = ["whatsapp_business_messaging", "whatsapp_business_management", "business_management"];
+  const scopes = [
+    "whatsapp_business_messaging",
+    "whatsapp_business_management",
+    "business_management",
+    "instagram_basic",
+    "instagram_manage_messages",
+    "pages_messaging",
+    "pages_manage_metadata",
+    "pages_show_list",
+  ];
   const url = new URL(`https://www.facebook.com/${process.env.META_GRAPH_VERSION ?? "v21.0"}/dialog/oauth`);
   url.searchParams.set("client_id", appId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -262,7 +504,7 @@ router.get("/meta/embedded-signup/start", requirePermission("integrations:update
   url.searchParams.set("scope", scopes.join(","));
   url.searchParams.set("response_type", "code");
 
-  res.json({ url: url.toString(), state, redirectUri, scopes });
+  res.json({ url: url.toString(), state, redirectUri, scopes, channels: ["whatsapp", "instagram", "messenger"] });
 });
 
 router.get("/meta/embedded-signup/callback", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
@@ -273,70 +515,157 @@ router.get("/meta/embedded-signup/callback", requirePermission("integrations:upd
     return;
   }
 
-  const wabaId = String(req.query.waba_id ?? process.env.META_WABA_ID ?? "");
-  const phoneNumberId = String(req.query.phone_number_id ?? process.env.META_PHONE_NUMBER_ID ?? "");
-  const displayPhoneNumber = String(req.query.display_phone_number ?? "");
-  const credentialsSecretRef = process.env.META_ACCESS_TOKEN_SECRET_REF ?? null;
+  const code = String(req.query.code ?? "");
+  let channelOptions: { options: MetaChannelOptions; tokenRefs: MetaTokenRefs };
 
-  if (!phoneNumberId || !wabaId || !credentialsSecretRef) {
-    res.status(202).json({
-      connected: false,
-      status: "action_required",
-      message: "Meta callback received, but WABA/phone or Secret Manager token reference is missing.",
-      missing: [
-        ...(!wabaId ? ["META_WABA_ID or callback waba_id"] : []),
-        ...(!phoneNumberId ? ["META_PHONE_NUMBER_ID or callback phone_number_id"] : []),
-        ...(!credentialsSecretRef ? ["META_ACCESS_TOKEN_SECRET_REF"] : []),
-      ],
-    });
-    return;
+  try {
+    const userToken = code ? await exchangeCodeForToken(req, code) : null;
+    channelOptions = userToken ? await fetchMetaChannelOptions(userToken) : fallbackMetaOptions();
+  } catch (err) {
+    req.log?.warn({ err }, "Meta channel discovery failed, falling back to configured environment references");
+    channelOptions = fallbackMetaOptions();
   }
 
-  const [existing] = await db
+  const wabaId = String(req.query.waba_id ?? "");
+  const phoneNumberId = String(req.query.phone_number_id ?? "");
+  if (wabaId && phoneNumberId && !channelOptions.options.whatsapp_accounts.some((account) => account.waba_id === wabaId)) {
+    channelOptions.options.whatsapp_accounts.push({
+      waba_id: wabaId,
+      name: "WhatsApp Business",
+      phone_numbers: [{
+        phone_number_id: phoneNumberId,
+        display_number: String(req.query.display_phone_number ?? ""),
+        verified_name: String(req.query.verified_name ?? ""),
+      }],
+    });
+  }
+
+  (req.session as any).metaChannelOptions = {
+    workspaceId: req.sessionUser.activeWorkspaceId,
+    options: sanitizeMetaOptions(channelOptions.options),
+    tokenRefs: channelOptions.tokenRefs,
+    createdAt: Date.now(),
+  };
+
+  res.redirect("/integrations/meta/select-channels");
+});
+
+router.get("/meta/channels/options", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
+  const { options } = currentMetaSession(req);
+  res.json({ options: sanitizeMetaOptions(options) });
+});
+
+router.get("/meta/channels", requirePermission("integrations:read"), async (req: AuthenticatedRequest, res: Response) => {
+  const accounts = await db
     .select()
     .from(channelAccountsTable)
     .where(and(
       eq(channelAccountsTable.workspaceId, req.sessionUser.activeWorkspaceId),
-      eq(channelAccountsTable.channelType, "whatsapp"),
-    ))
-    .limit(1);
+      sql`${channelAccountsTable.channelType} in ('whatsapp', 'instagram', 'messenger')`,
+    ));
 
-  const values = {
-    workspaceId: req.sessionUser.activeWorkspaceId,
-    channelType: "whatsapp",
-    name: "whatsapp",
-    displayName: displayPhoneNumber ? `WhatsApp ${displayPhoneNumber}` : "WhatsApp",
-    status: "active",
-    providerConfig: {
-      provider: "meta",
-      wabaId,
-      phoneNumberId,
-      displayPhoneNumber,
-      embeddedSignup: true,
-      connectedAt: new Date().toISOString(),
-    },
-    credentialsSecretRef,
-    createdBy: req.sessionUser.userId,
-    updatedAt: new Date(),
-  };
-
-  const [account] = existing
-    ? await db.update(channelAccountsTable)
-        .set(values)
-        .where(eq(channelAccountsTable.id, existing.id))
-        .returning()
-    : await db.insert(channelAccountsTable).values(values).returning();
-
-  await createAuditLog({
-    ...auditFromRequest(req, req.sessionUser),
-    action: "meta_whatsapp_connected",
-    entityType: "channel_account",
-    entityId: account.id,
-    entityLabel: account.displayName,
-    newData: { provider: "meta", phoneNumberId, wabaId, credentialsSecretRef },
+  res.json({
+    accounts: accounts.map((account) => ({
+      id: account.id,
+      channelType: account.channelType,
+      name: account.name,
+      displayName: account.displayName,
+      status: account.status,
+      providerConfig: account.providerConfig,
+      hasCredentialReference: Boolean(account.credentialsSecretRef),
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+    })),
   });
+});
 
-  res.json({ connected: true, accountId: account.id, status: account.status });
+router.post("/meta/channels", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = metaChannelSelectionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "بيانات اختيار القنوات غير صالحة", details: parsed.error.flatten() });
+    return;
+  }
+
+  const { options, tokenRefs } = currentMetaSession(req);
+  const created: Array<typeof channelAccountsTable.$inferSelect> = [];
+  const connectedAt = new Date().toISOString();
+
+  for (const account of options.whatsapp_accounts) {
+    for (const phone of account.phone_numbers) {
+      if (!parsed.data.whatsapp_phone_ids.includes(phone.phone_number_id)) continue;
+      const channel = await upsertMetaChannelAccount({
+        req,
+        channelType: "whatsapp",
+        name: `whatsapp-${phone.phone_number_id}`,
+        displayName: phone.display_number ? `WhatsApp ${phone.display_number}` : `WhatsApp ${phone.phone_number_id}`,
+        providerConfig: {
+          provider: "meta",
+          wabaId: account.waba_id,
+          phoneNumberId: phone.phone_number_id,
+          displayPhoneNumber: phone.display_number,
+          verifiedName: phone.verified_name,
+          embeddedSignup: true,
+          connectedAt,
+        },
+        lookupKey: "phoneNumberId",
+        lookupValue: phone.phone_number_id,
+        credentialsSecretRef: tokenRefs.userTokenRef ?? process.env.META_ACCESS_TOKEN_SECRET_REF ?? null,
+      });
+      created.push(channel);
+    }
+  }
+
+  for (const account of options.instagram_accounts) {
+    if (!parsed.data.instagram_account_ids.includes(account.ig_account_id)) continue;
+    const channel = await upsertMetaChannelAccount({
+      req,
+      channelType: "instagram",
+      name: `instagram-${account.ig_account_id}`,
+      displayName: account.username ? `Instagram ${account.username}` : `Instagram ${account.ig_account_id}`,
+      providerConfig: {
+        provider: "meta",
+        igAccountId: account.ig_account_id,
+        username: account.username,
+        pageId: account.linked_page_id,
+        embeddedSignup: true,
+        connectedAt,
+      },
+      lookupKey: "igAccountId",
+      lookupValue: account.ig_account_id,
+      credentialsSecretRef: tokenRefs.pageTokenRefs[account.linked_page_id] ?? process.env.META_PAGE_ACCESS_TOKEN_SECRET_REF ?? null,
+    });
+    created.push(channel);
+  }
+
+  for (const page of options.facebook_pages) {
+    if (!parsed.data.page_ids.includes(page.page_id)) continue;
+    const channel = await upsertMetaChannelAccount({
+      req,
+      channelType: "messenger",
+      name: `messenger-${page.page_id}`,
+      displayName: page.name ? `Messenger ${page.name}` : `Messenger ${page.page_id}`,
+      providerConfig: {
+        provider: "meta",
+        pageId: page.page_id,
+        pageName: page.name,
+        embeddedSignup: true,
+        connectedAt,
+      },
+      lookupKey: "pageId",
+      lookupValue: page.page_id,
+      credentialsSecretRef: tokenRefs.pageTokenRefs[page.page_id] ?? process.env.META_PAGE_ACCESS_TOKEN_SECRET_REF ?? null,
+    });
+    created.push(channel);
+  }
+
+  res.status(201).json({
+    accounts: created.map((account) => ({
+      id: account.id,
+      channelType: account.channelType,
+      displayName: account.displayName,
+      status: account.status,
+    })),
+  });
 });
 
 export default router;

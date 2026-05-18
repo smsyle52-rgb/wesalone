@@ -233,6 +233,53 @@ async function dispatchWhatsAppText(event: OutboxEventRow): Promise<void> {
   }
 }
 
+async function dispatchInstagramText(event: OutboxEventRow): Promise<void> {
+  const channelAccountId = stringField(event.payload, "channelAccountId");
+  const channelAccount = await loadChannelAccount(channelAccountId);
+  const providerConfig = channelAccount?.provider_config ?? {};
+  const igAccountId = typeof providerConfig.igAccountId === "string" ? providerConfig.igAccountId : null;
+  const destination = stringField(event.payload, "to");
+  const body = stringField(event.payload, "body");
+  if (!igAccountId || !destination || !body) throw new Error("Missing Instagram text outbox payload");
+
+  const result = await metaSend(`${igAccountId}/messages`, {
+    recipient: { id: destination },
+    message: { text: body },
+  });
+
+  if (stringField(event.payload, "conversationId")) {
+    await pool.query(
+      `
+      INSERT INTO messages (workspace_id, conversation_id, provider_message_id, direction, sender_type, source, content_type, content, delivery_status, provider_payload, sent_at)
+      VALUES ($1, $2, $3, 'outbound', 'system', 'automation', 'text', $4, 'sent', $5::jsonb, now())
+      `,
+      [event.workspace_id, stringField(event.payload, "conversationId"), result.id, body, JSON.stringify({ dryRun: result.dryRun, outboxEventId: event.id, channel: "instagram" })],
+    );
+  }
+}
+
+async function dispatchMessengerText(event: OutboxEventRow): Promise<void> {
+  const destination = stringField(event.payload, "to");
+  const body = stringField(event.payload, "body");
+  if (!destination || !body) throw new Error("Missing Messenger text outbox payload");
+
+  const result = await metaSend("me/messages", {
+    recipient: { id: destination },
+    message: { text: body },
+    messaging_type: "RESPONSE",
+  });
+
+  if (stringField(event.payload, "conversationId")) {
+    await pool.query(
+      `
+      INSERT INTO messages (workspace_id, conversation_id, provider_message_id, direction, sender_type, source, content_type, content, delivery_status, provider_payload, sent_at)
+      VALUES ($1, $2, $3, 'outbound', 'system', 'automation', 'text', $4, 'sent', $5::jsonb, now())
+      `,
+      [event.workspace_id, stringField(event.payload, "conversationId"), result.id, body, JSON.stringify({ dryRun: result.dryRun, outboxEventId: event.id, channel: "messenger" })],
+    );
+  }
+}
+
 async function markSent(id: string): Promise<void> {
   await pool.query("UPDATE outbox_events SET status = 'sent', published_at = now() WHERE id = $1", [id]);
   markProcessed();
@@ -286,6 +333,16 @@ async function processEvent(event: OutboxEventRow): Promise<void> {
     }
     if (event.event_type === "message.send.whatsapp.text") {
       await dispatchWhatsAppText(event);
+      await markSent(event.id);
+      return;
+    }
+    if (event.event_type === "message.send.instagram.text") {
+      await dispatchInstagramText(event);
+      await markSent(event.id);
+      return;
+    }
+    if (event.event_type === "message.send.messenger.text") {
+      await dispatchMessengerText(event);
       await markSent(event.id);
       return;
     }

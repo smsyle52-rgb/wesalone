@@ -41,7 +41,7 @@ export type AuditAction =
   | "report_definition_create" | "report_definition_update" | "report_definition_delete"
   | "report_generate"
   | "provider_account_create" | "provider_account_update" | "provider_account_disable"
-  | "meta_whatsapp_connected"
+  | "meta_whatsapp_connected" | "meta_channel_connected"
   | "webhook_event_replay"
   | "outbox_retry" | "outbox_cancel"
   | "integration_health_update"

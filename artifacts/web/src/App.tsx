@@ -26,6 +26,7 @@ import AgentDetailPage from "@/pages/AgentDetailPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import IntegrationsPage from "@/pages/IntegrationsPage";
+import MetaConnectChannelsPage from "@/pages/MetaConnectChannelsPage";
 import BusinessSetupPage from "@/pages/BusinessSetupPage";
 import TemplatesPage from "@/pages/TemplatesPage";
 import TemplateEditorPage from "@/pages/TemplateEditorPage";
@@ -110,6 +111,7 @@ function Router() {
       <Route path="/audit-logs" component={() => <ProtectedRoute component={AuditLogsPage} />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={AnalyticsPage} />} />
       <Route path="/reports" component={() => <ProtectedRoute component={ReportsPage} />} />
+      <Route path="/integrations/meta/select-channels" component={() => <ProtectedRoute component={MetaConnectChannelsPage} />} />
       <Route path="/integrations" component={() => <ProtectedRoute component={IntegrationsPage} />} />
       <Route path="/templates/new" component={() => <ProtectedRoute component={() => <TemplateEditorPage />} />} />
       <Route path="/templates/:id" component={({ params }) => (

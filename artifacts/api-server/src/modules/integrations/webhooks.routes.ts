@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { ingestWebhookEvent } from "./webhookIngest.service";
-import { handleMetaWhatsAppWebhook } from "./meta-webhook.handler";
+import { handleMetaWebhook } from "./meta-webhook.handler";
 import { logger } from "../../lib/logger";
 
 const router = Router();
@@ -86,7 +86,7 @@ router.post("/:provider", verifyWebhookSignature, parseWebhookPayload, async (re
   }
 
   const metaResult = metaWebhookProviders.has(String(req.params.provider))
-    ? await handleMetaWhatsAppWebhook(req.body)
+    ? await handleMetaWebhook(req.body)
     : null;
 
   res.status(result.duplicate ? 200 : 202).json({
