@@ -4,7 +4,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 const msg = { error: "عدد المحاولات كبير، حاول لاحقاً", code: "RATE_LIMIT" };
 
 function sessionOrIpKey(req: Request): string {
-  const sessionUser = req.session.user;
+  const sessionUser = req.session?.user;
   if (sessionUser?.activeWorkspaceId && sessionUser.userId) {
     return `${sessionUser.activeWorkspaceId}:${sessionUser.userId}`;
   }
