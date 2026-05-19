@@ -12,6 +12,7 @@ import { AppError } from "./lib/errors";
 import { securityHeaders, requestId } from "./middlewares/securityHeaders";
 import { env } from "./lib/env";
 import { apiLimiter, webhookLimiter } from "./lib/rateLimiter";
+import webhooksRouter from "./modules/integrations/webhooks.routes";
 
 const app: Express = express();
 
@@ -67,6 +68,7 @@ app.use(
 
 app.use(requestId);
 app.use("/api/webhooks", webhookLimiter);
+app.use("/api/webhooks", express.raw({ type: "application/json", limit: "2mb" }), webhooksRouter);
 app.use("/api", apiLimiter);
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/webhooks/")) {

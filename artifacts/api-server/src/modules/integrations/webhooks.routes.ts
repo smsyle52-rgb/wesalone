@@ -99,9 +99,10 @@ router.post("/:provider", verifyWebhookSignature, parseWebhookPayload, async (re
 });
 
 router.get("/meta", (req: Request, res: Response) => {
-  const mode = String(req.query["hub.mode"] ?? "");
-  const token = String(req.query["hub.verify_token"] ?? "");
-  const challenge = String(req.query["hub.challenge"] ?? "");
+  const hub = req.query.hub as Record<string, unknown> | undefined;
+  const mode = String(req.query["hub.mode"] ?? req.query.hub_mode ?? hub?.mode ?? "");
+  const token = String(req.query["hub.verify_token"] ?? req.query.hub_verify_token ?? hub?.verify_token ?? "");
+  const challenge = String(req.query["hub.challenge"] ?? req.query.hub_challenge ?? hub?.challenge ?? "");
 
   if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
     res.status(200).send(challenge);
