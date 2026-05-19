@@ -98,4 +98,17 @@ router.post("/:provider", verifyWebhookSignature, parseWebhookPayload, async (re
   });
 });
 
+router.get("/meta", (req: Request, res: Response) => {
+  const mode = String(req.query["hub.mode"] ?? "");
+  const token = String(req.query["hub.verify_token"] ?? "");
+  const challenge = String(req.query["hub.challenge"] ?? "");
+
+  if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
+    res.status(200).send(challenge);
+    return;
+  }
+
+  res.status(403).send("Forbidden");
+});
+
 export default router;

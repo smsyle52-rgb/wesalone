@@ -490,7 +490,6 @@ router.get("/meta/embedded-signup/start", requirePermission("integrations:update
   const scopes = [
     "whatsapp_business_messaging",
     "whatsapp_business_management",
-    "business_management",
     "instagram_basic",
     "instagram_manage_messages",
     "pages_messaging",
