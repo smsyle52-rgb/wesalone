@@ -35,22 +35,22 @@ steps:
         wget -q https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.8.0/cloud-sql-proxy.linux.amd64 -O /tmp/cloud-sql-proxy
         chmod +x /tmp/cloud-sql-proxy
         /tmp/cloud-sql-proxy "${_DB_CONNECTION_NAME}" --port=5433 >/tmp/cloud-sql-proxy.log 2>&1 &
-        PROXY_PID=$!
+        PROXY_PID=$$!
         cleanup() {
-          kill "${PROXY_PID}" >/dev/null 2>&1 || true
+          kill "$${PROXY_PID}" >/dev/null 2>&1 || true
         }
         trap cleanup EXIT
         sleep 4
 
-        _DATABASE_URL="${DATABASE_URL#\"}"
-        _DATABASE_URL="${_DATABASE_URL%\"}"
-        _DATABASE_URL="${_DATABASE_URL%%\?*}"
-        _DATABASE_URL="${_DATABASE_URL#postgresql://}"
-        _DATABASE_URL="${_DATABASE_URL#postgres://}"
-        _DATABASE_URL="$(printf '%s' "${_DATABASE_URL}" | sed -E 's#^([^@]+)@(/|[^/]+/)#\1@127.0.0.1:5433/#')"
-        _DATABASE_URL="postgresql://${_DATABASE_URL}"
+        _DATABASE_URL="$${DATABASE_URL#\"}"
+        _DATABASE_URL="$${_DATABASE_URL%\"}"
+        _DATABASE_URL="$${_DATABASE_URL%%\?*}"
+        _DATABASE_URL="$${_DATABASE_URL#postgresql://}"
+        _DATABASE_URL="$${_DATABASE_URL#postgres://}"
+        _DATABASE_URL="$$(printf '%s' "$${_DATABASE_URL}" | sed -E 's#^([^@]+)@(/|[^/]+/)#\1@127.0.0.1:5433/#')"
+        _DATABASE_URL="postgresql://$${_DATABASE_URL}"
 
-        PAGER=cat psql -P pager=off --no-psqlrc -v ON_ERROR_STOP=1 "${_DATABASE_URL}" -f scripts/migrate-phase345.sql
+        PAGER=cat psql -P pager=off --no-psqlrc -v ON_ERROR_STOP=1 "$${_DATABASE_URL}" -f scripts/migrate-phase345.sql
 
   - id: verify-migration
     name: postgres:15-alpine
@@ -63,23 +63,23 @@ steps:
         wget -q https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.8.0/cloud-sql-proxy.linux.amd64 -O /tmp/cloud-sql-proxy
         chmod +x /tmp/cloud-sql-proxy
         /tmp/cloud-sql-proxy "${_DB_CONNECTION_NAME}" --port=5433 >/tmp/cloud-sql-proxy-verify.log 2>&1 &
-        PROXY_PID=$!
+        PROXY_PID=$$!
         cleanup() {
-          kill "${PROXY_PID}" >/dev/null 2>&1 || true
+          kill "$${PROXY_PID}" >/dev/null 2>&1 || true
         }
         trap cleanup EXIT
         sleep 4
 
-        _DATABASE_URL="${DATABASE_URL#\"}"
-        _DATABASE_URL="${_DATABASE_URL%\"}"
-        _DATABASE_URL="${_DATABASE_URL%%\?*}"
-        _DATABASE_URL="${_DATABASE_URL#postgresql://}"
-        _DATABASE_URL="${_DATABASE_URL#postgres://}"
-        _DATABASE_URL="$(printf '%s' "${_DATABASE_URL}" | sed -E 's#^([^@]+)@(/|[^/]+/)#\1@127.0.0.1:5433/#')"
-        _DATABASE_URL="postgresql://${_DATABASE_URL}"
+        _DATABASE_URL="$${DATABASE_URL#\"}"
+        _DATABASE_URL="$${_DATABASE_URL%\"}"
+        _DATABASE_URL="$${_DATABASE_URL%%\?*}"
+        _DATABASE_URL="$${_DATABASE_URL#postgresql://}"
+        _DATABASE_URL="$${_DATABASE_URL#postgres://}"
+        _DATABASE_URL="$$(printf '%s' "$${_DATABASE_URL}" | sed -E 's#^([^@]+)@(/|[^/]+/)#\1@127.0.0.1:5433/#')"
+        _DATABASE_URL="postgresql://$${_DATABASE_URL}"
 
-        VERIFY_RESULT="$(PAGER=cat psql -P pager=off --no-psqlrc -v ON_ERROR_STOP=1 -tA "${_DATABASE_URL}" -c "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename IN ('domain_events','agent_memory_snapshots','auto_reply_decisions','whatsapp_templates','broadcasts','automations');" | tr -d '[:space:]')"
-        test "${VERIFY_RESULT}" = "6"
+        VERIFY_RESULT="$$(PAGER=cat psql -P pager=off --no-psqlrc -v ON_ERROR_STOP=1 -tA "$${_DATABASE_URL}" -c "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename IN ('domain_events','agent_memory_snapshots','auto_reply_decisions','whatsapp_templates','broadcasts','automations');" | tr -d '[:space:]')"
+        test "$${VERIFY_RESULT}" = "6"
 
   - id: deploy-worker
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
