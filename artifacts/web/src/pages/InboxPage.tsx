@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
@@ -196,6 +197,19 @@ export default function InboxPage() {
     queryFn: () => apiFetch("sla-rules"),
     enabled: canRead,
   });
+
+  const { data: metaChannelsData } = useQuery({
+    queryKey: ["meta-channels", "inbox-banner"],
+    queryFn: async () => {
+      const res = await fetch(`${BASE}/integrations/meta/channels`, { credentials: "include" });
+      if (!res.ok) return { accounts: [] };
+      return res.json();
+    },
+    enabled: canRead,
+    staleTime: 30000,
+  });
+
+  const hasConnectedMetaChannels = (metaChannelsData?.accounts ?? []).some((channel: any) => channel.status === "active");
 
   const createSavedView = useMutation({
     mutationFn: () => apiFetch("saved-views", {
@@ -471,6 +485,17 @@ export default function InboxPage() {
             )
           }
         />
+
+        {!hasConnectedMetaChannels && (
+          <div className="mb-3 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 md:flex-row md:items-center md:justify-between">
+            <span>لا توجد قنوات متصلة بعد. اذهب إلى التكاملات لربط واتساب.</span>
+            <Link href="/integrations">
+              <span className="inline-flex w-fit rounded-lg bg-amber-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800">
+                التكاملات
+              </span>
+            </Link>
+          </div>
+        )}
 
         <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 scrollbar-none">
           {SAVED_VIEWS.map((view) => (

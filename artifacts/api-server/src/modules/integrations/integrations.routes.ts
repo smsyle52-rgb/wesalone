@@ -578,6 +578,44 @@ router.get("/meta/channels", requirePermission("integrations:read"), async (req:
   });
 });
 
+router.delete("/channels/:id", requirePermission("integrations:manage"), async (req: AuthenticatedRequest, res: Response) => {
+  const [existing] = await db
+    .select()
+    .from(channelAccountsTable)
+    .where(and(
+      eq(channelAccountsTable.workspaceId, req.sessionUser.activeWorkspaceId),
+      eq(channelAccountsTable.id, String(req.params.id)),
+    ))
+    .limit(1);
+
+  if (!existing) {
+    res.status(404).json({ error: "القناة غير موجودة" });
+    return;
+  }
+
+  const [account] = await db
+    .update(channelAccountsTable)
+    .set({ status: "disabled", updatedAt: new Date() })
+    .where(and(
+      eq(channelAccountsTable.workspaceId, req.sessionUser.activeWorkspaceId),
+      eq(channelAccountsTable.id, existing.id),
+    ))
+    .returning();
+
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "provider_account_disable",
+    severity: "info",
+    entityType: "channel_account",
+    entityId: existing.id,
+    entityLabel: existing.displayName,
+    oldData: { status: existing.status },
+    newData: { status: "disabled", channelType: existing.channelType },
+  });
+
+  res.json({ account });
+});
+
 router.post("/meta/channels", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = metaChannelSelectionSchema.safeParse(req.body);
   if (!parsed.success) {

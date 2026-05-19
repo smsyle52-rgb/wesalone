@@ -12,6 +12,7 @@ type ConnectedChannel = {
   status: string;
   hasCredentialReference: boolean;
   providerConfig?: Record<string, unknown>;
+  updatedAt?: string;
 };
 
 const manualChannels = [
@@ -106,6 +107,7 @@ export default function IntegrationsPage() {
   const [metaError, setMetaError] = useState<string | null>(null);
   const [connectedChannels, setConnectedChannels] = useState<ConnectedChannel[]>([]);
   const [isLoadingChannels, setIsLoadingChannels] = useState(true);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +141,31 @@ export default function IntegrationsPage() {
       setIsStartingMeta(false);
     }
   }
+
+  async function disconnectChannel(id: string) {
+    setDisconnectingId(id);
+    setMetaError(null);
+    try {
+      const res = await fetch(`${BASE}/integrations/channels/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "تعذر فصل القناة");
+      setConnectedChannels((current) => current.map((channel) => (
+        channel.id === id ? { ...channel, status: "disabled", updatedAt: data.account?.updatedAt ?? channel.updatedAt } : channel
+      )));
+    } catch (err) {
+      setMetaError((err as Error).message);
+    } finally {
+      setDisconnectingId(null);
+    }
+  }
+
+  const metaChannelStatuses = (["whatsapp", "instagram", "messenger"] as const).map((type) => {
+    const channel = connectedChannels.find((item) => item.channelType === type && item.status === "active");
+    return { type, channel };
+  });
 
   return (
     <div dir="rtl" className="space-y-6">
@@ -174,12 +201,50 @@ export default function IntegrationsPage() {
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+          {metaChannelStatuses.map((item) => (
+            <div key={item.type} className="rounded-xl border border-border bg-background p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-foreground">
+                  {item.type === "whatsapp" ? "WhatsApp" : item.type === "instagram" ? "Instagram" : "Messenger"}
+                </span>
+                <span className={cn(
+                  "rounded-full border px-2.5 py-1 text-xs font-medium",
+                  item.channel ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600",
+                )}>
+                  {item.channel ? "متصل" : "غير متصل"}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {item.channel?.displayName ?? "لم يتم ربط قناة بعد"}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
           {isLoadingChannels ? (
             <div className="rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground">
               جار تحميل القنوات المرتبطة...
             </div>
           ) : connectedChannels.length > 0 ? (
-            connectedChannels.map((channel) => <ConnectedChannelCard key={channel.id} channel={channel} />)
+            connectedChannels.map((channel) => (
+              <div key={channel.id} className="space-y-2">
+                <ConnectedChannelCard channel={channel} />
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-3">
+                  <span className="text-xs text-muted-foreground">
+                    آخر نشاط: {channel.updatedAt ? new Date(channel.updatedAt).toLocaleString("ar-YE") : "غير متاح"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => disconnectChannel(channel.id)}
+                    disabled={disconnectingId === channel.id || channel.status === "disabled"}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted disabled:opacity-50"
+                  >
+                    فصل
+                  </button>
+                </div>
+              </div>
+            ))
           ) : (
             <div className="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-muted-foreground md:col-span-3">
               لا توجد قنوات Meta مرتبطة بعد. أكمل الربط الرسمي ثم اختر القنوات التي تريد تشغيلها.
