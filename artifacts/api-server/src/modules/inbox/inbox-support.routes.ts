@@ -15,7 +15,7 @@ import { subscribeWorkspaceEvents, type WorkspaceRealtimeEvent } from "../../lib
 import type { AuthenticatedRequest } from "../../lib/types";
 
 const router = Router();
-router.use(requireSession);
+router.use(["/inbox", "/quick-replies", "/saved-views", "/sla-rules", "/business-hours"], requireSession);
 
 const quickReplySchema = z.object({
   shortcut: z.string().min(1).max(40).transform((value) => value.startsWith("/") ? value : `/${value}`),

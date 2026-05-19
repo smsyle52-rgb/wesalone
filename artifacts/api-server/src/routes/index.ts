@@ -1,4 +1,4 @@
-import express, { Router, type IRouter } from "express";
+import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import authRouter from "../modules/auth/auth.routes";
 import workspaceRouter from "../modules/workspace/workspace.routes";
@@ -23,7 +23,6 @@ import approvalsRouter from "../modules/approvals/approvals.routes";
 import analyticsRouter from "../modules/analytics/analytics.routes";
 import reportsRouter from "../modules/reports/reports.routes";
 import integrationsRouter from "../modules/integrations/integrations.routes";
-import webhooksRouter from "../modules/integrations/webhooks.routes";
 import templatesRouter from "../modules/templates/templates.routes";
 import broadcastsRouter from "../modules/broadcasts/broadcasts.routes";
 import automationsRouter from "../modules/automations/automations.routes";
@@ -61,6 +60,5 @@ router.use("/automations", automationsRouter);
 router.use(inboxSupportRouter);
 router.use("/integrations/outbox", idempotencyMiddleware);
 router.use("/integrations", integrationsRouter);
-router.use("/webhooks", express.raw({ type: "application/json", limit: "2mb" }), webhooksRouter);
 
 export default router;
