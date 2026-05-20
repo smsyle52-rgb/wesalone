@@ -7,7 +7,7 @@ import {
   aiUsageTable, aiFeedbackTable, aiSafetyEventsTable, approvalRequestsTable,
   autoReplyDecisionsTable, outboxEventsTable, messagesTable, contactsTable, contactChannelsTable,
   conversationsTable, knowledgeChunksTable, faqEntriesTable, knowledgeDocumentsTable,
-  channelAccountsTable,
+  channelAccountsTable, adCampaignsTable, socialPostsTable, productsTable,
 } from "@workspace/db";
 import { eq, and, desc, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { requireSession } from "../../middlewares/requireSession";
@@ -152,6 +152,49 @@ type KnowledgeAiSource = {
   content: string;
   score?: number;
 };
+
+async function loadCatalogAgentContext(workspaceId: string): Promise<{ context: string; sources: string[] }> {
+  const [ads, posts, products] = await Promise.all([
+    db.select().from(adCampaignsTable)
+      .where(and(eq(adCampaignsTable.workspaceId, workspaceId), eq(adCampaignsTable.status, "ACTIVE")))
+      .orderBy(desc(adCampaignsTable.syncedAt))
+      .limit(5),
+    db.select().from(socialPostsTable)
+      .where(and(
+        eq(socialPostsTable.workspaceId, workspaceId),
+        gte(socialPostsTable.publishedAt, new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)),
+      ))
+      .orderBy(desc(socialPostsTable.publishedAt))
+      .limit(5),
+    db.select({
+      externalProductId: productsTable.externalProductId,
+      name: productsTable.name,
+    }).from(productsTable)
+      .where(and(eq(productsTable.workspaceId, workspaceId), eq(productsTable.isVisible, true)))
+      .limit(100),
+  ]);
+
+  const productNames = new Map(products.map((product) => [product.externalProductId, product.name]));
+  const adLines = ads.map((ad) => {
+    const promotedIds = Array.isArray(ad.promotedProductIds) ? ad.promotedProductIds : [];
+    const names = promotedIds.map((id) => productNames.get(id) ?? id).filter(Boolean);
+    return `${ad.name} — يروّج لمنتجات: ${names.join(", ") || "غير محدد"}`;
+  });
+  const postLines = posts.map((post) => {
+    const summary = (post.message ?? "").replace(/\s+/g, " ").slice(0, 220);
+    return summary || post.permalinkUrl || post.externalPostId;
+  });
+
+  const blocks = [
+    adLines.length > 0 ? `إعلانات نشطة حالياً:\n${adLines.map((line) => `- ${line}`).join("\n")}` : "",
+    postLines.length > 0 ? `آخر منشورات:\n${postLines.map((line) => `- ${line}`).join("\n")}` : "",
+  ].filter(Boolean);
+
+  return {
+    context: blocks.length > 0 ? `\n\nسياق المتجر من ميتا:\n${blocks.join("\n")}` : "",
+    sources: [...adLines.map((line) => `إعلان نشط: ${line}`), ...postLines.map((line) => `منشور حديث: ${line}`)],
+  };
+}
 
 function knowledgeSearchWords(query: string): string[] {
   return query
@@ -1207,6 +1250,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
     return true;
   }).slice(0, 5);
   const knowledgeSources = uniqueSources.map((source) => `${source.title}\n${source.content}`);
+  const catalogContext = await loadCatalogAgentContext(activeWorkspaceId);
 
   const knowledgeContext = knowledgeSources.length > 0
     ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item}`).join("\n")}`
@@ -1215,7 +1259,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة أو التجربة.${instructions ? `\nتعليمات إضافية: ${instructions}` : ""}
 
 المحادثة:
-${transcript}${knowledgeContext}
+${transcript}${knowledgeContext}${catalogContext.context}
 
 المطلوب: مسودة رد احترافي ومناسب باللغة العربية. لا ترسل تلقائياً — هذه مسودة فقط للمراجعة.`;
 
@@ -1235,7 +1279,7 @@ ${transcript}${knowledgeContext}
       ...memoryContext.recentTurns.map((turn) => ({ role: turn.role, content: turn.content })),
       { role: "user", content: userPrompt },
     ] : undefined,
-    knowledgeSources,
+    knowledgeSources: [...knowledgeSources, ...catalogContext.sources],
   });
 
   if (conversationId) {
@@ -1337,8 +1381,8 @@ ${transcript}${knowledgeContext}
     trustDecision,
     autoReplyOutboxEventId,
     sources: uniqueSources.length > 0 ? uniqueSources : null,
-    knowledgeSources: knowledgeSources.length > 0 ? knowledgeSources : null,
-    knowledgeSourcesSummary: knowledgeSources.length > 0 ? `تم استخدام ${knowledgeSources.length} مصدر من قاعدة المعرفة` : null,
+    knowledgeSources: [...knowledgeSources, ...catalogContext.sources].length > 0 ? [...knowledgeSources, ...catalogContext.sources] : null,
+    knowledgeSourcesSummary: [...knowledgeSources, ...catalogContext.sources].length > 0 ? `تم استخدام ${[...knowledgeSources, ...catalogContext.sources].length} مصدر من قاعدة المعرفة والسياق التجاري` : null,
     provider: result.provider,
     warning: "هذه مسودة فقط — لن يتم إرسالها تلقائياً",
   });
