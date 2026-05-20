@@ -8,7 +8,8 @@ type DomainEventType =
   | "conversation.opened"
   | "contact.tag.added"
   | "order.created"
-  | "payment.confirmed";
+  | "payment.confirmed"
+  | "catalog.sync.requested";
 
 export type WorkspaceRealtimeEvent = {
   type: string;

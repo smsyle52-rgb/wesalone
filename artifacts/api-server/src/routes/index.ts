@@ -26,6 +26,7 @@ import integrationsRouter from "../modules/integrations/integrations.routes";
 import templatesRouter from "../modules/templates/templates.routes";
 import broadcastsRouter from "../modules/broadcasts/broadcasts.routes";
 import automationsRouter from "../modules/automations/automations.routes";
+import catalogRouter from "../modules/catalog/catalog.routes";
 import inboxSupportRouter from "../modules/inbox/inbox-support.routes";
 import { idempotencyMiddleware } from "../middleware/idempotency";
 
@@ -57,6 +58,7 @@ router.use("/reports", reportsRouter);
 router.use("/templates", templatesRouter);
 router.use("/broadcasts", broadcastsRouter);
 router.use("/automations", automationsRouter);
+router.use("/catalog", catalogRouter);
 router.use(inboxSupportRouter);
 router.use("/integrations/outbox", idempotencyMiddleware);
 router.use("/integrations", integrationsRouter);

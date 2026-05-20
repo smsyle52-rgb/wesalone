@@ -3,6 +3,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pool } from "@workspace/db";
 import pino from "pino";
 import { pollAutomationEngine } from "./automation-engine";
+import { pollCatalogSync } from "./catalog-sync";
 
 type OutboxEventRow = {
   id: string;
@@ -22,6 +23,7 @@ const port = Number(process.env.PORT ?? "8080");
 let shuttingDown = false;
 let polling = false;
 let automationPolling = false;
+let catalogPolling = false;
 const processedTimestamps: number[] = [];
 
 function markProcessed(): void {
@@ -383,6 +385,19 @@ async function pollAutomationOnce(): Promise<void> {
   }
 }
 
+async function pollCatalogOnce(): Promise<void> {
+  if (catalogPolling || shuttingDown) return;
+  catalogPolling = true;
+  try {
+    const processed = await pollCatalogSync(logger);
+    for (let i = 0; i < processed; i++) markProcessed();
+  } catch (err) {
+    logger.error({ err }, "Catalog sync poll failed");
+  } finally {
+    catalogPolling = false;
+  }
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === "/healthz" || req.url === "/") {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -410,8 +425,13 @@ const heartbeatInterval = setInterval(() => {
   void writeHeartbeat().catch((err) => logger.warn({ err }, "Outbox worker heartbeat failed"));
 }, 15_000);
 
+const catalogInterval = setInterval(() => {
+  void pollCatalogOnce();
+}, 30_000);
+
 void pollOnce();
 void pollAutomationOnce();
+void pollCatalogOnce();
 void writeHeartbeat().catch((err) => logger.warn({ err }, "Initial outbox worker heartbeat failed"));
 
 async function shutdown(signal: string): Promise<void> {
@@ -421,6 +441,7 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(interval);
   clearInterval(automationInterval);
   clearInterval(heartbeatInterval);
+  clearInterval(catalogInterval);
 
   const shutdownDeadline = delay(9_000).then(() => "timeout" as const);
   const closeServer = new Promise<"closed">((resolve) => {

@@ -97,6 +97,7 @@ async function claimDomainEvents(): Promise<DomainEventRow[]> {
         FROM domain_events
         WHERE status = 'pending'
           AND next_attempt_at <= now()
+          AND event_type <> 'catalog.sync.requested'
         ORDER BY created_at ASC
         FOR UPDATE SKIP LOCKED
         LIMIT $1
