@@ -684,12 +684,10 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
   const { options, tokenRefs } = currentMetaSession(req);
   const created: Array<typeof channelAccountsTable.$inferSelect> = [];
   const connectedAt = new Date().toISOString();
-  const createdWhatsappPhones = new Set<string>();
 
   for (const account of options.whatsapp_accounts) {
     for (const phone of account.phone_numbers) {
       if (!parsed.data.whatsapp_phone_ids.includes(phone.phone_number_id)) continue;
-      createdWhatsappPhones.add(phone.phone_number_id);
       const channel = await upsertMetaChannelAccount({
         req,
         channelType: "whatsapp",
@@ -716,30 +714,33 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
     }
   }
 
-  if (parsed.data.waba_id) {
-    for (const phoneNumberId of parsed.data.whatsapp_phone_ids) {
-      if (createdWhatsappPhones.has(phoneNumberId)) continue;
-      const channel = await upsertMetaChannelAccount({
-        req,
-        channelType: "whatsapp",
-        name: phoneNumberId,
-        displayName: phoneNumberId,
-        providerConfig: {
-          provider: "meta",
-          waba_id: parsed.data.waba_id,
-          phone_number_id: phoneNumberId,
-          wabaId: parsed.data.waba_id,
-          phoneNumberId,
-          embeddedSignup: true,
-          connectedAt,
-        },
-        lookupKey: "phone_number_id",
-        lookupValue: phoneNumberId,
-        credentialsSecretRef: encryptedTokenRef(parsed.data.access_token) ?? tokenRefs.userTokenRef ?? process.env.META_ACCESS_TOKEN_SECRET_REF ?? null,
-      });
-      created.push(channel);
-      createdWhatsappPhones.add(phoneNumberId);
-    }
+  const handledPhoneIds = new Set(created.map((account) => {
+    const config = (account.providerConfig ?? {}) as Record<string, unknown>;
+    return String(config.phone_number_id ?? config.phoneNumberId ?? "");
+  }).filter(Boolean));
+
+  for (const phoneNumberId of parsed.data.whatsapp_phone_ids) {
+    if (handledPhoneIds.has(phoneNumberId)) continue;
+    const wabaId = parsed.data.waba_id ?? "";
+    const tokenRef = tokenRefs.userTokenRef ?? encryptedTokenRef(parsed.data.access_token ?? null);
+    const channel = await upsertMetaChannelAccount({
+      req,
+      channelType: "whatsapp",
+      name: phoneNumberId,
+      displayName: phoneNumberId,
+      providerConfig: {
+        phone_number_id: phoneNumberId,
+        waba_id: wabaId,
+        provider: "meta",
+        phoneNumberId,
+        wabaId,
+      },
+      lookupKey: "phone_number_id",
+      lookupValue: phoneNumberId,
+      credentialsSecretRef: tokenRef ?? null,
+    });
+    created.push(channel);
+    handledPhoneIds.add(phoneNumberId);
   }
 
   for (const account of options.instagram_accounts) {
