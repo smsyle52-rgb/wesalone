@@ -2,7 +2,7 @@ import { Router, type Response } from "express";
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
-import { channelAccountsTable, db } from "@workspace/db";
+import { catalogSourcesTable, channelAccountsTable, db } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
@@ -84,6 +84,16 @@ type MetaChannelOptions = {
     username: string;
     linked_page_id: string;
   }>;
+  commerce_catalogs: Array<{
+    catalog_id: string;
+    name: string;
+    business_id?: string;
+  }>;
+  ad_accounts: Array<{
+    ad_account_id: string;
+    name: string;
+    business_id?: string;
+  }>;
 };
 
 type MetaTokenRefs = {
@@ -114,6 +124,8 @@ function sanitizeMetaOptions(options: MetaChannelOptions): MetaChannelOptions {
     whatsapp_accounts: options.whatsapp_accounts,
     facebook_pages: options.facebook_pages.map((page) => ({ page_id: page.page_id, name: page.name })),
     instagram_accounts: options.instagram_accounts,
+    commerce_catalogs: options.commerce_catalogs,
+    ad_accounts: options.ad_accounts,
   };
 }
 
@@ -147,6 +159,8 @@ function fallbackMetaOptions(): { options: MetaChannelOptions; tokenRefs: MetaTo
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID ?? "";
   const facebookPageId = process.env.META_FACEBOOK_PAGE_ID ?? "";
   const instagramBusinessId = process.env.META_INSTAGRAM_BUSINESS_ID ?? "";
+  const catalogId = process.env.META_CATALOG_ID ?? "";
+  const adAccountId = process.env.META_AD_ACCOUNT_ID ?? "";
 
   return {
     options: {
@@ -165,6 +179,8 @@ function fallbackMetaOptions(): { options: MetaChannelOptions; tokenRefs: MetaTo
         username: process.env.META_INSTAGRAM_USERNAME ?? "instagram",
         linked_page_id: facebookPageId,
       }] : [],
+      commerce_catalogs: catalogId ? [{ catalog_id: catalogId, name: "Meta Catalog" }] : [],
+      ad_accounts: adAccountId ? [{ ad_account_id: adAccountId, name: "Meta Ad Account" }] : [],
     },
     tokenRefs: {
       userTokenRef: process.env.META_ACCESS_TOKEN_SECRET_REF ?? undefined,
@@ -177,12 +193,15 @@ function fallbackMetaOptions(): { options: MetaChannelOptions; tokenRefs: MetaTo
 
 async function fetchMetaChannelOptions(userToken: string): Promise<{ options: MetaChannelOptions; tokenRefs: MetaTokenRefs }> {
   const [businesses, pages] = await Promise.all([
-    callMetaGraph("me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name}}", userToken),
+    callMetaGraph("me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name}},owned_product_catalogs{id,name},owned_ad_accounts{id,name,account_id}", userToken),
     callMetaGraph("me/accounts?fields=id,name,access_token,instagram_business_account{id,username}", userToken),
   ]);
 
   const whatsappAccounts: MetaChannelOptions["whatsapp_accounts"] = [];
+  const commerceCatalogs: MetaChannelOptions["commerce_catalogs"] = [];
+  const adAccounts: MetaChannelOptions["ad_accounts"] = [];
   for (const business of businesses?.data ?? []) {
+    const businessId = String(business.id ?? "");
     for (const waba of business?.owned_whatsapp_business_accounts?.data ?? []) {
       whatsappAccounts.push({
         waba_id: String(waba.id),
@@ -192,6 +211,20 @@ async function fetchMetaChannelOptions(userToken: string): Promise<{ options: Me
           display_number: String(phone.display_phone_number ?? ""),
           verified_name: phone.verified_name ? String(phone.verified_name) : undefined,
         })),
+      });
+    }
+    for (const catalog of business?.owned_product_catalogs?.data ?? []) {
+      commerceCatalogs.push({
+        catalog_id: String(catalog.id),
+        name: String(catalog.name ?? "Meta Catalog"),
+        business_id: businessId,
+      });
+    }
+    for (const account of business?.owned_ad_accounts?.data ?? []) {
+      adAccounts.push({
+        ad_account_id: String(account.id ?? account.account_id),
+        name: String(account.name ?? "Meta Ad Account"),
+        business_id: businessId,
       });
     }
   }
@@ -219,6 +252,8 @@ async function fetchMetaChannelOptions(userToken: string): Promise<{ options: Me
       whatsapp_accounts: whatsappAccounts,
       facebook_pages: facebookPages,
       instagram_accounts: instagramAccounts,
+      commerce_catalogs: commerceCatalogs,
+      ad_accounts: adAccounts,
     },
     tokenRefs: {
       userTokenRef: encryptedTokenRef(userToken) ?? undefined,
@@ -231,6 +266,8 @@ const metaChannelSelectionSchema = z.object({
   whatsapp_phone_ids: z.array(z.string()).default([]),
   instagram_account_ids: z.array(z.string()).default([]),
   page_ids: z.array(z.string()).default([]),
+  catalog_ids: z.array(z.string()).default([]),
+  ad_account_ids: z.array(z.string()).default([]),
   waba_id: z.string().optional(),
   access_token: z.string().optional(),
 });
@@ -303,13 +340,16 @@ async function upsertMetaChannelAccount(params: {
 }
 
 async function listPersistedMetaChannelOptions(workspaceId: string): Promise<MetaChannelOptions> {
-  const accounts = await db
+  const [accounts, sources] = await Promise.all([
+    db
     .select()
     .from(channelAccountsTable)
     .where(and(
       eq(channelAccountsTable.workspaceId, workspaceId),
       sql`${channelAccountsTable.channelType} in ('whatsapp', 'instagram', 'messenger')`,
-    ));
+    )),
+    db.select().from(catalogSourcesTable).where(eq(catalogSourcesTable.workspaceId, workspaceId)),
+  ]);
 
   const whatsappByWaba = new Map<string, MetaChannelOptions["whatsapp_accounts"][number]>();
   const facebookPages: MetaChannelOptions["facebook_pages"] = [];
@@ -351,6 +391,12 @@ async function listPersistedMetaChannelOptions(workspaceId: string): Promise<Met
     whatsapp_accounts: [...whatsappByWaba.values()],
     facebook_pages: facebookPages,
     instagram_accounts: instagramAccounts,
+    commerce_catalogs: sources
+      .filter((source) => source.sourceType === "commerce_catalog")
+      .map((source) => ({ catalog_id: source.externalId, name: source.name, business_id: typeof source.config.business_id === "string" ? source.config.business_id : undefined })),
+    ad_accounts: sources
+      .filter((source) => source.sourceType === "ads")
+      .map((source) => ({ ad_account_id: source.externalId, name: source.name, business_id: typeof source.config.business_id === "string" ? source.config.business_id : undefined })),
   };
 }
 
@@ -553,6 +599,9 @@ router.get("/meta/embedded-signup/start", requirePermission("integrations:update
     "pages_messaging",
     "pages_manage_metadata",
     "pages_show_list",
+    "catalog_management",
+    "business_management",
+    "ads_read",
   ];
   const url = new URL(`https://www.facebook.com/${process.env.META_GRAPH_VERSION ?? "v21.0"}/dialog/oauth`);
   url.searchParams.set("client_id", appId);
@@ -561,7 +610,7 @@ router.get("/meta/embedded-signup/start", requirePermission("integrations:update
   url.searchParams.set("scope", scopes.join(","));
   url.searchParams.set("response_type", "code");
 
-  res.json({ url: url.toString(), state, redirectUri, scopes, channels: ["whatsapp", "instagram", "messenger"] });
+  res.json({ url: url.toString(), state, redirectUri, scopes, channels: ["whatsapp", "instagram", "messenger", "commerce_catalog", "ads"] });
 });
 
 router.get("/meta/embedded-signup/callback", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
@@ -608,7 +657,10 @@ router.get("/meta/embedded-signup/callback", requirePermission("integrations:upd
 });
 
 router.get("/meta/channels/options", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
-  const options = await listPersistedMetaChannelOptions(req.sessionUser.activeWorkspaceId);
+  const stored = (req.session as any).metaChannelOptions;
+  const options = stored?.workspaceId === req.sessionUser.activeWorkspaceId && Date.now() - stored.createdAt < 30 * 60_000
+    ? stored.options as MetaChannelOptions
+    : await listPersistedMetaChannelOptions(req.sessionUser.activeWorkspaceId);
   res.json({ options: sanitizeMetaOptions(options) });
 });
 
@@ -683,6 +735,7 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
 
   const { options, tokenRefs } = currentMetaSession(req);
   const created: Array<typeof channelAccountsTable.$inferSelect> = [];
+  const createdSources: Array<typeof catalogSourcesTable.$inferSelect> = [];
   const connectedAt = new Date().toISOString();
 
   for (const account of options.whatsapp_accounts) {
@@ -786,6 +839,56 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
     created.push(channel);
   }
 
+  for (const catalog of options.commerce_catalogs) {
+    if (!parsed.data.catalog_ids.includes(catalog.catalog_id)) continue;
+    const [source] = await db.insert(catalogSourcesTable).values({
+      workspaceId: req.sessionUser.activeWorkspaceId,
+      sourceType: "commerce_catalog",
+      externalId: catalog.catalog_id,
+      name: catalog.name || catalog.catalog_id,
+      status: "active",
+      config: { provider: "meta", business_id: catalog.business_id ?? null, connectedAt },
+    }).onConflictDoUpdate({
+      target: [catalogSourcesTable.workspaceId, catalogSourcesTable.sourceType, catalogSourcesTable.externalId],
+      set: { name: catalog.name || catalog.catalog_id, status: "active", updatedAt: new Date() },
+    }).returning();
+    createdSources.push(source);
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "catalog_source_create",
+      severity: "info",
+      entityType: "catalog_source",
+      entityId: source.id,
+      entityLabel: source.name,
+      newData: { sourceType: source.sourceType, externalId: source.externalId, provider: "meta" },
+    });
+  }
+
+  for (const account of options.ad_accounts) {
+    if (!parsed.data.ad_account_ids.includes(account.ad_account_id)) continue;
+    const [source] = await db.insert(catalogSourcesTable).values({
+      workspaceId: req.sessionUser.activeWorkspaceId,
+      sourceType: "ads",
+      externalId: account.ad_account_id,
+      name: account.name || account.ad_account_id,
+      status: "active",
+      config: { provider: "meta", business_id: account.business_id ?? null, connectedAt },
+    }).onConflictDoUpdate({
+      target: [catalogSourcesTable.workspaceId, catalogSourcesTable.sourceType, catalogSourcesTable.externalId],
+      set: { name: account.name || account.ad_account_id, status: "active", updatedAt: new Date() },
+    }).returning();
+    createdSources.push(source);
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "catalog_source_create",
+      severity: "info",
+      entityType: "catalog_source",
+      entityId: source.id,
+      entityLabel: source.name,
+      newData: { sourceType: source.sourceType, externalId: source.externalId, provider: "meta" },
+    });
+  }
+
   res.status(201).json({
     accounts: created.map((account) => ({
       id: account.id,
@@ -794,6 +897,14 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       name: account.name,
       displayName: account.displayName,
       status: account.status,
+    })),
+    sources: createdSources.map((source) => ({
+      id: source.id,
+      source_type: source.sourceType,
+      sourceType: source.sourceType,
+      name: source.name,
+      status: source.status,
+      syncStatus: source.syncStatus,
     })),
   });
 });

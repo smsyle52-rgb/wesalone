@@ -16,6 +16,8 @@ type MetaOptions = {
   }>;
   facebook_pages: Array<{ page_id: string; name: string }>;
   instagram_accounts: Array<{ ig_account_id: string; username: string; linked_page_id: string }>;
+  commerce_catalogs: Array<{ catalog_id: string; name: string; business_id?: string }>;
+  ad_accounts: Array<{ ad_account_id: string; name: string; business_id?: string }>;
 };
 
 function toggle(list: string[], value: string) {
@@ -31,6 +33,8 @@ export default function MetaConnectChannelsPage() {
   const [whatsappPhoneIds, setWhatsappPhoneIds] = useState<string[]>([]);
   const [instagramAccountIds, setInstagramAccountIds] = useState<string[]>([]);
   const [pageIds, setPageIds] = useState<string[]>([]);
+  const [catalogIds, setCatalogIds] = useState<string[]>([]);
+  const [adAccountIds, setAdAccountIds] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,7 +62,9 @@ export default function MetaConnectChannelsPage() {
     if (!options) return false;
     return options.whatsapp_accounts.some((account) => account.phone_numbers.length > 0) ||
       options.instagram_accounts.length > 0 ||
-      options.facebook_pages.length > 0;
+      options.facebook_pages.length > 0 ||
+      options.commerce_catalogs.length > 0 ||
+      options.ad_accounts.length > 0;
   }, [options]);
 
   async function saveSelection() {
@@ -73,6 +79,8 @@ export default function MetaConnectChannelsPage() {
           whatsapp_phone_ids: whatsappPhoneIds,
           instagram_account_ids: instagramAccountIds,
           page_ids: pageIds,
+          catalog_ids: catalogIds,
+          ad_account_ids: adAccountIds,
         }),
       });
       const data = await res.json();
@@ -173,6 +181,44 @@ export default function MetaConnectChannelsPage() {
                     type="checkbox"
                     checked={pageIds.includes(page.page_id)}
                     onChange={() => setPageIds((current) => toggle(current, page.page_id))}
+                  />
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-base font-semibold text-foreground">كتالوجات ميتا</h2>
+            <div className="mt-4 space-y-3">
+              {options.commerce_catalogs.map((catalog) => (
+                <label key={catalog.catalog_id} className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
+                  <span>
+                    <span className="block text-sm font-semibold text-foreground">{catalog.name}</span>
+                    <span className="text-xs text-muted-foreground">{catalog.catalog_id}</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={catalogIds.includes(catalog.catalog_id)}
+                    onChange={() => setCatalogIds((current) => toggle(current, catalog.catalog_id))}
+                  />
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-base font-semibold text-foreground">حسابات الإعلانات</h2>
+            <div className="mt-4 space-y-3">
+              {options.ad_accounts.map((account) => (
+                <label key={account.ad_account_id} className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
+                  <span>
+                    <span className="block text-sm font-semibold text-foreground">{account.name}</span>
+                    <span className="text-xs text-muted-foreground">{account.ad_account_id}</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={adAccountIds.includes(account.ad_account_id)}
+                    onChange={() => setAdAccountIds((current) => toggle(current, account.ad_account_id))}
                   />
                 </label>
               ))}
