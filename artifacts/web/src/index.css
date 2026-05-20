@@ -74,7 +74,7 @@
   --sidebar-accent-foreground: 220 20% 95%;
   --sidebar-border: 222 40% 18%;
   --radius: 0.5rem;
-  --app-font-sans: 'Cairo', sans-serif;
+  --app-font-sans: 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
 }
 
 .dark {
@@ -129,3 +129,105 @@
 .badge-draft { @apply bg-gray-100 text-gray-600; }
 .badge-won { @apply bg-emerald-100 text-emerald-700; }
 .badge-lost { @apply bg-red-100 text-red-600; }
+
+@layer utilities {
+  .wesal-container {
+    inline-size: min(100% - 2rem, 1180px);
+    margin-inline: auto;
+  }
+
+  .wesal-reveal {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0);
+    transition:
+      opacity 700ms cubic-bezier(.2, .8, .2, 1),
+      transform 700ms cubic-bezier(.2, .8, .2, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: opacity, transform;
+  }
+
+  .wesal-reveal.is-visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .wesal-hero-mesh {
+    background:
+      radial-gradient(circle at 82% 18%, rgba(31, 182, 166, .18), transparent 32%),
+      radial-gradient(circle at 12% 35%, rgba(27, 58, 92, .12), transparent 34%),
+      linear-gradient(135deg, #FAFBFC 0%, #F1F7F8 48%, #FAFBFC 100%);
+    background-size: 140% 140%;
+    animation: wesal-mesh 16s ease-in-out infinite alternate;
+  }
+
+  .wesal-float {
+    animation: wesal-float 6s ease-in-out infinite;
+  }
+
+  .wesal-type {
+    inline-size: 0;
+    max-inline-size: fit-content;
+    overflow: hidden;
+    white-space: nowrap;
+    border-inline-start: 2px solid #1FB6A6;
+    animation:
+      wesal-type 3.4s steps(44, end) 900ms forwards,
+      wesal-caret 900ms steps(1, end) infinite;
+  }
+
+  .wesal-line-pulse::after {
+    content: "";
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: 0;
+    block-size: 2px;
+    inline-size: 100%;
+    transform: translateY(-50%) scaleX(0);
+    transform-origin: right;
+    background: linear-gradient(90deg, transparent, #1FB6A6, transparent);
+    animation: wesal-line 3.8s ease-in-out infinite;
+  }
+}
+
+@keyframes wesal-mesh {
+  from { background-position: 0% 35%; }
+  to { background-position: 100% 65%; }
+}
+
+@keyframes wesal-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -12px, 0); }
+}
+
+@keyframes wesal-type {
+  to { inline-size: 100%; }
+}
+
+@keyframes wesal-caret {
+  50% { border-color: transparent; }
+}
+
+@keyframes wesal-line {
+  0%, 20% { transform: translateY(-50%) scaleX(0); opacity: 0; }
+  45%, 70% { transform: translateY(-50%) scaleX(1); opacity: 1; }
+  100% { transform: translateY(-50%) scaleX(1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+
+  .wesal-reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  .wesal-type {
+    inline-size: 100%;
+    border-inline-start: 0;
+  }
+}

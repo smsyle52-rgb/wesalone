@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Layout from "@/components/Layout";
 import i18n from "@/i18n";
+import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -133,7 +134,7 @@ function Router() {
       )} />
       <Route path="/automations" component={() => <ProtectedRoute component={AutomationsPage} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
-      <Route path="/" component={() => <Redirect to="/dashboard" />} />
+      <Route path="/" component={() => <PublicRoute component={LandingPage} />} />
       <Route component={NotFound} />
     </Switch>
   );
