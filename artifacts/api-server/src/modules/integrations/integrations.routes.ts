@@ -231,6 +231,8 @@ const metaChannelSelectionSchema = z.object({
   whatsapp_phone_ids: z.array(z.string()).default([]),
   instagram_account_ids: z.array(z.string()).default([]),
   page_ids: z.array(z.string()).default([]),
+  waba_id: z.string().optional(),
+  access_token: z.string().optional(),
 });
 
 function currentMetaSession(req: AuthenticatedRequest): { options: MetaChannelOptions; tokenRefs: MetaTokenRefs } {
@@ -251,13 +253,17 @@ async function upsertMetaChannelAccount(params: {
   lookupValue: string;
   credentialsSecretRef: string | null;
 }) {
+  const lookupCondition = params.lookupKey === "phone_number_id"
+    ? sql`(${channelAccountsTable.providerConfig}->>'phone_number_id' = ${params.lookupValue} OR ${channelAccountsTable.providerConfig}->>'phoneNumberId' = ${params.lookupValue})`
+    : sql`${channelAccountsTable.providerConfig}->>${params.lookupKey} = ${params.lookupValue}`;
+
   const [existing] = await db
     .select()
     .from(channelAccountsTable)
     .where(and(
       eq(channelAccountsTable.workspaceId, params.req.sessionUser.activeWorkspaceId),
       eq(channelAccountsTable.channelType, params.channelType),
-      sql`${channelAccountsTable.providerConfig}->>${params.lookupKey} = ${params.lookupValue}`,
+      lookupCondition,
     ))
     .limit(1);
 
@@ -294,6 +300,58 @@ async function upsertMetaChannelAccount(params: {
   });
 
   return account;
+}
+
+async function listPersistedMetaChannelOptions(workspaceId: string): Promise<MetaChannelOptions> {
+  const accounts = await db
+    .select()
+    .from(channelAccountsTable)
+    .where(and(
+      eq(channelAccountsTable.workspaceId, workspaceId),
+      sql`${channelAccountsTable.channelType} in ('whatsapp', 'instagram', 'messenger')`,
+    ));
+
+  const whatsappByWaba = new Map<string, MetaChannelOptions["whatsapp_accounts"][number]>();
+  const facebookPages: MetaChannelOptions["facebook_pages"] = [];
+  const instagramAccounts: MetaChannelOptions["instagram_accounts"] = [];
+
+  for (const account of accounts) {
+    const config = (account.providerConfig ?? {}) as Record<string, unknown>;
+    if (account.channelType === "whatsapp") {
+      const phoneNumberId = String(config.phone_number_id ?? config.phoneNumberId ?? "");
+      if (!phoneNumberId) continue;
+      const wabaId = String(config.waba_id ?? config.wabaId ?? "");
+      const key = wabaId || account.id;
+      if (!whatsappByWaba.has(key)) {
+        whatsappByWaba.set(key, { waba_id: wabaId, name: account.displayName, phone_numbers: [] });
+      }
+      whatsappByWaba.get(key)!.phone_numbers.push({
+        phone_number_id: phoneNumberId,
+        display_number: String(config.display_number ?? config.displayPhoneNumber ?? phoneNumberId),
+        verified_name: typeof config.verified_name === "string" ? config.verified_name : typeof config.verifiedName === "string" ? config.verifiedName : undefined,
+      });
+    }
+    if (account.channelType === "messenger") {
+      const pageId = String(config.page_id ?? config.pageId ?? "");
+      if (pageId) facebookPages.push({ page_id: pageId, name: account.displayName });
+    }
+    if (account.channelType === "instagram") {
+      const igAccountId = String(config.ig_account_id ?? config.igAccountId ?? "");
+      if (igAccountId) {
+        instagramAccounts.push({
+          ig_account_id: igAccountId,
+          username: String(config.username ?? account.displayName),
+          linked_page_id: String(config.linked_page_id ?? config.pageId ?? ""),
+        });
+      }
+    }
+  }
+
+  return {
+    whatsapp_accounts: [...whatsappByWaba.values()],
+    facebook_pages: facebookPages,
+    instagram_accounts: instagramAccounts,
+  };
 }
 
 router.get("/provider-accounts", requirePermission("integrations:read"), async (req: AuthenticatedRequest, res: Response) => {
@@ -550,7 +608,7 @@ router.get("/meta/embedded-signup/callback", requirePermission("integrations:upd
 });
 
 router.get("/meta/channels/options", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
-  const { options } = currentMetaSession(req);
+  const options = await listPersistedMetaChannelOptions(req.sessionUser.activeWorkspaceId);
   res.json({ options: sanitizeMetaOptions(options) });
 });
 
@@ -626,10 +684,12 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
   const { options, tokenRefs } = currentMetaSession(req);
   const created: Array<typeof channelAccountsTable.$inferSelect> = [];
   const connectedAt = new Date().toISOString();
+  const createdWhatsappPhones = new Set<string>();
 
   for (const account of options.whatsapp_accounts) {
     for (const phone of account.phone_numbers) {
       if (!parsed.data.whatsapp_phone_ids.includes(phone.phone_number_id)) continue;
+      createdWhatsappPhones.add(phone.phone_number_id);
       const channel = await upsertMetaChannelAccount({
         req,
         channelType: "whatsapp",
@@ -637,6 +697,10 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
         displayName: phone.display_number ? `WhatsApp ${phone.display_number}` : `WhatsApp ${phone.phone_number_id}`,
         providerConfig: {
           provider: "meta",
+          waba_id: account.waba_id,
+          phone_number_id: phone.phone_number_id,
+          display_number: phone.display_number,
+          verified_name: phone.verified_name,
           wabaId: account.waba_id,
           phoneNumberId: phone.phone_number_id,
           displayPhoneNumber: phone.display_number,
@@ -649,6 +713,32 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
         credentialsSecretRef: tokenRefs.userTokenRef ?? process.env.META_ACCESS_TOKEN_SECRET_REF ?? null,
       });
       created.push(channel);
+    }
+  }
+
+  if (parsed.data.waba_id) {
+    for (const phoneNumberId of parsed.data.whatsapp_phone_ids) {
+      if (createdWhatsappPhones.has(phoneNumberId)) continue;
+      const channel = await upsertMetaChannelAccount({
+        req,
+        channelType: "whatsapp",
+        name: phoneNumberId,
+        displayName: phoneNumberId,
+        providerConfig: {
+          provider: "meta",
+          waba_id: parsed.data.waba_id,
+          phone_number_id: phoneNumberId,
+          wabaId: parsed.data.waba_id,
+          phoneNumberId,
+          embeddedSignup: true,
+          connectedAt,
+        },
+        lookupKey: "phone_number_id",
+        lookupValue: phoneNumberId,
+        credentialsSecretRef: encryptedTokenRef(parsed.data.access_token) ?? tokenRefs.userTokenRef ?? process.env.META_ACCESS_TOKEN_SECRET_REF ?? null,
+      });
+      created.push(channel);
+      createdWhatsappPhones.add(phoneNumberId);
     }
   }
 
@@ -698,7 +788,9 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
   res.status(201).json({
     accounts: created.map((account) => ({
       id: account.id,
+      channel_type: account.channelType,
       channelType: account.channelType,
+      name: account.name,
       displayName: account.displayName,
       status: account.status,
     })),

@@ -68,7 +68,8 @@ async function findChannelAccount(phoneNumberId: string) {
     .from(channelAccountsTable)
     .where(and(
       eq(channelAccountsTable.channelType, "whatsapp"),
-      sql`${channelAccountsTable.providerConfig}->>'phoneNumberId' = ${phoneNumberId}`,
+      eq(channelAccountsTable.status, "active"),
+      sql`(${channelAccountsTable.providerConfig}->>'phone_number_id' = ${phoneNumberId} OR ${channelAccountsTable.providerConfig}->>'phoneNumberId' = ${phoneNumberId})`,
     ))
     .limit(1);
   return account ?? null;
