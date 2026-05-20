@@ -22,6 +22,7 @@ import {
   ReceiptText,
   ScrollText,
   Settings,
+  ShoppingBag,
   Target,
   Users,
   Workflow,
@@ -69,6 +70,13 @@ const navGroups: NavGroup[] = [
       { path: "/orders", key: "orders", permission: "orders:read", icon: Package },
       { path: "/payments", key: "payments", permission: "payments:read", icon: CreditCard },
       { path: "/debts", key: "debts", permission: "debts:read", icon: ReceiptText },
+    ],
+  },
+  {
+    slug: "store",
+    key: "groupStore",
+    items: [
+      { path: "/catalog", key: "catalog", permission: "catalog:read", icon: ShoppingBag },
     ],
   },
   {

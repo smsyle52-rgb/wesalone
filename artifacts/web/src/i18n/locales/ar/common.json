@@ -36,6 +36,8 @@
     "analytics": "التحليلات",
     "reports": "التقارير",
     "auditLogs": "سجل النشاط",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "groupStore": "المتجر",
+    "catalog": "المنتجات"
   }
 }

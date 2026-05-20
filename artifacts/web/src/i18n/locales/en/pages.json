@@ -382,5 +382,43 @@
         "dailyQuota": "Daily automatic reply limit"
       }
     }
+  },
+  "catalog": {
+    "title": "Products",
+    "subtitle": "Meta catalog, posts, and ads mirrored into agent knowledge",
+    "noSource": "Not connected yet",
+    "neverSynced": "Never synced",
+    "syncNow": "Sync now",
+    "loadError": "Could not load catalog data",
+    "retry": "Retry",
+    "search": "Search products",
+    "allAvailability": "All availability",
+    "allCategories": "All categories",
+    "emptyProductsTitle": "No products synced yet",
+    "emptyProductsDescription": "Connect a Meta catalog from integrations, then run sync.",
+    "emptyPostsTitle": "No posts synced yet",
+    "emptyPostsDescription": "Connect a Meta page source to mirror recent posts.",
+    "emptyAdsTitle": "No ads synced yet",
+    "emptyAdsDescription": "Connect an ad account source to mirror active campaigns.",
+    "promotedProducts": "Promoted products",
+    "tabs": {
+      "products": "Products",
+      "posts": "Posts",
+      "ads": "Ads"
+    },
+    "sources": {
+      "commerce_catalog": "WhatsApp catalog",
+      "page_posts": "Page posts",
+      "ads": "Ads"
+    },
+    "table": {
+      "image": "Image",
+      "name": "Name",
+      "price": "Price",
+      "availability": "Availability",
+      "source": "Source",
+      "syncedAt": "Last sync",
+      "visibility": "Show/Hide"
+    }
   }
 }
