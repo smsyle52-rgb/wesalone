@@ -203,6 +203,11 @@
     opacity: .92;
     will-change: opacity, transform;
   }
+
+  .wesal-reveal-static {
+    animation: wesal-reveal-static 700ms cubic-bezier(.2, .8, .2, 1) both;
+    will-change: opacity, transform;
+  }
 }
 
 @keyframes wesal-mesh {
@@ -242,6 +247,11 @@
 @keyframes wesal-message-enter {
   0%, 100% { opacity: .86; transform: translate3d(0, 0, 0); }
   18%, 72% { opacity: 1; transform: translate3d(0, -3px, 0); }
+}
+
+@keyframes wesal-reveal-static {
+  from { opacity: 0; transform: translate3d(0, 18px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

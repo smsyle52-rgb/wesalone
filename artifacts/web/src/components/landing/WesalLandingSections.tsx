@@ -1,8 +1,9 @@
 import {
   ArrowLeft,
   BarChart3,
-  Bell,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   Clock3,
   Link2,
@@ -10,139 +11,143 @@ import {
   MonitorSmartphone,
   Search,
   Send,
-  ShieldCheck,
-  Sparkles,
   TrendingUp,
   Zap,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import { FaFacebookMessenger, FaInstagram, FaTelegram, FaWhatsapp } from "react-icons/fa6";
 
-type Channel = {
-  name: string;
-  icon: ComponentType<{ className?: string }>;
-  className: string;
-};
+type IconType = ComponentType<{ className?: string }>;
 
-const channels: Channel[] = [
-  { name: "WhatsApp", icon: FaWhatsapp, className: "from-[#20d466] to-[#0aa84f]" },
-  { name: "Instagram", icon: FaInstagram, className: "from-[#ff7a18] via-[#dd2a7b] to-[#515bd4]" },
+const channels: Array<{ name: string; icon: IconType; className: string }> = [
+  { name: "Telegram", icon: FaTelegram, className: "from-[#37aee2] to-[#168ac2]" },
   { name: "Messenger", icon: FaFacebookMessenger, className: "from-[#00b2ff] to-[#006aff]" },
-  { name: "Telegram", icon: FaTelegram, className: "from-[#34ace1] to-[#168ac2]" },
+  { name: "Instagram", icon: FaInstagram, className: "from-[#ff8a00] via-[#e1306c] to-[#405de6]" },
+  { name: "WhatsApp", icon: FaWhatsapp, className: "from-[#27d366] to-[#12a84d]" },
 ];
 
 const conversations = [
-  { name: "سارة القحطاني", channel: "WhatsApp", text: "أريد معرفة توفر المنتج وطريقة الشحن", time: "11:42", color: "bg-emerald-500" },
-  { name: "محمد العنسي", channel: "Messenger", text: "هل أقدر أتابع الطلب من نفس الصفحة؟", time: "11:36", color: "bg-blue-500" },
-  { name: "نورة عبدالله", channel: "Instagram", text: "أحتاج تفاصيل العرض الأخير", time: "11:28", color: "bg-pink-500" },
-  { name: "خالد النجار", channel: "Telegram", text: "تم الاستلام، شكراً لكم", time: "11:10", color: "bg-sky-500" },
+  { name: "سارة القحطاني", text: "أريد معرفة توفر المنتج وطريقة الشحن", time: "11:42", dot: "bg-emerald-500" },
+  { name: "محمد العنسي", text: "هل العرض لا يزال متاحاً؟", time: "11:36", dot: "bg-blue-500" },
+  { name: "نورة عبدالله", text: "أحتاج تفاصيل الطلب الأخير", time: "11:24", dot: "bg-pink-500" },
+  { name: "خالد اليافعي", text: "تم الاستلام، شكراً لكم", time: "11:08", dot: "bg-sky-500" },
 ];
 
-const features = [
-  {
-    title: "صندوق وارد موحد",
-    body: "اجمع رسائل القنوات في شاشة واحدة واضحة لفريقك.",
-    icon: MessageCircle,
-    tone: "bg-cyan-50 text-cyan-700",
-  },
-  {
-    title: "رد أسرع",
-    body: "قلّل وقت انتظار العملاء ووزّع المحادثات بذكاء.",
-    icon: Zap,
-    tone: "bg-blue-50 text-blue-700",
-  },
-  {
-    title: "متابعة منظمة",
-    body: "مهام، وسوم، وملاحظات داخلية بدون تشتيت.",
-    icon: ClipboardCheck,
-    tone: "bg-indigo-50 text-indigo-700",
-  },
-  {
-    title: "تقارير ذكية",
-    body: "تابع الأداء، سرعة الرد، ونمو المحادثات يومياً.",
-    icon: BarChart3,
-    tone: "bg-violet-50 text-violet-700",
-  },
-  {
-    title: "مناسب للجوال والكمبيوتر",
-    body: "واجهة مرنة تعمل بسلاسة من المكتب أو أثناء الحركة.",
-    icon: MonitorSmartphone,
-    tone: "bg-sky-50 text-sky-700",
-  },
-  {
-    title: "موثوق وآمن",
-    body: "صلاحيات واضحة وسجل نشاط يحفظ ثقة فريقك.",
-    icon: ShieldCheck,
-    tone: "bg-emerald-50 text-emerald-700",
-  },
+const stripFeatures = [
+  { title: "صندوق وارد موحد", text: "اجمع كل الرسائل في مكان واحد", icon: MessageCircle },
+  { title: "رد أسرع", text: "قلّل وقت الرد وحسّن محادثاتك", icon: Zap },
+  { title: "متابعة منظمة", text: "لا تنسى أي عميل أو فرصة بيع", icon: CheckCircle2 },
+  { title: "تقارير ذكية", text: "بيانات واضحة لاتخاذ قرارات أفضل", icon: BarChart3 },
+];
+
+const detailFeatures = [
+  { title: "صندوق محادثات موحد", text: "اجمع رسائل واتساب وإنستغرام وماسنجر وتيليجرام في لوحة واحدة.", icon: MessageCircle, tone: "text-teal-600 bg-teal-50" },
+  { title: "تنظيم ومتابعة", text: "وسوم، ملاحظات داخلية، مهام وتنبيهات تمنع ضياع أي عميل.", icon: ClipboardCheck, tone: "text-blue-700 bg-blue-50" },
+  { title: "تقارير ورؤى", text: "راقب أداء فريقك، سرعة الرد، ونمو المحادثات والمبيعات.", icon: BarChart3, tone: "text-violet-700 bg-violet-50" },
+  { title: "مناسب للجوال والكمبيوتر", text: "تابع أعمالك من أي مكان عبر واجهة سريعة ومتجاوبة.", icon: MonitorSmartphone, tone: "text-sky-700 bg-sky-50" },
 ];
 
 const stats = [
-  { value: "1,250+", label: "محادثة هذا الأسبوع", icon: MessageCircle },
-  { value: "96%", label: "رضا العملاء", icon: CheckCircle2 },
-  { value: "2.5 دقيقة", label: "متوسط الرد", icon: Clock3 },
-  { value: "18%", label: "نمو في المتابعة", icon: TrendingUp },
+  { value: "1,250+", label: "محادثة تمت إدارتها هذا الأسبوع", icon: MessageCircle },
+  { value: "96%", label: "رضا العملاء حسب التقييمات", icon: CheckCircle2 },
+  { value: "2.5 دقيقة", label: "متوسط الرد على الرسائل", icon: Clock3 },
+  { value: "18%", label: "زيادة في المتابعة خلال 30 يوماً", icon: TrendingUp },
+];
+
+const footerGroups = [
+  { title: "المنتج", links: ["المزايا", "التقارير", "القنوات", "التكاملات"] },
+  { title: "الشركة", links: ["من نحن", "المدونة", "الشركاء", "الوظائف"] },
+  { title: "الدعم", links: ["مركز المساعدة", "سياسة الخصوصية", "الشروط والأحكام", "تواصل معنا"] },
 ];
 
 export function BrandLogo({ compact = false }: { compact?: boolean }) {
   return (
-    <a href="/" className="flex items-center gap-3" aria-label="وصال ون">
-      <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#053269] via-[#075bd8] to-[#25c6b8] shadow-[0_16px_34px_rgba(7,91,216,.2)]">
-        <span className="absolute -start-3 top-3 flex flex-col gap-1">
-          <span className="h-1 w-4 rounded-full bg-[#39d8cf]" />
-          <span className="h-1 w-7 rounded-full bg-[#39d8cf]" />
-          <span className="h-1 w-5 rounded-full bg-[#39d8cf]" />
-        </span>
-        <span className="text-2xl font-black italic text-white">W</span>
-      </span>
+    <a href="/" className="flex items-center gap-3.5" aria-label="وصال ون">
+      <LogoMark className={compact ? "h-10 w-16" : "h-14 w-20"} />
       {!compact ? (
         <span className="leading-tight">
-          <span className="block text-xl font-black tracking-tight text-[#082a55]">وصال ون</span>
-          <span className="block text-sm font-semibold tracking-[0.18em] text-[#199fb0]">Wesal One</span>
+          <span className="block text-2xl font-black text-[#1B3A5C]">وصال ون</span>
+          <span className="block text-sm font-semibold tracking-[0.18em] text-slate-500">Wesal One</span>
         </span>
       ) : null}
     </a>
   );
 }
 
+function LogoMark({ className = "h-12 w-16" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 106 66" role="img" aria-label="Wesal One W">
+      <defs>
+        <linearGradient id="wesal-wing-a" x1="12" x2="82" y1="52" y2="5" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#083E93" />
+          <stop offset=".48" stopColor="#0B6FE8" />
+          <stop offset="1" stopColor="#22D0C0" />
+        </linearGradient>
+        <linearGradient id="wesal-wing-b" x1="24" x2="78" y1="58" y2="8" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#062B65" />
+          <stop offset=".56" stopColor="#065BD8" />
+          <stop offset="1" stopColor="#1FB6A6" />
+        </linearGradient>
+      </defs>
+      <g fill="none" strokeLinecap="round">
+        <path d="M8 21h22" stroke="#38D8CF" strokeWidth="6" />
+        <path d="M2 32h32" stroke="#38D8CF" strokeWidth="6" />
+        <path d="M10 43h23" stroke="#38D8CF" strokeWidth="6" />
+        <path d="M0 11h12" stroke="#38D8CF" strokeWidth="6" />
+      </g>
+      <path
+        d="M23 16c7 19 14 32 22 37 6-10 13-23 21-39 7-4 16-6 26-7-8 18-19 36-32 54-8 1-15-1-21-6-8-7-15-19-22-37 2-2 4-2 6-2Z"
+        fill="url(#wesal-wing-a)"
+      />
+      <path
+        d="M45 53c8-18 20-33 36-45-3 11-9 24-18 39-5 8-11 12-18 6Z"
+        fill="url(#wesal-wing-b)"
+        opacity=".95"
+      />
+      <path
+        d="M55 44c10-11 18-20 25-29M60 50c9-8 16-16 21-24M50 38c8-8 15-15 21-21"
+        stroke="#8CEBE5"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        opacity=".65"
+      />
+      <path
+        d="M23 16c7 19 14 32 22 37 5-8 11-19 18-32"
+        fill="none"
+        stroke="#FFFFFF"
+        strokeWidth="3"
+        strokeLinecap="round"
+        opacity=".55"
+      />
+    </svg>
+  );
+}
+
 export function LandingHero() {
   return (
-    <section id="home" className="relative overflow-hidden bg-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_20%,rgba(36,198,184,.18),transparent_32%),radial-gradient(circle_at_14%_16%,rgba(7,91,216,.12),transparent_30%)]" />
-      <div className="relative mx-auto grid min-h-[720px] w-[min(100%-2rem,1180px)] items-center gap-12 py-16 lg:grid-cols-[0.92fr_1.08fr] lg:py-24">
+    <section id="home" className="relative overflow-hidden bg-[#f8fbff] pt-6">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_31%_35%,rgba(31,182,166,.22),transparent_30%),radial-gradient(circle_at_72%_38%,rgba(11,111,232,.16),transparent_34%),linear-gradient(180deg,#ffffff_0%,#f3f9ff_100%)]" />
+      <div className="pointer-events-none absolute left-1/2 top-24 h-[520px] w-[520px] -translate-x-1/2 rounded-full border border-[#d9ecff] bg-white/35 blur-[1px]" />
+      <div className="relative mx-auto grid w-[min(100%-2rem,1240px)] items-center gap-12 pb-16 pt-10 lg:grid-cols-[1.16fr_.84fr]">
         <div className="order-2 lg:order-1">
-          <DashboardMockup />
+          <DashboardMockup variant="hero" />
         </div>
 
         <div className="order-1 text-center lg:order-2 lg:text-start">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-100 bg-cyan-50 px-4 py-2 text-sm font-bold text-[#087c8a]">
-            <Sparkles className="h-4 w-4" />
-            منصة تواصل ذكية لتجربة عملاء أسرع
-          </div>
-          <h1 className="mx-auto max-w-2xl text-4xl font-black leading-[1.12] tracking-normal text-[#071f41] sm:text-5xl lg:mx-0 lg:text-6xl">
+          <h1 className="mx-auto max-w-[500px] text-4xl font-black leading-[1.1] text-[#102A4A] sm:text-5xl lg:mx-0 lg:text-[3.75rem]">
             كل محادثات عملائك في مكان واحد
           </h1>
-          <p className="mx-auto mt-6 max-w-xl text-lg leading-9 text-slate-600 lg:mx-0">
-            منصة موحدة لإدارة واتساب، إنستغرام، ماسنجر، وتيليجرام من لوحة تحكم واحدة، مع متابعة العملاء وتنظيم
-            المحادثات بسهولة.
+          <p className="mx-auto mt-6 max-w-[500px] text-lg leading-9 text-slate-600 lg:mx-0">
+            منصة موحدة لإدارة واتساب، إنستغرام، ماسنجر، وتيليجرام من لوحة تحكم واحدة.
           </p>
-
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
-            <a
-              href="/register"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#075bd8] px-7 py-4 text-base font-black text-white shadow-[0_18px_40px_rgba(7,91,216,.26)] transition hover:-translate-y-0.5 hover:bg-[#054db9]"
-            >
+            <a href="/register" className="rounded-xl bg-[#0B6FE8] px-8 py-4 text-base font-black text-white shadow-[0_18px_42px_rgba(11,111,232,.28)] transition hover:-translate-y-1 hover:bg-[#075dcc]">
               ابدأ مجانًا
-              <ArrowLeft className="h-5 w-5" />
             </a>
-            <a
-              href="#contact"
-              className="inline-flex items-center justify-center rounded-xl border border-[#075bd8]/30 bg-white px-7 py-4 text-base font-black text-[#075bd8] transition hover:-translate-y-0.5 hover:bg-blue-50"
-            >
+            <a href="#contact" className="rounded-xl border border-[#0B6FE8]/40 bg-white px-8 py-4 text-base font-black text-[#0B6FE8] shadow-sm transition hover:-translate-y-1 hover:bg-blue-50">
               تواصل مع المبيعات
             </a>
           </div>
-
           <ChannelIcons />
         </div>
       </div>
@@ -152,19 +157,20 @@ export function LandingHero() {
 
 export function ChannelIcons() {
   return (
-    <div className="mt-10 flex flex-wrap justify-center gap-4 lg:justify-start" aria-label="القنوات المدعومة">
+    <div className="mt-9 flex flex-wrap justify-center gap-5 lg:justify-start" aria-label="القنوات المدعومة">
       {channels.map((channel, index) => {
         const Icon = channel.icon;
         return (
           <div
             key={channel.name}
-            className="wesal-channel-float flex items-center gap-2 rounded-2xl border border-white bg-white/88 px-4 py-3 shadow-[0_16px_36px_rgba(7,31,65,.12)] backdrop-blur"
+            className="wesal-channel-float text-center"
             style={{ animationDelay: `${index * 180}ms` }}
+            title={channel.name}
           >
-            <span className={`grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br ${channel.className} text-white`}>
-              <Icon className="h-5 w-5" />
+            <span className={`mx-auto grid h-16 w-16 place-items-center rounded-[22px] bg-gradient-to-br ${channel.className} text-white shadow-[0_16px_34px_rgba(27,58,92,.16)]`}>
+              <Icon className="h-9 w-9" />
             </span>
-            <span className="text-sm font-bold text-slate-700">{channel.name}</span>
+            <span className="mt-2 block text-xs font-black text-slate-500">{channel.name}</span>
           </div>
         );
       })}
@@ -172,165 +178,82 @@ export function ChannelIcons() {
   );
 }
 
-export function DashboardMockup() {
+export function FeatureStrip() {
   return (
-    <div className="relative mx-auto max-w-[680px]">
-      <FloatingMessage className="-start-5 top-9 hidden md:block" delay="0ms" name="عميل جديد" text="أحتاج تفاصيل الخدمة" />
-      <FloatingMessage className="-end-3 bottom-24 hidden md:block" delay="650ms" name="متابعة" text="تم تحويلها للمسؤول" />
-
-      <div className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_80px_rgba(7,31,65,.16)]">
-        <div className="grid min-h-[430px] grid-cols-[86px_1fr] sm:grid-cols-[120px_1fr]">
-          <aside className="bg-[#072b55] p-4 text-white">
-            <BrandLogo compact />
-            <div className="mt-8 space-y-3">
-              {["المحادثات", "العملاء", "المهام", "التقارير", "الإعدادات"].map((item, index) => (
-                <div
-                  key={item}
-                  className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold ${
-                    index === 0 ? "bg-[#075bd8]" : "text-blue-100/80"
-                  }`}
-                >
-                  <span className="h-2 w-2 rounded-full bg-[#35d1c5]" />
-                  <span className="hidden sm:inline">{item}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-16 hidden sm:block">
-              <p className="mb-2 text-xs text-blue-100/70">فريق العمل</p>
-              <div className="flex -space-x-2 space-x-reverse">
-                {[1, 2, 3, 4].map((item) => (
-                  <span key={item} className="grid h-8 w-8 place-items-center rounded-full border-2 border-[#072b55] bg-[#e8f4ff] text-xs font-black text-[#075bd8]">
-                    {item}
-                  </span>
-                ))}
+    <section className="relative z-10 bg-[#f7fbff] pb-8 pt-5">
+      <div className="mx-auto grid w-[min(100%-2rem,1180px)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_rgba(27,58,92,.08)] md:grid-cols-4">
+        {stripFeatures.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article key={item.title} className="flex items-center gap-4 border-slate-100 p-5 md:border-s">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-[#0B6FE8]">
+                <Icon className="h-6 w-6" />
+              </span>
+              <div>
+                <h2 className="font-black text-[#1B3A5C]">{item.title}</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">{item.text}</p>
               </div>
-            </div>
-          </aside>
-
-          <div className="grid bg-[#f8fbff] lg:grid-cols-[1fr_0.9fr_0.8fr]">
-            <section className="border-e border-slate-200 bg-white p-4">
-              <div className="mb-4 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-400">
-                <Search className="h-4 w-4" />
-                بحث في المحادثات
-              </div>
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-black text-[#082a55]">المحادثات</h3>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">24 جديد</span>
-              </div>
-              <div className="space-y-3">
-                {conversations.map((item, index) => (
-                  <div key={item.name} className="wesal-message-enter flex gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm" style={{ animationDelay: `${index * 220}ms` }}>
-                    <span className={`mt-1 h-3 w-3 rounded-full ${item.color}`} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-sm font-black text-slate-800">{item.name}</p>
-                        <span className="text-[11px] text-slate-400">{item.time}</span>
-                      </div>
-                      <p className="mt-1 truncate text-xs text-slate-500">{item.text}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="hidden p-4 md:block">
-              <div className="mb-4 flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
-                <div>
-                  <p className="text-sm font-black text-[#082a55]">سارة القحطاني</p>
-                  <p className="text-xs text-emerald-600">WhatsApp</p>
-                </div>
-                <Bell className="h-5 w-5 text-slate-400" />
-              </div>
-              <div className="space-y-4">
-                <Bubble side="in">أريد معرفة توفر المنتج وطريقة الشحن</Bubble>
-                <Bubble side="out">أهلًا سارة، المنتج متوفر ويمكن شحنه خلال يومين.</Bubble>
-                <Bubble side="in">ممتاز، كم رسوم التوصيل؟</Bubble>
-              </div>
-              <div className="mt-8 flex items-center gap-2 rounded-2xl bg-white p-3 shadow-sm">
-                <span className="flex-1 text-xs text-slate-400">اكتب رسالة...</span>
-                <Send className="h-5 w-5 text-[#075bd8]" />
-              </div>
-            </section>
-
-            <section className="hidden border-s border-slate-200 bg-white p-4 lg:block">
-              <div className="grid grid-cols-2 gap-3">
-                <MiniStat label="عملاء جديدة" value="24" />
-                <MiniStat label="رسائل الأسبوع" value="1,250" />
-                <MiniStat label="وقت الرد" value="2.5 د" />
-                <MiniStat label="الرضا" value="96%" />
-              </div>
-              <div className="mt-5 rounded-2xl border border-slate-100 p-4">
-                <p className="mb-4 text-sm font-black text-[#082a55]">المهام</p>
-                {["متابعة طلب سارة", "رد على استفسار محمد", "تأكيد موعد الشحن"].map((task) => (
-                  <div key={task} className="mb-3 flex items-center gap-2 text-xs text-slate-600">
-                    <CheckCircle2 className="h-4 w-4 text-[#25b8a9]" />
-                    {task}
-                  </div>
-                ))}
-              </div>
-              <div className="mt-5 rounded-2xl bg-blue-50 p-4">
-                <p className="text-sm font-black text-[#075bd8]">نمو المحادثات</p>
-                <div className="mt-4 flex h-20 items-end gap-2">
-                  {[35, 46, 38, 58, 52, 78, 65].map((height, index) => (
-                    <span key={index} className="flex-1 rounded-t-lg bg-gradient-to-t from-[#075bd8] to-[#35d1c5]" style={{ height: `${height}%` }} />
-                  ))}
-                </div>
-              </div>
-            </section>
-          </div>
-        </div>
+            </article>
+          );
+        })}
       </div>
-    </div>
-  );
-}
-
-function FloatingMessage({ className, delay, name, text }: { className: string; delay: string; name: string; text: string }) {
-  return (
-    <div className={`wesal-float-card absolute z-20 w-56 rounded-2xl border border-white bg-white/90 p-4 shadow-[0_18px_45px_rgba(7,31,65,.16)] backdrop-blur ${className}`} style={{ animationDelay: delay }}>
-      <p className="text-xs font-bold text-[#075bd8]">{name}</p>
-      <p className="mt-1 text-sm font-semibold text-slate-700">{text}</p>
-    </div>
-  );
-}
-
-function Bubble({ children, side }: { children: ReactNode; side: "in" | "out" }) {
-  return (
-    <div className={`max-w-[85%] rounded-2xl p-3 text-sm leading-6 ${side === "out" ? "me-auto bg-[#dbf7e8] text-[#164d36]" : "bg-white text-slate-700 shadow-sm"}`}>
-      {children}
-    </div>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-      <p className="text-lg font-black text-[#082a55]">{value}</p>
-      <p className="mt-1 text-[11px] text-slate-500">{label}</p>
-    </div>
+    </section>
   );
 }
 
 export function FeatureCards() {
   return (
-    <section id="features" className="bg-[#f7fbff] py-14">
-      <div className="mx-auto w-[min(100%-2rem,1180px)]">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => {
-            const Icon = feature.icon;
-            return (
-              <article key={feature.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_16px_38px_rgba(7,31,65,.07)] transition hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(7,31,65,.1)]">
-                <span className={`mb-5 grid h-12 w-12 place-items-center rounded-2xl ${feature.tone}`}>
-                  <Icon className="h-6 w-6" />
-                </span>
-                <h2 className="text-xl font-black text-[#082a55]">{feature.title}</h2>
-                <p className="mt-3 leading-7 text-slate-600">{feature.body}</p>
-                <a href="/register" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-[#075bd8]">
-                  اعرف المزيد
-                  <ArrowLeft className="h-4 w-4" />
-                </a>
-              </article>
-            );
-          })}
+    <section id="features" className="bg-white py-10">
+      <div className="mx-auto grid w-[min(100%-2rem,1180px)] gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {detailFeatures.map((feature, index) => {
+          const Icon = feature.icon;
+          return (
+            <article key={feature.title} className="wesal-reveal-static rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_14px_38px_rgba(27,58,92,.07)] transition hover:-translate-y-1" style={{ animationDelay: `${index * 90}ms` }}>
+              <span className={`mb-5 grid h-14 w-14 place-items-center rounded-2xl ${feature.tone}`}>
+                <Icon className="h-7 w-7" />
+              </span>
+              <h3 className="text-lg font-black text-[#1B3A5C]">{feature.title}</h3>
+              <p className="mt-3 min-h-20 text-sm leading-7 text-slate-600">{feature.text}</p>
+              <a href="#how" className="mt-4 inline-flex items-center gap-2 text-sm font-black text-[#0B6FE8]">
+                اعرف المزيد
+                <ArrowLeft className="h-4 w-4" />
+              </a>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+export function ProductShowcase() {
+  return (
+    <section className="bg-white py-6">
+      <div className="mx-auto grid w-[min(100%-2rem,1180px)] items-center gap-8 lg:grid-cols-[.78fr_1.22fr]">
+        <div className="text-center lg:text-start">
+          <h2 className="text-3xl font-black leading-[1.25] text-[#1B3A5C] md:text-4xl">
+            إدارة احترافية لتجربة عملاء استثنائية
+          </h2>
+          <p className="mt-5 leading-8 text-slate-600">
+            لوحة تحكم متكاملة تمنحك رؤية شاملة وتحكم كامل في محادثات عملائك وفريقك.
+          </p>
+          <ul className="mx-auto mt-7 max-w-md space-y-4 text-start lg:mx-0">
+            {["واجهة عربية سهلة الاستخدام", "تحديثات فورية وتنبيهات ذكية", "أمان وخصوصية على أعلى مستوى"].map((item) => (
+              <li key={item} className="flex items-center gap-3 text-slate-700">
+                <CheckCircle2 className="h-5 w-5 text-[#1FB6A6]" />
+                <span className="font-semibold">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="relative">
+          <div className="mx-auto max-w-[760px]">
+            <LaptopFrame>
+              <DashboardMockup variant="compact" />
+            </LaptopFrame>
+          </div>
+          <PhoneMockup />
         </div>
       </div>
     </section>
@@ -339,18 +262,18 @@ export function FeatureCards() {
 
 export function StatsSection() {
   return (
-    <section className="bg-white py-10">
-      <div className="mx-auto grid w-[min(100%-2rem,1180px)] gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(7,31,65,.08)] sm:grid-cols-2 lg:grid-cols-4">
+    <section className="bg-white py-7">
+      <div className="mx-auto grid w-[min(100%-2rem,1180px)] gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_15px_45px_rgba(27,58,92,.08)] sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={stat.label} className="flex items-center gap-4 rounded-2xl bg-[#f8fbff] p-4">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-[#075bd8]">
-                <Icon className="h-6 w-6" />
+            <div key={stat.value} className="flex items-center justify-center gap-4 text-center">
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-[#0B6FE8]">
+                <Icon className="h-7 w-7" />
               </span>
-              <div>
-                <p className="text-2xl font-black text-[#075bd8]">{stat.value}</p>
-                <p className="text-sm font-semibold text-slate-600">{stat.label}</p>
+              <div className="text-start">
+                <p className="text-2xl font-black text-[#0B6FE8]">{stat.value}</p>
+                <p className="max-w-36 text-sm font-semibold leading-6 text-slate-600">{stat.label}</p>
               </div>
             </div>
           );
@@ -362,26 +285,29 @@ export function StatsSection() {
 
 export function HowItWorks() {
   const steps = [
-    { title: "اربط قنواتك", body: "وصّل واتساب، إنستغرام، ماسنجر وتيليجرام بخطوات بسيطة.", icon: Link2 },
-    { title: "نظّم المحادثات", body: "استخدم الوسوم، المهام، والملاحظات لتنسيق عمل الفريق.", icon: ClipboardCheck },
-    { title: "نمّ نشاطك", body: "تابع الأداء وحسّن سرعة الرد وتجربة العملاء يومًا بعد يوم.", icon: TrendingUp },
+    { title: "اربط قنواتك", text: "اربط واتساب، إنستغرام، ماسنجر وتيليجرام بخطوات بسيطة وآمنة.", icon: Link2 },
+    { title: "نظّم المحادثات", text: "استخدم الوسوم، المهام والملاحظات لتنظيم عملائك وفريقك.", icon: ClipboardCheck },
+    { title: "نمّ نشاطك", text: "حسّن سرعة الرد، تابع الأداء، وزد مبيعاتك بثقة.", icon: TrendingUp },
   ];
 
   return (
-    <section id="how" className="bg-[#f7fbff] py-16">
+    <section id="how" className="bg-[#f7fbff] py-12">
       <div className="mx-auto w-[min(100%-2rem,1180px)] text-center">
-        <h2 className="text-3xl font-black text-[#082a55]">كيف يعمل وصال ون؟</h2>
-        <div className="mt-10 grid gap-5 lg:grid-cols-3">
-          {steps.map((step, index) => {
+        <h2 className="text-3xl font-black text-[#1B3A5C]">كيف يعمل وصال ون؟</h2>
+        <div className="mt-8 grid gap-5 lg:grid-cols-3">
+          {steps.map((step) => {
             const Icon = step.icon;
             return (
-              <article key={step.title} className="relative rounded-2xl border border-slate-200 bg-white p-6 text-start shadow-[0_16px_38px_rgba(7,31,65,.07)]">
-                <span className="absolute -top-4 end-6 grid h-9 w-9 place-items-center rounded-full bg-[#075bd8] text-sm font-black text-white">{index + 1}</span>
-                <span className="mb-5 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-[#075bd8] to-[#28c6b8] text-white">
-                  <Icon className="h-7 w-7" />
-                </span>
-                <h3 className="text-xl font-black text-[#082a55]">{step.title}</h3>
-                <p className="mt-3 leading-7 text-slate-600">{step.body}</p>
+              <article key={step.title} className="rounded-2xl border border-slate-200 bg-white p-5 text-start shadow-[0_14px_38px_rgba(27,58,92,.07)]">
+                <div className="flex items-center gap-4">
+                  <span className="grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-[#0B6FE8] to-[#1FB6A6] text-white shadow-[0_14px_34px_rgba(11,111,232,.24)]">
+                    <Icon className="h-8 w-8" />
+                  </span>
+                  <div>
+                    <h3 className="text-xl font-black text-[#1B3A5C]">{step.title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-slate-600">{step.text}</p>
+                  </div>
+                </div>
               </article>
             );
           })}
@@ -394,39 +320,45 @@ export function HowItWorks() {
 export function Testimonials() {
   const items = [
     {
-      quote: "وصال ون رتّب الرسائل وخفف ضياع العملاء. صار الفريق يعرف من المسؤول عن كل محادثة.",
+      quote: "وصال ون سهّل علينا متابعة الطلبات وردود العملاء في مكان واحد، وفريقنا صار أوضح في توزيع المسؤوليات.",
       name: "خالد العنسي",
-      role: "مؤسس متجر محلي",
+      role: "مؤسس متجر إلكتروني",
     },
     {
-      quote: "أكثر ما أعجبنا أن لوحة التحكم واضحة، والردود والمتابعات صارت أسهل بكثير.",
+      quote: "رتّب الرسائل وخفف ضياع المحادثات. الآن نعرف كل عميل في أي مرحلة بدون سؤال الفريق.",
       name: "نورة القحطاني",
-      role: "مديرة عمليات",
+      role: "مديرة تجربة العملاء",
     },
   ];
 
   return (
-    <section id="testimonials" className="bg-white py-16">
-      <div className="mx-auto w-[min(100%-2rem,980px)] text-center">
-        <h2 className="text-3xl font-black text-[#082a55]">ماذا يقول عملاؤنا؟</h2>
-        <div className="mt-8 grid gap-5 md:grid-cols-2">
-          {items.map((item) => (
-            <article key={item.name} className="rounded-3xl border border-slate-200 bg-white p-7 text-start shadow-[0_16px_38px_rgba(7,31,65,.07)]">
-              <span className="mb-4 grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-[#075bd8]">
-                <Sparkles className="h-5 w-5" />
-              </span>
-              <p className="leading-8 text-slate-700">"{item.quote}"</p>
-              <div className="mt-6 flex items-center gap-3">
-                <span className="grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-[#075bd8] to-[#28c6b8] font-black text-white">
-                  {item.name.slice(0, 1)}
-                </span>
-                <div>
-                  <p className="font-black text-[#082a55]">{item.name}</p>
-                  <p className="text-sm text-slate-500">{item.role}</p>
+    <section id="testimonials" className="bg-[#f7fbff] py-8">
+      <div className="mx-auto w-[min(100%-2rem,1080px)] text-center">
+        <h2 className="text-3xl font-black text-[#1B3A5C]">ماذا يقول عملاؤنا؟</h2>
+        <div className="mt-7 flex items-center gap-4">
+          <button className="hidden h-10 w-10 shrink-0 rounded-full border border-slate-200 bg-white text-[#1B3A5C] shadow-sm md:grid md:place-items-center" aria-label="السابق">
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <div className="grid flex-1 gap-5 md:grid-cols-2">
+            {items.map((item) => (
+              <article key={item.name} className="rounded-2xl border border-slate-200 bg-white p-6 text-start shadow-[0_14px_38px_rgba(27,58,92,.07)]">
+                <p className="text-4xl font-black text-[#0B6FE8]">“</p>
+                <p className="mt-1 min-h-24 leading-8 text-slate-700">{item.quote}</p>
+                <div className="mt-5 flex items-center gap-3">
+                  <span className="grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-[#0B6FE8] to-[#1FB6A6] font-black text-white">
+                    {item.name.slice(0, 1)}
+                  </span>
+                  <div>
+                    <p className="font-black text-[#1B3A5C]">{item.name}</p>
+                    <p className="text-sm text-slate-500">{item.role}</p>
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            ))}
+          </div>
+          <button className="hidden h-10 w-10 shrink-0 rounded-full border border-slate-200 bg-white text-[#1B3A5C] shadow-sm md:grid md:place-items-center" aria-label="التالي">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
         </div>
       </div>
     </section>
@@ -435,19 +367,18 @@ export function Testimonials() {
 
 export function FinalCTA() {
   return (
-    <section className="bg-[#f7fbff] px-4 py-14">
-      <div className="mx-auto overflow-hidden rounded-[28px] bg-[#062b55] p-8 text-center text-white shadow-[0_24px_65px_rgba(6,43,85,.22)] md:p-12 lg:max-w-[1180px]">
-        <div className="mx-auto max-w-2xl">
-          <h2 className="text-3xl font-black md:text-4xl">ابدأ اليوم مع وصال ون</h2>
-          <p className="mt-4 leading-8 text-blue-100">واجهة احترافية لإدارة المحادثات وتنمية نشاطك من مكان واحد.</p>
-          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <a href="/register" className="rounded-xl bg-[#27c9bd] px-7 py-4 font-black text-[#052c55] transition hover:-translate-y-0.5 hover:bg-[#31ded1]">
-              ابدأ الآن
-            </a>
-            <a href="#contact" className="rounded-xl border border-white/30 px-7 py-4 font-black text-white transition hover:-translate-y-0.5 hover:bg-white/10">
-              اطلب تجربة
-            </a>
-          </div>
+    <section className="bg-[#f7fbff] px-4 py-8">
+      <div className="mx-auto max-w-[1180px] overflow-hidden rounded-3xl bg-[#07315d] px-6 py-9 text-center text-white shadow-[0_22px_60px_rgba(7,49,93,.22)]">
+        <div className="absolute" />
+        <h2 className="text-3xl font-black">ابدأ اليوم مع وصال ون</h2>
+        <p className="mt-3 text-blue-100">واجهة احترافية لإدارة المحادثات وتنمية نشاطك.</p>
+        <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+          <a href="/register" className="rounded-xl bg-[#1FB6A6] px-10 py-3.5 font-black text-white transition hover:-translate-y-1 hover:bg-[#19a395]">
+            ابدأ الآن
+          </a>
+          <a href="#contact" className="rounded-xl border border-white/30 px-10 py-3.5 font-black text-white transition hover:-translate-y-1 hover:bg-white/10">
+            اطلب تجربة
+          </a>
         </div>
       </div>
     </section>
@@ -456,21 +387,195 @@ export function FinalCTA() {
 
 export function Footer() {
   return (
-    <footer id="contact" className="bg-[#051d3a] py-10 text-white">
-      <div className="mx-auto grid w-[min(100%-2rem,1180px)] gap-8 md:grid-cols-[1.2fr_1fr_1fr_1fr]">
+    <footer id="contact" className="bg-[#061f3d] py-10 text-white">
+      <div className="mx-auto grid w-[min(100%-2rem,1180px)] gap-8 md:grid-cols-[1.4fr_1fr_1fr_1fr_1.1fr]">
         <div>
           <BrandLogo />
-          <p className="mt-4 max-w-sm leading-7 text-blue-100">وصال ون يجمع محادثات عملائك في لوحة واحدة، واضحة وسريعة وآمنة.</p>
+          <p className="mt-4 max-w-sm leading-7 text-blue-100">وصال ون يجمع قنوات التواصل في لوحة واحدة لفريق أسرع وتجربة عميل أفضل.</p>
+          <p className="mt-4 text-sm tracking-[0.35em] text-blue-100">wesal.one</p>
         </div>
-        <FooterColumn title="المنتج" links={["المزايا", "القنوات", "التقارير", "الأمان"]} />
-        <FooterColumn title="الشركة" links={["من نحن", "المدونة", "الشركاء", "الوظائف"]} />
-        <FooterColumn title="تواصل معنا" links={["hello@wesal.one", "+966 55 123 4567", "الدعم", "المبيعات"]} />
+        {footerGroups.map((group) => (
+          <FooterColumn key={group.title} title={group.title} links={group.links} />
+        ))}
+        <div>
+          <h3 className="font-black">تواصل معنا</h3>
+          <ul className="mt-4 space-y-3 text-sm text-blue-100">
+            <li>hello@wesal.one</li>
+            <li>+966 55 123 4567</li>
+            <li className="flex gap-3 pt-2">
+              {["x", "in", "yt", "ig"].map((item) => (
+                <span key={item} className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-xs font-black">
+                  {item}
+                </span>
+              ))}
+            </li>
+          </ul>
+        </div>
       </div>
-      <div className="mx-auto mt-8 flex w-[min(100%-2rem,1180px)] flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 text-sm text-blue-100 md:flex-row">
-        <span>© 2026 وصال ون. جميع الحقوق محفوظة.</span>
-        <span className="tracking-[0.35em]">wesal.one</span>
-      </div>
+      <p className="mx-auto mt-8 w-[min(100%-2rem,1180px)] border-t border-white/10 pt-5 text-center text-sm text-blue-100">
+        © 2026 وصال ون. جميع الحقوق محفوظة.
+      </p>
     </footer>
+  );
+}
+
+export function DashboardMockup({ variant = "hero" }: { variant?: "hero" | "compact" }) {
+  const isCompact = variant === "compact";
+  return (
+    <div className={`relative mx-auto ${isCompact ? "h-[330px]" : "max-w-[780px]"}`}>
+      {!isCompact ? (
+        <>
+          <FloatingCard className="-start-8 top-12" title="طلب جديد" body="تم إسناده إلى فريق الدعم" />
+          <FloatingCard className="-end-8 bottom-24" title="متابعة" body="موعد الرد خلال 2.5 دقيقة" />
+        </>
+      ) : null}
+      <div className={`overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(27,58,92,.16)] ${isCompact ? "h-[330px]" : "h-[462px]"}`}>
+      <div className="grid h-full grid-cols-[104px_1fr] sm:grid-cols-[140px_1fr]">
+        <aside className="bg-[#092a4d] p-4 text-white">
+          <BrandLogo compact />
+          <div className="mt-8 space-y-3">
+            {["المحادثات", "العملاء", "المهام", "التقارير", "الإعدادات"].map((item, index) => (
+              <div key={item} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold ${index === 0 ? "bg-[#0B6FE8]" : "text-blue-100/80"}`}>
+                <span className="h-2 w-2 rounded-full bg-[#1FB6A6]" />
+                <span className="hidden sm:inline">{item}</span>
+              </div>
+            ))}
+          </div>
+        </aside>
+        <div className="grid bg-[#f8fbff] md:grid-cols-[1fr_1fr] lg:grid-cols-[1fr_1fr_.78fr]">
+          <section className="border-e border-slate-200 bg-white p-4">
+            <div className="mb-4 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-400">
+              <Search className="h-4 w-4" />
+              بحث في المحادثات
+            </div>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-black text-[#1B3A5C]">المحادثات</h3>
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#0B6FE8]">24 جديد</span>
+            </div>
+            <div className="space-y-3">
+              {conversations.map((item, index) => (
+                <div key={item.name} className="wesal-message-enter flex gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm" style={{ animationDelay: `${index * 220}ms` }}>
+                  <span className={`mt-1 h-3 w-3 rounded-full ${item.dot}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex justify-between gap-2">
+                      <p className="truncate text-sm font-black text-slate-800">{item.name}</p>
+                      <span className="text-[11px] text-slate-400">{item.time}</span>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-slate-500">{item.text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="hidden p-4 md:block">
+            <div className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
+              <p className="text-sm font-black text-[#1B3A5C]">سارة القحطاني</p>
+              <p className="text-xs text-emerald-600">WhatsApp</p>
+            </div>
+            <div className="space-y-4">
+              <Bubble>أريد معرفة توفر المنتج وطريقة الشحن</Bubble>
+              <Bubble out>أهلًا سارة، المنتج متوفر ويمكن شحنه خلال يومين.</Bubble>
+              <Bubble>ممتاز، أرسلي التفاصيل.</Bubble>
+            </div>
+            <div className="mt-7 flex items-center gap-2 rounded-2xl bg-white p-3 shadow-sm">
+              <span className="flex-1 text-xs text-slate-400">اكتب رسالة...</span>
+              <Send className="h-5 w-5 text-[#0B6FE8]" />
+            </div>
+          </section>
+
+          <section className="hidden border-s border-slate-200 bg-white p-4 lg:block">
+            <div className="grid grid-cols-2 gap-3">
+              <MiniStat label="رسائل" value="1,250" />
+              <MiniStat label="عملاء" value="24" />
+              <MiniStat label="وقت الرد" value="2.5 د" />
+              <MiniStat label="الرضا" value="96%" />
+            </div>
+            <div className="mt-5 rounded-2xl border border-slate-100 p-4">
+              <p className="mb-4 text-sm font-black text-[#1B3A5C]">المهام</p>
+              {["متابعة طلب سارة", "تأكيد شحنة محمد", "رد على استفسار نورة"].map((task) => (
+                <div key={task} className="mb-3 flex items-center gap-2 text-xs text-slate-600">
+                  <CheckCircle2 className="h-4 w-4 text-[#1FB6A6]" />
+                  {task}
+                </div>
+              ))}
+            </div>
+            <ChartBars />
+          </section>
+        </div>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+function LaptopFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative pb-7">
+      <div className="rounded-t-[22px] border-[10px] border-[#172436] bg-[#172436] shadow-[0_22px_60px_rgba(27,58,92,.18)]">
+        {children}
+      </div>
+      <div className="mx-auto h-5 w-[82%] rounded-b-[50%] bg-gradient-to-b from-slate-300 to-slate-500" />
+    </div>
+  );
+}
+
+function PhoneMockup() {
+  return (
+    <div className="absolute -bottom-2 -end-2 hidden w-[170px] rounded-[30px] border-[8px] border-[#111827] bg-white p-3 shadow-[0_22px_45px_rgba(15,23,42,.18)] md:block">
+      <div className="mx-auto mb-3 h-4 w-16 rounded-full bg-[#111827]" />
+      <h3 className="mb-3 text-center text-sm font-black text-[#1B3A5C]">المحادثات</h3>
+      <div className="space-y-3">
+        {conversations.slice(0, 4).map((item) => (
+          <div key={item.name} className="flex gap-2">
+            <span className={`mt-1 h-3 w-3 rounded-full ${item.dot}`} />
+            <div className="min-w-0">
+              <p className="truncate text-xs font-black text-slate-800">{item.name}</p>
+              <p className="truncate text-[10px] text-slate-500">{item.text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FloatingCard({ className, title, body }: { className: string; title: string; body: string }) {
+  return (
+    <div className={`wesal-float-card absolute z-20 hidden w-52 rounded-2xl border border-white bg-white/92 p-4 shadow-[0_18px_45px_rgba(27,58,92,.16)] backdrop-blur md:block ${className}`}>
+      <p className="text-xs font-black text-[#0B6FE8]">{title}</p>
+      <p className="mt-1 text-sm font-semibold leading-6 text-slate-700">{body}</p>
+    </div>
+  );
+}
+
+function Bubble({ children, out = false }: { children: ReactNode; out?: boolean }) {
+  return (
+    <div className={`max-w-[86%] rounded-2xl p-3 text-sm leading-6 ${out ? "me-auto bg-[#dcf7e9] text-[#14533b]" : "bg-white text-slate-700 shadow-sm"}`}>
+      {children}
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+      <p className="text-lg font-black text-[#1B3A5C]">{value}</p>
+      <p className="mt-1 text-[11px] text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function ChartBars() {
+  return (
+    <div className="mt-5 rounded-2xl bg-blue-50 p-4">
+      <p className="text-sm font-black text-[#0B6FE8]">المحادثات خلال 7 أيام</p>
+      <div className="mt-4 flex h-20 items-end gap-2">
+        {[35, 46, 38, 58, 52, 78, 65].map((height, index) => (
+          <span key={index} className="flex-1 rounded-t-lg bg-gradient-to-t from-[#0B6FE8] to-[#1FB6A6]" style={{ height: `${height}%` }} />
+        ))}
+      </div>
+    </div>
   );
 }
 
