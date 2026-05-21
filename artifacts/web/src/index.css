@@ -187,6 +187,22 @@
     background: linear-gradient(90deg, transparent, #1FB6A6, transparent);
     animation: wesal-line 3.8s ease-in-out infinite;
   }
+
+  .wesal-channel-float {
+    animation: wesal-channel-float 5.8s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .wesal-float-card {
+    animation: wesal-float-card 6.4s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .wesal-message-enter {
+    animation: wesal-message-enter 6.8s ease-in-out infinite;
+    opacity: .92;
+    will-change: opacity, transform;
+  }
 }
 
 @keyframes wesal-mesh {
@@ -211,6 +227,21 @@
   0%, 20% { transform: translateY(-50%) scaleX(0); opacity: 0; }
   45%, 70% { transform: translateY(-50%) scaleX(1); opacity: 1; }
   100% { transform: translateY(-50%) scaleX(1); opacity: 0; }
+}
+
+@keyframes wesal-channel-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -8px, 0); }
+}
+
+@keyframes wesal-float-card {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -14px, 0); }
+}
+
+@keyframes wesal-message-enter {
+  0%, 100% { opacity: .86; transform: translate3d(0, 0, 0); }
+  18%, 72% { opacity: 1; transform: translate3d(0, -3px, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
