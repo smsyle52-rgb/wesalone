@@ -7,20 +7,20 @@ import {
   Footer,
   HowItWorks,
   LandingHero,
-  ThemeToggle,
   ProductShowcase,
   StatsSection,
   Testimonials,
+  ThemeToggle,
   type LandingTheme,
 } from "@/components/landing/WesalLandingSections";
 
 const navItems = [
   { href: "#home", label: "الرئيسية" },
+  { href: "/products", label: "منتجاتنا" },
   { href: "#features", label: "المزايا" },
-  { href: "#pricing", label: "الأسعار" },
-  { href: "#integrations", label: "التكاملات" },
   { href: "#testimonials", label: "آراء العملاء" },
-  { href: "#contact", label: "تواصل معنا" },
+  { href: "/about", label: "من نحن" },
+  { href: "/contact", label: "تواصل معنا" },
 ];
 
 export default function LandingPage() {

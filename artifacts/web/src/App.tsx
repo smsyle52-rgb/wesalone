@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Layout from "@/components/Layout";
 import i18n from "@/i18n";
 import LandingPage from "@/pages/LandingPage";
+import PublicContentPage from "@/pages/PublicContentPages";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -91,6 +92,11 @@ function Router() {
     <Switch>
       <Route path="/login" component={() => <PublicRoute component={LoginPage} />} />
       <Route path="/register" component={() => <PublicRoute component={RegisterPage} />} />
+      <Route path="/about" component={() => <PublicContentPage kind="about" />} />
+      <Route path="/privacy" component={() => <PublicContentPage kind="privacy" />} />
+      <Route path="/terms" component={() => <PublicContentPage kind="terms" />} />
+      <Route path="/contact" component={() => <PublicContentPage kind="contact" />} />
+      <Route path="/products" component={() => <PublicContentPage kind="products" />} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
       <Route path="/start" component={() => <ProtectedRoute component={BusinessSetupPage} />} />
       <Route path="/inbox" component={() => <ProtectedRoute component={InboxPage} />} />

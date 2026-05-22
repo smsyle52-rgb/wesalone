@@ -447,6 +447,13 @@ export function Footer() {
         </div>
       </div>
       <p className="mx-auto mt-8 w-[min(100%-2rem,1180px)] border-t border-white/10 pt-5 text-center text-sm text-blue-100">© 2026 وصال ون. جميع الحقوق محفوظة.</p>
+      <div className="mx-auto mt-6 flex w-[min(100%-2rem,1180px)] flex-wrap justify-center gap-4 text-sm text-blue-100">
+        <a href="/products" className="transition hover:text-white">منتجاتنا</a>
+        <a href="/about" className="transition hover:text-white">من نحن</a>
+        <a href="/privacy" className="transition hover:text-white">سياسة الخصوصية</a>
+        <a href="/terms" className="transition hover:text-white">الشروط والأحكام</a>
+        <a href="/contact" className="transition hover:text-white">تواصل معنا</a>
+      </div>
     </footer>
   );
 }
