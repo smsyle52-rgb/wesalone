@@ -760,6 +760,7 @@ CREATE INDEX IF NOT EXISTS idx_learned_answers_ws_status ON learned_answers(work
 -- Closure Phase 2E: lightweight Yemeni location context
 -- =============================================================
 
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS city text;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS location_note text;
 
 -- =============================================================
