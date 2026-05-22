@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
+const GOVERNORATES = ["صنعاء", "عدن", "تعز", "الحديدة", "إب", "ذمار", "حضرموت", "المهرة", "حجة", "صعدة", "عمران", "البيضاء", "أبين", "لحج", "الضالع", "مأرب", "الجوف", "شبوة", "ريمة", "المحويت"];
 async function apiFetch(path: string, opts?: RequestInit) {
   const res = await fetch(`${BASE}/${path}`, { credentials: "include", ...opts });
   if (!res.ok) throw new Error(await res.text());
@@ -72,18 +73,22 @@ export default function BusinessSetupPage() {
   const qc = useQueryClient();
   const [sectorKey, setSectorKey] = useState("services_general");
   const [sectorNote, setSectorNote] = useState("");
+  const [governorate, setGovernorate] = useState("");
+  const [district, setDistrict] = useState("");
   const sectorsQuery = useQuery({ queryKey: ["sector-profiles"], queryFn: () => apiFetch("sectors") });
   const workspaceQuery = useQuery({ queryKey: ["workspace"], queryFn: () => apiFetch("workspace") });
   useEffect(() => {
     const settings = workspaceQuery.data?.workspace?.settings ?? {};
     if (typeof settings.sector_key === "string") setSectorKey(settings.sector_key);
     if (typeof settings.sector_note === "string") setSectorNote(settings.sector_note);
+    if (typeof settings.governorate === "string") setGovernorate(settings.governorate);
+    if (typeof settings.district === "string") setDistrict(settings.district);
   }, [workspaceQuery.data]);
   const saveSector = useMutation({
     mutationFn: () => apiFetch("workspace", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ settings: { sector_key: sectorKey, sector_note: sectorNote } }),
+      body: JSON.stringify({ settings: { sector_key: sectorKey, sector_note: sectorNote, governorate, district } }),
     }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workspace"] }),
   });
@@ -105,14 +110,19 @@ export default function BusinessSetupPage() {
           <CardTitle>اختر قطاع نشاطك</CardTitle>
           <CardDescription>هذا يساعد الوكيل على فهم طريقة خدمة العملاء المناسبة لنشاطك، مثل البيع، الحجز، أو أخذ الطلبات.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-[1fr_1.4fr_auto]">
+        <CardContent className="grid gap-3 md:grid-cols-2">
           <select value={sectorKey} onChange={(event) => setSectorKey(event.target.value)} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
             {(sectorsQuery.data?.sectors ?? []).map((sector: any) => (
               <option key={sector.sectorKey} value={sector.sectorKey}>{sector.nameAr}</option>
             ))}
           </select>
           <input value={sectorNote} onChange={(event) => setSectorNote(event.target.value)} className="rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder="ملاحظة اختيارية عن أسلوب خدمتك أو ما يميز نشاطك" />
-          <Button onClick={() => saveSector.mutate()} disabled={saveSector.isPending}>حفظ القطاع</Button>
+          <select value={governorate} onChange={(event) => setGovernorate(event.target.value)} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
+            <option value="">اختر المحافظة</option>
+            {GOVERNORATES.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <input value={district} onChange={(event) => setDistrict(event.target.value)} className="rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder="المديرية أو المنطقة (اختياري)" />
+          <Button onClick={() => saveSector.mutate()} disabled={saveSector.isPending} className="md:col-span-2">حفظ القطاع والموقع</Button>
         </CardContent>
       </Card>
 

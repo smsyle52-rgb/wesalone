@@ -54,6 +54,15 @@ function messageContent(message: any): { contentType: string; content: string; p
   if (message.type === "text") {
     return { contentType: "text", content: message.text?.body ?? "", providerPayload: message };
   }
+  if (message.type === "location") {
+    const location = message.location ?? {};
+    const label = [location.name, location.address].filter(Boolean).join(" - ");
+    return {
+      contentType: "location",
+      content: label || "موقع مرسل من العميل",
+      providerPayload: message,
+    };
+  }
   const mediaId = message[message.type]?.id;
   return {
     contentType: message.type ?? "unknown",
@@ -138,6 +147,18 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
         })
         .returning();
       contactChannelId = channel.id;
+    }
+
+    if (inbound.type === "location" && contactId) {
+      const location = inbound.location ?? {};
+      const address = [location.name, location.address].filter(Boolean).join(" - ");
+      await db.update(contactsTable)
+        .set({
+          city: typeof location.name === "string" ? location.name : undefined,
+          locationNote: address || JSON.stringify({ latitude: location.latitude, longitude: location.longitude }),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(contactsTable.id, contactId), eq(contactsTable.workspaceId, workspaceId)));
     }
 
     const [existingConversation] = await db

@@ -13,6 +13,7 @@ export const contactsTable = pgTable(
     phone: text("phone"),
     email: text("email"),
     city: text("city"),
+    locationNote: text("location_note"),
     company: text("company"),
     tags: text("tags").array().notNull().default([]),
     totalOrders: integer("total_orders").notNull().default(0),

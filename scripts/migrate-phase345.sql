@@ -757,6 +757,12 @@ CREATE TABLE IF NOT EXISTS learned_answers (
 CREATE INDEX IF NOT EXISTS idx_learned_answers_ws_status ON learned_answers(workspace_id, status);
 
 -- =============================================================
+-- Closure Phase 2E: lightweight Yemeni location context
+-- =============================================================
+
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS location_note text;
+
+-- =============================================================
 -- Verification queries (SELECT only, no mutations)
 -- These print confirmation that expected tables exist.
 -- =============================================================

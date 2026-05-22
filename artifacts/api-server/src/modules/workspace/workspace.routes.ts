@@ -48,6 +48,8 @@ const updateWorkspaceSchema = z.object({
   settings: z.object({
     sector_key: z.string().trim().min(2).max(80).optional(),
     sector_note: z.string().trim().max(1000).optional(),
+    governorate: z.string().trim().max(80).optional(),
+    district: z.string().trim().max(120).optional(),
   }).optional(),
 });
 

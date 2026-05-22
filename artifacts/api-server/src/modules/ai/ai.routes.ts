@@ -430,6 +430,36 @@ function hasStrongKnowledgeHit(sources: KnowledgeAiSource[]): boolean {
   return sources.some((source) => typeof source.score !== "number" || source.score >= 0.2);
 }
 
+const YEMENI_GOVERNORATES = [
+  "صنعاء", "عدن", "تعز", "الحديدة", "إب", "ذمار", "حضرموت", "المهرة", "حجة", "صعدة",
+  "عمران", "البيضاء", "أبين", "لحج", "الضالع", "مأرب", "الجوف", "شبوة", "ريمة", "المحويت",
+];
+
+async function loadLocationContext(workspaceId: string, conversation: (typeof conversationsTable.$inferSelect) | null): Promise<string> {
+  const [workspace] = await db.select({ settings: workspacesTable.settings }).from(workspacesTable).where(eq(workspacesTable.id, workspaceId)).limit(1);
+  const settings = workspace?.settings && typeof workspace.settings === "object" && !Array.isArray(workspace.settings)
+    ? workspace.settings as Record<string, unknown>
+    : {};
+  const governorate = typeof settings.governorate === "string" && YEMENI_GOVERNORATES.includes(settings.governorate) ? settings.governorate : "";
+  const district = typeof settings.district === "string" ? settings.district : "";
+  let customerCity = "";
+  let customerLocationNote = "";
+  if (conversation?.contactId) {
+    const [contact] = await db.select({ city: contactsTable.city, locationNote: contactsTable.locationNote }).from(contactsTable)
+      .where(and(eq(contactsTable.id, conversation.contactId), eq(contactsTable.workspaceId, workspaceId)))
+      .limit(1);
+    customerCity = contact?.city ?? "";
+    customerLocationNote = contact?.locationNote ?? "";
+  }
+  const lines = [
+    "سياق الموقع:",
+    governorate ? `موقع التاجر: ${governorate}${district ? ` - ${district}` : ""}` : "موقع التاجر غير محدد.",
+    customerCity || customerLocationNote ? `موقع العميل المعروف: ${[customerCity, customerLocationNote].filter(Boolean).join(" - ")}` : "موقع العميل غير معروف.",
+    "إذا سأل العميل عن التوصيل وموقعه غير معروف، اسأله: من أي منطقة تطلب؟ قبل ذكر التوصيل أو التكلفة.",
+  ];
+  return lines.join("\n");
+}
+
 // ─── AI Agents ───────────────────────────────────────────────────────────────
 
 const agentCreateSchema = z.object({
@@ -1373,6 +1403,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   const catalogContext = await loadCatalogAgentContext(activeWorkspaceId);
   const allKnowledgeContextSources = [...knowledgeSources, ...catalogContext.sources, ...learnedContext.sources];
   const channelContext = channelGuidance(conversationForDraft?.channel ?? "manual", selectedAgent?.channelTone);
+  const locationContext = await loadLocationContext(activeWorkspaceId, conversationForDraft);
   const knowledgeGap = conversationId ? !hasStrongKnowledgeHit(uniqueSources) : false;
   let previousKnowledgeGaps = 0;
   if (knowledgeGap && conversationId && agentId) {
@@ -1390,7 +1421,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
       ? "لا توجد إجابة واضحة في المعرفة المتاحة بعد محاولة توضيح سابقة. لا تخمّن. اكتب ردًا قصيرًا يقول: أحتاج أتأكد من هذه المعلومة وأرجع لك، وسيتم تحويل المحادثة للفريق."
       : "إذا لم تجد إجابة واضحة في المعرفة المتاحة، لا تخمّن. اسأل سؤالًا توضيحيًا واحدًا يساعد الموظف أو العميل على تحديد المطلوب."
     : "لا تخترع أي سعر أو خصم أو ضمان أو سياسة. استخدم المعرفة المتاحة فقط.";
-  systemPrompt = `${systemPrompt}\n\n${sectorContext}\n\n${channelContext}\n\n${escalationGuidance}`;
+  systemPrompt = `${systemPrompt}\n\n${sectorContext}\n\n${channelContext}\n\n${locationContext}\n\n${escalationGuidance}`;
 
   const knowledgeContext = knowledgeSources.length > 0
     ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item}`).join("\n")}`
@@ -1402,6 +1433,8 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
 ${transcript}${knowledgeContext}${learnedContext.context}
 
 ${sectorContext}${catalogContext.context}
+
+${locationContext}
 
 المطلوب: مسودة رد احترافي ومناسب باللغة العربية. لا ترسل تلقائياً — هذه مسودة فقط للمراجعة.`;
 
