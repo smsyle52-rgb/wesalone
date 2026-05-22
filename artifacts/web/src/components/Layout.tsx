@@ -76,7 +76,7 @@ const navGroups: NavGroup[] = [
     slug: "store",
     key: "groupStore",
     items: [
-      { path: "/catalog", key: "catalog", permission: "catalog:read", icon: ShoppingBag },
+      { path: "/catalog", key: "catalog", icon: ShoppingBag },
     ],
   },
   {
