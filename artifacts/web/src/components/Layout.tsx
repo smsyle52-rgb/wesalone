@@ -169,7 +169,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
       <aside
         className={cn(
-          "fixed inset-y-0 end-0 z-30 flex w-72 flex-col bg-sidebar transition-transform duration-300 lg:relative lg:translate-x-0",
+          "fixed inset-y-0 end-0 z-30 flex w-72 flex-col border-s border-sidebar-border bg-sidebar transition-transform duration-300 lg:relative lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"
         )}
       >
@@ -188,11 +188,11 @@ export default function Layout({ children }: { children: ReactNode }) {
             const collapsed = collapsedGroups[group.slug] ?? false;
 
             return (
-              <div key={group.slug} className="mb-3">
+              <div key={group.slug} className="mb-4 rounded-xl border border-sidebar-border/50 bg-sidebar-accent/10 p-2">
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.slug)}
-                  className="mb-1 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/45 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground/70"
+                  className="mb-1 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-sidebar-foreground/55 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground/80"
                 >
                   <span>{t(`nav.${group.key}`)}</span>
                   <ChevronDown
@@ -212,10 +212,10 @@ export default function Layout({ children }: { children: ReactNode }) {
                           href={item.path}
                           onClick={() => setSidebarOpen(false)}
                           className={cn(
-                            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-bold transition-colors",
                             active
-                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                              : "text-sidebar-foreground/72 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
                           )}
                         >
                           <Icon className="h-4 w-4 shrink-0" />
@@ -278,7 +278,11 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
