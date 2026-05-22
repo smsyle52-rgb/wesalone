@@ -425,6 +425,57 @@ function NotificationsTab() {
 function BillingTab() {
   const { data } = useQuery({ queryKey: ["workspace-usage"], queryFn: () => apiFetch("workspace/usage") });
   const plan = data?.subscription;
+  const limits = plan?.limits ?? {};
+  const planCards = [
+    { name: "البداية", price: "15,000", best: false, features: ["5 أعضاء فريق", "1,000 محادثة شهريًا", "تقارير أساسية", "دعم يدوي للقنوات"] },
+    { name: "النمو", price: "35,000", best: true, features: ["15 عضو فريق", "5,000 محادثة شهريًا", "وكيل ذكي وقاعدة معرفة", "أتمتة وتقارير متقدمة"] },
+    { name: "الفريق", price: "75,000", best: false, features: ["حتى 50 عضو", "محادثات حسب الاستخدام", "API وتكاملات", "إعدادات متعددة الفروع"] },
+  ];
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+          <p className="text-sm font-bold text-primary">الخطة الحالية</p>
+          <div className="mt-2 text-3xl font-extrabold text-foreground">{plan?.planName ?? "تجربة مجانية"}</div>
+          <p className="mt-2 text-sm text-muted-foreground">الفوترة معلوماتية فقط في هذه المرحلة. لا يوجد خصم تلقائي أو معالجة دفع من داخل النظام.</p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg bg-secondary/70 p-3"><div className="text-2xl font-extrabold">{limits.conversations_monthly ?? 200}</div><div className="text-xs text-muted-foreground">محادثات شهرية</div></div>
+            <div className="rounded-lg bg-secondary/70 p-3"><div className="text-2xl font-extrabold">{limits.users ?? 3}</div><div className="text-xs text-muted-foreground">أعضاء فريق</div></div>
+            <div className="rounded-lg bg-secondary/70 p-3"><div className="text-2xl font-extrabold">{limits.storage_mb ?? 100}MB</div><div className="text-xs text-muted-foreground">تخزين</div></div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+          <h3 className="text-sm font-extrabold text-foreground">تعليمات الدفع اليدوي في اليمن</h3>
+          <div className="mt-4 space-y-3 text-sm text-muted-foreground">
+            <p>يمكن الاتفاق على الدفع عبر كريمي، جوالي، تحويل بنكي، أو نقدًا حسب عقد الخدمة.</p>
+            <p>بعد تأكيد الدفع يدويًا، يقوم فريق وصال ون بتحديث حالة الاشتراك والفاتورة.</p>
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">لا توجد بوابة دفع مفعّلة الآن. هذا القسم للعرض والتنظيم فقط.</p>
+          </div>
+        </div>
+      </div>
+      <section>
+        <h3 className="mb-3 text-lg font-extrabold text-foreground">مقارنة الخطط</h3>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {planCards.map((item) => (
+            <div key={item.name} className={`rounded-xl border bg-card p-5 shadow-[var(--shadow-soft)] ${item.best ? "border-accent ring-2 ring-accent/15" : "border-border"}`}>
+              {item.best && <div className="mb-3 w-fit rounded-full bg-accent/10 px-3 py-1 text-xs font-black text-accent">الأكثر مناسبة</div>}
+              <h4 className="text-xl font-extrabold text-foreground">{item.name}</h4>
+              <div className="mt-3"><span className="text-3xl font-black text-primary">{item.price}</span><span className="text-sm text-muted-foreground"> ريال يمني / شهر</span></div>
+              <ul className="mt-5 space-y-3 text-sm text-muted-foreground">{item.features.map((feature) => <li key={feature}>• {feature}</li>)}</ul>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+        <h3 className="text-lg font-extrabold text-foreground">الفواتير</h3>
+        <p className="mt-1 text-sm text-muted-foreground">ستظهر الفواتير هنا بعد تفعيل دورة الفوترة الرسمية.</p>
+        <div className="mt-5 rounded-lg border border-dashed border-border p-8 text-center">
+          <p className="font-bold text-foreground">لا توجد فواتير بعد</p>
+          <p className="mt-1 text-sm text-muted-foreground">عند إصدار أول فاتورة ستظهر هنا مع الحالة والمبلغ وتاريخ الاستحقاق.</p>
+        </div>
+      </section>
+    </div>
+  );
   return (
     <div className="grid lg:grid-cols-2 gap-4">
       <div className="bg-card rounded-xl border border-border p-5">
