@@ -863,6 +863,34 @@ WHERE price_usd_annual IS NULL AND price_usd IS NOT NULL;
 ALTER TABLE payment_submissions ADD COLUMN IF NOT EXISTS amount_currency text NOT NULL DEFAULT 'YER';
 ALTER TABLE payment_submissions ADD COLUMN IF NOT EXISTS exchange_rate_snapshot jsonb;
 
+UPDATE plans SET
+  price_usd = 0,
+  price_usd_annual = 0,
+  limits = '{"channels":"all","agents":1,"monthly_messages":200,"team_members":1,"contacts":100}'::jsonb,
+  features = ARRAY['inbox','ai_agent','catalog','automation','campaigns','analytics','vision_voice']
+WHERE key = 'trial' OR slug = 'trial';
+
+UPDATE plans SET
+  price_usd = 10,
+  price_usd_annual = 96,
+  limits = '{"channels":1,"agents":1,"monthly_messages":1000,"team_members":2,"contacts":1000}'::jsonb,
+  features = ARRAY['inbox','ai_agent','catalog','basic_automation']
+WHERE key = 'starter' OR slug = 'starter';
+
+UPDATE plans SET
+  price_usd = 25,
+  price_usd_annual = 240,
+  limits = '{"channels":3,"agents":3,"monthly_messages":5000,"team_members":5,"contacts":10000}'::jsonb,
+  features = ARRAY['inbox','ai_agent','catalog','automation','campaigns','advanced_analytics','vision_voice']
+WHERE key = 'growth' OR slug = 'growth';
+
+UPDATE plans SET
+  price_usd = 50,
+  price_usd_annual = 480,
+  limits = '{"channels":"unlimited","agents":"unlimited","monthly_messages":"unlimited","team_members":"unlimited","contacts":"unlimited"}'::jsonb,
+  features = ARRAY['everything','priority_support']
+WHERE key = 'business' OR slug = 'business';
+
 -- =============================================================
 -- Verification queries (SELECT only, no mutations)
 -- These print confirmation that expected tables exist.

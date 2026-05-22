@@ -211,8 +211,8 @@ const SYSTEM_PLANS = [
     priceUsdAnnual: "0",
     billingCycle: "monthly",
     sortOrder: 10,
-    limits: { channels: 3, agents: 3, monthly_messages: 1000, team_members: 5, contacts: 500 },
-    features: ["inbox", "ai_agent", "catalog", "analytics", "campaigns"],
+    limits: { channels: "all", agents: 1, monthly_messages: 200, team_members: 1, contacts: 100 },
+    features: ["inbox", "ai_agent", "catalog", "automation", "campaigns", "analytics", "vision_voice"],
   },
   {
     name: "المبتدئ",
@@ -225,8 +225,8 @@ const SYSTEM_PLANS = [
     priceUsdAnnual: "96",
     billingCycle: "monthly",
     sortOrder: 20,
-    limits: { channels: 2, agents: 1, monthly_messages: 2000, team_members: 3, contacts: 1000 },
-    features: ["inbox", "ai_agent", "catalog"],
+    limits: { channels: 1, agents: 1, monthly_messages: 1000, team_members: 2, contacts: 1000 },
+    features: ["inbox", "ai_agent", "catalog", "basic_automation"],
   },
   {
     name: "المحترف",
@@ -239,8 +239,8 @@ const SYSTEM_PLANS = [
     priceUsdAnnual: "240",
     billingCycle: "monthly",
     sortOrder: 30,
-    limits: { channels: 5, agents: 3, monthly_messages: 10000, team_members: 10, contacts: 10000 },
-    features: ["inbox", "ai_agent", "catalog", "analytics", "campaigns"],
+    limits: { channels: 3, agents: 3, monthly_messages: 5000, team_members: 5, contacts: 10000 },
+    features: ["inbox", "ai_agent", "catalog", "automation", "campaigns", "advanced_analytics", "vision_voice"],
   },
   {
     name: "الفريق",
@@ -253,8 +253,8 @@ const SYSTEM_PLANS = [
     priceUsdAnnual: "480",
     billingCycle: "monthly",
     sortOrder: 40,
-    limits: { channels: 10, agents: 10, monthly_messages: 50000, team_members: 30, contacts: 50000 },
-    features: ["inbox", "ai_agent", "catalog", "analytics", "campaigns", "priority_support"],
+    limits: { channels: "unlimited", agents: "unlimited", monthly_messages: "unlimited", team_members: "unlimited", contacts: "unlimited" },
+    features: ["everything", "priority_support"],
   },
 ];
 

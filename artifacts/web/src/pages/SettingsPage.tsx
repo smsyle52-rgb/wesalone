@@ -459,6 +459,30 @@ function BillingTabV2() {
   const usage = data?.usage ?? {};
   const selectedPlan = plans.find((plan: any) => plan.id === selectedPlanId) ?? plans.find((plan: any) => (plan.key ?? plan.slug) !== "trial") ?? plans[0];
   const selectedDisplay = selectedPlan ? (billingCycle === "annual" ? selectedPlan.displayPriceAnnual : selectedPlan.displayPriceMonthly) : null;
+  const featureLabels: Record<string, string> = {
+    inbox: "صندوق وارد موحد",
+    ai_agent: "وكيل ذكي",
+    catalog: "كتالوج المنتجات",
+    basic_automation: "أتمتة أساسية",
+    automation: "أتمتة متقدمة",
+    campaigns: "حملات ورسائل",
+    analytics: "تقارير أساسية",
+    advanced_analytics: "تحليلات متقدمة",
+    vision_voice: "فهم الصور والصوت",
+    everything: "كل مزايا المنصة",
+    priority_support: "دعم أولوية",
+  };
+  const limitLabels: Record<string, string> = {
+    channels: "القنوات",
+    agents: "الوكلاء",
+    monthly_messages: "الرسائل الشهرية",
+    team_members: "أعضاء الفريق",
+    contacts: "جهات الاتصال",
+  };
+  const prettyLimit = (value: unknown) => {
+    if (value === "all" || value === "unlimited" || value === -1) return "غير محدود";
+    return typeof value === "number" ? value.toLocaleString("ar") : String(value ?? "غير محدود");
+  };
 
   function limitValue(key: string) {
     const value = limits?.[key];
@@ -554,6 +578,14 @@ function BillingTabV2() {
                   <li>الرسائل الشهرية: {plan.limits?.monthly_messages?.toLocaleString?.("ar") ?? "غير محدود"}</li>
                   <li>جهات الاتصال: {plan.limits?.contacts?.toLocaleString?.("ar") ?? "غير محدود"}</li>
                 </ul>
+                <div className="mt-4 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+                  <p className="mb-2 font-bold text-foreground">المزايا</p>
+                  <ul className="space-y-1">
+                    {(Array.isArray(plan.features) ? plan.features : []).map((feature: string) => (
+                      <li key={feature}>✓ {featureLabels[feature] ?? feature}</li>
+                    ))}
+                  </ul>
+                </div>
               </button>
             );
           })}

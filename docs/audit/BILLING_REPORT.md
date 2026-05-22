@@ -21,7 +21,7 @@ Seeded plans:
 - Growth: expanded plan for growing teams.
 - Business: larger plan with higher limits and priority support.
 
-Prices are placeholders in YER and should be adjusted directly in the database by the operator.
+Prices are canonical in USD through `plans.price_usd` and `plans.price_usd_annual`. YER and SAR are display currencies converted from the latest `exchange_rates` row unless an optional display override is set. Operators should adjust USD canonical prices in the database, and may optionally set local display overrides when needed.
 
 ## Trial Logic
 New workspaces start with a 14-day trial subscription. The trial uses status `trialing` and records `trial_ends_at`.
@@ -49,7 +49,7 @@ Merchant flow:
 
 1. Merchant opens Settings → Billing.
 2. Merchant reviews current plan, usage, available plans, and manual payment instructions.
-3. Merchant submits payment proof with amount, method, reference, and note.
+3. Merchant chooses a display currency, reviews the converted price, and submits payment proof with amount, currency, method, reference, and note.
 4. A `payment_submissions` row is created with status `pending`.
 
 Admin flow:
@@ -62,8 +62,11 @@ Admin flow:
 ## How To Change Prices
 Update the `plans` table directly:
 
+- `price_usd`
+- `price_usd_annual`
 - `price_yer`
 - `price_yer_annual`
+- `price_sar`
 - `limits`
 - `features`
 - `is_active`
