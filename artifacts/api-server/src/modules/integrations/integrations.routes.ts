@@ -29,6 +29,7 @@ import {
   integrationProviders,
   providerAccountStatuses,
 } from "./integrationTypes";
+import { checkLimit } from "../../services/billing";
 
 const router = Router();
 router.use(requireSession);
@@ -737,6 +738,21 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
   const created: Array<typeof channelAccountsTable.$inferSelect> = [];
   const createdSources: Array<typeof catalogSourcesTable.$inferSelect> = [];
   const connectedAt = new Date().toISOString();
+  const requestedChannelCount =
+    parsed.data.whatsapp_phone_ids.length +
+    parsed.data.instagram_account_ids.length +
+    parsed.data.page_ids.length;
+  if (requestedChannelCount > 0) {
+    const channelLimit = await checkLimit(req.sessionUser.activeWorkspaceId, "channels");
+    if (channelLimit.limit !== null && channelLimit.current + requestedChannelCount > channelLimit.limit) {
+      res.status(402).json({
+        error: "وصلت حد باقتك لعدد القنوات. اختر قنوات أقل أو قم بترقية الباقة قبل الربط.",
+        code: "plan_limit_reached",
+        limit: channelLimit,
+      });
+      return;
+    }
+  }
 
   for (const account of options.whatsapp_accounts) {
     for (const phone of account.phone_numbers) {

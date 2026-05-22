@@ -7,6 +7,7 @@ import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
+import { checkLimit } from "../../services/billing";
 
 const router = Router();
 router.use(requireSession);
@@ -69,6 +70,16 @@ router.post("/accounts", requirePermission("channels:manage"), async (req: Authe
   const status = parsed.data.status ?? (catalogEntry?.globalStatus as string) ?? "active";
 
   try {
+    const channelLimit = await checkLimit(activeWorkspaceId, "channels");
+    if (!channelLimit.allowed) {
+      res.status(402).json({
+        error: "وصلت حد باقتك لعدد القنوات. يمكنك ترقية الباقة لربط قنوات إضافية.",
+        code: "plan_limit_reached",
+        limit: channelLimit,
+      });
+      return;
+    }
+
     const [account] = await db.insert(channelAccountsTable).values({
       workspaceId: activeWorkspaceId,
       channelType,

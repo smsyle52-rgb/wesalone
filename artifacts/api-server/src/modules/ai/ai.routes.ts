@@ -24,6 +24,7 @@ import { searchKnowledgeForAi } from "../../services/knowledge-retrieval";
 import { shouldAutoSend, type TrustDecision } from "../../services/trust-gate";
 import { loadLearnedContext } from "../../services/agent-learning";
 import { loadMediaContext } from "../../services/agent-media";
+import { checkLimit } from "../../services/billing";
 
 const router = Router();
 router.use(requireSession);
@@ -517,6 +518,15 @@ router.post("/agents", requirePermission("ai:configure"), async (req: Authentica
     return;
   }
   const data = parse.data;
+  const agentLimit = await checkLimit(activeWorkspaceId, "agents");
+  if (!agentLimit.allowed) {
+    res.status(402).json({
+      error: "وصلت حد باقتك لعدد الوكلاء. يمكنك ترقية الباقة لإضافة وكلاء جدد.",
+      code: "plan_limit_reached",
+      limit: agentLimit,
+    });
+    return;
+  }
   const [agent] = await db.insert(aiAgentsTable).values({
     workspaceId: activeWorkspaceId,
     name: data.name,

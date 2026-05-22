@@ -17,6 +17,7 @@ import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
+import { getActiveSubscription, getLimitWarnings, getUsageSnapshot } from "../../services/billing";
 
 const router = Router();
 
@@ -156,21 +157,14 @@ router.get("/payment-methods", requirePermission("payments:read"), async (req: R
 router.get("/usage", requirePermission("settings:read"), async (req: Request, res: Response) => {
   const authReq = req as AuthenticatedRequest;
   try {
-    const [subscription] = await db
-      .select({
-        status: subscriptionsTable.status,
-        trialEndsAt: subscriptionsTable.trialEndsAt,
-        planName: plansTable.name,
-        planSlug: plansTable.slug,
-        limits: plansTable.limits,
-        features: plansTable.features,
-      })
-      .from(subscriptionsTable)
-      .innerJoin(plansTable, eq(subscriptionsTable.planId, plansTable.id))
-      .where(eq(subscriptionsTable.workspaceId, authReq.sessionUser.activeWorkspaceId))
-      .limit(1);
+    const workspaceId = authReq.sessionUser.activeWorkspaceId;
+    const [subscription, usage, limitWarnings] = await Promise.all([
+      getActiveSubscription(workspaceId),
+      getUsageSnapshot(workspaceId),
+      getLimitWarnings(workspaceId),
+    ]);
 
-    res.json({ subscription: subscription ?? null });
+    res.json({ subscription, usage, limitWarnings });
   } catch (err) {
     logger.error({ err }, "Failed to get usage");
     res.status(500).json({ error: "حدث خطأ داخلي" });

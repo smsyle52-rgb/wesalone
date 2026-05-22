@@ -5,6 +5,7 @@ import pino from "pino";
 import { pollAutomationEngine } from "./automation-engine";
 import { pollCatalogSync } from "./catalog-sync";
 import { mineLearnedAnswers } from "./agent-learning";
+import { runBillingMaintenance } from "./billing-maintenance";
 
 type OutboxEventRow = {
   id: string;
@@ -26,6 +27,7 @@ let polling = false;
 let automationPolling = false;
 let catalogPolling = false;
 let learningPolling = false;
+let billingPolling = false;
 const processedTimestamps: number[] = [];
 
 function markProcessed(): void {
@@ -413,6 +415,19 @@ async function pollLearningOnce(): Promise<void> {
   }
 }
 
+async function pollBillingOnce(): Promise<void> {
+  if (billingPolling || shuttingDown) return;
+  billingPolling = true;
+  try {
+    const processed = await runBillingMaintenance(logger);
+    for (let i = 0; i < processed; i++) markProcessed();
+  } catch (err) {
+    logger.error({ err }, "Billing maintenance poll failed");
+  } finally {
+    billingPolling = false;
+  }
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === "/healthz" || req.url === "/") {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -448,10 +463,15 @@ const learningInterval = setInterval(() => {
   void pollLearningOnce();
 }, 6 * 60 * 60 * 1000);
 
+const billingInterval = setInterval(() => {
+  void pollBillingOnce();
+}, 24 * 60 * 60 * 1000);
+
 void pollOnce();
 void pollAutomationOnce();
 void pollCatalogOnce();
 void pollLearningOnce();
+void pollBillingOnce();
 void writeHeartbeat().catch((err) => logger.warn({ err }, "Initial outbox worker heartbeat failed"));
 
 async function shutdown(signal: string): Promise<void> {
@@ -463,6 +483,7 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(heartbeatInterval);
   clearInterval(catalogInterval);
   clearInterval(learningInterval);
+  clearInterval(billingInterval);
 
   const shutdownDeadline = delay(9_000).then(() => "timeout" as const);
   const closeServer = new Promise<"closed">((resolve) => {
