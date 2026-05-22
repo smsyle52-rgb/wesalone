@@ -223,6 +223,26 @@ export const aiSafetyEventsTable = pgTable("ai_safety_events", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const learnedAnswersTable = pgTable(
+  "learned_answers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspacesTable.id, { onDelete: "cascade" }),
+    questionPattern: text("question_pattern").notNull(),
+    bestAnswer: text("best_answer").notNull(),
+    source: text("source").notNull().default("manual"),
+    topicSensitivity: text("topic_sensitivity").notNull().default("simple"),
+    status: text("status").notNull().default("pending_review"),
+    confidence: numeric("confidence", { precision: 3, scale: 2 }).notNull().default("0.70"),
+    useCount: integer("use_count").notNull().default(0),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_learned_answers_ws_status").on(table.workspaceId, table.status),
+  ],
+);
+
 export const approvalRequestsTable = pgTable("approval_requests", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id").notNull().references(() => workspacesTable.id, { onDelete: "cascade" }),
@@ -252,3 +272,4 @@ export type AiUsage = typeof aiUsageTable.$inferSelect;
 export type AiFeedback = typeof aiFeedbackTable.$inferSelect;
 export type AiSafetyEvent = typeof aiSafetyEventsTable.$inferSelect;
 export type ApprovalRequest = typeof approvalRequestsTable.$inferSelect;
+export type LearnedAnswer = typeof learnedAnswersTable.$inferSelect;

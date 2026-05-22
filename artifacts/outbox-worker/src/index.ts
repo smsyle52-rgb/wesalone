@@ -4,6 +4,7 @@ import { pool } from "@workspace/db";
 import pino from "pino";
 import { pollAutomationEngine } from "./automation-engine";
 import { pollCatalogSync } from "./catalog-sync";
+import { mineLearnedAnswers } from "./agent-learning";
 
 type OutboxEventRow = {
   id: string;
@@ -24,6 +25,7 @@ let shuttingDown = false;
 let polling = false;
 let automationPolling = false;
 let catalogPolling = false;
+let learningPolling = false;
 const processedTimestamps: number[] = [];
 
 function markProcessed(): void {
@@ -398,6 +400,19 @@ async function pollCatalogOnce(): Promise<void> {
   }
 }
 
+async function pollLearningOnce(): Promise<void> {
+  if (learningPolling || shuttingDown) return;
+  learningPolling = true;
+  try {
+    const processed = await mineLearnedAnswers(logger);
+    for (let i = 0; i < processed; i++) markProcessed();
+  } catch (err) {
+    logger.error({ err }, "Agent learning poll failed");
+  } finally {
+    learningPolling = false;
+  }
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === "/healthz" || req.url === "/") {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -429,9 +444,14 @@ const catalogInterval = setInterval(() => {
   void pollCatalogOnce();
 }, 30_000);
 
+const learningInterval = setInterval(() => {
+  void pollLearningOnce();
+}, 6 * 60 * 60 * 1000);
+
 void pollOnce();
 void pollAutomationOnce();
 void pollCatalogOnce();
+void pollLearningOnce();
 void writeHeartbeat().catch((err) => logger.warn({ err }, "Initial outbox worker heartbeat failed"));
 
 async function shutdown(signal: string): Promise<void> {
@@ -442,6 +462,7 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(automationInterval);
   clearInterval(heartbeatInterval);
   clearInterval(catalogInterval);
+  clearInterval(learningInterval);
 
   const shutdownDeadline = delay(9_000).then(() => "timeout" as const);
   const closeServer = new Promise<"closed">((resolve) => {

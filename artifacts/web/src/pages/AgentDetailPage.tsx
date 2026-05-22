@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatDateTime } from "@/lib/utils";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
-const tabs = ["settings", "instructions", "knowledge", "serviceStyle", "channels", "runs", "trust", "playground"] as const;
+const tabs = ["settings", "instructions", "knowledge", "serviceStyle", "learned", "channels", "runs", "trust", "playground"] as const;
 
 async function apiFetch(path: string, opts?: RequestInit) {
   const res = await fetch(`${BASE}/${path}`, { credentials: "include", ...opts });
@@ -65,6 +65,12 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
   const sectorsQuery = useQuery({
     queryKey: ["sector-profiles"],
     queryFn: () => apiFetch("sectors"),
+    enabled: canRead,
+  });
+
+  const learnedQuery = useQuery({
+    queryKey: ["agent-learned-answers", agentId],
+    queryFn: () => apiFetch(`ai/agents/${agentId}/learned-answers`),
     enabled: canRead,
   });
 
@@ -165,6 +171,16 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
     onError: (err) => setMessage((err as Error).message),
   });
 
+  const updateLearnedAnswer = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) => apiFetch(`ai/learned-answers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-learned-answers", agentId] }),
+    onError: (err) => setMessage((err as Error).message),
+  });
+
   function toggleKnowledgeBase(id: string) {
     setSettings((current) => ({
       ...current,
@@ -215,7 +231,7 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
       <div className="mb-4 flex flex-wrap gap-2">
         {tabs.map((tab) => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-full px-4 py-2 text-sm font-medium ${activeTab === tab ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-            {tab === "serviceStyle" ? "أسلوب الخدمة" : t(`agents.detail.tabs.${tab}`)}
+            {tab === "serviceStyle" ? "أسلوب الخدمة" : tab === "learned" ? "ما تعلّمه الوكيل" : t(`agents.detail.tabs.${tab}`)}
           </button>
         ))}
       </div>
@@ -319,6 +335,38 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
                 {t("common.save")}
               </button>
             )}
+          </div>
+        )}
+
+        {activeTab === "learned" && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm leading-7 text-emerald-900">
+              هذه أمثلة يتم حقنها كسياق وقت الرد فقط. المواضيع الحساسة تبقى بانتظار مراجعة التاجر قبل استخدامها.
+            </div>
+            {(learnedQuery.data?.answers ?? []).length === 0 && (
+              <p className="text-sm text-muted-foreground">لا توجد إجابات متعلمة بعد. ستظهر هنا الردود المفيدة بعد تراكم محادثات وتقييمات كافية.</p>
+            )}
+            {(learnedQuery.data?.answers ?? []).map((answer: any) => (
+              <div key={answer.id} className="rounded-lg border border-border p-4 text-sm">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-bold text-foreground">{answer.questionPattern}</div>
+                  <StatusBadge status={answer.status} />
+                </div>
+                <p className="whitespace-pre-wrap leading-7 text-muted-foreground">{answer.bestAnswer}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {answer.status !== "active" && canConfigure && (
+                    <button onClick={() => updateLearnedAnswer.mutate({ id: answer.id, body: { status: "active" } })} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">
+                      اعتماد
+                    </button>
+                  )}
+                  {canConfigure && (
+                    <button onClick={() => updateLearnedAnswer.mutate({ id: answer.id, body: { status: "pending_review" } })} className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold">
+                      إيقاف الاستخدام
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

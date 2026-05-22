@@ -9,7 +9,7 @@ import {
   conversationsTable, knowledgeChunksTable, faqEntriesTable, knowledgeDocumentsTable,
   channelAccountsTable, adCampaignsTable, socialPostsTable, productsTable,
   sectorProfilesTable, workspacesTable,
-  tasksTable,
+  tasksTable, learnedAnswersTable,
 } from "@workspace/db";
 import { eq, and, desc, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { requireSession } from "../../middlewares/requireSession";
@@ -22,6 +22,7 @@ import { aiRunLimiter } from "../../lib/rateLimiter";
 import { appendTurn, clear as clearAgentMemory, loadContext, rotate, shouldRotate } from "../../services/agent-memory";
 import { searchKnowledgeForAi } from "../../services/knowledge-retrieval";
 import { shouldAutoSend, type TrustDecision } from "../../services/trust-gate";
+import { loadLearnedContext } from "../../services/agent-learning";
 
 const router = Router();
 router.use(requireSession);
@@ -583,6 +584,52 @@ router.get("/agents/:id/auto-decisions", requirePermission("ai:read"), async (re
     .limit(100);
 
   res.json({ decisions });
+});
+
+router.get("/agents/:id/learned-answers", requirePermission("ai:read"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const agentId = String(req.params.id);
+  const [agent] = await db.select({ id: aiAgentsTable.id }).from(aiAgentsTable).where(
+    and(eq(aiAgentsTable.id, agentId), eq(aiAgentsTable.workspaceId, activeWorkspaceId))
+  ).limit(1);
+  if (!agent) { res.status(404).json({ error: "الوكيل غير موجود" }); return; }
+  const answers = await db.select().from(learnedAnswersTable)
+    .where(eq(learnedAnswersTable.workspaceId, activeWorkspaceId))
+    .orderBy(desc(learnedAnswersTable.createdAt))
+    .limit(100);
+  res.json({ answers });
+});
+
+const learnedAnswerUpdateSchema = z.object({
+  questionPattern: z.string().trim().min(2).max(500).optional(),
+  bestAnswer: z.string().trim().min(2).max(4000).optional(),
+  status: z.enum(["active", "pending_review"]).optional(),
+  topicSensitivity: z.enum(["simple", "sensitive"]).optional(),
+});
+
+router.patch("/learned-answers/:id", requirePermission("ai:configure"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const parse = learnedAnswerUpdateSchema.safeParse(req.body);
+  if (!parse.success) { res.status(400).json({ error: "بيانات غير صالحة", details: parse.error.flatten() }); return; }
+  const updates: Record<string, unknown> = {};
+  if (parse.data.questionPattern !== undefined) updates.questionPattern = parse.data.questionPattern;
+  if (parse.data.bestAnswer !== undefined) updates.bestAnswer = parse.data.bestAnswer;
+  if (parse.data.status !== undefined) updates.status = parse.data.status;
+  if (parse.data.topicSensitivity !== undefined) updates.topicSensitivity = parse.data.topicSensitivity;
+  const [answer] = await db.update(learnedAnswersTable).set(updates)
+    .where(and(eq(learnedAnswersTable.id, String(req.params.id)), eq(learnedAnswersTable.workspaceId, activeWorkspaceId)))
+    .returning();
+  if (!answer) { res.status(404).json({ error: "الإجابة المتعلمة غير موجودة" }); return; }
+  res.json({ answer });
+});
+
+router.delete("/learned-answers/:id", requirePermission("ai:configure"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const [answer] = await db.update(learnedAnswersTable).set({ status: "pending_review" })
+    .where(and(eq(learnedAnswersTable.id, String(req.params.id)), eq(learnedAnswersTable.workspaceId, activeWorkspaceId)))
+    .returning();
+  if (!answer) { res.status(404).json({ error: "الإجابة المتعلمة غير موجودة" }); return; }
+  res.json({ ok: true });
 });
 
 router.patch("/agents/:id", requirePermission("ai:configure"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -1322,7 +1369,9 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   }).slice(0, 5);
   const knowledgeSources = uniqueSources.map((source) => `${source.title}\n${source.content}`);
   const sectorContext = await loadSectorAgentContext(activeWorkspaceId, selectedAgent);
+  const learnedContext = await loadLearnedContext(activeWorkspaceId, searchQuery);
   const catalogContext = await loadCatalogAgentContext(activeWorkspaceId);
+  const allKnowledgeContextSources = [...knowledgeSources, ...catalogContext.sources, ...learnedContext.sources];
   const channelContext = channelGuidance(conversationForDraft?.channel ?? "manual", selectedAgent?.channelTone);
   const knowledgeGap = conversationId ? !hasStrongKnowledgeHit(uniqueSources) : false;
   let previousKnowledgeGaps = 0;
@@ -1350,7 +1399,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة أو التجربة.${instructions ? `\nتعليمات إضافية: ${instructions}` : ""}
 
 المحادثة:
-${transcript}${knowledgeContext}
+${transcript}${knowledgeContext}${learnedContext.context}
 
 ${sectorContext}${catalogContext.context}
 
@@ -1372,13 +1421,13 @@ ${sectorContext}${catalogContext.context}
       ...memoryContext.recentTurns.map((turn) => ({ role: turn.role, content: turn.content })),
       { role: "user", content: userPrompt },
     ] : undefined,
-    knowledgeSources: [...knowledgeSources, ...catalogContext.sources],
+    knowledgeSources: allKnowledgeContextSources,
   });
   let finalDraft = result.output;
   if (shouldEscalateKnowledgeGap) {
     finalDraft = "أحتاج أتأكد من هذه المعلومة وأرجع لك. سأحوّل المحادثة لأحد أعضاء الفريق حتى يراجع التفاصيل بدقة.";
     await db.update(aiMessagesTable)
-      .set({ content: finalDraft, metadata: { knowledgeSources: [...knowledgeSources, ...catalogContext.sources], escalation: "knowledge_gap" } })
+      .set({ content: finalDraft, metadata: { knowledgeSources: allKnowledgeContextSources, escalation: "knowledge_gap" } })
       .where(and(eq(aiMessagesTable.aiRunId, result.run.id), eq(aiMessagesTable.role, "assistant")));
   }
 
