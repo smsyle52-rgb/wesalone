@@ -124,7 +124,8 @@ export async function registerWorkspace(data: {
       await tx.insert(subscriptionsTable).values({
         workspaceId: workspace.id,
         planId: trialPlan.id,
-        status: "trial",
+        status: "trialing",
+        startedAt: new Date(),
         trialEndsAt,
       });
     }

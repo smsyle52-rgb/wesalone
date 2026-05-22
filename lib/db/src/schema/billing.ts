@@ -1,14 +1,19 @@
-import { pgTable, text, timestamp, boolean, uuid, numeric, jsonb, date, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, numeric, jsonb, date, unique, integer, index } from "drizzle-orm/pg-core";
 import { workspacesTable } from "./workspaces";
+import { usersTable } from "./users";
 
 export const plansTable = pgTable("plans", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   slug: text("slug").unique().notNull(),
+  key: text("key").unique(),
+  nameAr: text("name_ar"),
   isActive: boolean("is_active").notNull().default(true),
   priceYer: numeric("price_yer", { precision: 10, scale: 2 }),
+  priceYerAnnual: numeric("price_yer_annual", { precision: 10, scale: 2 }),
   priceUsd: numeric("price_usd", { precision: 10, scale: 2 }),
   billingCycle: text("billing_cycle").notNull().default("monthly"),
+  sortOrder: integer("sort_order").notNull().default(100),
   limits: jsonb("limits").notNull().default({}),
   features: text("features").array().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -19,13 +24,55 @@ export const subscriptionsTable = pgTable("subscriptions", {
   workspaceId: uuid("workspace_id").unique().notNull().references(() => workspacesTable.id, { onDelete: "cascade" }),
   planId: uuid("plan_id").notNull().references(() => plansTable.id),
   status: text("status").notNull().default("trial"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
   currentPeriodStart: date("current_period_start"),
   currentPeriodEnd: date("current_period_end"),
+  paymentMethod: text("payment_method"),
+  lastPaymentRef: text("last_payment_ref"),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const usageCountersTable = pgTable(
+  "usage_counters",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspacesTable.id, { onDelete: "cascade" }),
+    periodMonth: text("period_month").notNull(),
+    messagesSent: integer("messages_sent").notNull().default(0),
+    agentsCount: integer("agents_count").notNull().default(0),
+    contactsCount: integer("contacts_count").notNull().default(0),
+    teamMembers: integer("team_members").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("usage_counters_workspace_period_unique").on(table.workspaceId, table.periodMonth),
+    index("idx_usage_counters_ws_period").on(table.workspaceId, table.periodMonth),
+  ],
+);
+
+export const paymentSubmissionsTable = pgTable(
+  "payment_submissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspacesTable.id, { onDelete: "cascade" }),
+    planId: uuid("plan_id").notNull().references(() => plansTable.id),
+    amountYer: numeric("amount_yer", { precision: 14, scale: 2 }).notNull(),
+    paymentMethod: text("payment_method").notNull(),
+    reference: text("reference"),
+    receiptNote: text("receipt_note"),
+    status: text("status").notNull().default("pending"),
+    reviewedBy: uuid("reviewed_by").references(() => usersTable.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_payment_submissions_ws_status").on(table.workspaceId, table.status),
+    index("idx_payment_submissions_status_created").on(table.status, table.createdAt),
+  ],
+);
 
 export const featureFlagsTable = pgTable("feature_flags", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -39,4 +86,6 @@ export const featureFlagsTable = pgTable("feature_flags", {
 
 export type Plan = typeof plansTable.$inferSelect;
 export type Subscription = typeof subscriptionsTable.$inferSelect;
+export type UsageCounter = typeof usageCountersTable.$inferSelect;
+export type PaymentSubmission = typeof paymentSubmissionsTable.$inferSelect;
 export type FeatureFlag = typeof featureFlagsTable.$inferSelect;

@@ -203,36 +203,53 @@ const SYSTEM_PLANS = [
   {
     name: "تجربة مجانية",
     slug: "trial",
+    key: "trial",
+    nameAr: "تجربة مجانية",
+    priceYer: "0",
+    priceYerAnnual: "0",
     billingCycle: "monthly",
-    limits: { users: 3, ai_tokens_monthly: 10000, storage_mb: 100, conversations_monthly: 200 },
-    features: ["manual_whatsapp", "website_widget", "basic_reports"],
+    sortOrder: 10,
+    limits: { channels: 3, agents: 3, monthly_messages: 1000, team_members: 5, contacts: 500 },
+    features: ["inbox", "ai_agent", "catalog", "analytics", "campaigns"],
   },
   {
     name: "المبتدئ",
     slug: "starter",
+    key: "starter",
+    nameAr: "البداية",
     priceYer: "15000",
+    priceYerAnnual: "144000",
     priceUsd: "20",
     billingCycle: "monthly",
-    limits: { users: 5, ai_tokens_monthly: 50000, storage_mb: 500, conversations_monthly: 1000 },
-    features: ["manual_whatsapp", "website_widget", "ai_basic", "basic_reports"],
+    sortOrder: 20,
+    limits: { channels: 2, agents: 1, monthly_messages: 2000, team_members: 3, contacts: 1000 },
+    features: ["inbox", "ai_agent", "catalog"],
   },
   {
     name: "المحترف",
-    slug: "pro",
+    slug: "growth",
+    key: "growth",
+    nameAr: "النمو",
     priceYer: "35000",
+    priceYerAnnual: "336000",
     priceUsd: "50",
     billingCycle: "monthly",
-    limits: { users: 15, ai_tokens_monthly: 200000, storage_mb: 2000, conversations_monthly: 5000 },
-    features: ["manual_whatsapp", "website_widget", "ai_full", "automation", "advanced_reports", "knowledge_base"],
+    sortOrder: 30,
+    limits: { channels: 5, agents: 3, monthly_messages: 10000, team_members: 10, contacts: 10000 },
+    features: ["inbox", "ai_agent", "catalog", "analytics", "campaigns"],
   },
   {
     name: "الفريق",
-    slug: "team",
+    slug: "business",
+    key: "business",
+    nameAr: "الأعمال",
     priceYer: "75000",
+    priceYerAnnual: "720000",
     priceUsd: "100",
     billingCycle: "monthly",
-    limits: { users: 50, ai_tokens_monthly: 500000, storage_mb: 10000, conversations_monthly: -1 },
-    features: ["all_pro", "voice_readiness", "multi_branch", "api_access"],
+    sortOrder: 40,
+    limits: { channels: 10, agents: 10, monthly_messages: 50000, team_members: 30, contacts: 50000 },
+    features: ["inbox", "ai_agent", "catalog", "analytics", "campaigns", "priority_support"],
   },
 ];
 
@@ -305,6 +322,8 @@ export async function runSeed() {
 
     if (!existing.length) {
       await db.insert(plansTable).values(plan);
+    } else {
+      await db.update(plansTable).set(plan).where(eq(plansTable.id, existing[0].id));
     }
   }
   logger.info("Seeded system plans");
