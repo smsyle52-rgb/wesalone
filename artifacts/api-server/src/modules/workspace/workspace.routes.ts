@@ -18,7 +18,7 @@ import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
-import { getActiveSubscription, getLimitWarnings, getUsageSnapshot } from "../../services/billing";
+import { getActiveSubscription, getDisplayPrice, getLimitWarnings, getUsageSnapshot, type BillingCurrency } from "../../services/billing";
 
 const router = Router();
 
@@ -175,8 +175,11 @@ router.get("/usage", requirePermission("settings:read"), async (req: Request, re
 router.get("/billing", requirePermission("billing:read"), async (req: Request, res: Response) => {
   const authReq = req as AuthenticatedRequest;
   const workspaceId = authReq.sessionUser.activeWorkspaceId;
+  const currency = ["USD", "YER", "SAR"].includes(String(req.query.currency))
+    ? String(req.query.currency) as BillingCurrency
+    : "YER";
   try {
-    const [subscription, usage, limitWarnings, plans, paymentSubmissions] = await Promise.all([
+    const [subscription, usage, limitWarnings, plansRaw, paymentSubmissions] = await Promise.all([
       getActiveSubscription(workspaceId),
       getUsageSnapshot(workspaceId),
       getLimitWarnings(workspaceId),
@@ -200,11 +203,17 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
         .orderBy(desc(paymentSubmissionsTable.createdAt))
         .limit(20),
     ]);
+    const plans = await Promise.all(plansRaw.map(async (plan) => ({
+      ...plan,
+      displayPriceMonthly: await getDisplayPrice(workspaceId, plan, currency, "monthly"),
+      displayPriceAnnual: await getDisplayPrice(workspaceId, plan, currency, "annual"),
+    })));
 
     res.json({
       subscription,
       usage,
       limitWarnings,
+      currency,
       plans,
       paymentSubmissions,
       manualPayment: {
@@ -223,6 +232,8 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
 const paymentSubmissionSchema = z.object({
   planId: z.string().uuid(),
   amountYer: z.coerce.number().positive(),
+  amountCurrency: z.enum(["USD", "YER", "SAR"]).default("YER"),
+  exchangeRateSnapshot: z.record(z.unknown()).optional().nullable(),
   paymentMethod: z.enum(["kuraimi", "jawali", "bank_transfer", "cash"]),
   reference: z.string().trim().max(120).optional().nullable(),
   receiptNote: z.string().trim().max(1000).optional().nullable(),
@@ -246,6 +257,8 @@ router.post("/billing/payment-submissions", requirePermission("billing:manage"),
     workspaceId: authReq.sessionUser.activeWorkspaceId,
     planId: parsed.data.planId,
     amountYer: String(parsed.data.amountYer),
+    amountCurrency: parsed.data.amountCurrency,
+    exchangeRateSnapshot: parsed.data.exchangeRateSnapshot ?? null,
     paymentMethod: parsed.data.paymentMethod,
     reference: parsed.data.reference ?? null,
     receiptNote: parsed.data.receiptNote ?? null,

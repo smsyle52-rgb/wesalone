@@ -1,9 +1,10 @@
-import { and, count, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, sql } from "drizzle-orm";
 import {
   aiAgentsTable,
   channelAccountsTable,
   contactsTable,
   db,
+  exchangeRatesTable,
   messagesTable,
   plansTable,
   subscriptionsTable,
@@ -21,6 +22,24 @@ export type LimitCheck = {
   planKey: string | null;
 };
 
+export type BillingCurrency = "USD" | "YER" | "SAR";
+
+type PricePlan = {
+  priceUsd?: string | null;
+  priceUsdAnnual?: string | null;
+  priceYer?: string | null;
+  priceYerAnnual?: string | null;
+  priceSar?: string | null;
+};
+
+export type DisplayPrice = {
+  amount: number;
+  currency: BillingCurrency;
+  sourceCurrency: "USD";
+  rate: number | null;
+  note: string | null;
+};
+
 function currentPeriodMonth(date = new Date()): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
@@ -34,6 +53,56 @@ function numericLimit(limits: unknown, key: PlanLimitKey): number | null {
   const value = (limits as Record<string, unknown>)[key];
   if (typeof value !== "number" || value < 0) return null;
   return value;
+}
+
+function numeric(value: string | number | null | undefined): number {
+  const parsed = typeof value === "number" ? value : Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export async function getDisplayPrice(workspaceId: string, plan: PricePlan, currency: BillingCurrency, cycle: "monthly" | "annual" = "monthly"): Promise<DisplayPrice> {
+  const usd = numeric(cycle === "annual" ? plan.priceUsdAnnual : plan.priceUsd);
+  if (currency === "USD") {
+    return { amount: usd, currency: "USD", sourceCurrency: "USD", rate: 1, note: null };
+  }
+
+  if (currency === "YER") {
+    const override = cycle === "annual" ? plan.priceYerAnnual : plan.priceYer;
+    if (override != null) return { amount: numeric(override), currency: "YER", sourceCurrency: "USD", rate: null, note: null };
+  }
+
+  if (currency === "SAR" && plan.priceSar != null && cycle === "monthly") {
+    return { amount: numeric(plan.priceSar), currency: "SAR", sourceCurrency: "USD", rate: null, note: null };
+  }
+
+  const [rate] = await db
+    .select()
+    .from(exchangeRatesTable)
+    .where(and(
+      eq(exchangeRatesTable.workspaceId, workspaceId),
+      eq(exchangeRatesTable.fromCurrency, "USD"),
+      eq(exchangeRatesTable.toCurrency, currency),
+    ))
+    .orderBy(desc(exchangeRatesTable.effectiveAt))
+    .limit(1);
+
+  if (!rate) {
+    return {
+      amount: usd,
+      currency: "USD",
+      sourceCurrency: "USD",
+      rate: null,
+      note: "السعر بالدولار، يُحوّل عند الدفع",
+    };
+  }
+
+  return {
+    amount: Math.round(usd * numeric(rate.rate) * 100) / 100,
+    currency,
+    sourceCurrency: "USD",
+    rate: numeric(rate.rate),
+    note: null,
+  };
 }
 
 export async function getActiveSubscription(workspaceId: string) {

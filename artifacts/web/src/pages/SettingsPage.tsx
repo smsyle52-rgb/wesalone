@@ -425,12 +425,13 @@ function NotificationsTab() {
 function BillingTabV2() {
   const qc = useQueryClient();
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
+  const [currency, setCurrency] = useState<"USD" | "YER" | "SAR">("YER");
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("kuraimi");
   const [amountYer, setAmountYer] = useState("");
   const [reference, setReference] = useState("");
   const [receiptNote, setReceiptNote] = useState("");
-  const { data, isLoading } = useQuery({ queryKey: ["billing"], queryFn: () => apiFetch("workspace/billing") });
+  const { data, isLoading } = useQuery({ queryKey: ["billing", currency], queryFn: () => apiFetch(`workspace/billing?currency=${currency}`) });
   const submitPayment = useMutation({
     mutationFn: () => apiFetch("workspace/billing/payment-submissions", {
       method: "POST",
@@ -438,6 +439,8 @@ function BillingTabV2() {
       body: JSON.stringify({
         planId: selectedPlanId || selectedPlan?.id,
         amountYer,
+        amountCurrency: currency,
+        exchangeRateSnapshot: selectedPlan ? (billingCycle === "annual" ? selectedPlan.displayPriceAnnual : selectedPlan.displayPriceMonthly) : null,
         paymentMethod,
         reference: reference || null,
         receiptNote: receiptNote || null,
@@ -455,6 +458,7 @@ function BillingTabV2() {
   const limits = current?.limits ?? {};
   const usage = data?.usage ?? {};
   const selectedPlan = plans.find((plan: any) => plan.id === selectedPlanId) ?? plans.find((plan: any) => (plan.key ?? plan.slug) !== "trial") ?? plans[0];
+  const selectedDisplay = selectedPlan ? (billingCycle === "annual" ? selectedPlan.displayPriceAnnual : selectedPlan.displayPriceMonthly) : null;
 
   function limitValue(key: string) {
     const value = limits?.[key];
@@ -523,10 +527,18 @@ function BillingTabV2() {
             <button className={`rounded-md px-3 py-1.5 ${billingCycle === "monthly" ? "bg-card shadow-sm" : ""}`} onClick={() => setBillingCycle("monthly")}>شهري</button>
             <button className={`rounded-md px-3 py-1.5 ${billingCycle === "annual" ? "bg-card shadow-sm" : ""}`} onClick={() => setBillingCycle("annual")}>سنوي</button>
           </div>
+          <div className="rounded-lg border border-border bg-secondary p-1 text-sm">
+            {(["YER", "SAR", "USD"] as const).map((item) => (
+              <button key={item} className={`rounded-md px-3 py-1.5 ${currency === item ? "bg-card shadow-sm" : ""}`} onClick={() => setCurrency(item)}>
+                {item === "YER" ? "﷼ يمني" : item === "SAR" ? "﷼ سعودي" : "USD"}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-4">
           {plans.map((plan: any) => {
-            const price = billingCycle === "annual" ? plan.priceYerAnnual : plan.priceYer;
+            const display = billingCycle === "annual" ? plan.displayPriceAnnual : plan.displayPriceMonthly;
+            const price = display?.amount ?? 0;
             const active = current?.planId === plan.id;
             return (
               <button key={plan.id} type="button" onClick={() => { setSelectedPlanId(plan.id); setAmountYer(String(price ?? "")); }} className={`rounded-xl border p-4 text-start transition hover:-translate-y-1 hover:shadow-lg ${selectedPlanId === plan.id ? "border-accent ring-2 ring-accent/20" : active ? "border-primary" : "border-border"}`}>
@@ -563,7 +575,7 @@ function BillingTabV2() {
           {submitPayment.isSuccess && <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">تم استلام طلبك، سيتم تفعيل باقتك بعد مراجعة الدفع.</div>}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-semibold">الباقة
-              <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={selectedPlanId || selectedPlan?.id || ""} onChange={(event) => { setSelectedPlanId(event.target.value); const plan = plans.find((item: any) => item.id === event.target.value); setAmountYer(String((billingCycle === "annual" ? plan?.priceYerAnnual : plan?.priceYer) ?? "")); }}>
+              <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={selectedPlanId || selectedPlan?.id || ""} onChange={(event) => { setSelectedPlanId(event.target.value); const plan = plans.find((item: any) => item.id === event.target.value); const display = billingCycle === "annual" ? plan?.displayPriceAnnual : plan?.displayPriceMonthly; setAmountYer(String(display?.amount ?? "")); }}>
                 {plans.map((plan: any) => <option key={plan.id} value={plan.id}>{plan.nameAr ?? plan.name}</option>)}
               </select>
             </label>
