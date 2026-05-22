@@ -67,6 +67,7 @@ export const messagesTable = pgTable(
     source: text("source").notNull().default("manual"),
     contentType: text("content_type").notNull().default("text"),
     content: text("content").notNull(),
+    attachments: jsonb("attachments").notNull().default([]),
     isAiDraft: boolean("is_ai_draft").notNull().default(false),
     isPrivateNote: boolean("is_private_note").notNull().default(false),
     deliveryStatus: text("delivery_status").notNull().default("sent"),

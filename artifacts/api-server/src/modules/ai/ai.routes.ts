@@ -23,6 +23,7 @@ import { appendTurn, clear as clearAgentMemory, loadContext, rotate, shouldRotat
 import { searchKnowledgeForAi } from "../../services/knowledge-retrieval";
 import { shouldAutoSend, type TrustDecision } from "../../services/trust-gate";
 import { loadLearnedContext } from "../../services/agent-learning";
+import { loadMediaContext } from "../../services/agent-media";
 
 const router = Router();
 router.use(requireSession);
@@ -1347,6 +1348,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   let selectedAgent: (typeof aiAgentsTable.$inferSelect) | null = null;
   let conversationForDraft: (typeof conversationsTable.$inferSelect) | null = null;
   let latestMessageForDecision: (typeof messagesTable.$inferSelect) | null = null;
+  let conversationMessagesForDraft: (typeof messagesTable.$inferSelect)[] = [];
 
   if (agentId) {
     const [agent] = await db.select().from(aiAgentsTable).where(
@@ -1377,6 +1379,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
     const messages = await db.select().from(messagesTable).where(
       and(eq(messagesTable.conversationId, conversationId), eq(messagesTable.workspaceId, activeWorkspaceId))
     ).orderBy(messagesTable.createdAt).limit(20);
+    conversationMessagesForDraft = messages;
 
     const lastMsg = messages[messages.length - 1];
     conversationForDraft = conv;
@@ -1401,7 +1404,8 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   const sectorContext = await loadSectorAgentContext(activeWorkspaceId, selectedAgent);
   const learnedContext = await loadLearnedContext(activeWorkspaceId, searchQuery);
   const catalogContext = await loadCatalogAgentContext(activeWorkspaceId);
-  const allKnowledgeContextSources = [...knowledgeSources, ...catalogContext.sources, ...learnedContext.sources];
+  const mediaContext = await loadMediaContext(conversationMessagesForDraft);
+  const allKnowledgeContextSources = [...knowledgeSources, ...catalogContext.sources, ...learnedContext.sources, ...mediaContext.sources];
   const channelContext = channelGuidance(conversationForDraft?.channel ?? "manual", selectedAgent?.channelTone);
   const locationContext = await loadLocationContext(activeWorkspaceId, conversationForDraft);
   const knowledgeGap = conversationId ? !hasStrongKnowledgeHit(uniqueSources) : false;
@@ -1421,7 +1425,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
       ? "لا توجد إجابة واضحة في المعرفة المتاحة بعد محاولة توضيح سابقة. لا تخمّن. اكتب ردًا قصيرًا يقول: أحتاج أتأكد من هذه المعلومة وأرجع لك، وسيتم تحويل المحادثة للفريق."
       : "إذا لم تجد إجابة واضحة في المعرفة المتاحة، لا تخمّن. اسأل سؤالًا توضيحيًا واحدًا يساعد الموظف أو العميل على تحديد المطلوب."
     : "لا تخترع أي سعر أو خصم أو ضمان أو سياسة. استخدم المعرفة المتاحة فقط.";
-  systemPrompt = `${systemPrompt}\n\n${sectorContext}\n\n${channelContext}\n\n${locationContext}\n\n${escalationGuidance}`;
+  systemPrompt = `${systemPrompt}\n\n${sectorContext}\n\n${channelContext}\n\n${locationContext}${mediaContext.context}\n\n${escalationGuidance}`;
 
   const knowledgeContext = knowledgeSources.length > 0
     ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item}`).join("\n")}`
@@ -1430,7 +1434,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة أو التجربة.${instructions ? `\nتعليمات إضافية: ${instructions}` : ""}
 
 المحادثة:
-${transcript}${knowledgeContext}${learnedContext.context}
+${transcript}${knowledgeContext}${learnedContext.context}${mediaContext.context}
 
 ${sectorContext}${catalogContext.context}
 
@@ -1591,8 +1595,8 @@ ${locationContext}
     trustDecision,
     autoReplyOutboxEventId,
     sources: uniqueSources.length > 0 ? uniqueSources : null,
-    knowledgeSources: [...knowledgeSources, ...catalogContext.sources].length > 0 ? [...knowledgeSources, ...catalogContext.sources] : null,
-    knowledgeSourcesSummary: [...knowledgeSources, ...catalogContext.sources].length > 0 ? `تم استخدام ${[...knowledgeSources, ...catalogContext.sources].length} مصدر من قاعدة المعرفة والسياق التجاري` : null,
+    knowledgeSources: allKnowledgeContextSources.length > 0 ? allKnowledgeContextSources : null,
+    knowledgeSourcesSummary: allKnowledgeContextSources.length > 0 ? `تم استخدام ${allKnowledgeContextSources.length} مصدر من قاعدة المعرفة والسياق التجاري والوسائط` : null,
     provider: result.provider,
     warning: "هذه مسودة فقط — لن يتم إرسالها تلقائياً",
   });

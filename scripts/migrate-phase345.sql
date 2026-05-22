@@ -763,6 +763,12 @@ CREATE INDEX IF NOT EXISTS idx_learned_answers_ws_status ON learned_answers(work
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS location_note text;
 
 -- =============================================================
+-- Closure Phase 2F: media attachments for image and voice context
+-- =============================================================
+
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachments jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+-- =============================================================
 -- Verification queries (SELECT only, no mutations)
 -- These print confirmation that expected tables exist.
 -- =============================================================

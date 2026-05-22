@@ -50,9 +50,24 @@ function findPhoneNumberId(payload: any): string | null {
   return null;
 }
 
-function messageContent(message: any): { contentType: string; content: string; providerPayload: Record<string, unknown> } {
+function mediaAttachment(message: any): Record<string, unknown> | null {
+  const type = typeof message?.type === "string" ? message.type : "unknown";
+  const media = message?.[type] ?? {};
+  const mediaId = typeof media.id === "string" ? media.id : null;
+  if (!["image", "audio", "voice", "document", "video", "sticker"].includes(type) || !mediaId) return null;
+  return {
+    type,
+    provider: "meta",
+    media_id: mediaId,
+    mime_type: media.mime_type ?? null,
+    sha256: media.sha256 ?? null,
+    caption: media.caption ?? null,
+  };
+}
+
+function messageContent(message: any): { contentType: string; content: string; providerPayload: Record<string, unknown>; attachments: Record<string, unknown>[] } {
   if (message.type === "text") {
-    return { contentType: "text", content: message.text?.body ?? "", providerPayload: message };
+    return { contentType: "text", content: message.text?.body ?? "", providerPayload: message, attachments: [] };
   }
   if (message.type === "location") {
     const location = message.location ?? {};
@@ -61,13 +76,23 @@ function messageContent(message: any): { contentType: string; content: string; p
       contentType: "location",
       content: label || "موقع مرسل من العميل",
       providerPayload: message,
+      attachments: [{
+        type: "location",
+        provider: "meta",
+        latitude: location.latitude ?? null,
+        longitude: location.longitude ?? null,
+        address: location.address ?? null,
+        name: location.name ?? null,
+      }],
     };
   }
   const mediaId = message[message.type]?.id;
+  const attachment = mediaAttachment(message);
   return {
     contentType: message.type ?? "unknown",
     content: mediaId ? `[${message.type}:${mediaId}]` : `[${message.type ?? "message"}]`,
     providerPayload: message,
+    attachments: attachment ? [attachment] : [],
   };
 }
 
@@ -201,6 +226,7 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
         source: "whatsapp_cloud",
         contentType: content.contentType,
         content: content.content,
+        attachments: content.attachments,
         providerPayload: content.providerPayload,
         deliveryStatus: "received",
         sentAt,
