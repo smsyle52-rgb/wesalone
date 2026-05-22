@@ -422,6 +422,193 @@ function NotificationsTab() {
   );
 }
 
+function BillingTabV2() {
+  const qc = useQueryClient();
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
+  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("kuraimi");
+  const [amountYer, setAmountYer] = useState("");
+  const [reference, setReference] = useState("");
+  const [receiptNote, setReceiptNote] = useState("");
+  const { data, isLoading } = useQuery({ queryKey: ["billing"], queryFn: () => apiFetch("workspace/billing") });
+  const submitPayment = useMutation({
+    mutationFn: () => apiFetch("workspace/billing/payment-submissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        planId: selectedPlanId || selectedPlan?.id,
+        amountYer,
+        paymentMethod,
+        reference: reference || null,
+        receiptNote: receiptNote || null,
+      }),
+    }),
+    onSuccess: () => {
+      setReference("");
+      setReceiptNote("");
+      qc.invalidateQueries({ queryKey: ["billing"] });
+    },
+  });
+
+  const plans = data?.plans ?? [];
+  const current = data?.subscription;
+  const limits = current?.limits ?? {};
+  const usage = data?.usage ?? {};
+  const selectedPlan = plans.find((plan: any) => plan.id === selectedPlanId) ?? plans.find((plan: any) => (plan.key ?? plan.slug) !== "trial") ?? plans[0];
+
+  function limitValue(key: string) {
+    const value = limits?.[key];
+    return typeof value === "number" && value >= 0 ? value : null;
+  }
+
+  function progress(currentValue: number, limit: number | null) {
+    if (!limit) return 0;
+    return Math.min(100, Math.round((currentValue / limit) * 100));
+  }
+
+  const usageRows = [
+    { label: "الرسائل هذا الشهر", value: usage.messagesSent ?? 0, limit: limitValue("monthly_messages") },
+    { label: "الوكلاء", value: usage.agents ?? 0, limit: limitValue("agents") },
+    { label: "جهات الاتصال", value: usage.contacts ?? 0, limit: limitValue("contacts") },
+    { label: "أعضاء الفريق", value: usage.teamMembers ?? 0, limit: limitValue("team_members") },
+  ];
+
+  if (isLoading) return <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">جار تحميل بيانات الفوترة...</div>;
+
+  return (
+    <div className="space-y-6">
+      {(data?.limitWarnings ?? []).length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+          وصلت حد باقتك في بعض الموارد. يمكنك الاستمرار في متابعة بياناتك، ولإضافة موارد جديدة يرجى ترقية الباقة.
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+          <p className="text-sm font-bold text-primary">الباقة الحالية</p>
+          <h3 className="mt-2 text-3xl font-black text-foreground">{current?.planNameAr ?? current?.planName ?? "تجربة مجانية"}</h3>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full bg-primary/10 px-3 py-1 font-bold text-primary">{current?.status ?? "trialing"}</span>
+            {current?.trialEndsAt && <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">تنتهي التجربة: {new Date(current.trialEndsAt).toLocaleDateString("ar")}</span>}
+            {current?.currentPeriodEnd && <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">نهاية الفترة: {new Date(current.currentPeriodEnd).toLocaleDateString("ar")}</span>}
+          </div>
+          <p className="mt-4 text-sm leading-7 text-muted-foreground">الفوترة في وصال ون يدوية ومناسبة للسوق اليمني. لا يوجد خصم تلقائي أو بوابة دفع في هذه المرحلة، وكل طلب دفع تتم مراجعته قبل تفعيل الباقة.</p>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+          <h3 className="text-lg font-extrabold text-foreground">الاستخدام الحالي</h3>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {usageRows.map((row) => (
+              <div key={row.label} className="rounded-lg border border-border/60 p-3">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-bold text-foreground">{row.label}</span>
+                  <span className="text-muted-foreground">{row.value} / {row.limit ?? "غير محدود"}</span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary">
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${progress(row.value, row.limit)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-extrabold text-foreground">الباقات</h3>
+            <p className="mt-1 text-sm text-muted-foreground">الأسعار تقرأ من قاعدة البيانات ويمكن تعديلها بدون تغيير الكود.</p>
+          </div>
+          <div className="rounded-lg border border-border bg-secondary p-1 text-sm">
+            <button className={`rounded-md px-3 py-1.5 ${billingCycle === "monthly" ? "bg-card shadow-sm" : ""}`} onClick={() => setBillingCycle("monthly")}>شهري</button>
+            <button className={`rounded-md px-3 py-1.5 ${billingCycle === "annual" ? "bg-card shadow-sm" : ""}`} onClick={() => setBillingCycle("annual")}>سنوي</button>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-4 lg:grid-cols-4">
+          {plans.map((plan: any) => {
+            const price = billingCycle === "annual" ? plan.priceYerAnnual : plan.priceYer;
+            const active = current?.planId === plan.id;
+            return (
+              <button key={plan.id} type="button" onClick={() => { setSelectedPlanId(plan.id); setAmountYer(String(price ?? "")); }} className={`rounded-xl border p-4 text-start transition hover:-translate-y-1 hover:shadow-lg ${selectedPlanId === plan.id ? "border-accent ring-2 ring-accent/20" : active ? "border-primary" : "border-border"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-lg font-black text-foreground">{plan.nameAr ?? plan.name}</h4>
+                  {active && <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">حالية</span>}
+                </div>
+                <div className="mt-3 text-2xl font-black text-primary">{Number(price ?? 0).toLocaleString("ar")} <span className="text-xs text-muted-foreground">ريال</span></div>
+                {billingCycle === "annual" && <p className="mt-1 text-xs font-bold text-accent">خصم سنوي تقريبي 20%</p>}
+                <ul className="mt-4 space-y-2 text-xs text-muted-foreground">
+                  <li>القنوات: {plan.limits?.channels ?? "غير محدود"}</li>
+                  <li>الوكلاء: {plan.limits?.agents ?? "غير محدود"}</li>
+                  <li>الرسائل الشهرية: {plan.limits?.monthly_messages?.toLocaleString?.("ar") ?? "غير محدود"}</li>
+                  <li>جهات الاتصال: {plan.limits?.contacts?.toLocaleString?.("ar") ?? "غير محدود"}</li>
+                </ul>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[.9fr_1.1fr]">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+          <h3 className="text-lg font-extrabold text-foreground">تعليمات الدفع اليدوي</h3>
+          <div className="mt-4 space-y-3 text-sm text-muted-foreground">
+            <p><b>كريمي:</b> {data?.manualPayment?.kuraimi}</p>
+            <p><b>جوالي:</b> {data?.manualPayment?.jawali}</p>
+            <p><b>تحويل بنكي:</b> {data?.manualPayment?.bank}</p>
+            <p><b>نقداً:</b> {data?.manualPayment?.cash}</p>
+          </div>
+        </div>
+        <form className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]" onSubmit={(event) => { event.preventDefault(); submitPayment.mutate(); }}>
+          <h3 className="text-lg font-extrabold text-foreground">رفع طلب ترقية الباقة</h3>
+          {submitPayment.isSuccess && <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">تم استلام طلبك، سيتم تفعيل باقتك بعد مراجعة الدفع.</div>}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold">الباقة
+              <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={selectedPlanId || selectedPlan?.id || ""} onChange={(event) => { setSelectedPlanId(event.target.value); const plan = plans.find((item: any) => item.id === event.target.value); setAmountYer(String((billingCycle === "annual" ? plan?.priceYerAnnual : plan?.priceYer) ?? "")); }}>
+                {plans.map((plan: any) => <option key={plan.id} value={plan.id}>{plan.nameAr ?? plan.name}</option>)}
+              </select>
+            </label>
+            <label className="text-sm font-semibold">المبلغ بالريال اليمني
+              <input className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={amountYer} onChange={(event) => setAmountYer(event.target.value)} />
+            </label>
+            <label className="text-sm font-semibold">طريقة الدفع
+              <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
+                <option value="kuraimi">كريمي</option>
+                <option value="jawali">جوالي</option>
+                <option value="bank_transfer">تحويل بنكي</option>
+                <option value="cash">نقداً</option>
+              </select>
+            </label>
+            <label className="text-sm font-semibold">رقم المرجع
+              <input className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={reference} onChange={(event) => setReference(event.target.value)} />
+            </label>
+          </div>
+          <label className="mt-3 block text-sm font-semibold">ملاحظة أو تفاصيل الإيصال
+            <textarea className="mt-1 min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2" value={receiptNote} onChange={(event) => setReceiptNote(event.target.value)} />
+          </label>
+          <button disabled={submitPayment.isPending || !(selectedPlanId || selectedPlan?.id) || !amountYer} className="mt-4 rounded-lg bg-primary px-5 py-2.5 text-sm font-black text-primary-foreground disabled:opacity-50">إرسال طلب المراجعة</button>
+        </form>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+        <h3 className="text-lg font-extrabold text-foreground">سجل طلبات الدفع</h3>
+        <div className="mt-4 divide-y divide-border/60">
+          {(data?.paymentSubmissions ?? []).length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">لا توجد طلبات دفع بعد</div>
+          ) : data.paymentSubmissions.map((item: any) => (
+            <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+              <div>
+                <div className="font-bold text-foreground">{item.planNameAr ?? item.planName} - {Number(item.amountYer).toLocaleString("ar")} ريال</div>
+                <div className="text-muted-foreground">{item.paymentMethod} · {item.reference || "بدون مرجع"} · {new Date(item.createdAt).toLocaleDateString("ar")}</div>
+              </div>
+              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-muted-foreground">{item.status}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function BillingTab() {
   const { data } = useQuery({ queryKey: ["workspace-usage"], queryFn: () => apiFetch("workspace/usage") });
   const plan = data?.subscription;
@@ -699,7 +886,7 @@ export default function SettingsPage() {
       {tab === "exchange-rates" && <ExchangeRatesTab />}
       {tab === "notifications" && <NotificationsTab />}
       {tab === "security" && <SecurityTab />}
-      {tab === "billing" && <BillingTab />}
+      {tab === "billing" && <BillingTabV2 />}
       {tab === "api-keys" && <ApiKeysTab />}
       {tab === "danger" && <DangerZoneTab />}
     </div>

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -9,6 +9,7 @@ import {
   subscriptionsTable,
   plansTable,
   paymentMethodsTable,
+  paymentSubmissionsTable,
   notificationPreferencesTable,
   apiKeysTable,
 } from "@workspace/db";
@@ -169,6 +170,98 @@ router.get("/usage", requirePermission("settings:read"), async (req: Request, re
     logger.error({ err }, "Failed to get usage");
     res.status(500).json({ error: "حدث خطأ داخلي" });
   }
+});
+
+router.get("/billing", requirePermission("billing:read"), async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  const workspaceId = authReq.sessionUser.activeWorkspaceId;
+  try {
+    const [subscription, usage, limitWarnings, plans, paymentSubmissions] = await Promise.all([
+      getActiveSubscription(workspaceId),
+      getUsageSnapshot(workspaceId),
+      getLimitWarnings(workspaceId),
+      db.select().from(plansTable).where(eq(plansTable.isActive, true)).orderBy(plansTable.sortOrder),
+      db
+        .select({
+          id: paymentSubmissionsTable.id,
+          amountYer: paymentSubmissionsTable.amountYer,
+          paymentMethod: paymentSubmissionsTable.paymentMethod,
+          reference: paymentSubmissionsTable.reference,
+          receiptNote: paymentSubmissionsTable.receiptNote,
+          status: paymentSubmissionsTable.status,
+          reviewedAt: paymentSubmissionsTable.reviewedAt,
+          createdAt: paymentSubmissionsTable.createdAt,
+          planName: plansTable.name,
+          planNameAr: plansTable.nameAr,
+        })
+        .from(paymentSubmissionsTable)
+        .innerJoin(plansTable, eq(paymentSubmissionsTable.planId, plansTable.id))
+        .where(eq(paymentSubmissionsTable.workspaceId, workspaceId))
+        .orderBy(desc(paymentSubmissionsTable.createdAt))
+        .limit(20),
+    ]);
+
+    res.json({
+      subscription,
+      usage,
+      limitWarnings,
+      plans,
+      paymentSubmissions,
+      manualPayment: {
+        kuraimi: process.env.BILLING_KURAIMI_ACCOUNT ?? "يتم تزويدك برقم الحساب عند التواصل مع المبيعات",
+        jawali: process.env.BILLING_JAWALI_ACCOUNT ?? "يتم تزويدك برقم المحفظة عند التواصل مع المبيعات",
+        bank: process.env.BILLING_BANK_ACCOUNT ?? "يتم تزويدك ببيانات التحويل البنكي عند التواصل مع المبيعات",
+        cash: "يمكن تنسيق الدفع النقدي مع فريق وصال ون",
+      },
+    });
+  } catch (err) {
+    logger.error({ err }, "Failed to get billing data");
+    res.status(500).json({ error: "حدث خطأ داخلي" });
+  }
+});
+
+const paymentSubmissionSchema = z.object({
+  planId: z.string().uuid(),
+  amountYer: z.coerce.number().positive(),
+  paymentMethod: z.enum(["kuraimi", "jawali", "bank_transfer", "cash"]),
+  reference: z.string().trim().max(120).optional().nullable(),
+  receiptNote: z.string().trim().max(1000).optional().nullable(),
+});
+
+router.post("/billing/payment-submissions", requirePermission("billing:manage"), async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  const parsed = paymentSubmissionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "بيانات طلب الدفع غير صالحة", details: parsed.error.flatten() });
+    return;
+  }
+
+  const [plan] = await db.select({ id: plansTable.id }).from(plansTable).where(and(eq(plansTable.id, parsed.data.planId), eq(plansTable.isActive, true))).limit(1);
+  if (!plan) {
+    res.status(404).json({ error: "الباقة غير موجودة" });
+    return;
+  }
+
+  const [submission] = await db.insert(paymentSubmissionsTable).values({
+    workspaceId: authReq.sessionUser.activeWorkspaceId,
+    planId: parsed.data.planId,
+    amountYer: String(parsed.data.amountYer),
+    paymentMethod: parsed.data.paymentMethod,
+    reference: parsed.data.reference ?? null,
+    receiptNote: parsed.data.receiptNote ?? null,
+    status: "pending",
+  }).returning();
+
+  await createAuditLog({
+    ...auditFromRequest(req, authReq.sessionUser),
+    action: "create",
+    severity: "info",
+    entityType: "payment_submission",
+    entityId: submission.id,
+    newData: { planId: parsed.data.planId, amountYer: parsed.data.amountYer, paymentMethod: parsed.data.paymentMethod },
+  });
+
+  res.status(201).json({ submission });
 });
 
 router.get("/notification-preferences", requirePermission("settings:read"), async (req: Request, res: Response) => {
