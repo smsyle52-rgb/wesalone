@@ -38,6 +38,7 @@ import BroadcastDetailPage from "@/pages/BroadcastDetailPage";
 import AutomationsPage from "@/pages/AutomationsPage";
 import AutomationEditorPage from "@/pages/AutomationEditorPage";
 import CatalogPage from "@/pages/CatalogPage";
+import AdminPaymentsPage from "@/pages/AdminPaymentsPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -140,6 +141,7 @@ function Router() {
       )} />
       <Route path="/automations" component={() => <ProtectedRoute component={AutomationsPage} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
+      <Route path="/admin/payments" component={() => <ProtectedRoute component={AdminPaymentsPage} />} />
       <Route path="/" component={() => <PublicRoute component={LandingPage} />} />
       <Route component={NotFound} />
     </Switch>
