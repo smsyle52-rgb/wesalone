@@ -38,6 +38,8 @@ export const conversationsTable = pgTable(
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
     unreadCount: integer("unread_count").notNull().default(0),
     aiSummary: text("ai_summary"),
+    needsHuman: boolean("needs_human").notNull().default(false),
+    escalationReason: text("escalation_reason"),
     snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     closedAt: timestamp("closed_at", { withTimezone: true }),

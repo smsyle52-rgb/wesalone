@@ -695,6 +695,9 @@ export default function InboxPage() {
                       {c.unreadCount > 0 && (
                         <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 font-bold">{c.unreadCount}</span>
                       )}
+                      {c.needsHuman && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">يحتاج تدخل</span>
+                      )}
                       <StatusBadge status={c.status} />
                     </div>
                   </div>
@@ -759,6 +762,9 @@ export default function InboxPage() {
                     <ChannelBadge channel={conv.channel} />
                     <PriorityBadge priority={conv.priority} />
                     <StatusBadge status={conv.status} />
+                    {conv.needsHuman && (
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800">يحتاج تدخل</span>
+                    )}
                     {ticket && (
                       <a
                         href={`/tickets?id=${ticket.id}`}

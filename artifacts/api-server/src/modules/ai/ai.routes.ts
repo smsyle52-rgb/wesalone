@@ -9,6 +9,7 @@ import {
   conversationsTable, knowledgeChunksTable, faqEntriesTable, knowledgeDocumentsTable,
   channelAccountsTable, adCampaignsTable, socialPostsTable, productsTable,
   sectorProfilesTable, workspacesTable,
+  tasksTable,
 } from "@workspace/db";
 import { eq, and, desc, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { requireSession } from "../../middlewares/requireSession";
@@ -421,6 +422,11 @@ async function loadSectorAgentContext(
       : "",
     workspaceSectorNote ? `ملاحظة التاجر عن نشاطه: ${workspaceSectorNote}` : "",
   ].filter(Boolean).join("\n");
+}
+
+function hasStrongKnowledgeHit(sources: KnowledgeAiSource[]): boolean {
+  if (sources.length === 0) return false;
+  return sources.some((source) => typeof source.score !== "number" || source.score >= 0.2);
 }
 
 // ─── AI Agents ───────────────────────────────────────────────────────────────
@@ -1318,7 +1324,24 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   const sectorContext = await loadSectorAgentContext(activeWorkspaceId, selectedAgent);
   const catalogContext = await loadCatalogAgentContext(activeWorkspaceId);
   const channelContext = channelGuidance(conversationForDraft?.channel ?? "manual", selectedAgent?.channelTone);
-  systemPrompt = `${systemPrompt}\n\n${sectorContext}\n\n${channelContext}`;
+  const knowledgeGap = conversationId ? !hasStrongKnowledgeHit(uniqueSources) : false;
+  let previousKnowledgeGaps = 0;
+  if (knowledgeGap && conversationId && agentId) {
+    const rows = await db.select({ id: autoReplyDecisionsTable.id }).from(autoReplyDecisionsTable).where(and(
+      eq(autoReplyDecisionsTable.workspaceId, activeWorkspaceId),
+      eq(autoReplyDecisionsTable.conversationId, conversationId),
+      eq(autoReplyDecisionsTable.agentId, agentId),
+      eq(autoReplyDecisionsTable.reason, "knowledge_gap"),
+    )).limit(2);
+    previousKnowledgeGaps = rows.length;
+  }
+  const shouldEscalateKnowledgeGap = knowledgeGap && previousKnowledgeGaps > 0;
+  const escalationGuidance = knowledgeGap
+    ? shouldEscalateKnowledgeGap
+      ? "لا توجد إجابة واضحة في المعرفة المتاحة بعد محاولة توضيح سابقة. لا تخمّن. اكتب ردًا قصيرًا يقول: أحتاج أتأكد من هذه المعلومة وأرجع لك، وسيتم تحويل المحادثة للفريق."
+      : "إذا لم تجد إجابة واضحة في المعرفة المتاحة، لا تخمّن. اسأل سؤالًا توضيحيًا واحدًا يساعد الموظف أو العميل على تحديد المطلوب."
+    : "لا تخترع أي سعر أو خصم أو ضمان أو سياسة. استخدم المعرفة المتاحة فقط.";
+  systemPrompt = `${systemPrompt}\n\n${sectorContext}\n\n${channelContext}\n\n${escalationGuidance}`;
 
   const knowledgeContext = knowledgeSources.length > 0
     ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item}`).join("\n")}`
@@ -1351,6 +1374,13 @@ ${sectorContext}${catalogContext.context}
     ] : undefined,
     knowledgeSources: [...knowledgeSources, ...catalogContext.sources],
   });
+  let finalDraft = result.output;
+  if (shouldEscalateKnowledgeGap) {
+    finalDraft = "أحتاج أتأكد من هذه المعلومة وأرجع لك. سأحوّل المحادثة لأحد أعضاء الفريق حتى يراجع التفاصيل بدقة.";
+    await db.update(aiMessagesTable)
+      .set({ content: finalDraft, metadata: { knowledgeSources: [...knowledgeSources, ...catalogContext.sources], escalation: "knowledge_gap" } })
+      .where(and(eq(aiMessagesTable.aiRunId, result.run.id), eq(aiMessagesTable.role, "assistant")));
+  }
 
   if (conversationId) {
     if (message) {
@@ -1363,7 +1393,7 @@ ${sectorContext}${catalogContext.context}
     }
     const updatedMemory = await appendTurn(activeWorkspaceId, conversationId, agentId ?? null, {
       role: "assistant",
-      content: result.output,
+      content: finalDraft,
       ts: new Date().toISOString(),
       message_id: null,
     });
@@ -1384,13 +1414,41 @@ ${sectorContext}${catalogContext.context}
 
   let trustDecision: TrustDecision | null = null;
   let autoReplyOutboxEventId: string | null = null;
-  if (conversationId && agentId && selectedAgent && conversationForDraft && latestMessageForDecision) {
+  if (shouldEscalateKnowledgeGap && conversationId && agentId && conversationForDraft && latestMessageForDecision) {
+    await db.update(conversationsTable)
+      .set({ needsHuman: true, escalationReason: "knowledge_gap", updatedAt: new Date() })
+      .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, activeWorkspaceId)));
+    await db.insert(tasksTable).values({
+      workspaceId: activeWorkspaceId,
+      title: "مراجعة محادثة تحتاج تدخل",
+      description: "الوكيل لم يجد إجابة واضحة في المعرفة المتاحة بعد سؤال توضيحي، ويحتاج الموظف لمراجعة المحادثة.",
+      status: "pending",
+      priority: "high",
+      contactId: conversationForDraft.contactId ?? null,
+      conversationId,
+      relatedType: "conversation",
+      relatedId: conversationId,
+      createdBy: userId,
+    });
+    trustDecision = { decision: "suggest_only", reason: "knowledge_gap" };
+    await db.insert(autoReplyDecisionsTable).values({
+      workspaceId: activeWorkspaceId,
+      conversationId,
+      agentId,
+      messageId: latestMessageForDecision.id,
+      decision: "suggest_only",
+      reason: "knowledge_gap",
+      confidence: null,
+      topicDetected: null,
+      sentMessageId: null,
+    });
+  } else if (conversationId && agentId && selectedAgent && conversationForDraft && latestMessageForDecision) {
     trustDecision = await shouldAutoSend({
       workspaceId: activeWorkspaceId,
       agent: selectedAgent,
       conversationId,
       userMessage: latestMessageForDecision.content || searchQuery,
-      draftReply: result.output,
+      draftReply: finalDraft,
       kbHits: uniqueSources,
     });
 
@@ -1413,7 +1471,7 @@ ${sectorContext}${catalogContext.context}
             channelAccountId: destination.channelAccountId,
             conversationId,
             to: destination.to,
-            body: result.output,
+            body: finalDraft,
             aiRunId: result.run.id,
             autoReply: true,
           },
@@ -1447,7 +1505,7 @@ ${sectorContext}${catalogContext.context}
 
   res.status(201).json({
     run: result.run,
-    draft: result.output,
+    draft: finalDraft,
     trustDecision,
     autoReplyOutboxEventId,
     sources: uniqueSources.length > 0 ? uniqueSources : null,
