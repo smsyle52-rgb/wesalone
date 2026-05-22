@@ -131,6 +131,227 @@
 .badge-lost { @apply bg-red-100 text-red-600; }
 
 @layer utilities {
+  [data-landing-theme="light"] {
+    --landing-bg: #f7fbff;
+    --landing-surface: #ffffff;
+    --landing-card: rgba(255, 255, 255, .92);
+    --landing-header: rgba(255, 255, 255, .9);
+    --landing-ink: #1B3A5C;
+    --landing-muted: #64748b;
+    --landing-line: rgba(27, 58, 92, .12);
+    --landing-soft: #eef6ff;
+    --landing-icon-bg: rgba(255, 255, 255, .9);
+    --landing-shadow: rgba(27, 58, 92, .10);
+    --landing-footer: #061f3d;
+    --dash-bg: #f8fbff;
+    --dash-panel: #ffffff;
+    --dash-sidebar: #0a2e57;
+    --dash-input: #f2f6fb;
+  }
+
+  [data-landing-theme="dark"] {
+    --landing-bg: #020814;
+    --landing-surface: #020b16;
+    --landing-card: rgba(5, 20, 38, .9);
+    --landing-header: rgba(2, 8, 20, .88);
+    --landing-ink: #f6fbff;
+    --landing-muted: #a9bdd3;
+    --landing-line: rgba(80, 150, 220, .22);
+    --landing-soft: rgba(11, 111, 232, .14);
+    --landing-icon-bg: rgba(5, 23, 46, .86);
+    --landing-shadow: rgba(0, 0, 0, .36);
+    --landing-footer: #010712;
+    --dash-bg: #06111f;
+    --dash-panel: #081827;
+    --dash-sidebar: #030b16;
+    --dash-input: #0b2034;
+  }
+
+  .landing-hero {
+    background:
+      radial-gradient(circle at 28% 38%, rgba(31, 182, 166, .16), transparent 31%),
+      radial-gradient(circle at 76% 32%, rgba(11, 111, 232, .18), transparent 32%),
+      var(--landing-bg);
+  }
+
+  [data-landing-theme="dark"] .landing-hero {
+    background:
+      radial-gradient(circle at 28% 38%, rgba(31, 182, 166, .13), transparent 31%),
+      radial-gradient(circle at 76% 32%, rgba(11, 111, 232, .26), transparent 32%),
+      linear-gradient(180deg, #020814 0%, #020b16 100%);
+  }
+
+  .landing-orb {
+    position: absolute;
+    pointer-events: none;
+    border: 1px solid rgba(11, 111, 232, .16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .22);
+    animation: landing-parallax-soft 9s ease-in-out infinite;
+  }
+
+  .landing-orb-a {
+    left: 28%;
+    top: 8rem;
+    inline-size: 34rem;
+    block-size: 34rem;
+  }
+
+  .landing-orb-b {
+    right: 4%;
+    bottom: 2rem;
+    inline-size: 16rem;
+    block-size: 16rem;
+    animation-delay: 1.2s;
+  }
+
+  [data-landing-theme="dark"] .landing-orb {
+    border-color: rgba(11, 111, 232, .24);
+    background: rgba(11, 111, 232, .03);
+    box-shadow: 0 0 70px rgba(11, 111, 232, .12);
+  }
+
+  .landing-reveal {
+    animation: landing-reveal 760ms cubic-bezier(.2, .8, .2, 1) both;
+  }
+
+  .landing-mesh {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 28% 38%, rgba(31, 182, 166, .18), transparent 31%),
+      radial-gradient(circle at 74% 34%, rgba(11, 111, 232, .16), transparent 32%),
+      linear-gradient(135deg, #F0F7FF 0%, #E8F9F7 100%);
+    background-size: 140% 140%;
+    animation: landing-mesh 16s ease-in-out infinite alternate;
+  }
+
+  .landing-depth {
+    animation: landing-depth 7s ease-in-out infinite;
+    transform-style: preserve-3d;
+  }
+
+  .landing-hero-depth {
+    animation: landing-depth 7s ease-in-out infinite;
+    transform: translate3d(var(--mx, 0), var(--my, 0), 0) rotateX(var(--rx, 0)) rotateY(var(--ry, 0));
+    transform-style: preserve-3d;
+  }
+
+  .landing-channel-float {
+    animation: landing-channel-float 5.2s ease-in-out infinite;
+  }
+
+  .landing-channel-spin {
+    animation: landing-channel-orbit 14s linear infinite;
+  }
+
+  .landing-channel-spin:hover {
+    animation-play-state: paused;
+  }
+
+  .landing-card-float {
+    animation: landing-card-float 6s ease-in-out infinite;
+  }
+
+  .landing-float-card {
+    animation: landing-float-card 6.4s ease-in-out infinite;
+  }
+
+  .landing-message-animate {
+    animation: landing-message 6.8s ease-in-out infinite;
+  }
+
+  .landing-bar {
+    transform-origin: bottom;
+    animation: landing-bar 900ms cubic-bezier(.2, .8, .2, 1) both;
+  }
+
+  .landing-count {
+    animation: landing-count 1.4s ease-out both;
+  }
+
+  .landing-ripple {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .landing-ripple::after {
+    content: "";
+    position: absolute;
+    inset: 50% auto auto 50%;
+    inline-size: 0;
+    block-size: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .4);
+    transform: translate(-50%, -50%);
+    opacity: 0;
+  }
+
+  .landing-ripple:active::after {
+    animation: landing-ripple 520ms ease-out;
+  }
+
+  .landing-cta {
+    background:
+      radial-gradient(circle at 8% 80%, rgba(31, 182, 166, .28), transparent 24%),
+      radial-gradient(circle at 92% 18%, rgba(11, 111, 232, .34), transparent 28%),
+      linear-gradient(135deg, #07315d, #004a9f 52%, #0f9fb2);
+  }
+
+  [data-landing-theme="dark"] {
+    background: #020814;
+    color: #f6fbff;
+  }
+
+  [data-landing-theme="dark"] header,
+  [data-landing-theme="dark"] section,
+  [data-landing-theme="dark"] .landing-hero {
+    background-color: #020814 !important;
+  }
+
+  [data-landing-theme="dark"] .landing-mesh {
+    background:
+      radial-gradient(circle at 28% 38%, rgba(31, 182, 166, .12), transparent 31%),
+      radial-gradient(circle at 74% 34%, rgba(11, 111, 232, .28), transparent 32%),
+      linear-gradient(135deg, #020814 0%, #020b16 100%);
+  }
+
+  [data-landing-theme="dark"] article,
+  [data-landing-theme="dark"] .landing-theme-toggle,
+  [data-landing-theme="dark"] .bg-white,
+  [data-landing-theme="dark"] .bg-white\/88,
+  [data-landing-theme="dark"] .bg-white\/90,
+  [data-landing-theme="dark"] .bg-white\/95 {
+    background-color: rgba(5, 20, 38, .92) !important;
+    border-color: rgba(80, 150, 220, .24) !important;
+    color: #f6fbff !important;
+  }
+
+  [data-landing-theme="dark"] .text-\[\#1B3A5C\],
+  [data-landing-theme="dark"] .text-\[\#102A4A\],
+  [data-landing-theme="dark"] .text-slate-700,
+  [data-landing-theme="dark"] .text-slate-600 {
+    color: #f6fbff !important;
+  }
+
+  [data-landing-theme="dark"] .text-slate-500,
+  [data-landing-theme="dark"] .text-slate-400 {
+    color: #a9bdd3 !important;
+  }
+
+  [data-landing-theme="dark"] .bg-\[\#f8fbff\],
+  [data-landing-theme="dark"] .bg-\[\#F0F7FF\],
+  [data-landing-theme="dark"] .bg-\[\#eef6ff\],
+  [data-landing-theme="dark"] .bg-\[\#f2f6fb\] {
+    background-color: #081827 !important;
+  }
+
+  [data-landing-theme="dark"] .border-\[\#dce8f5\],
+  [data-landing-theme="dark"] .border-\[\#edf2f8\],
+  [data-landing-theme="dark"] .border-\[\#eef3f9\] {
+    border-color: rgba(80, 150, 220, .24) !important;
+  }
+
   .wesal-container {
     inline-size: min(100% - 2rem, 1180px);
     margin-inline: auto;
@@ -208,6 +429,67 @@
     animation: wesal-reveal-static 700ms cubic-bezier(.2, .8, .2, 1) both;
     will-change: opacity, transform;
   }
+}
+
+@keyframes landing-reveal {
+  from { opacity: 0; transform: translate3d(0, 18px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes landing-mesh {
+  from { background-position: 0% 35%; }
+  to { background-position: 100% 65%; }
+}
+
+@keyframes landing-depth {
+  0%, 100% { transform: translate3d(0, 0, 0) rotateX(0) rotateY(0); }
+  50% { transform: translate3d(0, -10px, 0) rotateX(1.2deg) rotateY(-1.2deg); }
+}
+
+@keyframes landing-channel-orbit {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50% { transform: translate3d(0, -8px, 0) rotate(180deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(360deg); }
+}
+
+@keyframes landing-channel-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -10px, 0); }
+}
+
+@keyframes landing-card-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -8px, 0); }
+}
+
+@keyframes landing-float-card {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -14px, 0); }
+}
+
+@keyframes landing-message {
+  0%, 100% { opacity: .82; transform: translate3d(0, 0, 0); }
+  18%, 70% { opacity: 1; transform: translate3d(0, -3px, 0); }
+}
+
+@keyframes landing-bar {
+  from { transform: scaleY(.25); opacity: .45; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes landing-count {
+  from { opacity: .2; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-ripple {
+  0% { inline-size: 0; block-size: 0; opacity: .45; }
+  100% { inline-size: 16rem; block-size: 16rem; opacity: 0; }
+}
+
+@keyframes landing-parallax-soft {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-10px, 12px, 0); }
 }
 
 @keyframes wesal-mesh {
