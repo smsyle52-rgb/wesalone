@@ -692,6 +692,12 @@ CREATE INDEX IF NOT EXISTS idx_catalog_sources_ws ON catalog_sources(workspace_i
 CREATE INDEX IF NOT EXISTS idx_sync_runs_source ON catalog_sync_runs(catalog_source_id, started_at DESC);
 
 -- =============================================================
+-- Closure Phase 2A: channel-aware agent behavior
+-- =============================================================
+
+ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS channel_tone jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+-- =============================================================
 -- Verification queries (SELECT only, no mutations)
 -- These print confirmation that expected tables exist.
 -- =============================================================

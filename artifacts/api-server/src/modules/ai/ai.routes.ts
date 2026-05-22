@@ -373,6 +373,24 @@ async function searchKnowledge(workspaceId: string, query: string): Promise<stri
   return sources.map((source) => source.content);
 }
 
+const DEFAULT_CHANNEL_GUIDANCE: Record<string, string> = {
+  whatsapp: "اجعل الرد ودودًا ومباشرًا، ويمكن أن يكون أطول قليلًا إذا احتاج العميل إلى شرح.",
+  whatsapp_api: "اجعل الرد ودودًا ومباشرًا، ويمكن أن يكون أطول قليلًا إذا احتاج العميل إلى شرح.",
+  whatsapp_manual: "اجعل الرد ودودًا ومباشرًا، ويمكن أن يكون أطول قليلًا إذا احتاج العميل إلى شرح.",
+  instagram: "اجعل الرد قصيرًا ولطيفًا وسهل القراءة. يمكن استخدام تعبير خفيف عند الحاجة دون مبالغة.",
+  messenger: "اجعل الرد مختصرًا ومفيدًا، وركّز على الخطوة التالية بوضوح.",
+};
+
+function channelGuidance(channel?: string | null, channelTone?: unknown): string {
+  const normalized = (channel || "manual").toLowerCase();
+  const overrides = channelTone && typeof channelTone === "object" && !Array.isArray(channelTone)
+    ? channelTone as Record<string, unknown>
+    : {};
+  const override = typeof overrides[normalized] === "string" ? String(overrides[normalized]).trim() : "";
+  const guidance = override || DEFAULT_CHANNEL_GUIDANCE[normalized] || "اجعل الرد مهنيًا وواضحًا ومناسبًا لطبيعة القناة.";
+  return `أنت ترد عبر قناة ${normalized}. ${guidance}`;
+}
+
 // ─── AI Agents ───────────────────────────────────────────────────────────────
 
 const agentCreateSchema = z.object({
@@ -384,6 +402,7 @@ const agentCreateSchema = z.object({
   knowledgeBaseIds: z.array(z.string().uuid()).default([]),
   dialect: z.enum(["standard_arabic", "yemeni_light", "yemeni_business"]).default("standard_arabic"),
   tone: z.string().trim().max(200).optional().nullable(),
+  channelTone: z.record(z.string().trim().max(600)).optional().default({}),
 });
 
 const agentUpdateSchema = z.object({
@@ -396,6 +415,7 @@ const agentUpdateSchema = z.object({
   knowledgeBaseIds: z.array(z.string().uuid()).optional(),
   dialect: z.enum(["standard_arabic", "yemeni_light", "yemeni_business"]).optional(),
   tone: z.string().trim().max(200).optional().nullable(),
+  channelTone: z.record(z.string().trim().max(600)).optional(),
   trustMode: z.enum(["suggest", "auto", "auto_after_hours"]).optional(),
   trustConfidenceThreshold: z.coerce.number().min(0.5).max(0.95).optional(),
   trustTopics: z.array(z.string().trim().min(1).max(100)).optional(),
@@ -433,6 +453,7 @@ router.post("/agents", requirePermission("ai:configure"), async (req: Authentica
     knowledgeBaseIds: data.knowledgeBaseIds,
     dialect: data.dialect,
     tone: data.tone ?? null,
+    channelTone: data.channelTone,
     status: "active",
     createdBy: userId,
   }).returning();
@@ -542,6 +563,7 @@ router.patch("/agents/:id", requirePermission("ai:configure"), async (req: Authe
     ...(data.knowledgeBaseIds !== undefined && { knowledgeBaseIds: data.knowledgeBaseIds }),
     ...(data.dialect !== undefined && { dialect: data.dialect }),
     ...(data.tone !== undefined && { tone: data.tone ?? null }),
+    ...(data.channelTone !== undefined && { channelTone: data.channelTone }),
     ...(data.trustMode !== undefined && { trustMode: data.trustMode }),
     ...(data.trustConfidenceThreshold !== undefined && { trustConfidenceThreshold: String(data.trustConfidenceThreshold) }),
     ...(data.trustTopics !== undefined && { trustTopics: data.trustTopics }),
@@ -592,6 +614,7 @@ router.post("/agents/:id/duplicate", requirePermission("ai:configure"), async (r
     knowledgeBaseIds: existing.knowledgeBaseIds,
     dialect: existing.dialect,
     tone: existing.tone,
+    channelTone: existing.channelTone,
     trustMode: existing.trustMode,
     trustConfidenceThreshold: existing.trustConfidenceThreshold,
     trustTopics: existing.trustTopics,
@@ -1251,6 +1274,8 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   }).slice(0, 5);
   const knowledgeSources = uniqueSources.map((source) => `${source.title}\n${source.content}`);
   const catalogContext = await loadCatalogAgentContext(activeWorkspaceId);
+  const channelContext = channelGuidance(conversationForDraft?.channel ?? "manual", selectedAgent?.channelTone);
+  systemPrompt = `${systemPrompt}\n\n${channelContext}`;
 
   const knowledgeContext = knowledgeSources.length > 0
     ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item}`).join("\n")}`
