@@ -64,6 +64,8 @@ export const aiAgentsTable = pgTable("ai_agents", {
   dialect: text("dialect").notNull().default("standard_arabic"),
   tone: text("tone"),
   channelTone: jsonb("channel_tone").$type<Record<string, string>>().notNull().default({}),
+  sectorKey: text("sector_key").notNull().default("services_general"),
+  sectorBehaviorOverrides: jsonb("sector_behavior_overrides").$type<Record<string, unknown>>().notNull().default({}),
   trustMode: text("trust_mode").notNull().default("suggest"),
   trustConfidenceThreshold: numeric("trust_confidence_threshold", { precision: 3, scale: 2 }).notNull().default("0.80"),
   trustTopics: jsonb("trust_topics").$type<string[]>().notNull().default([]),

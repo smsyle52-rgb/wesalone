@@ -29,3 +29,4 @@ export * from "./knowledge";
 export * from "./ai";
 export * from "./reports";
 export * from "./catalog";
+export * from "./sectors";

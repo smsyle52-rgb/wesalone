@@ -45,6 +45,10 @@ router.get("/", requirePermission("settings:read"), async (req: Request, res: Re
 
 const updateWorkspaceSchema = z.object({
   name: z.string().min(2, "اسم المنشأة يجب أن يكون على الأقل حرفين").max(100).optional(),
+  settings: z.object({
+    sector_key: z.string().trim().min(2).max(80).optional(),
+    sector_note: z.string().trim().max(1000).optional(),
+  }).optional(),
 });
 
 const notificationPreferenceSchema = z.object({
@@ -77,6 +81,12 @@ router.patch("/", requirePermission("settings:manage"), async (req: Request, res
 
     const updates: Record<string, unknown> = {};
     if (parsed.data.name) updates.name = parsed.data.name;
+    if (parsed.data.settings) {
+      const currentSettings = existing.settings && typeof existing.settings === "object" && !Array.isArray(existing.settings)
+        ? existing.settings as Record<string, unknown>
+        : {};
+      updates.settings = { ...currentSettings, ...parsed.data.settings };
+    }
 
     if (!Object.keys(updates).length) {
       res.status(400).json({ error: "لا توجد تغييرات للحفظ" });

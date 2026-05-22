@@ -8,6 +8,7 @@ import {
   autoReplyDecisionsTable, outboxEventsTable, messagesTable, contactsTable, contactChannelsTable,
   conversationsTable, knowledgeChunksTable, faqEntriesTable, knowledgeDocumentsTable,
   channelAccountsTable, adCampaignsTable, socialPostsTable, productsTable,
+  sectorProfilesTable, workspacesTable,
 } from "@workspace/db";
 import { eq, and, desc, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { requireSession } from "../../middlewares/requireSession";
@@ -391,6 +392,37 @@ function channelGuidance(channel?: string | null, channelTone?: unknown): string
   return `أنت ترد عبر قناة ${normalized}. ${guidance}`;
 }
 
+function compactJson(value: unknown): string {
+  if (!value || typeof value !== "object") return "";
+  return JSON.stringify(value);
+}
+
+async function loadSectorAgentContext(
+  workspaceId: string,
+  agent: (typeof aiAgentsTable.$inferSelect) | null,
+): Promise<string> {
+  const sectorKey = agent?.sectorKey || "services_general";
+  const [profile] = await db.select().from(sectorProfilesTable).where(eq(sectorProfilesTable.sectorKey, sectorKey)).limit(1);
+  const [workspace] = await db.select({ settings: workspacesTable.settings }).from(workspacesTable).where(eq(workspacesTable.id, workspaceId)).limit(1);
+  const workspaceSettings = workspace?.settings && typeof workspace.settings === "object" ? workspace.settings as Record<string, unknown> : {};
+  const workspaceSectorNote = typeof workspaceSettings.sector_note === "string" ? workspaceSettings.sector_note : "";
+  if (!profile) return "";
+  return [
+    "هوية القطاع وأسلوب الخدمة:",
+    `القطاع: ${profile.nameAr}`,
+    `الوصف: ${profile.descriptionAr}`,
+    `المعرفة العامة للقطاع: ${compactJson(profile.baseKnowledge)}`,
+    `أسلوب الخدمة المطلوب: ${compactJson(profile.behaviorProfile)}`,
+    `هدف التفاعل الناجح: ${compactJson(profile.serviceGoals)}`,
+    `النبرة الافتراضية: ${profile.defaultTone}`,
+    `حدود القطاع: ${compactJson(profile.guardrails)}`,
+    agent?.sectorBehaviorOverrides && Object.keys(agent.sectorBehaviorOverrides).length > 0
+      ? `تخصيصات التاجر لأسلوب الخدمة: ${compactJson(agent.sectorBehaviorOverrides)}`
+      : "",
+    workspaceSectorNote ? `ملاحظة التاجر عن نشاطه: ${workspaceSectorNote}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 // ─── AI Agents ───────────────────────────────────────────────────────────────
 
 const agentCreateSchema = z.object({
@@ -403,6 +435,8 @@ const agentCreateSchema = z.object({
   dialect: z.enum(["standard_arabic", "yemeni_light", "yemeni_business"]).default("standard_arabic"),
   tone: z.string().trim().max(200).optional().nullable(),
   channelTone: z.record(z.string().trim().max(600)).optional().default({}),
+  sectorKey: z.string().trim().min(2).max(80).default("services_general"),
+  sectorBehaviorOverrides: z.record(z.unknown()).optional().default({}),
 });
 
 const agentUpdateSchema = z.object({
@@ -416,6 +450,8 @@ const agentUpdateSchema = z.object({
   dialect: z.enum(["standard_arabic", "yemeni_light", "yemeni_business"]).optional(),
   tone: z.string().trim().max(200).optional().nullable(),
   channelTone: z.record(z.string().trim().max(600)).optional(),
+  sectorKey: z.string().trim().min(2).max(80).optional(),
+  sectorBehaviorOverrides: z.record(z.unknown()).optional(),
   trustMode: z.enum(["suggest", "auto", "auto_after_hours"]).optional(),
   trustConfidenceThreshold: z.coerce.number().min(0.5).max(0.95).optional(),
   trustTopics: z.array(z.string().trim().min(1).max(100)).optional(),
@@ -454,6 +490,8 @@ router.post("/agents", requirePermission("ai:configure"), async (req: Authentica
     dialect: data.dialect,
     tone: data.tone ?? null,
     channelTone: data.channelTone,
+    sectorKey: data.sectorKey,
+    sectorBehaviorOverrides: data.sectorBehaviorOverrides,
     status: "active",
     createdBy: userId,
   }).returning();
@@ -564,6 +602,8 @@ router.patch("/agents/:id", requirePermission("ai:configure"), async (req: Authe
     ...(data.dialect !== undefined && { dialect: data.dialect }),
     ...(data.tone !== undefined && { tone: data.tone ?? null }),
     ...(data.channelTone !== undefined && { channelTone: data.channelTone }),
+    ...(data.sectorKey !== undefined && { sectorKey: data.sectorKey }),
+    ...(data.sectorBehaviorOverrides !== undefined && { sectorBehaviorOverrides: data.sectorBehaviorOverrides }),
     ...(data.trustMode !== undefined && { trustMode: data.trustMode }),
     ...(data.trustConfidenceThreshold !== undefined && { trustConfidenceThreshold: String(data.trustConfidenceThreshold) }),
     ...(data.trustTopics !== undefined && { trustTopics: data.trustTopics }),
@@ -615,6 +655,8 @@ router.post("/agents/:id/duplicate", requirePermission("ai:configure"), async (r
     dialect: existing.dialect,
     tone: existing.tone,
     channelTone: existing.channelTone,
+    sectorKey: existing.sectorKey,
+    sectorBehaviorOverrides: existing.sectorBehaviorOverrides,
     trustMode: existing.trustMode,
     trustConfidenceThreshold: existing.trustConfidenceThreshold,
     trustTopics: existing.trustTopics,
@@ -1273,9 +1315,10 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
     return true;
   }).slice(0, 5);
   const knowledgeSources = uniqueSources.map((source) => `${source.title}\n${source.content}`);
+  const sectorContext = await loadSectorAgentContext(activeWorkspaceId, selectedAgent);
   const catalogContext = await loadCatalogAgentContext(activeWorkspaceId);
   const channelContext = channelGuidance(conversationForDraft?.channel ?? "manual", selectedAgent?.channelTone);
-  systemPrompt = `${systemPrompt}\n\n${channelContext}`;
+  systemPrompt = `${systemPrompt}\n\n${sectorContext}\n\n${channelContext}`;
 
   const knowledgeContext = knowledgeSources.length > 0
     ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item}`).join("\n")}`
@@ -1284,7 +1327,9 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة أو التجربة.${instructions ? `\nتعليمات إضافية: ${instructions}` : ""}
 
 المحادثة:
-${transcript}${knowledgeContext}${catalogContext.context}
+${transcript}${knowledgeContext}
+
+${sectorContext}${catalogContext.context}
 
 المطلوب: مسودة رد احترافي ومناسب باللغة العربية. لا ترسل تلقائياً — هذه مسودة فقط للمراجعة.`;
 

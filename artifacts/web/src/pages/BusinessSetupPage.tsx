@@ -1,4 +1,6 @@
 import { Link } from "wouter";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
   CheckCircle2,
@@ -12,6 +14,13 @@ import {
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+const BASE = `${import.meta.env.BASE_URL}api`;
+async function apiFetch(path: string, opts?: RequestInit) {
+  const res = await fetch(`${BASE}/${path}`, { credentials: "include", ...opts });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
 
 const setupSteps = [
   {
@@ -60,6 +69,25 @@ const outcomes = [
 ];
 
 export default function BusinessSetupPage() {
+  const qc = useQueryClient();
+  const [sectorKey, setSectorKey] = useState("services_general");
+  const [sectorNote, setSectorNote] = useState("");
+  const sectorsQuery = useQuery({ queryKey: ["sector-profiles"], queryFn: () => apiFetch("sectors") });
+  const workspaceQuery = useQuery({ queryKey: ["workspace"], queryFn: () => apiFetch("workspace") });
+  useEffect(() => {
+    const settings = workspaceQuery.data?.workspace?.settings ?? {};
+    if (typeof settings.sector_key === "string") setSectorKey(settings.sector_key);
+    if (typeof settings.sector_note === "string") setSectorNote(settings.sector_note);
+  }, [workspaceQuery.data]);
+  const saveSector = useMutation({
+    mutationFn: () => apiFetch("workspace", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings: { sector_key: sectorKey, sector_note: sectorNote } }),
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workspace"] }),
+  });
+
   return (
     <div className="space-y-8" dir="rtl">
       <PageHeader
@@ -71,6 +99,22 @@ export default function BusinessSetupPage() {
           </Button>
         )}
       />
+
+      <Card className="border-accent/20 bg-accent/5">
+        <CardHeader>
+          <CardTitle>اختر قطاع نشاطك</CardTitle>
+          <CardDescription>هذا يساعد الوكيل على فهم طريقة خدمة العملاء المناسبة لنشاطك، مثل البيع، الحجز، أو أخذ الطلبات.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-[1fr_1.4fr_auto]">
+          <select value={sectorKey} onChange={(event) => setSectorKey(event.target.value)} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
+            {(sectorsQuery.data?.sectors ?? []).map((sector: any) => (
+              <option key={sector.sectorKey} value={sector.sectorKey}>{sector.nameAr}</option>
+            ))}
+          </select>
+          <input value={sectorNote} onChange={(event) => setSectorNote(event.target.value)} className="rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder="ملاحظة اختيارية عن أسلوب خدمتك أو ما يميز نشاطك" />
+          <Button onClick={() => saveSector.mutate()} disabled={saveSector.isPending}>حفظ القطاع</Button>
+        </CardContent>
+      </Card>
 
       <Card className="overflow-hidden border-primary/10 bg-gradient-to-l from-primary/8 via-card to-accent/10">
         <CardContent className="grid gap-6 p-6 lg:grid-cols-[1.1fr_.9fr]">

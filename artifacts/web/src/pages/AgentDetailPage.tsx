@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatDateTime } from "@/lib/utils";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
-const tabs = ["settings", "instructions", "knowledge", "channels", "runs", "trust", "playground"] as const;
+const tabs = ["settings", "instructions", "knowledge", "serviceStyle", "channels", "runs", "trust", "playground"] as const;
 
 async function apiFetch(path: string, opts?: RequestInit) {
   const res = await fetch(`${BASE}/${path}`, { credentials: "include", ...opts });
@@ -32,6 +32,7 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const [settings, setSettings] = useState({ name: "", defaultModel: "mock", temperature: "0.30", maxOutputTokens: "1024", knowledgeBaseIds: [] as string[] });
   const [instructions, setInstructions] = useState({ rolePrompt: "", businessRules: "", forbiddenActions: "", escalationRules: "" });
+  const [serviceStyle, setServiceStyle] = useState({ sectorKey: "services_general", notes: "" });
   const [trustSettings, setTrustSettings] = useState({
     trustMode: "suggest",
     trustConfidenceThreshold: "0.80",
@@ -61,6 +62,12 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
     enabled: canRead,
   });
 
+  const sectorsQuery = useQuery({
+    queryKey: ["sector-profiles"],
+    queryFn: () => apiFetch("sectors"),
+    enabled: canRead,
+  });
+
   useEffect(() => {
     const agent = detailQuery.data?.agent;
     if (!agent) return;
@@ -76,6 +83,11 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
       businessRules: detailQuery.data?.instructions?.businessRules ?? "",
       forbiddenActions: detailQuery.data?.instructions?.forbiddenActions ?? "",
       escalationRules: detailQuery.data?.instructions?.escalationRules ?? "",
+    });
+    const overrides = agent.sectorBehaviorOverrides && typeof agent.sectorBehaviorOverrides === "object" ? agent.sectorBehaviorOverrides : {};
+    setServiceStyle({
+      sectorKey: agent.sectorKey ?? "services_general",
+      notes: typeof overrides.notes === "string" ? overrides.notes : "",
     });
     setTrustSettings({
       trustMode: agent.trustMode ?? "suggest",
@@ -98,6 +110,8 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
         temperature: Number(settings.temperature),
         maxOutputTokens: Number(settings.maxOutputTokens),
         knowledgeBaseIds: settings.knowledgeBaseIds,
+        sectorKey: serviceStyle.sectorKey,
+        sectorBehaviorOverrides: { notes: serviceStyle.notes },
       }),
     }),
     onSuccess: () => {
@@ -179,6 +193,7 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
 
   const agent = detailQuery.data?.agent;
   const bases = basesQuery.data?.bases ?? [];
+  const sectors = sectorsQuery.data?.sectors ?? [];
   const channels = detailQuery.data?.channels ?? [];
   const runs = detailQuery.data?.runs ?? [];
 
@@ -200,7 +215,7 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
       <div className="mb-4 flex flex-wrap gap-2">
         {tabs.map((tab) => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-full px-4 py-2 text-sm font-medium ${activeTab === tab ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-            {t(`agents.detail.tabs.${tab}`)}
+            {tab === "serviceStyle" ? "أسلوب الخدمة" : t(`agents.detail.tabs.${tab}`)}
           </button>
         ))}
       </div>
@@ -265,6 +280,44 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
             ))}
             {canConfigure && (
               <button onClick={() => saveSettings.mutate()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">{t("common.save")}</button>
+            )}
+          </div>
+        )}
+
+        {activeTab === "serviceStyle" && (
+          <div className="space-y-5">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm leading-7 text-blue-900">
+              أسلوب الخدمة يحدد كيف يتصرف الوكيل داخل قطاعك: هل يشرح منتجًا، يقترح موعدًا، يأخذ طلبًا، أو يجمع تفاصيل الخدمة. معرفة التاجر تبقى أعلى أولوية دائمًا.
+            </div>
+            <label className="space-y-1 text-sm">
+              <span className="font-medium">قطاع النشاط</span>
+              <select
+                value={serviceStyle.sectorKey}
+                onChange={(event) => setServiceStyle({ ...serviceStyle, sectorKey: event.target.value })}
+                disabled={!canConfigure}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60"
+              >
+                {sectors.map((sector: any) => (
+                  <option key={sector.sectorKey} value={sector.sectorKey}>{sector.nameAr}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium">تخصيص خفيف لأسلوب الخدمة</span>
+              <textarea
+                value={serviceStyle.notes}
+                onChange={(event) => setServiceStyle({ ...serviceStyle, notes: event.target.value })}
+                disabled={!canConfigure}
+                rows={5}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60"
+                placeholder="مثال: ركز على سياسة الاستبدال الرسمية، واسأل العميل عن المقاس قبل اقتراح الملابس."
+              />
+            </label>
+            {canConfigure && (
+              <button onClick={() => saveSettings.mutate()} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                <Save className="h-4 w-4" />
+                {t("common.save")}
+              </button>
             )}
           </div>
         )}
