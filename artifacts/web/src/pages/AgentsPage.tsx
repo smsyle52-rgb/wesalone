@@ -156,7 +156,13 @@ export default function AgentsPage() {
 
       {message && <div className="mb-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">{message}</div>}
 
-      <DataTable columns={columns} data={agents} keyExtractor={(row) => row.id} isLoading={agentsQuery.isLoading} emptyMessage={t("agents.empty")} />
+      <DataTable
+        columns={columns}
+        data={agents}
+        keyExtractor={(row) => row.id}
+        isLoading={agentsQuery.isLoading}
+        emptyMessage="لا يوجد وكلاء بعد. أنشئ وكيلًا أولًا، اربطه بقاعدة معرفة، واجعله في وضع الاقتراح قبل التشغيل."
+      />
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

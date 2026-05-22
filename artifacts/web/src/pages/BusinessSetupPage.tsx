@@ -1,617 +1,175 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
+import {
+  Bot,
+  CheckCircle2,
+  Database,
+  Inbox,
+  LifeBuoy,
+  MessageSquareText,
+  Plug,
+  ShoppingBag,
+} from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useAuth } from "@/context/AuthContext";
-import { cn } from "@/lib/utils";
-
-const API_BASE = `${import.meta.env.BASE_URL}api`;
-
-async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}/${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...(opts?.headers ?? {}) },
-    ...opts,
-  });
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new Error(data.error ?? "تعذر تنفيذ الطلب");
-  return data as T;
-}
-
-function knowledgeFetch<T>(path: string, opts?: RequestInit) {
-  return apiFetch<T>(`knowledge/${path}`, opts);
-}
-
-type KnowledgeBase = { id: string; name: string; description?: string | null; status: string };
-type KnowledgeDocument = { id: string; title: string; contentText: string; status: string };
-type FaqEntry = { id: string; question: string; answer: string; category?: string | null; status: string };
-type Agent = { id: string; name: string; dialect?: string; defaultModel?: string; status: string };
-type ProviderStatus = {
-  provider: string;
-  hasGeminiKey: boolean;
-  hasVertex?: boolean;
-  vertexProjectConfigured?: boolean;
-  vertexLocation?: string | null;
-  model?: string;
-  fallbackMode: boolean;
-  message: string;
-};
-type KnowledgeAnswerSource = {
-  type: "faq" | "document" | "chunk";
-  id: string;
-  title: string;
-  content: string;
-};
-
-type KnowledgeAnswerResponse = {
-  run: { id: string };
-  answer: string;
-  sources: KnowledgeAnswerSource[] | null;
-  knowledgeSourcesSummary?: string | null;
-  provider: string;
-  warning: string;
-};
-
-type BusinessProfile = {
-  businessName: string;
-  description: string;
-  serviceAreas: string;
-  paymentMethods: string;
-  deliveryMethod: string;
-  refundPolicy: string;
-  commonQuestions: string;
-  tone: string;
-};
-
-const initialProfile: BusinessProfile = {
-  businessName: "",
-  description: "",
-  serviceAreas: "",
-  paymentMethods: "",
-  deliveryMethod: "",
-  refundPolicy: "",
-  commonQuestions: "",
-  tone: "ودية",
-};
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const setupSteps = [
-  { title: "عرّف نشاطك", detail: "اكتب ماذا تقدم وأين تخدم العملاء.", href: "#business-profile" },
-  { title: "أضف معلومات الرد", detail: "الدفع، التسليم، وسياسة الاسترجاع.", href: "#business-profile" },
-  { title: "أضف الأسئلة الشائعة", detail: "اجمع أكثر الأسئلة تكراراً حتى يرد الفريق بثبات.", href: "/knowledge" },
-  { title: "جرّب المساعد", detail: "اكتب سؤالاً وتأكد أن الرد مناسب قبل العرض.", href: "#assistant-playground" },
-  { title: "افتح صندوق الوارد", detail: "ابدأ من محادثة يدوية أو محادثة مستوردة.", href: "/inbox" },
-  { title: "حوّل المحادثة إلى طلب أو متابعة", detail: "من داخل المحادثة اختر طلب، مهمة، أو متابعة.", href: "/inbox" },
-  { title: "راقب الأداء", detail: "راجع الطلبات، المتابعات، والتقارير بعد التشغيل.", href: "/reports" },
+  {
+    title: "اربط قناة التواصل",
+    description: "ابدأ بربط واتساب أو قناة ميتا حتى تصل رسائل العملاء إلى صندوق الوارد.",
+    href: "/integrations",
+    icon: Plug,
+  },
+  {
+    title: "جهّز صندوق الوارد",
+    description: "راجع طريقة توزيع المحادثات، الوسوم، والردود السريعة حتى يعرف الفريق من أين يبدأ.",
+    href: "/inbox",
+    icon: Inbox,
+  },
+  {
+    title: "أضف معرفة النشاط",
+    description: "ارفع السياسات والأسئلة الشائعة حتى يستند الوكيل إلى معلومات حقيقية عند صياغة الردود.",
+    href: "/knowledge",
+    icon: Database,
+  },
+  {
+    title: "أنشئ وكيلًا ذكيًا",
+    description: "اضبط نبرة الرد، قاعدة المعرفة، ووضع الثقة. ابدأ دائمًا بوضع الاقتراح فقط.",
+    href: "/agents",
+    icon: Bot,
+  },
+  {
+    title: "زامن المنتجات",
+    description: "اربط كتالوج ميتا أو مصادر المنتجات حتى يعرف الوكيل الأسعار والتوفر بدون تخمين.",
+    href: "/catalog",
+    icon: ShoppingBag,
+  },
+  {
+    title: "راقب الأداء",
+    description: "بعد أول يوم تشغيل، راجع المؤشرات والتقارير لتعرف أين يحتاج الفريق دعمًا.",
+    href: "/dashboard",
+    icon: CheckCircle2,
+  },
 ];
 
-const demoJourney = [
-  { title: "ابدأ من عميل", href: "/contacts", detail: "افتح سجل العميل واعرف آخر تواصل معه." },
-  { title: "حوّل المحادثة إلى طلب", href: "/inbox", detail: "من صندوق الوارد حوّل الطلب إلى متابعة أو طلب بيع." },
-  { title: "سجّل دفعة", href: "/payments", detail: "استخدم الدفع اليدوي فقط في هذه النسخة." },
-  { title: "تابع دين", href: "/debts", detail: "راجع المتبقي وملاحظات التحصيل." },
-  { title: "راجع التقرير", href: "/reports", detail: "اعرض ملخص النشاط بدون إعدادات تقنية." },
+const outcomes = [
+  "رسائل العملاء تظهر في مكان واحد بدل التنقل بين التطبيقات.",
+  "الفريق يعرف المحادثات المفتوحة والمتأخرة وما يحتاج متابعة.",
+  "الوكيل يقترح ردودًا من قاعدة المعرفة والكتالوج بدل التخمين.",
+  "صاحب النشاط يراقب الأداء من مؤشرات واضحة ومفهومة.",
 ];
-
-function parseBusinessProfile(content: string): BusinessProfile {
-  const valueFor = (label: string) => {
-    const match = content.match(new RegExp(`${label}:\\s*([\\s\\S]*?)(?=\\n[^\\n:]+:|$)`, "u"));
-    return match?.[1]?.trim() ?? "";
-  };
-  return {
-    businessName: valueFor("اسم النشاط"),
-    description: valueFor("وصف مختصر"),
-    serviceAreas: valueFor("مناطق الخدمة"),
-    paymentMethods: valueFor("طرق الدفع"),
-    deliveryMethod: valueFor("طريقة التسليم أو تقديم الخدمة"),
-    refundPolicy: valueFor("سياسة الاسترجاع أو الإلغاء"),
-    commonQuestions: valueFor("أكثر الأسئلة تكراراً"),
-    tone: valueFor("نبرة الرد") || "ودية",
-  };
-}
-
-function serializeBusinessProfile(profile: BusinessProfile) {
-  return [
-    "اسم النشاط: " + profile.businessName.trim(),
-    "وصف مختصر: " + profile.description.trim(),
-    "مناطق الخدمة: " + profile.serviceAreas.trim(),
-    "طرق الدفع: " + profile.paymentMethods.trim(),
-    "طريقة التسليم أو تقديم الخدمة: " + profile.deliveryMethod.trim(),
-    "سياسة الاسترجاع أو الإلغاء: " + profile.refundPolicy.trim(),
-    "أكثر الأسئلة تكراراً:\n" + profile.commonQuestions.trim(),
-    "نبرة الرد: " + profile.tone,
-  ].join("\n\n");
-}
-
-function StatusPill({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <span className={cn(
-      "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
-      ok ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-700"
-    )}>
-      {ok ? "جاهز" : "يحتاج إعداد"} · {label}
-    </span>
-  );
-}
 
 export default function BusinessSetupPage() {
-  const { user, hasPermission } = useAuth();
-  const qc = useQueryClient();
-  const canReadKnowledge = hasPermission("knowledge:read");
-  const canCreateKnowledge = hasPermission("knowledge:create");
-  const canUpdateKnowledge = hasPermission("knowledge:update");
-  const canReadAi = hasPermission("ai:read");
-  const canUseAi = hasPermission("ai:use");
-
-  const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<BusinessProfile>(initialProfile);
-  const [profileLoadedId, setProfileLoadedId] = useState<string | null>(null);
-  const [question, setQuestion] = useState("كم سعر التوصيل؟");
-  const [playgroundResult, setPlaygroundResult] = useState<{
-    reply: string;
-    sources: KnowledgeAnswerSource[];
-    sourceSummary?: string | null;
-    provider: string;
-    runId: string;
-  } | null>(null);
-  const [playgroundError, setPlaygroundError] = useState("");
-  const [feedbackComment, setFeedbackComment] = useState("");
-  const [feedbackStatus, setFeedbackStatus] = useState("");
-
-  const basesQuery = useQuery({
-    queryKey: ["business-setup", "knowledge-bases"],
-    queryFn: () => knowledgeFetch<{ bases: KnowledgeBase[] }>("bases"),
-    enabled: canReadKnowledge,
-  });
-
-  const bases = basesQuery.data?.bases ?? [];
-
-  useEffect(() => {
-    if (!selectedBaseId && bases.length > 0) setSelectedBaseId(bases[0].id);
-  }, [bases, selectedBaseId]);
-
-  const docsQuery = useQuery({
-    queryKey: ["business-setup", "knowledge-docs", selectedBaseId],
-    queryFn: () => knowledgeFetch<{ documents: KnowledgeDocument[] }>(`bases/${selectedBaseId}/documents`),
-    enabled: !!selectedBaseId && canReadKnowledge,
-  });
-
-  const faqsQuery = useQuery({
-    queryKey: ["business-setup", "knowledge-faqs", selectedBaseId],
-    queryFn: () => knowledgeFetch<{ faqs: FaqEntry[] }>(`bases/${selectedBaseId}/faqs`),
-    enabled: !!selectedBaseId && canReadKnowledge,
-  });
-
-  const agentsQuery = useQuery({
-    queryKey: ["business-setup", "ai-agents"],
-    queryFn: () => apiFetch<{ agents: Agent[] }>("ai/agents"),
-    enabled: canReadAi,
-  });
-
-  const providerStatusQuery = useQuery({
-    queryKey: ["business-setup", "ai-provider-status"],
-    queryFn: () => apiFetch<ProviderStatus>("ai/provider-status"),
-    enabled: canReadAi,
-  });
-
-  const documents = docsQuery.data?.documents ?? [];
-  const faqs = faqsQuery.data?.faqs ?? [];
-  const profileDoc = documents.find((doc) => doc.title === "ملف النشاط التجاري");
-  const agents = agentsQuery.data?.agents ?? [];
-  const providerStatus = providerStatusQuery.data;
-  const providerModeLabel = providerStatus?.provider === "vertex" && !providerStatus.fallbackMode
-    ? "Vertex AI مفعّل"
-    : providerStatus?.provider === "gemini" && !providerStatus.fallbackMode
-      ? "Gemini مفعّل"
-      : providerStatus?.fallbackMode
-        ? "Fallback إلى الوضع التجريبي"
-        : "وضع تجريبي";
-
-  useEffect(() => {
-    if (profileDoc && profileLoadedId !== profileDoc.id) {
-      setProfile({ ...initialProfile, ...parseBusinessProfile(profileDoc.contentText) });
-      setProfileLoadedId(profileDoc.id);
-    }
-  }, [profileDoc, profileLoadedId]);
-
-  const saveProfile = useMutation({
-    mutationFn: async () => {
-      let baseId = selectedBaseId;
-      if (!baseId) {
-        const created = await knowledgeFetch<{ base: KnowledgeBase }>("bases", {
-          method: "POST",
-          body: JSON.stringify({
-            name: "معرفة النشاط",
-            description: "معلومات النشاط التي يستخدمها الفريق والمساعد في الردود",
-          }),
-        });
-        baseId = created.base.id;
-        setSelectedBaseId(baseId);
-      }
-
-      const body = {
-        title: "ملف النشاط التجاري",
-        contentText: serializeBusinessProfile(profile),
-      };
-
-      if (profileDoc && profileDoc.id && canUpdateKnowledge) {
-        return knowledgeFetch(`documents/${profileDoc.id}`, { method: "PATCH", body: JSON.stringify(body) });
-      }
-      return knowledgeFetch(`bases/${baseId}/documents`, { method: "POST", body: JSON.stringify(body) });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["business-setup", "knowledge-bases"] });
-      qc.invalidateQueries({ queryKey: ["business-setup", "knowledge-docs"] });
-    },
-  });
-
-  const runPlayground = useMutation({
-    mutationFn: async () => {
-      setPlaygroundError("");
-      setPlaygroundResult(null);
-      setFeedbackStatus("");
-      if (!question.trim()) throw new Error("اكتب سؤالاً أولاً");
-      if (!canUseAi) throw new Error("تحتاج صلاحية استخدام المساعد للتجربة");
-      if (!canReadKnowledge) throw new Error("تحتاج صلاحية قراءة المعرفة لتجربة المساعد");
-
-      const result = await apiFetch<KnowledgeAnswerResponse>("ai/runs/knowledge-answer", {
-        method: "POST",
-        body: JSON.stringify({
-          question: question.trim(),
-          baseId: selectedBaseId,
-        }),
-      });
-
-      return {
-        reply: result.answer,
-        sources: result.sources ?? [],
-        sourceSummary: result.knowledgeSourcesSummary,
-        provider: result.provider,
-        runId: result.run.id,
-      };
-    },
-    onSuccess: (result) => setPlaygroundResult(result),
-    onError: (error: Error) => setPlaygroundError(error.message),
-  });
-
-  const sendFeedback = useMutation({
-    mutationFn: async (rating: "positive" | "negative" | "neutral") => {
-      if (!playgroundResult?.runId) throw new Error("لا يوجد تشغيل لتقييمه");
-      return apiFetch(`ai/runs/${playgroundResult.runId}/feedback`, {
-        method: "POST",
-        body: JSON.stringify({
-          rating,
-          comment: feedbackComment.trim() || null,
-        }),
-      });
-    },
-    onSuccess: () => {
-      setFeedbackStatus("تم حفظ التقييم.");
-      setFeedbackComment("");
-    },
-    onError: (error: Error) => setFeedbackStatus(error.message),
-  });
-
-  const profileComplete = Boolean(profileDoc || profile.businessName || profile.description);
-  const knowledgeReady = bases.length > 0 && documents.length > 0;
-  const faqReady = faqs.length > 0;
-  const dialectReady = agents.some((agent) => agent.dialect && agent.dialect !== "standard_arabic") || profile.tone !== "ودية";
-  const testedReady = Boolean(playgroundResult);
-  const assistantReady = knowledgeReady && faqReady && profileComplete && testedReady;
-
-  const readinessItems = useMemo(() => [
-    { label: "توجد معرفة عن نشاطك", ok: knowledgeReady },
-    { label: "توجد أسئلة شائعة", ok: faqReady },
-    { label: "تم اختيار نبرة الرد", ok: dialectReady },
-    { label: "تم اختبار رد", ok: testedReady },
-    { label: providerModeLabel, ok: true },
-    { label: "لا يوجد إرسال تلقائي", ok: true },
-  ], [dialectReady, faqReady, knowledgeReady, providerModeLabel, testedReady]);
-
   return (
-    <div dir="rtl" className="space-y-6">
+    <div className="space-y-8" dir="rtl">
       <PageHeader
         title="ابدأ تشغيل نشاطك"
-        subtitle="خطوات عملية لتجهيز الفريق والمساعد للرد على العملاء بدون مصطلحات تقنية"
+        subtitle="وصال ون يساعدك على جمع المحادثات، تنظيم المتابعة، وتجهيز الوكيل الذكي بخطوات بسيطة وواضحة."
+        actions={(
+          <Button asChild>
+            <Link href="/integrations">ابدأ بربط قناة</Link>
+          </Button>
+        )}
       />
 
-      <section className="rounded-xl border border-border bg-card p-5">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="overflow-hidden border-primary/10 bg-gradient-to-l from-primary/8 via-card to-accent/10">
+        <CardContent className="grid gap-6 p-6 lg:grid-cols-[1.1fr_.9fr]">
           <div>
-            <h2 className="text-base font-semibold text-foreground">خطة التشغيل الأولى</h2>
-            <p className="text-sm text-muted-foreground">ابدأ بهذه الخطوات، ثم اعرض المنتج بثقة على فريقك أو عميلك التجريبي.</p>
+            <p className="text-sm font-bold text-primary">ما الذي يفعله وصال ون؟</p>
+            <h2 className="mt-2 text-2xl font-extrabold text-foreground">لوحة واحدة لإدارة محادثات العملاء وتشغيل الفريق بثقة</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
+              تبدأ التجربة من ربط القنوات، ثم تجهيز المعرفة والمنتجات، وبعدها يصبح الفريق قادرًا على الرد والمتابعة وتحويل المحادثات إلى فرص وطلبات.
+            </p>
           </div>
-          <StatusPill ok={assistantReady} label={assistantReady ? "النشاط جاهز للتجربة" : "أكمل الإعدادات الأساسية"} />
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {setupSteps.map((step, index) => {
-            const external = step.href.startsWith("#");
-            const content = (
-              <div className="h-full rounded-lg border border-border bg-background p-4 transition-colors hover:border-primary/40">
-                <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">{index + 1}</div>
-                <h3 className="text-sm font-semibold text-foreground">{step.title}</h3>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{step.detail}</p>
+          <div className="grid gap-3">
+            {outcomes.map((item) => (
+              <div key={item} className="flex items-start gap-3 rounded-lg border border-border/80 bg-card/85 p-3">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+                <p className="text-sm font-medium text-foreground">{item}</p>
               </div>
-            );
-            return external ? (
-              <a key={step.title} href={step.href}>{content}</a>
-            ) : (
-              <Link key={step.title} href={step.href}>{content}</Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-extrabold text-foreground">خطة التشغيل الأولى</h2>
+          <p className="mt-1 text-sm text-muted-foreground">اتبع الخطوات بالترتيب. كل خطوة تفتح الصفحة المناسبة وتشرح لماذا تحتاجها.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {setupSteps.map((step, index) => {
+            const Icon = step.icon;
+            return (
+              <Card key={step.title} className="transition hover:-translate-y-1 hover:shadow-[var(--shadow-hover)]">
+                <CardHeader>
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-sm font-black text-white">{index + 1}</span>
+                  </div>
+                  <CardTitle>{step.title}</CardTitle>
+                  <CardDescription>{step.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href={step.href}>فتح الخطوة</Link>
+                  </Button>
+                </CardContent>
+              </Card>
             );
           })}
         </div>
       </section>
 
-      <section id="business-profile" className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_0.8fr]">
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-4">
-            <h2 className="text-base font-semibold text-foreground">ملف النشاط التجاري</h2>
-            <p className="text-sm text-muted-foreground">سيُحفظ كوثيقة في قاعدة المعرفة بعنوان “ملف النشاط التجاري”.</p>
-          </div>
-
-          {!canReadKnowledge ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              تحتاج صلاحية قراءة قاعدة المعرفة لإدارة ملف النشاط.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-foreground">اسم النشاط</span>
-                <input
-                  id="business-profile-name"
-                  name="businessName"
-                  value={profile.businessName}
-                  onChange={(e) => setProfile({ ...profile, businessName: e.target.value })}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                  placeholder={user?.name ? `مثال: نشاط ${user.name}` : "مثال: عيادة النور"}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-foreground">مناطق الخدمة</span>
-                <input
-                  id="business-profile-service-areas"
-                  name="serviceAreas"
-                  value={profile.serviceAreas}
-                  onChange={(e) => setProfile({ ...profile, serviceAreas: e.target.value })}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                  placeholder="صنعاء، عدن، إب..."
-                />
-              </label>
-              <label className="space-y-1 text-sm md:col-span-2">
-                <span className="font-medium text-foreground">وصف مختصر: ماذا تقدم؟</span>
-                <textarea
-                  id="business-profile-description"
-                  name="description"
-                  value={profile.description}
-                  onChange={(e) => setProfile({ ...profile, description: e.target.value })}
-                  rows={3}
-                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                  placeholder="اكتب وصفاً بسيطاً يفهمه موظف خدمة العملاء..."
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-foreground">طرق الدفع التي تقبلها</span>
-                <textarea
-                  id="business-profile-payment-methods"
-                  name="paymentMethods"
-                  value={profile.paymentMethods}
-                  onChange={(e) => setProfile({ ...profile, paymentMethods: e.target.value })}
-                  rows={3}
-                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                  placeholder="نقداً، تحويل بنكي، كريمي يدوي..."
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-foreground">طريقة التسليم أو تقديم الخدمة</span>
-                <textarea
-                  id="business-profile-delivery-method"
-                  name="deliveryMethod"
-                  value={profile.deliveryMethod}
-                  onChange={(e) => setProfile({ ...profile, deliveryMethod: e.target.value })}
-                  rows={3}
-                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                  placeholder="توصيل داخل المدينة، حجز موعد، استلام من الفرع..."
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-foreground">سياسة الاسترجاع أو الإلغاء</span>
-                <textarea
-                  id="business-profile-refund-policy"
-                  name="refundPolicy"
-                  value={profile.refundPolicy}
-                  onChange={(e) => setProfile({ ...profile, refundPolicy: e.target.value })}
-                  rows={3}
-                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                  placeholder="متى يمكن الإلغاء؟ متى يمكن الاستبدال؟"
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-foreground">نبرة الرد</span>
-                <select
-                  id="business-profile-tone"
-                  name="tone"
-                  value={profile.tone}
-                  onChange={(e) => setProfile({ ...profile, tone: e.target.value })}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                >
-                  <option value="رسمية">رسمية</option>
-                  <option value="ودية">ودية</option>
-                  <option value="يمنية خفيفة">يمنية خفيفة</option>
-                  <option value="تجارية">تجارية</option>
-                </select>
-              </label>
-              <label className="space-y-1 text-sm md:col-span-2">
-                <span className="font-medium text-foreground">أكثر 5 أسئلة تتكرر</span>
-                <textarea
-                  id="business-profile-common-questions"
-                  name="commonQuestions"
-                  value={profile.commonQuestions}
-                  onChange={(e) => setProfile({ ...profile, commonQuestions: e.target.value })}
-                  rows={5}
-                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                  placeholder={"1. كم سعر التوصيل؟\n2. كيف أتابع طلبي؟\n3. هل تقبلون الدفع عبر كريمي؟"}
-                />
-              </label>
-              <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => saveProfile.mutate()}
-                  disabled={saveProfile.isPending || !canCreateKnowledge || (!canUpdateKnowledge && Boolean(profileDoc))}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {saveProfile.isPending ? "جار الحفظ..." : profileDoc ? "تحديث ملف النشاط" : "حفظ ملف النشاط"}
-                </button>
-                {!canCreateKnowledge && <span className="text-xs text-amber-700">تحتاج صلاحية إنشاء المعرفة لحفظ الملف.</span>}
-                {saveProfile.isSuccess && <span className="text-xs font-medium text-green-700">تم حفظ ملف النشاط في قاعدة المعرفة.</span>}
-                {saveProfile.isError && <span className="text-xs font-medium text-red-700">{(saveProfile.error as Error).message}</span>}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-5">
-          <h2 className="text-base font-semibold text-foreground">جاهزية المساعد</h2>
-          <p className="mt-1 text-sm text-muted-foreground">المساعد يقترح فقط، والموظف يقرر الإرسال.</p>
-          <div className="mt-4 space-y-2">
-            {readinessItems.map((item) => (
-              <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2">
-                <span className="text-sm text-foreground">{item.label}</span>
-                <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", item.ok ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700")}>
-                  {item.ok ? "نعم" : "لا"}
-                </span>
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>قبل دعوة الفريق</CardTitle>
+            <CardDescription>قائمة قصيرة تجعل التجربة الأولى أكثر ترتيبًا.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[
+              "أضف قناة واحدة على الأقل.",
+              "أضف 5 أسئلة شائعة في قاعدة المعرفة.",
+              "أنشئ وكيلًا واحدًا واضبطه على وضع الاقتراح.",
+              "جرّب محادثة داخلية قبل استقبال عملاء حقيقيين.",
+            ].map((item) => (
+              <div key={item} className="flex items-center gap-3 rounded-lg bg-secondary/70 p-3">
+                <MessageSquareText className="h-4 w-4 text-primary" />
+                <span className="text-sm font-bold text-foreground">{item}</span>
               </div>
             ))}
-          </div>
-          <div className={cn(
-            "mt-4 rounded-lg border p-4 text-sm",
-            assistantReady ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800"
-          )}>
-            الحالة: {assistantReady ? "جاهز للعرض التجريبي" : "يحتاج بعض الإعداد قبل العرض"}
-          </div>
-          {providerStatus && (
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              وضع المساعد الحالي: {providerModeLabel}. لا يوجد إرسال تلقائي، ولا تظهر أي مفاتيح سرية هنا.
-            </p>
-          )}
-        </div>
-      </section>
+          </CardContent>
+        </Card>
 
-      <section id="assistant-playground" className="rounded-xl border border-border bg-card p-5">
-        <div className="mb-4">
-          <h2 className="text-base font-semibold text-foreground">جرّب المساعد</h2>
-          <p className="text-sm text-muted-foreground">هذا اختبار فقط، ولا يتم إرسال أي رسالة للعميل.</p>
-        </div>
-        <div className="flex flex-wrap gap-2 pb-3">
-          {[
-            "هل عندكم توصيل داخل صنعاء؟",
-            "هل أقدر أدفع كريمي؟",
-            "كم مدة التوصيل؟",
-            "هل يمكن استرجاع المنتج؟",
-            "كيف أطلب هدية مع تغليف؟",
-          ].map((sample) => (
-            <button
-              key={sample}
-              onClick={() => setQuestion(sample)}
-              className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground hover:border-primary/40 hover:text-primary"
-            >
-              {sample}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
-          <div className="space-y-3">
-            <label className="space-y-1 text-sm">
-              <span className="font-medium text-foreground">سؤال تجريبي</span>
-              <textarea
-                id="assistant-playground-question"
-                name="question"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                rows={5}
-                className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </label>
-            <button
-              onClick={() => runPlayground.mutate()}
-              disabled={runPlayground.isPending || !canUseAi}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              {runPlayground.isPending ? "جار الاختبار..." : "اعرض الرد المقترح"}
-            </button>
-            {!canUseAi && <p className="text-xs text-amber-700">تحتاج صلاحية استخدام المساعد للتجربة.</p>}
-          </div>
-          <div className="rounded-lg border border-border bg-background p-4">
-            <h3 className="text-sm font-semibold text-foreground">الرد المقترح</h3>
-            {playgroundError && <p className="mt-3 text-sm text-red-700">{playgroundError}</p>}
-            {!playgroundResult && !playgroundError && (
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">اكتب سؤالاً واضغط “اعرض الرد المقترح”.</p>
-            )}
-            {playgroundResult && (
-              <div className="mt-3 space-y-3">
-                <p className="whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm leading-relaxed text-foreground">{playgroundResult.reply}</p>
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
-                  <div className="font-medium">{playgroundResult.sourceSummary ?? "مصادر المعرفة"}</div>
-                  {playgroundResult.sources.length > 0 ? (
-                    <ul className="mt-2 space-y-1">
-                      {playgroundResult.sources.map((source) => (
-                        <li key={`${source.type}-${source.id}`}>• {source.type === "faq" ? "سؤال شائع" : source.type === "document" ? "وثيقة" : "مقطع"}: {source.title}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="mt-2">لم يتم العثور على مصدر مناسب.</div>
-                  )}
-                </div>
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground">المزود: {playgroundResult.provider === "gemini" ? "Gemini" : "وضع تجريبي"}</span>
-                    <span className="text-xs text-muted-foreground">تقييم الرد</span>
-                  </div>
-                  <textarea
-                    id="assistant-playground-feedback"
-                    name="feedbackComment"
-                    value={feedbackComment}
-                    onChange={(e) => setFeedbackComment(e.target.value)}
-                    rows={2}
-                    className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/30"
-                    placeholder="ملاحظة اختيارية عن جودة الرد"
-                  />
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => sendFeedback.mutate("positive")}
-                      disabled={sendFeedback.isPending}
-                      className="rounded-lg border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700 disabled:opacity-50"
-                    >
-                      مفيد
-                    </button>
-                    <button
-                      onClick={() => sendFeedback.mutate("negative")}
-                      disabled={sendFeedback.isPending}
-                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 disabled:opacity-50"
-                    >
-                      غير مفيد
-                    </button>
-                    {feedbackStatus && <span className="text-xs text-muted-foreground">{feedbackStatus}</span>}
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">ملاحظة: هذا اختبار فقط، ولن يتم إرسال أي رسالة تلقائياً.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-border bg-card p-5">
-        <h2 className="text-base font-semibold text-foreground">مسار العرض التجريبي</h2>
-        <p className="mt-1 text-sm text-muted-foreground">استخدم هذه الرحلة لعرض المنصة كتشغيل يومي لصاحب نشاط.</p>
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
-          {demoJourney.map((item) => (
-            <Link key={item.title} href={item.href}>
-              <div className="h-full rounded-lg border border-border bg-background p-4 hover:border-primary/40">
-                <h3 className="text-sm font-semibold text-foreground">{item.title}</h3>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.detail}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>عند الحاجة للمساعدة</CardTitle>
+            <CardDescription>إذا تعثر الربط أو ظهرت البيانات فارغة، ابدأ من هذه الأماكن.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button asChild variant="outline" className="w-full justify-start">
+              <Link href="/integrations">
+                <Plug className="h-4 w-4" />
+                مراجعة التكاملات والقنوات
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full justify-start">
+              <Link href="/catalog">
+                <ShoppingBag className="h-4 w-4" />
+                مراجعة المنتجات والكتالوج
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full justify-start">
+              <Link href="/settings">
+                <LifeBuoy className="h-4 w-4" />
+                مراجعة الإعدادات العامة
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );

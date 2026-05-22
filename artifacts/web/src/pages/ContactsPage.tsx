@@ -176,7 +176,7 @@ export default function ContactsPage() {
         data={contacts}
         keyExtractor={(r: any) => r.id}
         isLoading={isLoading}
-        emptyMessage="لا توجد جهات اتصال"
+        emptyMessage="لا توجد جهات اتصال بعد. أضف أول عميل أو انتظر وصول أول محادثة من القنوات المرتبطة."
       />
 
       {totalPages > 1 && (

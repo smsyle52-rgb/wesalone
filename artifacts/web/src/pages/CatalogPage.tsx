@@ -225,7 +225,7 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
                   </tbody>
                 </table>
               </div>
-            ) : <EmptyState title={t("catalog.emptyProductsTitle")} description={t("catalog.emptyProductsDescription")} />}
+            ) : <EmptyState title="لا توجد منتجات متزامنة بعد" description="اربط كتالوج ميتا من صفحة التكاملات، ثم شغّل المزامنة حتى تظهر المنتجات هنا ويستفيد منها الوكيل." />}
           </div>
         </section>
       )}
@@ -242,7 +242,7 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
                 </div>
               </div>
             </article>
-          )) : <EmptyState title={t("catalog.emptyPostsTitle")} description={t("catalog.emptyPostsDescription")} />}
+          )) : <EmptyState title="لا توجد منشورات متزامنة بعد" description="بعد ربط صفحة ميتا وتشغيل المزامنة ستظهر المنشورات الأخيرة هنا كمرجع للفريق والوكيل." />}
         </section>
       )}
 
@@ -259,7 +259,7 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
               </div>
               <p className="mt-3 text-xs text-muted-foreground">{t("catalog.promotedProducts")}: {(ad.promotedProductIds ?? []).join(", ") || "-"}</p>
             </article>
-          )) : <EmptyState title={t("catalog.emptyAdsTitle")} description={t("catalog.emptyAdsDescription")} />}
+          )) : <EmptyState title="لا توجد إعلانات متزامنة بعد" description="اربط حساب الإعلانات وشغّل المزامنة حتى يعرف الفريق الحملات النشطة وما تروّج له." />}
         </section>
       )}
     </div>
