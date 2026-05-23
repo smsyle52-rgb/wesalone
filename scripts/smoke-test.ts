@@ -44,6 +44,13 @@ async function runContractSmoke(): Promise<void> {
     readRepoFile("artifacts/api-server/src/services/trust-gate.ts"),
     readRepoFile("artifacts/outbox-worker/src/index.ts"),
     readRepoFile("artifacts/web/src/lib/realtime.ts"),
+    readRepoFile("artifacts/api-server/src/modules/auth/auth.routes.ts"),
+    readRepoFile("artifacts/api-server/src/modules/workspace/workspace.routes.ts"),
+    readRepoFile("artifacts/api-server/src/modules/sectors/sectors.routes.ts"),
+    readRepoFile("artifacts/api-server/src/modules/orders/orders.routes.ts"),
+    readRepoFile("artifacts/api-server/src/modules/payments/payments.routes.ts"),
+    readRepoFile("artifacts/web/src/pages/BusinessSetupPage.tsx"),
+    readRepoFile("artifacts/web/src/pages/SettingsPage.tsx"),
   ]);
 
   const [
@@ -60,6 +67,13 @@ async function runContractSmoke(): Promise<void> {
     trustGate,
     worker,
     realtimeClient,
+    authRoutes,
+    workspaceRoutes,
+    sectorsRoutes,
+    ordersRoutes,
+    paymentsRoutes,
+    businessSetupPage,
+    settingsPage,
   ] = files;
 
   const checks: Check[] = [
@@ -125,6 +139,33 @@ async function runContractSmoke(): Promise<void> {
       ok: containsAll(serviceHealthSchema, ["service_heartbeats"]) &&
         containsAll(healthRoutes, ["/livez", "outbox-worker-stale", "SELECT 1"]),
     },
+    {
+      name: "merchant registration and account lifecycle",
+      ok: containsAll(authRoutes, ["/register", "/verify-email", "/forgot-password", "/reset-password", "signupLimiter"]),
+    },
+    {
+      name: "guided onboarding captures sector and governorate",
+      ok: containsAll(workspaceRoutes, ["sector_key", "governorate", "settings"]) &&
+        containsAll(businessSetupPage, ["sectorKey", "governorate", "sectors"]),
+    },
+    {
+      name: "sector behavior profile API",
+      ok: containsAll(sectorsRoutes, ["sectorProfilesTable", "sectors"]),
+    },
+    {
+      name: "draft reply sector and escalation wiring",
+      ok: containsAll(aiRoutes, ["loadSectorAgentContext", "knowledge_gap", "needsHuman", "conversation.needs_human"]),
+    },
+    {
+      name: "orders and manual payments",
+      ok: containsAll(ordersRoutes, ["router.post", "ordersTable", "totalAmount"]) &&
+        containsAll(paymentsRoutes, ["router.post", "paymentsTable", "amount"]),
+    },
+    {
+      name: "plan upgrade payment submission",
+      ok: containsAll(workspaceRoutes, ["paymentSubmissionsTable", "/billing/payment-submissions", "amountCurrency"]) &&
+        containsAll(settingsPage, ["paymentSubmissions", "amountCurrency"]),
+    },
   ];
 
   for (const check of checks) assertCheck(check);
@@ -134,7 +175,7 @@ async function runContractSmoke(): Promise<void> {
     .digest("hex");
   assertCheck({ name: "local HMAC generation", ok: hmac.length === 64 });
 
-  console.log("PHASE4_SMOKE_PASS: mode=contract-dry-run checks=15 external_calls=0");
+  console.log(`MERCHANT_JOURNEY_SMOKE_PASS: mode=contract-dry-run checks=${checks.length} external_calls=0`);
 }
 
 async function runDatabaseSmoke(): Promise<void> {
@@ -154,6 +195,12 @@ async function runDatabaseSmoke(): Promise<void> {
   const documentId = randomUUID();
   const chunkId = randomUUID();
   const agentId = randomUUID();
+  const sectorProfileId = randomUUID();
+  const taskId = randomUUID();
+  const orderId = randomUUID();
+  const paymentId = randomUUID();
+  const planId = randomUUID();
+  const paymentSubmissionId = randomUUID();
   const phoneNumberId = `phase4_phone_${Date.now()}`;
   const providerMessageId = `wamid.phase4.${Date.now()}`;
   const customerPhone = "+967700000404";
@@ -166,6 +213,47 @@ async function runDatabaseSmoke(): Promise<void> {
   await pool.query(
     "INSERT INTO users (id, email, name, password_hash) VALUES ($1, $2, $3, $4)",
     [userId, `${slug}@example.test`, "PHASE4-SMOKE Owner", "not-used"],
+  );
+  await pool.query("UPDATE users SET email_verified = true WHERE id = $1", [userId]);
+  const verifiedUser = await pool.query("SELECT email_verified FROM users WHERE id = $1", [userId]);
+  assertCheck({ name: "DB registration email verified", ok: verifiedUser.rows[0]?.email_verified === true });
+
+  await pool.query(
+    "UPDATE workspaces SET settings = settings || $2::jsonb WHERE id = $1",
+    [
+      workspaceId,
+      JSON.stringify({
+        sector_key: "retail_sales",
+        governorate: "صنعاء",
+        district: "حدة",
+      }),
+    ],
+  );
+  await pool.query(
+    "INSERT INTO sector_profiles (id, sector_key, name_ar, description_ar, base_knowledge, behavior_profile, service_goals, default_tone, guardrails) VALUES ($1, 'retail_sales', $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8::jsonb) ON CONFLICT (sector_key) DO NOTHING",
+    [
+      sectorProfileId,
+      "متجر بيع",
+      "ملف خدمة تجزئة لاختبار الدخان.",
+      JSON.stringify({ faq: ["prices must come from knowledge"] }),
+      JSON.stringify({ behavior: "present products clearly and escalate when unsure" }),
+      JSON.stringify({ goal: "customer understands how to order" }),
+      "مهني وودود",
+      JSON.stringify({ red_lines: ["never confirm payment"] }),
+    ],
+  );
+  const onboardingResult = await pool.query(
+    "SELECT settings->>'sector_key' AS sector_key, settings->>'governorate' AS governorate FROM workspaces WHERE id = $1",
+    [workspaceId],
+  );
+  assertCheck({
+    name: "DB onboarding stores sector and governorate",
+    ok: onboardingResult.rows[0]?.sector_key === "retail_sales" && onboardingResult.rows[0]?.governorate === "صنعاء",
+  });
+
+  await pool.query(
+    "INSERT INTO usage_counters (workspace_id, period_month, messages_sent, agents_count, contacts_count, team_members) VALUES ($1, to_char(now(), 'YYYY-MM'), 0, 1, 0, 1) ON CONFLICT (workspace_id, period_month) DO UPDATE SET agents_count = EXCLUDED.agents_count",
+    [workspaceId],
   );
   await pool.query(
     "INSERT INTO channel_accounts (id, workspace_id, channel_type, name, display_name, provider_config, created_by) VALUES ($1, $2, 'whatsapp', $3, $4, $5::jsonb, $6)",
@@ -184,8 +272,15 @@ async function runDatabaseSmoke(): Promise<void> {
     [chunkId, workspaceId, knowledgeBaseId, documentId, "سعر القميص الأبيض 12000 ريال يمني."],
   );
   await pool.query(
-    "INSERT INTO ai_agents (id, workspace_id, name, type, status, default_model, knowledge_base_ids, trust_topics, created_by) VALUES ($1, $2, $3, 'support', 'active', 'mock', $4::jsonb, '[]'::jsonb, $5)",
-    [agentId, workspaceId, "PHASE4-SMOKE Agent", JSON.stringify([knowledgeBaseId]), userId],
+    "INSERT INTO ai_agents (id, workspace_id, name, type, status, default_model, knowledge_base_ids, sector_key, channel_tone, trust_topics, created_by) VALUES ($1, $2, $3, 'support', 'active', 'mock', $4::jsonb, 'retail_sales', $5::jsonb, '[]'::jsonb, $6)",
+    [
+      agentId,
+      workspaceId,
+      "PHASE6-SMOKE Agent",
+      JSON.stringify([knowledgeBaseId]),
+      JSON.stringify({ whatsapp: "friendly and clear" }),
+      userId,
+    ],
   );
 
   const payload = {
@@ -290,8 +385,79 @@ async function runDatabaseSmoke(): Promise<void> {
   );
   assertCheck({ name: "DB auto reply queued in outbox", ok: outboxResult.rowCount === 1 });
 
+  await pool.query(
+    "UPDATE conversations SET needs_human = true, escalation_reason = 'knowledge_gap', updated_at = now() WHERE id = $1",
+    [message.conversation_id],
+  );
+  await pool.query(
+    "INSERT INTO tasks (id, workspace_id, title, description, status, priority, contact_id, conversation_id, source_message_id, related_type, related_id, created_by) VALUES ($1, $2, $3, $4, 'pending', 'high', (SELECT contact_id FROM conversations WHERE id = $5), $5, $6, 'conversation', $5, $7)",
+    [taskId, workspaceId, "Knowledge gap follow-up", "Merchant should answer an unknown customer question.", message.conversation_id, message.id, userId],
+  );
+  await pool.query(
+    "INSERT INTO auto_reply_decisions (workspace_id, conversation_id, agent_id, message_id, decision, reason, confidence, topic_detected) VALUES ($1, $2, $3, $4, 'suggest_only', 'knowledge_gap', 0.30, 'unknown')",
+    [workspaceId, message.conversation_id, agentId, message.id],
+  );
+  const escalationResult = await pool.query(
+    "SELECT c.needs_human, c.escalation_reason, t.id AS task_id FROM conversations c LEFT JOIN tasks t ON t.conversation_id = c.id WHERE c.id = $1 LIMIT 1",
+    [message.conversation_id],
+  );
+  assertCheck({
+    name: "DB knowledge gap escalates with merchant task",
+    ok: escalationResult.rows[0]?.needs_human === true &&
+      escalationResult.rows[0]?.escalation_reason === "knowledge_gap" &&
+      Boolean(escalationResult.rows[0]?.task_id),
+  });
+
+  await pool.query(
+    "INSERT INTO orders (id, workspace_id, order_number, status, channel, contact_id, conversation_id, total_amount, currency, payment_status, items, created_by) VALUES ($1, $2, $3, 'confirmed', 'whatsapp', (SELECT contact_id FROM conversations WHERE id = $4), $4, 12000, 'YER', 'partial', $5::jsonb, $6)",
+    [
+      orderId,
+      workspaceId,
+      `PHASE6-${Date.now()}`,
+      message.conversation_id,
+      JSON.stringify([{ name: "white shirt", quantity: 1, price: 12000 }]),
+      userId,
+    ],
+  );
+  const orderResult = await pool.query("SELECT id FROM orders WHERE id = $1 AND workspace_id = $2", [orderId, workspaceId]);
+  assertCheck({ name: "DB merchant can create order", ok: orderResult.rowCount === 1 });
+
+  await pool.query(
+    "INSERT INTO payments (id, workspace_id, amount, currency, method, status, contact_id, order_id, reference, paid_at, created_by) VALUES ($1, $2, 5000, 'YER', 'cash', 'confirmed', (SELECT contact_id FROM conversations WHERE id = $3), $4, $5, now(), $6)",
+    [paymentId, workspaceId, message.conversation_id, orderId, `PAY-${Date.now()}`, userId],
+  );
+  const paymentResult = await pool.query("SELECT id FROM payments WHERE id = $1 AND status = 'confirmed'", [paymentId]);
+  assertCheck({ name: "DB manual order payment recorded", ok: paymentResult.rowCount === 1 });
+
+  await pool.query(
+    "INSERT INTO plans (id, name, slug, key, name_ar, is_active, price_usd, price_usd_annual, billing_cycle, limits, features) VALUES ($1, 'Phase6 Smoke Growth', $2, $2, $3, true, 25, 240, 'monthly', $4::jsonb, $5)",
+    [
+      planId,
+      `phase6-smoke-${Date.now()}`,
+      "باقة نمو اختبارية",
+      JSON.stringify({ channels: 3, agents: 3, monthly_messages: 5000 }),
+      ["catalog", "automation", "vision_voice"],
+    ],
+  );
+  await pool.query(
+    "INSERT INTO payment_submissions (id, workspace_id, plan_id, amount_yer, amount_currency, exchange_rate_snapshot, payment_method, reference, receipt_note, status) VALUES ($1, $2, $3, 15000, 'YER', $4::jsonb, 'kuraimi', $5, $6, 'pending')",
+    [
+      paymentSubmissionId,
+      workspaceId,
+      planId,
+      JSON.stringify({ from: "USD", to: "YER", rate: 600 }),
+      `UPGRADE-${Date.now()}`,
+      "Phase6 smoke payment proof.",
+    ],
+  );
+  const submissionResult = await pool.query(
+    "SELECT id FROM payment_submissions WHERE id = $1 AND status = 'pending'",
+    [paymentSubmissionId],
+  );
+  assertCheck({ name: "DB plan upgrade payment submitted", ok: submissionResult.rowCount === 1 });
+
   await pool.end();
-  console.log(`PHASE4_SMOKE_PASS: mode=db-dry-run workspace=${workspaceId} external_calls=0`);
+  console.log(`MERCHANT_JOURNEY_SMOKE_PASS: mode=db-dry-run workspace=${workspaceId} external_calls=0`);
 }
 
 if (process.env.DATABASE_URL) {
