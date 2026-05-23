@@ -49,3 +49,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local experimental Next.js landing app
+artifacts/landing-next/
