@@ -68,6 +68,11 @@ const apiKeySchema = z.object({
   scopes: z.array(z.string().min(1).max(80)).default(["read"]),
 });
 
+const deactivateWorkspaceSchema = z.object({
+  confirmationName: z.string().min(2).max(120),
+  reason: z.string().max(500).optional().nullable(),
+});
+
 router.patch("/", requirePermission("settings:manage"), async (req: Request, res: Response) => {
   const authReq = req as AuthenticatedRequest;
   const parsed = updateWorkspaceSchema.safeParse(req.body);
@@ -171,6 +176,54 @@ router.get("/usage", requirePermission("settings:read"), async (req: Request, re
     logger.error({ err }, "Failed to get usage");
     res.status(500).json({ error: "حدث خطأ داخلي" });
   }
+});
+
+router.post("/deactivate", requirePermission("settings:manage"), async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  const parsed = deactivateWorkspaceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
+    return;
+  }
+
+  const [existing] = await db.select()
+    .from(workspacesTable)
+    .where(eq(workspacesTable.id, authReq.sessionUser.activeWorkspaceId))
+    .limit(1);
+
+  if (!existing) {
+    res.status(404).json({ error: "مساحة العمل غير موجودة" });
+    return;
+  }
+
+  if (parsed.data.confirmationName.trim() !== existing.name) {
+    res.status(400).json({ error: "اكتب اسم مساحة العمل كما هو لتأكيد التعطيل" });
+    return;
+  }
+
+  const [workspace] = await db.update(workspacesTable)
+    .set({
+      status: "deactivated",
+      deactivatedAt: new Date(),
+      deactivatedBy: authReq.sessionUser.userId,
+      deactivationReason: parsed.data.reason ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(workspacesTable.id, existing.id))
+    .returning();
+
+  await createAuditLog({
+    ...auditFromRequest(req, authReq.sessionUser),
+    action: "update",
+    severity: "critical",
+    entityType: "workspace",
+    entityId: existing.id,
+    entityLabel: existing.name,
+    oldData: { status: existing.status },
+    newData: { status: "deactivated", reason: parsed.data.reason ?? null },
+  });
+
+  res.json({ workspace });
 });
 
 router.get("/billing", requirePermission("billing:read"), async (req: Request, res: Response) => {

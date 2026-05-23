@@ -227,6 +227,17 @@ export async function loginUser(data: {
     throw new Error("لا توجد منشأة مرتبطة بهذا الحساب");
   }
 
+  const [workspace] = await db
+    .select({ status: workspacesTable.status })
+    .from(workspacesTable)
+    .where(eq(workspacesTable.id, membership.workspaceId))
+    .limit(1);
+
+  if (workspace?.status === "deactivated") {
+    await recordLogin(user.id, false, "workspace_deactivated");
+    throw new Error("مساحة العمل معطلة حالياً. تواصل مع مالك الحساب لإعادة التفعيل.");
+  }
+
   const { permissions, roleSlugs } = await loadUserPermissions(membership.id);
 
   await db
@@ -244,5 +255,6 @@ export async function loginUser(data: {
     roleSlugs,
     name: user.name,
     email: user.email,
+    emailVerified: user.emailVerified,
   };
 }

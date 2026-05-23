@@ -140,6 +140,16 @@ export default function Layout({ children }: { children: ReactNode }) {
     },
   });
 
+  const resendVerificationMut = useMutation({
+    mutationFn: async () => {
+      await fetch(`${import.meta.env.BASE_URL}api/auth/resend-verification`, {
+        method: "POST",
+        credentials: "include",
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["auth"] }),
+  });
+
   const toggleGroup = (slug: string) => {
     setCollapsedGroups((current) => {
       const nextValue = !current[slug];
@@ -285,6 +295,19 @@ export default function Layout({ children }: { children: ReactNode }) {
             <div className="mb-4 hidden items-center justify-end lg:flex">
               <NotificationCenter />
             </div>
+            {user && user.emailVerified === false && (
+              <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+                <span>بريدك الإلكتروني غير مؤكد. أكّد البريد حتى تبقى روابط الاستعادة والتنبيهات موثوقة.</span>
+                <button
+                  type="button"
+                  onClick={() => resendVerificationMut.mutate()}
+                  className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-60"
+                  disabled={resendVerificationMut.isPending}
+                >
+                  {resendVerificationMut.isPending ? "جار الإرسال..." : "إعادة إرسال رابط التأكيد"}
+                </button>
+              </div>
+            )}
             {children}
           </div>
         </main>

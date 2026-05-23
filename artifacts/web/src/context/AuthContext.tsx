@@ -4,6 +4,7 @@ interface AuthUser {
   id: string;
   name: string;
   email: string;
+  emailVerified?: boolean;
   permissions: string[];
   roleSlugs: string[];
 }
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: data.user.id,
             name: data.user.name,
             email: data.user.email,
+            emailVerified: data.user.emailVerified,
             permissions: data.user.permissions ?? [],
             roleSlugs: data.user.roleSlugs ?? [],
           });

@@ -769,6 +769,65 @@ function DangerZoneTab() {
   );
 }
 
+function AccountLifecycleTab() {
+  const qc = useQueryClient();
+  const [confirmationName, setConfirmationName] = useState("");
+  const [reason, setReason] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const { data } = useQuery({
+    queryKey: ["workspace-settings"],
+    queryFn: () => apiFetch("workspace"),
+  });
+  const workspaceName = data?.workspace?.name ?? "";
+  const deactivateMut = useMutation({
+    mutationFn: () => apiFetch("workspace/deactivate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmationName, reason }),
+    }),
+    onSuccess: () => {
+      setError("");
+      setMessage("تم تعطيل مساحة العمل مع الحفاظ على جميع البيانات. يمكن إعادة التفعيل لاحقاً من الإدارة.");
+      qc.invalidateQueries({ queryKey: ["workspace-settings"] });
+    },
+    onError: (err: Error) => {
+      setMessage("");
+      setError(err.message);
+    },
+  });
+
+  return (
+    <div className="max-w-xl rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">
+      <h3 className="mb-2 text-sm font-semibold">المنطقة الخطرة</h3>
+      <p className="text-sm leading-6">يمكنك تعطيل مساحة العمل مؤقتاً بدون حذف أي بيانات. سيُحفظ كل شيء ويمكن إعادة التفعيل لاحقاً من الإدارة.</p>
+      {message && <div className="mt-4 rounded-lg border border-green-200 bg-white p-3 text-sm text-green-700">{message}</div>}
+      {error && <div className="mt-4 rounded-lg border border-red-200 bg-white p-3 text-sm text-red-700">{error}</div>}
+      <div className="mt-5 space-y-3">
+        <input
+          value={confirmationName}
+          onChange={(event) => setConfirmationName(event.target.value)}
+          className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-red-200"
+          placeholder={`اكتب اسم مساحة العمل للتأكيد: ${workspaceName}`}
+        />
+        <textarea
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          className="min-h-20 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-red-200"
+          placeholder="سبب التعطيل (اختياري)"
+        />
+        <button
+          onClick={() => deactivateMut.mutate()}
+          disabled={!workspaceName || confirmationName !== workspaceName || deactivateMut.isPending}
+          className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+        >
+          {deactivateMut.isPending ? "جار التعطيل..." : "تعطيل مساحة العمل"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { hasPermission } = useAuth();
   const qc = useQueryClient();
@@ -932,7 +991,7 @@ export default function SettingsPage() {
       {tab === "security" && <SecurityTab />}
       {tab === "billing" && <BillingTabV2 />}
       {tab === "api-keys" && <ApiKeysTab />}
-      {tab === "danger" && <DangerZoneTab />}
+      {tab === "danger" && <AccountLifecycleTab />}
     </div>
   );
 }

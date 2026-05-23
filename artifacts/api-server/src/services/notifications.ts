@@ -37,12 +37,12 @@ async function shouldNotify(workspaceId: string, userId: string, channel: "in_ap
   return pref ? eventsInclude(pref.events, type) : true;
 }
 
-async function sendEmail(to: string, input: NotificationInput): Promise<void> {
+export async function sendSystemEmail(to: string, input: { type: string; titleAr: string; bodyAr: string; link?: string | null }): Promise<void> {
   const webhookUrl = process.env.EMAIL_WEBHOOK_URL;
   const from = process.env.EMAIL_FROM ?? "Wesal One <no-reply@wesal.one>";
 
   if (!webhookUrl || process.env.EMAIL_DRY_RUN === "true") {
-    logger.info({ to, type: input.type, title: input.titleAr }, "Email notification DRY_RUN");
+    logger.info({ to, type: input.type, title: input.titleAr, link: input.link ?? null }, "Email notification DRY_RUN");
     return;
   }
 
@@ -83,7 +83,7 @@ export async function notifyUser(input: NotificationInput): Promise<void> {
   const [user] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, input.userId)).limit(1);
   if (!user?.email) return;
 
-  await sendEmail(user.email, input).catch((err) => {
+  await sendSystemEmail(user.email, input).catch((err) => {
     logger.warn({ err, type: input.type, userId: input.userId }, "Email notification failed");
   });
 }

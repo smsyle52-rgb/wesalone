@@ -13,6 +13,7 @@ import { createAuditLog } from "../../lib/audit";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
 import { authLimiter, changePasswordLimiter } from "../../lib/rateLimiter";
+import { consumeAuthToken, markEmailVerified, sendPasswordResetEmail, sendVerificationEmail } from "../../services/account-lifecycle";
 
 const router = Router();
 
@@ -26,6 +27,15 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email("بريد إلكتروني غير صحيح"),
   password: z.string().min(1, "كلمة المرور مطلوبة"),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email("بريد إلكتروني غير صحيح"),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(20, "رمز الاستعادة غير صالح"),
+  password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
 });
 
 router.post("/register", authLimiter, async (req: Request, res: Response) => {
@@ -48,9 +58,12 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
       roleSlugs,
       name: user.name,
       email: user.email,
+      emailVerified: user.emailVerified,
     };
 
     req.session.user = sessionUser;
+
+    await sendVerificationEmail({ id: user.id, email: user.email, name: user.name });
 
     await createAuditLog({
       workspaceId: workspace.id,
@@ -68,7 +81,7 @@ router.post("/register", authLimiter, async (req: Request, res: Response) => {
 
     res.status(201).json({
       message: "تم إنشاء الحساب بنجاح",
-      user: { id: user.id, name: user.name, email: user.email },
+      user: { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified },
       workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
     });
   } catch (err) {
@@ -116,6 +129,7 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
         id: sessionData.userId,
         name: sessionData.name,
         email: sessionData.email,
+        emailVerified: sessionData.emailVerified,
         permissions: sessionData.permissions,
         roleSlugs: sessionData.roleSlugs,
       },
@@ -152,6 +166,70 @@ router.post("/logout", requireSession, async (req: Request, res: Response) => {
   });
 });
 
+router.get("/verify-email", async (req: Request, res: Response) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  const consumed = await consumeAuthToken(token, "email_verification");
+  if (!consumed) {
+    res.status(400).json({ error: "رابط التحقق غير صالح أو منتهي" });
+    return;
+  }
+  await markEmailVerified(consumed.userId);
+  res.json({ ok: true, message: "تم تأكيد البريد الإلكتروني بنجاح" });
+});
+
+router.post("/resend-verification", requireSession, async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  const [user] = await db
+    .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, emailVerified: usersTable.emailVerified })
+    .from(usersTable)
+    .where(eq(usersTable.id, authReq.sessionUser.userId))
+    .limit(1);
+  if (!user) {
+    res.status(404).json({ error: "المستخدم غير موجود" });
+    return;
+  }
+  if (!user.emailVerified) await sendVerificationEmail(user);
+  res.json({ ok: true });
+});
+
+router.post("/forgot-password", authLimiter, async (req: Request, res: Response) => {
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
+    return;
+  }
+
+  const [user] = await db
+    .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.email, parsed.data.email.toLowerCase()))
+    .limit(1);
+
+  if (user) await sendPasswordResetEmail(user);
+  res.json({ ok: true, message: "إذا كان البريد مسجلاً فسيصلك رابط الاستعادة" });
+});
+
+router.post("/reset-password", authLimiter, async (req: Request, res: Response) => {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
+    return;
+  }
+
+  const consumed = await consumeAuthToken(parsed.data.token, "password_reset");
+  if (!consumed) {
+    res.status(400).json({ error: "رابط الاستعادة غير صالح أو منتهي" });
+    return;
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  await db.update(usersTable)
+    .set({ passwordHash, updatedAt: new Date() })
+    .where(eq(usersTable.id, consumed.userId));
+
+  res.json({ ok: true, message: "تم تحديث كلمة المرور بنجاح" });
+});
+
 router.get("/me", requireSession, async (req: Request, res: Response) => {
   const authReq = req as AuthenticatedRequest;
   const { userId, activeWorkspaceId, activeMembershipId } = authReq.sessionUser;
@@ -161,6 +239,11 @@ router.get("/me", requireSession, async (req: Request, res: Response) => {
       .select({ id: workspacesTable.id, name: workspacesTable.name, slug: workspacesTable.slug, status: workspacesTable.status, plan: workspacesTable.plan })
       .from(workspacesTable)
       .where(eq(workspacesTable.id, activeWorkspaceId))
+      .limit(1);
+    const [user] = await db
+      .select({ emailVerified: usersTable.emailVerified })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
       .limit(1);
 
     const { permissions, roleSlugs } = await loadUserPermissions(activeMembershipId);
@@ -172,6 +255,7 @@ router.get("/me", requireSession, async (req: Request, res: Response) => {
         id: userId,
         name: authReq.sessionUser.name,
         email: authReq.sessionUser.email,
+        emailVerified: user?.emailVerified ?? false,
         permissions,
         roleSlugs,
       },

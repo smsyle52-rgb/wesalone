@@ -27,6 +27,7 @@ export default function LoginPage() {
         id: data.user.id,
         name: data.user.name,
         email: data.user.email,
+        emailVerified: data.user.emailVerified,
         permissions: data.user.permissions ?? [],
         roleSlugs: data.user.roleSlugs ?? [],
       }, data.workspaceId ?? "");
@@ -85,6 +86,11 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 required
               />
+            </div>
+            <div className="text-left">
+              <a href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+                نسيت كلمة المرور؟
+              </a>
             </div>
             <button
               type="submit"

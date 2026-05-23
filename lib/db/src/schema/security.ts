@@ -42,6 +42,23 @@ export const sessionsTable = pgTable("session", {
   expire: timestamp("expire", { withTimezone: true }).notNull(),
 });
 
+export const authTokensTable = pgTable(
+  "auth_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_auth_tokens_user_type").on(table.userId, table.type, table.expiresAt),
+  ],
+);
+
 export type AuditLog = typeof auditLogsTable.$inferSelect;
 export type InsertAuditLog = typeof auditLogsTable.$inferInsert;
 export type LoginEvent = typeof loginEventsTable.$inferSelect;
+export type AuthToken = typeof authTokensTable.$inferSelect;

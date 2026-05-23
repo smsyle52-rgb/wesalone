@@ -914,6 +914,38 @@ CREATE INDEX IF NOT EXISTS idx_notifications_ws_created
   ON notifications(workspace_id, created_at);
 
 -- =============================================================
+-- Closure Phase 4B: account lifecycle
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS auth_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type text NOT NULL,
+  token_hash text NOT NULL UNIQUE,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_type
+  ON auth_tokens(user_id, type, expires_at);
+
+DO $$ BEGIN
+  ALTER TABLE workspaces ADD COLUMN deactivated_at timestamptz;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE workspaces ADD COLUMN deactivated_by uuid REFERENCES users(id);
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE workspaces ADD COLUMN deactivation_reason text;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+-- =============================================================
 -- Verification queries (SELECT only, no mutations)
 -- These print confirmation that expected tables exist.
 -- =============================================================
@@ -929,7 +961,7 @@ AND tablename IN (
   'api_keys','notification_preferences','idempotency_keys',
   'catalog_sources','products','social_posts','ad_campaigns','catalog_sync_runs',
   'sector_profiles','learned_answers','usage_counters','payment_submissions',
-  'notifications'
+  'notifications','auth_tokens'
 )
 ORDER BY tablename;
 

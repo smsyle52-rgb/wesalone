@@ -8,6 +8,7 @@ export interface SessionUser {
   roleSlugs: string[];
   name: string;
   email: string;
+  emailVerified?: boolean;
 }
 
 declare module "express-session" {

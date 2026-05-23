@@ -10,6 +10,9 @@ import LandingPage from "@/pages/LandingPage";
 import PublicContentPage from "@/pages/PublicContentPages";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import DashboardPage from "@/pages/DashboardPage";
 import InboxPage from "@/pages/InboxPage";
 import TicketsPage from "@/pages/TicketsPage";
@@ -93,6 +96,9 @@ function Router() {
     <Switch>
       <Route path="/login" component={() => <PublicRoute component={LoginPage} />} />
       <Route path="/register" component={() => <PublicRoute component={RegisterPage} />} />
+      <Route path="/forgot-password" component={() => <PublicRoute component={ForgotPasswordPage} />} />
+      <Route path="/reset-password" component={() => <PublicRoute component={ResetPasswordPage} />} />
+      <Route path="/verify-email" component={VerifyEmailPage} />
       <Route path="/about" component={() => <PublicContentPage kind="about" />} />
       <Route path="/privacy" component={() => <PublicContentPage kind="privacy" />} />
       <Route path="/terms" component={() => <PublicContentPage kind="terms" />} />

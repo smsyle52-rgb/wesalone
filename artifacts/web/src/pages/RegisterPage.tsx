@@ -27,6 +27,7 @@ export default function RegisterPage() {
         id: data.user.id,
         name: data.user.name,
         email: data.user.email,
+        emailVerified: data.user.emailVerified,
         permissions: data.user.permissions ?? [],
         roleSlugs: data.user.roleSlugs ?? [],
       }, data.workspaceId ?? "");
