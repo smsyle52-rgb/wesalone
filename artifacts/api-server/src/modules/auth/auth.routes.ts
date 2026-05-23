@@ -12,7 +12,7 @@ import { registerWorkspace, loginUser, loadUserPermissions, hashPassword, verify
 import { createAuditLog } from "../../lib/audit";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
-import { authLimiter, changePasswordLimiter } from "../../lib/rateLimiter";
+import { authLimiter, changePasswordLimiter, signupLimiter } from "../../lib/rateLimiter";
 import { consumeAuthToken, markEmailVerified, sendPasswordResetEmail, sendVerificationEmail } from "../../services/account-lifecycle";
 
 const router = Router();
@@ -22,6 +22,11 @@ const registerSchema = z.object({
   email: z.string().email("بريد إلكتروني غير صحيح"),
   password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
   workspaceName: z.string().min(2, "اسم المنشأة يجب أن يكون على الأقل حرفين").max(100),
+});
+
+const protectedRegisterSchema = registerSchema.extend({
+  website: z.string().max(0).optional().default(""),
+  challengeAnswer: z.string().trim().refine((value) => value === "7", "إجابة التحقق غير صحيحة"),
 });
 
 const loginSchema = z.object({
@@ -38,8 +43,8 @@ const resetPasswordSchema = z.object({
   password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
 });
 
-router.post("/register", authLimiter, async (req: Request, res: Response) => {
-  const parsed = registerSchema.safeParse(req.body);
+router.post("/register", signupLimiter, async (req: Request, res: Response) => {
+  const parsed = protectedRegisterSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
     return;

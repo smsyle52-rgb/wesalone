@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 export default function RegisterPage() {
   const [, navigate] = useLocation();
   const { setAuth } = useAuth();
-  const [form, setForm] = useState({ workspaceName: "", ownerName: "", email: "", password: "" });
+  const [form, setForm] = useState({ workspaceName: "", ownerName: "", email: "", password: "", website: "", challengeAnswer: "" });
   const [error, setError] = useState("");
 
   const registerMut = useMutation({
@@ -114,6 +114,29 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 required
                 minLength={8}
+              />
+            </div>
+            <input
+              type="text"
+              name="website"
+              value={form.website}
+              onChange={(e) => setForm({ ...form, website: e.target.value })}
+              className="hidden"
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+            />
+            <div>
+              <label htmlFor="register-challenge" className="block text-sm font-medium text-foreground mb-1.5">تحقق سريع: كم حاصل 3 + 4؟</label>
+              <input
+                id="register-challenge"
+                name="challengeAnswer"
+                type="text"
+                value={form.challengeAnswer}
+                onChange={(e) => setForm({ ...form, challengeAnswer: e.target.value })}
+                className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                placeholder="7"
+                required
               />
             </div>
             <button

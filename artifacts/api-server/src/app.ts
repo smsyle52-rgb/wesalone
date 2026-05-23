@@ -67,6 +67,19 @@ app.use(
 );
 
 app.use(requestId);
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.path.startsWith("/api/webhooks/")) {
+    next();
+    return;
+  }
+  const contentLength = Number(req.headers["content-length"] ?? 0);
+  if (contentLength > 1_000_000) {
+    logger.warn({ path: req.path, contentLength }, "Request payload rejected");
+    res.status(413).json({ error: "حجم الطلب أكبر من الحد المسموح", code: "PAYLOAD_TOO_LARGE" });
+    return;
+  }
+  next();
+});
 app.use("/api/webhooks", webhookLimiter);
 app.use("/api/webhooks", express.raw({ type: "application/json", limit: "2mb" }), webhooksRouter);
 app.use("/api", apiLimiter);
@@ -75,9 +88,9 @@ app.use((req, res, next) => {
     next();
     return;
   }
-  express.json({ limit: "10mb" })(req, res, next);
+  express.json({ limit: "1mb" })(req, res, next);
 });
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "200kb" }));
 app.use(sessionMiddleware);
 
 app.use("/api", router);
