@@ -6,6 +6,22 @@ import { useTranslation } from "react-i18next";
 
 const BASE = `${import.meta.env.BASE_URL}api/catalog`;
 
+const SYNC_STATUS_AR: Record<string, string> = {
+  pending: "في الانتظار",
+  synced: "متزامن",
+  failed: "فشل",
+  active: "نشط",
+  ACTIVE: "نشط",
+  PAUSED: "متوقف",
+  paused: "متوقف",
+};
+
+const AVAILABILITY_AR: Record<string, string> = {
+  "in stock": "متوفر",
+  "out of stock": "غير متوفر",
+  preorder: "طلب مسبق",
+};
+
 async function apiFetch(path: string, opts?: RequestInit) {
   const res = await fetch(`${BASE}/${path}`, {
     credentials: "include",
@@ -147,7 +163,7 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
                   <p className="mt-1 text-xs text-muted-foreground">{source?.name ?? t("catalog.noSource")}</p>
                 </div>
                 <span className={`rounded-full px-2 py-1 text-xs ${statusTone(source?.syncStatus ?? "pending")}`}>
-                  {source?.syncStatus ?? "pending"}
+                  {SYNC_STATUS_AR[source?.syncStatus ?? "pending"] ?? source?.syncStatus ?? "في الانتظار"}
                 </span>
               </div>
               <div className="mt-4 flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -182,9 +198,9 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
             </div>
             <select value={availability} onChange={(e) => setAvailability(e.target.value)} className="rounded-md border border-border bg-background px-3 py-2 text-sm">
               <option value="">{t("catalog.allAvailability")}</option>
-              <option value="in stock">in stock</option>
-              <option value="out of stock">out of stock</option>
-              <option value="preorder">preorder</option>
+              <option value="in stock">متوفر</option>
+              <option value="out of stock">غير متوفر</option>
+              <option value="preorder">طلب مسبق</option>
             </select>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded-md border border-border bg-background px-3 py-2 text-sm">
               <option value="">{t("catalog.allCategories")}</option>
@@ -212,7 +228,7 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
                         <td className="p-3">{product.imageUrl ? <img src={product.imageUrl} alt="" className="h-10 w-10 rounded-md object-cover" /> : <PackageSearch className="h-8 w-8 text-muted-foreground" />}</td>
                         <td className="p-3 font-medium">{product.name}</td>
                         <td className="p-3">{product.price ?? "-"} {product.currency ?? "YER"}</td>
-                        <td className="p-3"><span className={`rounded-full px-2 py-1 text-xs ${statusTone(product.availability ?? "")}`}>{product.availability ?? "-"}</span></td>
+                        <td className="p-3"><span className={`rounded-full px-2 py-1 text-xs ${statusTone(product.availability ?? "")}`}>{AVAILABILITY_AR[product.availability ?? ""] ?? product.availability ?? "-"}</span></td>
                         <td className="p-3">{sourceName ?? "-"}</td>
                         <td className="p-3">{new Date(product.syncedAt).toLocaleString()}</td>
                         <td className="p-3">
