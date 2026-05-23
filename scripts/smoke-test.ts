@@ -203,6 +203,14 @@ async function runDatabaseSmoke(): Promise<void> {
   const paymentSubmissionId = randomUUID();
   const phoneNumberId = `phase4_phone_${Date.now()}`;
   const providerMessageId = `wamid.phase4.${Date.now()}`;
+  const mediaProviderMessageIds = {
+    image: `wamid.phase5.image.${Date.now()}`,
+    voice: `wamid.phase5.voice.${Date.now()}`,
+    location: `wamid.phase5.location.${Date.now()}`,
+    document: `wamid.phase5.document.${Date.now()}`,
+    unknown: `wamid.phase5.unknown.${Date.now()}`,
+  };
+  const outboundProviderMessageId = `wamid.phase5.outbound.${Date.now()}`;
   const customerPhone = "+967700000404";
   const slug = `phase4-smoke-${Date.now()}`;
 
@@ -301,6 +309,11 @@ async function runDatabaseSmoke(): Promise<void> {
     }],
   };
 
+  const rawWebhookBody = Buffer.from(JSON.stringify(payload));
+  const signature = createHmac("sha256", "phase5-meta-secret").update(rawWebhookBody).digest("hex");
+  const expectedSignature = createHmac("sha256", "phase5-meta-secret").update(rawWebhookBody).digest("hex");
+  assertCheck({ name: "DB Meta HMAC verification input is deterministic", ok: signature === expectedSignature && signature.length === 64 });
+
   const webhook = await handleMetaWhatsAppWebhook(payload);
   assertCheck({ name: "DB webhook creates one message", ok: webhook.handled && webhook.messagesCreated === 1 });
 
@@ -316,6 +329,95 @@ async function runDatabaseSmoke(): Promise<void> {
     [workspaceId, message.id],
   );
   assertCheck({ name: "DB domain event persisted", ok: eventResult.rowCount === 1 });
+
+  const mediaPayload = {
+    object: "whatsapp_business_account",
+    entry: [{
+      changes: [{
+        value: {
+          metadata: { phone_number_id: phoneNumberId },
+          messages: [
+            {
+              id: mediaProviderMessageIds.image,
+              from: customerPhone.replace("+", ""),
+              timestamp: `${Math.floor(Date.now() / 1000)}`,
+              type: "image",
+              image: { id: "media_image_1", mime_type: "image/jpeg", sha256: "img-sha", caption: "صورة المنتج" },
+            },
+            {
+              id: mediaProviderMessageIds.voice,
+              from: customerPhone.replace("+", ""),
+              timestamp: `${Math.floor(Date.now() / 1000)}`,
+              type: "voice",
+              voice: { id: "media_voice_1", mime_type: "audio/ogg", sha256: "voice-sha" },
+            },
+            {
+              id: mediaProviderMessageIds.location,
+              from: customerPhone.replace("+", ""),
+              timestamp: `${Math.floor(Date.now() / 1000)}`,
+              type: "location",
+              location: { latitude: 15.3694, longitude: 44.1910, name: "صنعاء", address: "حدة" },
+            },
+            {
+              id: mediaProviderMessageIds.document,
+              from: customerPhone.replace("+", ""),
+              timestamp: `${Math.floor(Date.now() / 1000)}`,
+              type: "document",
+              document: { id: "media_doc_1", mime_type: "application/pdf", sha256: "doc-sha", caption: "فاتورة" },
+            },
+            {
+              id: mediaProviderMessageIds.unknown,
+              from: customerPhone.replace("+", ""),
+              timestamp: `${Math.floor(Date.now() / 1000)}`,
+              type: "unsupported_custom",
+              unsupported_custom: { id: "custom_1" },
+            },
+          ],
+        },
+      }],
+    }],
+  };
+  const mediaWebhook = await handleMetaWhatsAppWebhook(mediaPayload);
+  assertCheck({ name: "DB webhook stores text image voice location document unknown", ok: mediaWebhook.handled && mediaWebhook.messagesCreated === 5 });
+
+  const duplicateMediaWebhook = await handleMetaWhatsAppWebhook(mediaPayload);
+  assertCheck({ name: "DB webhook idempotency prevents duplicate provider messages", ok: duplicateMediaWebhook.handled && duplicateMediaWebhook.messagesCreated === 0 });
+
+  const contentTypesResult = await pool.query(
+    "SELECT content_type FROM messages WHERE workspace_id = $1 AND provider_message_id = ANY($2::text[]) ORDER BY content_type",
+    [workspaceId, Object.values(mediaProviderMessageIds)],
+  );
+  const contentTypes = contentTypesResult.rows.map((row: { content_type: string }) => row.content_type);
+  assertCheck({
+    name: "DB inbound message type coverage",
+    ok: ["document", "image", "location", "unsupported_custom", "voice"].every((type) => contentTypes.includes(type)),
+  });
+
+  const updatedContactLocation = await pool.query(
+    "SELECT city, location_note FROM contacts WHERE workspace_id = $1 AND phone = $2 LIMIT 1",
+    [workspaceId, customerPhone],
+  );
+  assertCheck({
+    name: "DB location inbound updates contact location",
+    ok: updatedContactLocation.rows[0]?.city === "صنعاء" && String(updatedContactLocation.rows[0]?.location_note ?? "").includes("حدة"),
+  });
+
+  await pool.query(
+    "INSERT INTO messages (workspace_id, conversation_id, provider_message_id, direction, sender_type, source, content_type, content, delivery_status) VALUES ($1, $2, $3, 'outbound', 'system', 'whatsapp_cloud', 'text', $4, 'sent')",
+    [workspaceId, message.conversation_id, outboundProviderMessageId, "Outbound status smoke"],
+  );
+  const statusWebhook = await handleMetaWhatsAppWebhook({
+    object: "whatsapp_business_account",
+    entry: [{
+      changes: [{
+        value: {
+          metadata: { phone_number_id: phoneNumberId },
+          statuses: [{ id: outboundProviderMessageId, status: "read", timestamp: `${Math.floor(Date.now() / 1000)}` }],
+        },
+      }],
+    }],
+  });
+  assertCheck({ name: "DB status update maps to existing message", ok: statusWebhook.handled && statusWebhook.statusesUpdated === 1 });
 
   const memory = await loadContext(workspaceId, message.conversation_id, agentId);
   assertCheck({

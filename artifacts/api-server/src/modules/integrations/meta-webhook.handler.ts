@@ -274,10 +274,11 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
     if (!providerMessageId) continue;
     const deliveryStatus = status.status ?? "unknown";
     const update: Record<string, unknown> = { deliveryStatus, providerPayload: status };
-    await db.update(messagesTable)
+    const updated = await db.update(messagesTable)
       .set(update)
-      .where(and(eq(messagesTable.workspaceId, workspaceId), eq(messagesTable.providerMessageId, providerMessageId)));
-    statusesUpdated += 1;
+      .where(and(eq(messagesTable.workspaceId, workspaceId), eq(messagesTable.providerMessageId, providerMessageId)))
+      .returning({ id: messagesTable.id });
+    statusesUpdated += updated.length;
   }
 
   return { handled: true, messagesCreated, statusesUpdated };
