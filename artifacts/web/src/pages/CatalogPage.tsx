@@ -28,7 +28,17 @@ async function apiFetch(path: string, opts?: RequestInit) {
     headers: { "Content-Type": "application/json", ...(opts?.headers ?? {}) },
     ...opts,
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const text = await res.text();
+    let message = text;
+    try {
+      const json = JSON.parse(text);
+      if (typeof json.error === "string" && json.error.trim()) message = json.error;
+    } catch {
+      message = text;
+    }
+    throw new Error(message);
+  }
   return res.json();
 }
 
@@ -88,7 +98,7 @@ function EmptyState({ title, description }: { title: string; description: string
       <h3 className="text-base font-semibold text-foreground">{title}</h3>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">{description}</p>
       <Link href="/integrations" className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-        /integrations
+        اربط كتالوج ميتا
       </Link>
     </div>
   );

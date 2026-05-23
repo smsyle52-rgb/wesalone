@@ -15,7 +15,14 @@ async function apiFetch(path: string, opts?: RequestInit) {
   const res = await fetch(`${BASE}/${path}`, { credentials: "include", ...opts });
   if (!res.ok) {
     const text = await res.text();
-    try { const j = JSON.parse(text); throw new Error(j.error ?? text); } catch { throw new Error(text); }
+    let message = text;
+    try {
+      const json = JSON.parse(text);
+      if (typeof json.error === "string" && json.error.trim()) message = json.error;
+    } catch {
+      message = text;
+    }
+    throw new Error(message);
   }
   return res.json();
 }

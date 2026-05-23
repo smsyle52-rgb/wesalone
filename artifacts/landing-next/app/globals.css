@@ -1,0 +1,161 @@
+@import url("https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap");
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-wesal-primary: #1B3A5C;
+  --color-wesal-accent: #1FB6A6;
+  --color-wesal-bg: #F0F7FF;
+  --color-wesal-ink: #1A1F2E;
+  --color-wesal-muted: #6B7689;
+  --color-wesal-blue: #0B6FE8;
+  --font-sans: "Tajawal", "Noto Sans Arabic", "Segoe UI", Tahoma, Arial, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+  --hero-x: 0px;
+  --hero-y: 0px;
+  --hero-rotate-x: 0deg;
+  --hero-rotate-y: 0deg;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-family: var(--font-sans);
+}
+
+body {
+  margin: 0;
+  direction: rtl;
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(circle at 82% 8%, rgba(31, 182, 166, .12), transparent 30%),
+    linear-gradient(135deg, #f0f7ff 0%, #e8f9f7 100%);
+  color: #1a1f2e;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at 72% 14%, rgba(11, 111, 232, .18), transparent 34%),
+    radial-gradient(circle at 18% 40%, rgba(31, 182, 166, .10), transparent 32%),
+    #020814;
+}
+
+::selection {
+  background: rgba(31, 182, 166, .22);
+}
+
+.mesh-bg {
+  background:
+    linear-gradient(120deg, rgba(255,255,255,.32), transparent 28%, rgba(31,182,166,.06) 58%, transparent 78%),
+    radial-gradient(circle at 18% 28%, rgba(31, 182, 166, .18), transparent 34%),
+    radial-gradient(circle at 72% 26%, rgba(11, 111, 232, .16), transparent 36%),
+    linear-gradient(135deg, #f0f7ff 0%, #e8f9f7 100%);
+  background-size: 140% 140%;
+  animation: mesh-shift 18s ease-in-out infinite alternate;
+}
+
+:root[data-theme="dark"] .mesh-bg {
+  background:
+    linear-gradient(120deg, rgba(255,255,255,.04), transparent 28%, rgba(31,182,166,.05) 58%, transparent 78%),
+    radial-gradient(circle at 18% 28%, rgba(31, 182, 166, .12), transparent 34%),
+    radial-gradient(circle at 72% 26%, rgba(11, 111, 232, .24), transparent 36%),
+    linear-gradient(135deg, #020814 0%, #06111f 55%, #020814 100%);
+}
+
+.hero-depth {
+  transform:
+    translate3d(calc(var(--hero-x) * -0.5), calc(var(--hero-y) * -0.42), 0)
+    rotateX(var(--hero-rotate-x))
+    rotateY(var(--hero-rotate-y));
+  transform-style: preserve-3d;
+}
+
+.glass-card {
+  border: 1px solid rgba(255, 255, 255, .72);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .93), rgba(255, 255, 255, .72));
+  box-shadow:
+    0 34px 95px rgba(27, 58, 92, .18),
+    0 12px 35px rgba(31, 182, 166, .09),
+    inset 0 1px 0 rgba(255, 255, 255, .9);
+  backdrop-filter: blur(22px);
+}
+
+:root[data-theme="dark"] .glass-card {
+  border-color: rgba(125, 211, 252, .16);
+  background: linear-gradient(135deg, rgba(7, 21, 36, .96), rgba(4, 12, 24, .88));
+  box-shadow:
+    0 34px 95px rgba(0, 0, 0, .46),
+    0 0 0 1px rgba(31, 182, 166, .08),
+    0 0 80px rgba(11, 111, 232, .10),
+    inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+
+.channel-gloss {
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, .95), rgba(255, 255, 255, .12) 34%, transparent 52%),
+    var(--channel-bg);
+  box-shadow: 0 18px 34px var(--channel-shadow);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 150px minmax(190px, .9fr) minmax(240px, 1.12fr) 190px;
+}
+
+.premium-cta {
+  background:
+    radial-gradient(circle at 8% 78%, rgba(31, 182, 166, .32), transparent 24%),
+    radial-gradient(circle at 92% 18%, rgba(11, 111, 232, .38), transparent 28%),
+    linear-gradient(135deg, #061f3d 0%, #0b3f7a 54%, #0f9fb2 100%);
+}
+
+@media (max-width: 920px) {
+  .dashboard-grid {
+    grid-template-columns: 116px 1fr;
+  }
+  .dashboard-extra {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard-grid {
+    grid-template-columns: 88px 1fr;
+  }
+}
+
+@keyframes mesh-shift {
+  from { background-position: 0% 35%; }
+  to { background-position: 100% 65%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

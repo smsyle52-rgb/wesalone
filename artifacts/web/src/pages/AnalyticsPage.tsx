@@ -10,7 +10,14 @@ async function apiFetch(path: string, opts?: RequestInit) {
   const res = await fetch(`${BASE}/${path}`, { credentials: "include", ...opts });
   if (!res.ok) {
     const text = await res.text();
-    try { const j = JSON.parse(text); throw new Error(j.error ?? text); } catch { throw new Error(text); }
+    let message = text;
+    try {
+      const json = JSON.parse(text);
+      if (typeof json.error === "string" && json.error.trim()) message = json.error;
+    } catch {
+      message = text;
+    }
+    throw new Error(message);
   }
   return res.json();
 }
@@ -27,11 +34,27 @@ const TABS: { key: AnalyticsTab; label: string }[] = [
   { key: "channels", label: "القنوات" },
 ];
 
-function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+function normalizeNumber(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "string") {
+    const cleaned = value.replace(/,/g, "").trim();
+    if (!cleaned) return 0;
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function formatNumber(value: unknown) {
+  return normalizeNumber(value).toLocaleString("ar-SA");
+}
+
+function StatCard({ label, value, sub }: { label: string; value: unknown; sub?: string }) {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <div className="text-sm text-muted-foreground mb-1">{label}</div>
-      <div className="text-2xl font-bold text-foreground">{typeof value === "number" ? value.toLocaleString("ar-SA") : value}</div>
+      <div className="text-2xl font-bold text-foreground">{formatNumber(value)}</div>
       {sub && <div className="text-xs text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
@@ -166,8 +189,8 @@ export default function AnalyticsPage() {
             <StatCard label="متابعات متأخرة" value={overview.data.overdueFollowups} />
             <StatCard label="فرص مفتوحة" value={overview.data.openOpportunities} />
             <StatCard label="طلبات اليوم" value={overview.data.ordersToday} />
-            <StatCard label="مدفوعات مؤكدة اليوم" value={overview.data.paymentsConfirmedToday.toLocaleString("ar-SA")} sub="ر.ي" />
-            <StatCard label="ديون مفتوحة" value={overview.data.openDebtsAmount.toLocaleString("ar-SA")} sub="ر.ي" />
+            <StatCard label="مدفوعات مؤكدة اليوم" value={overview.data.paymentsConfirmedToday} sub="ر.ي" />
+            <StatCard label="ديون مفتوحة" value={overview.data.openDebtsAmount} sub="ر.ي" />
             <StatCard label="تشغيلات AI اليوم" value={overview.data.aiRunsToday} />
           </div>
         </div>
@@ -199,7 +222,7 @@ export default function AnalyticsPage() {
             <StatCard label="صفقات مكتسبة" value={sales.data.wonCount} sub={`${Number(sales.data.wonValue).toLocaleString("ar-SA")} ر.ي`} />
             <StatCard label="صفقات خسرت" value={sales.data.lostCount} />
             <StatCard label="إجمالي الطلبات" value={sales.data.ordersCount} sub={`${Number(sales.data.ordersTotal).toLocaleString("ar-SA")} ر.ي`} />
-            <StatCard label="متوسط قيمة الطلب" value={Number(sales.data.avgOrderValue).toFixed(0)} sub="ر.ي" />
+            <StatCard label="متوسط قيمة الطلب" value={sales.data.avgOrderValue} sub="ر.ي" />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <SectionCard title="الفرص حسب المرحلة">
@@ -216,11 +239,11 @@ export default function AnalyticsPage() {
       {tab === "finance" && finance.data && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <StatCard label="مدفوعات مؤكدة" value={Number(finance.data.paymentsConfirmedTotal).toLocaleString("ar-SA")} sub={`${finance.data.paymentsConfirmedCount} عملية`} />
-            <StatCard label="مدفوعات معلقة" value={Number(finance.data.paymentsPendingTotal).toLocaleString("ar-SA")} sub={`${finance.data.paymentsPendingCount} عملية`} />
-            <StatCard label="مدفوعات مرفوضة" value={Number(finance.data.paymentsRejectedTotal).toLocaleString("ar-SA")} sub={`${finance.data.paymentsRejectedCount} عملية`} />
-            <StatCard label="ديون مفتوحة" value={Number(finance.data.debtsOpenAmount).toLocaleString("ar-SA")} sub={`${finance.data.debtsOpenCount} دين — ر.ي`} />
-            <StatCard label="ديون متأخرة" value={Number(finance.data.debtsOverdueAmount).toLocaleString("ar-SA")} sub={`${finance.data.debtsOverdueCount} دين — ر.ي`} />
+            <StatCard label="مدفوعات مؤكدة" value={finance.data.paymentsConfirmedTotal} sub={`${finance.data.paymentsConfirmedCount} عملية`} />
+            <StatCard label="مدفوعات معلقة" value={finance.data.paymentsPendingTotal} sub={`${finance.data.paymentsPendingCount} عملية`} />
+            <StatCard label="مدفوعات مرفوضة" value={finance.data.paymentsRejectedTotal} sub={`${finance.data.paymentsRejectedCount} عملية`} />
+            <StatCard label="ديون مفتوحة" value={finance.data.debtsOpenAmount} sub={`${finance.data.debtsOpenCount} دين — ر.ي`} />
+            <StatCard label="ديون متأخرة" value={finance.data.debtsOverdueAmount} sub={`${finance.data.debtsOverdueCount} دين — ر.ي`} />
           </div>
           <SectionCard title="المدفوعات حسب الحالة">
             <StatusTable rows={finance.data.paymentsByStatus ?? []} />
@@ -233,7 +256,7 @@ export default function AnalyticsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <StatCard label="إجمالي التشغيلات" value={ai.data.totalAiRuns ?? 0} />
-            <StatCard label="الرموز المستخدمة" value={Number(ai.data.totalTokensUsed ?? 0).toLocaleString("ar-SA")} />
+            <StatCard label="الرموز المستخدمة" value={ai.data.totalTokensUsed ?? 0} />
             <StatCard label="أحداث الأمان" value={ai.data.safetyBlockedCount ?? 0} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
