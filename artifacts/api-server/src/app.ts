@@ -16,8 +16,10 @@ import webhooksRouter from "./modules/integrations/webhooks.routes";
 
 const app: Express = express();
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")
-  .split(",")
+const allowedOrigins = [
+  ...(process.env.ALLOWED_ORIGINS ?? "").split(","),
+  process.env.PUBLIC_BASE_URL ?? "",
+]
   .map((origin) => origin.trim().replace(/\/$/, ""))
   .filter(Boolean);
 

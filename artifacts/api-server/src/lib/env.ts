@@ -38,6 +38,7 @@ const VERTEX_MODEL     = optionalEnv("VERTEX_MODEL");
 const AI_MAX_OUTPUT_TOKENS = optionalEnv("AI_MAX_OUTPUT_TOKENS");
 const AI_TEMPERATURE   = optionalEnv("AI_TEMPERATURE");
 const ALLOWED_ORIGINS  = optionalEnv("ALLOWED_ORIGINS");       // CORS allow list (comma-sep)
+const PUBLIC_BASE_URL  = optionalEnv("PUBLIC_BASE_URL") ?? optionalEnv("APP_BASE_URL");
 const STORAGE_PROVIDER = optionalEnv("STORAGE_PROVIDER");      // 'gcs' | 'local'
 const GCS_BUCKET       = optionalEnv("GCS_BUCKET");            // Google Cloud Storage bucket
 const LOG_LEVEL        = optionalEnv("LOG_LEVEL", "info")!;
@@ -56,6 +57,7 @@ export const env = {
   AI_MAX_OUTPUT_TOKENS,
   AI_TEMPERATURE,
   ALLOWED_ORIGINS,
+  PUBLIC_BASE_URL,
   STORAGE_PROVIDER,
   GCS_BUCKET,
   LOG_LEVEL,

@@ -55,6 +55,7 @@ function limitFromQuery(value: unknown, fallback = 50) {
 }
 
 function appBaseUrl(req: AuthenticatedRequest) {
+  if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
   const proto = req.header("x-forwarded-proto") ?? req.protocol;
   const host = req.header("x-forwarded-host") ?? req.header("host");
   return `${proto}://${host}`;

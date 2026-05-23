@@ -6,6 +6,7 @@ substitutions:
   _DATABASE_URL_SECRET: DATABASE_URL
   _DB_CONNECTION_NAME: khadamatk-auth:us-central1:khadamatak-prod
   _CLOUDSQL_INSTANCE: khadamatk-auth:us-central1:khadamatak-prod
+  _PUBLIC_BASE_URL: https://khadamatak-staging-1067617934225.us-central1.run.app
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -106,7 +107,7 @@ steps:
       - --port=8080
       - --allow-unauthenticated
       - --add-cloudsql-instances=$_CLOUDSQL_INSTANCE
-      - --set-env-vars=NODE_ENV=production,SERVE_STATIC=true,AI_PROVIDER=vertex,VERTEX_PROJECT_ID=${PROJECT_ID},VERTEX_LOCATION=${_REGION},VERTEX_MODEL=gemini-2.5-flash,AI_MAX_OUTPUT_TOKENS=1024,AI_TEMPERATURE=0.2,ALLOWED_ORIGINS=https://khadamatak-staging-1067617934225.us-central1.run.app
+      - --set-env-vars=NODE_ENV=production,SERVE_STATIC=true,AI_PROVIDER=vertex,VERTEX_PROJECT_ID=${PROJECT_ID},VERTEX_LOCATION=${_REGION},VERTEX_MODEL=gemini-2.5-flash,AI_MAX_OUTPUT_TOKENS=1024,AI_TEMPERATURE=0.2,PUBLIC_BASE_URL=${_PUBLIC_BASE_URL},ALLOWED_ORIGINS=${_PUBLIC_BASE_URL}
       - --set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest
       - --quiet
 
