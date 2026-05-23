@@ -25,6 +25,7 @@ import { shouldAutoSend, type TrustDecision } from "../../services/trust-gate";
 import { loadLearnedContext } from "../../services/agent-learning";
 import { loadMediaContext } from "../../services/agent-media";
 import { checkLimit } from "../../services/billing";
+import { notifyWorkspace } from "../../services/notifications";
 
 const router = Router();
 router.use(requireSession);
@@ -1537,6 +1538,13 @@ ${locationContext}
       confidence: null,
       topicDetected: null,
       sentMessageId: null,
+    });
+    await notifyWorkspace({
+      workspaceId: activeWorkspaceId,
+      type: "conversation.needs_human",
+      titleAr: "محادثة تحتاج تدخل",
+      bodyAr: "لم يجد الوكيل إجابة مؤكدة، وتم تحويل المحادثة لمراجعة الفريق.",
+      link: `/inbox?conversation=${conversationId}`,
     });
   } else if (conversationId && agentId && selectedAgent && conversationForDraft && latestMessageForDecision) {
     trustDecision = await shouldAutoSend({

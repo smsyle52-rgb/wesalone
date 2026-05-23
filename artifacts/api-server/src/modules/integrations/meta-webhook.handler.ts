@@ -12,6 +12,7 @@ import { logger } from "../../lib/logger";
 import { emitWorkspaceEvent } from "../../lib/events";
 import { handleInstagramWebhook } from "./instagram.handler";
 import { handleMessengerWebhook } from "./messenger.handler";
+import { notifyWorkspace } from "../../services/notifications";
 
 export type MetaWebhookResult = {
   handled: boolean;
@@ -255,6 +256,14 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
       entityType: "message",
       entityId: message.id,
       payload: { conversationId: conversation.id, contactId, channelAccountId: channelAccount.id, providerMessageId },
+    });
+
+    await notifyWorkspace({
+      workspaceId,
+      type: "message.received",
+      titleAr: "رسالة واتساب جديدة",
+      bodyAr: "وصلت رسالة جديدة من عميل عبر واتساب.",
+      link: `/inbox?conversation=${conversation.id}`,
     });
 
     messagesCreated += 1;

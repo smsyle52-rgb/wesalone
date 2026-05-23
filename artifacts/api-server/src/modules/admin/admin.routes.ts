@@ -12,6 +12,7 @@ import {
 import { requireSession } from "../../middlewares/requireSession";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { auditFromRequest, createAuditLog } from "../../lib/audit";
+import { notifyWorkspace } from "../../services/notifications";
 
 const router = Router();
 router.use(requireSession);
@@ -122,6 +123,14 @@ router.post("/payments/:id/confirm", async (req: AuthenticatedRequest, res: Resp
     newData: { status: "confirmed", currentPeriodEnd: periodEndDate },
   });
 
+  await notifyWorkspace({
+    workspaceId: submission.workspaceId,
+    type: "billing.payment.confirmed",
+    titleAr: "تم تأكيد الدفع",
+    bodyAr: "تمت مراجعة دفعتك وتفعيل الباقة بنجاح.",
+    link: "/settings?tab=billing",
+  });
+
   res.json({ ok: true, currentPeriodEnd: periodEndDate });
 });
 
@@ -158,6 +167,16 @@ router.post("/payments/:id/reject", async (req: AuthenticatedRequest, res: Respo
     entityType: "payment_submission",
     entityId: submission.id,
     newData: { status: "rejected", reason: parsed.data.reason ?? null },
+  });
+
+  await notifyWorkspace({
+    workspaceId: submission.workspaceId,
+    type: "billing.payment.rejected",
+    titleAr: "تم رفض طلب الدفع",
+    bodyAr: parsed.data.reason
+      ? `تم رفض طلب الدفع. السبب: ${parsed.data.reason}`
+      : "تم رفض طلب الدفع. راجع تفاصيل الفوترة أو تواصل مع الدعم.",
+    link: "/settings?tab=billing",
   });
 
   res.json({ ok: true });

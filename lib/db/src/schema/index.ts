@@ -30,3 +30,4 @@ export * from "./ai";
 export * from "./reports";
 export * from "./catalog";
 export * from "./sectors";
+export * from "./notifications";

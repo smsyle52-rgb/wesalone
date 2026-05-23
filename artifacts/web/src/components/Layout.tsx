@@ -29,6 +29,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NotificationCenter } from "@/components/NotificationCenter";
 
 type NavItem = {
   path: string;
@@ -261,6 +262,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
           <h1 className="font-bold text-foreground">{t("brand.name")}</h1>
           <div className="flex items-center gap-2">
+            <NotificationCenter />
             <button
               onClick={toggleLanguage}
               className="rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted"
@@ -280,6 +282,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+            <div className="mb-4 hidden items-center justify-end lg:flex">
+              <NotificationCenter />
+            </div>
             {children}
           </div>
         </main>

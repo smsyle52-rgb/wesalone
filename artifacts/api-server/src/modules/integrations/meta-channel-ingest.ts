@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { emitWorkspaceEvent } from "../../lib/events";
 import { logger } from "../../lib/logger";
+import { notifyWorkspace } from "../../services/notifications";
 
 type MetaChannelType = "instagram" | "messenger";
 
@@ -193,6 +194,14 @@ export async function ingestMetaChannelMessage(params: IngestMetaChannelMessageP
     entityType: "message",
     entityId: message.id,
     payload: eventPayload,
+  });
+
+  await notifyWorkspace({
+    workspaceId,
+    type: "message.received",
+    titleAr: "رسالة جديدة",
+    bodyAr: `وصلت رسالة جديدة عبر ${params.channelType}.`,
+    link: `/inbox?conversation=${conversation.id}`,
   });
 
   return true;

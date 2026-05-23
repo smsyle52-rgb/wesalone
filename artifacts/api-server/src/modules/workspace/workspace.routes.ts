@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -11,6 +11,7 @@ import {
   paymentMethodsTable,
   paymentSubmissionsTable,
   notificationPreferencesTable,
+  notificationsTable,
   apiKeysTable,
 } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
@@ -321,6 +322,64 @@ router.put("/notification-preferences", requirePermission("settings:manage"), as
     }
   }
   res.json({ preferences: rows });
+});
+
+router.get("/notifications", async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  const workspaceId = authReq.sessionUser.activeWorkspaceId;
+  const userId = authReq.sessionUser.userId;
+
+  const [notifications, unreadRows] = await Promise.all([
+    db.select()
+      .from(notificationsTable)
+      .where(and(
+        eq(notificationsTable.workspaceId, workspaceId),
+        eq(notificationsTable.userId, userId),
+      ))
+      .orderBy(desc(notificationsTable.createdAt))
+      .limit(30),
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(notificationsTable)
+      .where(and(
+        eq(notificationsTable.workspaceId, workspaceId),
+        eq(notificationsTable.userId, userId),
+        eq(notificationsTable.isRead, false),
+      )),
+  ]);
+
+  res.json({ notifications, unreadCount: unreadRows[0]?.count ?? 0 });
+});
+
+router.post("/notifications/:id/read", async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  const [notification] = await db.update(notificationsTable)
+    .set({ isRead: true })
+    .where(and(
+      eq(notificationsTable.id, req.params.id as string),
+      eq(notificationsTable.workspaceId, authReq.sessionUser.activeWorkspaceId),
+      eq(notificationsTable.userId, authReq.sessionUser.userId),
+    ))
+    .returning({ id: notificationsTable.id });
+
+  if (!notification) {
+    res.status(404).json({ error: "التنبيه غير موجود" });
+    return;
+  }
+
+  res.json({ ok: true });
+});
+
+router.post("/notifications/read-all", async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  await db.update(notificationsTable)
+    .set({ isRead: true })
+    .where(and(
+      eq(notificationsTable.workspaceId, authReq.sessionUser.activeWorkspaceId),
+      eq(notificationsTable.userId, authReq.sessionUser.userId),
+      eq(notificationsTable.isRead, false),
+    ));
+
+  res.json({ ok: true });
 });
 
 router.get("/api-keys", requirePermission("settings:manage"), async (req: Request, res: Response) => {

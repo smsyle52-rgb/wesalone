@@ -892,6 +892,28 @@ UPDATE plans SET
 WHERE key = 'business' OR slug = 'business';
 
 -- =============================================================
+-- Closure Phase 4A: in-app notifications
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  type text NOT NULL,
+  title_ar text NOT NULL,
+  body_ar text NOT NULL,
+  link text,
+  is_read boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
+  ON notifications(workspace_id, user_id, is_read, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_ws_created
+  ON notifications(workspace_id, created_at);
+
+-- =============================================================
 -- Verification queries (SELECT only, no mutations)
 -- These print confirmation that expected tables exist.
 -- =============================================================
@@ -906,7 +928,8 @@ AND tablename IN (
   'broadcasts','broadcast_recipients','automations','automation_runs',
   'api_keys','notification_preferences','idempotency_keys',
   'catalog_sources','products','social_posts','ad_campaigns','catalog_sync_runs',
-  'sector_profiles','learned_answers','usage_counters','payment_submissions'
+  'sector_profiles','learned_answers','usage_counters','payment_submissions',
+  'notifications'
 )
 ORDER BY tablename;
 
