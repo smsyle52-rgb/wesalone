@@ -30,6 +30,12 @@ let learningPolling = false;
 let billingPolling = false;
 const processedTimestamps: number[] = [];
 
+function requireMetaGraphVersion(): string {
+  const version = process.env.META_GRAPH_VERSION?.trim();
+  if (!version) throw new Error("META_GRAPH_VERSION is not configured");
+  return version;
+}
+
 function markProcessed(): void {
   const now = Date.now();
   processedTimestamps.push(now);
@@ -113,7 +119,7 @@ async function metaSend(path: string, body: Record<string, unknown>): Promise<{ 
     return { id: `dry_${Date.now().toString(36)}`, dryRun: true };
   }
 
-  const graphVersion = process.env.META_GRAPH_VERSION ?? "v21.0";
+  const graphVersion = requireMetaGraphVersion();
   const response = await fetch(`https://graph.facebook.com/${graphVersion}/${path}`, {
     method: "POST",
     headers: {
@@ -138,7 +144,7 @@ async function dispatchWhatsAppSend(event: OutboxEventRow): Promise<void> {
   }
 
   const token = process.env.META_SYSTEM_USER_TOKEN ?? process.env.META_ACCESS_TOKEN;
-  const graphVersion = process.env.META_GRAPH_VERSION ?? "v21.0";
+  const graphVersion = requireMetaGraphVersion();
   const phoneNumberId = stringField(event.payload, "phoneNumberId") ?? process.env.META_PHONE_NUMBER_ID;
 
   if (!token || !phoneNumberId) {

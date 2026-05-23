@@ -17,7 +17,11 @@ import {
 import { logger } from "../lib/logger";
 import { rebuildDocumentChunks } from "./kb-chunker";
 
-const graphVersion = process.env.META_GRAPH_VERSION ?? "v21.0";
+function requireMetaGraphVersion(): string {
+  const version = process.env.META_GRAPH_VERSION?.trim();
+  if (!version) throw new Error("META_GRAPH_VERSION is not configured");
+  return version;
+}
 
 type SyncResult = {
   status: "success" | "partial" | "failed";
@@ -99,6 +103,7 @@ async function loadChannelAccount(source: CatalogSource) {
 }
 
 async function metaGet<T>(path: string, token: string): Promise<T> {
+  const graphVersion = requireMetaGraphVersion();
   const url = `https://graph.facebook.com/${graphVersion}/${path.replace(/^\//, "")}`;
 
   async function attempt() {
@@ -129,7 +134,7 @@ async function collectPages<T>(initialPath: string, token: string): Promise<T[]>
     rows.push(...(payload.data ?? []));
     if (!payload.paging?.next) break;
     const nextUrl: URL = new URL(payload.paging.next);
-    path = `${nextUrl.pathname.replace(`/${graphVersion}/`, "")}${nextUrl.search}`;
+    path = `${nextUrl.pathname.replace(`/${requireMetaGraphVersion()}/`, "")}${nextUrl.search}`;
   }
   return rows;
 }

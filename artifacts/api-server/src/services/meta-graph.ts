@@ -11,7 +11,11 @@ type MetaResult = {
   error?: string;
 };
 
-const graphVersion = process.env.META_GRAPH_VERSION ?? "v21.0";
+function requireMetaGraphVersion(): string {
+  const version = process.env.META_GRAPH_VERSION?.trim();
+  if (!version) throw new Error("META_GRAPH_VERSION is not configured");
+  return version;
+}
 
 function channelConfig(channelAccount: ChannelAccount | null | undefined): Record<string, unknown> {
   return (channelAccount?.providerConfig && typeof channelAccount.providerConfig === "object"
@@ -46,7 +50,7 @@ function dryRunResult(payload: unknown): MetaResult {
 async function callMeta(path: string, opts: { method?: string; token: string; body?: unknown }): Promise<MetaResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
-  const url = `https://graph.facebook.com/${graphVersion}/${path}`;
+  const url = `https://graph.facebook.com/${requireMetaGraphVersion()}/${path}`;
 
   async function attempt() {
     return fetch(url, {

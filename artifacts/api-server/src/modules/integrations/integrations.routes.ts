@@ -65,6 +65,12 @@ function metaRedirectUri(req: AuthenticatedRequest) {
   return process.env.META_REDIRECT_URI ?? `${appBaseUrl(req)}/api/integrations/meta/embedded-signup/callback`;
 }
 
+function requireMetaGraphVersion(): string {
+  const version = process.env.META_GRAPH_VERSION?.trim();
+  if (!version) throw new Error("META_GRAPH_VERSION is not configured");
+  return version;
+}
+
 type MetaPhoneNumber = {
   phone_number_id: string;
   display_number: string;
@@ -103,17 +109,15 @@ type MetaTokenRefs = {
   pageTokenRefs: Record<string, string>;
 };
 
-function graphVersion() {
-  return process.env.META_GRAPH_VERSION ?? "v21.0";
-}
-
 function metaEncryptionKey(): Buffer {
-  const material = process.env.META_OAUTH_STATE_SECRET ?? process.env.SESSION_SECRET ?? "khadamatak-dev-meta-token-key";
+  const material = process.env.META_OAUTH_STATE_SECRET ?? process.env.SESSION_SECRET;
+  if (!material) throw new Error("META_OAUTH_STATE_SECRET or SESSION_SECRET is required to store direct Meta tokens");
   return createHash("sha256").update(material).digest();
 }
 
 function encryptedTokenRef(token: string | null | undefined): string | null {
   if (!token) return process.env.META_ACCESS_TOKEN_SECRET_REF ?? null;
+  if (!process.env.META_OAUTH_STATE_SECRET && !process.env.SESSION_SECRET) return process.env.META_ACCESS_TOKEN_SECRET_REF ?? null;
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", metaEncryptionKey(), iv);
   const encrypted = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
@@ -132,7 +136,7 @@ function sanitizeMetaOptions(options: MetaChannelOptions): MetaChannelOptions {
 }
 
 async function callMetaGraph(path: string, token: string): Promise<any> {
-  const response = await fetch(`https://graph.facebook.com/${graphVersion()}/${path.replace(/^\//, "")}`, {
+  const response = await fetch(`https://graph.facebook.com/${requireMetaGraphVersion()}/${path.replace(/^\//, "")}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error(`Meta Graph API returned ${response.status}`);
@@ -144,7 +148,7 @@ async function exchangeCodeForToken(req: AuthenticatedRequest, code: string): Pr
   const appSecret = process.env.META_APP_SECRET;
   if (!appId || !appSecret || !code) return null;
 
-  const url = new URL(`https://graph.facebook.com/${graphVersion()}/oauth/access_token`);
+  const url = new URL(`https://graph.facebook.com/${requireMetaGraphVersion()}/oauth/access_token`);
   url.searchParams.set("client_id", appId);
   url.searchParams.set("client_secret", appSecret);
   url.searchParams.set("redirect_uri", metaRedirectUri(req));
@@ -580,6 +584,7 @@ router.get("/health", requirePermission("integrations:read"), async (req: Authen
 
 router.get("/meta/embedded-signup/start", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
   const appId = process.env.META_APP_ID;
+  const graphVersion = process.env.META_GRAPH_VERSION?.trim();
   const state = randomBytes(24).toString("hex");
   (req.session as any).metaOAuthState = {
     state,
@@ -587,10 +592,16 @@ router.get("/meta/embedded-signup/start", requirePermission("integrations:update
     createdAt: Date.now(),
   };
 
-  if (!appId) {
-    res.status(409).json({ ready: false, missing: ["META_APP_ID"], mode: "config_missing" });
+  const missing = [
+    !appId ? "META_APP_ID" : null,
+    !graphVersion ? "META_GRAPH_VERSION" : null,
+  ].filter(Boolean);
+  if (missing.length > 0) {
+    res.status(409).json({ ready: false, missing, mode: "config_missing" });
     return;
   }
+  const metaAppId = appId!;
+  const metaGraphVersion = graphVersion!;
 
   const redirectUri = metaRedirectUri(req);
   const scopes = [
@@ -605,8 +616,8 @@ router.get("/meta/embedded-signup/start", requirePermission("integrations:update
     "business_management",
     "ads_read",
   ];
-  const url = new URL(`https://www.facebook.com/${process.env.META_GRAPH_VERSION ?? "v21.0"}/dialog/oauth`);
-  url.searchParams.set("client_id", appId);
+  const url = new URL(`https://www.facebook.com/${metaGraphVersion}/dialog/oauth`);
+  url.searchParams.set("client_id", metaAppId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("state", state);
   url.searchParams.set("scope", scopes.join(","));

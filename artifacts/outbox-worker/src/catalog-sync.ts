@@ -26,9 +26,14 @@ type SyncResult = {
   error?: string;
 };
 
-const graphVersion = process.env.META_GRAPH_VERSION ?? "v21.0";
 const maxCatalogEvents = 10;
 const maxAttempts = 5;
+
+function requireMetaGraphVersion(): string {
+  const version = process.env.META_GRAPH_VERSION?.trim();
+  if (!version) throw new Error("META_GRAPH_VERSION is not configured");
+  return version;
+}
 
 function isDryRun(): boolean {
   return process.env.META_DRY_RUN === "true" || !process.env.META_APP_SECRET;
@@ -40,6 +45,7 @@ function token(): string | null {
 }
 
 async function metaGet<T>(path: string, accessToken: string): Promise<T> {
+  const graphVersion = requireMetaGraphVersion();
   const url = `https://graph.facebook.com/${graphVersion}/${path.replace(/^\//, "")}`;
 
   async function attempt() {
@@ -69,7 +75,7 @@ async function collectPages<T>(path: string, accessToken: string): Promise<T[]> 
     rows.push(...(payload.data ?? []));
     if (!payload.paging?.next) break;
     const nextUrl = new URL(payload.paging.next);
-    current = `${nextUrl.pathname.replace(`/${graphVersion}/`, "")}${nextUrl.search}`;
+    current = `${nextUrl.pathname.replace(`/${requireMetaGraphVersion()}/`, "")}${nextUrl.search}`;
   }
   return rows;
 }
