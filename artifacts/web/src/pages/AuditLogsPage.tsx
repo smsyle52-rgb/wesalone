@@ -295,7 +295,7 @@ export default function AuditLogsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40 text-right">
+                  <tr className="border-b border-border bg-muted/40 text-start">
                     <th className="px-4 py-3 font-medium text-muted-foreground text-xs">التاريخ</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-xs">المنفّذ</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-xs">الإجراء</th>
@@ -350,7 +350,7 @@ export default function AuditLogsPage() {
                           <td className="px-4 py-3 text-xs text-muted-foreground">
                             {log.ipAddress ?? "—"}
                             {hasActualData && (
-                              <span className="mr-2 text-primary text-xs font-medium cursor-pointer hover:underline">
+                              <span className="ms-2 text-primary text-xs font-medium cursor-pointer hover:underline">
                                 {isExpanded ? "إخفاء" : "تفاصيل"}
                               </span>
                             )}

@@ -546,7 +546,7 @@ export default function InboxPage() {
                   type="button"
                   onClick={() => setViewFilter(view.value)}
                   className={cn(
-                    "w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm text-right transition-colors",
+                    "w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm text-start transition-colors",
                     viewFilter === view.value ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground",
                   )}
                 >
@@ -558,7 +558,7 @@ export default function InboxPage() {
                   key={view.id}
                   type="button"
                   onClick={() => applySavedView(view)}
-                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm text-right hover:bg-muted text-foreground transition-colors"
+                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm text-start hover:bg-muted text-foreground transition-colors"
                 >
                   <span>{view.name}</span>
                   {view.isPinned && <span className="text-xs text-primary">مثبت</span>}
@@ -682,8 +682,8 @@ export default function InboxPage() {
             ) : (
               sortedList.map((c: any) => (
                 <button key={c.id} onClick={() => bulkMode ? toggleBulk(c.id) : selectConv(c)} className={cn(
-                  "w-full flex flex-col gap-1 px-3 py-3 border-b border-border/50 transition-colors text-right",
-                  selectedConvId === c.id ? "bg-primary/10 border-r-2 border-r-primary" : "hover:bg-muted/40",
+                  "w-full flex flex-col gap-1 px-3 py-3 border-b border-border/50 transition-colors text-start",
+                  selectedConvId === c.id ? "bg-primary/10 border-e-2 border-e-primary" : "hover:bg-muted/40",
                   selectedBulk.includes(c.id) && "bg-primary/10"
                 )}>
                   <div className="flex items-center justify-between gap-2">
@@ -1131,7 +1131,7 @@ export default function InboxPage() {
                           key={reply.id}
                           type="button"
                           onClick={() => insertQuickReply(reply)}
-                          className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-xs text-right hover:bg-muted"
+                          className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-xs text-start hover:bg-muted"
                         >
                           <span className="font-semibold">{reply.shortcut}</span>
                           <span className="flex-1 truncate text-muted-foreground">{reply.title}</span>

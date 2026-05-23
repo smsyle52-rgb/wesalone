@@ -44,16 +44,16 @@ function StatusTable({ rows, statusLabel = "الحالة" }: { rows: { status?: 
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-muted-foreground">
-            <th className="text-right py-2 pr-2 font-medium">{statusLabel}</th>
-            <th className="text-right py-2 font-medium">العدد</th>
-            {rows[0]?.total !== undefined && <th className="text-right py-2 font-medium">الإجمالي</th>}
-            {rows[0]?.value !== undefined && <th className="text-right py-2 font-medium">القيمة</th>}
+            <th className="text-start py-2 pe-2 font-medium">{statusLabel}</th>
+            <th className="text-start py-2 font-medium">العدد</th>
+            {rows[0]?.total !== undefined && <th className="text-start py-2 font-medium">الإجمالي</th>}
+            {rows[0]?.value !== undefined && <th className="text-start py-2 font-medium">القيمة</th>}
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={i} className="border-b border-border/50 hover:bg-muted/30">
-              <td className="py-2 pr-2 text-foreground">{r.status ?? r.stage ?? r.taskType ?? r.direction ?? r.provider ?? r.channel ?? "—"}</td>
+              <td className="py-2 pe-2 text-foreground">{r.status ?? r.stage ?? r.taskType ?? r.direction ?? r.provider ?? r.channel ?? "—"}</td>
               <td className="py-2 font-medium">{r.count.toLocaleString("ar-SA")}</td>
               {r.total !== undefined && <td className="py-2 text-muted-foreground">{Number(r.total).toLocaleString("ar-SA")}</td>}
               {r.value !== undefined && <td className="py-2 text-muted-foreground">{Number(r.value).toLocaleString("ar-SA")}</td>}
@@ -260,12 +260,12 @@ export default function AnalyticsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-muted-foreground">
-                    <th className="text-right py-3 px-4 font-medium">الموظف</th>
-                    <th className="text-right py-3 px-3 font-medium">رسائل مرسلة</th>
-                    <th className="text-right py-3 px-3 font-medium">مهام مكتملة</th>
-                    <th className="text-right py-3 px-3 font-medium">متابعات مكتملة</th>
-                    <th className="text-right py-3 px-3 font-medium">طلبات منشأة</th>
-                    <th className="text-right py-3 px-3 font-medium">مدفوعات مسجلة</th>
+                    <th className="text-start py-3 px-4 font-medium">الموظف</th>
+                    <th className="text-start py-3 px-3 font-medium">رسائل مرسلة</th>
+                    <th className="text-start py-3 px-3 font-medium">مهام مكتملة</th>
+                    <th className="text-start py-3 px-3 font-medium">متابعات مكتملة</th>
+                    <th className="text-start py-3 px-3 font-medium">طلبات منشأة</th>
+                    <th className="text-start py-3 px-3 font-medium">مدفوعات مسجلة</th>
                   </tr>
                 </thead>
                 <tbody>

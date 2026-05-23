@@ -395,7 +395,7 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
                     <div className="font-medium">{run.taskType}</div>
                     <div className="text-muted-foreground">{run.provider} · {run.model}</div>
                   </div>
-                  <div className="text-left text-xs text-muted-foreground">{formatDateTime(run.createdAt)}</div>
+                  <div className="text-start text-xs text-muted-foreground">{formatDateTime(run.createdAt)}</div>
                 </div>
               </div>
             ))}

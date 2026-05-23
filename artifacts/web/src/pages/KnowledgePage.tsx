@@ -336,7 +336,7 @@ export default function KnowledgePage() {
             <button
               key={base.id}
               onClick={() => { setSelectedBaseId(base.id); setActiveTab("sources"); }}
-              className={`w-full text-right px-3 py-2.5 rounded-lg text-sm transition-colors ${
+              className={`w-full text-start px-3 py-2.5 rounded-lg text-sm transition-colors ${
                 selectedBaseId === base.id
                   ? "bg-primary text-primary-foreground"
                   : "hover:bg-muted text-foreground"

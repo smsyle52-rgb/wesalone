@@ -72,7 +72,7 @@ export default function ContactsPage() {
       render: (r: any) => (
         <button
           onClick={() => navigate(`/contacts/${r.id}`)}
-          className="flex items-center gap-3 text-right hover:opacity-80 transition-opacity"
+          className="flex items-center gap-3 text-start hover:opacity-80 transition-opacity"
         >
           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
             {r.name?.[0] ?? "؟"}

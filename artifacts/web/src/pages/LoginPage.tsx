@@ -87,7 +87,7 @@ export default function LoginPage() {
                 required
               />
             </div>
-            <div className="text-left">
+            <div className="text-start">
               <a href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
                 نسيت كلمة المرور؟
               </a>

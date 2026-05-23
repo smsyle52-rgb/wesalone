@@ -44,13 +44,13 @@ function GeneratedReportView({ data, type }: { data: Record<string, unknown>; ty
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-muted-foreground">
-                      {val[0] && Object.keys(val[0]).map((k) => <th key={k} className="text-right py-1.5 pr-2 font-medium">{k}</th>)}
+                      {val[0] && Object.keys(val[0]).map((k) => <th key={k} className="text-start py-1.5 pe-2 font-medium">{k}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {val.map((row: Record<string, unknown>, i) => (
                       <tr key={i} className="border-b border-border/50">
-                        {Object.values(row).map((v, j) => <td key={j} className="py-1.5 pr-2 text-foreground">{String(v ?? "—")}</td>)}
+                        {Object.values(row).map((v, j) => <td key={j} className="py-1.5 pe-2 text-foreground">{String(v ?? "—")}</td>)}
                       </tr>
                     ))}
                   </tbody>

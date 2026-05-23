@@ -40,7 +40,7 @@ export function PageHeader({ title, subtitle, actions, className }: PageHeaderPr
         <h1 className="text-2xl font-extrabold text-foreground">{translatedTitle}</h1>
         {translatedSubtitle && <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{translatedSubtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

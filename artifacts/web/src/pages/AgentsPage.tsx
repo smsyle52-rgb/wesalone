@@ -97,22 +97,22 @@ export default function AgentsPage() {
           <summary className="inline-flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md border border-border bg-background hover:bg-muted">
             <MoreHorizontal className="h-4 w-4" />
           </summary>
-          <div className="absolute left-0 z-10 mt-1 w-44 rounded-lg border border-border bg-popover p-1 shadow-lg">
-            <button className="block w-full rounded px-3 py-2 text-right text-sm hover:bg-muted" onClick={() => setLocation(`/agents/${row.id}`)}>
+          <div className="absolute end-0 z-10 mt-1 w-44 rounded-lg border border-border bg-popover p-1 shadow-lg">
+            <button className="block w-full rounded px-3 py-2 text-start text-sm hover:bg-muted" onClick={() => setLocation(`/agents/${row.id}`)}>
               {t("common.edit")}
             </button>
             {canConfigure && (
-              <button className="block w-full rounded px-3 py-2 text-right text-sm hover:bg-muted" onClick={() => actionMutation.mutate({ id: row.id, action: "duplicate" })}>
+              <button className="block w-full rounded px-3 py-2 text-start text-sm hover:bg-muted" onClick={() => actionMutation.mutate({ id: row.id, action: "duplicate" })}>
                 {t("common.duplicate")}
               </button>
             )}
             {canConfigure && (
-              <button className="block w-full rounded px-3 py-2 text-right text-sm hover:bg-muted" onClick={() => actionMutation.mutate({ id: row.id, action: "status", status: row.status === "active" ? "disabled" : "active" })}>
+              <button className="block w-full rounded px-3 py-2 text-start text-sm hover:bg-muted" onClick={() => actionMutation.mutate({ id: row.id, action: "status", status: row.status === "active" ? "disabled" : "active" })}>
                 {row.status === "active" ? t("agents.actions.disable") : t("common.activate")}
               </button>
             )}
             {canConfigure && (
-              <button className="block w-full rounded px-3 py-2 text-right text-sm text-destructive hover:bg-destructive/10" onClick={() => actionMutation.mutate({ id: row.id, action: "delete" })}>
+              <button className="block w-full rounded px-3 py-2 text-start text-sm text-destructive hover:bg-destructive/10" onClick={() => actionMutation.mutate({ id: row.id, action: "delete" })}>
                 {t("common.delete")}
               </button>
             )}

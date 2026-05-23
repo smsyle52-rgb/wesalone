@@ -33,7 +33,7 @@ export function DataTable<T>({ columns, data, keyExtractor, onRowClick, emptyMes
           <thead>
             <tr className="border-b border-border bg-muted/40">
               {columns.map((col) => (
-                <th key={col.key} className={cn("px-4 py-3 text-right font-semibold text-muted-foreground whitespace-nowrap", col.className)}>
+                <th key={col.key} className={cn("px-4 py-3 text-start font-semibold text-muted-foreground whitespace-nowrap", col.className)}>
                   {col.label}
                 </th>
               ))}
@@ -54,7 +54,7 @@ export function DataTable<T>({ columns, data, keyExtractor, onRowClick, emptyMes
                   className={cn("border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors", onRowClick && "cursor-pointer")}
                 >
                   {columns.map((col) => (
-                    <td key={col.key} className={cn("px-4 py-3 text-right text-foreground", col.className)}>
+                    <td key={col.key} className={cn("px-4 py-3 text-start text-foreground", col.className)}>
                       {col.render ? col.render(row) : String((row as any)[col.key] ?? "—")}
                     </td>
                   ))}

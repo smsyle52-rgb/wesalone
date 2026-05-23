@@ -101,7 +101,7 @@ export default function TicketsPage({ prefill }: { prefill?: { contactId?: strin
     { key: "title", label: "الموضوع", render: (r: any) => (
       <div>
         <span className="font-medium text-foreground text-sm">{r.title}</span>
-        {r.category && <span className="mr-2 text-xs text-muted-foreground">({r.category})</span>}
+        {r.category && <span className="ms-2 text-xs text-muted-foreground">({r.category})</span>}
       </div>
     )},
     { key: "contactName", label: "العميل", render: (r: any) => <span className="text-muted-foreground text-sm">{r.contactName ?? "—"}</span> },

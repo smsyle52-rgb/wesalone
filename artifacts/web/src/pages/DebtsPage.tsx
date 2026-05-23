@@ -333,12 +333,12 @@ export default function DebtsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">العميل</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">المبلغ</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">المتبقي</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">الحالة</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">الاستحقاق</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">التقادم</th>
+                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">العميل</th>
+                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">المبلغ</th>
+                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">المتبقي</th>
+                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">الحالة</th>
+                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">الاستحقاق</th>
+                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">التقادم</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -347,7 +347,7 @@ export default function DebtsPage() {
                 <tr key={d.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3">
                     <button onClick={() => navigate(`/contacts/${d.contactId}`)}
-                      className="font-medium text-foreground hover:text-primary hover:underline transition-colors text-right">
+                      className="font-medium text-foreground hover:text-primary hover:underline transition-colors text-start">
                       {d.contactName ?? "—"}
                     </button>
                   </td>

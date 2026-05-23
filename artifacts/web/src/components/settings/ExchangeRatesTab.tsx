@@ -135,7 +135,7 @@ export function ExchangeRatesTab() {
                 <div className="flex items-baseline gap-2 justify-between">
                   <div>
                     <span className="text-lg font-bold text-foreground">{validRate(r.rate)?.toLocaleString("ar") ?? "لم يتم ضبط سعر الصرف"}</span>
-                    {validRate(r.rate) && <span className="text-xs text-muted-foreground mr-1">ر.ي</span>}
+                    {validRate(r.rate) && <span className="text-xs text-muted-foreground ms-1">ر.ي</span>}
                   </div>
                   <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary" dir="ltr">
                     1 {r.fromCurrency}
