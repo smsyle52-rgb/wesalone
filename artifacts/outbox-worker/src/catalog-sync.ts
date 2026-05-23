@@ -41,7 +41,9 @@ function isDryRun(): boolean {
 
 function token(): string | null {
   if (isDryRun()) return null;
-  return process.env.META_SYSTEM_USER_TOKEN ?? process.env.META_ACCESS_TOKEN ?? null;
+  const accessToken = process.env.META_SYSTEM_USER_TOKEN ?? process.env.META_ACCESS_TOKEN;
+  if (!accessToken) throw new Error("Meta catalog access token is not configured");
+  return accessToken;
 }
 
 async function metaGet<T>(path: string, accessToken: string): Promise<T> {

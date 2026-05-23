@@ -89,7 +89,7 @@ function accessToken(source: CatalogSource, channelAccount?: { credentialsSecret
   if (channelAccount?.credentialsSecretRef) {
     logger.warn({ sourceId: source.id }, "Meta catalog token secret reference is configured but runtime resolver is not enabled");
   }
-  return null;
+  throw new Error("Meta catalog access token is not configured");
 }
 
 async function loadChannelAccount(source: CatalogSource) {

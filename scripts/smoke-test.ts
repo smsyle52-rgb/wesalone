@@ -49,6 +49,7 @@ async function runContractSmoke(): Promise<void> {
     readRepoFile("artifacts/api-server/src/modules/sectors/sectors.routes.ts"),
     readRepoFile("artifacts/api-server/src/modules/orders/orders.routes.ts"),
     readRepoFile("artifacts/api-server/src/modules/payments/payments.routes.ts"),
+    readRepoFile("artifacts/api-server/src/services/meta-catalog-sync.ts"),
     readRepoFile("artifacts/web/src/pages/BusinessSetupPage.tsx"),
     readRepoFile("artifacts/web/src/pages/SettingsPage.tsx"),
   ]);
@@ -72,6 +73,7 @@ async function runContractSmoke(): Promise<void> {
     sectorsRoutes,
     ordersRoutes,
     paymentsRoutes,
+    metaCatalogSync,
     businessSetupPage,
     settingsPage,
   ] = files;
@@ -165,6 +167,21 @@ async function runContractSmoke(): Promise<void> {
       name: "plan upgrade payment submission",
       ok: containsAll(workspaceRoutes, ["paymentSubmissionsTable", "/billing/payment-submissions", "amountCurrency"]) &&
         containsAll(settingsPage, ["paymentSubmissions", "amountCurrency"]),
+    },
+    {
+      name: "Meta catalog live API shape and resilient sync",
+      ok: containsAll(metaCatalogSync, [
+        "/products?fields=id,name,description,price,currency,availability,inventory,image_url,url,brand,category",
+        "/posts?fields=id,message,created_time,permalink_url,attachments,type",
+        "/ads?fields=id,name,status,objective,creative{body,image_url,object_story_spec},start_time,end_time",
+        "upsertProductKnowledge",
+        "Meta catalog access token is not configured",
+        "lastSyncedAt: result.status === \"failed\" ? source.lastSyncedAt : new Date()",
+      ]),
+    },
+    {
+      name: "catalog ads and posts enter agent context",
+      ok: containsAll(aiRoutes, ["loadCatalogAgentContext", "adCampaignsTable", "socialPostsTable", "productsTable"]),
     },
   ];
 
