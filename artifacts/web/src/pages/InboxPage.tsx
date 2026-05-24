@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatDateTime, timeAgo, channelLabels, statusLabels, priorityLabels, channelStatusLabels, CHANNEL_CATALOG } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -609,7 +610,7 @@ export default function InboxPage() {
         </div>
         <div className={cn(
           "flex flex-col shrink-0 rounded-xl border border-border bg-card overflow-hidden",
-          "w-full lg:w-96",
+          "w-full lg:w-80",
           mobileView === "detail" ? "hidden lg:flex" : "flex"
         )}>
           <div className="p-2 border-b border-border space-y-2">
@@ -730,7 +731,7 @@ export default function InboxPage() {
         </div>
 
         <div className={cn(
-          "flex flex-col flex-1 overflow-hidden rounded-xl border border-border bg-card me-0 lg:me-3",
+          "flex min-w-0 flex-col flex-1 overflow-hidden rounded-xl border border-border bg-card me-0 lg:me-3",
           mobileView === "list" && !selectedConvId ? "hidden lg:flex" : "flex",
           mobileView === "list" && selectedConvId ? "hidden lg:flex" : ""
         )}>
@@ -812,69 +813,72 @@ export default function InboxPage() {
                     </button>
                   )}
 
-                  <div className="flex gap-1 ms-auto">
-                    {canCreateTicket ? (
-                      <button onClick={() => setQuickCreate("ticket")}
-                        className="px-2 py-1 rounded-md text-xs bg-muted hover:bg-muted/70 text-foreground border border-border transition-colors">
-                        🎫 تذكرة
-                      </button>
-                    ) : (
-                      <button disabled title="ليس لديك صلاحية إنشاء تذاكر"
-                        className="px-2 py-1 rounded-md text-xs bg-muted/50 text-muted-foreground border border-dashed border-border cursor-not-allowed opacity-60">
-                        🎫 تذكرة
-                      </button>
-                    )}
-                    {canCreateTask ? (
-                      <button onClick={() => setQuickCreate("task")}
-                        className="px-2 py-1 rounded-md text-xs bg-muted hover:bg-muted/70 text-foreground border border-border transition-colors">
-                        ✅ مهمة
-                      </button>
-                    ) : (
-                      <button disabled title="ليس لديك صلاحية إنشاء مهام"
-                        className="px-2 py-1 rounded-md text-xs bg-muted/50 text-muted-foreground border border-dashed border-border cursor-not-allowed opacity-60">
-                        ✅ مهمة
-                      </button>
-                    )}
-                    {canCreateFollowup && conv.contactId ? (
-                      <button onClick={() => setQuickCreate("followup")}
-                        className="px-2 py-1 rounded-md text-xs bg-muted hover:bg-muted/70 text-foreground border border-border transition-colors">
-                        🔔 متابعة
-                      </button>
-                    ) : (
-                      <button
-                        disabled
-                        title={!conv.contactId ? "يجب ربط المحادثة بعميل قبل إنشاء متابعة" : "ليس لديك صلاحية إنشاء متابعات"}
-                        className="px-2 py-1 rounded-md text-xs bg-muted/50 text-muted-foreground border border-dashed border-border cursor-not-allowed opacity-60">
-                        🔔 متابعة
-                      </button>
-                    )}
-                    {canCreateOpportunity ? (
-                      <button onClick={() => setQuickCreate("opportunity")}
-                        className="px-2 py-1 rounded-md text-xs bg-muted hover:bg-muted/70 text-foreground border border-border transition-colors">
-                        💡 فرصة
-                      </button>
-                    ) : (
-                      <button disabled title="ليس لديك صلاحية إنشاء الفرص"
-                        className="px-2 py-1 rounded-md text-xs bg-muted/50 text-muted-foreground border border-dashed border-border cursor-not-allowed opacity-60">
-                        💡 فرصة
-                      </button>
-                    )}
-                    {canCreateOrder && conv.contactId ? (
-                      <button onClick={() => setQuickCreate("order")}
-                        className="px-2 py-1 rounded-md text-xs bg-muted hover:bg-muted/70 text-foreground border border-border transition-colors">
-                        📦 طلب
-                      </button>
-                    ) : (
-                      <button disabled
-                        title={!conv.contactId ? "يجب ربط المحادثة بعميل قبل إنشاء طلب" : "ليس لديك صلاحية إنشاء الطلبات"}
-                        className="px-2 py-1 rounded-md text-xs bg-muted/50 text-muted-foreground border border-dashed border-border cursor-not-allowed opacity-60">
-                        📦 طلب
-                      </button>
-                    )}
-                    <button disabled title="سيتم تفعيل هذا الإجراء في مرحلة لاحقة"
-                      className="px-2 py-1 rounded-md text-xs bg-muted/50 text-muted-foreground border border-dashed border-border cursor-not-allowed opacity-60">
-                      💰 دفعة
-                    </button>
+                  <div className="ms-auto">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="px-2.5 py-1 rounded-md text-xs font-medium bg-muted hover:bg-muted/70 text-foreground border border-border transition-colors">
+                          + إنشاء
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" sideOffset={6} className="w-44">
+                        {canCreateTicket ? (
+                          <DropdownMenuItem className="cursor-pointer text-start" onSelect={() => setQuickCreate("ticket")}>
+                            🎫 تذكرة
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem disabled title="ليس لديك صلاحية إنشاء تذاكر" className="text-start">
+                            🎫 تذكرة
+                          </DropdownMenuItem>
+                        )}
+                        {canCreateTask ? (
+                          <DropdownMenuItem className="cursor-pointer text-start" onSelect={() => setQuickCreate("task")}>
+                            ✅ مهمة
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem disabled title="ليس لديك صلاحية إنشاء مهام" className="text-start">
+                            ✅ مهمة
+                          </DropdownMenuItem>
+                        )}
+                        {canCreateFollowup && conv.contactId ? (
+                          <DropdownMenuItem className="cursor-pointer text-start" onSelect={() => setQuickCreate("followup")}>
+                            🔔 متابعة
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
+                            disabled
+                            title={!conv.contactId ? "يجب ربط المحادثة بعميل قبل إنشاء متابعة" : "ليس لديك صلاحية إنشاء متابعات"}
+                            className="text-start">
+                            🔔 متابعة
+                          </DropdownMenuItem>
+                        )}
+                        {canCreateOpportunity ? (
+                          <DropdownMenuItem className="cursor-pointer text-start" onSelect={() => setQuickCreate("opportunity")}>
+                            💡 فرصة
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem disabled title="ليس لديك صلاحية إنشاء الفرص" className="text-start">
+                            💡 فرصة
+                          </DropdownMenuItem>
+                        )}
+                        {canCreateOrder && conv.contactId ? (
+                          <DropdownMenuItem className="cursor-pointer text-start" onSelect={() => setQuickCreate("order")}>
+                            📦 طلب
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
+                            disabled
+                            title={!conv.contactId ? "يجب ربط المحادثة بعميل قبل إنشاء طلب" : "ليس لديك صلاحية إنشاء الطلبات"}
+                            className="text-start">
+                            📦 طلب
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem disabled title="سيتم تفعيل هذا الإجراء في مرحلة لاحقة" className="text-start">
+                          💰 دفعة
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
 
@@ -952,7 +956,7 @@ export default function InboxPage() {
                   return (
                     <div key={msg.id} className={cn("flex", isInternal ? "justify-center" : isOutbound ? "justify-start" : "justify-end")}>
                       {isInternal ? (
-                        <div className="max-w-[85%] px-3 py-2 rounded-xl text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 italic">
+                        <div className="max-w-[85%] px-3 py-2 rounded-xl text-sm bg-yellow-50 border border-yellow-200 text-yellow-800 italic">
                           <div className="flex items-center gap-1 mb-1 not-italic font-medium text-yellow-700">
                             <span>🔒</span><span>ملاحظة داخلية</span>
                             {msg.senderName && <span className="text-yellow-600">— {msg.senderName}</span>}
@@ -961,7 +965,7 @@ export default function InboxPage() {
                           <div className="text-xs mt-1 opacity-60">{formatDateTime(msg.sentAt)}</div>
                         </div>
                       ) : (
-                        <div className={cn("max-w-[75%] px-3 py-2 rounded-xl text-sm",
+                        <div className={cn("max-w-[80%] px-3 py-2 rounded-xl text-base",
                           isOutbound
                             ? "bg-primary text-primary-foreground rounded-br-sm"
                             : "bg-muted text-foreground rounded-bl-sm")}>
