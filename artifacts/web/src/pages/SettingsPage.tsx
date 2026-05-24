@@ -873,32 +873,71 @@ export default function SettingsPage() {
   const canInvite = hasPermission("users:invite");
   const members = usersData?.members ?? usersData?.users ?? [];
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "workspace", label: "مساحة العمل" },
-    { id: "users", label: "الفريق" },
-    { id: "invite", label: "دعوة عضو" },
-    { id: "business-hours", label: "ساعات العمل" },
-    { id: "sla", label: "قواعد الاستجابة" },
-    { id: "quick-replies", label: "الردود السريعة" },
-    { id: "payment-methods", label: "طرق الدفع" },
-    { id: "exchange-rates", label: "أسعار الصرف" },
-    { id: "notifications", label: "التنبيهات" },
-    { id: "security", label: "الأمان" },
-    { id: "billing", label: "الفوترة" },
-    { id: "api-keys", label: "مفاتيح API" },
-    { id: "danger", label: "المنطقة الخطرة" },
+  const tabGroups: { label: string; tabs: { id: Tab; label: string }[] }[] = [
+    {
+      label: "\u0645\u0633\u0627\u062d\u0629 \u0627\u0644\u0639\u0645\u0644",
+      tabs: [
+        { id: "workspace", label: "\u0645\u0633\u0627\u062d\u0629 \u0627\u0644\u0639\u0645\u0644" },
+        { id: "users", label: "\u0627\u0644\u0641\u0631\u064a\u0642" },
+        { id: "invite", label: "\u062f\u0639\u0648\u0629 \u0639\u0636\u0648" },
+      ],
+    },
+    {
+      label: "\u0627\u0644\u062a\u0634\u063a\u064a\u0644",
+      tabs: [
+        { id: "business-hours", label: "\u0633\u0627\u0639\u0627\u062a \u0627\u0644\u0639\u0645\u0644" },
+        { id: "sla", label: "\u0642\u0648\u0627\u0639\u062f \u0627\u0644\u0627\u0633\u062a\u062c\u0627\u0628\u0629" },
+        { id: "quick-replies", label: "\u0627\u0644\u0631\u062f\u0648\u062f \u0627\u0644\u0633\u0631\u064a\u0639\u0629" },
+      ],
+    },
+    {
+      label: "\u0627\u0644\u0645\u0627\u0644\u064a\u0629",
+      tabs: [
+        { id: "payment-methods", label: "\u0637\u0631\u0642 \u0627\u0644\u062f\u0641\u0639" },
+        { id: "exchange-rates", label: "\u0623\u0633\u0639\u0627\u0631 \u0627\u0644\u0635\u0631\u0641" },
+      ],
+    },
+    {
+      label: "\u0627\u0644\u0641\u0648\u062a\u0631\u0629 \u0648\u0627\u0644\u0627\u0634\u062a\u0631\u0627\u0643",
+      tabs: [{ id: "billing", label: "\u0627\u0644\u0641\u0648\u062a\u0631\u0629" }],
+    },
+    {
+      label: "\u0627\u0644\u0646\u0638\u0627\u0645",
+      tabs: [
+        { id: "notifications", label: "\u0627\u0644\u062a\u0646\u0628\u064a\u0647\u0627\u062a" },
+        { id: "security", label: "\u0627\u0644\u0623\u0645\u0627\u0646" },
+        { id: "api-keys", label: "\u0645\u0641\u0627\u062a\u064a\u062d API" },
+        { id: "danger", label: "\u0627\u0644\u0645\u0646\u0637\u0642\u0629 \u0627\u0644\u062e\u0637\u0631\u0629" },
+      ],
+    },
   ];
 
   return (
     <div dir="rtl">
       <PageHeader title="الإعدادات" subtitle="إدارة مساحة العمل والفريق والمالية" />
 
-      <div className="flex gap-1 mb-6 border-b border-border overflow-x-auto">
-        {tabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${tab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            {t.label}
-          </button>
+      <div className="mb-6 grid gap-3 rounded-2xl border border-border bg-card p-3 lg:grid-cols-5">
+        {tabGroups.map((group) => (
+          <div key={group.label} className="min-w-0 rounded-xl bg-muted/30 p-2">
+            <div className="px-2 pb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              {group.label}
+            </div>
+            <div className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
+              {group.tabs.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap text-start transition-colors ${
+                    tab === t.id
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-background hover:text-foreground"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
