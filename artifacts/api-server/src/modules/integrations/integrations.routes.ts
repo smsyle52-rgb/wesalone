@@ -750,6 +750,7 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
   const created: Array<typeof channelAccountsTable.$inferSelect> = [];
   const createdSources: Array<typeof catalogSourcesTable.$inferSelect> = [];
   const connectedAt = new Date().toISOString();
+  const metaAppId = process.env.META_APP_ID ?? null;
   const requestedChannelCount =
     parsed.data.whatsapp_phone_ids.length +
     parsed.data.instagram_account_ids.length +
@@ -776,6 +777,7 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
         displayName: phone.display_number ? `WhatsApp ${phone.display_number}` : `WhatsApp ${phone.phone_number_id}`,
         providerConfig: {
           provider: "meta",
+          meta_app_id: metaAppId,
           waba_id: account.waba_id,
           phone_number_id: phone.phone_number_id,
           display_number: phone.display_number,
@@ -813,6 +815,7 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
         phone_number_id: phoneNumberId,
         waba_id: wabaId,
         provider: "meta",
+        meta_app_id: metaAppId,
         phoneNumberId,
         wabaId,
       },

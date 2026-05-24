@@ -38,6 +38,7 @@
     "analytics": "Analytics",
     "reports": "Reports",
     "auditLogs": "Activity log",
-    "settings": "Settings"
+    "settings": "Settings",
+    "billing": "Billing & Subscription"
   }
 }

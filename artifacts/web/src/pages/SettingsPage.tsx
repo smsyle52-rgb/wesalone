@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
 import { PaymentMethodsTab } from "@/components/settings/PaymentMethodsTab";
 import { ExchangeRatesTab } from "@/components/settings/ExchangeRatesTab";
+import { useLocation } from "wouter";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
 const apiFetch = async (path: string, opts?: RequestInit) => {
@@ -36,6 +37,28 @@ type Tab =
   | "billing"
   | "api-keys"
   | "danger";
+
+const validTabs: Tab[] = [
+  "workspace",
+  "users",
+  "invite",
+  "business-hours",
+  "sla",
+  "quick-replies",
+  "payment-methods",
+  "exchange-rates",
+  "notifications",
+  "security",
+  "billing",
+  "api-keys",
+  "danger",
+];
+
+function readTabFromUrl(): Tab {
+  if (typeof window === "undefined") return "workspace";
+  const nextTab = new URLSearchParams(window.location.search).get("tab");
+  return validTabs.includes(nextTab as Tab) ? (nextTab as Tab) : "workspace";
+}
 
 function PasswordInput({ id, name, label, value, onChange, placeholder, autoComplete = "new-password" }: {
   id: string;
@@ -843,10 +866,33 @@ function AccountLifecycleTab() {
 export default function SettingsPage() {
   const { hasPermission } = useAuth();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>("workspace");
+  const [location] = useLocation();
+  const [tab, setTabState] = useState<Tab>(readTabFromUrl);
   const [inviteForm, setInviteForm] = useState({ email: "", name: "", password: "", role: "agent" });
   const [inviteError, setInviteError] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
+
+  const setTab = (nextTab: Tab) => {
+    setTabState(nextTab);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (nextTab === "workspace") {
+      url.searchParams.delete("tab");
+    } else {
+      url.searchParams.set("tab", nextTab);
+    }
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
+  useEffect(() => {
+    const syncTabFromUrl = () => setTabState(readTabFromUrl());
+    window.addEventListener("popstate", syncTabFromUrl);
+    return () => window.removeEventListener("popstate", syncTabFromUrl);
+  }, []);
+
+  useEffect(() => {
+    setTabState(readTabFromUrl());
+  }, [location]);
 
   const { data: usersData, isError: usersIsError, error: usersError } = useQuery({
     queryKey: ["workspace-users"],

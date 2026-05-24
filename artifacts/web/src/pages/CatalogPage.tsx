@@ -215,7 +215,7 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
       setEditingProduct(null);
       setProductForm(emptyProductForm);
       setProductFormError("");
-      toast({ title: "تم حفظ المنتج", description: "تم تحديث قائمة المنتجات ومعرفة الوكيل." });
+      toast({ title: "\u062a\u0645 \u062d\u0641\u0638 \u0627\u0644\u0645\u0646\u062a\u062c \u0628\u0646\u062c\u0627\u062d" });
       void qc.invalidateQueries({ queryKey: ["catalog-products"] });
       void qc.invalidateQueries({ queryKey: ["catalog-sources"] });
     },

@@ -72,7 +72,7 @@ const navGroups: NavGroup[] = [
     slug: "store",
     key: "groupStore",
     items: [
-      { path: "/catalog", key: "catalog", icon: ShoppingBag },
+      { path: "/catalog", key: "catalog", permission: "catalog:read", icon: ShoppingBag },
     ],
   },
   {
@@ -105,6 +105,7 @@ const navGroups: NavGroup[] = [
     key: "groupSetup",
     items: [
       { path: "/integrations", key: "integrations", permission: "channels:read", icon: Plug },
+      { path: "/settings?tab=billing", key: "billing", permission: "settings:read", icon: CreditCard },
       { path: "/settings", key: "settings", permission: "settings:read", icon: Settings },
     ],
   },
