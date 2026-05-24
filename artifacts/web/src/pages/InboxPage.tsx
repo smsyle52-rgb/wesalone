@@ -654,14 +654,22 @@ export default function InboxPage() {
               <button
                 type="button"
                 onClick={() => { setBulkMode((value) => !value); setSelectedBulk([]); }}
-                className={cn("px-2.5 py-1 rounded-lg border text-xs", bulkMode ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground")}
+                className={cn(
+                  "inline-flex items-center justify-center rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors",
+                  bulkMode ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-background text-foreground hover:bg-muted",
+                )}
               >
-                تحديد
+                {bulkMode ? "إلغاء التحديد" : "تحديد متعدد"}
               </button>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
+            {bulkMode && (
+              <div className="m-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary shadow-sm">
+                وضع التحديد المتعدد مفعّل — استخدم زر إلغاء التحديد للعودة إلى فتح المحادثات.
+              </div>
+            )}
             {bulkMode && selectedBulk.length > 0 && (
               <div className="sticky top-0 z-10 m-2 p-2 rounded-lg bg-primary text-primary-foreground shadow-sm flex items-center justify-between gap-2 text-xs">
                 <span>{selectedBulk.length} محدد</span>
@@ -687,9 +695,21 @@ export default function InboxPage() {
                   selectedBulk.includes(c.id) && "bg-primary/10"
                 )}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-sm text-foreground truncate">
-                      {bulkMode && <span className="inline-flex w-4 h-4 rounded border border-border ms-1 align-middle items-center justify-center text-xs">{selectedBulk.includes(c.id) ? "✓" : ""}</span>}
-                      {c.contactName ?? "عميل غير معروف"}
+                    <span className="flex min-w-0 items-center gap-2 font-medium text-sm text-foreground">
+                      {bulkMode && (
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-sm font-black shadow-sm",
+                            selectedBulk.includes(c.id)
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-primary/70 bg-background text-transparent",
+                          )}
+                        >
+                          ✓
+                        </span>
+                      )}
+                      <span className="truncate">{c.contactName ?? "عميل غير معروف"}</span>
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
                       {c.unreadCount > 0 && (
