@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Eye, EyeOff, Megaphone, PackageSearch, RefreshCw, Search, ShoppingBag } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Megaphone, PackageSearch, Plus, RefreshCw, Search, ShoppingBag } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Modal } from "@/components/ui/Modal";
+import { toast } from "@/hooks/use-toast";
 
 const BASE = `${import.meta.env.BASE_URL}api/catalog`;
 
@@ -20,6 +22,36 @@ const AVAILABILITY_AR: Record<string, string> = {
   "in stock": "متوفر",
   "out of stock": "غير متوفر",
   preorder: "طلب مسبق",
+};
+
+const AVAILABILITY_OPTIONS = [
+  { value: "in stock", label: "متوفر" },
+  { value: "out of stock", label: "غير متوفر" },
+  { value: "preorder", label: "طلب مسبق" },
+] as const;
+
+type ProductFormState = {
+  name: string;
+  description: string;
+  category: string;
+  price: string;
+  currency: "YER" | "SAR" | "USD";
+  availability: "" | "in stock" | "out of stock" | "preorder";
+  inventory_count: string;
+  image_url: string;
+  brand: string;
+};
+
+const emptyProductForm: ProductFormState = {
+  name: "",
+  description: "",
+  category: "",
+  price: "",
+  currency: "YER",
+  availability: "in stock",
+  inventory_count: "",
+  image_url: "",
+  brand: "",
 };
 
 async function apiFetch(path: string, opts?: RequestInit) {
@@ -55,11 +87,14 @@ type ProductRow = {
   product: {
     id: string;
     name: string;
+    description: string | null;
     price: string | null;
     currency: string | null;
     availability: string | null;
     category: string | null;
     imageUrl: string | null;
+    brand: string | null;
+    inventoryCount: number | null;
     isVisible: boolean;
     syncedAt: string;
   };
@@ -91,7 +126,7 @@ function SkeletonRows() {
   );
 }
 
-function EmptyState({ title, description }: { title: string; description: string }) {
+function EmptyState({ title, description, onAddManual }: { title: string; description: string; onAddManual?: () => void }) {
   return (
     <div className="flex min-h-[240px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card p-8 text-center">
       <ShoppingBag className="mb-3 h-10 w-10 text-muted-foreground" />
@@ -100,8 +135,41 @@ function EmptyState({ title, description }: { title: string; description: string
       <Link href="/integrations" className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
         اربط كتالوج ميتا
       </Link>
+      {onAddManual && (
+        <button onClick={onAddManual} className="mt-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">
+          أضف منتج يدوياً
+        </button>
+      )}
     </div>
   );
+}
+
+function buildProductPayload(form: ProductFormState) {
+  return {
+    name: form.name.trim(),
+    description: form.description.trim() || undefined,
+    category: form.category.trim() || undefined,
+    price: form.price.trim() || undefined,
+    currency: form.currency,
+    availability: form.availability || undefined,
+    inventory_count: form.inventory_count.trim() ? Number(form.inventory_count) : undefined,
+    image_url: form.image_url.trim() || undefined,
+    brand: form.brand.trim() || undefined,
+  };
+}
+
+function productToForm(product: ProductRow["product"]): ProductFormState {
+  return {
+    name: product.name,
+    description: product.description ?? "",
+    category: product.category ?? "",
+    price: product.price ?? "",
+    currency: product.currency === "SAR" || product.currency === "USD" || product.currency === "YER" ? product.currency : "YER",
+    availability: product.availability === "in stock" || product.availability === "out of stock" || product.availability === "preorder" ? product.availability : "",
+    inventory_count: product.inventoryCount == null ? "" : String(product.inventoryCount),
+    image_url: product.imageUrl ?? "",
+    brand: product.brand ?? "",
+  };
 }
 
 export default function CatalogPage({ tab = "products" }: { tab?: "products" | "posts" | "ads" }) {
@@ -111,6 +179,10 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
   const [search, setSearch] = useState("");
   const [availability, setAvailability] = useState("");
   const [category, setCategory] = useState("");
+  const [productModalOpen, setProductModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
+  const [productForm, setProductForm] = useState<ProductFormState>(emptyProductForm);
+  const [productFormError, setProductFormError] = useState("");
 
   const sourceQuery = useQuery<{ sources: Source[] }>({ queryKey: ["catalog-sources"], queryFn: () => apiFetch("sources") });
   const productsQuery = useQuery<{ products: ProductRow[] }>({
@@ -133,6 +205,46 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
       void qc.invalidateQueries({ queryKey: ["catalog-products"] });
     },
   });
+  const saveProductMutation = useMutation({
+    mutationFn: ({ id, body }: { id?: string; body: ReturnType<typeof buildProductPayload> }) => apiFetch(id ? `products/${id}` : "products", {
+      method: id ? "PATCH" : "POST",
+      body: JSON.stringify(body),
+    }),
+    onSuccess: () => {
+      setProductModalOpen(false);
+      setEditingProduct(null);
+      setProductForm(emptyProductForm);
+      setProductFormError("");
+      toast({ title: "تم حفظ المنتج", description: "تم تحديث قائمة المنتجات ومعرفة الوكيل." });
+      void qc.invalidateQueries({ queryKey: ["catalog-products"] });
+      void qc.invalidateQueries({ queryKey: ["catalog-sources"] });
+    },
+    onError: (error) => {
+      setProductFormError(error instanceof Error && error.message ? error.message : "تعذر حفظ المنتج. حاول مرة أخرى.");
+    },
+  });
+
+  function openCreateProduct() {
+    setEditingProduct(null);
+    setProductForm(emptyProductForm);
+    setProductFormError("");
+    setProductModalOpen(true);
+  }
+
+  function openEditProduct(row: ProductRow) {
+    setEditingProduct(row);
+    setProductForm(productToForm(row.product));
+    setProductFormError("");
+    setProductModalOpen(true);
+  }
+
+  function closeProductModal() {
+    if (saveProductMutation.isPending) return;
+    setProductModalOpen(false);
+    setEditingProduct(null);
+    setProductForm(emptyProductForm);
+    setProductFormError("");
+  }
 
   const categories = useMemo(() => {
     const values = productsQuery.data?.products.map((row) => row.product.category).filter(Boolean) as string[] | undefined;
@@ -216,6 +328,10 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
               <option value="">{t("catalog.allCategories")}</option>
               {categories.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
+            <button onClick={openCreateProduct} className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+              <Plus className="h-4 w-4" />
+              أضف منتج
+            </button>
           </div>
           <div className="p-4">
             {productsQuery.isLoading ? <SkeletonRows /> : productsQuery.data?.products.length ? (
@@ -233,8 +349,12 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
                     </tr>
                   </thead>
                   <tbody>
-                    {productsQuery.data.products.map(({ product, sourceName }) => (
-                      <tr key={product.id} className="border-b border-border/60">
+                    {productsQuery.data.products.map(({ product, sourceName, sourceType }) => (
+                      <tr
+                        key={product.id}
+                        onClick={() => sourceType === "manual" && openEditProduct({ product, sourceName, sourceType })}
+                        className={`border-b border-border/60 ${sourceType === "manual" ? "cursor-pointer hover:bg-muted/40" : ""}`}
+                      >
                         <td className="p-3">{product.imageUrl ? <img src={product.imageUrl} alt="" className="h-10 w-10 rounded-md object-cover" /> : <PackageSearch className="h-8 w-8 text-muted-foreground" />}</td>
                         <td className="p-3 font-medium">{product.name}</td>
                         <td className="p-3">{product.price ?? "-"} {product.currency ?? "YER"}</td>
@@ -242,7 +362,7 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
                         <td className="p-3">{sourceName ?? "-"}</td>
                         <td className="p-3">{new Date(product.syncedAt).toLocaleString()}</td>
                         <td className="p-3">
-                          <button onClick={() => toggleMutation.mutate({ id: product.id, isVisible: !product.isVisible })} className="rounded-md border border-border p-2">
+                          <button onClick={(event) => { event.stopPropagation(); toggleMutation.mutate({ id: product.id, isVisible: !product.isVisible }); }} className="rounded-md border border-border p-2">
                             {product.isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                           </button>
                         </td>
@@ -251,7 +371,7 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
                   </tbody>
                 </table>
               </div>
-            ) : <EmptyState title="لا توجد منتجات متزامنة بعد" description="اربط كتالوج ميتا من صفحة التكاملات، ثم شغّل المزامنة حتى تظهر المنتجات هنا ويستفيد منها الوكيل." />}
+            ) : <EmptyState title="لا توجد منتجات بعد" description="اربط كتالوج ميتا من صفحة التكاملات، أو أضف منتجاتك يدوياً لتظهر هنا ويستفيد منها الوكيل." onAddManual={openCreateProduct} />}
           </div>
         </section>
       )}
@@ -288,6 +408,79 @@ export default function CatalogPage({ tab = "products" }: { tab?: "products" | "
           )) : <EmptyState title="لا توجد إعلانات متزامنة بعد" description="اربط حساب الإعلانات وشغّل المزامنة حتى يعرف الفريق الحملات النشطة وما تروّج له." />}
         </section>
       )}
+
+      <Modal open={productModalOpen} onClose={closeProductModal} title={editingProduct ? "تعديل المنتج" : "أضف منتج"} size="lg">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const body = buildProductPayload(productForm);
+            if (!body.name) {
+              setProductFormError("اسم المنتج مطلوب.");
+              return;
+            }
+            setProductFormError("");
+            saveProductMutation.mutate({ id: editingProduct?.product.id, body });
+          }}
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="block text-sm font-medium text-foreground">
+              الاسم *
+              <input value={productForm.name} onChange={(event) => setProductForm({ ...productForm, name: event.target.value })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" required />
+            </label>
+            <label className="block text-sm font-medium text-foreground">
+              الفئة
+              <input value={productForm.category} onChange={(event) => setProductForm({ ...productForm, category: event.target.value })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </label>
+          </div>
+          <label className="block text-sm font-medium text-foreground">
+            الوصف
+            <textarea value={productForm.description} onChange={(event) => setProductForm({ ...productForm, description: event.target.value })} rows={3} className="mt-1 w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </label>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="block text-sm font-medium text-foreground">
+              السعر
+              <input type="number" min="0" step="0.01" value={productForm.price} onChange={(event) => setProductForm({ ...productForm, price: event.target.value })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </label>
+            <label className="block text-sm font-medium text-foreground">
+              العملة
+              <select value={productForm.currency} onChange={(event) => setProductForm({ ...productForm, currency: event.target.value as ProductFormState["currency"] })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="YER">YER</option>
+                <option value="SAR">SAR</option>
+                <option value="USD">USD</option>
+              </select>
+            </label>
+            <label className="block text-sm font-medium text-foreground">
+              التوفّر
+              <select value={productForm.availability} onChange={(event) => setProductForm({ ...productForm, availability: event.target.value as ProductFormState["availability"] })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {AVAILABILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="block text-sm font-medium text-foreground">
+              الكمية
+              <input type="number" min="0" step="1" value={productForm.inventory_count} onChange={(event) => setProductForm({ ...productForm, inventory_count: event.target.value })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </label>
+            <label className="block text-sm font-medium text-foreground">
+              العلامة التجارية
+              <input value={productForm.brand} onChange={(event) => setProductForm({ ...productForm, brand: event.target.value })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </label>
+          </div>
+          <label className="block text-sm font-medium text-foreground">
+            رابط الصورة
+            <input type="url" value={productForm.image_url} onChange={(event) => setProductForm({ ...productForm, image_url: event.target.value })} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="https://example.com/product.jpg" />
+            <span className="mt-1 block text-xs text-muted-foreground">رفع الصور غير متاح حالياً؛ الصق رابط الصورة الآن.</span>
+          </label>
+          {productFormError && <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{productFormError}</div>}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={closeProductModal} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted">إلغاء</button>
+            <button type="submit" disabled={saveProductMutation.isPending || !productForm.name.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+              {saveProductMutation.isPending ? "جار الحفظ..." : "حفظ المنتج"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
