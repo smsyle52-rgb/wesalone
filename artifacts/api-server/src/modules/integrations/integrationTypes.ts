@@ -1,4 +1,6 @@
 export const integrationProviders = [
+  "meta",
+  "whatsapp",
   "whatsapp_cloud",
   "instagram",
   "messenger",
@@ -24,6 +26,8 @@ export const healthStatuses = ["ok", "warning", "error", "unknown"] as const;
 export type HealthStatus = (typeof healthStatuses)[number];
 
 export const providerLabels: Record<IntegrationProvider, string> = {
+  meta: "Meta",
+  whatsapp: "WhatsApp",
   whatsapp_cloud: "WhatsApp Cloud API",
   instagram: "Instagram",
   messenger: "Messenger",
