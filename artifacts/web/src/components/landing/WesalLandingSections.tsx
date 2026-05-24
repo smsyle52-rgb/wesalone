@@ -506,7 +506,7 @@ function DashboardMockup({ compact = false }: { compact?: boolean }) {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <p className="truncate text-sm font-black text-[#1B3A5C]">{item.name}</p>
-                          <span className="text-[11px] text-slate-400">{item.time}</span>
+                          <span className="text-xs text-slate-400">{item.time}</span>
                         </div>
                         <p className="mt-1 truncate text-xs text-slate-500">{item.text}</p>
                       </div>
@@ -521,7 +521,7 @@ function DashboardMockup({ compact = false }: { compact?: boolean }) {
                   <p className="text-sm font-black text-[#1B3A5C]">سارة القحطاني</p>
                   <p className="text-xs text-emerald-500">متصل الآن</p>
                 </div>
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-600">نشطة</span>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-600">نشطة</span>
               </div>
               <div className="space-y-4">
                 <Bubble>أريد معرفة توفر المنتج والسعر المخفض</Bubble>
@@ -593,7 +593,7 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-[#edf2f8] bg-white p-3 shadow-sm">
       <p className="text-lg font-black text-[#1B3A5C]">{value}</p>
-      <p className="mt-1 text-[11px] text-slate-500">{label}</p>
+      <p className="mt-1 text-xs text-slate-500">{label}</p>
     </div>
   );
 }

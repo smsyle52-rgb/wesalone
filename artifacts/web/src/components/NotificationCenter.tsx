@@ -61,7 +61,7 @@ export function NotificationCenter() {
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -end-1 min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white shadow">
+          <span className="absolute -top-1 -end-1 min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-xs font-bold text-white shadow">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -105,7 +105,7 @@ export function NotificationCenter() {
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-bold text-foreground">{item.titleAr}</div>
                     <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.bodyAr}</div>
-                    <div className="mt-1 text-[11px] text-muted-foreground">
+                    <div className="mt-1 text-xs text-muted-foreground">
                       {new Date(item.createdAt).toLocaleString("ar")}
                     </div>
                   </div>

@@ -67,7 +67,7 @@
   --secondary: 214 30% 96%;
   --secondary-foreground: 225 28% 14%;
   --muted: 214 30% 96%;
-  --muted-foreground: 218 12% 48%;
+  --muted-foreground: 218 14% 38%;
   --accent: 174 71% 42%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 72% 51%;
@@ -120,13 +120,14 @@
   html {
     scroll-behavior: smooth;
     font-family: var(--app-font-sans);
+    font-size: 18px;
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
     font-family: 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif;
     direction: rtl;
-    font-size: 16px;
-    line-height: 1.6;
+    font-size: 1rem;
+    line-height: 1.65;
     letter-spacing: 0;
     font-feature-settings: "kern";
     text-rendering: optimizeLegibility;

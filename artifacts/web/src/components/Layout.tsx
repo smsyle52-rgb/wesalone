@@ -204,7 +204,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.slug)}
-                  className="mb-1 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-sidebar-foreground/55 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground/80"
+                  className="mb-1 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-bold uppercase tracking-wider text-sidebar-foreground/55 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground/80"
                 >
                   <span>{t(`nav.${group.key}`)}</span>
                   <ChevronDown

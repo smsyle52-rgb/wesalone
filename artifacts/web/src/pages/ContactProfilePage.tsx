@@ -629,7 +629,7 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
               <div className="space-y-3">
                 {timelineData.timeline.map((event) => (
                   <div key={event.id} className="flex items-start gap-3 pr-10 relative">
-                    <div className="absolute right-3 top-1.5 w-4 h-4 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center text-[10px]">
+                    <div className="absolute right-3 top-1.5 w-4 h-4 rounded-full bg-primary/20 border-2 border-primary/40 flex items-center justify-center text-xs">
                       {TIMELINE_ICONS[event.eventType] ?? "•"}
                     </div>
                     <div className="bg-card border border-border rounded-lg px-3 py-2 flex-1">

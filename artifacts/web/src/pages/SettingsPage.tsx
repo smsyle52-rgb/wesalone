@@ -965,7 +965,7 @@ export default function SettingsPage() {
       <div className="mb-6 grid gap-3 rounded-2xl border border-border bg-card p-3 lg:grid-cols-5">
         {tabGroups.map((group) => (
           <div key={group.label} className="min-w-0 rounded-xl bg-muted/30 p-2">
-            <div className="px-2 pb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+            <div className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
               {group.label}
             </div>
             <div className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">

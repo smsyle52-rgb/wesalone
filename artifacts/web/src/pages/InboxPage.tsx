@@ -687,7 +687,7 @@ export default function InboxPage() {
                 )}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-sm text-foreground truncate">
-                      {bulkMode && <span className="inline-flex w-4 h-4 rounded border border-border ms-1 align-middle items-center justify-center text-[10px]">{selectedBulk.includes(c.id) ? "✓" : ""}</span>}
+                      {bulkMode && <span className="inline-flex w-4 h-4 rounded border border-border ms-1 align-middle items-center justify-center text-xs">{selectedBulk.includes(c.id) ? "✓" : ""}</span>}
                       {c.contactName ?? "عميل غير معروف"}
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
@@ -695,7 +695,7 @@ export default function InboxPage() {
                         <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 font-bold">{c.unreadCount}</span>
                       )}
                       {c.needsHuman && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">يحتاج تدخل</span>
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">يحتاج تدخل</span>
                       )}
                       <StatusBadge status={c.status} />
                     </div>

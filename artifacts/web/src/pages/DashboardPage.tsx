@@ -106,7 +106,7 @@ function TrendPanel({ title, points, labels }: { title: string; points: number[]
           {points.map((point, index) => (
             <div key={`${labels[index]}-${index}`} className="flex flex-1 flex-col items-center gap-2">
               <div className="w-full rounded-t-lg bg-gradient-to-t from-primary to-accent" style={{ height: `${Math.max(10, (point / max) * 150)}px` }} />
-              <span className="text-[11px] text-muted-foreground">{labels[index]}</span>
+              <span className="text-xs text-muted-foreground">{labels[index]}</span>
             </div>
           ))}
         </div>
