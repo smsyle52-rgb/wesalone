@@ -13,6 +13,7 @@ import {
   socialPostsTable,
   workspaceMembershipsTable,
   type CatalogSource,
+  type Product,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { rebuildDocumentChunks } from "./kb-chunker";
@@ -264,60 +265,99 @@ export async function upsertProductKnowledge(source: CatalogSource): Promise<voi
   if (!ownerId) return;
 
   for (const product of await visibleProducts(source)) {
-    const content = `منتج: ${product.name}. السعر: ${product.price ?? "غير محدد"} ${product.currency ?? "YER"}. التوفر: ${product.availability ?? "غير محدد"}. ${product.description ?? ""}`.trim();
-    const contentHash = createHash("sha256").update(content).digest("hex");
-    const sourceUrl = `catalog://product/${product.id}`;
+    await upsertProductKnowledgeDocument(product, base, ownerId);
+  }
+}
 
-    const [existingSource] = await db.select()
-      .from(knowledgeSourcesTable)
-      .where(and(eq(knowledgeSourcesTable.workspaceId, source.workspaceId), eq(knowledgeSourcesTable.sourceUrl, sourceUrl)))
-      .limit(1);
+export async function upsertSingleProductKnowledge(product: Product): Promise<boolean> {
+  const base = await ensureCatalogKnowledgeBase(product.workspaceId);
+  if (!base) {
+    logger.warn(
+      { workspaceId: product.workspaceId, productId: product.id, reason: "no_knowledge_base_owner" },
+      "Manual product knowledge skipped",
+    );
+    return false;
+  }
 
-    const knowledgeSource = existingSource ?? (await db.insert(knowledgeSourcesTable).values({
-      workspaceId: source.workspaceId,
+  const ownerId = await findKnowledgeOwner(product.workspaceId);
+  if (!ownerId) {
+    logger.warn(
+      { workspaceId: product.workspaceId, productId: product.id, reason: "no_active_workspace_member" },
+      "Manual product knowledge skipped",
+    );
+    return false;
+  }
+
+  return upsertProductKnowledgeDocument(product, base, ownerId);
+}
+
+async function upsertProductKnowledgeDocument(
+  product: Product,
+  base: typeof knowledgeBasesTable.$inferSelect,
+  ownerId: string,
+): Promise<boolean> {
+  const content = `\u0645\u0646\u062a\u062c: ${product.name}. \u0627\u0644\u0633\u0639\u0631: ${product.price ?? "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f"} ${product.currency ?? "YER"}. \u0627\u0644\u062a\u0648\u0641\u0631: ${product.availability ?? "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f"}. ${product.description ?? ""}`.trim();
+  if (!content) {
+    logger.warn(
+      { workspaceId: product.workspaceId, productId: product.id, reason: "empty_content" },
+      "Product knowledge skipped",
+    );
+    return false;
+  }
+
+  const contentHash = createHash("sha256").update(content).digest("hex");
+  const sourceUrl = `catalog://product/${product.id}`;
+
+  const [existingSource] = await db.select()
+    .from(knowledgeSourcesTable)
+    .where(and(eq(knowledgeSourcesTable.workspaceId, product.workspaceId), eq(knowledgeSourcesTable.sourceUrl, sourceUrl)))
+    .limit(1);
+
+  const knowledgeSource = existingSource ?? (await db.insert(knowledgeSourcesTable).values({
+    workspaceId: product.workspaceId,
+    knowledgeBaseId: base.id,
+    type: "text",
+    title: `Catalog product ${product.externalProductId}`,
+    status: "ready",
+    sourceUrl,
+    rawText: content,
+    metadata: { source: "catalog", productId: product.id, contentHash },
+    createdBy: ownerId,
+  }).returning())[0];
+
+  const [existingDocument] = await db.select()
+    .from(knowledgeDocumentsTable)
+    .where(and(eq(knowledgeDocumentsTable.workspaceId, product.workspaceId), eq(knowledgeDocumentsTable.sourceId, knowledgeSource.id)))
+    .limit(1);
+
+  if (existingDocument?.contentText === content) return true;
+
+  const document = existingDocument
+    ? (await db.update(knowledgeDocumentsTable)
+      .set({ title: product.name, contentText: content, status: "ready", updatedAt: new Date() })
+      .where(eq(knowledgeDocumentsTable.id, existingDocument.id))
+      .returning())[0]
+    : (await db.insert(knowledgeDocumentsTable).values({
+      workspaceId: product.workspaceId,
       knowledgeBaseId: base.id,
-      type: "text",
-      title: `Catalog product ${product.externalProductId}`,
+      sourceId: knowledgeSource.id,
+      title: product.name,
+      contentText: content,
       status: "ready",
-      sourceUrl,
-      rawText: content,
-      metadata: { source: "catalog", productId: product.id, contentHash },
+      tokenEstimate: Math.ceil(content.length / 4),
       createdBy: ownerId,
     }).returning())[0];
 
-    const [existingDocument] = await db.select()
-      .from(knowledgeDocumentsTable)
-      .where(and(eq(knowledgeDocumentsTable.workspaceId, source.workspaceId), eq(knowledgeDocumentsTable.sourceId, knowledgeSource.id)))
-      .limit(1);
-
-    if (existingDocument?.contentText === content) continue;
-
-    const document = existingDocument
-      ? (await db.update(knowledgeDocumentsTable)
-        .set({ title: product.name, contentText: content, status: "ready", updatedAt: new Date() })
-        .where(eq(knowledgeDocumentsTable.id, existingDocument.id))
-        .returning())[0]
-      : (await db.insert(knowledgeDocumentsTable).values({
-        workspaceId: source.workspaceId,
-        knowledgeBaseId: base.id,
-        sourceId: knowledgeSource.id,
-        title: product.name,
-        contentText: content,
-        status: "ready",
-        tokenEstimate: Math.ceil(content.length / 4),
-        createdBy: ownerId,
-      }).returning())[0];
-
-    await db.update(knowledgeSourcesTable)
-      .set({ rawText: content, metadata: { source: "catalog", productId: product.id, contentHash }, updatedAt: new Date() })
-      .where(eq(knowledgeSourcesTable.id, knowledgeSource.id));
-    await rebuildDocumentChunks({
-      documentId: document.id,
-      workspaceId: source.workspaceId,
-      knowledgeBaseId: base.id,
-      contentText: content,
-    });
-  }
+  await db.update(knowledgeSourcesTable)
+    .set({ rawText: content, metadata: { source: "catalog", productId: product.id, contentHash }, updatedAt: new Date() })
+    .where(eq(knowledgeSourcesTable.id, knowledgeSource.id));
+  await rebuildDocumentChunks({
+    documentId: document.id,
+    workspaceId: product.workspaceId,
+    knowledgeBaseId: base.id,
+    contentText: content,
+  });
+  return true;
 }
 
 export async function syncCommerceCatalog(source: CatalogSource): Promise<SyncResult> {

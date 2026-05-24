@@ -12,10 +12,11 @@ import {
 } from "@workspace/db";
 import { auditFromRequest, createAuditLog } from "../../lib/audit";
 import { publishDomainEvent } from "../../lib/events";
+import { logger } from "../../lib/logger";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { requireSession } from "../../middlewares/requireSession";
-import { upsertProductKnowledge } from "../../services/meta-catalog-sync";
+import { upsertSingleProductKnowledge } from "../../services/meta-catalog-sync";
 
 const router = Router();
 router.use(requireSession);
@@ -295,7 +296,21 @@ router.post("/products", requirePermission("catalog:manage"), async (req: Authen
     syncedAt: new Date(),
   }).returning();
 
-  await upsertProductKnowledge(source);
+  let knowledgeQueued = true;
+  try {
+    knowledgeQueued = await upsertSingleProductKnowledge(product);
+  } catch (err) {
+    knowledgeQueued = false;
+    logger.error(
+      {
+        err,
+        workspaceId: req.sessionUser.activeWorkspaceId,
+        productId: product.id,
+        catalogSourceId: source.id,
+      },
+      "Manual product knowledge generation failed",
+    );
+  }
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
@@ -307,7 +322,7 @@ router.post("/products", requirePermission("catalog:manage"), async (req: Authen
     newData: { sourceType: source.sourceType, externalProductId: product.externalProductId },
   });
 
-  res.status(201).json({ product });
+  res.status(201).json({ product, knowledgeQueued });
 });
 
 router.get("/products/:id", requirePermission("catalog:read"), async (req: AuthenticatedRequest, res: Response) => {
@@ -367,10 +382,24 @@ router.patch("/products/:id", requirePermission("catalog:manage"), async (req: A
     res.status(404).json({ error: "المنتج غير موجود" });
     return;
   }
+  let knowledgeQueued = true;
   if (isManualProduct && existing.source) {
-    await upsertProductKnowledge(existing.source);
+    try {
+      knowledgeQueued = await upsertSingleProductKnowledge(product);
+    } catch (err) {
+      knowledgeQueued = false;
+      logger.error(
+        {
+          err,
+          workspaceId: req.sessionUser.activeWorkspaceId,
+          productId: product.id,
+          catalogSourceId: existing.source.id,
+        },
+        "Manual product knowledge refresh failed",
+      );
+    }
   }
-  res.json({ product });
+  res.json({ product, knowledgeQueued });
 });
 
 router.get("/posts", requirePermission("catalog:read"), async (req: AuthenticatedRequest, res: Response) => {
