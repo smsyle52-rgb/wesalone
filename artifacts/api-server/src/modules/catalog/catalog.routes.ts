@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router, type Response } from "express";
 import { z } from "zod";
 import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
@@ -14,6 +15,7 @@ import { publishDomainEvent } from "../../lib/events";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { requireSession } from "../../middlewares/requireSession";
+import { upsertProductKnowledge } from "../../services/meta-catalog-sync";
 
 const router = Router();
 router.use(requireSession);
@@ -37,7 +39,97 @@ const listSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
-const patchProductSchema = z.object({ isVisible: z.boolean() });
+const emptyToNull = (value: unknown) => (typeof value === "string" && value.trim() === "" ? null : value);
+const optionalText = (max: number) => z.preprocess(
+  emptyToNull,
+  z.string().trim().max(max).nullable().optional(),
+);
+const productPriceSchema = z.preprocess(
+  emptyToNull,
+  z.union([z.string().trim().min(1), z.number().finite()]).nullable().optional(),
+);
+const createProductSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: optionalText(4000),
+  category: optionalText(160),
+  price: productPriceSchema,
+  currency: z.preprocess(emptyToNull, z.string().trim().min(1).max(12).nullable().optional()).default("YER"),
+  availability: optionalText(80),
+  inventory_count: z.preprocess(
+    emptyToNull,
+    z.coerce.number().int().min(0).nullable().optional(),
+  ),
+  image_url: optionalText(2048),
+  brand: optionalText(160),
+});
+const patchProductSchema = createProductSchema.partial().extend({ isVisible: z.boolean().optional() }).refine(
+  (value) => Object.keys(value).length > 0,
+  "Product update is empty",
+);
+
+function normalizePrice(value: string | number | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return value.toFixed(2);
+  const normalized = value.replace(/,/g, "").trim();
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric.toFixed(2) : normalized;
+}
+
+function manualProductValues(data: z.infer<typeof createProductSchema>) {
+  return {
+    name: data.name,
+    description: data.description ?? null,
+    category: data.category ?? null,
+    price: normalizePrice(data.price),
+    currency: data.currency ?? "YER",
+    availability: data.availability ?? null,
+    inventoryCount: data.inventory_count ?? null,
+    imageUrl: data.image_url ?? null,
+    brand: data.brand ?? null,
+  };
+}
+
+function manualProductPatchValues(data: z.infer<typeof patchProductSchema>) {
+  const values: Partial<typeof productsTable.$inferInsert> = {};
+  if ("name" in data && data.name !== undefined) values.name = data.name;
+  if ("description" in data) values.description = data.description ?? null;
+  if ("category" in data) values.category = data.category ?? null;
+  if ("price" in data) values.price = normalizePrice(data.price);
+  if ("currency" in data && data.currency !== undefined) values.currency = data.currency ?? "YER";
+  if ("availability" in data) values.availability = data.availability ?? null;
+  if ("inventory_count" in data) values.inventoryCount = data.inventory_count ?? null;
+  if ("image_url" in data) values.imageUrl = data.image_url ?? null;
+  if ("brand" in data) values.brand = data.brand ?? null;
+  if ("isVisible" in data && data.isVisible !== undefined) values.isVisible = data.isVisible;
+  return values;
+}
+
+async function getOrCreateManualSource(workspaceId: string) {
+  const [existing] = await db.select()
+    .from(catalogSourcesTable)
+    .where(and(
+      eq(catalogSourcesTable.workspaceId, workspaceId),
+      eq(catalogSourcesTable.sourceType, "manual"),
+      eq(catalogSourcesTable.externalId, "manual"),
+    ))
+    .limit(1);
+  if (existing) return existing;
+
+  const [source] = await db.insert(catalogSourcesTable).values({
+    workspaceId,
+    sourceType: "manual",
+    externalId: "manual",
+    name: "Manual products",
+    status: "active",
+    syncStatus: "synced",
+    config: { provider: "manual", manual: true },
+  }).onConflictDoUpdate({
+    target: [catalogSourcesTable.workspaceId, catalogSourcesTable.sourceType, catalogSourcesTable.externalId],
+    set: { status: "active", syncStatus: "synced", updatedAt: new Date() },
+  }).returning();
+
+  return source;
+}
 
 router.get("/sources", requirePermission("catalog:read"), async (req: AuthenticatedRequest, res: Response) => {
   const sources = await db.select()
@@ -185,6 +277,39 @@ router.get("/products", requirePermission("catalog:read"), async (req: Authentic
   res.json({ products });
 });
 
+router.post("/products", requirePermission("catalog:manage"), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = createProductSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Product data is invalid" });
+    return;
+  }
+
+  const source = await getOrCreateManualSource(req.sessionUser.activeWorkspaceId);
+  const [product] = await db.insert(productsTable).values({
+    workspaceId: req.sessionUser.activeWorkspaceId,
+    catalogSourceId: source.id,
+    externalProductId: `manual-${randomUUID()}`,
+    ...manualProductValues(parsed.data),
+    raw: {},
+    isVisible: true,
+    syncedAt: new Date(),
+  }).returning();
+
+  await upsertProductKnowledge(source);
+
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "catalog_source_create",
+    severity: "info",
+    entityType: "product",
+    entityId: product.id,
+    entityLabel: product.name,
+    newData: { sourceType: source.sourceType, externalProductId: product.externalProductId },
+  });
+
+  res.status(201).json({ product });
+});
+
 router.get("/products/:id", requirePermission("catalog:read"), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = paramsSchema.safeParse(req.params);
   if (!parsed.success) {
@@ -210,13 +335,40 @@ router.patch("/products/:id", requirePermission("catalog:manage"), async (req: A
     return;
   }
 
-  const [product] = await db.update(productsTable)
-    .set({ isVisible: body.data.isVisible, updatedAt: new Date() })
+  const [existing] = await db.select({
+    product: productsTable,
+    source: catalogSourcesTable,
+  })
+    .from(productsTable)
+    .leftJoin(catalogSourcesTable, eq(productsTable.catalogSourceId, catalogSourcesTable.id))
     .where(and(eq(productsTable.id, params.data.id), eq(productsTable.workspaceId, req.sessionUser.activeWorkspaceId)))
+    .limit(1);
+
+  if (!existing?.product) {
+    res.status(404).json({ error: "ط§ظ„ظ…ظ†طھط¬ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" });
+    return;
+  }
+
+  const isManualProduct = existing.source?.sourceType === "manual";
+  if (!isManualProduct && body.data.isVisible === undefined) {
+    res.status(400).json({ error: "Only visibility can be updated for synced products" });
+    return;
+  }
+
+  const updateValues = isManualProduct
+    ? manualProductPatchValues(body.data)
+    : { isVisible: body.data.isVisible };
+
+  const [product] = await db.update(productsTable)
+    .set({ ...updateValues, updatedAt: new Date(), ...(isManualProduct ? { syncedAt: new Date() } : {}) })
+    .where(eq(productsTable.id, existing.product.id))
     .returning();
   if (!product) {
     res.status(404).json({ error: "المنتج غير موجود" });
     return;
+  }
+  if (isManualProduct && existing.source) {
+    await upsertProductKnowledge(existing.source);
   }
   res.json({ product });
 });

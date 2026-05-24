@@ -497,6 +497,7 @@ async function syncSource(source: CatalogSourceRow, logger: pino.Logger): Promis
     if (source.source_type === "commerce_catalog") itemsSynced = await syncProducts(source, logger);
     else if (source.source_type === "page_posts") itemsSynced = await syncPosts(source, logger);
     else if (source.source_type === "ads") itemsSynced = await syncAds(source, logger);
+    else if (source.source_type === "manual") await feedVisibleProductsToKnowledge(source);
     else throw new Error(`Unsupported source type ${source.source_type}`);
 
     const result: SyncResult = { status: "success", itemsSynced, itemsFailed: 0 };

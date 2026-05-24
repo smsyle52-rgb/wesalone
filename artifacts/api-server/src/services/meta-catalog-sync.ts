@@ -253,7 +253,7 @@ async function ensureCatalogKnowledgeBase(workspaceId: string) {
   return created;
 }
 
-async function upsertProductKnowledge(source: CatalogSource): Promise<void> {
+export async function upsertProductKnowledge(source: CatalogSource): Promise<void> {
   const base = await ensureCatalogKnowledgeBase(source.workspaceId);
   if (!base) {
     logger.warn({ workspaceId: source.workspaceId }, "Catalog knowledge feed skipped because no active workspace member exists");
@@ -461,6 +461,10 @@ export async function syncCatalogSource(source: CatalogSource): Promise<SyncResu
   if (source.sourceType === "commerce_catalog") return syncCommerceCatalog(source);
   if (source.sourceType === "page_posts") return syncPagePosts(source);
   if (source.sourceType === "ads") return syncAds(source);
+  if (source.sourceType === "manual") {
+    await upsertProductKnowledge(source);
+    return { status: "success", itemsSynced: 0, itemsFailed: 0 };
+  }
   return { status: "failed", itemsSynced: 0, itemsFailed: 1, error: `Unsupported source type ${source.sourceType}` };
 }
 
