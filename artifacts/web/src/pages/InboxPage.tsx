@@ -545,21 +545,8 @@ export default function InboxPage() {
       <div className="flex flex-1 gap-0 overflow-hidden px-4 pb-4">
         <div className="hidden xl:flex flex-col w-72 shrink-0 rounded-xl border border-border bg-card overflow-hidden ms-3">
           <div className="p-3 border-b border-border">
-            <div className="text-xs font-semibold text-muted-foreground mb-2">العروض المحفوظة</div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">عروضي المحفوظة</div>
             <div className="space-y-1">
-              {SAVED_VIEWS.map((view) => (
-                <button
-                  key={view.value || "all"}
-                  type="button"
-                  onClick={() => setViewFilter(view.value)}
-                  className={cn(
-                    "w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm text-start transition-colors",
-                    viewFilter === view.value ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground",
-                  )}
-                >
-                  <span>{view.label}</span>
-                </button>
-              ))}
               {savedViews.map((view) => (
                 <button
                   key={view.id}
@@ -571,6 +558,11 @@ export default function InboxPage() {
                   {view.isPinned && <span className="text-xs text-primary">مثبت</span>}
                 </button>
               ))}
+              {!savedViews.length && (
+                <p className="rounded-lg bg-muted/40 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
+                  لا توجد عروض محفوظة بعد. أنشئ عرضك الأول.
+                </p>
+              )}
             </div>
             {canWriteSavedViews && (
               <button
