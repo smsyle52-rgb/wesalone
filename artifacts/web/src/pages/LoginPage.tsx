@@ -46,8 +46,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4" dir="rtl">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-white text-2xl font-bold mb-4">خ</div>
-          <h1 className="text-2xl font-bold text-foreground">خدماتك</h1>
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-white text-2xl font-bold mb-4">و</div>
+          <h1 className="text-2xl font-bold text-foreground">وصال ون</h1>
           <p className="text-muted-foreground text-sm mt-1">سجّل الدخول إلى حسابك</p>
         </div>
 

@@ -97,7 +97,7 @@ export default function MetaConnectChannelsPage() {
     <div dir="rtl" className="space-y-6">
       <PageHeader
         title="اختيار قنوات ميتا"
-        subtitle="اختر القنوات التي تريد تشغيلها داخل خدماتك. لن يظهر أي مفتاح أو رمز وصول في هذه الصفحة."
+        subtitle="اختر القنوات التي تريد تشغيلها داخل وصال ون. لن يظهر أي مفتاح أو رمز وصول في هذه الصفحة."
       />
 
       {isLoading ? (

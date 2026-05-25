@@ -192,7 +192,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       >
         <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-lg font-bold text-white">
-            خ
+            و
           </div>
           <div>
             <div className="text-base font-bold leading-tight text-sidebar-foreground">{t("brand.name")}</div>
