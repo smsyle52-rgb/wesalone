@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { formatDateTime, timeAgo, channelLabels, statusLabels, priorityLabels, channelStatusLabels, CHANNEL_CATALOG } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -185,6 +186,7 @@ export default function InboxPage() {
   const [messageMode, setMessageMode] = useState<"reply" | "note">("reply");
   const [detailTab, setDetailTab] = useState<"conversation" | "notes" | "customer" | "timeline">("conversation");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [sortMode, setSortMode] = useState<"newest" | "oldest" | "priority" | "sla">("newest");
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedBulk, setSelectedBulk] = useState<string[]>([]);
@@ -415,6 +417,13 @@ export default function InboxPage() {
     return new Date(b.lastMessageAt ?? b.createdAt).getTime() - new Date(a.lastMessageAt ?? a.createdAt).getTime();
   });
   const defaultSlaMinutes = Math.max(1, Number(slaRules.find((rule) => rule.active)?.firstResponseMinutes ?? 30));
+  const activeMobileFilterCount = [
+    viewFilter,
+    statusFilter,
+    channelFilter,
+    assigneeFilter,
+    sortMode !== "newest" ? sortMode : "",
+  ].filter(Boolean).length;
 
   async function runAISummarize() {
     if (!selectedConvId) return;
@@ -562,7 +571,7 @@ export default function InboxPage() {
           </div>
         )}
 
-        <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 scrollbar-none">
+        <div className="mb-3 hidden gap-1.5 overflow-x-auto pb-1 scrollbar-none lg:flex">
           {SAVED_VIEWS.map((view) => (
             <button
               key={view.value}
@@ -581,7 +590,7 @@ export default function InboxPage() {
           ))}
         </div>
 
-        <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 scrollbar-none">
+        <div className="mb-3 hidden gap-1.5 overflow-x-auto pb-1 scrollbar-none lg:flex">
           {CONV_STATUSES.map((s) => (
             <button key={s.value} onClick={() => setStatusFilter(s.value)}
               className={cn("px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors shrink-0",
@@ -670,55 +679,197 @@ export default function InboxPage() {
           "w-full lg:w-80",
           mobileView === "detail" ? "hidden lg:flex" : "flex"
         )}>
-          <div className="p-2 border-b border-border space-y-2">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>التحديث اللحظي</span>
-              <span className="inline-flex items-center gap-1">
-                <span className={cn("h-2 w-2 rounded-full", realtimeStatus === "live" ? "bg-emerald-500" : "bg-muted-foreground")} />
-                {realtimeStatus === "live" ? "مباشر" : "إعادة اتصال"}
-              </span>
+          <div className="border-b border-border p-2">
+            <div className="space-y-2 lg:hidden">
+              <div className="flex items-center justify-between text-[0.7rem] text-muted-foreground">
+                <span>التحديث اللحظي</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className={cn("h-2 w-2 rounded-full", realtimeStatus === "live" ? "bg-emerald-500" : "bg-muted-foreground")} />
+                  {realtimeStatus === "live" ? "مباشر" : "إعادة اتصال"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="inbox-search-mobile"
+                  name="inboxSearch"
+                  aria-label="بحث في المحادثات"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="بحث في المحادثات..."
+                  className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowMobileFilters(true)}
+                  className={cn(
+                    "relative inline-flex shrink-0 items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold transition-colors",
+                    activeMobileFilterCount > 0 ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground hover:bg-muted",
+                  )}
+                >
+                  تصفية
+                  {activeMobileFilterCount > 0 && (
+                    <span className="ms-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[0.65rem] font-bold text-primary-foreground">
+                      {activeMobileFilterCount}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
-            <input
-              id="inbox-search"
-              name="inboxSearch"
-              aria-label="بحث في المحادثات"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث في المحادثات..."
-              className="w-full px-3 py-1.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-            <div className="flex gap-1.5">
-              <select id="inbox-channel-filter" name="inboxChannelFilter" aria-label="تصفية المحادثات حسب القناة" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}
-                className="flex-1 px-2 py-1 rounded-lg border border-input bg-background text-xs focus:outline-none">
-                <option value="">كل القنوات</option>
-                {Object.entries(channelLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <select id="inbox-assignee-filter" name="inboxAssigneeFilter" aria-label="تصفية المحادثات حسب الموظف" value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}
-                className="flex-1 px-2 py-1 rounded-lg border border-input bg-background text-xs focus:outline-none">
-                <option value="">كل الموظفين</option>
-                <option value="unassigned">غير مُعيَّن</option>
-                {members.map((m: any) => <option key={m.membershipId ?? m.id} value={m.membershipId ?? m.id}>{m.name}</option>)}
-              </select>
+
+            <div className="hidden space-y-2 lg:block">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>التحديث اللحظي</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className={cn("h-2 w-2 rounded-full", realtimeStatus === "live" ? "bg-emerald-500" : "bg-muted-foreground")} />
+                  {realtimeStatus === "live" ? "مباشر" : "إعادة اتصال"}
+                </span>
+              </div>
+              <input
+                id="inbox-search"
+                name="inboxSearch"
+                aria-label="بحث في المحادثات"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="بحث في المحادثات..."
+                className="w-full px-3 py-1.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <div className="flex gap-1.5">
+                <select id="inbox-channel-filter" name="inboxChannelFilter" aria-label="تصفية المحادثات حسب القناة" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}
+                  className="flex-1 px-2 py-1 rounded-lg border border-input bg-background text-xs focus:outline-none">
+                  <option value="">كل القنوات</option>
+                  {Object.entries(channelLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+                <select id="inbox-assignee-filter" name="inboxAssigneeFilter" aria-label="تصفية المحادثات حسب الموظف" value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}
+                  className="flex-1 px-2 py-1 rounded-lg border border-input bg-background text-xs focus:outline-none">
+                  <option value="">كل الموظفين</option>
+                  <option value="unassigned">غير مُعيَّن</option>
+                  {members.map((m: any) => <option key={m.membershipId ?? m.id} value={m.membershipId ?? m.id}>{m.name}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
+                  className="flex-1 px-2 py-1 rounded-lg border border-input bg-background text-xs focus:outline-none">
+                  <option value="newest">الأحدث</option>
+                  <option value="oldest">الأقدم</option>
+                  <option value="priority">الأعلى أولوية</option>
+                  <option value="sla">SLA منتهي</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => { setBulkMode((value) => !value); setSelectedBulk([]); }}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors",
+                    bulkMode ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-background text-foreground hover:bg-muted",
+                  )}
+                >
+                  {bulkMode ? "إلغاء التحديد" : "تحديد متعدد"}
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
-                className="flex-1 px-2 py-1 rounded-lg border border-input bg-background text-xs focus:outline-none">
-                <option value="newest">الأحدث</option>
-                <option value="oldest">الأقدم</option>
-                <option value="priority">الأعلى أولوية</option>
-                <option value="sla">SLA منتهي</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => { setBulkMode((value) => !value); setSelectedBulk([]); }}
-                className={cn(
-                  "inline-flex items-center justify-center rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors",
-                  bulkMode ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-background text-foreground hover:bg-muted",
-                )}
-              >
-                {bulkMode ? "إلغاء التحديد" : "تحديد متعدد"}
-              </button>
-            </div>
+
+            <Drawer open={showMobileFilters} onOpenChange={setShowMobileFilters}>
+              <DrawerContent className="max-h-[88vh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))] lg:hidden">
+                <DrawerHeader className="text-start">
+                  <DrawerTitle>تصفية المحادثات</DrawerTitle>
+                  <DrawerDescription>اضبط طريقة عرض صندوق الوارد.</DrawerDescription>
+                </DrawerHeader>
+                <div className="space-y-5 px-4 pb-4">
+                  <section className="space-y-2">
+                    <div className="text-xs font-bold text-muted-foreground">العروض السريعة</div>
+                    <div className="flex flex-wrap gap-2">
+                      {SAVED_VIEWS.map((view) => (
+                        <button
+                          key={view.value}
+                          type="button"
+                          onClick={() => {
+                            setViewFilter(view.value);
+                            if (view.value === "closed") setStatusFilter("");
+                          }}
+                          className={cn(
+                            "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                            viewFilter === view.value ? "bg-foreground text-background" : "border border-border bg-card text-muted-foreground hover:bg-muted",
+                          )}
+                        >
+                          {view.label}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  {savedViews.length > 0 && (
+                    <section className="space-y-2">
+                      <div className="text-xs font-bold text-muted-foreground">العروض المحفوظة</div>
+                      <div className="space-y-1">
+                        {savedViews.map((view) => (
+                          <button
+                            key={view.id}
+                            type="button"
+                            onClick={() => applySavedView(view)}
+                            className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                          >
+                            <span>{view.name}</span>
+                            {view.isPinned && <span className="text-xs text-primary">مثبت</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  <section className="space-y-2">
+                    <div className="text-xs font-bold text-muted-foreground">الحالة</div>
+                    <div className="flex flex-wrap gap-2">
+                      {CONV_STATUSES.map((s) => (
+                        <button key={s.value} onClick={() => setStatusFilter(s.value)}
+                          className={cn("rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                            statusFilter === s.value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}>
+                          {s.label}
+                          {s.value && counts[s.value] ? ` (${counts[s.value]})` : ""}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="grid grid-cols-1 gap-3">
+                    <label className="block text-xs font-bold text-muted-foreground" htmlFor="mobile-channel-filter">القناة</label>
+                    <select id="mobile-channel-filter" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none">
+                      <option value="">كل القنوات</option>
+                      {Object.entries(channelLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+
+                    <label className="block text-xs font-bold text-muted-foreground" htmlFor="mobile-assignee-filter">المسؤول</label>
+                    <select id="mobile-assignee-filter" value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none">
+                      <option value="">كل الموظفين</option>
+                      <option value="unassigned">غير مُعيَّن</option>
+                      {members.map((m: any) => <option key={m.membershipId ?? m.id} value={m.membershipId ?? m.id}>{m.name}</option>)}
+                    </select>
+
+                    <label className="block text-xs font-bold text-muted-foreground" htmlFor="mobile-sort-mode">الترتيب</label>
+                    <select id="mobile-sort-mode" value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none">
+                      <option value="newest">الأحدث</option>
+                      <option value="oldest">الأقدم</option>
+                      <option value="priority">الأعلى أولوية</option>
+                      <option value="sla">SLA منتهي</option>
+                    </select>
+                  </section>
+
+                  <section className="rounded-xl border border-border bg-muted/30 p-3">
+                    <button
+                      type="button"
+                      onClick={() => { setBulkMode((value) => !value); setSelectedBulk([]); }}
+                      className={cn(
+                        "w-full rounded-lg border px-3 py-2 text-sm font-semibold transition-colors",
+                        bulkMode ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-background text-foreground hover:bg-muted",
+                      )}
+                    >
+                      {bulkMode ? "إلغاء التحديد المتعدد" : "تحديد متعدد"}
+                    </button>
+                  </section>
+                </div>
+              </DrawerContent>
+            </Drawer>
           </div>
 
           <div className="flex-1 overflow-y-auto">
