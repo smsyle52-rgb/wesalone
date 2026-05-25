@@ -543,7 +543,7 @@ export default function InboxPage() {
         )}
       </div>
 
-      <div className="flex flex-1 gap-0 overflow-hidden px-4 pb-4">
+      <div className="flex flex-1 gap-0 overflow-hidden px-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-4">
         <div className="hidden xl:flex flex-col w-72 shrink-0 rounded-xl border border-border bg-card overflow-hidden ms-3">
           <div className="p-3 border-b border-border">
             <div className="text-xs font-semibold text-muted-foreground mb-2">عروضي المحفوظة</div>

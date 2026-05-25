@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationCenter } from "@/components/NotificationCenter";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 
 type NavItem = {
   path: string;
@@ -291,7 +292,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-0">
           <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
             <div className="mb-4 hidden items-center justify-end lg:flex">
               <NotificationCenter />
@@ -312,6 +313,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             {children}
           </div>
         </main>
+        <MobileBottomNav location={location} hasPermission={hasPermission} onOpenMenu={() => setSidebarOpen(true)} />
       </div>
     </div>
   );
