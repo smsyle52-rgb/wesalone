@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
@@ -25,6 +26,59 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    VitePWA({
+      registerType: "autoUpdate",
+      injectRegister: "script-defer",
+      scope: basePath,
+      manifest: {
+        name: "وصال ون - Wesal One",
+        short_name: "وصال ون",
+        description: "منصة موحدة لإدارة المحادثات والعملاء والمبيعات من مكان واحد.",
+        start_url: "/",
+        scope: "/",
+        display: "standalone",
+        background_color: "#FFFFFF",
+        theme_color: "#1B3A5C",
+        dir: "rtl",
+        lang: "ar",
+        icons: [
+          {
+            src: "/icons/wesal-one-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/icons/wesal-one-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/icons/wesal-one-maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
+      },
+      includeAssets: ["brand/favicon.svg"],
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+        globPatterns: ["**/*.{js,css,html,png,svg,jpg,jpeg,webp,woff2}"],
+        navigateFallback: "index.html",
+        navigateFallbackDenylist: [
+          /^\/api(?:\/|$)/,
+          /^\/assets\//,
+          /^\/brand\//,
+          /^\/icons\//,
+          /\/[^/?]+\.[^/]+$/,
+        ],
+        runtimeCaching: [],
+      },
+    }),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
