@@ -64,6 +64,37 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: "text-blue-600 bg-blue-50 border-blue-200",
 };
 
+const PRIORITY_DOT_COLORS: Record<string, string> = {
+  urgent: "bg-red-500",
+  high: "bg-orange-500",
+  normal: "bg-gray-400",
+  low: "bg-blue-500",
+};
+
+const COMPACT_STATUS_COLORS: Record<string, string> = {
+  new: "bg-blue-100 text-blue-700",
+  open: "bg-green-100 text-green-700",
+  pending: "bg-yellow-100 text-yellow-700",
+  snoozed: "bg-purple-100 text-purple-700",
+  resolved: "bg-gray-100 text-gray-600",
+  closed: "bg-gray-200 text-gray-500",
+  bot: "bg-indigo-100 text-indigo-700",
+};
+
+const CHANNEL_ICONS: Record<string, string> = {
+  whatsapp_manual: "📱",
+  whatsapp: "📱",
+  whatsapp_api: "📱",
+  website_widget: "💬",
+  telegram: "✈️",
+  instagram: "📷",
+  messenger: "💬",
+  voice: "📞",
+  manual: "✍️",
+  email: "📧",
+  sms: "📩",
+};
+
 function PriorityBadge({ priority }: { priority: string }) {
   return (
     <span className={cn("text-xs px-1.5 py-0.5 rounded border font-medium", PRIORITY_COLORS[priority] ?? PRIORITY_COLORS.normal)}>
@@ -73,14 +104,40 @@ function PriorityBadge({ priority }: { priority: string }) {
 }
 
 function ChannelBadge({ channel }: { channel: string }) {
-  const icons: Record<string, string> = {
-    whatsapp_manual: "📱", whatsapp: "📱", whatsapp_api: "📱",
-    website_widget: "💬", telegram: "✈️", instagram: "📷",
-    messenger: "💬", voice: "📞", manual: "✍️", email: "📧", sms: "📩",
-  };
   return (
     <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-      {icons[channel] ?? "💬"} {channelLabels[channel] ?? channel}
+      {CHANNEL_ICONS[channel] ?? "💬"} {channelLabels[channel] ?? channel}
+    </span>
+  );
+}
+
+function CompactChannelBadge({ channel }: { channel: string }) {
+  return (
+    <span
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs"
+      title={channelLabels[channel] ?? channel}
+      aria-label={channelLabels[channel] ?? channel}
+    >
+      {CHANNEL_ICONS[channel] ?? "💬"}
+    </span>
+  );
+}
+
+function PriorityDot({ priority }: { priority: string }) {
+  const label = priorityLabels[priority] ?? priority;
+  return (
+    <span
+      className={cn("inline-flex h-2.5 w-2.5 shrink-0 rounded-full", PRIORITY_DOT_COLORS[priority] ?? PRIORITY_DOT_COLORS.normal)}
+      title={label}
+      aria-label={label}
+    />
+  );
+}
+
+function CompactStatusChip({ status }: { status: string }) {
+  return (
+    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[0.68rem] font-bold", COMPACT_STATUS_COLORS[status] ?? "bg-gray-100 text-gray-600")}>
+      {statusLabels[status] ?? status}
     </span>
   );
 }
@@ -768,81 +825,102 @@ export default function InboxPage() {
             </div>
           ) : (
             <>
-              <div className="shrink-0 px-4 py-3 border-b border-border space-y-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button onClick={() => setMobileView("list")} className="lg:hidden text-xs text-muted-foreground hover:text-foreground">
+              <div className="shrink-0 border-b border-border px-3 py-2 sm:px-4">
+                <div className="flex min-w-0 items-center gap-2">
+                  <button onClick={() => setMobileView("list")} className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden">
                     ← رجوع
                   </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-foreground truncate">{conv.contactName ?? "عميل غير معروف"}</div>
-                    {conv.contactPhone && <div className="text-xs text-muted-foreground">{conv.contactPhone}</div>}
-                    {conv.contactCompany && <div className="text-xs text-muted-foreground">{conv.contactCompany}</div>}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="truncate font-semibold text-foreground">{conv.contactName ?? "عميل غير معروف"}</div>
+                      {conv.contactPhone && <div dir="ltr" className="shrink-0 text-xs text-muted-foreground">{conv.contactPhone}</div>}
+                    </div>
+                    {conv.subject && (
+                      <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                        <span className="font-medium">الموضوع: </span>{conv.subject}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-                    <ChannelBadge channel={conv.channel} />
-                    <PriorityBadge priority={conv.priority} />
-                    <StatusBadge status={conv.status} />
-                    {conv.needsHuman && (
-                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800">يحتاج تدخل</span>
-                    )}
-                    {ticket && (
-                      <a
-                        href={`/tickets?id=${ticket.id}`}
-                        className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold hover:bg-amber-100"
-                      >
-                        تذكرة #{ticket.number}
-                      </a>
-                    )}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <CompactChannelBadge channel={conv.channel} />
+                    <PriorityDot priority={conv.priority} />
+                    <CompactStatusChip status={conv.status} />
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
-                  {canResolve && statusActions.map((action) => (
-                    <button key={action.next}
-                      onClick={() => changeStatus.mutate({ convId: conv.id, status: action.next })}
-                      disabled={changeStatus.isPending}
-                      className="px-2.5 py-1 rounded-md text-xs font-medium bg-muted hover:bg-muted/80 border border-border transition-colors disabled:opacity-50">
-                      {action.label}
-                    </button>
-                  ))}
+                <div className="mt-2 flex min-w-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {canResolve && statusActions[0] && (
+                      <button
+                        key={statusActions[0].next}
+                        onClick={() => changeStatus.mutate({ convId: conv.id, status: statusActions[0].next })}
+                        disabled={changeStatus.isPending}
+                        className="rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted/80 disabled:opacity-50"
+                      >
+                        {statusActions[0].label}
+                      </button>
+                    )}
 
-                  {canAssign && (
-                    <select
-                      id="inbox-conversation-assignee"
-                      name="conversationAssignee"
-                      aria-label="تعيين المحادثة إلى موظف"
-                      value={conv.assignedMembershipId ?? ""}
-                      onChange={(e) => assignConv.mutate({ convId: conv.id, membershipId: e.target.value || null })}
-                      className="px-2 py-1 rounded-md text-xs border border-input bg-background focus:outline-none">
-                      <option value="">غير مُعيَّن</option>
-                      {members.map((m: any) => (
-                        <option key={m.membershipId ?? m.id} value={m.membershipId ?? m.id}>{m.name}</option>
-                      ))}
-                    </select>
-                  )}
+                    {waLink ? (
+                      <a href={waLink} target="_blank" rel="noopener noreferrer"
+                        className="rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-100">
+                        واتساب
+                      </a>
+                    ) : (
+                      <button disabled title="لا يوجد رقم واتساب لهذا العميل"
+                        className="cursor-not-allowed rounded-md border border-border bg-muted px-2.5 py-1 text-xs text-muted-foreground opacity-50">
+                        واتساب
+                      </button>
+                    )}
 
-                  {waLink ? (
-                    <a href={waLink} target="_blank" rel="noopener noreferrer"
-                      className="px-2.5 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors">
-                      📱 فتح واتساب يدوياً
-                    </a>
-                  ) : (
-                    <button disabled title="لا يوجد رقم واتساب لهذا العميل"
-                      className="px-2.5 py-1 rounded-md text-xs bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-50">
-                      📱 فتح واتساب يدوياً
-                    </button>
-                  )}
-
-                  <div className="ms-auto">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
                           type="button"
-                          className="px-2.5 py-1 rounded-md text-xs font-medium bg-muted hover:bg-muted/70 text-foreground border border-border transition-colors">
-                          + إنشاء
+                          aria-label="إجراءات المحادثة"
+                          className="rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-bold text-foreground transition-colors hover:bg-muted/70">
+                          ···
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" sideOffset={6} className="w-44">
+                      <DropdownMenuContent align="end" sideOffset={6} className="w-60">
+                        {canAssign && (
+                          <div className="px-2 py-1.5">
+                            <label htmlFor="inbox-conversation-assignee" className="text-xs font-medium text-muted-foreground">المسؤول</label>
+                            <select
+                              id="inbox-conversation-assignee"
+                              name="conversationAssignee"
+                              aria-label="تعيين المحادثة إلى موظف"
+                              value={conv.assignedMembershipId ?? ""}
+                              onChange={(e) => assignConv.mutate({ convId: conv.id, membershipId: e.target.value || null })}
+                              className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none">
+                              <option value="">غير مُعيَّن</option>
+                              {members.map((m: any) => (
+                                <option key={m.membershipId ?? m.id} value={m.membershipId ?? m.id}>{m.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {(canAssign || statusActions.length > 1 || conv.needsHuman || ticket) && <div className="-mx-1 my-1 h-px bg-muted" />}
+
+                        {canResolve && statusActions.slice(1).map((action) => (
+                          <DropdownMenuItem key={action.next} className="cursor-pointer text-start" onSelect={() => changeStatus.mutate({ convId: conv.id, status: action.next })}>
+                            {action.label}
+                          </DropdownMenuItem>
+                        ))}
+                        {conv.needsHuman && (
+                          <div className="px-2 py-1.5 text-sm font-medium text-amber-700">
+                            يحتاج تدخل
+                          </div>
+                        )}
+                        {ticket && (
+                          <DropdownMenuItem asChild className="cursor-pointer text-start">
+                            <a href={`/tickets?id=${ticket.id}`}>تذكرة #{ticket.number}</a>
+                          </DropdownMenuItem>
+                        )}
+
+                        <div className="-mx-1 my-1 h-px bg-muted" />
+
                         {canCreateTicket ? (
                           <DropdownMenuItem className="cursor-pointer text-start" onSelect={() => setQuickCreate("ticket")}>
                             🎫 تذكرة
@@ -900,36 +978,33 @@ export default function InboxPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                </div>
 
-                {conv.subject && (
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-medium">الموضوع: </span>{conv.subject}
+                  <div className="min-w-0 flex-1 overflow-x-auto">
+                    <div className="flex w-max gap-1 rounded-lg bg-muted/50 p-1">
+                      {[
+                        ["conversation", "المحادثة"],
+                        ["notes", "ملاحظات"],
+                        ["customer", "العميل"],
+                        ["timeline", "السجل"],
+                      ].map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => {
+                            setDetailTab(key as typeof detailTab);
+                            if (key === "notes") setMessageMode("note");
+                            if (key === "conversation") setMessageMode("reply");
+                          }}
+                          className={cn(
+                            "shrink-0 rounded-md px-2 py-1 text-[0.7rem] font-medium sm:px-2.5 sm:text-xs",
+                            detailTab === key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                )}
-                <div className="flex gap-1 pt-1 border-t border-border/60">
-                  {[
-                    ["conversation", "المحادثة"],
-                    ["notes", "ملاحظات داخلية"],
-                    ["customer", "معلومات العميل"],
-                    ["timeline", "السجل"],
-                  ].map(([key, label]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => {
-                        setDetailTab(key as typeof detailTab);
-                        if (key === "notes") setMessageMode("note");
-                        if (key === "conversation") setMessageMode("reply");
-                      }}
-                      className={cn(
-                        "px-2.5 py-1 rounded-md text-xs font-medium",
-                        detailTab === key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80",
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
                 </div>
               </div>
 
