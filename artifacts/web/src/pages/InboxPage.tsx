@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -158,6 +158,8 @@ export default function InboxPage() {
   const { hasPermission } = useAuth();
   const qc = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const streamRef = useRef<EventSource | null>(null);
+  const selectedConvIdRef = useRef<string | null>(null);
 
   const canRead = hasPermission("conversations:read");
   const canCreate = hasPermission("conversations:create");
@@ -204,6 +206,7 @@ export default function InboxPage() {
   const [quickForm, setQuickForm] = useState({ title: "", priority: "normal", type: "manual", dueAt: "", notes: "" });
   const [orderForm, setOrderForm] = useState({ channel: "manual", currency: "YER", notes: "" });
   const [realtimeStatus, setRealtimeStatus] = useState<InboxStreamStatus>("reconnecting");
+  selectedConvIdRef.current = selectedConvId;
 
   const params = new URLSearchParams();
   if (viewFilter) params.set("view", viewFilter);
@@ -296,20 +299,59 @@ export default function InboxPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [detail?.messages?.length]);
 
+  const refreshInboxQueries = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ["conversations"] });
+    const currentConversationId = selectedConvIdRef.current;
+    if (currentConversationId) {
+      qc.invalidateQueries({ queryKey: ["conversation", currentConversationId] });
+    }
+  }, [qc]);
+
+  const closeInboxStream = useCallback(() => {
+    streamRef.current?.close();
+    streamRef.current = null;
+    setRealtimeStatus("closed");
+  }, []);
+
+  const openFreshInboxStream = useCallback(() => {
+    if (!canRead) return;
+    streamRef.current?.close();
+    streamRef.current = openInboxStream({
+      onStatus: setRealtimeStatus,
+      onMessageReceived: refreshInboxQueries,
+    });
+  }, [canRead, refreshInboxQueries]);
+
+  useEffect(() => {
+    if (!canRead) {
+      closeInboxStream();
+      return;
+    }
+    openFreshInboxStream();
+    return closeInboxStream;
+  }, [canRead, closeInboxStream, openFreshInboxStream]);
+
   useEffect(() => {
     if (!canRead) return;
-    const stream = openInboxStream({
-      onStatus: setRealtimeStatus,
-      onMessageReceived: () => {
-        qc.invalidateQueries({ queryKey: ["conversations"] });
-        if (selectedConvId) qc.invalidateQueries({ queryKey: ["conversation", selectedConvId] });
-      },
-    });
-    return () => {
-      setRealtimeStatus("closed");
-      stream.close();
+
+    const reconnectAndRefresh = () => {
+      openFreshInboxStream();
+      refreshInboxQueries();
     };
-  }, [canRead, qc, selectedConvId]);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") reconnectAndRefresh();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pageshow", reconnectAndRefresh);
+    window.addEventListener("online", reconnectAndRefresh);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", reconnectAndRefresh);
+      window.removeEventListener("online", reconnectAndRefresh);
+    };
+  }, [canRead, openFreshInboxStream, refreshInboxQueries]);
 
   const invalidateDetail = () => {
     qc.invalidateQueries({ queryKey: ["conversation", selectedConvId] });
