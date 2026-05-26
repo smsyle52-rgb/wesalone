@@ -88,6 +88,20 @@ export default function AgentsPage() {
 
   const agents: AgentRow[] = agentsQuery.data?.agents ?? [];
   const provider = providerQuery.data;
+  const providerStatusLabel = provider?.provider === "vertex" && !provider?.fallbackMode
+    ? t("agents.provider.vertex")
+    : provider?.provider === "gemini" && !provider?.fallbackMode
+      ? t("agents.provider.gemini")
+      : provider?.fallbackMode
+        ? t("agents.provider.fallback")
+        : t("agents.provider.mock");
+  const providerStatusDotClass = provider?.provider === "vertex" && !provider?.fallbackMode
+    ? "bg-emerald-500"
+    : provider?.provider === "gemini" && !provider?.fallbackMode
+      ? "bg-sky-500"
+      : provider?.fallbackMode
+        ? "bg-amber-500"
+        : "bg-muted-foreground";
 
   const columns = [
     { key: "name", label: t("agents.table.name"), render: (row: AgentRow) => <button className="font-medium text-primary hover:underline" onClick={() => setLocation(`/agents/${row.id}`)}>{row.name}</button> },
@@ -148,16 +162,11 @@ export default function AgentsPage() {
         }
       />
 
-      <div className="mb-4 rounded-lg border border-border bg-card p-4 text-sm">
-        <div className="font-semibold">{t("agents.providerStatus")}</div>
-        <div className="mt-1 text-muted-foreground">
-          {provider?.provider === "vertex" && !provider?.fallbackMode
-            ? t("agents.provider.vertex")
-            : provider?.provider === "gemini" && !provider?.fallbackMode
-              ? t("agents.provider.gemini")
-              : provider?.fallbackMode
-                ? t("agents.provider.fallback")
-                : t("agents.provider.mock")}
+      <div className="mb-3 flex justify-start">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs shadow-sm">
+          <span aria-hidden="true" className={`h-2 w-2 rounded-full ${providerStatusDotClass}`} />
+          <span className="font-semibold text-foreground">{t("agents.providerStatus")}</span>
+          <span className="text-muted-foreground">{providerStatusLabel}</span>
         </div>
       </div>
 
