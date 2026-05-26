@@ -192,7 +192,7 @@ export default function DashboardPage() {
 
   return (
     <div dir="rtl">
-      <div className="space-y-5 lg:hidden">
+      <div className="block space-y-5 lg:hidden">
         <div className="space-y-3">
           <div>
             <h1 className="text-xl font-extrabold text-foreground">{`${greeting}، ${user?.name?.split(" ")[0] ?? "مرحبًا"}`}</h1>
