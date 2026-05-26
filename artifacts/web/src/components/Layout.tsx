@@ -184,10 +184,10 @@ export default function Layout({ children }: { children: ReactNode }) {
         className={cn(
           "fixed inset-y-0 end-0 z-30 flex w-72 flex-col border-s border-sidebar-border bg-sidebar transition-transform duration-300 lg:relative lg:translate-x-0",
           sidebarOpen
-            ? "translate-x-0"
+            ? "pointer-events-auto translate-x-0"
             : direction === "rtl"
-              ? "-translate-x-full lg:translate-x-0"
-              : "translate-x-full lg:translate-x-0"
+              ? "pointer-events-none -translate-x-full lg:pointer-events-auto lg:translate-x-0"
+              : "pointer-events-none translate-x-full lg:pointer-events-auto lg:translate-x-0"
         )}
       >
         <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">

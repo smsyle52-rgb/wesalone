@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
 import { PaymentMethodsTab } from "@/components/settings/PaymentMethodsTab";
 import { ExchangeRatesTab } from "@/components/settings/ExchangeRatesTab";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
 const apiFetch = async (path: string, opts?: RequestInit) => {
@@ -867,6 +867,7 @@ export default function SettingsPage() {
   const { hasPermission } = useAuth();
   const qc = useQueryClient();
   const [location] = useLocation();
+  const search = useSearch();
   const [tab, setTabState] = useState<Tab>(readTabFromUrl);
   const [inviteForm, setInviteForm] = useState({ email: "", name: "", password: "", role: "agent" });
   const [inviteError, setInviteError] = useState("");
@@ -892,7 +893,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setTabState(readTabFromUrl());
-  }, [location]);
+  }, [location, search]);
 
   const { data: usersData, isError: usersIsError, error: usersError } = useQuery({
     queryKey: ["workspace-users"],
