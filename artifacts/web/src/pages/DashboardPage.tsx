@@ -3,14 +3,18 @@ import { Link } from "wouter";
 import {
   AlertTriangle,
   BarChart3,
+  Bot,
   CheckCircle2,
+  CheckSquare,
   Clock3,
   CreditCard,
   Inbox,
   Package,
   RefreshCw,
+  ShoppingBag,
   TrendingUp,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -36,6 +40,14 @@ type ActivityItem = {
   entityLabel?: string;
   action?: string;
   actorName?: string;
+};
+
+type MobileTile = {
+  label: string;
+  href: string;
+  permission: string;
+  icon: LucideIcon;
+  badge?: number;
 };
 
 async function apiFetch(path: string) {
@@ -167,9 +179,144 @@ export default function DashboardPage() {
   const greeting = hour < 12 ? "صباح الخير" : hour < 17 ? "مساء الخير" : "مساء النور";
   const openConversations = summary?.openConversations ?? 0;
   const closedToday = summary?.closedConversationsToday ?? 0;
+  const mobileTiles: MobileTile[] = [
+    { label: "الوارد", href: "/inbox", permission: "conversations:read", icon: Inbox, badge: openConversations },
+    { label: "الوكلاء", href: "/agents", permission: "ai:read", icon: Bot },
+    { label: "المنتجات", href: "/catalog", permission: "catalog:read", icon: ShoppingBag },
+    { label: "الطلبات", href: "/orders", permission: "orders:read", icon: Package, badge: summary?.ordersToday ?? 0 },
+    { label: "العملاء", href: "/contacts", permission: "contacts:read", icon: Users },
+    { label: "المدفوعات", href: "/payments", permission: "payments:read", icon: CreditCard },
+    { label: "المهام", href: "/tasks", permission: "tasks:read", icon: CheckSquare, badge: summary?.pendingFollowups ?? 0 },
+    { label: "التحليلات", href: "/analytics", permission: "analytics:read", icon: BarChart3 },
+  ].filter((tile) => hasPermission(tile.permission));
 
   return (
-    <div className="space-y-8" dir="rtl">
+    <div dir="rtl">
+      <div className="space-y-5 lg:hidden">
+        <div className="space-y-3">
+          <div>
+            <h1 className="text-xl font-extrabold text-foreground">{`${greeting}، ${user?.name?.split(" ")[0] ?? "مرحبًا"}`}</h1>
+            <p className="mt-1 text-xs leading-6 text-muted-foreground">
+              لوحة سريعة لاختيار القسم التالي ومراجعة أهم التنبيهات.
+            </p>
+          </div>
+          <Button asChild className="w-full">
+            <Link href="/inbox">فتح صندوق الوارد</Link>
+          </Button>
+        </div>
+
+        <Card className="overflow-hidden border-primary/10 bg-gradient-to-l from-primary/8 via-card to-accent/10">
+          <CardContent className="space-y-3 p-4">
+            <div>
+              <p className="text-xs font-bold text-primary">دليل التشغيل السريع</p>
+              <h2 className="mt-1 text-base font-extrabold text-foreground">ابدأ من الخطوات التي تجعل التجربة مفهومة لفريقك</h2>
+              <p className="mt-1 text-xs leading-6 text-muted-foreground">
+                وصال ون يجمع المحادثات، المتابعة، الكتالوج، والوكيل الذكي في مسار واحد.
+              </p>
+            </div>
+            <div className="grid gap-2">
+              {setupSteps.map((step, index) => (
+                <div key={step} className="rounded-lg border border-border/80 bg-card/80 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[0.68rem] font-black text-primary-foreground">{index + 1}</span>
+                    <span className="text-xs font-bold text-foreground">{step}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {!canViewAnalytics ? (
+          <Card className="border-amber-200 bg-amber-50">
+            <CardContent className="flex items-center gap-3 p-4 text-amber-800">
+              <AlertTriangle className="h-5 w-5" />
+              <span className="text-xs font-bold">تحتاج صلاحية التحليلات لعرض مؤشرات لوحة التحكم.</span>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {isError && (
+              <Card className="border-destructive/20 bg-destructive/5">
+                <CardContent className="flex items-center justify-between gap-3 p-3 text-xs text-destructive">
+                  <span className="font-bold">تعذر تحميل بيانات لوحة التحكم.</span>
+                  <Button variant="outline" size="sm" onClick={() => refetch()}>
+                    <RefreshCw className="h-4 w-4" />
+                    إعادة المحاولة
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-card p-2">
+              {[
+                ["تجاوز SLA", summary?.slaBreachedConversations ?? 0],
+                ["مدفوعات معلقة", summary?.pendingPayments ?? 0],
+                ["متابعات معلقة", summary?.pendingFollowups ?? 0],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-lg bg-secondary/70 px-2 py-2 text-center">
+                  <div className="text-lg font-extrabold text-foreground">{value}</div>
+                  <div className="mt-0.5 text-[0.68rem] font-bold leading-4 text-muted-foreground">{label}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          {mobileTiles.map((tile) => {
+            const Icon = tile.icon;
+            return (
+              <Link key={tile.href} href={tile.href}>
+                <span className="relative flex aspect-square flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card p-3 text-center shadow-sm transition-colors active:bg-muted">
+                  {tile.badge ? (
+                    <span className="absolute end-2 top-2 min-w-6 rounded-full bg-primary px-1.5 py-0.5 text-xs font-black text-primary-foreground">
+                      {tile.badge}
+                    </span>
+                  ) : null}
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Icon className="h-6 w-6" />
+                  </span>
+                  <span className="text-sm font-extrabold text-foreground">{tile.label}</span>
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+
+        {canViewAnalytics && (
+          <Card>
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-base">آخر النشاطات</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-2">
+              {!activity?.activities?.length ? (
+                <div className="rounded-lg border border-dashed border-border p-4 text-center">
+                  <BarChart3 className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+                  <p className="text-sm font-bold text-foreground">لا توجد نشاطات بعد</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {activity.activities.slice(0, 3).map((item, index) => (
+                    <div key={`${item.action}-${index}`} className="flex items-start gap-2 rounded-lg bg-secondary/45 p-2">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <BarChart3 className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-bold text-foreground">{item.entityLabel || item.action || "نشاط جديد"}</div>
+                        <div className="text-[0.68rem] text-muted-foreground">{item.actorName ?? "النظام"}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      <div className="hidden lg:block">
+        <div className="space-y-8">
       <PageHeader
         title={`${greeting}، ${user?.name?.split(" ")[0] ?? "مرحبًا"}`}
         subtitle="لوحة هادئة تلخص أداء المحادثات والعملاء والمبيعات، وتساعدك على اختيار الخطوة التالية بثقة."
@@ -316,6 +463,8 @@ export default function DashboardPage() {
           </DashboardSection>
         </>
       )}
+        </div>
+      </div>
     </div>
   );
 }
