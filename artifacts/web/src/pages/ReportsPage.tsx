@@ -62,7 +62,7 @@ function GeneratedReportView({ data, type }: { data: Record<string, unknown>; ty
         return (
           <div key={key} className="flex items-center justify-between py-1.5 border-b border-border/30">
             <span className="text-sm text-muted-foreground">{key}</span>
-            <span className="text-sm font-medium text-foreground">{typeof val === "number" ? Number(val).toLocaleString("ar-SA") : String(val ?? "—")}</span>
+            <span className="text-sm font-medium text-foreground">{typeof val === "number" ? Number(val).toLocaleString("ar-SA-u-nu-latn") : String(val ?? "—")}</span>
           </div>
         );
       })}
@@ -167,7 +167,7 @@ export default function ReportsPage() {
                 <div className="font-medium text-foreground">{def.name}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">{TYPE_LABELS[def.type] ?? def.type}</div>
                 {def.description && <div className="text-xs text-muted-foreground mt-1">{def.description}</div>}
-                <div className="text-xs text-muted-foreground/60 mt-1">{new Date(def.createdAt).toLocaleDateString("ar-SA")}</div>
+                <div className="text-xs text-muted-foreground/60 mt-1">{new Date(def.createdAt).toLocaleDateString("ar-SA-u-nu-latn")}</div>
               </div>
               <div className="flex gap-2 shrink-0">
                 {canGenerate && (
@@ -211,7 +211,7 @@ export default function ReportsPage() {
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    من {r.dateFrom} إلى {r.dateTo} · تم التوليد {new Date(r.createdAt).toLocaleDateString("ar-SA")}
+                    من {r.dateFrom} إلى {r.dateTo} · تم التوليد {new Date(r.createdAt).toLocaleDateString("ar-SA-u-nu-latn")}
                   </div>
                 </div>
                 <button onClick={() => setSelectedReport(selectedReport?.id === r.id ? null : { ...r.data as Record<string, unknown>, id: r.id })}

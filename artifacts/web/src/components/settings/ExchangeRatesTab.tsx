@@ -30,7 +30,7 @@ interface ExchangeRate {
 const emptyForm = { fromCurrency: "SAR" as "SAR" | "USD", rate: "", effectiveAt: "" };
 
 function fmt(dateStr: string) {
-  return new Date(dateStr).toLocaleString("ar-YE", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(dateStr).toLocaleString("ar-YE-u-nu-latn", { dateStyle: "medium", timeStyle: "short" });
 }
 
 function validRate(rate: string | number | null | undefined) {
@@ -134,7 +134,7 @@ export function ExchangeRatesTab() {
               <div key={r.id} className="bg-card rounded-xl border border-border p-4">
                 <div className="flex items-baseline gap-2 justify-between">
                   <div>
-                    <span className="text-lg font-bold text-foreground">{validRate(r.rate)?.toLocaleString("ar") ?? "لم يتم ضبط سعر الصرف"}</span>
+                    <span className="text-lg font-bold text-foreground">{validRate(r.rate)?.toLocaleString("ar-u-nu-latn") ?? "لم يتم ضبط سعر الصرف"}</span>
                     {validRate(r.rate) && <span className="text-xs text-muted-foreground ms-1">ر.ي</span>}
                   </div>
                   <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary" dir="ltr">
@@ -185,7 +185,7 @@ export function ExchangeRatesTab() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-sm text-foreground" dir="ltr">
-                    1 {r.fromCurrency} = {rate ? rate.toLocaleString("ar", { minimumFractionDigits: 2 }) : "لم يتم ضبط سعر الصرف"} {rate ? r.toCurrency : ""}
+                    1 {r.fromCurrency} = {rate ? rate.toLocaleString("ar-u-nu-latn", { minimumFractionDigits: 2 }) : "لم يتم ضبط سعر الصرف"} {rate ? r.toCurrency : ""}
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">{fmt(r.effectiveAt)}</div>

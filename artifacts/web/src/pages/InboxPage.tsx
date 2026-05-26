@@ -285,7 +285,7 @@ export default function InboxPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: `عرض محفوظ ${new Date().toLocaleTimeString("ar-YE", { hour: "2-digit", minute: "2-digit" })}`,
+        name: `عرض محفوظ ${new Date().toLocaleTimeString("ar-YE-u-nu-latn", { hour: "2-digit", minute: "2-digit" })}`,
         resource: "conversations",
         filters: { view: viewFilter, status: statusFilter, search: searchQuery, channel: channelFilter, assignee: assigneeFilter },
         isPinned: true,

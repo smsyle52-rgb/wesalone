@@ -128,7 +128,7 @@ function DistributionPanel({ title, rows }: { title: string; rows: { label: stri
           <div key={row.label}>
             <div className="mb-1 flex justify-between text-sm">
               <span className="font-bold text-foreground">{row.label}</span>
-              <span className="text-muted-foreground">{row.value.toLocaleString("ar-YE")}</span>
+              <span className="text-muted-foreground">{row.value.toLocaleString("ar-YE-u-nu-latn")}</span>
             </div>
             <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
               <div className={cn("h-full rounded-full", row.color)} style={{ width: `${Math.round((row.value / total) * 100)}%` }} />

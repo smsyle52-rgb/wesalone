@@ -722,7 +722,7 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
             <div className="bg-muted/40 rounded-lg p-3">
               <p className="text-xs text-muted-foreground">إجمالي الإنفاق</p>
               <p className="text-2xl font-bold text-foreground mt-1">
-                {Number(contact.totalSpent).toLocaleString("ar-YE")} <span className="text-sm font-normal">ر.ي</span>
+                {Number(contact.totalSpent).toLocaleString("ar-YE-u-nu-latn")} <span className="text-sm font-normal">ر.ي</span>
               </p>
             </div>
           </div>

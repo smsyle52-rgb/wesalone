@@ -106,7 +106,7 @@ export function NotificationCenter() {
                     <div className="text-sm font-bold text-foreground">{item.titleAr}</div>
                     <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.bodyAr}</div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {new Date(item.createdAt).toLocaleString("ar")}
+                      {new Date(item.createdAt).toLocaleString("ar-u-nu-latn")}
                     </div>
                   </div>
                 </div>

@@ -85,11 +85,11 @@ export default function AdminPaymentsPage() {
             <div key={item.id} className="grid grid-cols-[1.2fr_1fr_1fr_1fr_1.4fr] gap-3 border-b border-border/60 px-4 py-4 text-sm last:border-0">
               <div>
                 <div className="font-bold text-foreground">{item.workspaceName}</div>
-                <div className="text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString("ar")}</div>
+                <div className="text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString("ar-u-nu-latn")}</div>
               </div>
               <div>{item.planNameAr ?? item.planName}</div>
               <div>
-                <div className="font-bold">{Number(item.amountYer).toLocaleString("ar")} ريال</div>
+                <div className="font-bold">{Number(item.amountYer).toLocaleString("ar-u-nu-latn")} ريال</div>
                 <div className="text-xs text-muted-foreground">{item.paymentMethod} · {item.reference || "بدون مرجع"}</div>
               </div>
               <div><span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-muted-foreground">{statusLabels[item.status] ?? item.status}</span></div>

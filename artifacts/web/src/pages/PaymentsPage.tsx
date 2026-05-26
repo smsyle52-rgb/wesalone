@@ -284,7 +284,7 @@ export default function PaymentsPage() {
 
                 return (
                   <span key={r.id} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2.5 py-1 rounded-full">
-                    {rate ? `1 ${r.fromCurrency} = ${rate.toLocaleString("ar-YE")} ${r.toCurrency}` : `1 ${r.fromCurrency} = لم يتم ضبط سعر الصرف`}
+                    {rate ? `1 ${r.fromCurrency} = ${rate.toLocaleString("ar-YE-u-nu-latn")} ${r.toCurrency}` : `1 ${r.fromCurrency} = لم يتم ضبط سعر الصرف`}
                   </span>
                 );
               })}

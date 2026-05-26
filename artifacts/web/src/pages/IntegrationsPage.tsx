@@ -232,7 +232,7 @@ export default function IntegrationsPage() {
                 <ConnectedChannelCard channel={channel} />
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-3">
                   <span className="text-xs text-muted-foreground">
-                    آخر نشاط: {channel.updatedAt ? new Date(channel.updatedAt).toLocaleString("ar-YE") : "غير متاح"}
+                    آخر نشاط: {channel.updatedAt ? new Date(channel.updatedAt).toLocaleString("ar-YE-u-nu-latn") : "غير متاح"}
                   </span>
                   <button
                     type="button"

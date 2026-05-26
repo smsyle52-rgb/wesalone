@@ -516,7 +516,7 @@ function BillingTabV2() {
   };
   const prettyLimit = (value: unknown) => {
     if (value === "all" || value === "unlimited" || value === -1) return "غير محدود";
-    return typeof value === "number" ? value.toLocaleString("ar") : String(value ?? "غير محدود");
+    return typeof value === "number" ? value.toLocaleString("ar-u-nu-latn") : String(value ?? "غير محدود");
   };
 
   function limitValue(key: string) {
@@ -552,8 +552,8 @@ function BillingTabV2() {
           <h3 className="mt-2 text-3xl font-black text-foreground">{current?.planNameAr ?? current?.planName ?? "تجربة مجانية"}</h3>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <span className="rounded-full bg-primary/10 px-3 py-1 font-bold text-primary">{current?.status ?? "trialing"}</span>
-            {current?.trialEndsAt && <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">تنتهي التجربة: {new Date(current.trialEndsAt).toLocaleDateString("ar")}</span>}
-            {current?.currentPeriodEnd && <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">نهاية الفترة: {new Date(current.currentPeriodEnd).toLocaleDateString("ar")}</span>}
+            {current?.trialEndsAt && <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">تنتهي التجربة: {new Date(current.trialEndsAt).toLocaleDateString("ar-u-nu-latn")}</span>}
+            {current?.currentPeriodEnd && <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">نهاية الفترة: {new Date(current.currentPeriodEnd).toLocaleDateString("ar-u-nu-latn")}</span>}
           </div>
           <p className="mt-4 text-sm leading-7 text-muted-foreground">الفوترة في وصال ون يدوية ومناسبة للسوق اليمني. لا يوجد خصم تلقائي أو بوابة دفع في هذه المرحلة، وكل طلب دفع تتم مراجعته قبل تفعيل الباقة.</p>
         </section>
@@ -605,13 +605,13 @@ function BillingTabV2() {
                   <h4 className="text-lg font-black text-foreground">{plan.nameAr ?? plan.name}</h4>
                   {active && <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">حالية</span>}
                 </div>
-                <div className="mt-3 text-2xl font-black text-primary">{Number(price ?? 0).toLocaleString("ar")} <span className="text-xs text-muted-foreground">ريال</span></div>
+                <div className="mt-3 text-2xl font-black text-primary">{Number(price ?? 0).toLocaleString("ar-u-nu-latn")} <span className="text-xs text-muted-foreground">ريال</span></div>
                 {billingCycle === "annual" && <p className="mt-1 text-xs font-bold text-accent">خصم سنوي تقريبي 20%</p>}
                 <ul className="mt-4 space-y-2 text-xs text-muted-foreground">
                   <li>القنوات: {plan.limits?.channels ?? "غير محدود"}</li>
                   <li>الوكلاء: {plan.limits?.agents ?? "غير محدود"}</li>
-                  <li>الرسائل الشهرية: {plan.limits?.monthly_messages?.toLocaleString?.("ar") ?? "غير محدود"}</li>
-                  <li>جهات الاتصال: {plan.limits?.contacts?.toLocaleString?.("ar") ?? "غير محدود"}</li>
+                  <li>الرسائل الشهرية: {plan.limits?.monthly_messages?.toLocaleString?.("ar-u-nu-latn") ?? "غير محدود"}</li>
+                  <li>جهات الاتصال: {plan.limits?.contacts?.toLocaleString?.("ar-u-nu-latn") ?? "غير محدود"}</li>
                 </ul>
                 <div className="mt-4 border-t border-border/60 pt-3 text-xs text-muted-foreground">
                   <p className="mb-2 font-bold text-foreground">المزايا</p>
@@ -676,8 +676,8 @@ function BillingTabV2() {
           ) : data.paymentSubmissions.map((item: any) => (
             <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
               <div>
-                <div className="font-bold text-foreground">{item.planNameAr ?? item.planName} - {Number(item.amountYer).toLocaleString("ar")} ريال</div>
-                <div className="text-muted-foreground">{item.paymentMethod} · {item.reference || "بدون مرجع"} · {new Date(item.createdAt).toLocaleDateString("ar")}</div>
+                <div className="font-bold text-foreground">{item.planNameAr ?? item.planName} - {Number(item.amountYer).toLocaleString("ar-u-nu-latn")} ريال</div>
+                <div className="text-muted-foreground">{item.paymentMethod} · {item.reference || "بدون مرجع"} · {new Date(item.createdAt).toLocaleDateString("ar-u-nu-latn")}</div>
               </div>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-muted-foreground">{item.status}</span>
             </div>

@@ -61,8 +61,8 @@ export default function BroadcastsPage() {
     { key: "name", label: t("broadcasts.table.name"), render: (row: BroadcastRow) => <span className="font-medium">{row.name}</span> },
     { key: "templateName", label: t("broadcasts.table.template"), render: (row: BroadcastRow) => row.templateName ?? "—" },
     { key: "status", label: t("broadcasts.table.status"), render: (row: BroadcastRow) => <StatusBadge status={row.status} /> },
-    { key: "audience", label: t("broadcasts.table.audience"), render: (row: BroadcastRow) => Number(row.stats?.total ?? 0).toLocaleString("ar-YE") },
-    { key: "sent", label: t("broadcasts.table.sent"), render: (row: BroadcastRow) => Number(row.stats?.sent ?? 0).toLocaleString("ar-YE") },
+    { key: "audience", label: t("broadcasts.table.audience"), render: (row: BroadcastRow) => Number(row.stats?.total ?? 0).toLocaleString("ar-YE-u-nu-latn") },
+    { key: "sent", label: t("broadcasts.table.sent"), render: (row: BroadcastRow) => Number(row.stats?.sent ?? 0).toLocaleString("ar-YE-u-nu-latn") },
     { key: "scheduledAt", label: t("broadcasts.table.scheduledAt"), render: (row: BroadcastRow) => formatDateTime(row.scheduledAt) },
     {
       key: "actions",

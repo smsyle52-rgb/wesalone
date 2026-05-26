@@ -5,19 +5,26 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export const AR_LOCALE = "ar-YE-u-nu-latn";
+
+export function formatNumber(amount: number | string) {
+  const n = typeof amount === "string" ? parseFloat(amount) : amount;
+  return n.toLocaleString(AR_LOCALE);
+}
+
 export function formatCurrency(amount: number | string, currency = "YER") {
   const n = typeof amount === "string" ? parseFloat(amount) : amount;
-  return `${n.toLocaleString("ar-YE")} ${currency === "YER" ? "ر.ي" : currency}`;
+  return `${formatNumber(n)} ${currency === "YER" ? "ر.ي" : currency}`;
 }
 
 export function formatDate(date: string | Date | null | undefined) {
   if (!date) return "—";
-  return new Date(date).toLocaleDateString("ar-YE", { year: "numeric", month: "short", day: "numeric" });
+  return new Date(date).toLocaleDateString(AR_LOCALE, { year: "numeric", month: "short", day: "numeric" });
 }
 
 export function formatDateTime(date: string | Date | null | undefined) {
   if (!date) return "—";
-  return new Date(date).toLocaleString("ar-YE", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(date).toLocaleString(AR_LOCALE, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 export function timeAgo(date: string | Date | null | undefined) {

@@ -88,7 +88,7 @@ export default function BroadcastDetailPage({ broadcastId }: { broadcastId: stri
         {cards.map((key) => (
           <div key={key} className="rounded-xl border border-border bg-card p-4">
             <div className="text-sm text-muted-foreground">{t(`broadcasts.stats.${key}`)}</div>
-            <div className="mt-2 text-2xl font-bold">{Number(stats[key] ?? 0).toLocaleString("ar-YE")}</div>
+            <div className="mt-2 text-2xl font-bold">{Number(stats[key] ?? 0).toLocaleString("ar-YE-u-nu-latn")}</div>
           </div>
         ))}
       </div>

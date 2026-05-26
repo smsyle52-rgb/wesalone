@@ -66,7 +66,7 @@ export default function AutomationsPage() {
     { key: "name", label: t("automations.table.name"), render: (row: AutomationRow) => <span className="font-medium">{row.name}</span> },
     { key: "trigger", label: t("automations.table.trigger"), render: (row: AutomationRow) => t(`automations.triggers.${row.trigger?.type ?? "unknown"}`, { defaultValue: row.trigger?.type ?? "—" }) },
     { key: "status", label: t("automations.table.status"), render: (row: AutomationRow) => <StatusBadge status={row.status} /> },
-    { key: "runCount", label: t("automations.table.runCount"), render: (row: AutomationRow) => Number(row.runCount ?? 0).toLocaleString("ar-YE") },
+    { key: "runCount", label: t("automations.table.runCount"), render: (row: AutomationRow) => Number(row.runCount ?? 0).toLocaleString("ar-YE-u-nu-latn") },
     { key: "lastRunAt", label: t("automations.table.lastRunAt"), render: (row: AutomationRow) => formatDateTime(row.lastRunAt) },
     {
       key: "actions",

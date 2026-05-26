@@ -338,7 +338,7 @@ function CountUp({ target, suffix, active }: { target: number; suffix: string; a
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [active, target]);
-  return <>{value.toLocaleString("ar")}{suffix}</>;
+  return <>{value.toLocaleString("ar-u-nu-latn")}{suffix}</>;
 }
 
 export function HowItWorks() {

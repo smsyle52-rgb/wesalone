@@ -47,7 +47,7 @@ function normalizeNumber(value: unknown): number {
 }
 
 function formatNumber(value: unknown) {
-  return normalizeNumber(value).toLocaleString("ar-SA");
+  return normalizeNumber(value).toLocaleString("ar-SA-u-nu-latn");
 }
 
 function StatCard({ label, value, sub }: { label: string; value: unknown; sub?: string }) {
@@ -77,9 +77,9 @@ function StatusTable({ rows, statusLabel = "الحالة" }: { rows: { status?: 
           {rows.map((r, i) => (
             <tr key={i} className="border-b border-border/50 hover:bg-muted/30">
               <td className="py-2 pe-2 text-foreground">{r.status ?? r.stage ?? r.taskType ?? r.direction ?? r.provider ?? r.channel ?? "—"}</td>
-              <td className="py-2 font-medium">{r.count.toLocaleString("ar-SA")}</td>
-              {r.total !== undefined && <td className="py-2 text-muted-foreground">{Number(r.total).toLocaleString("ar-SA")}</td>}
-              {r.value !== undefined && <td className="py-2 text-muted-foreground">{Number(r.value).toLocaleString("ar-SA")}</td>}
+              <td className="py-2 font-medium">{r.count.toLocaleString("ar-SA-u-nu-latn")}</td>
+              {r.total !== undefined && <td className="py-2 text-muted-foreground">{Number(r.total).toLocaleString("ar-SA-u-nu-latn")}</td>}
+              {r.value !== undefined && <td className="py-2 text-muted-foreground">{Number(r.value).toLocaleString("ar-SA-u-nu-latn")}</td>}
             </tr>
           ))}
         </tbody>
@@ -219,9 +219,9 @@ export default function AnalyticsPage() {
       {tab === "sales" && sales.data && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <StatCard label="صفقات مكتسبة" value={sales.data.wonCount} sub={`${Number(sales.data.wonValue).toLocaleString("ar-SA")} ر.ي`} />
+            <StatCard label="صفقات مكتسبة" value={sales.data.wonCount} sub={`${Number(sales.data.wonValue).toLocaleString("ar-SA-u-nu-latn")} ر.ي`} />
             <StatCard label="صفقات خسرت" value={sales.data.lostCount} />
-            <StatCard label="إجمالي الطلبات" value={sales.data.ordersCount} sub={`${Number(sales.data.ordersTotal).toLocaleString("ar-SA")} ر.ي`} />
+            <StatCard label="إجمالي الطلبات" value={sales.data.ordersCount} sub={`${Number(sales.data.ordersTotal).toLocaleString("ar-SA-u-nu-latn")} ر.ي`} />
             <StatCard label="متوسط قيمة الطلب" value={sales.data.avgOrderValue} sub="ر.ي" />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -298,11 +298,11 @@ export default function AnalyticsPage() {
                         <div className="font-medium text-foreground">{m.name}</div>
                         <div className="text-xs text-muted-foreground">{m.email}</div>
                       </td>
-                      <td className="py-3 px-3">{m.messagesSent.toLocaleString("ar-SA")}</td>
-                      <td className="py-3 px-3">{m.tasksCompleted.toLocaleString("ar-SA")}</td>
-                      <td className="py-3 px-3">{m.followupsCompleted.toLocaleString("ar-SA")}</td>
-                      <td className="py-3 px-3">{m.ordersCreated.toLocaleString("ar-SA")}</td>
-                      <td className="py-3 px-3">{m.paymentsRecorded.toLocaleString("ar-SA")}</td>
+                      <td className="py-3 px-3">{m.messagesSent.toLocaleString("ar-SA-u-nu-latn")}</td>
+                      <td className="py-3 px-3">{m.tasksCompleted.toLocaleString("ar-SA-u-nu-latn")}</td>
+                      <td className="py-3 px-3">{m.followupsCompleted.toLocaleString("ar-SA-u-nu-latn")}</td>
+                      <td className="py-3 px-3">{m.ordersCreated.toLocaleString("ar-SA-u-nu-latn")}</td>
+                      <td className="py-3 px-3">{m.paymentsRecorded.toLocaleString("ar-SA-u-nu-latn")}</td>
                     </tr>
                   ))}
                 </tbody>
