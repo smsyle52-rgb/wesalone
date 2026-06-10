@@ -82,6 +82,10 @@
   --radius: 0.625rem;
   --app-font-sans: "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
   --space-page: clamp(1rem, 2vw, 1.75rem);
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.25rem;
   --shadow-soft: 0 14px 36px rgba(27, 58, 92, .07);
   --shadow-hover: 0 18px 45px rgba(27, 58, 92, .11);
 }

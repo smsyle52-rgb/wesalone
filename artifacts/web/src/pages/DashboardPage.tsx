@@ -268,14 +268,14 @@ export default function DashboardPage() {
             const Icon = tile.icon;
             return (
               <Link key={tile.href} href={tile.href}>
-                <span className="relative flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center shadow-sm transition-colors active:bg-muted">
+                <span className="relative flex min-h-[4.25rem] flex-col items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 py-2.5 text-center shadow-sm transition-colors active:bg-muted">
                   {tile.badge ? (
                     <span className="absolute end-1.5 top-1.5 min-w-5 rounded-full bg-primary px-1 py-0.5 text-[0.62rem] font-black leading-none text-primary-foreground">
                       {tile.badge}
                     </span>
                   ) : null}
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="h-4 w-4" />
                   </span>
                   <span className="text-xs font-extrabold leading-4 text-foreground">{tile.label}</span>
                 </span>
