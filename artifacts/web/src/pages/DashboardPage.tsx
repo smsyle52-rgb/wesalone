@@ -11,6 +11,7 @@ import {
   Inbox,
   Package,
   RefreshCw,
+  Settings,
   ShoppingBag,
   TrendingUp,
   Users,
@@ -188,21 +189,22 @@ export default function DashboardPage() {
     { label: "المدفوعات", href: "/payments", permission: "payments:read", icon: CreditCard },
     { label: "المهام", href: "/tasks", permission: "tasks:read", icon: CheckSquare, badge: summary?.pendingFollowups ?? 0 },
     { label: "التحليلات", href: "/analytics", permission: "analytics:read", icon: BarChart3 },
+    { label: "الإعدادات", href: "/settings", permission: "settings:read", icon: Settings },
   ].filter((tile) => hasPermission(tile.permission));
 
   return (
     <div dir="rtl">
       <div className="block space-y-5 lg:hidden">
-        <div className="space-y-3">
+        <div
+          className="-mx-4 -mt-5 flex items-center justify-between bg-white px-4 py-[10px] sm:-mx-6 sm:px-6"
+          style={{ borderBottom: "0.5px solid rgba(27,58,92,0.10)" }}
+        >
           <div>
-            <h1 className="text-xl font-extrabold text-foreground">{`${greeting}، ${user?.name?.split(" ")[0] ?? "مرحبًا"}`}</h1>
-            <p className="mt-1 text-xs leading-6 text-muted-foreground">
-              لوحة سريعة لاختيار القسم التالي ومراجعة أهم التنبيهات.
+            <p className="text-[11px]" style={{ color: "#8A94A0" }}>{greeting}</p>
+            <p className="text-[15px] font-medium" style={{ color: "#1B3A5C" }}>
+              {user?.name?.split(" ")[0] ?? "مرحبًا"}
             </p>
           </div>
-          <Button asChild className="w-full">
-            <Link href="/inbox">فتح صندوق الوارد</Link>
-          </Button>
         </div>
 
         <Card className="overflow-hidden border-primary/10 bg-gradient-to-l from-primary/8 via-card to-accent/10">
@@ -263,21 +265,27 @@ export default function DashboardPage() {
           </>
         )}
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2 p-3">
           {mobileTiles.map((tile) => {
             const Icon = tile.icon;
             return (
               <Link key={tile.href} href={tile.href}>
-                <span className="relative flex min-h-[4.25rem] flex-col items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 py-2.5 text-center shadow-sm transition-colors active:bg-muted">
+                <span
+                  className="relative flex flex-col items-center justify-center rounded-2xl bg-white px-[6px] py-[13px] text-center gap-1.5"
+                  style={{ border: "0.5px solid rgba(27,58,92,0.12)" }}
+                >
                   {tile.badge ? (
-                    <span className="absolute end-1.5 top-1.5 min-w-5 rounded-full bg-primary px-1 py-0.5 text-[0.62rem] font-black leading-none text-primary-foreground">
+                    <span
+                      className="absolute end-1.5 top-1.5 min-w-5 rounded px-[5px] text-[10px] font-black leading-none text-white"
+                      style={{ backgroundColor: "#1B3A5C" }}
+                    >
                       {tile.badge}
                     </span>
                   ) : null}
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Icon className="h-4 w-4" />
+                  <Icon className="h-[23px] w-[23px]" style={{ color: "#1B3A5C" }} />
+                  <span className="text-[12px] font-medium" style={{ color: "#16293F" }}>
+                    {tile.label}
                   </span>
-                  <span className="text-xs font-extrabold leading-4 text-foreground">{tile.label}</span>
                 </span>
               </Link>
             );
