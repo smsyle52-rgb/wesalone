@@ -173,6 +173,8 @@ export default function InboxPage() {
   const canCreateOpportunity = hasPermission("opportunities:create");
   const canCreateOrder = hasPermission("orders:create");
   const canUseAI = hasPermission("ai:use");
+  const canManageConversationAgent = hasPermission("conversations:manage");
+  const canReadChannels = hasPermission("channels:read");
   const canReadQuickReplies = hasPermission("quick_replies:read");
   const canWriteSavedViews = hasPermission("saved_views:write");
   const canReadSavedViews = hasPermission("saved_views:read");
@@ -247,6 +249,13 @@ export default function InboxPage() {
     queryKey: ["contacts-mini"],
     queryFn: () => apiFetch("contacts?limit=200"),
     enabled: canCreate,
+  });
+
+  const { data: channelAccountsData } = useQuery({
+    queryKey: ["channel-accounts"],
+    queryFn: () => apiFetch("channels/accounts"),
+    enabled: canRead && canReadChannels,
+    staleTime: 60000,
   });
 
   const { data: quickRepliesData } = useQuery({
@@ -404,6 +413,16 @@ export default function InboxPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ membershipId }),
+      }),
+    onSuccess: invalidateDetail,
+  });
+
+  const changeAgentStatus = useMutation({
+    mutationFn: ({ convId, status }: { convId: string; status: "active" | "paused" | "human" }) =>
+      apiFetch(`conversations/${convId}/agent-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
       }),
     onSuccess: invalidateDetail,
   });
@@ -568,6 +587,25 @@ export default function InboxPage() {
     : [];
 
   const statusActions = conv ? (STATUS_ACTIONS[conv.status] ?? []) : [];
+
+  const channelAccounts: any[] = channelAccountsData?.accounts ?? [];
+  const currentChannelAccount = conv?.channelAccountId
+    ? channelAccounts.find((account) => account.id === conv.channelAccountId)
+    : null;
+  const agentStatus = conv?.agentStatus as "active" | "paused" | "human" | undefined;
+  const showAgentControls = Boolean(conv?.channelAccountId && currentChannelAccount?.defaultAgentId && agentStatus);
+  const agentPausedUntil = conv?.agentPausedUntil ? new Date(conv.agentPausedUntil) : null;
+  const agentPausedUntilLabel = agentPausedUntil && !Number.isNaN(agentPausedUntil.getTime())
+    ? agentPausedUntil.toLocaleTimeString("ar-YE-u-nu-latn", { hour: "2-digit", minute: "2-digit" })
+    : null;
+  const agentBadge =
+    agentStatus === "active"
+      ? { label: "🤖 يرد تلقائياً", className: "bg-green-50 text-green-700 border-green-200" }
+      : agentStatus === "paused"
+        ? { label: `⏸️ موقوف${agentPausedUntilLabel ? ` حتى ${agentPausedUntilLabel}` : ""}`, className: "bg-yellow-50 text-yellow-700 border-yellow-200" }
+        : agentStatus === "human"
+          ? { label: "👤 يرد بشري", className: "bg-gray-50 text-gray-700 border-gray-200" }
+          : null;
 
   if (!canRead) {
     return (
@@ -906,6 +944,25 @@ export default function InboxPage() {
                     <CompactChannelBadge channel={conv.channel} />
                     <PriorityDot priority={conv.priority} />
                     <CompactStatusChip status={conv.status} />
+                    {showAgentControls && agentBadge && (
+                      <div className="flex items-center gap-1">
+                        <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap", agentBadge.className)}>
+                          {agentBadge.label}
+                        </span>
+                        {canManageConversationAgent && (
+                          <button
+                            onClick={() => changeAgentStatus.mutate({
+                              convId: conv.id,
+                              status: agentStatus === "active" ? "paused" : "active",
+                            })}
+                            disabled={changeAgentStatus.isPending}
+                            className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80 border border-border disabled:opacity-50"
+                          >
+                            {agentStatus === "active" ? "أوقف" : "أعد الوكيل"}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

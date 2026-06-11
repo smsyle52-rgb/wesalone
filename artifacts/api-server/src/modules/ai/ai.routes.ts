@@ -19,6 +19,7 @@ import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import { runAI, getProviderStatus, ACTIVE_PROVIDER, getDefaultModel, type AiMessage } from "../../lib/ai-provider";
 import { checkActionSafety, recordSafetyBlock, isSuggestionSafe } from "../../lib/ai-safety";
 import { aiRunLimiter } from "../../lib/rateLimiter";
+import { runAgentReply } from "../../lib/agent-reply";
 import { appendTurn, clear as clearAgentMemory, loadContext, rotate, shouldRotate } from "../../services/agent-memory";
 import { searchKnowledgeForAi } from "../../services/knowledge-retrieval";
 import { shouldAutoSend, type TrustDecision } from "../../services/trust-gate";
@@ -468,7 +469,7 @@ async function loadLocationContext(workspaceId: string, conversation: (typeof co
 const agentCreateSchema = z.object({
   name: z.string().trim().min(1, "الاسم مطلوب").max(200),
   type: z.enum(["support", "sales", "followup", "summarizer", "classifier", "reports", "collections"]).default("support"),
-  defaultModel: z.enum(["gemini_flash", "gemini_flash_lite", "gemini_pro", "mock"]).default("mock"),
+  defaultModel: z.enum(["gemini_flash", "gemini_flash_lite", "gemini_pro", "mock"]).default("gemini_flash"),
   temperature: z.coerce.number().min(0).max(2).default(0.3),
   maxOutputTokens: z.coerce.number().int().min(128).max(8192).default(1024),
   knowledgeBaseIds: z.array(z.string().uuid()).default([]),
@@ -1349,6 +1350,51 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   if (!parse.success) { res.status(400).json({ error: "بيانات غير صالحة", details: parse.error.flatten() }); return; }
 
   const { conversationId, message, agentId, instructions } = parse.data;
+
+  // Phase 1: if channel has a defaultAgentId and no explicit agentId was passed, use the autonomous agent reply
+  if (conversationId && !agentId) {
+    const [convForAgent] = await db.select().from(conversationsTable).where(
+      and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, activeWorkspaceId))
+    );
+    if (convForAgent?.channelAccountId) {
+      const [channelForAgent] = await db.select({ defaultAgentId: channelAccountsTable.defaultAgentId })
+        .from(channelAccountsTable)
+        .where(and(eq(channelAccountsTable.id, convForAgent.channelAccountId), eq(channelAccountsTable.workspaceId, activeWorkspaceId)))
+        .limit(1);
+      if (channelForAgent?.defaultAgentId) {
+        const agentReply = await runAgentReply({
+          workspaceId: activeWorkspaceId,
+          conversationId,
+          agentId: channelForAgent.defaultAgentId,
+          systemUserId: userId,
+        });
+        const [run] = await db.select().from(aiRunsTable).where(
+          and(eq(aiRunsTable.id, agentReply.runId), eq(aiRunsTable.workspaceId, activeWorkspaceId))
+        ).limit(1);
+        const [assistantMsg] = await db.select({ metadata: aiMessagesTable.metadata }).from(aiMessagesTable).where(
+          and(eq(aiMessagesTable.aiRunId, agentReply.runId), eq(aiMessagesTable.workspaceId, activeWorkspaceId), eq(aiMessagesTable.role, "assistant"))
+        ).limit(1);
+        const meta = (assistantMsg?.metadata ?? {}) as Record<string, unknown>;
+        const ks = Array.isArray(meta.knowledgeSources) ? meta.knowledgeSources.filter((s): s is string => typeof s === "string") : [];
+        await createAuditLog({
+          ...auditFromRequest(req, req.sessionUser),
+          action: "ai_run_create",
+          entityType: "ai_run",
+          entityId: agentReply.runId,
+          newData: { taskType: "draft_reply", conversationId, agentId: channelForAgent.defaultAgentId },
+        });
+        res.status(201).json({
+          run,
+          draft: agentReply.reply,
+          knowledgeSources: ks.length > 0 ? ks : null,
+          knowledgeSourcesSummary: ks.length > 0 ? `تم استخدام ${ks.length} مصدر من قاعدة المعرفة` : null,
+          provider: run?.provider,
+        });
+        return;
+      }
+    }
+  }
+
   let model = parse.data.model ?? getDefaultModel();
   let inputRefId: string | undefined = conversationId;
   let transcript = message ? `[العميل]: ${message}` : "";

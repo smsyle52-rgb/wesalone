@@ -1,43 +1,26 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
-import helmet from "helmet";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { v4 as uuidv4 } from "uuid";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { sessionMiddleware } from "./lib/session";
 import { AppError } from "./lib/errors";
 import { securityHeaders, requestId } from "./middlewares/securityHeaders";
 import { env } from "./lib/env";
-import { apiLimiter, webhookLimiter } from "./lib/rateLimiter";
-import webhooksRouter from "./modules/integrations/webhooks.routes";
 
 const app: Express = express();
 
-const allowedOrigins = [
-  ...(process.env.ALLOWED_ORIGINS ?? "").split(","),
-  process.env.PUBLIC_BASE_URL ?? "",
-]
-  .map((origin) => origin.trim().replace(/\/$/, ""))
-  .filter(Boolean);
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "").split(",").filter(Boolean);
 
 app.set("trust proxy", 1);
 
-app.use(helmet());
 app.use(securityHeaders);
 
 app.use(
   pinoHttp({
     logger,
-    genReqId: (req, res) => {
-      const headerValue = req.headers["x-request-id"];
-      const requestIdValue = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-      const id = requestIdValue?.trim() || uuidv4();
-      res.setHeader("X-Request-Id", id);
-      return id;
-    },
     serializers: {
       req(req) {
         return {
@@ -57,16 +40,21 @@ app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.length === 0 || allowedOrigins.includes("*")) {
-        return callback(new Error("Not allowed by CORS"));
-      }
-      const normalizedOrigin = origin.replace(/\/$/, "");
-      if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
+      if (allowedOrigins.length === 0) return callback(null, true);
+      if (allowedOrigins.some((o) => origin.includes(o))) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   }),
 );
+
+const jsonParser = express.json({
+  limit: "10mb",
+  verify: (req, _res, buf) => {
+    (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+  },
+});
+const urlencodedParser = express.urlencoded({ extended: true });
 
 app.use(requestId);
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -74,25 +62,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     next();
     return;
   }
-  const contentLength = Number(req.headers["content-length"] ?? 0);
-  if (contentLength > 1_000_000) {
-    logger.warn({ path: req.path, contentLength }, "Request payload rejected");
-    res.status(413).json({ error: "حجم الطلب أكبر من الحد المسموح", code: "PAYLOAD_TOO_LARGE" });
-    return;
-  }
-  next();
+  jsonParser(req, res, next);
 });
-app.use("/api/webhooks", webhookLimiter);
-app.use("/api/webhooks", express.raw({ type: "application/json", limit: "2mb" }), webhooksRouter);
-app.use("/api", apiLimiter);
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.path.startsWith("/api/webhooks/")) {
     next();
     return;
   }
-  express.json({ limit: "1mb" })(req, res, next);
+  urlencodedParser(req, res, next);
 });
-app.use(express.urlencoded({ extended: true, limit: "200kb" }));
 app.use(sessionMiddleware);
 
 app.use("/api", router);

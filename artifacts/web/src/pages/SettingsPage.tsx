@@ -27,6 +27,7 @@ type Tab =
   | "workspace"
   | "users"
   | "invite"
+  | "channels"
   | "business-hours"
   | "sla"
   | "quick-replies"
@@ -38,10 +39,50 @@ type Tab =
   | "api-keys"
   | "danger";
 
+type ChannelAccount = {
+  id: string;
+  name: string;
+  displayName?: string | null;
+  channelType: string;
+  status: string;
+  defaultAgentId?: string | null;
+};
+
+type AiAgent = {
+  id: string;
+  name: string;
+  status?: string;
+};
+
+const CHANNEL_TYPE_LABELS: Record<string, string> = {
+  whatsapp_manual: "واتساب يدوي",
+  website_widget: "ودجت الموقع",
+  whatsapp_api: "واتساب API",
+  telegram: "تيليغرام",
+  instagram: "إنستغرام",
+  messenger: "ماسنجر",
+  voice: "صوتي",
+};
+
+const CHANNEL_STATUS_LABELS: Record<string, string> = {
+  active: "نشط",
+  pending_meta_review: "قيد مراجعة Meta",
+  disabled: "معطل",
+  coming_soon: "قريباً",
+};
+
+const CHANNEL_STATUS_CLASSES: Record<string, string> = {
+  active: "bg-green-50 text-green-700 border-green-200",
+  pending_meta_review: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  disabled: "bg-gray-50 text-gray-600 border-gray-200",
+  coming_soon: "bg-blue-50 text-blue-700 border-blue-200",
+};
+
 const validTabs: Tab[] = [
   "workspace",
   "users",
   "invite",
+  "channels",
   "business-hours",
   "sla",
   "quick-replies",
@@ -863,6 +904,178 @@ function AccountLifecycleTab() {
   );
 }
 
+function ChannelsTab() {
+  const { hasPermission } = useAuth();
+  const qc = useQueryClient();
+  const canReadChannels = hasPermission("channels:read");
+  const canReadAgents = hasPermission("ai:read");
+  const canManageChannels = hasPermission("channels:manage");
+  const [selectedAgents, setSelectedAgents] = useState<Record<string, string>>({});
+  const [successMsg, setSuccessMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const { data: channelsData, isLoading: channelsLoading, isError: channelsIsError, error: channelsError } = useQuery({
+    queryKey: ["settings-channel-accounts"],
+    queryFn: () => apiFetch("channels/accounts") as Promise<{ accounts: ChannelAccount[] }>,
+    enabled: canReadChannels,
+  });
+
+  const { data: agentsData, isLoading: agentsLoading, isError: agentsIsError, error: agentsError } = useQuery({
+    queryKey: ["settings-ai-agents"],
+    queryFn: () => apiFetch("ai/agents") as Promise<{ agents: AiAgent[] }>,
+    enabled: canReadAgents,
+  });
+
+  const accounts = channelsData?.accounts ?? [];
+  const agents = agentsData?.agents ?? [];
+
+  useEffect(() => {
+    if (!accounts.length) return;
+    setSelectedAgents((current) => {
+      const next = { ...current };
+      for (const account of accounts) {
+        if (next[account.id] === undefined) {
+          next[account.id] = account.defaultAgentId ?? "";
+        }
+      }
+      return next;
+    });
+  }, [accounts]);
+
+  const saveMut = useMutation({
+    mutationFn: ({ accountId, defaultAgentId }: { accountId: string; defaultAgentId: string | null }) =>
+      apiFetch(`channels/accounts/${accountId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultAgentId }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["settings-channel-accounts"] });
+      qc.invalidateQueries({ queryKey: ["channel-accounts"] });
+      setSuccessMsg("تم حفظ الوكيل الافتراضي للقناة");
+      setErrorMsg("");
+      setTimeout(() => setSuccessMsg(""), 4000);
+    },
+    onError: (e: Error) => {
+      setErrorMsg(e.message);
+      setSuccessMsg("");
+    },
+  });
+
+  const handleSave = (account: ChannelAccount) => {
+    setErrorMsg("");
+    setSuccessMsg("");
+    const selectedId = selectedAgents[account.id] ?? account.defaultAgentId ?? "";
+    saveMut.mutate({ accountId: account.id, defaultAgentId: selectedId || null });
+  };
+
+  if (!canReadChannels) {
+    return (
+      <div className="max-w-2xl">
+        <div className="p-5 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800 text-sm text-center">
+          لا تملك صلاحية عرض القنوات.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl space-y-4">
+      {successMsg && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">✓ {successMsg}</div>
+      )}
+      {errorMsg && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">{errorMsg}</div>
+      )}
+      {channelsIsError && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+          {(channelsError as Error).message}
+        </div>
+      )}
+      {agentsIsError && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+          {(agentsError as Error).message}
+        </div>
+      )}
+      {!canReadAgents && (
+        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm">
+          تحتاج صلاحية عرض الوكلاء لاختيار وكيل افتراضي للقنوات.
+        </div>
+      )}
+
+      <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">القنوات والوكلاء الافتراضيون</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            اختر الوكيل الذي سيرد تلقائياً على محادثات كل قناة.
+          </p>
+        </div>
+
+        {channelsLoading ? (
+          <div className="py-10 text-center text-muted-foreground text-sm">جاري تحميل القنوات...</div>
+        ) : !accounts.length ? (
+          <div className="py-10 text-center text-muted-foreground text-sm">لا توجد قنوات مضافة بعد.</div>
+        ) : (
+          <div className="space-y-3">
+            {accounts.map((account) => {
+              const savingThisAccount = saveMut.isPending && saveMut.variables?.accountId === account.id;
+              const selectedValue = selectedAgents[account.id] ?? account.defaultAgentId ?? "";
+              const statusClass = CHANNEL_STATUS_CLASSES[account.status] ?? "bg-muted text-muted-foreground border-border";
+
+              return (
+                <div key={account.id} className="rounded-xl border border-border bg-background p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-foreground truncate">
+                        {account.displayName || account.name}
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-full border border-border bg-muted/50 text-muted-foreground text-xs">
+                          {CHANNEL_TYPE_LABELS[account.channelType] ?? account.channelType}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full border text-xs font-medium ${statusClass}`}>
+                          {CHANNEL_STATUS_LABELS[account.status] ?? account.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:w-[28rem]">
+                      <select
+                        value={selectedValue}
+                        onChange={(e) => setSelectedAgents((current) => ({ ...current, [account.id]: e.target.value }))}
+                        disabled={!canManageChannels || !canReadAgents || agentsLoading || saveMut.isPending}
+                        className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
+                      >
+                        <option value="">بدون وكيل</option>
+                        {agents.map((agent) => (
+                          <option key={agent.id} value={agent.id}>{agent.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => handleSave(account)}
+                        disabled={!canManageChannels || saveMut.isPending}
+                        className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors sm:w-24"
+                      >
+                        {savingThisAccount ? "جاري الحفظ..." : "حفظ"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {!canManageChannels && (
+          <p className="text-xs text-muted-foreground">
+            يمكنك عرض الإعدادات، لكن حفظ الوكيل الافتراضي يتطلب صلاحية إدارة القنوات.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { hasPermission } = useAuth();
   const qc = useQueryClient();
@@ -935,6 +1148,7 @@ export default function SettingsPage() {
         { id: "business-hours", label: "\u0633\u0627\u0639\u0627\u062a \u0627\u0644\u0639\u0645\u0644" },
         { id: "sla", label: "\u0642\u0648\u0627\u0639\u062f \u0627\u0644\u0627\u0633\u062a\u062c\u0627\u0628\u0629" },
         { id: "quick-replies", label: "\u0627\u0644\u0631\u062f\u0648\u062f \u0627\u0644\u0633\u0631\u064a\u0639\u0629" },
+        { id: "channels", label: "\u0627\u0644\u0642\u0646\u0648\u0627\u062a" },
       ],
     },
     {
@@ -1080,6 +1294,7 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {tab === "channels" && <ChannelsTab />}
       {tab === "business-hours" && <BusinessHoursTab />}
       {tab === "sla" && <SlaRulesTab />}
       {tab === "quick-replies" && <QuickRepliesTab />}

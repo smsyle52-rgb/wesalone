@@ -7,7 +7,6 @@ import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
-import { checkLimit } from "../../services/billing";
 
 const router = Router();
 router.use(requireSession);
@@ -35,6 +34,7 @@ const updateAccountSchema = z.object({
   displayName: z.string().min(1).max(120).optional(),
   status: z.enum(["active", "pending_meta_review", "disabled", "coming_soon"]).optional(),
   providerConfig: z.record(z.unknown()).optional(),
+  defaultAgentId: z.string().uuid().optional().nullable(),
 });
 
 router.get("/catalog", requirePermission("channels:read"), (_req, res: Response) => {
@@ -70,16 +70,6 @@ router.post("/accounts", requirePermission("channels:manage"), async (req: Authe
   const status = parsed.data.status ?? (catalogEntry?.globalStatus as string) ?? "active";
 
   try {
-    const channelLimit = await checkLimit(activeWorkspaceId, "channels");
-    if (!channelLimit.allowed) {
-      res.status(402).json({
-        error: "وصلت حد باقتك لعدد القنوات. يمكنك ترقية الباقة لربط قنوات إضافية.",
-        code: "plan_limit_reached",
-        limit: channelLimit,
-      });
-      return;
-    }
-
     const [account] = await db.insert(channelAccountsTable).values({
       workspaceId: activeWorkspaceId,
       channelType,
@@ -147,6 +137,7 @@ router.patch("/accounts/:id", requirePermission("channels:manage"), async (req: 
     ...(parsed.data.displayName !== undefined && { displayName: parsed.data.displayName }),
     ...(parsed.data.status !== undefined && { status: parsed.data.status }),
     ...(parsed.data.providerConfig !== undefined && { providerConfig: parsed.data.providerConfig }),
+    ...(parsed.data.defaultAgentId !== undefined && { defaultAgentId: parsed.data.defaultAgentId }),
   };
 
   const [account] = await db

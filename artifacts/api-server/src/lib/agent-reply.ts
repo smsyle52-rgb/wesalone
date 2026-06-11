@@ -1,0 +1,216 @@
+import { db } from "@workspace/db";
+import {
+  aiAgentInstructionsTable,
+  aiAgentsTable,
+  aiMessagesTable,
+  aiRunsTable,
+  aiUsageTable,
+  knowledgeChunksTable,
+  messagesTable,
+} from "@workspace/db";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { ACTIVE_PROVIDER, getDefaultModel, runAI } from "./ai-provider";
+
+const ESCALATION_KEYWORDS = ["أكلم إنسان", "مدير", "شكوى", "إلغاء"];
+
+async function upsertUsage(params: {
+  workspaceId: string;
+  model: string;
+  provider: string;
+  taskType: string;
+  promptTokens: number;
+  completionTokens: number;
+  estimatedCost: number;
+}): Promise<void> {
+  const today = new Date().toISOString().split("T")[0];
+  const existing = await db
+    .select()
+    .from(aiUsageTable)
+    .where(
+      and(
+        eq(aiUsageTable.workspaceId, params.workspaceId),
+        eq(aiUsageTable.date, today),
+        eq(aiUsageTable.model, params.model),
+        eq(aiUsageTable.provider, params.provider),
+        eq(aiUsageTable.taskType, params.taskType)
+      )
+    )
+    .limit(1);
+
+  const totalTokens = params.promptTokens + params.completionTokens;
+  if (existing.length > 0) {
+    await db
+      .update(aiUsageTable)
+      .set({
+        totalRuns: sql`${aiUsageTable.totalRuns} + 1`,
+        totalTokens: sql`${aiUsageTable.totalTokens} + ${totalTokens}`,
+        estimatedCost: sql`COALESCE(${aiUsageTable.estimatedCost}, 0) + ${params.estimatedCost}`,
+      })
+      .where(eq(aiUsageTable.id, existing[0].id));
+  } else {
+    await db.insert(aiUsageTable).values({
+      workspaceId: params.workspaceId,
+      date: today,
+      model: params.model,
+      provider: params.provider,
+      taskType: params.taskType,
+      totalRuns: 1,
+      totalTokens,
+      estimatedCost: String(params.estimatedCost),
+    });
+  }
+}
+
+async function searchKnowledge(workspaceId: string, query: string): Promise<string[]> {
+  if (!query || query.length < 3) return [];
+  try {
+    const words = query.split(/\s+/).filter((w) => w.length > 2).slice(0, 3);
+    if (words.length === 0) return [];
+    const chunks = await db
+      .select({ chunkText: knowledgeChunksTable.chunkText })
+      .from(knowledgeChunksTable)
+      .where(
+        and(
+          eq(knowledgeChunksTable.workspaceId, workspaceId),
+          or(...words.map((w) => ilike(knowledgeChunksTable.chunkText, `%${w}%`)))
+        )
+      )
+      .limit(3);
+    return chunks.map((c) => c.chunkText);
+  } catch {
+    return [];
+  }
+}
+
+async function runAIWithTimeout(input: Parameters<typeof runAI>[0], timeoutMs = 30_000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const abortPromise = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener(
+      "abort",
+      () => reject(new Error("AI reply generation timed out after 30 seconds")),
+      { once: true }
+    );
+  });
+
+  try {
+    return await Promise.race([runAI(input), abortPromise]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function includesEscalationKeyword(value: string): boolean {
+  return ESCALATION_KEYWORDS.some((keyword) => value.includes(keyword));
+}
+
+export async function runAgentReply(params: {
+  workspaceId: string;
+  conversationId: string;
+  agentId: string;
+  systemUserId: string;
+}): Promise<{ reply: string; shouldEscalate: boolean; runId: string }> {
+  const [agent] = await db
+    .select()
+    .from(aiAgentsTable)
+    .where(and(eq(aiAgentsTable.id, params.agentId), eq(aiAgentsTable.workspaceId, params.workspaceId)))
+    .limit(1);
+  if (!agent) throw new Error("AI_AGENT_NOT_FOUND");
+
+  const [instructions] = await db
+    .select()
+    .from(aiAgentInstructionsTable)
+    .where(and(eq(aiAgentInstructionsTable.agentId, params.agentId), eq(aiAgentInstructionsTable.workspaceId, params.workspaceId)))
+    .limit(1);
+
+  const recentMessages = await db
+    .select()
+    .from(messagesTable)
+    .where(and(eq(messagesTable.conversationId, params.conversationId), eq(messagesTable.workspaceId, params.workspaceId)))
+    .orderBy(desc(messagesTable.createdAt))
+    .limit(15);
+  const messages = recentMessages.reverse();
+  const lastInbound = [...messages].reverse().find((message) => message.direction === "inbound");
+  const searchQuery = lastInbound?.content ?? messages[messages.length - 1]?.content ?? "";
+  const knowledgeSources = await searchKnowledge(params.workspaceId, searchQuery);
+
+  const transcript = messages
+    .map((message) => `[${message.direction === "inbound" ? "العميل" : "الموظف"}]: ${message.content}`)
+    .join("\n");
+  const knowledgeContext = knowledgeSources.length > 0
+    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item}`).join("\n")}`
+    : "";
+  const systemPrompt = [
+    instructions?.rolePrompt ?? "أنت وكيل خدمة عملاء عربي لمنصة وصال ون.",
+    instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
+    `اللهجة: ${agent.dialect}.`,
+    agent.tone ? `النبرة: ${agent.tone}.` : "",
+  ].filter(Boolean).join("\n");
+  const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.
+
+المحادثة:
+${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}
+
+المطلوب: رد احترافي مناسب باللغة العربية.`;
+  const model = agent.defaultModel || getDefaultModel();
+
+  const [run] = await db.insert(aiRunsTable).values({
+    workspaceId: params.workspaceId,
+    agentId: params.agentId,
+    taskType: "draft_reply",
+    inputType: "conversation",
+    inputRefId: params.conversationId,
+    status: "running",
+    model,
+    provider: ACTIVE_PROVIDER,
+    safetyStatus: "ok",
+    createdBy: params.systemUserId,
+  }).returning();
+
+  const runMessages = [
+    { role: "system" as const, content: systemPrompt },
+    { role: "user" as const, content: userPrompt },
+  ];
+
+  try {
+    const aiOutput = await runAIWithTimeout({ messages: runMessages, model, taskType: "draft_reply" });
+
+    await db.insert(aiMessagesTable).values([
+      { workspaceId: params.workspaceId, aiRunId: run.id, role: "system", content: systemPrompt, metadata: {} },
+      { workspaceId: params.workspaceId, aiRunId: run.id, role: "user", content: userPrompt, metadata: {} },
+      { workspaceId: params.workspaceId, aiRunId: run.id, role: "assistant", content: aiOutput.content, metadata: { knowledgeSources } },
+    ]);
+
+    await db.update(aiRunsTable).set({
+      status: "succeeded",
+      model: aiOutput.model,
+      provider: aiOutput.provider,
+      promptTokens: aiOutput.promptTokens,
+      completionTokens: aiOutput.completionTokens,
+      totalTokens: aiOutput.totalTokens,
+      estimatedCost: String(aiOutput.estimatedCost),
+      safetyStatus: "ok",
+      completedAt: new Date(),
+    }).where(eq(aiRunsTable.id, run.id));
+
+    await upsertUsage({
+      workspaceId: params.workspaceId,
+      model: aiOutput.model,
+      provider: aiOutput.provider,
+      taskType: "draft_reply",
+      promptTokens: aiOutput.promptTokens,
+      completionTokens: aiOutput.completionTokens,
+      estimatedCost: aiOutput.estimatedCost,
+    });
+
+    const shouldEscalate = includesEscalationKeyword(aiOutput.content) || includesEscalationKeyword(lastInbound?.content ?? "");
+    return { reply: aiOutput.content, shouldEscalate, runId: run.id };
+  } catch (err) {
+    await db.update(aiRunsTable).set({
+      status: "failed",
+      errorMessage: err instanceof Error ? err.message : "Unknown AI error",
+      completedAt: new Date(),
+    }).where(eq(aiRunsTable.id, run.id));
+    throw err;
+  }
+}

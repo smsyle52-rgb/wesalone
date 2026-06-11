@@ -1,24 +1,22 @@
 {
   "name": "@workspace/outbox-worker",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts",
-    "build": "node ./build.mjs",
-    "start": "node --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "start": "node dist/index.mjs",
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@workspace/api-server": "workspace:*",
     "@workspace/db": "workspace:*",
-    "drizzle-orm": "catalog:",
-    "pg": "^8.20.0",
-    "pino": "^9"
+    "pg": "^8.13.3"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@types/pg": "^8.18.0",
-    "esbuild": "^0.27.3",
-    "tsx": "catalog:"
+    "@types/pg": "^8.11.14",
+    "esbuild": "0.27.3",
+    "typescript": "~5.9.2"
   }
 }

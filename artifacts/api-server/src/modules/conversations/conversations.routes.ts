@@ -89,6 +89,11 @@ const assignSchema = z.object({
   membershipId: z.string().uuid("معرف العضو غير صحيح").nullable(),
 });
 
+const agentStatusSchema = z.object({
+  status: z.enum(["active", "paused", "human"]),
+  pauseMinutes: z.number().int().min(1).max(1440).optional(),
+});
+
 const importSchema = z.object({
   text: z.string().min(1, "نص المحادثة مطلوب").max(50000),
 });
@@ -547,6 +552,68 @@ router.patch("/:id/assign", requirePermission("conversations:assign"), async (re
   });
 
   res.json({ conversation: conv, assigneeName });
+});
+
+router.patch("/:id/agent-status", requirePermission("conversations:manage"), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = agentStatusSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
+    return;
+  }
+
+  const { activeWorkspaceId, userId } = req.sessionUser;
+  const [existing] = await db.select({
+    id: conversationsTable.id,
+    subject: conversationsTable.subject,
+    agentStatus: conversationsTable.agentStatus,
+  })
+    .from(conversationsTable)
+    .where(and(
+      eq(conversationsTable.id, req.params.id as string),
+      eq(conversationsTable.workspaceId, activeWorkspaceId)
+    ))
+    .limit(1);
+
+  if (!existing) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
+
+  const now = new Date();
+  const updates: Record<string, unknown> = {
+    agentStatus: parsed.data.status,
+    updatedAt: now,
+  };
+
+  if (parsed.data.status === "active") {
+    updates.agentPausedUntil = null;
+    updates.consecutiveAgentReplies = 0;
+  } else if (parsed.data.status === "paused") {
+    const pauseMinutes = parsed.data.pauseMinutes ?? 30;
+    updates.agentPausedUntil = new Date(now.getTime() + pauseMinutes * 60_000);
+  } else {
+    updates.agentPausedUntil = null;
+  }
+
+  const [conversation] = await db.update(conversationsTable)
+    .set(updates)
+    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
+    .returning();
+
+  if (!conversation) { res.status(500).json({ error: "فشل تحديث حالة الوكيل" }); return; }
+
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    workspaceId: activeWorkspaceId,
+    action: "agent_status_change",
+    entityType: "conversation",
+    entityId: conversation.id,
+    entityLabel: conversation.subject ?? conversation.id.slice(0, 8),
+    newData: {
+      previousAgentStatus: existing.agentStatus,
+      agentStatus: parsed.data.status,
+      pauseMinutes: parsed.data.pauseMinutes ?? null,
+    },
+  });
+
+  res.json({ conversation });
 });
 
 router.get("/:id/messages", requirePermission("conversations:read"), async (req: AuthenticatedRequest, res: Response) => {

@@ -48,7 +48,7 @@ export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 export const AI_VERSION_STATUSES = ["draft", "active", "archived"] as const;
 export type AiVersionStatus = (typeof AI_VERSION_STATUSES)[number];
 
-export const AI_CHANNEL_MODES = ["disabled", "suggest_only", "draft_only"] as const;
+export const AI_CHANNEL_MODES = ["disabled", "suggest_only", "draft_only", "auto"] as const;
 export type AiChannelMode = (typeof AI_CHANNEL_MODES)[number];
 
 export const aiAgentsTable = pgTable("ai_agents", {
