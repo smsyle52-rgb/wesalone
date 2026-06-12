@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import pg from "pg";
 import { runAgentReply } from "@workspace/api-server/src/lib/agent-reply";
 
@@ -8,6 +9,7 @@ const META_GRAPH_VERSION = "v19.0";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const logger = console;
+const port = Number(process.env.PORT ?? "8080");
 
 type JsonRecord = Record<string, unknown>;
 
@@ -432,6 +434,13 @@ function startLoop(name: string, intervalMs: number, handler: () => Promise<void
   }, intervalMs);
   void tick();
 }
+
+createServer((_req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("ok");
+}).listen(port, () => {
+  logger.info(`Outbox worker health server listening on ${port}`);
+});
 
 startLoop("outbox sender", OUTBOX_INTERVAL_MS, runOutboxSender);
 startLoop("agent runner", AGENT_INTERVAL_MS, runAgentRunner);
