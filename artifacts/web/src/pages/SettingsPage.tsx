@@ -952,8 +952,8 @@ function ChannelsTab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["settings-channel-accounts"] });
       qc.invalidateQueries({ queryKey: ["channel-accounts"] });
-      setSuccessMsg("تم حفظ الوكيل الافتراضي للقناة");
       setErrorMsg("");
+      setSuccessMsg("تم الحفظ");
       setTimeout(() => setSuccessMsg(""), 4000);
     },
     onError: (e: Error) => {
@@ -962,11 +962,11 @@ function ChannelsTab() {
     },
   });
 
-  const handleSave = (account: ChannelAccount) => {
+  const handleAgentChange = (account: ChannelAccount, defaultAgentId: string) => {
     setErrorMsg("");
     setSuccessMsg("");
-    const selectedId = selectedAgents[account.id] ?? account.defaultAgentId ?? "";
-    saveMut.mutate({ accountId: account.id, defaultAgentId: selectedId || null });
+    setSelectedAgents((current) => ({ ...current, [account.id]: defaultAgentId }));
+    saveMut.mutate({ accountId: account.id, defaultAgentId: defaultAgentId || null });
   };
 
   if (!canReadChannels) {
@@ -1039,10 +1039,14 @@ function ChannelsTab() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:w-[28rem]">
+                    <div className="lg:w-[28rem]">
+                      <label htmlFor={`channel-agent-${account.id}`} className="mb-1 block text-xs font-medium text-muted-foreground">
+                        الوكيل الافتراضي
+                      </label>
                       <select
+                        id={`channel-agent-${account.id}`}
                         value={selectedValue}
-                        onChange={(e) => setSelectedAgents((current) => ({ ...current, [account.id]: e.target.value }))}
+                        onChange={(e) => handleAgentChange(account, e.target.value)}
                         disabled={!canManageChannels || !canReadAgents || agentsLoading || saveMut.isPending}
                         className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
                       >
@@ -1052,7 +1056,7 @@ function ChannelsTab() {
                         ))}
                       </select>
                       <button
-                        onClick={() => handleSave(account)}
+                        onClick={() => handleAgentChange(account, selectedValue)}
                         disabled={!canManageChannels || saveMut.isPending}
                         className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors sm:w-24"
                       >
