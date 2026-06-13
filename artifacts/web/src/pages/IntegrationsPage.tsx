@@ -1,9 +1,182 @@
 import { Link } from "wouter";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { cn } from "@/lib/utils";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
+const FACEBOOK_SDK_SCRIPT_ID = "facebook-jssdk";
+const FACEBOOK_SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
+
+type FacebookLoginResponse = {
+  authResponse?: {
+    code?: string;
+  } | null;
+  status?: string;
+};
+
+type FacebookLoginOptions = {
+  config_id: string;
+  response_type: "code";
+  override_default_response_type: true;
+};
+
+type FacebookSdk = {
+  init: (options: { appId: string; cookie?: boolean; xfbml?: boolean; version: string }) => void;
+  login: (callback: (response: FacebookLoginResponse) => void, options: FacebookLoginOptions) => void;
+};
+
+declare global {
+  interface Window {
+    FB?: FacebookSdk;
+    fbAsyncInit?: () => void;
+  }
+}
+
+type MetaSignupConfig = {
+  appId: string | null;
+  graphVersion: string;
+  configIds: {
+    whatsappStandard: string | null;
+    whatsappCoexistence: string | null;
+    instagramMessenger: string | null;
+    facebookContent: string | null;
+  };
+};
+
+type EmbeddedSignupSessionInfo = {
+  waba_id?: string;
+  phone_number_id?: string;
+  display_phone_number?: string;
+  verified_name?: string;
+};
+
+let facebookSdkPromise: Promise<void> | null = null;
+let initializedFacebookSdkKey: string | null = null;
+
+function normalizeGraphVersion(version: string | null | undefined) {
+  const value = (version || "v22.0").trim();
+  return value.startsWith("v") ? value : `v${value}`;
+}
+
+function initFacebookSdk(appId: string, version: string) {
+  if (!window.FB) throw new Error("Facebook SDK is not available");
+  const key = `${appId}:${version}`;
+  if (initializedFacebookSdkKey === key) return;
+  window.FB.init({ appId, cookie: true, xfbml: false, version });
+  initializedFacebookSdkKey = key;
+}
+
+function loadFacebookSdk(appId: string, version: string) {
+  const normalizedVersion = normalizeGraphVersion(version);
+  if (window.FB) {
+    initFacebookSdk(appId, normalizedVersion);
+    return Promise.resolve();
+  }
+
+  if (!facebookSdkPromise) {
+    facebookSdkPromise = new Promise((resolve, reject) => {
+      window.fbAsyncInit = () => {
+        try {
+          initFacebookSdk(appId, normalizedVersion);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      };
+
+      const existing = document.getElementById(FACEBOOK_SDK_SCRIPT_ID) as HTMLScriptElement | null;
+      if (existing) {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error("Facebook SDK failed to load")), { once: true });
+        return;
+      }
+
+      const firstScript = document.getElementsByTagName("script")[0];
+      const script = document.createElement("script");
+      script.id = FACEBOOK_SDK_SCRIPT_ID;
+      script.async = true;
+      script.defer = true;
+      script.crossOrigin = "anonymous";
+      script.src = FACEBOOK_SDK_SRC;
+      script.onerror = () => reject(new Error("Facebook SDK failed to load"));
+      firstScript.parentNode?.insertBefore(script, firstScript);
+    });
+  }
+
+  return facebookSdkPromise.then(() => {
+    initFacebookSdk(appId, normalizedVersion);
+  });
+}
+
+function isFacebookOrigin(origin: string) {
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname === "facebook.com" || hostname.endsWith(".facebook.com");
+  } catch {
+    return false;
+  }
+}
+
+function recordFrom(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function stringField(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function parseEmbeddedSignupMessage(data: unknown): EmbeddedSignupSessionInfo | null {
+  const payload = typeof data === "string"
+    ? (() => {
+      try {
+        return JSON.parse(data) as unknown;
+      } catch {
+        return null;
+      }
+    })()
+    : data;
+  const record = recordFrom(payload);
+  if (!record || record.type !== "WA_EMBEDDED_SIGNUP") return null;
+  const nested = recordFrom(record.data) ?? record;
+  const wabaId = stringField(nested, "waba_id") ?? stringField(nested, "wabaId");
+  const phoneNumberId = stringField(nested, "phone_number_id") ?? stringField(nested, "phoneNumberId");
+  if (!wabaId && !phoneNumberId) return null;
+  return {
+    waba_id: wabaId,
+    phone_number_id: phoneNumberId,
+    display_phone_number: stringField(nested, "display_phone_number") ?? stringField(nested, "displayPhoneNumber"),
+    verified_name: stringField(nested, "verified_name") ?? stringField(nested, "verifiedName"),
+  };
+}
+
+async function fetchMetaSignupConfig(): Promise<MetaSignupConfig> {
+  const res = await fetch(`${BASE}/integrations/meta/embedded-signup/config`, { credentials: "include" });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? data.missing?.join(", ") ?? "Meta config is not available");
+  return data;
+}
+
+function loginWithFacebook(configId: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!window.FB) {
+      reject(new Error("Facebook SDK is not ready"));
+      return;
+    }
+    window.FB.login((response) => {
+      const code = response.authResponse?.code;
+      if (code) {
+        resolve(code);
+        return;
+      }
+      reject(new Error(response.status ? `Meta signup did not complete: ${response.status}` : "Meta signup did not return a code"));
+    }, {
+      config_id: configId,
+      response_type: "code",
+      override_default_response_type: true,
+    });
+  });
+}
 
 type ConnectedChannel = {
   id: string;
@@ -108,6 +281,8 @@ export default function IntegrationsPage() {
   const [connectedChannels, setConnectedChannels] = useState<ConnectedChannel[]>([]);
   const [isLoadingChannels, setIsLoadingChannels] = useState(true);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+  const [metaSignupConfig, setMetaSignupConfig] = useState<MetaSignupConfig | null>(null);
+  const signupSessionInfoRef = useRef<EmbeddedSignupSessionInfo | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,10 +302,122 @@ export default function IntegrationsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConfig() {
+      try {
+        const config = await fetchMetaSignupConfig();
+        if (cancelled) return;
+        setMetaSignupConfig(config);
+        if (config.appId) {
+          void loadFacebookSdk(config.appId, config.graphVersion).catch(() => {
+            // The legacy OAuth popup remains available when the SDK cannot load.
+          });
+        }
+      } catch {
+        // Keep the existing OAuth flow available as a fallback.
+      }
+    }
+    void loadConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (!isFacebookOrigin(event.origin)) return;
+      const info = parseEmbeddedSignupMessage(event.data);
+      if (!info) return;
+      signupSessionInfoRef.current = {
+        ...signupSessionInfoRef.current,
+        ...info,
+      };
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  async function startMetaOAuthFallback() {
+    const res = await fetch(`${BASE}/integrations/meta/embedded-signup/start`, { credentials: "include" });
+    const data = await res.json();
+    if (!res.ok || !data.url) throw new Error(data.error ?? data.missing?.join(", ") ?? "Meta OAuth fallback is not available");
+    window.open(data.url, "meta-channels-signup", "width=820,height=780,noopener,noreferrer");
+  }
+
+  function waitForCapturedSignupInfo(timeoutMs = 5000): Promise<EmbeddedSignupSessionInfo> {
+    return new Promise((resolve, reject) => {
+      const existing = signupSessionInfoRef.current;
+      if (existing?.waba_id && existing.phone_number_id) {
+        resolve(existing);
+        return;
+      }
+
+      const startedAt = Date.now();
+      const timer = window.setInterval(() => {
+        const current = signupSessionInfoRef.current;
+        if (current?.waba_id && current.phone_number_id) {
+          window.clearInterval(timer);
+          resolve(current);
+          return;
+        }
+        if (Date.now() - startedAt >= timeoutMs) {
+          window.clearInterval(timer);
+          reject(new Error("Meta signup did not return WhatsApp account identifiers"));
+        }
+      }, 100);
+    });
+  }
+
+  async function completeEmbeddedSignup(code: string, configId: string, sessionInfo: EmbeddedSignupSessionInfo) {
+    const res = await fetch(`${BASE}/integrations/meta/embedded-signup/complete`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code,
+        waba_id: sessionInfo.waba_id,
+        phone_number_id: sessionInfo.phone_number_id,
+        display_phone_number: sessionInfo.display_phone_number,
+        verified_name: sessionInfo.verified_name,
+        config_id: configId,
+        config_key: "whatsapp_standard",
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Meta embedded signup failed");
+    const account = data.account as ConnectedChannel | undefined;
+    if (account) {
+      setConnectedChannels((current) => [account, ...current.filter((item) => item.id !== account.id)]);
+    }
+  }
+
   async function startMetaSignup() {
     setIsStartingMeta(true);
     setMetaError(null);
     try {
+      const config = metaSignupConfig ?? await fetchMetaSignupConfig().catch(() => null);
+      if (config && !metaSignupConfig) setMetaSignupConfig(config);
+      const configId = config?.configIds.whatsappStandard ?? null;
+      if (config?.appId && configId) {
+        let sdkReady = false;
+        try {
+          await loadFacebookSdk(config.appId, config.graphVersion || "v22.0");
+          sdkReady = true;
+        } catch {
+          sdkReady = false;
+        }
+        if (sdkReady) {
+          signupSessionInfoRef.current = null;
+          const code = await loginWithFacebook(configId);
+          const sessionInfo = await waitForCapturedSignupInfo();
+          await completeEmbeddedSignup(code, configId, sessionInfo);
+          return;
+        }
+        await startMetaOAuthFallback();
+        return;
+      }
+
       const res = await fetch(`${BASE}/integrations/meta/embedded-signup/start`, { credentials: "include" });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error ?? data.missing?.join(", ") ?? "تعذر تجهيز ربط قنوات Meta");

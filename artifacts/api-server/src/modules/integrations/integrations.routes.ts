@@ -65,10 +65,24 @@ function metaRedirectUri(req: AuthenticatedRequest) {
   return process.env.META_REDIRECT_URI ?? `${appBaseUrl(req)}/api/integrations/meta/embedded-signup/callback`;
 }
 
-function requireMetaGraphVersion(): string {
+function metaGraphVersion(): string | null {
   const version = process.env.META_GRAPH_VERSION?.trim();
+  return version || null;
+}
+
+function requireMetaGraphVersion(): string {
+  const version = metaGraphVersion();
   if (!version) throw new Error("META_GRAPH_VERSION is not configured");
   return version;
+}
+
+function metaEmbeddedSignupConfigIds() {
+  return {
+    whatsappStandard: process.env.META_WHATSAPP_STANDARD_CONFIG_ID ?? null,
+    whatsappCoexistence: process.env.META_WHATSAPP_COEXISTENCE_CONFIG_ID ?? null,
+    instagramMessenger: process.env.META_INSTAGRAM_MESSENGER_CONFIG_ID ?? null,
+    facebookContent: process.env.META_FACEBOOK_CONTENT_CONFIG_ID ?? null,
+  };
 }
 
 type MetaPhoneNumber = {
@@ -143,7 +157,11 @@ async function callMetaGraph(path: string, token: string): Promise<any> {
   return response.json();
 }
 
-async function exchangeCodeForToken(req: AuthenticatedRequest, code: string): Promise<string | null> {
+async function exchangeCodeForToken(
+  req: AuthenticatedRequest,
+  code: string,
+  options: { redirectUri?: string | null } = {},
+): Promise<string | null> {
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
   if (!appId || !appSecret || !code) return null;
@@ -151,7 +169,8 @@ async function exchangeCodeForToken(req: AuthenticatedRequest, code: string): Pr
   const url = new URL(`https://graph.facebook.com/${requireMetaGraphVersion()}/oauth/access_token`);
   url.searchParams.set("client_id", appId);
   url.searchParams.set("client_secret", appSecret);
-  url.searchParams.set("redirect_uri", metaRedirectUri(req));
+  const redirectUri = options.redirectUri === undefined ? metaRedirectUri(req) : options.redirectUri;
+  if (redirectUri) url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("code", code);
 
   const response = await fetch(url);
@@ -276,6 +295,22 @@ const metaChannelSelectionSchema = z.object({
   ad_account_ids: z.array(z.string()).default([]),
   waba_id: z.string().optional(),
   access_token: z.string().optional(),
+});
+
+const metaEmbeddedSignupCompleteSchema = z.object({
+  code: z.string().trim().min(1),
+  waba_id: z.string().trim().min(1).optional(),
+  wabaId: z.string().trim().min(1).optional(),
+  phone_number_id: z.string().trim().min(1).optional(),
+  phoneNumberId: z.string().trim().min(1).optional(),
+  display_phone_number: z.string().trim().optional(),
+  displayPhoneNumber: z.string().trim().optional(),
+  verified_name: z.string().trim().optional(),
+  verifiedName: z.string().trim().optional(),
+  config_id: z.string().trim().optional(),
+  configId: z.string().trim().optional(),
+  config_key: z.string().trim().optional(),
+  configKey: z.string().trim().optional(),
 });
 
 function currentMetaSession(req: AuthenticatedRequest): { options: MetaChannelOptions; tokenRefs: MetaTokenRefs } {
@@ -582,6 +617,25 @@ router.get("/health", requirePermission("integrations:read"), async (req: Authen
   res.json(health);
 });
 
+router.get("/meta/embedded-signup/config", requirePermission("integrations:update"), async (_req: AuthenticatedRequest, res: Response) => {
+  const appId = process.env.META_APP_ID ?? null;
+  const graphVersion = metaGraphVersion() ?? "v22.0";
+  const configIds = metaEmbeddedSignupConfigIds();
+  const missing = [
+    !appId ? "META_APP_ID" : null,
+    !graphVersion ? "META_GRAPH_VERSION" : null,
+    !configIds.whatsappStandard ? "META_WHATSAPP_STANDARD_CONFIG_ID" : null,
+  ].filter(Boolean);
+
+  res.json({
+    appId,
+    graphVersion,
+    configIds,
+    ready: missing.length === 0,
+    missing,
+  });
+});
+
 router.get("/meta/embedded-signup/start", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
   const appId = process.env.META_APP_ID;
   const graphVersion = process.env.META_GRAPH_VERSION?.trim();
@@ -624,6 +678,96 @@ router.get("/meta/embedded-signup/start", requirePermission("integrations:update
   url.searchParams.set("response_type", "code");
 
   res.json({ url: url.toString(), state, redirectUri, scopes, channels: ["whatsapp", "instagram", "messenger", "commerce_catalog", "ads"] });
+});
+
+router.post("/meta/embedded-signup/complete", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = metaEmbeddedSignupCompleteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "بيانات التسجيل المضمن غير صالحة", details: parsed.error.flatten() });
+    return;
+  }
+
+  const wabaId = parsed.data.waba_id ?? parsed.data.wabaId ?? "";
+  const phoneNumberId = parsed.data.phone_number_id ?? parsed.data.phoneNumberId ?? "";
+  if (!wabaId || !phoneNumberId) {
+    res.status(400).json({ error: "waba_id and phone_number_id are required", code: "missing_embedded_signup_ids" });
+    return;
+  }
+
+  const channelLimit = await checkLimit(req.sessionUser.activeWorkspaceId, "channels");
+  if (channelLimit.limit !== null && channelLimit.current + 1 > channelLimit.limit) {
+    res.status(402).json({
+      error: "وصلت حد باقتك لعدد القنوات. قم بترقية الباقة قبل الربط.",
+      code: "plan_limit_reached",
+      limit: channelLimit,
+    });
+    return;
+  }
+
+  let userToken: string | null = null;
+  try {
+    userToken = await exchangeCodeForToken(req, parsed.data.code, { redirectUri: null });
+  } catch (err) {
+    req.log?.warn({ err }, "Meta embedded signup token exchange failed");
+    res.status(502).json({ error: "تعذر تبديل كود Meta إلى رمز وصول", code: "meta_token_exchange_failed" });
+    return;
+  }
+
+  if (!userToken) {
+    res.status(409).json({
+      error: "تعذر تجهيز رمز وصول Meta. تحقق من META_APP_ID و META_APP_SECRET و META_GRAPH_VERSION.",
+      code: "meta_token_exchange_unavailable",
+    });
+    return;
+  }
+
+  const displayNumber = parsed.data.display_phone_number ?? parsed.data.displayPhoneNumber ?? "";
+  const verifiedName = parsed.data.verified_name ?? parsed.data.verifiedName ?? "";
+  const configId = parsed.data.config_id ?? parsed.data.configId ?? "";
+  const configKey = parsed.data.config_key ?? parsed.data.configKey ?? "whatsapp_standard";
+  const connectedAt = new Date().toISOString();
+  const tokenRef = encryptedTokenRef(userToken) ?? process.env.META_ACCESS_TOKEN_SECRET_REF ?? null;
+  const account = await upsertMetaChannelAccount({
+    req,
+    channelType: "whatsapp",
+    name: `whatsapp-${phoneNumberId}`,
+    displayName: displayNumber ? `WhatsApp ${displayNumber}` : `WhatsApp ${phoneNumberId}`,
+    providerConfig: {
+      provider: "meta",
+      meta_app_id: process.env.META_APP_ID ?? null,
+      waba_id: wabaId,
+      phone_number_id: phoneNumberId,
+      display_number: displayNumber,
+      verified_name: verifiedName,
+      wabaId,
+      phoneNumberId,
+      displayPhoneNumber: displayNumber,
+      verifiedName,
+      embeddedSignup: true,
+      embeddedSignupSource: "facebook_js_sdk",
+      configId,
+      configKey,
+      connectedAt,
+    },
+    lookupKey: "phone_number_id",
+    lookupValue: phoneNumberId,
+    credentialsSecretRef: tokenRef,
+  });
+
+  res.status(201).json({
+    account: {
+      id: account.id,
+      channel_type: account.channelType,
+      channelType: account.channelType,
+      name: account.name,
+      displayName: account.displayName,
+      status: account.status,
+      providerConfig: account.providerConfig,
+      hasCredentialReference: Boolean(account.credentialsSecretRef),
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+    },
+  });
 });
 
 router.get("/meta/embedded-signup/callback", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
