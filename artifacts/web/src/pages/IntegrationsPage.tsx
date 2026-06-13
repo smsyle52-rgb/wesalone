@@ -50,6 +50,15 @@ type EmbeddedSignupSessionInfo = {
   verified_name?: string;
 };
 
+type MetaSignupConfigKey = keyof MetaSignupConfig["configIds"];
+
+const metaSignupOptions: Array<{ key: MetaSignupConfigKey; backendKey: string; label: string }> = [
+  { key: "whatsappStandard", backendKey: "whatsapp_standard", label: "ربط رقم واتساب جديد" },
+  { key: "whatsappCoexistence", backendKey: "whatsapp_coexistence", label: "ربط رقم واتساب موجود (تعايش)" },
+  { key: "instagramMessenger", backendKey: "instagram_messenger", label: "ربط إنستغرام وماسنجر" },
+  { key: "facebookContent", backendKey: "facebook_content", label: "ربط صفحات فيسبوك" },
+];
+
 let facebookSdkPromise: Promise<void> | null = null;
 let initializedFacebookSdkKey: string | null = null;
 
@@ -277,6 +286,7 @@ function ConnectedChannelCard({ channel }: { channel: ConnectedChannel }) {
 
 export default function IntegrationsPage() {
   const [isStartingMeta, setIsStartingMeta] = useState(false);
+  const [startingMetaConfigKey, setStartingMetaConfigKey] = useState<MetaSignupConfigKey | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [connectedChannels, setConnectedChannels] = useState<ConnectedChannel[]>([]);
   const [isLoadingChannels, setIsLoadingChannels] = useState(true);
@@ -369,7 +379,7 @@ export default function IntegrationsPage() {
     });
   }
 
-  async function completeEmbeddedSignup(code: string, configId: string, sessionInfo: EmbeddedSignupSessionInfo) {
+  async function completeEmbeddedSignup(code: string, configId: string, configKey: string, sessionInfo: EmbeddedSignupSessionInfo) {
     const res = await fetch(`${BASE}/integrations/meta/embedded-signup/complete`, {
       method: "POST",
       credentials: "include",
@@ -381,7 +391,7 @@ export default function IntegrationsPage() {
         display_phone_number: sessionInfo.display_phone_number,
         verified_name: sessionInfo.verified_name,
         config_id: configId,
-        config_key: "whatsapp_standard",
+        config_key: configKey,
       }),
     });
     const data = await res.json();
@@ -392,13 +402,14 @@ export default function IntegrationsPage() {
     }
   }
 
-  async function startMetaSignup() {
+  async function startMetaSignup(option = metaSignupOptions[0]) {
     setIsStartingMeta(true);
+    setStartingMetaConfigKey(option.key);
     setMetaError(null);
     try {
       const config = metaSignupConfig ?? await fetchMetaSignupConfig().catch(() => null);
       if (config && !metaSignupConfig) setMetaSignupConfig(config);
-      const configId = config?.configIds.whatsappStandard ?? null;
+      const configId = config?.configIds[option.key] ?? null;
       if (config?.appId && configId) {
         let sdkReady = false;
         try {
@@ -411,13 +422,19 @@ export default function IntegrationsPage() {
           signupSessionInfoRef.current = null;
           const code = await loginWithFacebook(configId);
           const sessionInfo = await waitForCapturedSignupInfo();
-          await completeEmbeddedSignup(code, configId, sessionInfo);
+          await completeEmbeddedSignup(code, configId, option.backendKey, sessionInfo);
           return;
         }
-        await startMetaOAuthFallback();
-        return;
+        if (option.key === "whatsappStandard") {
+          await startMetaOAuthFallback();
+          return;
+        }
+        throw new Error("Facebook SDK is not ready");
       }
 
+      if (option.key !== "whatsappStandard") {
+        throw new Error("Meta config_id is not configured for this signup type");
+      }
       const res = await fetch(`${BASE}/integrations/meta/embedded-signup/start`, { credentials: "include" });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error ?? data.missing?.join(", ") ?? "تعذر تجهيز ربط قنوات Meta");
@@ -426,6 +443,7 @@ export default function IntegrationsPage() {
       setMetaError((err as Error).message);
     } finally {
       setIsStartingMeta(false);
+      setStartingMetaConfigKey(null);
     }
   }
 
@@ -453,6 +471,10 @@ export default function IntegrationsPage() {
     const channel = connectedChannels.find((item) => item.channelType === type && item.status === "active");
     return { type, channel };
   });
+  const metaSignupButtons = metaSignupOptions.map((option) => ({
+    ...option,
+    configId: metaSignupConfig?.configIds[option.key] ?? null,
+  }));
 
   return (
     <div dir="rtl" className="space-y-6">
@@ -477,14 +499,22 @@ export default function IntegrationsPage() {
             </p>
             {metaError && <p className="mt-2 text-sm text-destructive">{metaError}</p>}
           </div>
-          <button
-            type="button"
-            onClick={startMetaSignup}
-            disabled={isStartingMeta}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {isStartingMeta ? "جار التجهيز..." : "ربط قنوات ميتا الإضافية"}
-          </button>
+          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto">
+            {metaSignupButtons.map((option) => {
+              const disabled = isStartingMeta || (!option.configId && option.key !== "whatsappStandard");
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => startMetaSignup(option)}
+                  disabled={disabled}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {startingMetaConfigKey === option.key ? "جار التجهيز..." : option.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
