@@ -56,6 +56,12 @@ type EmbeddedSignupSessionInfo = {
 
 type MetaSignupConfigKey = keyof MetaSignupConfig["configIds"];
 
+type EmbeddedSignupMessage = {
+  eventName?: string;
+  info?: EmbeddedSignupSessionInfo;
+  errorMessage?: string;
+};
+
 const metaSignupOptions: Array<{ key: MetaSignupConfigKey; backendKey: string; label: string }> = [
   { key: "whatsappStandard", backendKey: "whatsapp_standard", label: "ربط رقم واتساب جديد" },
   { key: "whatsappCoexistence", backendKey: "whatsapp_coexistence", label: "ربط رقم واتساب موجود (تعايش)" },
@@ -65,6 +71,18 @@ const metaSignupOptions: Array<{ key: MetaSignupConfigKey; backendKey: string; l
 
 let facebookSdkPromise: Promise<void> | null = null;
 let initializedFacebookSdkKey: string | null = null;
+
+function configIdLast4(configId: string | null | undefined) {
+  return configId ? configId.slice(-4) : null;
+}
+
+function isWhatsAppSignupOption(key: MetaSignupConfigKey) {
+  return key === "whatsappStandard" || key === "whatsappCoexistence";
+}
+
+function logMetaSignupDiagnostic(event: string, details: Record<string, unknown>) {
+  console.info("[Meta Embedded Signup]", event, details);
+}
 
 function normalizeGraphVersion(version: string | null | undefined) {
   const value = (version || "v22.0").trim();
@@ -139,7 +157,18 @@ function stringField(record: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function parseEmbeddedSignupMessage(data: unknown): EmbeddedSignupSessionInfo | null {
+function embeddedSignupEventName(record: Record<string, unknown>, nested: Record<string, unknown>): string | undefined {
+  return (
+    stringField(record, "event")
+    ?? stringField(record, "eventName")
+    ?? stringField(record, "status")
+    ?? stringField(nested, "event")
+    ?? stringField(nested, "eventName")
+    ?? stringField(nested, "status")
+  )?.toUpperCase();
+}
+
+function parseEmbeddedSignupMessage(data: unknown): EmbeddedSignupMessage | null {
   const payload = typeof data === "string"
     ? (() => {
       try {
@@ -152,14 +181,21 @@ function parseEmbeddedSignupMessage(data: unknown): EmbeddedSignupSessionInfo | 
   const record = recordFrom(payload);
   if (!record || record.type !== "WA_EMBEDDED_SIGNUP") return null;
   const nested = recordFrom(record.data) ?? record;
+  const eventName = embeddedSignupEventName(record, nested);
   const wabaId = stringField(nested, "waba_id") ?? stringField(nested, "wabaId");
   const phoneNumberId = stringField(nested, "phone_number_id") ?? stringField(nested, "phoneNumberId");
-  if (!wabaId && !phoneNumberId) return null;
+  const info = wabaId || phoneNumberId
+    ? {
+      waba_id: wabaId,
+      phone_number_id: phoneNumberId,
+      display_phone_number: stringField(nested, "display_phone_number") ?? stringField(nested, "displayPhoneNumber"),
+      verified_name: stringField(nested, "verified_name") ?? stringField(nested, "verifiedName"),
+    }
+    : undefined;
   return {
-    waba_id: wabaId,
-    phone_number_id: phoneNumberId,
-    display_phone_number: stringField(nested, "display_phone_number") ?? stringField(nested, "displayPhoneNumber"),
-    verified_name: stringField(nested, "verified_name") ?? stringField(nested, "verifiedName"),
+    eventName,
+    info,
+    errorMessage: stringField(nested, "error_message") ?? stringField(nested, "errorMessage") ?? stringField(nested, "message"),
   };
 }
 
@@ -189,6 +225,10 @@ function loginWithFacebook(configId: string, includeCoexistenceExtras = false): 
     }
     window.FB.login((response) => {
       const code = response.authResponse?.code;
+      logMetaSignupDiagnostic("fb_login_callback", {
+        status: response.status ?? "unknown",
+        codeReceived: Boolean(code),
+      });
       if (code) {
         resolve(code);
         return;
@@ -303,7 +343,9 @@ export default function IntegrationsPage() {
   const [isLoadingChannels, setIsLoadingChannels] = useState(true);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [metaSignupConfig, setMetaSignupConfig] = useState<MetaSignupConfig | null>(null);
+  const metaSignupInFlightRef = useRef(false);
   const signupSessionInfoRef = useRef<EmbeddedSignupSessionInfo | null>(null);
+  const signupSessionErrorRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -332,11 +374,17 @@ export default function IntegrationsPage() {
         setMetaSignupConfig(config);
         if (config.appId) {
           void loadFacebookSdk(config.appId, config.graphVersion).catch(() => {
-            // The legacy OAuth popup remains available when the SDK cannot load.
+            logMetaSignupDiagnostic("sdk_preload_failed", {
+              appIdPresent: true,
+              sdkLoaded: false,
+            });
           });
         }
-      } catch {
-        // Keep the existing OAuth flow available as a fallback.
+      } catch (err) {
+        logMetaSignupDiagnostic("config_preload_failed", {
+          appIdPresent: false,
+          error: (err as Error).message,
+        });
       }
     }
     void loadConfig();
@@ -348,7 +396,30 @@ export default function IntegrationsPage() {
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       if (!isFacebookOrigin(event.origin)) return;
-      const info = parseEmbeddedSignupMessage(event.data);
+      const message = parseEmbeddedSignupMessage(event.data);
+      if (!message) return;
+      logMetaSignupDiagnostic("embedded_signup_message", {
+        trustedOrigin: true,
+        eventName: message.eventName ?? "UNKNOWN",
+        wabaIdReceived: Boolean(message.info?.waba_id),
+        phoneNumberIdReceived: Boolean(message.info?.phone_number_id),
+      });
+      if (message.eventName === "CANCEL") {
+        signupSessionErrorRef.current = "تم إلغاء التسجيل المضمن من Meta.";
+        return;
+      }
+      if (message.eventName === "ERROR") {
+        signupSessionErrorRef.current = message.errorMessage ?? "تعذر إكمال التسجيل المضمن من Meta.";
+        return;
+      }
+      if (
+        (message.eventName === "FINISH" || message.eventName === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING")
+        && (!message.info?.waba_id || !message.info?.phone_number_id)
+      ) {
+        signupSessionErrorRef.current = "اكتمل التسجيل المضمن لكن لم تصل معرفات واتساب المطلوبة.";
+        return;
+      }
+      const info = message.info;
       if (!info) return;
       signupSessionInfoRef.current = {
         ...signupSessionInfoRef.current,
@@ -359,15 +430,12 @@ export default function IntegrationsPage() {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  async function startMetaOAuthFallback() {
-    const res = await fetch(`${BASE}/integrations/meta/embedded-signup/start`, { credentials: "include" });
-    const data = await res.json();
-    if (!res.ok || !data.url) throw new Error(data.error ?? data.missing?.join(", ") ?? "Meta OAuth fallback is not available");
-    window.open(data.url, "meta-channels-signup", "width=820,height=780,noopener,noreferrer");
-  }
-
   function waitForCapturedSignupInfo(timeoutMs = 5000): Promise<EmbeddedSignupSessionInfo> {
     return new Promise((resolve, reject) => {
+      if (signupSessionErrorRef.current) {
+        reject(new Error(signupSessionErrorRef.current));
+        return;
+      }
       const existing = signupSessionInfoRef.current;
       if (existing?.waba_id && existing.phone_number_id) {
         resolve(existing);
@@ -376,6 +444,15 @@ export default function IntegrationsPage() {
 
       const startedAt = Date.now();
       const timer = window.setInterval(() => {
+        if (signupSessionErrorRef.current) {
+          window.clearInterval(timer);
+          logMetaSignupDiagnostic("embedded_signup_identifiers", {
+            wabaIdReceived: Boolean(signupSessionInfoRef.current?.waba_id),
+            phoneNumberIdReceived: Boolean(signupSessionInfoRef.current?.phone_number_id),
+          });
+          reject(new Error(signupSessionErrorRef.current));
+          return;
+        }
         const current = signupSessionInfoRef.current;
         if (current?.waba_id && current.phone_number_id) {
           window.clearInterval(timer);
@@ -384,6 +461,10 @@ export default function IntegrationsPage() {
         }
         if (Date.now() - startedAt >= timeoutMs) {
           window.clearInterval(timer);
+          logMetaSignupDiagnostic("embedded_signup_identifiers", {
+            wabaIdReceived: Boolean(signupSessionInfoRef.current?.waba_id),
+            phoneNumberIdReceived: Boolean(signupSessionInfoRef.current?.phone_number_id),
+          });
           reject(new Error("Meta signup did not return WhatsApp account identifiers"));
         }
       }, 100);
@@ -414,45 +495,94 @@ export default function IntegrationsPage() {
   }
 
   async function startMetaSignup(option = metaSignupOptions[0]) {
+    if (metaSignupInFlightRef.current) {
+      logMetaSignupDiagnostic("signup_ignored", {
+        optionKey: option.key,
+        reason: "already_in_progress",
+      });
+      return;
+    }
+    metaSignupInFlightRef.current = true;
     setIsStartingMeta(true);
     setStartingMetaConfigKey(option.key);
     setMetaError(null);
+    let codeReceived = false;
     try {
-      const config = metaSignupConfig ?? await fetchMetaSignupConfig().catch(() => null);
+      logMetaSignupDiagnostic("signup_selected", {
+        optionKey: option.key,
+        backendKey: option.backendKey,
+        whatsappEmbedded: isWhatsAppSignupOption(option.key),
+      });
+
+      let config: MetaSignupConfig;
+      try {
+        config = metaSignupConfig ?? await fetchMetaSignupConfig();
+      } catch (err) {
+        logMetaSignupDiagnostic("config_load_failed", {
+          optionKey: option.key,
+          appIdPresent: false,
+          configKey: option.key,
+          error: (err as Error).message,
+        });
+        throw new Error("تعذر تحميل إعدادات التسجيل المضمن من Meta. تحقق من الإعدادات وحاول مرة أخرى.");
+      }
       if (config && !metaSignupConfig) setMetaSignupConfig(config);
       const configId = config?.configIds[option.key] ?? null;
-      if (config?.appId && configId) {
-        let sdkReady = false;
-        try {
-          await loadFacebookSdk(config.appId, config.graphVersion || "v22.0");
-          sdkReady = true;
-        } catch {
-          sdkReady = false;
-        }
-        if (sdkReady) {
-          signupSessionInfoRef.current = null;
-          const code = await loginWithFacebook(configId, option.key === "whatsappCoexistence");
-          const sessionInfo = await waitForCapturedSignupInfo();
-          await completeEmbeddedSignup(code, configId, option.backendKey, sessionInfo);
-          return;
-        }
-        if (option.key === "whatsappStandard") {
-          await startMetaOAuthFallback();
-          return;
-        }
-        throw new Error("Facebook SDK is not ready");
-      }
+      logMetaSignupDiagnostic("config_loaded", {
+        optionKey: option.key,
+        appIdPresent: Boolean(config.appId),
+        configKey: option.key,
+        configIdPresent: Boolean(configId),
+        configIdLast4: configIdLast4(configId),
+      });
 
-      if (option.key !== "whatsappStandard") {
+      if (!config.appId) {
+        throw new Error("Meta App ID غير مهيأ لهذا الربط.");
+      }
+      if (!configId) {
         throw new Error("Meta config_id is not configured for this signup type");
       }
-      const res = await fetch(`${BASE}/integrations/meta/embedded-signup/start`, { credentials: "include" });
-      const data = await res.json();
-      if (!res.ok || !data.url) throw new Error(data.error ?? data.missing?.join(", ") ?? "تعذر تجهيز ربط قنوات Meta");
-      window.open(data.url, "meta-channels-signup", "width=820,height=780,noopener,noreferrer");
+
+      try {
+        await loadFacebookSdk(config.appId, config.graphVersion || "v22.0");
+        logMetaSignupDiagnostic("sdk_load_result", {
+          optionKey: option.key,
+          sdkLoaded: true,
+          appIdPresent: true,
+        });
+      } catch (err) {
+        logMetaSignupDiagnostic("sdk_load_result", {
+          optionKey: option.key,
+          sdkLoaded: false,
+          appIdPresent: true,
+          error: (err as Error).message,
+        });
+        throw new Error("تعذر تحميل Facebook SDK. تحقق من إعدادات الدومين في Meta أو من حظر المتصفح للسكريبتات.");
+      }
+
+      signupSessionInfoRef.current = null;
+      signupSessionErrorRef.current = null;
+      const code = await loginWithFacebook(configId, option.key === "whatsappCoexistence");
+      codeReceived = Boolean(code);
+      const sessionInfo = await waitForCapturedSignupInfo();
+      logMetaSignupDiagnostic("embedded_signup_identifiers", {
+        optionKey: option.key,
+        codeReceived: Boolean(code),
+        wabaIdReceived: Boolean(sessionInfo.waba_id),
+        phoneNumberIdReceived: Boolean(sessionInfo.phone_number_id),
+      });
+      await completeEmbeddedSignup(code, configId, option.backendKey, sessionInfo);
     } catch (err) {
+      logMetaSignupDiagnostic("signup_failed", {
+        optionKey: option.key,
+        codeReceived,
+        wabaIdReceived: Boolean(signupSessionInfoRef.current?.waba_id),
+        phoneNumberIdReceived: Boolean(signupSessionInfoRef.current?.phone_number_id),
+        error: (err as Error).message,
+      });
       setMetaError((err as Error).message);
     } finally {
+      metaSignupInFlightRef.current = false;
       setIsStartingMeta(false);
       setStartingMetaConfigKey(null);
     }
@@ -512,7 +642,7 @@ export default function IntegrationsPage() {
           </div>
           <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto">
             {metaSignupButtons.map((option) => {
-              const disabled = isStartingMeta || (!option.configId && option.key !== "whatsappStandard");
+              const disabled = isStartingMeta || (!option.configId && !isWhatsAppSignupOption(option.key));
               return (
                 <button
                   key={option.key}
