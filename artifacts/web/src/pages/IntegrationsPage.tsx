@@ -18,6 +18,10 @@ type FacebookLoginOptions = {
   config_id: string;
   response_type: "code";
   override_default_response_type: true;
+  extras?: {
+    setup: Record<string, unknown>;
+    featureType: "whatsapp_business_app_onboarding";
+  };
 };
 
 type FacebookSdk = {
@@ -166,11 +170,22 @@ async function fetchMetaSignupConfig(): Promise<MetaSignupConfig> {
   return data;
 }
 
-function loginWithFacebook(configId: string): Promise<string> {
+function loginWithFacebook(configId: string, includeCoexistenceExtras = false): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!window.FB) {
       reject(new Error("Facebook SDK is not ready"));
       return;
+    }
+    const loginOptions: FacebookLoginOptions = {
+      config_id: configId,
+      response_type: "code",
+      override_default_response_type: true,
+    };
+    if (includeCoexistenceExtras) {
+      loginOptions.extras = {
+        setup: {},
+        featureType: "whatsapp_business_app_onboarding",
+      };
     }
     window.FB.login((response) => {
       const code = response.authResponse?.code;
@@ -179,11 +194,7 @@ function loginWithFacebook(configId: string): Promise<string> {
         return;
       }
       reject(new Error(response.status ? `Meta signup did not complete: ${response.status}` : "Meta signup did not return a code"));
-    }, {
-      config_id: configId,
-      response_type: "code",
-      override_default_response_type: true,
-    });
+    }, loginOptions);
   });
 }
 
@@ -420,7 +431,7 @@ export default function IntegrationsPage() {
         }
         if (sdkReady) {
           signupSessionInfoRef.current = null;
-          const code = await loginWithFacebook(configId);
+          const code = await loginWithFacebook(configId, option.key === "whatsappCoexistence");
           const sessionInfo = await waitForCapturedSignupInfo();
           await completeEmbeddedSignup(code, configId, option.backendKey, sessionInfo);
           return;
