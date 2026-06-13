@@ -19,8 +19,10 @@ type FacebookLoginOptions = {
   response_type: "code";
   override_default_response_type: true;
   extras?: {
-    setup: Record<string, unknown>;
-    featureType: "whatsapp_business_app_onboarding";
+    setup?: Record<string, unknown>;
+    featureType?: "whatsapp_business_app_onboarding";
+    sessionInfoVersion: "3";
+    version: "v4";
   };
 };
 
@@ -82,6 +84,24 @@ function isWhatsAppSignupOption(key: MetaSignupConfigKey) {
 
 function logMetaSignupDiagnostic(event: string, details: Record<string, unknown>) {
   console.info("[Meta Embedded Signup]", event, details);
+}
+
+function embeddedSignupExtrasForOption(key: MetaSignupConfigKey): FacebookLoginOptions["extras"] | undefined {
+  if (key === "whatsappStandard") {
+    return {
+      sessionInfoVersion: "3",
+      version: "v4",
+    };
+  }
+  if (key === "whatsappCoexistence") {
+    return {
+      setup: {},
+      featureType: "whatsapp_business_app_onboarding",
+      sessionInfoVersion: "3",
+      version: "v4",
+    };
+  }
+  return undefined;
 }
 
 function normalizeGraphVersion(version: string | null | undefined) {
@@ -206,7 +226,7 @@ async function fetchMetaSignupConfig(): Promise<MetaSignupConfig> {
   return data;
 }
 
-function loginWithFacebook(configId: string, includeCoexistenceExtras = false): Promise<string> {
+function loginWithFacebook(configId: string, optionKey: MetaSignupConfigKey): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!window.FB) {
       reject(new Error("Facebook SDK is not ready"));
@@ -217,12 +237,8 @@ function loginWithFacebook(configId: string, includeCoexistenceExtras = false): 
       response_type: "code",
       override_default_response_type: true,
     };
-    if (includeCoexistenceExtras) {
-      loginOptions.extras = {
-        setup: {},
-        featureType: "whatsapp_business_app_onboarding",
-      };
-    }
+    const extras = embeddedSignupExtrasForOption(optionKey);
+    if (extras) loginOptions.extras = extras;
     window.FB.login((response) => {
       const code = response.authResponse?.code;
       logMetaSignupDiagnostic("fb_login_callback", {
@@ -562,7 +578,7 @@ export default function IntegrationsPage() {
 
       signupSessionInfoRef.current = null;
       signupSessionErrorRef.current = null;
-      const code = await loginWithFacebook(configId, option.key === "whatsappCoexistence");
+      const code = await loginWithFacebook(configId, option.key);
       codeReceived = Boolean(code);
       const sessionInfo = await waitForCapturedSignupInfo();
       logMetaSignupDiagnostic("embedded_signup_identifiers", {
