@@ -157,6 +157,19 @@ async function callMetaGraph(path: string, token: string): Promise<any> {
   return response.json();
 }
 
+async function postMetaGraph(path: string, token: string, body?: Record<string, unknown>): Promise<any> {
+  const response = await fetch(`https://graph.facebook.com/${requireMetaGraphVersion()}/${path.replace(/^\//, "")}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) throw new Error(`Meta Graph API POST returned ${response.status}`);
+  return response.json();
+}
+
 async function exchangeCodeForToken(
   req: AuthenticatedRequest,
   code: string,
@@ -753,6 +766,23 @@ router.post("/meta/embedded-signup/complete", requirePermission("integrations:up
     lookupValue: phoneNumberId,
     credentialsSecretRef: tokenRef,
   });
+
+  try {
+    await postMetaGraph(`${wabaId}/subscribed_apps`, userToken);
+  } catch (err) {
+    req.log?.warn({ err, channelAccountId: account.id, wabaId }, "Meta WABA app subscription failed");
+    res.status(502).json({ error: "تعذر الاشتراك في Webhooks لحساب واتساب التجاري", code: "meta_waba_subscription_failed" });
+    return;
+  }
+
+  try {
+    await postMetaGraph(`${phoneNumberId}/register`, userToken, {
+      messaging_product: "whatsapp",
+      pin: "000000",
+    });
+  } catch (err) {
+    req.log?.warn({ err, channelAccountId: account.id, phoneNumberId }, "Meta phone number registration failed; continuing");
+  }
 
   res.status(201).json({
     account: {
