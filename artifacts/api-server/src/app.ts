@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import router from "./routes";
+import internalRouter from "./routes/internal.routes";
 import { logger } from "./lib/logger";
 import { sessionMiddleware } from "./lib/session";
 import { AppError } from "./lib/errors";
@@ -71,6 +72,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   }
   urlencodedParser(req, res, next);
 });
+app.use("/internal", internalRouter);
 app.use(sessionMiddleware);
 
 app.use("/api", router);

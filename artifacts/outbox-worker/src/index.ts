@@ -5,6 +5,7 @@ const OUTBOX_INTERVAL_MS = 3_000;
 const AGENT_INTERVAL_MS = 5_000;
 const META_GRAPH_VERSION = "v19.0";
 const API_SERVER_URL = (process.env.API_SERVER_URL ?? "http://localhost:8080").replace(/\/$/, "");
+const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const logger = console;
@@ -54,12 +55,10 @@ type AiAgentRow = {
   status: string;
 };
 
-type DraftReplyResponse = {
-  autoReplyOutboxEventId?: string | null;
-  trustDecision?: {
-    decision?: string;
-    reason?: string | null;
-  } | null;
+type InternalAgentReplyResponse = {
+  success: boolean;
+  outboxEventId?: string | null;
+  shouldEscalate?: boolean;
 };
 
 function asRecord(value: unknown): JsonRecord {
@@ -293,14 +292,19 @@ async function markConversationHuman(conversationId: string): Promise<void> {
   );
 }
 
-async function requestDraftReply(params: {
+async function requestInternalAgentReply(params: {
   workspaceId: string;
   conversationId: string;
   agentId: string;
-}): Promise<DraftReplyResponse> {
-  const response = await fetch(`${API_SERVER_URL}/api/ai/runs/draft-reply`, {
+}): Promise<InternalAgentReplyResponse> {
+  if (!INTERNAL_SECRET) throw new Error("INTERNAL_SECRET is required");
+
+  const response = await fetch(`${API_SERVER_URL}/internal/agent-reply`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Internal-Secret": INTERNAL_SECRET,
+    },
     body: JSON.stringify({
       workspaceId: params.workspaceId,
       conversationId: params.conversationId,
@@ -310,10 +314,10 @@ async function requestDraftReply(params: {
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new Error(`Draft reply API failed with ${response.status}: ${body.slice(0, 500)}`);
+    throw new Error(`Internal agent reply API failed with ${response.status}: ${body.slice(0, 500)}`);
   }
 
-  return response.json() as Promise<DraftReplyResponse>;
+  return response.json() as Promise<InternalAgentReplyResponse>;
 }
 
 async function incrementAgentReplyCount(conversationId: string): Promise<void> {
@@ -368,19 +372,19 @@ async function handleDomainEvent(event: DomainEventRow): Promise<void> {
     return;
   }
 
-  const result = await requestDraftReply({
+  const result = await requestInternalAgentReply({
     workspaceId: conversation.workspace_id,
     conversationId: conversation.id,
     agentId: channel.default_agent_id,
   });
 
-  if (result.trustDecision?.decision === "suggest_only" && result.trustDecision.reason === "knowledge_gap") {
+  if (result.shouldEscalate) {
     await markConversationHuman(conversation.id);
     await markDone(event.id);
     return;
   }
 
-  if (result.autoReplyOutboxEventId) await incrementAgentReplyCount(conversation.id);
+  if (result.outboxEventId) await incrementAgentReplyCount(conversation.id);
   await markDone(event.id);
 }
 
