@@ -1,11 +1,10 @@
 import { createServer } from "node:http";
 import pg from "pg";
-import { runAgentReply } from "@workspace/api-server/src/lib/agent-reply";
 
-const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const OUTBOX_INTERVAL_MS = 3_000;
 const AGENT_INTERVAL_MS = 5_000;
 const META_GRAPH_VERSION = "v19.0";
+const API_SERVER_URL = (process.env.API_SERVER_URL ?? "http://localhost:8080").replace(/\/$/, "");
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const logger = console;
@@ -53,6 +52,14 @@ type AiAgentRow = {
   id: string;
   workspace_id: string;
   status: string;
+};
+
+type DraftReplyResponse = {
+  autoReplyOutboxEventId?: string | null;
+  trustDecision?: {
+    decision?: string;
+    reason?: string | null;
+  } | null;
 };
 
 function asRecord(value: unknown): JsonRecord {
@@ -149,7 +156,7 @@ async function sendWhatsAppText(params: {
 async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
   const payload = asRecord(event.payload);
   const to = stringField(payload, "to");
-  const text = stringField(payload, "text");
+  const text = stringField(payload, "text") ?? stringField(payload, "body");
   const channelAccountId = stringField(payload, "channelAccountId");
 
   if (!to || !text || !channelAccountId) {
@@ -206,6 +213,7 @@ async function claimDomainEvents(): Promise<DomainEventRow[]> {
       WHERE id IN (
         SELECT id FROM domain_events
         WHERE status='pending'
+          AND event_type IN ('message.received', 'message.echo')
         ORDER BY created_at ASC
         LIMIT 5
         FOR UPDATE SKIP LOCKED
@@ -285,40 +293,27 @@ async function markConversationHuman(conversationId: string): Promise<void> {
   );
 }
 
-async function enqueueAgentReply(params: {
+async function requestDraftReply(params: {
   workspaceId: string;
   conversationId: string;
-  channelAccountId: string;
-  to: string;
-  text: string;
-}): Promise<void> {
-  await pool.query(
-    `
-      INSERT INTO outbox_events (
-        workspace_id,
-        event_type,
-        entity_type,
-        entity_id,
-        payload
-      )
-      VALUES (
-        $1,
-        'message.send.whatsapp.text',
-        'message',
-        $2,
-        $3::jsonb
-      )
-    `,
-    [
-      params.workspaceId,
-      params.conversationId,
-      JSON.stringify({
-        to: params.to,
-        text: params.text,
-        channelAccountId: params.channelAccountId,
-      }),
-    ],
-  );
+  agentId: string;
+}): Promise<DraftReplyResponse> {
+  const response = await fetch(`${API_SERVER_URL}/api/ai/runs/draft-reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      workspaceId: params.workspaceId,
+      conversationId: params.conversationId,
+      agentId: params.agentId,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Draft reply API failed with ${response.status}: ${body.slice(0, 500)}`);
+  }
+
+  return response.json() as Promise<DraftReplyResponse>;
 }
 
 async function incrementAgentReplyCount(conversationId: string): Promise<void> {
@@ -373,32 +368,19 @@ async function handleDomainEvent(event: DomainEventRow): Promise<void> {
     return;
   }
 
-  const result = await runAgentReply({
+  const result = await requestDraftReply({
     workspaceId: conversation.workspace_id,
     conversationId: conversation.id,
     agentId: channel.default_agent_id,
-    systemUserId: SYSTEM_USER_ID,
   });
 
-  if (result.shouldEscalate) {
+  if (result.trustDecision?.decision === "suggest_only" && result.trustDecision.reason === "knowledge_gap") {
     await markConversationHuman(conversation.id);
     await markDone(event.id);
     return;
   }
 
-  if (!conversation.external_thread_id) {
-    await markDone(event.id);
-    return;
-  }
-
-  await enqueueAgentReply({
-    workspaceId: conversation.workspace_id,
-    conversationId: conversation.id,
-    channelAccountId: conversation.channel_account_id,
-    to: conversation.external_thread_id,
-    text: result.reply,
-  });
-  await incrementAgentReplyCount(conversation.id);
+  if (result.autoReplyOutboxEventId) await incrementAgentReplyCount(conversation.id);
   await markDone(event.id);
 }
 

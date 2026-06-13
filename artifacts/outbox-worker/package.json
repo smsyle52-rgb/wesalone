@@ -9,8 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@workspace/api-server": "workspace:*",
     "@workspace/db": "workspace:*",
+    "pino": "^9",
     "pg": "^8.13.3"
   },
   "devDependencies": {
