@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   aiAgentsTable,
@@ -30,16 +30,44 @@ function secretMatches(provided: string | undefined, expected: string): boolean 
   return timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
-router.post("/agent-reply", async (req: Request, res: Response): Promise<void> => {
+function requireInternalSecret(req: Request, res: Response): boolean {
   if (!env.INTERNAL_SECRET) {
     res.status(503).json({ error: "INTERNAL_SECRET is not configured" });
-    return;
+    return false;
   }
 
   if (!secretMatches(req.get("X-Internal-Secret"), env.INTERNAL_SECRET)) {
     res.status(401).json({ error: "Unauthorized" });
-    return;
+    return false;
   }
+
+  return true;
+}
+
+router.post("/cleanup-outbox", async (req: Request, res: Response): Promise<void> => {
+  if (!requireInternalSecret(req, res)) return;
+
+  const result = await db.execute(sql`
+    UPDATE outbox_events
+    SET status = 'failed'
+    WHERE status IN ('processing', 'pending')
+      AND created_at < NOW() - INTERVAL '5 minutes'
+  `);
+
+  const pendingResult = await db.execute<{ pending: string }>(sql`
+    SELECT COUNT(*) as pending
+    FROM domain_events
+    WHERE status = 'pending'
+  `);
+
+  res.status(200).json({
+    updated: result.rowCount ?? 0,
+    pendingDomainEvents: Number(pendingResult.rows[0]?.pending ?? 0),
+  });
+});
+
+router.post("/agent-reply", async (req: Request, res: Response): Promise<void> => {
+  if (!requireInternalSecret(req, res)) return;
 
   const parsed = agentReplySchema.safeParse(req.body);
   if (!parsed.success) {
