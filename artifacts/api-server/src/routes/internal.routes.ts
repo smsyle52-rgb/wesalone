@@ -66,6 +66,19 @@ router.post("/cleanup-outbox", async (req: Request, res: Response): Promise<void
   });
 });
 
+router.post("/cleanup-domain-events", async (req: Request, res: Response): Promise<void> => {
+  if (!requireInternalSecret(req, res)) return;
+
+  const result = await db.execute(sql`
+    UPDATE domain_events
+    SET status = 'pending'
+    WHERE status = 'processing'
+      AND updated_at < NOW() - INTERVAL '10 minutes'
+  `);
+
+  res.status(200).json({ updated: result.rowCount ?? 0 });
+});
+
 router.post("/agent-reply", async (req: Request, res: Response): Promise<void> => {
   if (!requireInternalSecret(req, res)) return;
 

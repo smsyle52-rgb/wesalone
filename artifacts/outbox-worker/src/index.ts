@@ -61,6 +61,15 @@ type InternalAgentReplyResponse = {
   shouldEscalate?: boolean;
 };
 
+function errorDetails(err: unknown): string {
+  if (err instanceof Error) return `${err.name}: ${err.message}\n${err.stack ?? ""}`.trim();
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 function asRecord(value: unknown): JsonRecord {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as JsonRecord;
@@ -182,6 +191,8 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
 }
 
 export async function runOutboxSender(): Promise<void> {
+  console.log("outbox-sender: polling...", new Date().toISOString());
+
   const { rows } = await pool.query<OutboxEventRow>(
     `
       SELECT id, workspace_id, event_type, entity_type, entity_id, payload, status, attempts
@@ -198,6 +209,7 @@ export async function runOutboxSender(): Promise<void> {
     try {
       await handleOutboxEvent(event);
     } catch (err) {
+      console.error("outbox-sender: error", errorDetails(err));
       logger.error({ err, outboxEventId: event.id }, "Failed to publish outbox event");
       await markOutboxFailedOrRetry(event);
     }
@@ -389,11 +401,14 @@ async function handleDomainEvent(event: DomainEventRow): Promise<void> {
 }
 
 export async function runAgentRunner(): Promise<void> {
+  console.log("agent-runner: polling...", new Date().toISOString());
+
   const events = await claimDomainEvents();
   for (const event of events) {
     try {
       await handleDomainEvent(event);
     } catch (err) {
+      console.error("agent-runner: error", errorDetails(err));
       logger.error({ err, domainEventId: event.id }, "Failed to process domain event");
       await markFailed(event.id);
     }
@@ -409,6 +424,7 @@ function startLoop(name: string, intervalMs: number, handler: () => Promise<void
     try {
       await handler();
     } catch (err) {
+      console.error(`${name}: loop error`, errorDetails(err));
       logger.error({ err }, `${name} loop failed`);
     } finally {
       running = false;
