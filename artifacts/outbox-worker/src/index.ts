@@ -3,7 +3,7 @@ import pg from "pg";
 
 const OUTBOX_INTERVAL_MS = 3_000;
 const AGENT_INTERVAL_MS = 5_000;
-const META_GRAPH_VERSION = "v19.0";
+const META_GRAPH_VERSION = "v22.0";
 const API_SERVER_URL = (process.env.API_SERVER_URL ?? "http://localhost:8080").replace(/\/$/, "");
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "";
 
