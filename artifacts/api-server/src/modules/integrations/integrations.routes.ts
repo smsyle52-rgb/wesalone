@@ -18,12 +18,6 @@ import {
   replayWebhookEventMock,
   updateProviderAccount,
 } from "./integrationLedger.service";
-import {
-  cancelOutboxMessage,
-  getOutboxMessage,
-  listOutboxMessages,
-  retryOutboxMessage,
-} from "./outbox.service";
 import { listIntegrationHealth } from "./integrationHealth.service";
 import {
   integrationProviders,
@@ -591,58 +585,6 @@ router.post("/webhook-events/:id/replay", requirePermission("integrations:replay
   });
 
   res.json({ event, message: "تمت إعادة المعالجة بشكل آمن بدون أي اتصال خارجي" });
-});
-
-router.get("/outbox", requirePermission("integrations:read"), async (req: AuthenticatedRequest, res: Response) => {
-  const messages = await listOutboxMessages(req.sessionUser.activeWorkspaceId, limitFromQuery(req.query.limit));
-  res.json({ messages });
-});
-
-router.get("/outbox/:id", requirePermission("integrations:read"), async (req: AuthenticatedRequest, res: Response) => {
-  const message = await getOutboxMessage(req.sessionUser.activeWorkspaceId, String(req.params.id));
-  if (!message) {
-    res.status(404).json({ error: "رسالة outbox غير موجودة" });
-    return;
-  }
-  res.json({ message });
-});
-
-router.post("/outbox/:id/cancel", requirePermission("integrations:manage_outbox"), async (req: AuthenticatedRequest, res: Response) => {
-  const message = await cancelOutboxMessage(req.sessionUser.activeWorkspaceId, String(req.params.id));
-  if (!message) {
-    res.status(409).json({ error: "لا يمكن إلغاء هذه الرسالة أو أنها غير موجودة" });
-    return;
-  }
-
-  await createAuditLog({
-    ...auditFromRequest(req, req.sessionUser),
-    action: "outbox_cancel",
-    entityType: "outbox_message",
-    entityId: message.id,
-    entityLabel: message.destination,
-    newData: { status: message.status },
-  });
-
-  res.json({ message });
-});
-
-router.post("/outbox/:id/retry", requirePermission("integrations:manage_outbox"), async (req: AuthenticatedRequest, res: Response) => {
-  const message = await retryOutboxMessage(req.sessionUser.activeWorkspaceId, String(req.params.id));
-  if (!message) {
-    res.status(409).json({ error: "إعادة المحاولة متاحة فقط للرسائل الفاشلة" });
-    return;
-  }
-
-  await createAuditLog({
-    ...auditFromRequest(req, req.sessionUser),
-    action: "outbox_retry",
-    entityType: "outbox_message",
-    entityId: message.id,
-    entityLabel: message.destination,
-    newData: { status: message.status, retryCount: message.retryCount },
-  });
-
-  res.json({ message });
 });
 
 router.get("/health", requirePermission("integrations:read"), async (req: AuthenticatedRequest, res: Response) => {

@@ -5,7 +5,9 @@ import { logger } from "../lib/logger";
 const VECTOR_SIZE = 768;
 const CACHE_LIMIT = 1000;
 const EMBEDDING_MODEL = process.env.VERTEX_EMBEDDING_MODEL ?? "text-embedding-005";
-const EMBEDDINGS_DRY_RUN = process.env.AI_EMBEDDINGS_DRY_RUN !== "false";
+const EMBEDDINGS_DRY_RUN =
+  process.env.EMBEDDINGS_DRY_RUN !== "false" &&
+  process.env.AI_EMBEDDINGS_DRY_RUN !== "false";
 const VERTEX_PROJECT_ID =
   process.env.VERTEX_PROJECT_ID ??
   process.env.GCP_PROJECT_ID ??

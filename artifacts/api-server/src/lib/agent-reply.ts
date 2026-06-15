@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { searchKnowledgeForAi } from "../services/knowledge-retrieval";
+import { loadMediaContext } from "../services/agent-media";
 import { ACTIVE_PROVIDER, getDefaultModel, runAI } from "./ai-provider";
 import {
   buildAgentToolPrompt,
@@ -120,6 +121,7 @@ export async function runAgentReply(params: {
   const lastInbound = [...messages].reverse().find((message) => message.direction === "inbound");
   const searchQuery = lastInbound?.content ?? messages[messages.length - 1]?.content ?? "";
   const knowledgeSources = await searchKnowledgeForAi({ workspaceId: params.workspaceId, query: searchQuery });
+  const mediaContext = await loadMediaContext(messages);
   const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
   const toolPrompt = buildAgentToolPrompt(executableTools);
 
@@ -140,7 +142,7 @@ export async function runAgentReply(params: {
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.
 
 المحادثة:
-${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}
+${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}${mediaContext.context}
 
 المطلوب: رد احترافي مناسب باللغة العربية.`;
   const model = agent.defaultModel || getDefaultModel();

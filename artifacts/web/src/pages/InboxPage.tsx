@@ -29,6 +29,65 @@ async function apiFetch(path: string, opts?: RequestInit) {
   return res.json();
 }
 
+type MessageAttachment = {
+  type?: string;
+  url?: string;
+  media_id?: string;
+  caption?: string | null;
+  filename?: string;
+};
+
+function asMessageAttachments(value: unknown): MessageAttachment[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is MessageAttachment => !!item && typeof item === "object");
+}
+
+function attachmentMediaSrc(conversationId: string, messageId: string, index: number): string {
+  return `${BASE}/conversations/${conversationId}/messages/${messageId}/attachments/${index}`;
+}
+
+function MessageAttachments({ conversationId, messageId, attachments }: { conversationId: string; messageId: string; attachments: unknown }) {
+  const items = asMessageAttachments(attachments);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="space-y-2 mb-2">
+      {items.map((attachment, index) => {
+        const type = attachment.type ?? "media";
+        const src = attachment.url ?? attachmentMediaSrc(conversationId, messageId, index);
+        if (type === "image" || type === "sticker") {
+          return (
+            <img
+              key={`${messageId}-${index}`}
+              src={src}
+              alt={attachment.caption ?? "صورة"}
+              className="max-w-full max-h-56 rounded-lg border border-border/40 object-contain bg-background/40"
+              loading="lazy"
+            />
+          );
+        }
+        if (type === "audio" || type === "voice") {
+          return <audio key={`${messageId}-${index}`} controls src={src} className="w-full max-w-sm" />;
+        }
+        if (type === "video") {
+          return <video key={`${messageId}-${index}`} controls src={src} className="max-w-full max-h-56 rounded-lg" />;
+        }
+        return (
+          <a
+            key={`${messageId}-${index}`}
+            href={src}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs underline opacity-90"
+          >
+            {type === "document" ? `📎 ${attachment.filename ?? "مستند"}` : "📎 وسائط"}
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 const CONV_STATUSES = [
   { value: "", label: "الكل" },
   { value: "new", label: "جديد" },
@@ -187,6 +246,7 @@ export default function InboxPage() {
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [messageText, setMessageText] = useState("");
+  const [mediaUrl, setMediaUrl] = useState("");
   const [messageMode, setMessageMode] = useState<"reply" | "note">("reply");
   const [detailTab, setDetailTab] = useState<"conversation" | "notes" | "customer" | "timeline">("conversation");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -383,7 +443,7 @@ export default function InboxPage() {
   });
 
   const sendMessage = useMutation({
-    mutationFn: ({ content, isNote }: { content: string; isNote: boolean }) =>
+    mutationFn: ({ content, isNote, outboundMediaUrl }: { content: string; isNote: boolean; outboundMediaUrl?: string }) =>
       apiFetch(`conversations/${selectedConvId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -391,10 +451,11 @@ export default function InboxPage() {
           content,
           direction: "outbound",
           isPrivateNote: isNote,
-          contentType: isNote ? "note" : "text",
+          contentType: isNote ? "note" : outboundMediaUrl ? "image" : "text",
+          ...(outboundMediaUrl ? { mediaUrl: outboundMediaUrl, mediaType: "image" } : {}),
         }),
       }),
-    onSuccess: () => { setMessageText(""); invalidateDetail(); },
+    onSuccess: () => { setMessageText(""); setMediaUrl(""); invalidateDetail(); },
   });
 
   const changeStatus = useMutation({
@@ -563,10 +624,19 @@ export default function InboxPage() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey && messageText.trim()) {
+    if (e.key === "Enter" && !e.shiftKey && (messageText.trim() || mediaUrl.trim())) {
       e.preventDefault();
-      sendMessage.mutate({ content: messageText, isNote: messageMode === "note" });
+      sendMessage.mutate({
+        content: messageText,
+        isNote: messageMode === "note",
+        outboundMediaUrl: messageMode === "note" ? undefined : mediaUrl.trim() || undefined,
+      });
     }
+  }
+
+  function attachImageByUrl() {
+    const url = window.prompt("ألصق رابط صورة عام (HTTPS):");
+    if (url?.trim()) setMediaUrl(url.trim());
   }
 
   const conv = detail?.conversation;
@@ -1185,6 +1255,9 @@ export default function InboxPage() {
                           {msg.source === "paste" && (
                             <div className="text-xs opacity-70 mb-1">📋 مستورد بالنسخ</div>
                           )}
+                          {selectedConvId && (
+                            <MessageAttachments conversationId={selectedConvId} messageId={msg.id} attachments={msg.attachments} />
+                          )}
                           <div className="whitespace-pre-wrap">{msg.content}</div>
                           <div className={cn("text-xs mt-1 opacity-60 flex items-center gap-1 justify-end")}>
                             {msg.senderName && <span>{msg.senderName}</span>}
@@ -1329,15 +1402,26 @@ export default function InboxPage() {
                   </div>
                   {messageMode === "reply" && (
                     <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                      <button disabled title="سيتم تفعيل رفع الملفات لاحقاً"
-                        className="px-2.5 py-1 rounded-md bg-muted/60 text-muted-foreground border border-dashed border-border cursor-not-allowed">
-                        إرفاق ملف
+                      <button
+                        type="button"
+                        onClick={attachImageByUrl}
+                        className="px-2.5 py-1 rounded-md bg-muted text-foreground border border-border hover:bg-muted/80"
+                      >
+                        إرفاق صورة (رابط)
                       </button>
                       <button disabled title="إدراج القوالب يحتاج قناة واتساب مربوطة"
                         className="px-2.5 py-1 rounded-md bg-muted/60 text-muted-foreground border border-dashed border-border cursor-not-allowed">
                         إدراج قالب
                       </button>
-                      <span className="text-muted-foreground">اكتب / لاختيار رد سريع</span>
+                      <span className="text-muted-foreground">رابط HTTPS عام · واتساب/إنستغرام/ماسنجر</span>
+                      <span className="text-muted-foreground/70">· رفع ملف مباشر قريباً</span>
+                    </div>
+                  )}
+                  {mediaUrl && messageMode === "reply" && (
+                    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-xs">
+                      <img src={mediaUrl} alt="معاينة" className="h-10 w-10 rounded object-cover border border-border" />
+                      <span className="flex-1 truncate" dir="ltr">{mediaUrl}</span>
+                      <button type="button" onClick={() => setMediaUrl("")} className="text-destructive hover:underline">إزالة</button>
                     </div>
                   )}
                   {filteredQuickReplies.length > 0 && (
@@ -1373,8 +1457,12 @@ export default function InboxPage() {
                       )}
                     />
                     <button
-                      onClick={() => messageText.trim() && sendMessage.mutate({ content: messageText, isNote: messageMode === "note" })}
-                      disabled={!messageText.trim() || sendMessage.isPending}
+                      onClick={() => (messageText.trim() || mediaUrl.trim()) && sendMessage.mutate({
+                        content: messageText,
+                        isNote: messageMode === "note",
+                        outboundMediaUrl: messageMode === "note" ? undefined : mediaUrl.trim() || undefined,
+                      })}
+                      disabled={(!messageText.trim() && !mediaUrl.trim()) || sendMessage.isPending}
                       className={cn(
                         "px-4 rounded-lg text-sm font-medium transition-colors disabled:opacity-50",
                         messageMode === "note"

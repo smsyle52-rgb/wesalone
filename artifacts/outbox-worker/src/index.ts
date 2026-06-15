@@ -4,6 +4,8 @@ import pg from "pg";
 
 const OUTBOX_INTERVAL_MS = 3_000;
 const AGENT_INTERVAL_MS = 5_000;
+const HEARTBEAT_INTERVAL_MS = 10_000;
+const CLEANUP_INTERVAL_MS = 300_000;
 const META_GRAPH_VERSION = "v22.0";
 const API_SERVER_URL = (process.env.API_SERVER_URL ?? "http://localhost:8080").replace(/\/$/, "");
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "";
@@ -71,6 +73,11 @@ function errorDetails(err: unknown): string {
   } catch {
     return String(err);
   }
+}
+
+// Cloud Logging structured log — severity=CRITICAL triggers log-based alerts
+function logAlert(type: string, fields: Record<string, unknown>): void {
+  process.stdout.write(JSON.stringify({ severity: "CRITICAL", alert: type, ...fields }) + "\n");
 }
 
 function asRecord(value: unknown): JsonRecord {
@@ -161,9 +168,11 @@ async function markOutboxFailedOrRetry(event: OutboxEventRow): Promise<void> {
     [event.id, attempts],
   );
 
-  // Q4 fix: escalate conversation to human on final outbox failure
   const payload = asRecord(event.payload);
   const conversationId = stringField(payload, "conversationId");
+  logAlert("outbox.permanently_failed", { outboxEventId: event.id, eventType: event.event_type, conversationId });
+
+  // Q4 fix: escalate conversation to human on final outbox failure
   if (conversationId) {
     await pool.query(
       "UPDATE conversations SET agent_status='human', updated_at=NOW() WHERE id=$1",
@@ -283,6 +292,75 @@ async function sendWhatsAppTemplate(params: {
   }
 }
 
+async function sendInstagramMedia(params: {
+  igAccountId: string;
+  recipientId: string;
+  mediaUrl: string;
+  mediaType: string;
+  pageToken: string;
+}): Promise<void> {
+  const attachmentType = ["image", "video", "audio"].includes(params.mediaType) ? params.mediaType : "image";
+  const response = await fetch(
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.igAccountId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.pageToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        recipient: { id: params.recipientId },
+        message: {
+          attachment: {
+            type: attachmentType,
+            payload: { url: params.mediaUrl },
+          },
+        },
+      }),
+    },
+  );
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Instagram media send failed with ${response.status}: ${body.slice(0, 500)}`);
+  }
+}
+
+async function sendMessengerMedia(params: {
+  pageId: string;
+  recipientId: string;
+  mediaUrl: string;
+  mediaType: string;
+  pageToken: string;
+}): Promise<void> {
+  const attachmentType = ["image", "video", "audio", "file"].includes(params.mediaType)
+    ? (params.mediaType === "document" ? "file" : params.mediaType)
+    : "image";
+  const response = await fetch(
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.pageId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.pageToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        recipient: { id: params.recipientId },
+        message: {
+          attachment: {
+            type: attachmentType,
+            payload: { url: params.mediaUrl },
+          },
+        },
+        messaging_type: "RESPONSE",
+      }),
+    },
+  );
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Messenger media send failed with ${response.status}: ${body.slice(0, 500)}`);
+  }
+}
+
 async function sendInstagramMessage(params: {
   igAccountId: string;
   recipientId: string;
@@ -363,23 +441,39 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
 
   // PD-6 fix: route outbound message by channel type
   if (channel.channel_type === "instagram") {
-    if (!text) throw new Error("Instagram outbox payload must include text or body");
     const igAccountId = igAccountIdFromConfig(channel.provider_config);
     if (!igAccountId) throw new Error(`Channel account ${channelAccountId} has no igAccountId`);
     const pageToken = decryptTokenRef(channel.credentials_secret_ref) ?? process.env.META_SYSTEM_USER_TOKEN;
     if (!pageToken) throw new Error(`No access token for Instagram channel ${channelAccountId}`);
-    await sendInstagramMessage({ igAccountId, recipientId: to, text, pageToken });
+
+    const isMediaEvent = event.event_type === "message.send.instagram.media" || Boolean(mediaUrl);
+    if (isMediaEvent) {
+      if (!mediaUrl) throw new Error("Instagram media outbox payload must include mediaUrl");
+      await sendInstagramMedia({ igAccountId, recipientId: to, mediaUrl, mediaType, pageToken });
+      if (text) await sendInstagramMessage({ igAccountId, recipientId: to, text, pageToken });
+    } else {
+      if (!text) throw new Error("Instagram outbox payload must include text or body");
+      await sendInstagramMessage({ igAccountId, recipientId: to, text, pageToken });
+    }
     await markOutboxDone(event.id);
     return;
   }
 
   if (channel.channel_type === "messenger") {
-    if (!text) throw new Error("Messenger outbox payload must include text or body");
     const pageId = pageIdFromConfig(channel.provider_config);
     if (!pageId) throw new Error(`Channel account ${channelAccountId} has no pageId`);
     const pageToken = decryptTokenRef(channel.credentials_secret_ref) ?? process.env.META_SYSTEM_USER_TOKEN;
     if (!pageToken) throw new Error(`No access token for Messenger channel ${channelAccountId}`);
-    await sendMessengerMessage({ pageId, recipientId: to, text, pageToken });
+
+    const isMediaEvent = event.event_type === "message.send.messenger.media" || Boolean(mediaUrl);
+    if (isMediaEvent) {
+      if (!mediaUrl) throw new Error("Messenger media outbox payload must include mediaUrl");
+      await sendMessengerMedia({ pageId, recipientId: to, mediaUrl, mediaType, pageToken });
+      if (text) await sendMessengerMessage({ pageId, recipientId: to, text, pageToken });
+    } else {
+      if (!text) throw new Error("Messenger outbox payload must include text or body");
+      await sendMessengerMessage({ pageId, recipientId: to, text, pageToken });
+    }
     await markOutboxDone(event.id);
     return;
   }
@@ -682,9 +776,32 @@ export async function runAgentRunner(): Promise<void> {
     } catch (err) {
       console.error("agent-runner: error", errorDetails(err));
       logger.error({ err, domainEventId: event.id }, "Failed to process domain event");
+      logAlert("domain_event.failed", { domainEventId: event.id, eventType: event.event_type, workspaceId: event.workspace_id });
       await markFailed(event.id);
     }
   }
+}
+
+async function writeHeartbeat(): Promise<void> {
+  await pool.query(
+    `INSERT INTO service_heartbeats(service_name, last_beat_at)
+     VALUES('outbox-worker', NOW())
+     ON CONFLICT (service_name) DO UPDATE SET last_beat_at=EXCLUDED.last_beat_at`,
+  );
+}
+
+async function runCleanup(): Promise<void> {
+  if (!INTERNAL_SECRET) return;
+  await Promise.all([
+    fetch(`${API_SERVER_URL}/internal/cleanup-outbox`, {
+      method: "POST",
+      headers: { "X-Internal-Secret": INTERNAL_SECRET },
+    }),
+    fetch(`${API_SERVER_URL}/internal/cleanup-domain-events`, {
+      method: "POST",
+      headers: { "X-Internal-Secret": INTERNAL_SECRET },
+    }),
+  ]);
 }
 
 function startLoop(name: string, intervalMs: number, handler: () => Promise<void>): void {
@@ -718,5 +835,7 @@ createServer((_req, res) => {
 
 startLoop("outbox sender", OUTBOX_INTERVAL_MS, runOutboxSender);
 startLoop("agent runner", AGENT_INTERVAL_MS, runAgentRunner);
+startLoop("heartbeat", HEARTBEAT_INTERVAL_MS, writeHeartbeat);
+startLoop("cleanup", CLEANUP_INTERVAL_MS, runCleanup);
 
 logger.info("Outbox worker started");

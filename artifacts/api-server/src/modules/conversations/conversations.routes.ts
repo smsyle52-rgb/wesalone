@@ -12,6 +12,7 @@ import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import { publishDomainEvent } from "../../lib/events";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
+import { fetchMetaMediaStream } from "../../services/meta-media";
 
 const router = Router();
 router.use(requireSession);
@@ -67,11 +68,22 @@ const createConvSchema = z.object({
 });
 
 const sendMessageSchema = z.object({
-  content: z.string().min(1, "محتوى الرسالة مطلوب"),
+  content: z.string().default(""),
   direction: z.enum(["outbound", "inbound", "internal"]).default("outbound"),
   isPrivateNote: z.boolean().default(false),
   contentType: z.enum(["text", "image", "audio", "document", "note"]).default("text"),
   source: z.enum(["manual", "paste", "widget", "api", "automation"]).default("manual"),
+  mediaUrl: z.string().url("رابط الوسائط غير صحيح").optional(),
+  mediaType: z.enum(["image", "video", "document", "audio"]).optional(),
+}).superRefine((data, ctx) => {
+  const hasText = data.content.trim().length > 0;
+  const hasMedia = Boolean(data.mediaUrl);
+  if (!hasText && !hasMedia) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "محتوى الرسالة أو رابط الوسائط مطلوب", path: ["content"] });
+  }
+  if (hasMedia && !data.mediaType) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "نوع الوسائط مطلوب عند إرسال رابط", path: ["mediaType"] });
+  }
 });
 
 const updateConvSchema = z.object({
@@ -645,6 +657,88 @@ router.get("/:id/messages", requirePermission("conversations:read"), async (req:
   res.json({ messages, total: Number(total), page, limit });
 });
 
+function asAttachmentList(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+}
+
+router.get("/:id/messages/:messageId/attachments/:index", requirePermission("conversations:read"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const attachmentIndex = Number.parseInt(String(req.params.index), 10);
+  if (!Number.isFinite(attachmentIndex) || attachmentIndex < 0) {
+    res.status(400).json({ error: "فهرس المرفق غير صحيح" });
+    return;
+  }
+
+  const [row] = await db.select({
+    messageId: messagesTable.id,
+    attachments: messagesTable.attachments,
+    conversationId: messagesTable.conversationId,
+  })
+    .from(messagesTable)
+    .where(and(
+      eq(messagesTable.id, String(req.params.messageId)),
+      eq(messagesTable.conversationId, String(req.params.id)),
+      eq(messagesTable.workspaceId, activeWorkspaceId),
+    ))
+    .limit(1);
+
+  if (!row) {
+    res.status(404).json({ error: "الرسالة غير موجودة" });
+    return;
+  }
+
+  const attachment = asAttachmentList(row.attachments)[attachmentIndex];
+  if (!attachment) {
+    res.status(404).json({ error: "المرفق غير موجود" });
+    return;
+  }
+
+  const directUrl = typeof attachment.url === "string" ? attachment.url : null;
+  if (directUrl) {
+    const response = await fetch(directUrl);
+    if (!response.ok || !response.body) {
+      res.status(502).json({ error: "تعذّر جلب الوسائط" });
+      return;
+    }
+    res.setHeader("Content-Type", response.headers.get("content-type") ?? "application/octet-stream");
+    res.setHeader("Cache-Control", "private, max-age=300");
+    const reader = response.body.getReader();
+    const pump = async () => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(Buffer.from(value));
+      }
+      res.end();
+    };
+    pump().catch(() => { if (!res.headersSent) res.status(502).end(); });
+    return;
+  }
+
+  const mediaId = typeof attachment.media_id === "string" ? attachment.media_id : null;
+  if (!mediaId) {
+    res.status(404).json({ error: "لا يوجد مرجع وسائط قابل للعرض" });
+    return;
+  }
+
+  try {
+    const stream = await fetchMetaMediaStream(mediaId);
+    res.setHeader("Content-Type", stream.contentType);
+    res.setHeader("Cache-Control", "private, max-age=300");
+    const reader = stream.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+    res.end();
+  } catch (err) {
+    logger.warn({ err, messageId: row.messageId, mediaId }, "Failed to stream message attachment");
+    res.status(502).json({ error: "تعذّر جلب الوسائط من ميتا" });
+  }
+});
+
 router.post("/:id/messages", requirePermission("conversations:reply"), async (req: AuthenticatedRequest, res: Response) => {
   const { activeWorkspaceId, userId, name } = req.sessionUser;
 
@@ -674,23 +768,37 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
 
     if (!conv) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
 
-    const { content, direction, isPrivateNote, contentType, source } = parsed.data;
+    const { content, direction, isPrivateNote, contentType, source, mediaUrl, mediaType } = parsed.data;
     const effectiveDirection = isPrivateNote ? "internal" : direction;
     const effectiveSenderType = direction === "inbound" ? "contact" : "user";
-
+    const trimmedContent = content.trim();
+    const hasMedia = Boolean(mediaUrl && mediaType);
     const isOutboundToChannel = effectiveDirection === "outbound" && !isPrivateNote
       && !!conv.channelAccountId && !!conv.externalThreadId;
+
+    if (hasMedia && isOutboundToChannel && !["whatsapp_api", "whatsapp", "instagram", "messenger"].includes(conv.channel)) {
+      res.status(400).json({ error: "إرسال الوسائط من الوارد غير مدعوم لهذه القناة" });
+      return;
+    }
+
+    const effectiveContent = trimmedContent || (hasMedia
+      ? (mediaType === "image" ? "[صورة]" : mediaType === "audio" ? "[رسالة صوتية]" : mediaType === "video" ? "[فيديو]" : "[مستند]")
+      : "");
+    const messageAttachments = hasMedia
+      ? [{ type: mediaType, provider: "manual", url: mediaUrl, caption: trimmedContent || null }]
+      : [];
 
     const [message] = await db.insert(messagesTable).values({
       conversationId: conv.id,
       workspaceId: activeWorkspaceId,
-      content,
+      content: effectiveContent,
       direction: effectiveDirection,
       senderType: isPrivateNote ? "user" : effectiveSenderType,
       senderId: userId,
       senderName: name,
       source,
-      contentType,
+      contentType: hasMedia ? (mediaType === "audio" ? "audio" : mediaType === "document" ? "document" : "image") : contentType,
+      attachments: messageAttachments,
       isPrivateNote,
       deliveryStatus: isOutboundToChannel ? "pending" : "sent",
       sentAt: new Date(),
@@ -698,6 +806,33 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
 
     // PD-1 fix: أضف outbox event للرسائل الخارجة اليدوية كي تصل للعميل عبر القناة الصحيحة
     if (isOutboundToChannel) {
+      if (hasMedia) {
+        const outboxEventType = conv.channel === "instagram"
+          ? "message.send.instagram.media"
+          : conv.channel === "messenger"
+            ? "message.send.messenger.media"
+            : "message.send.whatsapp.media";
+        await db.insert(outboxEventsTable).values({
+          workspaceId: activeWorkspaceId,
+          eventType: outboxEventType,
+          entityType: "conversation",
+          entityId: conv.id,
+          idempotencyKey: `manual-media:${userId}:${message.id}`,
+          payload: {
+            channelAccountId: conv.channelAccountId,
+            conversationId: conv.id,
+            to: conv.externalThreadId,
+            mediaType,
+            mediaUrl,
+            body: trimmedContent || undefined,
+            caption: trimmedContent || undefined,
+            manualReply: true,
+            messageId: message.id,
+          },
+          status: "pending",
+          nextAttemptAt: new Date(),
+        }).onConflictDoNothing();
+      } else {
       const outboxEventType = conv.channel === "instagram"
         ? "message.send.instagram.text"
         : conv.channel === "messenger"
@@ -713,18 +848,19 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
           channelAccountId: conv.channelAccountId,
           conversationId: conv.id,
           to: conv.externalThreadId,
-          body: content,
+          body: effectiveContent,
           manualReply: true,
           messageId: message.id,
         },
         status: "pending",
         nextAttemptAt: new Date(),
       }).onConflictDoNothing();
+      }
     }
 
     const convUpdates: Record<string, unknown> = { updatedAt: new Date() };
     if (!isPrivateNote) {
-      convUpdates.lastMessage = content.slice(0, 120);
+      convUpdates.lastMessage = effectiveContent.slice(0, 120);
       convUpdates.lastMessageAt = new Date();
       if (direction === "inbound") {
         convUpdates.unreadCount = sql`${conversationsTable.unreadCount} + 1`;
@@ -746,7 +882,7 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
       entityType: "message",
       entityId: message.id,
       entityLabel: `رسالة في محادثة ${conv.id.slice(0, 8)}`,
-      newData: { direction: effectiveDirection, isPrivateNote, contentPreview: content.slice(0, 80) },
+      newData: { direction: effectiveDirection, isPrivateNote, contentPreview: effectiveContent.slice(0, 80) },
     });
 
     if (!isPrivateNote) {
@@ -757,7 +893,7 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
         entityType: "message",
         entityId: message.id,
         title: direction === "inbound" ? "رسالة واردة من العميل" : "رسالة صادرة",
-        description: content.slice(0, 80),
+        description: effectiveContent.slice(0, 80),
         createdBy: userId,
       });
 
