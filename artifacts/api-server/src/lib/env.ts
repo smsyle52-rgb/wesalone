@@ -38,6 +38,7 @@ const LOG_LEVEL        = optionalEnv("LOG_LEVEL", "info")!;
 const SERVE_STATIC     = optionalEnv("SERVE_STATIC");          // 'true' → API serves dist/public (Cloud Run single-container)
 const META_WEBHOOK_VERIFY_TOKEN = optionalEnv("META_WEBHOOK_VERIFY_TOKEN");
 const META_WEBHOOK_SECRET       = optionalEnv("META_WEBHOOK_SECRET");
+const META_APP_SECRET           = optionalEnv("META_APP_SECRET");
 const INTERNAL_SECRET            = isProduction
   ? requireEnv("INTERNAL_SECRET", "Shared secret for internal worker endpoints.")
   : optionalEnv("INTERNAL_SECRET", "")!;
@@ -55,6 +56,7 @@ export const env = {
   SERVE_STATIC: SERVE_STATIC === "true",
   META_WEBHOOK_VERIFY_TOKEN,
   META_WEBHOOK_SECRET,
+  META_APP_SECRET,
   INTERNAL_SECRET,
   isProduction,
 } as const;

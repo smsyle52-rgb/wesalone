@@ -119,7 +119,7 @@ function parsePayload(req: RequestWithRawBody, rawBody: Buffer): MetaPayload {
 }
 
 function verifyMetaSignature(req: Request, rawBody: Buffer): boolean {
-  const secret = env.META_WEBHOOK_SECRET;
+  const secret = env.META_APP_SECRET ?? env.META_WEBHOOK_SECRET;
   const signature = req.header("x-hub-signature-256");
   if (!secret || !signature?.startsWith("sha256=")) return false;
 

@@ -160,6 +160,18 @@ async function markOutboxFailedOrRetry(event: OutboxEventRow): Promise<void> {
     "UPDATE outbox_events SET attempts=$2, status='failed' WHERE id=$1",
     [event.id, attempts],
   );
+
+  // Q4 fix: escalate conversation to human on final outbox failure
+  const payload = asRecord(event.payload);
+  const conversationId = stringField(payload, "conversationId");
+  if (conversationId) {
+    await pool.query(
+      "UPDATE conversations SET agent_status='human', updated_at=NOW() WHERE id=$1",
+      [conversationId],
+    ).catch((err) => {
+      console.error("Failed to escalate conversation after outbox failure", err);
+    });
+  }
 }
 
 async function sendWhatsAppText(params: {
@@ -231,6 +243,43 @@ async function sendWhatsAppMedia(params: {
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     throw new Error(`Meta Graph API media send failed with ${response.status}: ${body.slice(0, 500)}`);
+  }
+}
+
+async function sendWhatsAppTemplate(params: {
+  phoneNumberId: string;
+  to: string;
+  templateName: string;
+  language: string;
+  components: unknown[];
+}): Promise<void> {
+  const token = process.env.META_SYSTEM_USER_TOKEN;
+  if (!token) throw new Error("META_SYSTEM_USER_TOKEN is required");
+
+  const response = await fetch(
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: params.to,
+        type: "template",
+        template: {
+          name: params.templateName,
+          language: { code: params.language },
+          components: params.components,
+        },
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Meta Graph API template failed with ${response.status}: ${body.slice(0, 500)}`);
   }
 }
 
@@ -339,6 +388,18 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
   const phoneNumberId = phoneNumberIdFromConfig(channel.provider_config);
   if (!phoneNumberId) throw new Error(`Channel account ${channelAccountId} has no phone_number_id`);
 
+  if (event.event_type === "message.send.whatsapp.template") {
+    const templateName = stringField(payload, "templateName");
+    const language = stringField(payload, "language") ?? "ar";
+    const components = Array.isArray((payload as Record<string, unknown>).components)
+      ? (payload as Record<string, unknown>).components as unknown[]
+      : [];
+    if (!templateName) throw new Error("Template outbox payload must include templateName");
+    await sendWhatsAppTemplate({ phoneNumberId, to, templateName, language, components });
+    await markOutboxDone(event.id);
+    return;
+  }
+
   if (event.event_type === "message.send.whatsapp.media") {
     if (!mediaUrl) throw new Error("Media outbox payload must include mediaUrl");
     await sendWhatsAppMedia({ phoneNumberId, to, mediaType, mediaUrl, caption });
@@ -348,6 +409,25 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
 
   if (!text) {
     throw new Error("Text outbox payload must include text or body");
+  }
+
+  // Q3 fix: enforce WhatsApp 24h customer service window
+  const conversationId = stringField(payload, "conversationId");
+  if (conversationId) {
+    const { rows: msgRows } = await pool.query<{ sent_at: string }>(
+      "SELECT sent_at FROM messages WHERE conversation_id=$1 AND direction='inbound' ORDER BY sent_at DESC LIMIT 1",
+      [conversationId],
+    );
+    const lastInboundAt = msgRows[0]?.sent_at;
+    if (lastInboundAt && Date.now() - new Date(lastInboundAt).getTime() > 86_400_000) {
+      await pool.query("UPDATE outbox_events SET status='failed', attempts=3 WHERE id=$1", [event.id]);
+      await pool.query(
+        "UPDATE conversations SET agent_status='human', updated_at=NOW() WHERE id=$1",
+        [conversationId],
+      ).catch(() => {});
+      logger.warn({ outboxEventId: event.id, conversationId }, "WhatsApp 24h window expired — escalating to human");
+      return;
+    }
   }
 
   await sendWhatsAppText({ phoneNumberId, to, text });
