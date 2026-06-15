@@ -5,10 +5,10 @@ import {
   aiMessagesTable,
   aiRunsTable,
   aiUsageTable,
-  knowledgeChunksTable,
   messagesTable,
 } from "@workspace/db";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { searchKnowledgeForAi } from "../services/knowledge-retrieval";
 import { ACTIVE_PROVIDER, getDefaultModel, runAI } from "./ai-provider";
 import {
   buildAgentToolPrompt,
@@ -68,26 +68,6 @@ async function upsertUsage(params: {
   }
 }
 
-async function searchKnowledge(workspaceId: string, query: string): Promise<string[]> {
-  if (!query || query.length < 3) return [];
-  try {
-    const words = query.split(/\s+/).filter((w) => w.length > 2).slice(0, 3);
-    if (words.length === 0) return [];
-    const chunks = await db
-      .select({ chunkText: knowledgeChunksTable.chunkText })
-      .from(knowledgeChunksTable)
-      .where(
-        and(
-          eq(knowledgeChunksTable.workspaceId, workspaceId),
-          or(...words.map((w) => ilike(knowledgeChunksTable.chunkText, `%${w}%`)))
-        )
-      )
-      .limit(3);
-    return chunks.map((c) => c.chunkText);
-  } catch {
-    return [];
-  }
-}
 
 async function runAIWithTimeout(input: Parameters<typeof runAI>[0], timeoutMs = 30_000) {
   const controller = new AbortController();
@@ -139,7 +119,7 @@ export async function runAgentReply(params: {
   const messages = recentMessages.reverse();
   const lastInbound = [...messages].reverse().find((message) => message.direction === "inbound");
   const searchQuery = lastInbound?.content ?? messages[messages.length - 1]?.content ?? "";
-  const knowledgeSources = await searchKnowledge(params.workspaceId, searchQuery);
+  const knowledgeSources = await searchKnowledgeForAi({ workspaceId: params.workspaceId, query: searchQuery });
   const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
   const toolPrompt = buildAgentToolPrompt(executableTools);
 
@@ -147,7 +127,7 @@ export async function runAgentReply(params: {
     .map((message) => `[${message.direction === "inbound" ? "العميل" : "الموظف"}]: ${message.content}`)
     .join("\n");
   const knowledgeContext = knowledgeSources.length > 0
-    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item}`).join("\n")}`
+    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, 800)}`).join("\n")}`
     : "";
   const systemPrompt = [
     toolPrompt,
