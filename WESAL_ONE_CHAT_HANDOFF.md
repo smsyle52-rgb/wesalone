@@ -1,5 +1,57 @@
 # WESAL ONE — الحالة الحيّة
-آخر تحديث: 15 يونيو 2026 (جلسة إصلاح PD-6 — ثغرة 1 + ثغرة 2)
+آخر تحديث: 15 يونيو 2026 (v1 الأساس مكتمل ومنشور — كل النطاقات 1–3 + PD-1…PD-6 + H5-1 في الإنتاج)
+
+## ✅ v1 الأساس — الحالة الكاملة (15 يونيو 2026)
+جميع هذه commits مدفوعة لـmain ومنشورة في Cloud Run:
+
+| Commit | المحتوى |
+|---|---|
+| `739cca0` | security: حماية `.env` من git (النطاق 3) |
+| `4123883` | fix(scope-1): session security, rate limiting, CORS hardening (النطاق 1) |
+| `4f804e4` | fix(scope-2+4): tenant isolation + channel resilience hardening (النطاق 2) |
+| PD-2 commit | رد الوكيل يظهر في الوارد عبر SSE |
+| PD-1 commit | الإرسال اليدوي يصل للعميل عبر outbox |
+| H5-1 commit | تصعيد صامت عند غياب AI (محمية #10) |
+| PD-6 commit | Instagram + Messenger: استقبال + ربط + إرسال |
+| PD-3 commit | الوسائط الواردة تُحفظ في DB مع attachments |
+
+**النطاق النشط التالي: النطاق 4 — مُغلق ✅ (بنود النطاق 4 اكتملت)**
+
+## النطاق 4 — متانة القنوات (البنود المتبقية) ✅ (جلسة 15 يونيو 2026)
+
+### M4-1 — توحيد اسم سر HMAC التوقيع
+السبب: `meta.routes.ts` كان يقرأ `META_WEBHOOK_SECRET` فقط — لو ضُبط `META_APP_SECRET` (الاسم المعياري من Meta) بقيمة مختلفة → HMAC يفشل صامتاً وكل الواردات تُتجاهل.
+الإصلاح:
+- `env.ts`: أضفنا `META_APP_SECRET = optionalEnv("META_APP_SECRET")` وصدّرناه
+- `meta.routes.ts:122`: `const secret = env.META_APP_SECRET ?? env.META_WEBHOOK_SECRET;` — يقبل كليهما، الأولوية للاسم المعياري من Meta
+خطة التراجع: أزِل `META_APP_SECRET` من env.ts وأعِد السطر لـ`env.META_WEBHOOK_SECRET` فقط.
+
+### Q2 — إرسال القوالب (Templates)
+السبب: `outbox-worker` لا يحتوي handler لـ`message.send.whatsapp.template` — يفشل عند `if (!text)` ثم يُعيد المحاولة 3 مرات بلا جدوى.
+الإصلاح في `artifacts/outbox-worker/src/index.ts`:
+- أضفنا `sendWhatsAppTemplate({phoneNumberId, to, templateName, language, components})` — يستدعي Graph API بحمولة `{type:"template", template:{name,language:{code},components}}`
+- في `handleOutboxEvent` WhatsApp path: إذا `event.event_type === "message.send.whatsapp.template"` → يستخرج `templateName/language/components` من الحمولة → يستدعي `sendWhatsAppTemplate`
+خطة التراجع: احذف دالة `sendWhatsAppTemplate` وكتلة الـif الخاصة بها في `handleOutboxEvent`.
+
+### Q3 — فرض نافذة 24 ساعة
+السبب: Meta ترفض الرسائل العادية بعد 24h (خطأ 131047). الـworker كان يُعيد المحاولة 3 مرات بلا جدوى.
+الإصلاح في `artifacts/outbox-worker/src/index.ts` (قبل `sendWhatsAppText`):
+- يجلب آخر رسالة واردة من `messages WHERE conversation_id=$1 AND direction='inbound'`
+- إذا مضى >24h → يضع `status='failed', attempts=3` فوراً (بلا retries) + يصعّد المحادثة لـ`agent_status='human'`
+خطة التراجع: احذف كتلة الفحص (Q3 fix block) قبل `sendWhatsAppText`.
+
+### Q4 — تصعيد الفشل النهائي
+السبب: `markOutboxFailedOrRetry` عند المحاولة الثالثة تضع `status='failed'` وتصمت — التاجر لا يُشعر.
+الإصلاح في `markOutboxFailedOrRetry`: بعد `UPDATE outbox_events SET status='failed'` → يستخرج `conversationId` من حمولة الحدث → يُحدّث المحادثة لـ`agent_status='human'` (التاجر يراها في الوارد معلّمة يدوياً).
+خطة التراجع: احذف كتلة Q4 fix من `markOutboxFailedOrRetry`.
+
+typecheck ✅ build:prod ✅
+**متبقٍّ:** commit + push بيد المالك.
+
+**ما يختبره المالك:**
+1. أرسل قالب (template) من لوحة التحكم → تأكّد وصوله للعميل عبر واتساب
+2. محادثة قديمة >24h: الوكيل يردّ → تأكّد أن المحادثة تنتقل لـ«بشري» تلقائياً (لا يُرسل نص مرفوض)
+3. اقطع الإنترنت/استخدم رقم خاطئ → بعد 3 محاولات: تأكّد أن المحادثة تظهر «يدوي» في الوارد
 
 ## إصلاح PD-6 — إنستغرام/ماسنجر (ثغرة 1 + 2) ✅ (جلسة 15 يونيو 2026)
 
