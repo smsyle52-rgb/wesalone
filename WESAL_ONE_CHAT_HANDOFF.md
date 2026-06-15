@@ -1,5 +1,78 @@
 # WESAL ONE — الحالة الحيّة
-آخر تحديث: 15 يونيو 2026 (جلسة إصلاح PD-2)
+آخر تحديث: 15 يونيو 2026 (جلسة إصلاح PD-6 — ثغرة 1 + ثغرة 2)
+
+## إصلاح PD-6 — إنستغرام/ماسنجر (ثغرة 1 + 2) ✅ (جلسة 15 يونيو 2026)
+
+### ثغرة 1 — توجيه الـwebhook
+السبب: `modules/webhooks/meta.routes.ts` كان يُرسل جميع الـpayloads لـ`handleMetaPayload` التي تتعامل فقط مع بنية واتساب. رسائل IG/Messenger (بنية `entry[].messaging[]`) كانت تُتجاهل بصمت.
+الإصلاح:
+- أضفنا `import { handleMetaWebhook } from "../integrations/meta-webhook.handler"` في `meta.routes.ts`
+- في POST handler: إذا `payload.object === "instagram" | "page"` → استدعِ `handleMetaWebhook(payload)` (يُوجّه لـ`handleInstagramWebhook`/`handleMessengerWebhook`). وإلا → المسار القديم للواتساب محفوظ.
+
+### ثغرة 2 — embedded signup لإنستغرام وماسنجر
+السبب: لم يوجد endpoint لإنشاء `channelAccountsTable` لإنستغرام/ماسنجر، فيفشل `ingestMetaChannelMessage` لعدم إيجاد الحساب.
+الإصلاح في `artifacts/api-server/src/modules/integrations/integrations.routes.ts`:
+- أضفنا `metaEmbeddedSignupInstagramSchema` + `metaEmbeddedSignupMessengerSchema`
+- `POST /meta/embedded-signup/instagram/complete`: يستبدل الكود بتوكن → يجلب page token للـlinked page → ينشئ channel account (`channelType:"instagram"`, `providerConfig:{igAccountId, pageId}`) → يشترك بـwebhook events على الـpage
+- `POST /meta/embedded-signup/messenger/complete`: يستبدل الكود بتوكن → يجلب page token + اسم الـpage → ينشئ channel account (`channelType:"messenger"`, `providerConfig:{pageId}`) → يشترك بـwebhook events
+
+خطة التراجع:
+- ثغرة 1: احذف السطر `import { handleMetaWebhook }` وأعد `try` block لـ`await handleMetaPayload(payload)` مباشرة.
+- ثغرة 2: احذف كتلتَي `router.post("/meta/embedded-signup/instagram/complete", ...)` و`router.post("/meta/embedded-signup/messenger/complete", ...)` والـschemas الجديدة.
+
+typecheck ✅ build:prod ✅
+
+**ما يختبره المالك:**
+1. في لوحة التحكم: اربط حساب إنستغرام أو ماسنجر عبر `POST /api/integrations/meta/embedded-signup/instagram/complete` (يرسل: `{code, ig_account_id, linked_page_id, username}`) → تأكّد أن صف `channel_accounts` يُنشأ في DB بـ`channel_type='instagram'`
+2. أرسل رسالة من حساب إنستغرام العميل → تأكّد ظهورها في الوارد (يتطلب تنشيط الربط أولاً)
+3. ثغرة 3 (الإرسال الصادر) لا تزال معلّقة — الردود لإنستغرام/ماسنجر تحتاج جلسة منفصلة
+
+**متبقٍّ:** commit + push بيد المالك.
+
+## إصلاح PD-6 — ثغرة 3 — إرسال IG/Messenger من outbox-worker ✅ (جلسة 15 يونيو 2026)
+
+### الملفات المعدّلة:
+
+**`artifacts/outbox-worker/src/index.ts`:**
+- أضفنا `import { createDecipheriv, createHash }` من `node:crypto`
+- أضفنا `credentials_secret_ref` و`channel_type` لـ`ChannelAccountRow` type وللـSELECT في `handleOutboxEvent` و`fetchChannelAccount`
+- أضفنا `igAccountIdFromConfig()` و`pageIdFromConfig()` و`decryptTokenRef()` (يفك تشفير `enc:v1:...` باستخدام `META_OAUTH_STATE_SECRET ?? SESSION_SECRET`)
+- أضفنا `sendInstagramMessage()` و`sendMessengerMessage()` (يستخدمان Graph API بـpage token)
+- عدّلنا `handleOutboxEvent()`: إذا `channel_type === "instagram"` → يفك تشفير التوكن من `credentials_secret_ref` ويرسل عبر IG API؛ إذا `"messenger"` → نفس المنطق مع Messenger API؛ وإلا → المسار القديم للواتساب محفوظ
+
+**`artifacts/api-server/src/routes/internal.routes.ts`:**
+- أضفنا `channel: conversationsTable.channel` للـSELECT
+- استبدلنا `"message.send.whatsapp.text"` الثابتة بـ`outboxEventType` ديناميكي: `instagram` → `message.send.instagram.text`، `messenger` → `message.send.messenger.text`، غير ذلك → `message.send.whatsapp.text`
+
+**`artifacts/api-server/src/modules/conversations/conversations.routes.ts`:**
+- أضفنا `channel: conversationsTable.channel` للـSELECT في route الرسائل اليدوية
+- نفس المنطق الديناميكي لـ`eventType` في كتلة PD-1 fix
+
+خطة التراجع (ثغرة 3):
+- `outbox-worker`: أزِل الحقلَين من `ChannelAccountRow`، وعَد السطرين للـSELECT للقديم، واحذف `decryptTokenRef`/`igAccountIdFromConfig`/`pageIdFromConfig`/`sendInstagramMessage`/`sendMessengerMessage`، وأزِل كتلتَي if لـIG/Messenger في `handleOutboxEvent`
+- `internal.routes.ts`: أزِل `channel` من SELECT وأعِد `"message.send.whatsapp.text"` ثابتة
+- `conversations.routes.ts`: أزِل `channel` من SELECT وأعِد `"message.send.whatsapp.text"` ثابتة
+
+typecheck ✅ build:prod ✅
+
+**ما يختبره المالك (بعد ربط IG/Messenger عبر الـendpoints الجديدة):**
+1. أرسل رسالة من IG → تأكّد وصولها في الوارد ← هذا يختبر ثغرة 1+2
+2. ردّ على المحادثة من الوارد يدوياً → تأكّد وصول الرد لـIG/Messenger ← هذا يختبر ثغرة 3
+3. دع الوكيل يردّ تلقائياً → تأكّد وصول رد الوكيل للعميل عبر IG/Messenger ← هذا يختبر ثغرة 3 كاملاً
+
+**متبقٍّ:** commit + push بيد المالك. PD-6 مكتمل بثغراته الثلاث.
+
+## إصلاح PD-3 — الوسائط الواردة تُحفظ في DB ✅ (جلسة 15 يونيو 2026)
+السبب الجذري: `handleInboundMessage` في `meta.routes.ts` تتحقق من `message.text?.body` — إذا كانت الرسالة صورة/صوت/فيديو/مستند فلا `text.body`، فـ`content = undefined` → الرسالة تُحذف بصمت. `agent-media.ts` يقرأ من `messagesTable.attachments` لكنها لا تُملأ أبداً.
+الإصلاح في `artifacts/api-server/src/modules/webhooks/meta.routes.ts`:
+- أضفنا `MetaMediaField` type و`extractMedia()` helper: تستخرج caption كـcontent + تبني مصفوفة `attachments` بـ`{type, media_id, mime_type, caption}` حسب نوع الوسائط
+- في `handleInboundMessage`: إذا لا `textContent` → استدعِ `extractMedia(message)` لنوع image/audio/voice/video/document/sticker → استخدم caption أو `[صورة]` كـcontent
+- في `insertInboundMessage`: أضفنا معامل `attachments: object[] = []` ونُدرجه في قيم INSERT
+- الرسائل الصوتية/الصور/الفيديوهات تُحفظ الآن في DB مع `attachments` → الوكيل يرى السياق عبر `agent-media.ts`
+خطة التراجع: احذف `MetaMediaField` type + `extractMedia()` + تعديلات `handleInboundMessage`/`insertInboundMessage` (المعامل الجديد) في `meta.routes.ts`.
+ما يختبره المالك: أرسل صورة من واتساب → تأكّد ظهور رسالة `[صورة]` في خيط الوارد (لا تختفي). ⚠️ **عرض الوسائط في الواجهة** (تصيير الصورة كصورة لا كنص) تحتاج تعديل frontend — خارج هذا الإصلاح.
+typecheck ✅ build:prod ✅
+**متبقٍّ:** commit + push بيد المالك.
 
 ## إصلاح H5-1 — نص تجريبي لا يصل للعميل ✅ (جلسة 15 يونيو 2026)
 السبب الجذري: `runAI` عند غياب Vertex/Gemini كان يُرجع `runMock` بدون `fallbackUsed:true`، و`agent-reply` لم يفحصه → نص `[وضع تجريبي]` يصل للعميل.
