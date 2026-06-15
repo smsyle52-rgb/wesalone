@@ -1,5 +1,20 @@
 # WESAL ONE — الحالة الحيّة
-آخر تحديث: 15 يونيو 2026
+آخر تحديث: 15 يونيو 2026 (جلسة إصلاح PD-2)
+
+## إصلاح PD-2 — رد الوكيل يظهر في الوارد ✅ (جلسة 15 يونيو 2026)
+السبب الجذري: `handleOutboxEvent` كان يُرسل لميتا دون كتابة رسالة في `messages` أو بثّ SSE.
+الإصلاح: أضفنا في `artifacts/api-server/src/routes/internal.routes.ts` (السطر 162–188) INSERT في `messagesTable` + `emitWorkspaceEvent("message.new")` مباشرةً بعد `runAgentReply` وقبل إدراج outbox. typecheck + build:prod ✅.
+خطة التراجع: احذف الكتلة من السطر 161–188 في internal.routes.ts وأعدها لحالتها (لا تغيير في أي ملف آخر).
+ما يختبره المالك: أرسل رسالة كعميل → تأكّد أن رد الوكيل يظهر في خيط الوارد فوراً بدون تحديث الصفحة.
+**متبقٍّ قبل إغلاق PD-2:** نشر commit بيد المالك + اختبار يدوي.
+
+## خطة جاهزية الإطلاق — النطاق 2 مقفل ✅
+تم إغلاق نطاق عزل العملاء: أضيف `workspaceId` صريح كطبقة دفاع ثانية إلى استعلامات رسائل المحادثات، قنوات التواصل، عضوية المسند إليه، تحديثات المحادثات، `recalcTotal`، حذف/تعديل الطلبات والبنود، وتأكيد/رفض المدفوعات. وتم تقوية المواضع المشابهة في approvals/AI/integrations/debts/reports/webhook ingest/workspace preferences.
+التحقق المنجز: `typecheck:libs` ✅ وartifacts/scripts typecheck ✅ و`build:prod` ✅. النطاق النشط التالي حسب المهارة: النطاق 3 — الأسرار والاعتمادات.
+
+## خطة جاهزية الإطلاق — النطاق 1 مقفل ✅
+تم إغلاق نطاق المصادقة والجلسات: تجديد session id عند login/register، حذف جلسات المستخدم عند تغيير/استعادة كلمة المرور، تفعيل `apiLimiter` العام بعد webhooks، ضبط CORS ليكون fail-closed في الإنتاج عند غياب `ALLOWED_ORIGINS`، إضافة rate limit لإعادة إرسال التحقق، تضييق `switch-workspace` على `userId + workspaceId`، وجعل `INTERNAL_SECRET` مطلوباً في الإنتاج.
+التحقق المنجز: `typecheck:libs` ✅ وartifacts/scripts typecheck ✅.
 
 ## المرحلة 1 — مُغلقة ✅
 الـ worker حي ويـpoll كل ثانية (revision 00018-9mw، v22، كل الأسرار كاملة).

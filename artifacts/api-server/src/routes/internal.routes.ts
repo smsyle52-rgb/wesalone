@@ -6,11 +6,13 @@ import { db } from "@workspace/db";
 import {
   aiAgentsTable,
   conversationsTable,
+  messagesTable,
   outboxEventsTable,
 } from "@workspace/db";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { runAgentReply } from "../lib/agent-reply";
+import { emitWorkspaceEvent } from "../lib/events";
 
 const router = Router();
 
@@ -156,6 +158,35 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // PD-2 fix: أدرج رسالة الوكيل في messages وأبثّها عبر SSE قبل الإضافة لـoutbox
+    const [agentMessage] = await db
+      .insert(messagesTable)
+      .values({
+        conversationId,
+        workspaceId,
+        content: agentReply.reply,
+        direction: "outbound",
+        senderType: "agent",
+        senderId: agentId,
+        source: "ai",
+        contentType: "text",
+        isPrivateNote: false,
+        deliveryStatus: "pending",
+        sentAt: new Date(),
+      })
+      .onConflictDoNothing()
+      .returning({ id: messagesTable.id });
+
+    if (agentMessage) {
+      emitWorkspaceEvent({
+        workspaceId,
+        type: "message.new",
+        entityType: "message",
+        entityId: agentMessage.id,
+        payload: { conversationId, direction: "outbound", source: "ai" },
+      });
+    }
+
     const [event] = await db
       .insert(outboxEventsTable)
       .values({
@@ -171,6 +202,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
           body: agentReply.reply,
           aiRunId: agentReply.runId,
           autoReply: true,
+          messageId: agentMessage?.id,
         },
         status: "pending",
         nextAttemptAt: new Date(),
