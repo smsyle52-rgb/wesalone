@@ -356,10 +356,6 @@ async function handleMetaPayload(payload: MetaPayload): Promise<void> {
       const value = change.value;
       if (!value) continue;
 
-      for (const status of value.statuses ?? []) {
-        await handleEchoEvent(value, status.recipient_id);
-      }
-
       for (const message of value.messages ?? []) {
         if (message.senderType === "business") {
           await handleEchoEvent(value, message.from);
