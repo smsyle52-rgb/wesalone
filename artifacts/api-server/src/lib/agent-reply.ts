@@ -185,6 +185,17 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
 
   try {
     const aiOutput = await runAIWithTimeout({ messages: runMessages, model, taskType: "draft_reply", maxTokens: agent.maxOutputTokens });
+
+    // H5-1 fix: لو AI غير متوفّر → صعّد للبشر بصمت، لا تُرسل نص تجريبي للعميل (محمية #10)
+    if (aiOutput.fallbackUsed) {
+      await db.update(aiRunsTable).set({
+        status: "failed",
+        errorMessage: "AI provider unavailable — escalating silently",
+        completedAt: new Date(),
+      }).where(and(eq(aiRunsTable.id, run.id), eq(aiRunsTable.workspaceId, params.workspaceId)));
+      return { reply: "", shouldEscalate: true, runId: run.id, toolResults: [] };
+    }
+
     const parsedOutput = executableTools.length > 0
       ? parseAgentToolResponse(aiOutput.content)
       : { reply: aiOutput.content, toolCalls: [] };
@@ -228,7 +239,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       estimatedCost: String(aiOutput.estimatedCost),
       safetyStatus: "ok",
       completedAt: new Date(),
-    }).where(eq(aiRunsTable.id, run.id));
+    }).where(and(eq(aiRunsTable.id, run.id), eq(aiRunsTable.workspaceId, params.workspaceId)));
 
     await upsertUsage({
       workspaceId: params.workspaceId,
@@ -251,7 +262,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       status: "failed",
       errorMessage: err instanceof Error ? err.message : "Unknown AI error",
       completedAt: new Date(),
-    }).where(eq(aiRunsTable.id, run.id));
+    }).where(and(eq(aiRunsTable.id, run.id), eq(aiRunsTable.workspaceId, params.workspaceId)));
     throw err;
   }
 }

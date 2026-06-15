@@ -391,7 +391,7 @@ export async function runAI(input: AiRunInput): Promise<AiRunOutput> {
   if (ACTIVE_PROVIDER === "gemini" || input.model.startsWith("gemini")) {
     return runGemini(input);
   }
-  return runMock(input);
+  return { ...(await runMock(input)), fallbackUsed: true };
 }
 
 // ─── Provider status ──────────────────────────────────────────────────────────

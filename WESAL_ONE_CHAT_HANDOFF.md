@@ -1,6 +1,13 @@
 # WESAL ONE — الحالة الحيّة
 آخر تحديث: 15 يونيو 2026 (جلسة إصلاح PD-2)
 
+## إصلاح H5-1 — نص تجريبي لا يصل للعميل ✅ (جلسة 15 يونيو 2026)
+السبب الجذري: `runAI` عند غياب Vertex/Gemini كان يُرجع `runMock` بدون `fallbackUsed:true`، و`agent-reply` لم يفحصه → نص `[وضع تجريبي]` يصل للعميل.
+الإصلاح: (1) `ai-provider.ts:394` → `fallbackUsed:true` عند mock. (2) `agent-reply.ts:187` → لو `fallbackUsed` → يُصعّد للبشر بصمت ويُسجّل run=failed بلا إرسال للعميل.
+خطة التراجع: أعد السطر في `ai-provider.ts` لـ`return runMock(input)` واحذف كتلة الفحص في `agent-reply.ts`.
+ما يختبره المالك: Gemini شغّال → الوكيل يردّ طبيعياً؛ لو Gemini قطع → المحادثة تنتقل لـ«بشري» بدون أي رسالة للعميل.
+**متبقٍّ:** commit + push بيد المالك.
+
 ## إصلاح PD-1 — الإرسال اليدوي يصل للعميل ✅ (جلسة 15 يونيو 2026)
 السبب الجذري: `POST /:id/messages` في `conversations.routes.ts` كان يُدرج الرسالة في DB بدون outbox event → لا تصل لواتساب.
 الإصلاح في `artifacts/api-server/src/modules/conversations/conversations.routes.ts`:
