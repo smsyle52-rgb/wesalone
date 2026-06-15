@@ -12,7 +12,7 @@ monorepo (pnpm workspaces)
 │   ├── api-server/     ← الخادم الرئيسي (Express 5, Node 22)
 │   ├── outbox-worker/  ← worker منفصل (إرسال + تشغيل الوكيل)
 │   └── web/            ← لوحة التحكم (React 19 + Vite)
-├── packages/
+├── lib/
 │   └── db/             ← Drizzle ORM + schema مشترك
 └── scripts/            ← سكربتات تشغيلية (enable:phase2-tools …)
 ```
@@ -111,7 +111,7 @@ corepack pnpm --filter @workspace/outbox-worker run dev
 
 ## قاعدة البيانات
 
-PostgreSQL (Cloud SQL). المخطط والهجرات في `packages/db/`.
+PostgreSQL (Cloud SQL). المخطط والهجرات في `lib/db/`.
 نموذج متعدد العملاء (Pool): بنية مشتركة + عزل منطقي بعمود `workspace_id` على كل استعلام.
 
 ---
