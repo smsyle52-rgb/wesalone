@@ -62,6 +62,12 @@ typecheck ✅ build:prod ✅
 
 **متبقٍّ:** commit + push بيد المالك. PD-6 مكتمل بثغراته الثلاث.
 
+## النطاق 3 — الأسرار والاعتمادات ✅ (جلسة 15 يونيو 2026)
+الفحص: لا أسرار hardcoded في الكود؛ `INTERNAL_SECRET` محمي بـ`timingSafeEqual` ومطلوب في الإنتاج؛ تاريخ git نظيف (لا tokens أو DB URLs مكشوفة)؛ توكنات Meta عبر Secret Manager؛ الجلسات آمنة.
+الثغرة الوحيدة المصلحة: `.env` لم يكن في `.gitignore` → أضفنا `.env` + `.env.*` + `*.env.local`.
+بوابة الإغلاق: ✅ صفر أسرار في الكود/اللوق/التاريخ؛ كل توكن في Secret Manager؛ المسارات الداخلية محميّة.
+**متبقٍّ:** commit + push بيد المالك.
+
 ## إصلاح PD-3 — الوسائط الواردة تُحفظ في DB ✅ (جلسة 15 يونيو 2026)
 السبب الجذري: `handleInboundMessage` في `meta.routes.ts` تتحقق من `message.text?.body` — إذا كانت الرسالة صورة/صوت/فيديو/مستند فلا `text.body`، فـ`content = undefined` → الرسالة تُحذف بصمت. `agent-media.ts` يقرأ من `messagesTable.attachments` لكنها لا تُملأ أبداً.
 الإصلاح في `artifacts/api-server/src/modules/webhooks/meta.routes.ts`:
