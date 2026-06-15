@@ -118,11 +118,21 @@ PostgreSQL (Cloud SQL)، GCP Cloud Run. النشر: Cloud Build trigger على p
 **القرارات:** العزل التطبيقي يكفي للإطلاق الأول. L2 (RLS) مؤجّل بوعي — مخاطرة مقبولة موثّقة، يُضاف قبل التوسّع. سطح حقن SQL يُسدّ في النطاق 9.
 **بوابة الإغلاق:** استحالة وصول عميل لبيانات عميل آخر عبر أي مسار (API/قناة/تقرير)؛ كل استعلام مُثبت أنه مقيّد.
 
-### النطاق 3 — الأسرار والاعتمادات · الحالة: ⬜
+### النطاق 3 — الأسرار والاعتمادات · الحالة: 🔍
 **ما يُفحص:** توكنات ميتا لكل عميل في Secret Manager (`credentialsSecretRef`) لا توكن مشترك مكشوف؛
 مسح الكود لأي سر مكتوب نصاً (hardcoded) أو يظهر في اللوق؛ تاريخ git (هل سبق رفع سر → تدوير + تنظيف)؛
 `INTERNAL_SECRET` يحمي `/internal/agent-reply` ويُتحقق منه صح.
-**بوابة الإغلاق:** صفر أسرار في الكود/اللوق/التاريخ؛ كل توكن في Secret Manager؛ المسارات الداخلية محميّة.
+**خريطة تدفّق التوكن:**
+- الإرسال الحي (worker): يستخدم META_SYSTEM_USER_TOKEN — توكن مشترك واحد لكل العملاء
+- الخدمات (meta-graph، meta-catalog-sync): META_SYSTEM_USER_TOKEN ?? META_ACCESS_TOKEN — مشترك
+- per-tenant مخزّن: embedded signup → AES-256-GCM (enc:v1:) → credentialsSecretRef — ⚠️ لا يُقرأ ولا يُفك وقت الإرسال (resolver not enabled)
+- الحقن: Cloud Build --set-secrets ← Secret Manager
+**الثغرات المكتشفة:**
+- عالية: H3-1 توكن مشترك واحد لكل العملاء، الاسترجاع لكل-عميل غير مُفعّل (outbox-worker/index.ts:138,171؛ meta-graph.ts:31؛ التخزين غير المستهلك integrations.routes.ts:767). **هذه = المرحلة 4 (Token Resolver) بأكملها، ترتبط بالنطاق 5 — ليست مجرد إصلاح سطر.**
+- متوسطة: M3-1 مفتاح تشفير التوكنات مشتقّ من SESSION_SECRET — ربط مجالين أمنيين، يحتاج مفتاح مستقل META_TOKEN_ENC_KEY (integrations.routes.ts:126) | M3-2 .env خارج .gitignore (الصور آمنة عبر .dockerignore، التاريخ نظيف، لكن لا حاجز ضد كومِت بشري) | M3-3 INTERNAL_SECRET بـfallback فارغ، يُجعل requireEnv (env.ts:41، worker:8)
+- منخفضة: L3-1 worker بلا redaction (لا يطبع توكنات) | L3-2 PIN تسجيل الرقم ثابت "000000" | L3-3 client_secret في query عند تبديل OAuth
+**القرارات:** الجيد مثبت ✅ — صفر أسرار في الكود/اللوق/تاريخ git، كله من Secret Manager، توكنات العملاء مشفّرة AES-256-GCM وقت التخزين، SESSION_SECRET مطلوب fail-fast، logger يُخفي auth/cookie، INTERNAL_SECRET timingSafeEqual fail-closed. القرار: H3-1 تُنفّذ ضمن النطاق 5/المرحلة 4 (الأساس مبني، الناقص الاسترجاع). M3-1 وM3-2 وM3-3 تصليبات أمنية تُجمع مع تصليبات النطاق 9.
+**بوابة الإغلاق:** صفر أسرار في الكود/اللوق/التاريخ ✅ متحقّقة. "توكن لكل عميل في Secret Manager" ❌ معلّقة على Token Resolver (النطاق 5/المرحلة 4).
 
 ### النطاق 4 — متانة القنوات (3 قنوات) · الحالة: ⬜
 **ما يُفحص:** التحقق من webhook لكل قناة (HMAC) مفعّل في الإنتاج بلا تجاوز؛ **هل حلقة الرد معمّمة على
