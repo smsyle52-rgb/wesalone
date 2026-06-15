@@ -574,17 +574,65 @@ async function claimDomainEvents(): Promise<DomainEventRow[]> {
 }
 
 async function fetchConversation(event: DomainEventRow): Promise<ConversationRow | undefined> {
+  const payload = asRecord(event.payload);
+  const conversationIdFromPayload = stringField(payload, "conversationId");
+  const messageIdFromPayload = stringField(payload, "messageId");
+
+  const candidateIds = [conversationIdFromPayload, event.entity_id].filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+
+  for (const conversationId of [...new Set(candidateIds)]) {
+    const { rows } = await pool.query<ConversationRow>(
+      `
+        SELECT id,
+               workspace_id,
+               channel_account_id,
+               external_thread_id,
+               agent_status,
+               agent_paused_until,
+               consecutive_agent_replies
+        FROM conversations
+        WHERE id=$1 AND workspace_id=$2
+        LIMIT 1
+      `,
+      [conversationId, event.workspace_id],
+    );
+    if (rows[0]) return rows[0];
+  }
+
+  if (messageIdFromPayload) {
+    const { rows } = await pool.query<ConversationRow>(
+      `
+        SELECT c.id,
+               c.workspace_id,
+               c.channel_account_id,
+               c.external_thread_id,
+               c.agent_status,
+               c.agent_paused_until,
+               c.consecutive_agent_replies
+        FROM messages m
+        JOIN conversations c ON c.id = m.conversation_id AND c.workspace_id = m.workspace_id
+        WHERE m.id=$1 AND m.workspace_id=$2
+        LIMIT 1
+      `,
+      [messageIdFromPayload, event.workspace_id],
+    );
+    if (rows[0]) return rows[0];
+  }
+
   const { rows } = await pool.query<ConversationRow>(
     `
-      SELECT id,
-             workspace_id,
-             channel_account_id,
-             external_thread_id,
-             agent_status,
-             agent_paused_until,
-             consecutive_agent_replies
-      FROM conversations
-      WHERE id=$1 AND workspace_id=$2
+      SELECT c.id,
+             c.workspace_id,
+             c.channel_account_id,
+             c.external_thread_id,
+             c.agent_status,
+             c.agent_paused_until,
+             c.consecutive_agent_replies
+      FROM messages m
+      JOIN conversations c ON c.id = m.conversation_id AND c.workspace_id = m.workspace_id
+      WHERE m.id=$1 AND m.workspace_id=$2
       LIMIT 1
     `,
     [event.entity_id, event.workspace_id],

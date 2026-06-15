@@ -37,6 +37,11 @@ function attachmentLabel(attachment: MediaAttachment): string {
   return "وسائط مستلمة";
 }
 
+function isPlaceholderContent(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.startsWith("[") && trimmed.endsWith("]");
+}
+
 export async function loadMediaContext(messages: MessageRow[]): Promise<MediaContext> {
   const inboundMedia = messages
     .filter((message) => message.direction === "inbound")
@@ -69,7 +74,7 @@ export async function loadMediaContext(messages: MessageRow[]): Promise<MediaCon
           ? `- ${label}: الوضع التجريبي مفعل، لذلك لم يتم تنزيل الصورة. استخدم النص المرافق والمعرفة المتاحة، وإن لم تكفِ فاطلب توضيحاً قصيراً.`
           : `- ${label}: لدى المحادثة صورة واردة${attachment.url ? ` عبر الرابط ${attachment.url}` : ""}. إن لم تكن تفاصيل الصورة واضحة في السياق، لا تخمّن واطلب توضيحاً قصيراً.`,
       );
-      if (caption && !String(caption).startsWith("[image:")) lines.push(`  وصف مرافق: ${caption}`);
+      if (caption && !isPlaceholderContent(String(caption))) lines.push(`  وصف مرافق: ${caption}`);
       continue;
     }
 

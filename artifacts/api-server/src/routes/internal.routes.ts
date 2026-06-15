@@ -133,7 +133,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       systemUserId: agent.createdBy,
     });
 
-    if (agentReply.shouldEscalate) {
+    if (agentReply.shouldEscalate || !agentReply.reply.trim()) {
       await db
         .update(conversationsTable)
         .set({ agentStatus: "human", updatedAt: new Date() })

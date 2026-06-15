@@ -92,6 +92,45 @@ function includesEscalationKeyword(value: string): boolean {
   return ESCALATION_KEYWORDS.some((keyword) => value.includes(keyword));
 }
 
+function isPlaceholderContent(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.startsWith("[") && trimmed.endsWith("]");
+}
+
+function inboundSearchQuery(message: typeof messagesTable.$inferSelect | undefined): string {
+  if (!message) return "";
+  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+  for (const raw of attachments) {
+    if (!raw || typeof raw !== "object") continue;
+    const attachment = raw as { type?: string; caption?: string | null };
+    if (typeof attachment.caption === "string" && attachment.caption.trim() && !isPlaceholderContent(attachment.caption)) {
+      return attachment.caption.trim();
+    }
+    if (attachment.type === "image") return "صورة من العميل";
+    if (attachment.type === "audio" || attachment.type === "voice") return "رسالة صوتية من العميل";
+    if (attachment.type === "video") return "فيديو من العميل";
+    if (attachment.type === "document") return "مستند من العميل";
+  }
+  const content = message.content?.trim() ?? "";
+  if (isPlaceholderContent(content)) {
+    if (content.includes("صورة")) return "صورة من العميل";
+    if (content.includes("صوت")) return "رسالة صوتية من العميل";
+    if (content.includes("فيديو")) return "فيديو من العميل";
+    if (content.includes("مستند")) return "مستند من العميل";
+  }
+  return content;
+}
+
+function hasInboundMedia(message: typeof messagesTable.$inferSelect | undefined): boolean {
+  if (!message) return false;
+  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+  return attachments.some((raw) => {
+    if (!raw || typeof raw !== "object") return false;
+    const type = (raw as { type?: string }).type;
+    return ["image", "audio", "voice", "document", "video"].includes(String(type ?? ""));
+  });
+}
+
 export async function runAgentReply(params: {
   workspaceId: string;
   conversationId: string;
@@ -119,11 +158,18 @@ export async function runAgentReply(params: {
     .limit(15);
   const messages = recentMessages.reverse();
   const lastInbound = [...messages].reverse().find((message) => message.direction === "inbound");
-  const searchQuery = lastInbound?.content ?? messages[messages.length - 1]?.content ?? "";
+  const searchQuery = inboundSearchQuery(lastInbound) || lastInbound?.content || messages[messages.length - 1]?.content || "";
   const knowledgeSources = await searchKnowledgeForAi({ workspaceId: params.workspaceId, query: searchQuery });
   const mediaContext = await loadMediaContext(messages);
   const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
   const toolPrompt = buildAgentToolPrompt(executableTools);
+  const mediaGuidance = mediaContext.sources.length > 0
+    ? [
+        "تعليمات الوسائط: عند وصول صورة أو صوت أو فيديو بلا نص واضح، رحّب بالعميل واسأل سؤالاً توضيحياً واحداً فقط عن كيف يمكن المساعدة.",
+        "لا تترك الرد فارغاً. لا تخمّن محتوى الوسائط غير الظاهر.",
+        mediaContext.context.trim(),
+      ].filter(Boolean).join("\n")
+    : "";
 
   const transcript = messages
     .map((message) => `[${message.direction === "inbound" ? "العميل" : "الموظف"}]: ${message.content}`)
@@ -138,11 +184,12 @@ export async function runAgentReply(params: {
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
     `اللهجة: ${agent.dialect}.`,
     agent.tone ? `النبرة: ${agent.tone}.` : "",
+    mediaGuidance,
   ].filter(Boolean).join("\n");
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.
 
 المحادثة:
-${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}${mediaContext.context}
+${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}
 
 المطلوب: رد احترافي مناسب باللغة العربية.`;
   const model = agent.defaultModel || getDefaultModel();
@@ -193,7 +240,16 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     const hasHandoff = toolResults.some((result) => result.tool === "handoff_to_human" && result.status === "success");
     const finalReply = hasToolProblem
       ? "أحتاج أن أحوّل طلبك للفريق لمراجعته والتأكد من تنفيذه بشكل صحيح."
-      : parsedOutput.reply;
+      : parsedOutput.reply.trim();
+
+    if (!finalReply) {
+      await db.update(aiRunsTable).set({
+        status: "failed",
+        errorMessage: "AI returned empty reply",
+        completedAt: new Date(),
+      }).where(and(eq(aiRunsTable.id, run.id), eq(aiRunsTable.workspaceId, params.workspaceId)));
+      return { reply: "", shouldEscalate: true, runId: run.id, toolResults };
+    }
 
     await db.insert(aiMessagesTable).values([
       { workspaceId: params.workspaceId, aiRunId: run.id, role: "system", content: systemPrompt, metadata: {} },
@@ -237,7 +293,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       hasToolProblem ||
       hasHandoff ||
       includesEscalationKeyword(finalReply) ||
-      includesEscalationKeyword(lastInbound?.content ?? "");
+      (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound));
     return { reply: finalReply, shouldEscalate, runId: run.id, toolResults };
   } catch (err) {
     await db.update(aiRunsTable).set({

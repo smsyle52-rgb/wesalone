@@ -246,9 +246,9 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
     await db.insert(domainEventsTable).values({
       workspaceId,
       eventType: "message.received",
-      entityType: "message",
-      entityId: message.id,
-      payload: { conversationId: conversation.id, contactId, channelAccountId: channelAccount.id, providerMessageId },
+      entityType: "conversation",
+      entityId: conversation.id,
+      payload: { conversationId: conversation.id, contactId, channelAccountId: channelAccount.id, providerMessageId, messageId: message.id },
     });
     emitWorkspaceEvent({
       workspaceId,
