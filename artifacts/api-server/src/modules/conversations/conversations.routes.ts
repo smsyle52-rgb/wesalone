@@ -4,7 +4,7 @@ import { eq, and, desc, asc, count, ilike, or, sql } from "drizzle-orm";
 import {
   db, conversationsTable, messagesTable, contactsTable,
   contactChannelsTable, contactTimelineTable, workspaceMembershipsTable, usersTable,
-  ticketsTable,
+  ticketsTable, outboxEventsTable,
 } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
@@ -239,7 +239,7 @@ router.post("/", requirePermission("conversations:create"), async (req: Authenti
 
       await db.update(conversationsTable)
         .set({ lastMessage: initialMessage.trim(), lastMessageAt: new Date(), status: "open", updatedAt: new Date() })
-        .where(eq(conversationsTable.id, conversation.id));
+        .where(and(eq(conversationsTable.id, conversation.id), eq(conversationsTable.workspaceId, activeWorkspaceId)));
       conversation.status = "open";
       conversation.lastMessage = initialMessage.trim();
     }
@@ -322,11 +322,11 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
 
   const [messages, contactChannels, assignedMember, activeTicket] = await Promise.all([
     db.select().from(messagesTable)
-      .where(eq(messagesTable.conversationId, conv.id))
+      .where(and(eq(messagesTable.conversationId, conv.id), eq(messagesTable.workspaceId, activeWorkspaceId)))
       .orderBy(asc(messagesTable.sentAt))
       .limit(100),
     conv.contactId ? db.select().from(contactChannelsTable)
-      .where(eq(contactChannelsTable.contactId, conv.contactId))
+      .where(and(eq(contactChannelsTable.contactId, conv.contactId), eq(contactChannelsTable.workspaceId, activeWorkspaceId)))
       : Promise.resolve([] as (typeof contactChannelsTable.$inferSelect)[]),
     conv.assignedMembershipId ? db.select({
       id: workspaceMembershipsTable.id,
@@ -334,7 +334,7 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
       name: usersTable.name,
     }).from(workspaceMembershipsTable)
       .leftJoin(usersTable, eq(workspaceMembershipsTable.userId, usersTable.id))
-      .where(eq(workspaceMembershipsTable.id, conv.assignedMembershipId))
+      .where(and(eq(workspaceMembershipsTable.id, conv.assignedMembershipId), eq(workspaceMembershipsTable.workspaceId, activeWorkspaceId)))
       .limit(1) : Promise.resolve([] as { id: string; userId: string | null; name: string | null }[]),
     db.select({
       id: ticketsTable.id,
@@ -390,7 +390,7 @@ router.patch("/:id", requirePermission("conversations:update"), async (req: Auth
 
   const [conv] = await db.update(conversationsTable)
     .set(updates)
-    .where(eq(conversationsTable.id, existing.id))
+    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
     .returning();
 
   await createAuditLog({
@@ -457,7 +457,7 @@ router.patch("/:id/status", requirePermission("conversations:resolve"), async (r
 
   const [conv] = await db.update(conversationsTable)
     .set(updates)
-    .where(eq(conversationsTable.id, existing.id))
+    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
     .returning();
 
   await createAuditLog({
@@ -528,7 +528,7 @@ router.patch("/:id/assign", requirePermission("conversations:assign"), async (re
 
   const [conv] = await db.update(conversationsTable)
     .set({ assignedMembershipId: membershipId, updatedAt: new Date() })
-    .where(eq(conversationsTable.id, existing.id))
+    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
     .returning();
 
   await createAuditLog({
@@ -634,12 +634,12 @@ router.get("/:id/messages", requirePermission("conversations:read"), async (req:
 
   const [messages, [{ total }]] = await Promise.all([
     db.select().from(messagesTable)
-      .where(eq(messagesTable.conversationId, conv.id))
+      .where(and(eq(messagesTable.conversationId, conv.id), eq(messagesTable.workspaceId, activeWorkspaceId)))
       .orderBy(asc(messagesTable.sentAt))
       .limit(limit)
       .offset(offset),
     db.select({ total: count() }).from(messagesTable)
-      .where(eq(messagesTable.conversationId, conv.id)),
+      .where(and(eq(messagesTable.conversationId, conv.id), eq(messagesTable.workspaceId, activeWorkspaceId))),
   ]);
 
   res.json({ messages, total: Number(total), page, limit });
@@ -660,6 +660,8 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
       status: conversationsTable.status,
       contactId: conversationsTable.contactId,
       contactName: contactsTable.name,
+      channelAccountId: conversationsTable.channelAccountId,
+      externalThreadId: conversationsTable.externalThreadId,
     })
       .from(conversationsTable)
       .leftJoin(contactsTable, eq(conversationsTable.contactId, contactsTable.id))
@@ -675,6 +677,9 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
     const effectiveDirection = isPrivateNote ? "internal" : direction;
     const effectiveSenderType = direction === "inbound" ? "contact" : "user";
 
+    const isOutboundToChannel = effectiveDirection === "outbound" && !isPrivateNote
+      && !!conv.channelAccountId && !!conv.externalThreadId;
+
     const [message] = await db.insert(messagesTable).values({
       conversationId: conv.id,
       workspaceId: activeWorkspaceId,
@@ -686,9 +691,30 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
       source,
       contentType,
       isPrivateNote,
-      deliveryStatus: "sent",
+      deliveryStatus: isOutboundToChannel ? "pending" : "sent",
       sentAt: new Date(),
     }).returning();
+
+    // PD-1 fix: أضف outbox event للرسائل الخارجة اليدوية كي تصل للعميل عبر واتساب
+    if (isOutboundToChannel) {
+      await db.insert(outboxEventsTable).values({
+        workspaceId: activeWorkspaceId,
+        eventType: "message.send.whatsapp.text",
+        entityType: "conversation",
+        entityId: conv.id,
+        idempotencyKey: `manual:${userId}:${message.id}`,
+        payload: {
+          channelAccountId: conv.channelAccountId,
+          conversationId: conv.id,
+          to: conv.externalThreadId,
+          body: content,
+          manualReply: true,
+          messageId: message.id,
+        },
+        status: "pending",
+        nextAttemptAt: new Date(),
+      }).onConflictDoNothing();
+    }
 
     const convUpdates: Record<string, unknown> = { updatedAt: new Date() };
     if (!isPrivateNote) {
@@ -705,7 +731,7 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
 
     await db.update(conversationsTable)
       .set(convUpdates)
-      .where(eq(conversationsTable.id, conv.id));
+      .where(and(eq(conversationsTable.id, conv.id), eq(conversationsTable.workspaceId, activeWorkspaceId)));
 
     await createAuditLog({
       ...auditFromRequest(req, req.sessionUser),
@@ -801,7 +827,7 @@ router.post("/:id/import", requirePermission("conversations:reply"), async (req:
         status: conv.status === "new" ? "open" : conv.status,
         updatedAt: now,
       })
-      .where(eq(conversationsTable.id, conv.id));
+      .where(and(eq(conversationsTable.id, conv.id), eq(conversationsTable.workspaceId, activeWorkspaceId)));
 
     await createAuditLog({
       ...auditFromRequest(req, req.sessionUser),

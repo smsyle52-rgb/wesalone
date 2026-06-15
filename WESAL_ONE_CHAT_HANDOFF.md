@@ -1,6 +1,16 @@
 # WESAL ONE — الحالة الحيّة
 آخر تحديث: 15 يونيو 2026 (جلسة إصلاح PD-2)
 
+## إصلاح PD-1 — الإرسال اليدوي يصل للعميل ✅ (جلسة 15 يونيو 2026)
+السبب الجذري: `POST /:id/messages` في `conversations.routes.ts` كان يُدرج الرسالة في DB بدون outbox event → لا تصل لواتساب.
+الإصلاح في `artifacts/api-server/src/modules/conversations/conversations.routes.ts`:
+- أضفنا `channelAccountId` و`externalThreadId` للـSELECT
+- غيّرنا `deliveryStatus` لـ`"pending"` للرسائل الخارجة المتجهة لقناة
+- أضفنا INSERT في `outboxEventsTable` بـ`idempotencyKey: "manual:{userId}:{message.id}"` بعد إدراج الرسالة
+خطة التراجع: احذف كتلة PD-1 fix (السطور 698–717) وأعد `deliveryStatus: "sent"` وأزل الحقلَين من SELECT.
+ما يختبره المالك: اكتب رداً يدوياً في الوارد على محادثة برايد → تأكّد وصوله على واتساب.
+**متبقٍّ:** نشر commit بيد المالك + اختبار يدوي.
+
 ## إصلاح PD-2 — رد الوكيل يظهر في الوارد ✅ (جلسة 15 يونيو 2026)
 السبب الجذري: `handleOutboxEvent` كان يُرسل لميتا دون كتابة رسالة في `messages` أو بثّ SSE.
 الإصلاح: أضفنا في `artifacts/api-server/src/routes/internal.routes.ts` (السطر 162–188) INSERT في `messagesTable` + `emitWorkspaceEvent("message.new")` مباشرةً بعد `runAgentReply` وقبل إدراج outbox. typecheck + build:prod ✅.
