@@ -13,7 +13,10 @@ import { env } from "./lib/env";
 
 const app: Express = express();
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "").split(",").filter(Boolean);
+const allowedOrigins = (env.ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 app.set("trust proxy", 1);
 
@@ -41,8 +44,10 @@ app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.length === 0) return callback(null, true);
-      if (allowedOrigins.some((o) => origin.includes(o))) return callback(null, true);
+      if (allowedOrigins.length === 0) {
+        return callback(env.isProduction ? new Error("Not allowed by CORS") : null, !env.isProduction);
+      }
+      if (allowedOrigins.includes(origin)) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,

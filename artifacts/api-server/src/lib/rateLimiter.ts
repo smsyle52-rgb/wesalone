@@ -37,6 +37,17 @@ export const signupLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+/** Email verification resend: 3 requests per hour per session-or-IP */
+export const verificationEmailLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  message: msg,
+  handler: rateLimitHandler,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: sessionOrIpKey,
+});
+
 /** AI runs: 30 requests per minute per IP */
 export const aiRunLimiter = rateLimit({
   windowMs: 60 * 1000,

@@ -1,8 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   db,
+  sessionsTable,
   usersTable,
   workspacesTable,
   workspaceMembershipsTable,
@@ -10,12 +11,51 @@ import {
 import { requireSession } from "../../middlewares/requireSession";
 import { registerWorkspace, loginUser, loadUserPermissions, hashPassword, verifyPassword } from "./auth.service";
 import { createAuditLog } from "../../lib/audit";
-import type { AuthenticatedRequest } from "../../lib/types";
+import type { AuthenticatedRequest, SessionUser } from "../../lib/types";
 import { logger } from "../../lib/logger";
-import { authLimiter, changePasswordLimiter, signupLimiter } from "../../lib/rateLimiter";
+import { authLimiter, changePasswordLimiter, signupLimiter, verificationEmailLimiter } from "../../lib/rateLimiter";
 import { consumeAuthToken, markEmailVerified, sendPasswordResetEmail, sendVerificationEmail } from "../../services/account-lifecycle";
 
 const router = Router();
+
+function regenerateSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+function saveSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.save((err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+async function establishSession(req: Request, sessionUser: SessionUser): Promise<void> {
+  await regenerateSession(req);
+  req.session.user = sessionUser;
+  await saveSession(req);
+}
+
+async function deleteUserSessions(userId: string): Promise<void> {
+  await db
+    .delete(sessionsTable)
+    .where(sql`${sessionsTable.sess}->'user'->>'userId' = ${userId}`);
+}
+
+function destroySession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.destroy((err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
 
 const registerSchema = z.object({
   ownerName: z.string().min(2, "الاسم يجب أن يكون على الأقل حرفين").max(100),
@@ -66,7 +106,7 @@ router.post("/register", signupLimiter, async (req: Request, res: Response) => {
       emailVerified: user.emailVerified,
     };
 
-    req.session.user = sessionUser;
+    await establishSession(req, sessionUser);
 
     await sendVerificationEmail({ id: user.id, email: user.email, name: user.name });
 
@@ -112,7 +152,7 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
       userAgent: req.headers["user-agent"],
     });
 
-    req.session.user = sessionData;
+    await establishSession(req, sessionData);
 
     await createAuditLog({
       workspaceId: sessionData.activeWorkspaceId,
@@ -182,7 +222,7 @@ router.get("/verify-email", async (req: Request, res: Response) => {
   res.json({ ok: true, message: "تم تأكيد البريد الإلكتروني بنجاح" });
 });
 
-router.post("/resend-verification", requireSession, async (req: Request, res: Response) => {
+router.post("/resend-verification", verificationEmailLimiter, requireSession, async (req: Request, res: Response) => {
   const authReq = req as AuthenticatedRequest;
   const [user] = await db
     .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name, emailVerified: usersTable.emailVerified })
@@ -231,6 +271,7 @@ router.post("/reset-password", authLimiter, async (req: Request, res: Response) 
   await db.update(usersTable)
     .set({ passwordHash, updatedAt: new Date() })
     .where(eq(usersTable.id, consumed.userId));
+  await deleteUserSessions(consumed.userId);
 
   res.json({ ok: true, message: "تم تحديث كلمة المرور بنجاح" });
 });
@@ -320,7 +361,7 @@ router.post("/change-password", changePasswordLimiter, requireSession, async (re
 
     await db
       .update(usersTable)
-      .set({ passwordHash: newHash })
+      .set({ passwordHash: newHash, updatedAt: new Date() })
       .where(eq(usersTable.id, user.id));
 
     await createAuditLog({
@@ -339,7 +380,10 @@ router.post("/change-password", changePasswordLimiter, requireSession, async (re
       userAgent: req.headers["user-agent"],
     });
 
-    res.json({ message: "تم تغيير كلمة المرور بنجاح" });
+    await deleteUserSessions(user.id);
+    await destroySession(req);
+    res.clearCookie("khadamatak.sid");
+    res.json({ message: "تم تغيير كلمة المرور بنجاح. يرجى تسجيل الدخول مرة أخرى." });
   } catch (err) {
     logger.error({ err }, "Change password failed");
     res.status(500).json({ error: "حدث خطأ داخلي" });
@@ -359,12 +403,13 @@ router.post("/switch-workspace", requireSession, async (req: Request, res: Respo
     const [membership] = await db
       .select()
       .from(workspaceMembershipsTable)
-      .where(
-        eq(workspaceMembershipsTable.userId, authReq.sessionUser.userId)
-      )
+      .where(and(
+        eq(workspaceMembershipsTable.userId, authReq.sessionUser.userId),
+        eq(workspaceMembershipsTable.workspaceId, workspaceId),
+      ))
       .limit(1);
 
-    if (!membership || membership.workspaceId !== workspaceId) {
+    if (!membership) {
       res.status(403).json({ error: "ليس لديك وصول لهذه المنشأة" });
       return;
     }
