@@ -568,6 +568,7 @@ async function requestInternalAgentReply(params: {
   workspaceId: string;
   conversationId: string;
   agentId: string;
+  domainEventId: string;
 }): Promise<InternalAgentReplyResponse> {
   if (!INTERNAL_SECRET) throw new Error("INTERNAL_SECRET is required");
 
@@ -581,6 +582,7 @@ async function requestInternalAgentReply(params: {
       workspaceId: params.workspaceId,
       conversationId: params.conversationId,
       agentId: params.agentId,
+      domainEventId: params.domainEventId,
     }),
   });
 
@@ -657,6 +659,7 @@ async function handleDomainEvent(event: DomainEventRow): Promise<void> {
     workspaceId: conversation.workspace_id,
     conversationId: conversation.id,
     agentId: channel.default_agent_id,
+    domainEventId: event.id,
   });
 
   if (result.shouldEscalate) {

@@ -20,6 +20,7 @@ const agentReplySchema = z.object({
   workspaceId: z.string().uuid(),
   conversationId: z.string().uuid(),
   agentId: z.string().uuid(),
+  domainEventId: z.string().optional(),
 });
 
 function secretMatches(provided: string | undefined, expected: string): boolean {
@@ -90,7 +91,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
     return;
   }
 
-  const { workspaceId, conversationId, agentId } = parsed.data;
+  const { workspaceId, conversationId, agentId, domainEventId } = parsed.data;
 
   try {
     const [agent] = await db
@@ -201,7 +202,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         eventType: outboxEventType,
         entityType: "conversation",
         entityId: conversationId,
-        idempotencyKey: `auto:${agentId}:${agentReply.runId}`,
+        idempotencyKey: domainEventId ? `de:${domainEventId}` : `auto:${agentId}:${agentReply.runId}`,
         payload: {
           channelAccountId: conversation.channelAccountId,
           conversationId,
