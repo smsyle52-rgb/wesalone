@@ -1,3 +1,4 @@
+import { createDecipheriv, createHash } from "node:crypto";
 import { createServer } from "node:http";
 import pg from "pg";
 
@@ -47,6 +48,8 @@ type ChannelAccountRow = {
   workspace_id: string;
   default_agent_id: string | null;
   provider_config: unknown;
+  credentials_secret_ref: string | null;
+  channel_type: string;
 };
 
 type AiAgentRow = {
@@ -85,6 +88,35 @@ function stringField(record: JsonRecord, key: string): string | undefined {
 function phoneNumberIdFromConfig(providerConfig: unknown): string | undefined {
   const config = asRecord(providerConfig);
   return stringField(config, "phone_number_id") ?? stringField(config, "phoneNumberId");
+}
+
+function igAccountIdFromConfig(providerConfig: unknown): string | undefined {
+  const config = asRecord(providerConfig);
+  return stringField(config, "igAccountId") ?? stringField(config, "ig_account_id");
+}
+
+function pageIdFromConfig(providerConfig: unknown): string | undefined {
+  const config = asRecord(providerConfig);
+  return stringField(config, "pageId") ?? stringField(config, "page_id");
+}
+
+function decryptTokenRef(ref: string | null | undefined): string | null {
+  if (!ref || !ref.startsWith("enc:v1:")) return null;
+  const secret = process.env.META_OAUTH_STATE_SECRET ?? process.env.SESSION_SECRET;
+  if (!secret) return null;
+  try {
+    const parts = ref.split(":");
+    if (parts.length !== 5) return null;
+    const key = createHash("sha256").update(secret).digest();
+    const iv = Buffer.from(parts[2], "base64url");
+    const tag = Buffer.from(parts[3], "base64url");
+    const data = Buffer.from(parts[4], "base64url");
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 async function markDone(id: string): Promise<void> {
@@ -202,6 +234,59 @@ async function sendWhatsAppMedia(params: {
   }
 }
 
+async function sendInstagramMessage(params: {
+  igAccountId: string;
+  recipientId: string;
+  text: string;
+  pageToken: string;
+}): Promise<void> {
+  const response = await fetch(
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.igAccountId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.pageToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        recipient: { id: params.recipientId },
+        message: { text: params.text },
+      }),
+    },
+  );
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Instagram Graph API failed with ${response.status}: ${body.slice(0, 500)}`);
+  }
+}
+
+async function sendMessengerMessage(params: {
+  pageId: string;
+  recipientId: string;
+  text: string;
+  pageToken: string;
+}): Promise<void> {
+  const response = await fetch(
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.pageId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.pageToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        recipient: { id: params.recipientId },
+        message: { text: params.text },
+        messaging_type: "RESPONSE",
+      }),
+    },
+  );
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Messenger Graph API failed with ${response.status}: ${body.slice(0, 500)}`);
+  }
+}
+
 async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
   const payload = asRecord(event.payload);
   const to = stringField(payload, "to");
@@ -217,7 +302,7 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
 
   const { rows } = await pool.query<ChannelAccountRow>(
     `
-      SELECT id, workspace_id, default_agent_id, provider_config
+      SELECT id, workspace_id, default_agent_id, provider_config, credentials_secret_ref, channel_type
       FROM channel_accounts
       WHERE id=$1
       LIMIT 1
@@ -227,6 +312,30 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
   const channel = rows[0];
   if (!channel) throw new Error(`Channel account not found: ${channelAccountId}`);
 
+  // PD-6 fix: route outbound message by channel type
+  if (channel.channel_type === "instagram") {
+    if (!text) throw new Error("Instagram outbox payload must include text or body");
+    const igAccountId = igAccountIdFromConfig(channel.provider_config);
+    if (!igAccountId) throw new Error(`Channel account ${channelAccountId} has no igAccountId`);
+    const pageToken = decryptTokenRef(channel.credentials_secret_ref) ?? process.env.META_SYSTEM_USER_TOKEN;
+    if (!pageToken) throw new Error(`No access token for Instagram channel ${channelAccountId}`);
+    await sendInstagramMessage({ igAccountId, recipientId: to, text, pageToken });
+    await markOutboxDone(event.id);
+    return;
+  }
+
+  if (channel.channel_type === "messenger") {
+    if (!text) throw new Error("Messenger outbox payload must include text or body");
+    const pageId = pageIdFromConfig(channel.provider_config);
+    if (!pageId) throw new Error(`Channel account ${channelAccountId} has no pageId`);
+    const pageToken = decryptTokenRef(channel.credentials_secret_ref) ?? process.env.META_SYSTEM_USER_TOKEN;
+    if (!pageToken) throw new Error(`No access token for Messenger channel ${channelAccountId}`);
+    await sendMessengerMessage({ pageId, recipientId: to, text, pageToken });
+    await markOutboxDone(event.id);
+    return;
+  }
+
+  // WhatsApp path (default)
   const phoneNumberId = phoneNumberIdFromConfig(channel.provider_config);
   if (!phoneNumberId) throw new Error(`Channel account ${channelAccountId} has no phone_number_id`);
 
@@ -315,7 +424,7 @@ async function fetchChannelAccount(
 ): Promise<ChannelAccountRow | undefined> {
   const { rows } = await pool.query<ChannelAccountRow>(
     `
-      SELECT id, workspace_id, default_agent_id, provider_config
+      SELECT id, workspace_id, default_agent_id, provider_config, credentials_secret_ref, channel_type
       FROM channel_accounts
       WHERE id=$1 AND workspace_id=$2
       LIMIT 1

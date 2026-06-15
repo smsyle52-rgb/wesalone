@@ -662,6 +662,7 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
       contactName: contactsTable.name,
       channelAccountId: conversationsTable.channelAccountId,
       externalThreadId: conversationsTable.externalThreadId,
+      channel: conversationsTable.channel,
     })
       .from(conversationsTable)
       .leftJoin(contactsTable, eq(conversationsTable.contactId, contactsTable.id))
@@ -695,11 +696,16 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
       sentAt: new Date(),
     }).returning();
 
-    // PD-1 fix: أضف outbox event للرسائل الخارجة اليدوية كي تصل للعميل عبر واتساب
+    // PD-1 fix: أضف outbox event للرسائل الخارجة اليدوية كي تصل للعميل عبر القناة الصحيحة
     if (isOutboundToChannel) {
+      const outboxEventType = conv.channel === "instagram"
+        ? "message.send.instagram.text"
+        : conv.channel === "messenger"
+          ? "message.send.messenger.text"
+          : "message.send.whatsapp.text";
       await db.insert(outboxEventsTable).values({
         workspaceId: activeWorkspaceId,
-        eventType: "message.send.whatsapp.text",
+        eventType: outboxEventType,
         entityType: "conversation",
         entityId: conv.id,
         idempotencyKey: `manual:${userId}:${message.id}`,

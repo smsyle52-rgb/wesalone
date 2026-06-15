@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import { env } from "../../lib/env";
 import { logger } from "../../lib/logger";
+import { handleMetaWebhook } from "../integrations/meta-webhook.handler";
 
 type RequestWithRawBody = Request & { rawBody?: Buffer };
 
@@ -20,7 +21,16 @@ type MetaMessage = {
   from?: string;
   timestamp?: string;
   senderType?: string;
+  type?: string;
   text?: { body?: string };
+  [key: string]: unknown;
+};
+
+type MetaMediaField = {
+  id?: string;
+  caption?: string;
+  filename?: string;
+  mime_type?: string;
   [key: string]: unknown;
 };
 
@@ -61,6 +71,37 @@ function queryString(value: unknown): string | undefined {
 
 function normalizePhone(phone: string): string {
   return phone.trim().replace(/[^\d+]/g, "");
+}
+
+const MEDIA_LABELS: Record<string, string> = {
+  image: "صورة",
+  audio: "رسالة صوتية",
+  voice: "رسالة صوتية",
+  video: "فيديو",
+  document: "مستند",
+  sticker: "ملصق",
+};
+
+function extractMedia(message: MetaMessage): { content: string; attachments: object[] } | null {
+  const type = message.type;
+  if (!type || type === "text") return null;
+  const raw = message[type];
+  const field: MetaMediaField = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? (raw as MetaMediaField)
+    : {};
+  const caption = typeof field.caption === "string" ? field.caption.trim() : "";
+  const label = MEDIA_LABELS[type] ?? "وسائط";
+  return {
+    content: caption || `[${label}]`,
+    attachments: [{
+      type: type === "voice" ? "audio" : type,
+      provider: "whatsapp",
+      media_id: typeof field.id === "string" ? field.id : undefined,
+      mime_type: typeof field.mime_type === "string" ? field.mime_type : null,
+      caption: caption || null,
+      ...(type === "document" && typeof field.filename === "string" ? { filename: field.filename } : {}),
+    }],
+  };
 }
 
 function getRawBody(req: RequestWithRawBody): Buffer {
@@ -253,6 +294,7 @@ async function insertInboundMessage(
   conversation: Conversation,
   message: MetaMessage,
   content: string,
+  attachments: object[] = [],
 ): Promise<string | undefined> {
   if (message.id) {
     const [existingMessage] = await db
@@ -280,6 +322,7 @@ async function insertInboundMessage(
       senderType: "customer",
       source: "whatsapp_api",
       content,
+      attachments,
       deliveryStatus: "delivered",
       providerPayload: message,
       sentAt,
@@ -301,10 +344,15 @@ async function createDomainEvent(params: {
 async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage): Promise<void> {
   const phoneNumberId = value.metadata?.phone_number_id;
   const from = message.from;
-  const content = message.text?.body?.trim();
+
+  // PD-3 fix: استخرج محتوى الوسائط (صورة/صوت/فيديو/مستند) لا تتجاهل الرسالة
+  const textContent = message.text?.body?.trim();
+  const media = textContent ? null : extractMedia(message);
+  const content = textContent ?? media?.content;
+  const attachments = media?.attachments ?? [];
 
   if (!phoneNumberId || !from || !content) {
-    logger.warn({ phoneNumberId, from, messageId: message.id }, "Skipping incomplete Meta inbound message");
+    logger.warn({ phoneNumberId, from, messageId: message.id, type: message.type }, "Skipping incomplete Meta inbound message");
     return;
   }
 
@@ -316,7 +364,7 @@ async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage
 
   const contact = await upsertContact(channel.workspaceId, from);
   const conversation = await upsertConversation(channel, contact.id, from, content);
-  const messageId = await insertInboundMessage(conversation, message, content);
+  const messageId = await insertInboundMessage(conversation, message, content, attachments);
   if (!messageId) {
     logger.info({ providerMessageId: message.id, conversationId: conversation.id }, "Skipping duplicate Meta message");
     return;
@@ -399,7 +447,13 @@ router.post("/meta", express.raw({ type: "*/*", limit: "2mb" }), async (req: Req
 
   try {
     const payload = parsePayload(req, rawBody);
-    await handleMetaPayload(payload);
+    // PD-6 fix: route instagram/page (Messenger) webhooks to the shared dispatcher
+    const objectType = (payload as any)?.object;
+    if (objectType === "instagram" || objectType === "page") {
+      await handleMetaWebhook(payload);
+    } else {
+      await handleMetaPayload(payload);
+    }
   } catch (err) {
     logger.error({ err }, "Failed to process Meta webhook");
   }

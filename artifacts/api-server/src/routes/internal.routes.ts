@@ -114,6 +114,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         id: conversationsTable.id,
         channelAccountId: conversationsTable.channelAccountId,
         externalThreadId: conversationsTable.externalThreadId,
+        channel: conversationsTable.channel,
       })
       .from(conversationsTable)
       .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)))
@@ -187,11 +188,17 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       });
     }
 
+    const outboxEventType = conversation.channel === "instagram"
+      ? "message.send.instagram.text"
+      : conversation.channel === "messenger"
+        ? "message.send.messenger.text"
+        : "message.send.whatsapp.text";
+
     const [event] = await db
       .insert(outboxEventsTable)
       .values({
         workspaceId,
-        eventType: "message.send.whatsapp.text",
+        eventType: outboxEventType,
         entityType: "conversation",
         entityId: conversationId,
         idempotencyKey: `auto:${agentId}:${agentReply.runId}`,
