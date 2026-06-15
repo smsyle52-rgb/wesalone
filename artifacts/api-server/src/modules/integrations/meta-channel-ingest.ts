@@ -170,7 +170,7 @@ export async function ingestMetaChannelMessage(params: IngestMetaChannelMessageP
       unreadCount: sql`${conversationsTable.unreadCount} + 1`,
       updatedAt: new Date(),
     })
-    .where(eq(conversationsTable.id, conversation.id));
+    .where(and(eq(conversationsTable.id, conversation.id), eq(conversationsTable.workspaceId, workspaceId)));
 
   const eventPayload = {
     conversationId: conversation.id,

@@ -285,7 +285,9 @@ router.get("/:id", requirePermission("payments:read"), async (req: Authenticated
   let orderInfo: { totalAmount: string; paidAmount: string; paymentStatus: string } | null = null;
   if (payment.orderId) {
     const [o] = await db.select({ totalAmount: ordersTable.totalAmount, paidAmount: ordersTable.paidAmount })
-      .from(ordersTable).where(eq(ordersTable.id, payment.orderId)).limit(1);
+      .from(ordersTable)
+      .where(and(eq(ordersTable.id, payment.orderId), eq(ordersTable.workspaceId, activeWorkspaceId)))
+      .limit(1);
     if (o) {
       orderInfo = {
         totalAmount: o.totalAmount, paidAmount: o.paidAmount,
@@ -426,7 +428,7 @@ router.post("/:id/confirm", paymentActionLimiter, requirePermission("payments:co
         })();
         const [upd] = await tx.update(ordersTable)
           .set({ paidAmount: String(newPaidAmount.toFixed(2)), paymentStatus: newPaymentStatus, updatedAt: now })
-          .where(eq(ordersTable.id, orderInTx.id))
+          .where(and(eq(ordersTable.id, orderInTx.id), eq(ordersTable.workspaceId, activeWorkspaceId)))
           .returning({ id: ordersTable.id, totalAmount: ordersTable.totalAmount, paidAmount: ordersTable.paidAmount });
         txUpdatedOrder = upd;
       }
@@ -436,7 +438,7 @@ router.post("/:id/confirm", paymentActionLimiter, requirePermission("payments:co
           status: "confirmed", confirmedBy: userId, confirmedAt: now,
           paidAt: existing.paidAt ?? now, updatedAt: now,
         })
-        .where(eq(paymentsTable.id, existing.id))
+        .where(and(eq(paymentsTable.id, existing.id), eq(paymentsTable.workspaceId, activeWorkspaceId)))
         .returning();
 
       return { payment: pmt, updatedOrder: txUpdatedOrder };
@@ -530,7 +532,7 @@ router.post("/:id/reject", paymentActionLimiter, requirePermission("payments:rej
     const now = new Date();
     const [payment] = await db.update(paymentsTable)
       .set({ status: "rejected", rejectedBy: userId, rejectedAt: now, rejectionReason: trimmedReason, updatedAt: now })
-      .where(eq(paymentsTable.id, req.params.id as string))
+      .where(and(eq(paymentsTable.id, req.params.id as string), eq(paymentsTable.workspaceId, activeWorkspaceId)))
       .returning();
 
     await createAuditLog({

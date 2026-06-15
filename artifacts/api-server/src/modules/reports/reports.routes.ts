@@ -138,7 +138,8 @@ router.patch("/definitions/:id", requirePermission("reports:update"), async (req
   const [existing] = await db.select().from(reportDefinitionsTable).where(and(eq(reportDefinitionsTable.id, id), eq(reportDefinitionsTable.workspaceId, activeWorkspaceId)));
   if (!existing) { res.status(404).json({ error: "التقرير غير موجود" }); return; }
 
-  const [updated] = await db.update(reportDefinitionsTable).set({ ...parse.data, updatedAt: new Date() }).where(eq(reportDefinitionsTable.id, id)).returning();
+  const [updated] = await db.update(reportDefinitionsTable).set({ ...parse.data, updatedAt: new Date() })
+    .where(and(eq(reportDefinitionsTable.id, id), eq(reportDefinitionsTable.workspaceId, activeWorkspaceId))).returning();
   await createAuditLog({ ...auditFromRequest(req, req.sessionUser), action: "report_definition_update", entityType: "report_definition", entityId: id, oldData: { name: existing.name }, newData: { name: updated.name } });
 
   res.json({ definition: updated });
@@ -150,7 +151,8 @@ router.delete("/definitions/:id", requirePermission("reports:delete"), async (re
   const [existing] = await db.select().from(reportDefinitionsTable).where(and(eq(reportDefinitionsTable.id, id), eq(reportDefinitionsTable.workspaceId, activeWorkspaceId)));
   if (!existing) { res.status(404).json({ error: "التقرير غير موجود" }); return; }
 
-  await db.update(reportDefinitionsTable).set({ isArchived: true, updatedAt: new Date() }).where(eq(reportDefinitionsTable.id, id));
+  await db.update(reportDefinitionsTable).set({ isArchived: true, updatedAt: new Date() })
+    .where(and(eq(reportDefinitionsTable.id, id), eq(reportDefinitionsTable.workspaceId, activeWorkspaceId)));
   await createAuditLog({ ...auditFromRequest(req, req.sessionUser), action: "report_definition_delete", entityType: "report_definition", entityId: id, oldData: { name: existing.name } });
 
   res.json({ success: true, message: "تم أرشفة التقرير" });

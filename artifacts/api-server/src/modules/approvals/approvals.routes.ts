@@ -60,7 +60,7 @@ router.post("/:id/approve", requirePermission("approvals:approve"), async (req: 
     status: "approved",
     approvedBy: userId,
     resolvedAt: new Date(),
-  }).where(eq(approvalRequestsTable.id, id)).returning();
+  }).where(and(eq(approvalRequestsTable.id, id), eq(approvalRequestsTable.workspaceId, activeWorkspaceId))).returning();
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
@@ -104,7 +104,7 @@ router.post("/:id/reject", requirePermission("approvals:reject"), async (req: Au
     rejectedBy: userId,
     reason: parse.data.reason ?? null,
     resolvedAt: new Date(),
-  }).where(eq(approvalRequestsTable.id, id)).returning();
+  }).where(and(eq(approvalRequestsTable.id, id), eq(approvalRequestsTable.workspaceId, activeWorkspaceId))).returning();
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
@@ -136,7 +136,7 @@ router.post("/:id/cancel", requirePermission("approvals:reject"), async (req: Au
   const [updated] = await db.update(approvalRequestsTable).set({
     status: "cancelled",
     resolvedAt: new Date(),
-  }).where(eq(approvalRequestsTable.id, id)).returning();
+  }).where(and(eq(approvalRequestsTable.id, id), eq(approvalRequestsTable.workspaceId, activeWorkspaceId))).returning();
 
   res.json({ approval: updated });
 });

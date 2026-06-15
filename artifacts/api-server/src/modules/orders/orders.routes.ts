@@ -38,13 +38,16 @@ async function recalcTotal(orderId: string, workspaceId: string): Promise<string
     .from(orderItemsTable)
     .where(and(eq(orderItemsTable.orderId, orderId), eq(orderItemsTable.workspaceId, workspaceId)));
   const [ord] = await db.select({ discount: ordersTable.discount, paidAmount: ordersTable.paidAmount })
-    .from(ordersTable).where(eq(ordersTable.id, orderId)).limit(1);
+    .from(ordersTable)
+    .where(and(eq(ordersTable.id, orderId), eq(ordersTable.workspaceId, workspaceId)))
+    .limit(1);
+  if (!ord) throw new Error("ORDER_NOT_FOUND");
   const total = Math.max(0, Number(itemsSum ?? 0) - Number(ord?.discount ?? 0));
   const paidAmount = Number(ord?.paidAmount ?? 0);
   const paymentStatus = derivePaymentStatus(total, paidAmount);
   await db.update(ordersTable)
     .set({ totalAmount: String(total), paymentStatus, updatedAt: new Date() })
-    .where(eq(ordersTable.id, orderId));
+    .where(and(eq(ordersTable.id, orderId), eq(ordersTable.workspaceId, workspaceId)));
   return String(total);
 }
 
@@ -360,7 +363,7 @@ router.delete("/:id", requirePermission("orders:delete"), async (req: Authentica
   // R3 — منع حذف أي طلب مرتبط بأي دفعة (pending أو confirmed أو rejected)
   const [{ paymentCount }] = await db.select({ paymentCount: count() })
     .from(paymentsTable)
-    .where(eq(paymentsTable.orderId, existing.id));
+    .where(and(eq(paymentsTable.orderId, existing.id), eq(paymentsTable.workspaceId, activeWorkspaceId)));
   if (Number(paymentCount) > 0) {
     res.status(422).json({
       error: "لا يمكن حذف طلب مرتبط بمدفوعات",
@@ -370,8 +373,10 @@ router.delete("/:id", requirePermission("orders:delete"), async (req: Authentica
     return;
   }
 
-  await db.delete(orderItemsTable).where(eq(orderItemsTable.orderId, existing.id));
-  await db.delete(ordersTable).where(eq(ordersTable.id, existing.id));
+  await db.delete(orderItemsTable)
+    .where(and(eq(orderItemsTable.orderId, existing.id), eq(orderItemsTable.workspaceId, activeWorkspaceId)));
+  await db.delete(ordersTable)
+    .where(and(eq(ordersTable.id, existing.id), eq(ordersTable.workspaceId, activeWorkspaceId)));
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
@@ -470,7 +475,11 @@ router.patch("/:id/items/:itemId", requirePermission("orders:update"), async (re
   if (parsed.data.currency !== undefined) updateData.currency = parsed.data.currency;
 
   const [item] = await db.update(orderItemsTable).set(updateData)
-    .where(and(eq(orderItemsTable.id, req.params.itemId as string), eq(orderItemsTable.workspaceId, activeWorkspaceId)))
+    .where(and(
+      eq(orderItemsTable.id, req.params.itemId as string),
+      eq(orderItemsTable.orderId, order.id),
+      eq(orderItemsTable.workspaceId, activeWorkspaceId)
+    ))
     .returning();
 
   const newTotal = await recalcTotal(order.id, activeWorkspaceId);
@@ -503,7 +512,11 @@ router.delete("/:id/items/:itemId", requirePermission("orders:update"), async (r
   if (!existing) { res.status(404).json({ error: "البند غير موجود" }); return; }
 
   await db.delete(orderItemsTable)
-    .where(and(eq(orderItemsTable.id, req.params.itemId as string), eq(orderItemsTable.workspaceId, activeWorkspaceId)));
+    .where(and(
+      eq(orderItemsTable.id, req.params.itemId as string),
+      eq(orderItemsTable.orderId, order.id),
+      eq(orderItemsTable.workspaceId, activeWorkspaceId)
+    ));
   const newTotal = await recalcTotal(order.id, activeWorkspaceId);
 
   await createAuditLog({

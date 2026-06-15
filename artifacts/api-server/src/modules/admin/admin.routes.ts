@@ -81,7 +81,10 @@ router.post("/payments/:id/confirm", async (req: AuthenticatedRequest, res: Resp
   await db.transaction(async (tx) => {
     await tx.update(paymentSubmissionsTable)
       .set({ status: "confirmed", reviewedBy: req.sessionUser.userId, reviewedAt: new Date() })
-      .where(eq(paymentSubmissionsTable.id, submission.id));
+      .where(and(
+        eq(paymentSubmissionsTable.id, submission.id),
+        eq(paymentSubmissionsTable.workspaceId, req.sessionUser.activeWorkspaceId)
+      ));
 
     await tx.insert(subscriptionsTable).values({
       workspaceId: submission.workspaceId,

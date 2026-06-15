@@ -361,7 +361,11 @@ router.put("/notification-preferences", requirePermission("settings:manage"), as
     if (existing) {
       const [row] = await db.update(notificationPreferencesTable)
         .set({ events: pref.events, updatedAt: new Date() })
-        .where(eq(notificationPreferencesTable.id, existing.id))
+        .where(and(
+          eq(notificationPreferencesTable.id, existing.id),
+          eq(notificationPreferencesTable.workspaceId, authReq.sessionUser.activeWorkspaceId),
+          eq(notificationPreferencesTable.userId, authReq.sessionUser.userId)
+        ))
         .returning();
       rows.push(row);
     } else {

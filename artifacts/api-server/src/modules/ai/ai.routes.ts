@@ -711,7 +711,7 @@ router.patch("/agents/:id", requirePermission("ai:configure"), async (req: Authe
   const [agent] = await db.update(aiAgentsTable).set({
     ...updates,
     updatedAt: new Date(),
-  }).where(eq(aiAgentsTable.id, agentId)).returning();
+  }).where(and(eq(aiAgentsTable.id, agentId), eq(aiAgentsTable.workspaceId, activeWorkspaceId))).returning();
 
   const action = data.status === "disabled" ? "ai_agent_disable" : "ai_agent_update";
   await createAuditLog({
@@ -871,7 +871,10 @@ router.patch("/agents/:id/instructions", requirePermission("ai:configure"), asyn
     [instructions] = await db.update(aiAgentInstructionsTable).set({
       ...data,
       updatedAt: new Date(),
-    }).where(eq(aiAgentInstructionsTable.id, existing[0].id)).returning();
+    }).where(and(
+      eq(aiAgentInstructionsTable.id, existing[0].id),
+      eq(aiAgentInstructionsTable.workspaceId, activeWorkspaceId)
+    )).returning();
   } else {
     [instructions] = await db.insert(aiAgentInstructionsTable).values({
       workspaceId: activeWorkspaceId,
@@ -962,7 +965,10 @@ router.patch("/agents/:id/tools", requirePermission("ai:configure"), async (req:
       requiresApproval: data.requiresApproval,
       config: data.config ?? {},
       updatedAt: new Date(),
-    }).where(eq(aiAgentToolsTable.id, existing[0].id)).returning();
+    }).where(and(
+      eq(aiAgentToolsTable.id, existing[0].id),
+      eq(aiAgentToolsTable.workspaceId, activeWorkspaceId)
+    )).returning();
   } else {
     [tool] = await db.insert(aiAgentToolsTable).values({
       workspaceId: activeWorkspaceId,
@@ -1137,7 +1143,7 @@ async function createAndRunAI(params: {
     estimatedCost: String(aiOutput.estimatedCost),
     safetyStatus: "ok",
     completedAt: new Date(),
-  }).where(eq(aiRunsTable.id, run.id));
+  }).where(and(eq(aiRunsTable.id, run.id), eq(aiRunsTable.workspaceId, workspaceId)));
 
   await upsertUsage({
     workspaceId,
@@ -1522,7 +1528,11 @@ ${locationContext}
     finalDraft = "أحتاج أتأكد من هذه المعلومة وأرجع لك. سأحوّل المحادثة لأحد أعضاء الفريق حتى يراجع التفاصيل بدقة.";
     await db.update(aiMessagesTable)
       .set({ content: finalDraft, metadata: { knowledgeSources: allKnowledgeContextSources, escalation: "knowledge_gap" } })
-      .where(and(eq(aiMessagesTable.aiRunId, result.run.id), eq(aiMessagesTable.role, "assistant")));
+      .where(and(
+        eq(aiMessagesTable.aiRunId, result.run.id),
+        eq(aiMessagesTable.role, "assistant"),
+        eq(aiMessagesTable.workspaceId, activeWorkspaceId)
+      ));
   }
 
   if (conversationId) {

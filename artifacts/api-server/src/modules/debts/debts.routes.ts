@@ -323,7 +323,8 @@ router.patch("/:id", requirePermission("debts:update"), async (req: Authenticate
   if (d.notes !== undefined) updates.notes = d.notes;
   if (d.assignedMembershipId !== undefined) updates.assignedMembershipId = d.assignedMembershipId;
 
-  const [updated] = await db.update(debtsTable).set(updates).where(eq(debtsTable.id, id)).returning();
+  const [updated] = await db.update(debtsTable).set(updates)
+    .where(and(eq(debtsTable.id, id), eq(debtsTable.workspaceId, activeWorkspaceId))).returning();
 
   await Promise.all([
     createAuditLog({
@@ -427,7 +428,8 @@ router.patch("/:id/status", requirePermission("debts:update"), async (req: Authe
     updates.cancelReason = cancelReason;
   }
 
-  const [updated] = await db.update(debtsTable).set(updates).where(eq(debtsTable.id, id)).returning();
+  const [updated] = await db.update(debtsTable).set(updates)
+    .where(and(eq(debtsTable.id, id), eq(debtsTable.workspaceId, activeWorkspaceId))).returning();
 
   const auditAction = newStatus === "written_off" ? "debt_write_off"
     : newStatus === "cancelled" ? "debt_cancel"
@@ -480,7 +482,7 @@ router.delete("/:id", requirePermission("debts:delete"), async (req: Authenticat
     return;
   }
 
-  await db.delete(debtsTable).where(eq(debtsTable.id, id));
+  await db.delete(debtsTable).where(and(eq(debtsTable.id, id), eq(debtsTable.workspaceId, activeWorkspaceId)));
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
@@ -604,7 +606,12 @@ router.patch("/:id/notes/:noteId", requirePermission("collection_notes:update"),
   if (d.promisedPaymentDate !== undefined) updates.promisedPaymentDate = d.promisedPaymentDate ? new Date(d.promisedPaymentDate) : null;
   if (d.promisedAmount !== undefined) updates.promisedAmount = d.promisedAmount !== null ? String(d.promisedAmount) : null;
 
-  const [updated] = await db.update(collectionNotesTable).set(updates).where(eq(collectionNotesTable.id, noteId)).returning();
+  const [updated] = await db.update(collectionNotesTable).set(updates)
+    .where(and(
+      eq(collectionNotesTable.id, noteId),
+      eq(collectionNotesTable.debtId, id),
+      eq(collectionNotesTable.workspaceId, activeWorkspaceId)
+    )).returning();
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
@@ -641,7 +648,12 @@ router.delete("/:id/notes/:noteId", requirePermission("collection_notes:delete")
     return;
   }
 
-  await db.delete(collectionNotesTable).where(eq(collectionNotesTable.id, noteId));
+  await db.delete(collectionNotesTable)
+    .where(and(
+      eq(collectionNotesTable.id, noteId),
+      eq(collectionNotesTable.debtId, id),
+      eq(collectionNotesTable.workspaceId, activeWorkspaceId)
+    ));
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),

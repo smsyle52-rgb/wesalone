@@ -241,7 +241,7 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
         unreadCount: sql`${conversationsTable.unreadCount} + 1`,
         updatedAt: new Date(),
       })
-      .where(eq(conversationsTable.id, conversation.id));
+      .where(and(eq(conversationsTable.id, conversation.id), eq(conversationsTable.workspaceId, workspaceId)));
 
     await db.insert(domainEventsTable).values({
       workspaceId,

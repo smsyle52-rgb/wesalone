@@ -376,7 +376,7 @@ router.patch("/products/:id", requirePermission("catalog:manage"), async (req: A
 
   const [product] = await db.update(productsTable)
     .set({ ...updateValues, updatedAt: new Date(), ...(isManualProduct ? { syncedAt: new Date() } : {}) })
-    .where(eq(productsTable.id, existing.product.id))
+    .where(and(eq(productsTable.id, existing.product.id), eq(productsTable.workspaceId, req.sessionUser.activeWorkspaceId)))
     .returning();
   if (!product) {
     res.status(404).json({ error: "المنتج غير موجود" });
