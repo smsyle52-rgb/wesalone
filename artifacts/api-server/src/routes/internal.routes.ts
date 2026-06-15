@@ -133,11 +133,14 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       systemUserId: agent.createdBy,
     });
 
-    if (agentReply.shouldEscalate || !agentReply.reply.trim()) {
-      await db
-        .update(conversationsTable)
-        .set({ agentStatus: "human", updatedAt: new Date() })
-        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)));
+    const replyText = agentReply.reply.trim();
+    if (!replyText) {
+      if (agentReply.shouldEscalate) {
+        await db
+          .update(conversationsTable)
+          .set({ agentStatus: "human", updatedAt: new Date() })
+          .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)));
+      }
 
       res.status(200).json({
         success: true,
@@ -166,7 +169,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       .values({
         conversationId,
         workspaceId,
-        content: agentReply.reply,
+        content: replyText,
         direction: "outbound",
         senderType: "agent",
         senderId: agentId,
@@ -207,7 +210,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
           channelAccountId: conversation.channelAccountId,
           conversationId,
           to: conversation.externalThreadId,
-          body: agentReply.reply,
+          body: replyText,
           aiRunId: agentReply.runId,
           autoReply: true,
           messageId: agentMessage?.id,
@@ -217,6 +220,13 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       })
       .onConflictDoNothing()
       .returning({ id: outboxEventsTable.id });
+
+    if (agentReply.shouldEscalate) {
+      await db
+        .update(conversationsTable)
+        .set({ agentStatus: "human", updatedAt: new Date() })
+        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)));
+    }
 
     res.status(200).json({
       success: true,
