@@ -218,6 +218,7 @@ async function upsertConversation(
         lastMessage,
         lastMessageAt: now,
         unreadCount: sql`${conversationsTable.unreadCount} + 1`,
+        consecutiveAgentReplies: 0,
         updatedAt: now,
       })
       .where(eq(conversationsTable.id, existing.id))

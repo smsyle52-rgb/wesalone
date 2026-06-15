@@ -359,6 +359,22 @@ async function markConversationHuman(conversationId: string): Promise<void> {
   );
 }
 
+async function clearExpiredPause(conversationId: string): Promise<void> {
+  await pool.query(
+    `
+      UPDATE conversations
+      SET agent_status='active',
+          agent_paused_until=NULL,
+          updated_at=NOW()
+      WHERE id=$1
+        AND agent_status='paused'
+        AND agent_paused_until IS NOT NULL
+        AND agent_paused_until <= NOW()
+    `,
+    [conversationId],
+  );
+}
+
 async function requestInternalAgentReply(params: {
   workspaceId: string;
   conversationId: string;
@@ -418,6 +434,11 @@ async function handleDomainEvent(event: DomainEventRow): Promise<void> {
     return;
   }
 
+  if (conversation.agent_status === "human") {
+    await markDone(event.id);
+    return;
+  }
+
   if (
     conversation.agent_status === "paused"
     && conversation.agent_paused_until
@@ -425,6 +446,10 @@ async function handleDomainEvent(event: DomainEventRow): Promise<void> {
   ) {
     await markDone(event.id);
     return;
+  }
+
+  if (conversation.agent_status === "paused") {
+    await clearExpiredPause(conversation.id);
   }
 
   if (event.event_type === "message.echo") {

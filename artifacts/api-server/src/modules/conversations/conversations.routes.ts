@@ -696,6 +696,7 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
       convUpdates.lastMessageAt = new Date();
       if (direction === "inbound") {
         convUpdates.unreadCount = sql`${conversationsTable.unreadCount} + 1`;
+        convUpdates.consecutiveAgentReplies = 0;
       }
       if (conv.status === "new" && direction === "outbound") {
         convUpdates.status = "open";
