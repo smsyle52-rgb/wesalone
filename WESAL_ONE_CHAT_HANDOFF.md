@@ -11,10 +11,18 @@ Cloud Build triggers: اثنان — khadamatak-staging + khadamatak-worker.
 الـ worker ما كان له Cloud Build trigger — ظلّ مجمّداً على كود قديم.
 الحل: إنشاء trigger جديد (khadamatak-worker ← cloudbuild.worker.yaml ← main).
 
-## المرحلة التالية النشطة ⏳
-المرحلة 2 — أدوات المهمات (function calling):
-create_order، log_payment_claim، schedule_followup، send_product_media، handoff_to_human.
-الخطوة الأولى: فحص read-only لـ orders.routes وpayments.routes الموجودتين.
+## المرحلة 2 — أدوات المهمات (قيد التثبيت) ⏳
+تم تطبيق الأساس بدون commit/push:
+- `artifacts/api-server/src/lib/agent-tools.ts`: أدوات `create_order`, `log_payment_claim`, `schedule_followup`, `send_product_media`, `handoff_to_human`.
+- `artifacts/api-server/src/lib/agent-reply.ts`: يطلب JSON tool calls فقط عند وجود أدوات مفعّلة، وينفذ فقط `isEnabled=true` و`requiresApproval=false`.
+- `artifacts/api-server/src/routes/internal.routes.ts`: يرجع `toolResults` من `/internal/agent-reply`.
+- `artifacts/outbox-worker/src/index.ts`: يدعم إرسال WhatsApp media من outbox.
+
+التحقق المنجز: `typecheck:libs` ✅، نطاق الإنتاج بدون `mockup-sandbox` ✅، `api-server typecheck` ✅، `outbox-worker typecheck` ✅، `build:prod` ✅.
+تم حسم echo/statuses في `artifacts/api-server/src/modules/webhooks/meta.routes.ts`: حلقة `value.statuses` موجودة ولا يوجد diff في الملف.
+تمت إضافة سكربت تفعيل آمن: `corepack pnpm --filter @workspace/scripts run enable:phase2-tools` مع `DATABASE_URL` و`AGENT_ID`، ويضبط أدوات Phase 2 الخمس على `isEnabled=true` و`requiresApproval=false` لذلك الوكيل فقط.
+لم يتم التفعيل المباشر من هذه البيئة لأن `.env` غير موجود و`gcloud` غير مثبت، لذلك لا يوجد وصول آمن لقاعدة الإنتاج هنا.
+المتبقي قبل بوابة الخروج: تشغيل سكربت التفعيل بقيم الإنتاج الآمنة لوكيل محدد، ثم اختبار محادثة حيّة تنتج طلباً ومتابعة بدون لمس بشري.
 
 ## المراحل المتبقية
 - المرحلة 3 — جودة الاسترجاع + embeddings

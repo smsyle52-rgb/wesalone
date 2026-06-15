@@ -139,6 +139,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         success: true,
         runId: agentReply.runId,
         shouldEscalate: true,
+        toolResults: agentReply.toolResults,
         outboxEventId: null,
       });
       return;
@@ -149,6 +150,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         success: true,
         runId: agentReply.runId,
         shouldEscalate: false,
+        toolResults: agentReply.toolResults,
         outboxEventId: null,
       });
       return;
@@ -180,6 +182,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       success: true,
       runId: agentReply.runId,
       shouldEscalate: false,
+      toolResults: agentReply.toolResults,
       outboxEventId: event?.id ?? null,
     });
   } catch (err) {

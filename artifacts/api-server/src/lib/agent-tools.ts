@@ -1,0 +1,727 @@
+import { db } from "@workspace/db";
+import {
+  aiAgentToolsTable,
+  channelAccountsTable,
+  conversationsTable,
+  contactsTable,
+  domainEventsTable,
+  exchangeRatesTable,
+  followupsTable,
+  messagesTable,
+  orderItemsTable,
+  ordersTable,
+  outboxEventsTable,
+  paymentMethodsTable,
+  paymentsTable,
+  productsTable,
+} from "@workspace/db";
+import { and, count, desc, eq, ilike, sum } from "drizzle-orm";
+import { z } from "zod";
+import { createAuditLog } from "./audit";
+import { addContactTimeline } from "./contactTimeline";
+import { emitWorkspaceEvent } from "./events";
+
+export const AGENT_TOOL_KEYS = [
+  "create_order",
+  "log_payment_claim",
+  "schedule_followup",
+  "send_product_media",
+  "handoff_to_human",
+] as const;
+
+export type AgentToolKey = (typeof AGENT_TOOL_KEYS)[number];
+
+export type AgentToolCall = {
+  name: string;
+  arguments?: unknown;
+};
+
+export type AgentToolResult = {
+  tool: AgentToolKey;
+  status: "success" | "failed" | "skipped";
+  summary: string;
+  entityType?: string;
+  entityId?: string;
+  customerVisible?: boolean;
+};
+
+type ToolPolicy = {
+  key: AgentToolKey;
+  requiresApproval: boolean;
+  config: Record<string, unknown>;
+};
+
+type ConversationContext = {
+  id: string;
+  workspaceId: string;
+  contactId: string | null;
+  channel: string;
+  channelAccountId: string | null;
+  externalThreadId: string | null;
+};
+
+type ExecuteParams = {
+  workspaceId: string;
+  conversationId: string;
+  agentId: string;
+  aiRunId: string;
+  systemUserId: string;
+  calls: AgentToolCall[];
+};
+
+const CURRENCY_VALUES = ["YER", "SAR", "USD"] as const;
+const ORDER_CHANNEL_VALUES = ["manual", "whatsapp", "phone", "website", "walk_in"] as const;
+const PAYMENT_METHOD_VALUES = ["cash", "transfer", "kuraimi", "jawali", "bank", "other"] as const;
+const FOLLOWUP_TYPE_VALUES = ["manual", "sales", "support", "collection", "reminder"] as const;
+
+const createOrderSchema = z.object({
+  currency: z.enum(CURRENCY_VALUES).default("YER"),
+  channel: z.enum(ORDER_CHANNEL_VALUES).default("whatsapp"),
+  discount: z.number().min(0).default(0),
+  notes: z.string().max(1000).optional(),
+  items: z.array(z.object({
+    name: z.string().trim().min(1).max(200),
+    description: z.string().trim().max(500).optional(),
+    quantity: z.number().int().min(1).max(999).default(1),
+    unitPrice: z.number().min(0).max(999999999).default(0),
+    currency: z.enum(CURRENCY_VALUES).optional(),
+  })).max(20).optional(),
+});
+
+const paymentClaimSchema = z.object({
+  amount: z.number().positive(),
+  currency: z.enum(CURRENCY_VALUES).default("YER"),
+  method: z.enum(PAYMENT_METHOD_VALUES).default("other"),
+  paymentMethodId: z.string().uuid().optional(),
+  orderId: z.string().uuid().optional(),
+  reference: z.string().max(200).optional(),
+  notes: z.string().max(1000).optional(),
+  paidAt: z.string().datetime().optional(),
+});
+
+const followupSchema = z.object({
+  dueAt: z.string().datetime(),
+  type: z.enum(FOLLOWUP_TYPE_VALUES).default("manual"),
+  notes: z.string().max(1000).optional(),
+  assignedMembershipId: z.string().uuid().optional(),
+});
+
+const productMediaSchema = z.object({
+  productId: z.string().uuid().optional(),
+  externalProductId: z.string().trim().min(1).max(255).optional(),
+  productName: z.string().trim().min(1).max(255).optional(),
+  caption: z.string().trim().max(900).optional(),
+}).refine((value) => value.productId || value.externalProductId || value.productName, {
+  message: "productId, externalProductId, or productName is required",
+});
+
+const handoffSchema = z.object({
+  reason: z.string().trim().min(1).max(500).default("Agent requested human handoff"),
+});
+
+const TOOL_LABELS: Record<AgentToolKey, string> = {
+  create_order: "Create a new order linked to the current conversation/contact.",
+  log_payment_claim: "Log a pending payment claim for human review. Never confirms money.",
+  schedule_followup: "Schedule a future follow-up for the current contact.",
+  send_product_media: "Send one visible product image from the catalog through WhatsApp.",
+  handoff_to_human: "Move the conversation to human handling immediately.",
+};
+
+function isAgentToolKey(value: string): value is AgentToolKey {
+  return (AGENT_TOOL_KEYS as readonly string[]).includes(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  return {};
+}
+
+function publicToolSpec(tool: ToolPolicy): string {
+  const base = `${tool.key}: ${TOOL_LABELS[tool.key]}`;
+  if (tool.key === "create_order") {
+    return `${base} Arguments: currency, channel, discount, notes, items[{name, quantity, unitPrice, currency, description}].`;
+  }
+  if (tool.key === "log_payment_claim") {
+    return `${base} Arguments: amount, currency, method, paymentMethodId, orderId, reference, notes, paidAt.`;
+  }
+  if (tool.key === "schedule_followup") {
+    return `${base} Arguments: dueAt as ISO datetime, type, notes, assignedMembershipId.`;
+  }
+  if (tool.key === "send_product_media") {
+    return `${base} Arguments: productId or externalProductId or productName, caption.`;
+  }
+  return `${base} Arguments: reason.`;
+}
+
+export async function loadExecutableAgentTools(workspaceId: string, agentId: string): Promise<ToolPolicy[]> {
+  const rows = await db
+    .select()
+    .from(aiAgentToolsTable)
+    .where(and(eq(aiAgentToolsTable.workspaceId, workspaceId), eq(aiAgentToolsTable.agentId, agentId)));
+
+  return rows
+    .filter((row) => row.isEnabled && !row.requiresApproval && isAgentToolKey(row.toolKey))
+    .map((row) => ({
+      key: row.toolKey as AgentToolKey,
+      requiresApproval: row.requiresApproval,
+      config: asRecord(row.config),
+    }));
+}
+
+export function buildAgentToolPrompt(tools: ToolPolicy[]): string {
+  if (tools.length === 0) return "";
+  return [
+    "Available server-side tools:",
+    ...tools.map((tool) => `- ${publicToolSpec(tool)}`),
+    "",
+    "Return strict JSON only in this shape:",
+    "{\"reply\":\"customer-facing Arabic reply\",\"tool_calls\":[{\"name\":\"create_order\",\"arguments\":{}}]}",
+    "Use tool_calls only when the customer clearly asked for that action and required facts are present.",
+    "Never claim a tool action was completed unless you requested the matching tool call.",
+    "For payments, only log a pending claim. Never confirm or reject payments.",
+    "If no tool is needed, return tool_calls as an empty array.",
+  ].join("\n");
+}
+
+export function parseAgentToolResponse(content: string): { reply: string; toolCalls: AgentToolCall[] } {
+  const fallback = { reply: content.trim(), toolCalls: [] };
+  const start = content.indexOf("{");
+  const end = content.lastIndexOf("}");
+  if (start < 0 || end <= start) return fallback;
+
+  try {
+    const parsed = JSON.parse(content.slice(start, end + 1)) as Record<string, unknown>;
+    const reply = typeof parsed.reply === "string" && parsed.reply.trim()
+      ? parsed.reply.trim()
+      : "تم استلام طلبك، وسنراجع التفاصيل ونؤكدها لك.";
+    const toolCalls = Array.isArray(parsed.tool_calls)
+      ? parsed.tool_calls
+        .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
+        .map((item) => ({ name: String(item.name ?? ""), arguments: item.arguments }))
+        .filter((item) => item.name)
+        .slice(0, 3)
+      : [];
+    return { reply, toolCalls };
+  } catch {
+    return fallback;
+  }
+}
+
+async function loadConversation(workspaceId: string, conversationId: string): Promise<ConversationContext> {
+  const [conversation] = await db
+    .select({
+      id: conversationsTable.id,
+      workspaceId: conversationsTable.workspaceId,
+      contactId: conversationsTable.contactId,
+      channel: conversationsTable.channel,
+      channelAccountId: conversationsTable.channelAccountId,
+      externalThreadId: conversationsTable.externalThreadId,
+    })
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)))
+    .limit(1);
+
+  if (!conversation) throw new Error("CONVERSATION_NOT_FOUND");
+  return conversation;
+}
+
+async function appendToolNote(params: {
+  workspaceId: string;
+  conversationId: string;
+  content: string;
+  aiRunId: string;
+  agentId: string;
+}): Promise<void> {
+  const [message] = await db.insert(messagesTable).values({
+    workspaceId: params.workspaceId,
+    conversationId: params.conversationId,
+    direction: "internal",
+    senderType: "agent",
+    senderName: "AI Agent",
+    source: "agent_tool",
+    contentType: "note",
+    content: params.content,
+    isPrivateNote: true,
+    deliveryStatus: "sent",
+    providerPayload: { aiRunId: params.aiRunId, agentId: params.agentId },
+    sentAt: new Date(),
+  }).returning({ id: messagesTable.id });
+
+  emitWorkspaceEvent({
+    workspaceId: params.workspaceId,
+    type: "message.created",
+    entityType: "message",
+    entityId: message.id,
+    payload: { conversationId: params.conversationId, source: "agent_tool", internal: true },
+  });
+}
+
+async function emitToolDomainEvent(params: {
+  workspaceId: string;
+  eventType: string;
+  entityType: string;
+  entityId: string;
+  payload?: Record<string, unknown>;
+}): Promise<void> {
+  await db.insert(domainEventsTable).values({
+    workspaceId: params.workspaceId,
+    eventType: params.eventType,
+    entityType: params.entityType,
+    entityId: params.entityId,
+    payload: params.payload ?? {},
+  });
+
+  emitWorkspaceEvent({
+    workspaceId: params.workspaceId,
+    type: params.eventType,
+    entityType: params.entityType,
+    entityId: params.entityId,
+    payload: params.payload ?? {},
+  });
+}
+
+async function recalcOrderTotal(orderId: string, workspaceId: string): Promise<void> {
+  const [{ itemsSum }] = await db.select({ itemsSum: sum(orderItemsTable.total) })
+    .from(orderItemsTable)
+    .where(and(eq(orderItemsTable.orderId, orderId), eq(orderItemsTable.workspaceId, workspaceId)));
+  const [order] = await db.select({ discount: ordersTable.discount, paidAmount: ordersTable.paidAmount })
+    .from(ordersTable)
+    .where(and(eq(ordersTable.id, orderId), eq(ordersTable.workspaceId, workspaceId)))
+    .limit(1);
+  const total = Math.max(0, Number(itemsSum ?? 0) - Number(order?.discount ?? 0));
+  const paid = Number(order?.paidAmount ?? 0);
+  const paymentStatus = paid <= 0 ? "unpaid" : paid >= total ? "paid" : "partial";
+  await db.update(ordersTable)
+    .set({ totalAmount: String(total), paymentStatus, updatedAt: new Date() })
+    .where(and(eq(ordersTable.id, orderId), eq(ordersTable.workspaceId, workspaceId)));
+}
+
+async function executeCreateOrder(params: ExecuteParams, conversation: ConversationContext, args: unknown): Promise<AgentToolResult> {
+  const data = createOrderSchema.parse(args);
+  const [{ total: existingCount }] = await db.select({ total: count() })
+    .from(ordersTable)
+    .where(eq(ordersTable.workspaceId, params.workspaceId));
+  const orderNumber = `ORD${String(Number(existingCount) + 1).padStart(5, "0")}`;
+
+  const [order] = await db.insert(ordersTable).values({
+    workspaceId: params.workspaceId,
+    orderNumber,
+    status: "new",
+    channel: data.channel,
+    contactId: conversation.contactId,
+    conversationId: conversation.id,
+    currency: data.currency,
+    discount: String(data.discount),
+    notes: data.notes ?? null,
+    createdBy: params.systemUserId,
+  }).returning();
+
+  if (data.items?.length) {
+    await db.insert(orderItemsTable).values(data.items.map((item) => ({
+      workspaceId: params.workspaceId,
+      orderId: order.id,
+      name: item.name,
+      description: item.description ?? null,
+      quantity: item.quantity,
+      unitPrice: String(item.unitPrice),
+      currency: item.currency ?? data.currency,
+      total: String(item.quantity * item.unitPrice),
+    })));
+    await recalcOrderTotal(order.id, params.workspaceId);
+  }
+
+  await createAuditLog({
+    workspaceId: params.workspaceId,
+    actorType: "ai",
+    actorId: params.agentId,
+    actorLabel: "AI Agent",
+    action: "create",
+    entityType: "order",
+    entityId: order.id,
+    entityLabel: `Order ${order.orderNumber}`,
+    newData: { orderNumber: order.orderNumber, conversationId: conversation.id, aiRunId: params.aiRunId },
+  });
+
+  if (conversation.contactId) {
+    await addContactTimeline({
+      workspaceId: params.workspaceId,
+      contactId: conversation.contactId,
+      eventType: "order_created",
+      title: `Created order ${order.orderNumber}`,
+      entityType: "order",
+      entityId: order.id,
+      createdBy: params.systemUserId,
+      metadata: { source: "agent_tool", aiRunId: params.aiRunId },
+    });
+  }
+
+  await emitToolDomainEvent({
+    workspaceId: params.workspaceId,
+    eventType: "order.created",
+    entityType: "order",
+    entityId: order.id,
+    payload: { orderNumber: order.orderNumber, conversationId: conversation.id, contactId: conversation.contactId, source: "agent_tool" },
+  });
+
+  return {
+    tool: "create_order",
+    status: "success",
+    entityType: "order",
+    entityId: order.id,
+    summary: `Created order ${order.orderNumber}`,
+    customerVisible: true,
+  };
+}
+
+async function resolvePaymentMethod(workspaceId: string, data: z.infer<typeof paymentClaimSchema>) {
+  if (!data.paymentMethodId) {
+    return {
+      method: data.method,
+      paymentMethodId: null,
+      methodSnapshot: null as Record<string, unknown> | null,
+    };
+  }
+
+  const [method] = await db.select()
+    .from(paymentMethodsTable)
+    .where(and(eq(paymentMethodsTable.id, data.paymentMethodId), eq(paymentMethodsTable.workspaceId, workspaceId)))
+    .limit(1);
+  if (!method) throw new Error("PAYMENT_METHOD_NOT_FOUND");
+  if (!method.isActive) throw new Error("PAYMENT_METHOD_INACTIVE");
+
+  return {
+    method: method.slug,
+    paymentMethodId: method.id,
+    methodSnapshot: {
+      id: method.id,
+      slug: method.slug,
+      labelAr: method.labelAr,
+      labelEn: method.labelEn,
+      requiresReference: method.requiresReference,
+      requiresReceipt: method.requiresReceipt,
+    },
+  };
+}
+
+async function resolvePaymentBaseAmount(workspaceId: string, currency: string, amount: number) {
+  if (currency === "YER") {
+    return {
+      baseAmountYer: String(amount),
+      exchangeRateId: null as string | null,
+      exchangeRateSnapshot: { rate: 1, fromCurrency: "YER", toCurrency: "YER" } as Record<string, unknown>,
+    };
+  }
+
+  const [rate] = await db.select().from(exchangeRatesTable)
+    .where(and(
+      eq(exchangeRatesTable.workspaceId, workspaceId),
+      eq(exchangeRatesTable.fromCurrency, currency),
+      eq(exchangeRatesTable.toCurrency, "YER"),
+    ))
+    .orderBy(desc(exchangeRatesTable.effectiveAt))
+    .limit(1);
+  if (!rate || Number(rate.rate) <= 0) throw new Error("NO_EXCHANGE_RATE");
+
+  return {
+    baseAmountYer: String(amount * Number(rate.rate)),
+    exchangeRateId: rate.id,
+    exchangeRateSnapshot: {
+      id: rate.id,
+      fromCurrency: rate.fromCurrency,
+      toCurrency: rate.toCurrency,
+      rate: rate.rate,
+      effectiveAt: rate.effectiveAt,
+    },
+  };
+}
+
+async function executePaymentClaim(params: ExecuteParams, conversation: ConversationContext, args: unknown): Promise<AgentToolResult> {
+  const data = paymentClaimSchema.parse(args);
+  const method = await resolvePaymentMethod(params.workspaceId, data);
+  const exchange = await resolvePaymentBaseAmount(params.workspaceId, data.currency, data.amount);
+
+  let orderContactId: string | null = null;
+  if (data.orderId) {
+    const [order] = await db.select({ id: ordersTable.id, contactId: ordersTable.contactId, status: ordersTable.status })
+      .from(ordersTable)
+      .where(and(eq(ordersTable.id, data.orderId), eq(ordersTable.workspaceId, params.workspaceId)))
+      .limit(1);
+    if (!order) throw new Error("ORDER_NOT_FOUND");
+    if (order.status === "cancelled" || order.status === "returned") throw new Error("ORDER_TERMINAL_STATE");
+    orderContactId = order.contactId;
+  }
+
+  const effectiveContactId = conversation.contactId ?? orderContactId;
+  const [payment] = await db.insert(paymentsTable).values({
+    workspaceId: params.workspaceId,
+    amount: String(data.amount),
+    currency: data.currency,
+    method: method.method,
+    paymentMethodId: method.paymentMethodId,
+    methodSnapshot: method.methodSnapshot,
+    exchangeRateId: exchange.exchangeRateId,
+    exchangeRateSnapshot: exchange.exchangeRateSnapshot,
+    baseAmountYer: exchange.baseAmountYer,
+    paidAt: data.paidAt ? new Date(data.paidAt) : null,
+    status: "pending",
+    contactId: effectiveContactId,
+    orderId: data.orderId ?? null,
+    reference: data.reference ?? null,
+    notes: data.notes ?? null,
+    createdBy: params.systemUserId,
+  }).returning();
+
+  await createAuditLog({
+    workspaceId: params.workspaceId,
+    actorType: "ai",
+    actorId: params.agentId,
+    actorLabel: "AI Agent",
+    action: "create",
+    entityType: "payment",
+    entityId: payment.id,
+    entityLabel: `${data.amount} ${data.currency} - ${method.method}`,
+    newData: { status: "pending", conversationId: conversation.id, aiRunId: params.aiRunId },
+  });
+
+  if (effectiveContactId) {
+    await addContactTimeline({
+      workspaceId: params.workspaceId,
+      contactId: effectiveContactId,
+      eventType: "payment_created",
+      title: `Logged pending payment claim ${data.amount} ${data.currency}`,
+      entityType: "payment",
+      entityId: payment.id,
+      createdBy: params.systemUserId,
+      metadata: { source: "agent_tool", aiRunId: params.aiRunId },
+    });
+  }
+
+  emitWorkspaceEvent({
+    workspaceId: params.workspaceId,
+    type: "payment.created",
+    entityType: "payment",
+    entityId: payment.id,
+    payload: { status: "pending", conversationId: conversation.id, source: "agent_tool" },
+  });
+
+  return {
+    tool: "log_payment_claim",
+    status: "success",
+    entityType: "payment",
+    entityId: payment.id,
+    summary: `Logged pending payment claim ${data.amount} ${data.currency}`,
+    customerVisible: true,
+  };
+}
+
+async function executeFollowup(params: ExecuteParams, conversation: ConversationContext, args: unknown): Promise<AgentToolResult> {
+  const data = followupSchema.parse(args);
+  if (!conversation.contactId) throw new Error("CONVERSATION_HAS_NO_CONTACT");
+
+  const [contact] = await db.select({ id: contactsTable.id, name: contactsTable.name })
+    .from(contactsTable)
+    .where(and(eq(contactsTable.id, conversation.contactId), eq(contactsTable.workspaceId, params.workspaceId)))
+    .limit(1);
+  if (!contact) throw new Error("CONTACT_NOT_FOUND");
+
+  const [followup] = await db.insert(followupsTable).values({
+    workspaceId: params.workspaceId,
+    contactId: conversation.contactId,
+    conversationId: conversation.id,
+    assignedMembershipId: data.assignedMembershipId ?? null,
+    type: data.type,
+    dueAt: new Date(data.dueAt),
+    notes: data.notes ?? null,
+    createdBy: params.systemUserId,
+    status: "pending",
+  }).returning();
+
+  await createAuditLog({
+    workspaceId: params.workspaceId,
+    actorType: "ai",
+    actorId: params.agentId,
+    actorLabel: "AI Agent",
+    action: "create",
+    entityType: "followup",
+    entityId: followup.id,
+    entityLabel: `Follow-up - ${contact.name}`,
+    newData: { type: followup.type, dueAt: followup.dueAt, conversationId: conversation.id, aiRunId: params.aiRunId },
+  });
+
+  await addContactTimeline({
+    workspaceId: params.workspaceId,
+    contactId: conversation.contactId,
+    eventType: "followup_created",
+    title: `Created ${followup.type} follow-up`,
+    entityType: "followup",
+    entityId: followup.id,
+    createdBy: params.systemUserId,
+    metadata: { source: "agent_tool", aiRunId: params.aiRunId },
+  });
+
+  emitWorkspaceEvent({
+    workspaceId: params.workspaceId,
+    type: "followup.created",
+    entityType: "followup",
+    entityId: followup.id,
+    payload: { conversationId: conversation.id, source: "agent_tool" },
+  });
+
+  return {
+    tool: "schedule_followup",
+    status: "success",
+    entityType: "followup",
+    entityId: followup.id,
+    summary: `Scheduled follow-up for ${followup.dueAt.toISOString()}`,
+  };
+}
+
+async function executeSendProductMedia(params: ExecuteParams, conversation: ConversationContext, args: unknown): Promise<AgentToolResult> {
+  const data = productMediaSchema.parse(args);
+  if (!conversation.channelAccountId || !conversation.externalThreadId) throw new Error("MISSING_WHATSAPP_DESTINATION");
+
+  let product;
+  if (data.productId) {
+    [product] = await db.select().from(productsTable)
+      .where(and(eq(productsTable.id, data.productId), eq(productsTable.workspaceId, params.workspaceId)))
+      .limit(1);
+  } else if (data.externalProductId) {
+    [product] = await db.select().from(productsTable)
+      .where(and(eq(productsTable.externalProductId, data.externalProductId), eq(productsTable.workspaceId, params.workspaceId)))
+      .limit(1);
+  } else if (data.productName) {
+    [product] = await db.select().from(productsTable)
+      .where(and(eq(productsTable.workspaceId, params.workspaceId), eq(productsTable.isVisible, true), ilike(productsTable.name, `%${data.productName}%`)))
+      .orderBy(desc(productsTable.syncedAt))
+      .limit(1);
+  }
+
+  if (!product) throw new Error("PRODUCT_NOT_FOUND");
+  if (!product.imageUrl) throw new Error("PRODUCT_HAS_NO_IMAGE");
+
+  const captionParts = [
+    data.caption ?? product.name,
+    product.price ? `${product.price} ${product.currency ?? ""}`.trim() : "",
+    product.productUrl ?? "",
+  ].filter(Boolean);
+
+  const [event] = await db.insert(outboxEventsTable).values({
+    workspaceId: params.workspaceId,
+    eventType: "message.send.whatsapp.media",
+    entityType: "conversation",
+    entityId: conversation.id,
+    idempotencyKey: `tool:product-media:${params.aiRunId}:${product.id}`,
+    payload: {
+      channelAccountId: conversation.channelAccountId,
+      conversationId: conversation.id,
+      to: conversation.externalThreadId,
+      mediaType: "image",
+      mediaUrl: product.imageUrl,
+      caption: captionParts.join("\n").slice(0, 1000),
+      productId: product.id,
+      aiRunId: params.aiRunId,
+      autoReply: true,
+    },
+    status: "pending",
+    nextAttemptAt: new Date(),
+  }).onConflictDoNothing().returning({ id: outboxEventsTable.id });
+
+  return {
+    tool: "send_product_media",
+    status: "success",
+    entityType: "outbox_event",
+    entityId: event?.id ?? undefined,
+    summary: `Queued product media for ${product.name}`,
+    customerVisible: true,
+  };
+}
+
+async function executeHandoff(params: ExecuteParams, conversation: ConversationContext, args: unknown): Promise<AgentToolResult> {
+  const data = handoffSchema.parse(args);
+  await db.update(conversationsTable)
+    .set({
+      agentStatus: "human",
+      needsHuman: true,
+      escalationReason: data.reason,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(conversationsTable.id, conversation.id), eq(conversationsTable.workspaceId, params.workspaceId)));
+
+  await createAuditLog({
+    workspaceId: params.workspaceId,
+    actorType: "ai",
+    actorId: params.agentId,
+    actorLabel: "AI Agent",
+    action: "agent_status_change",
+    severity: "warning",
+    entityType: "conversation",
+    entityId: conversation.id,
+    newData: { agentStatus: "human", reason: data.reason, aiRunId: params.aiRunId },
+  });
+
+  emitWorkspaceEvent({
+    workspaceId: params.workspaceId,
+    type: "conversation.needs_human",
+    entityType: "conversation",
+    entityId: conversation.id,
+    payload: { reason: data.reason, source: "agent_tool" },
+  });
+
+  return {
+    tool: "handoff_to_human",
+    status: "success",
+    entityType: "conversation",
+    entityId: conversation.id,
+    summary: `Handed off to human: ${data.reason}`,
+  };
+}
+
+async function executeOne(params: ExecuteParams, conversation: ConversationContext, call: AgentToolCall): Promise<AgentToolResult> {
+  if (!isAgentToolKey(call.name)) {
+    return { tool: "handoff_to_human", status: "skipped", summary: `Unknown tool requested: ${call.name}` };
+  }
+
+  const enabledTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
+  if (!enabledTools.some((tool) => tool.key === call.name)) {
+    return { tool: call.name, status: "skipped", summary: `Tool is not enabled for automatic execution: ${call.name}` };
+  }
+
+  if (call.name === "create_order") return executeCreateOrder(params, conversation, call.arguments);
+  if (call.name === "log_payment_claim") return executePaymentClaim(params, conversation, call.arguments);
+  if (call.name === "schedule_followup") return executeFollowup(params, conversation, call.arguments);
+  if (call.name === "send_product_media") return executeSendProductMedia(params, conversation, call.arguments);
+  return executeHandoff(params, conversation, call.arguments);
+}
+
+export async function executeAgentToolCalls(params: ExecuteParams): Promise<AgentToolResult[]> {
+  if (params.calls.length === 0) return [];
+
+  const conversation = await loadConversation(params.workspaceId, params.conversationId);
+  const results: AgentToolResult[] = [];
+  for (const call of params.calls.slice(0, 3)) {
+    try {
+      const result = await executeOne(params, conversation, call);
+      results.push(result);
+      await appendToolNote({
+        workspaceId: params.workspaceId,
+        conversationId: params.conversationId,
+        aiRunId: params.aiRunId,
+        agentId: params.agentId,
+        content: `Agent tool ${result.status}: ${result.summary}`,
+      });
+    } catch (err) {
+      const summary = err instanceof Error ? err.message : String(err);
+      const tool = isAgentToolKey(call.name) ? call.name : "handoff_to_human";
+      results.push({ tool, status: "failed", summary });
+      await appendToolNote({
+        workspaceId: params.workspaceId,
+        conversationId: params.conversationId,
+        aiRunId: params.aiRunId,
+        agentId: params.agentId,
+        content: `Agent tool failed: ${call.name} - ${summary}`,
+      });
+    }
+  }
+
+  return results;
+}

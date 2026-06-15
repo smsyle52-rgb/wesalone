@@ -161,14 +161,58 @@ async function sendWhatsAppText(params: {
   }
 }
 
+async function sendWhatsAppMedia(params: {
+  phoneNumberId: string;
+  to: string;
+  mediaType: string;
+  mediaUrl: string;
+  caption?: string;
+}): Promise<void> {
+  const token = process.env.META_SYSTEM_USER_TOKEN;
+  if (!token) throw new Error("META_SYSTEM_USER_TOKEN is required");
+
+  const supportedType = ["image", "video", "document"].includes(params.mediaType)
+    ? params.mediaType
+    : "image";
+  const mediaBody = {
+    link: params.mediaUrl,
+    ...(params.caption && supportedType !== "document" ? { caption: params.caption } : {}),
+  };
+
+  const response = await fetch(
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: params.to,
+        type: supportedType,
+        [supportedType]: mediaBody,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Meta Graph API media send failed with ${response.status}: ${body.slice(0, 500)}`);
+  }
+}
+
 async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
   const payload = asRecord(event.payload);
   const to = stringField(payload, "to");
   const text = stringField(payload, "text") ?? stringField(payload, "body");
   const channelAccountId = stringField(payload, "channelAccountId");
+  const mediaUrl = stringField(payload, "mediaUrl");
+  const mediaType = stringField(payload, "mediaType") ?? "image";
+  const caption = stringField(payload, "caption");
 
-  if (!to || !text || !channelAccountId) {
-    throw new Error("Outbox payload must include to, text, and channelAccountId");
+  if (!to || !channelAccountId) {
+    throw new Error("Outbox payload must include to and channelAccountId");
   }
 
   const { rows } = await pool.query<ChannelAccountRow>(
@@ -185,6 +229,17 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
 
   const phoneNumberId = phoneNumberIdFromConfig(channel.provider_config);
   if (!phoneNumberId) throw new Error(`Channel account ${channelAccountId} has no phone_number_id`);
+
+  if (event.event_type === "message.send.whatsapp.media") {
+    if (!mediaUrl) throw new Error("Media outbox payload must include mediaUrl");
+    await sendWhatsAppMedia({ phoneNumberId, to, mediaType, mediaUrl, caption });
+    await markOutboxDone(event.id);
+    return;
+  }
+
+  if (!text) {
+    throw new Error("Text outbox payload must include text or body");
+  }
 
   await sendWhatsAppText({ phoneNumberId, to, text });
   await markOutboxDone(event.id);

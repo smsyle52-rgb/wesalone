@@ -10,6 +10,13 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { ACTIVE_PROVIDER, getDefaultModel, runAI } from "./ai-provider";
+import {
+  buildAgentToolPrompt,
+  executeAgentToolCalls,
+  loadExecutableAgentTools,
+  parseAgentToolResponse,
+  type AgentToolResult,
+} from "./agent-tools";
 
 const ESCALATION_KEYWORDS = ["أكلم إنسان", "مدير", "شكوى", "إلغاء"];
 
@@ -109,7 +116,7 @@ export async function runAgentReply(params: {
   conversationId: string;
   agentId: string;
   systemUserId: string;
-}): Promise<{ reply: string; shouldEscalate: boolean; runId: string }> {
+}): Promise<{ reply: string; shouldEscalate: boolean; runId: string; toolResults: AgentToolResult[] }> {
   const [agent] = await db
     .select()
     .from(aiAgentsTable)
@@ -133,6 +140,8 @@ export async function runAgentReply(params: {
   const lastInbound = [...messages].reverse().find((message) => message.direction === "inbound");
   const searchQuery = lastInbound?.content ?? messages[messages.length - 1]?.content ?? "";
   const knowledgeSources = await searchKnowledge(params.workspaceId, searchQuery);
+  const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
+  const toolPrompt = buildAgentToolPrompt(executableTools);
 
   const transcript = messages
     .map((message) => `[${message.direction === "inbound" ? "العميل" : "الموظف"}]: ${message.content}`)
@@ -141,6 +150,8 @@ export async function runAgentReply(params: {
     ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item}`).join("\n")}`
     : "";
   const systemPrompt = [
+    toolPrompt,
+    `Current date/time: ${new Date().toISOString()}.`,
     instructions?.rolePrompt ?? "أنت وكيل خدمة عملاء عربي لمنصة وصال ون.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
     `اللهجة: ${agent.dialect}.`,
@@ -173,12 +184,38 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
   ];
 
   try {
-    const aiOutput = await runAIWithTimeout({ messages: runMessages, model, taskType: "draft_reply" });
+    const aiOutput = await runAIWithTimeout({ messages: runMessages, model, taskType: "draft_reply", maxTokens: agent.maxOutputTokens });
+    const parsedOutput = executableTools.length > 0
+      ? parseAgentToolResponse(aiOutput.content)
+      : { reply: aiOutput.content, toolCalls: [] };
+    const toolResults = await executeAgentToolCalls({
+      workspaceId: params.workspaceId,
+      conversationId: params.conversationId,
+      agentId: params.agentId,
+      aiRunId: run.id,
+      systemUserId: params.systemUserId,
+      calls: parsedOutput.toolCalls,
+    });
+    const hasToolProblem = toolResults.some((result) => result.status !== "success");
+    const hasHandoff = toolResults.some((result) => result.tool === "handoff_to_human" && result.status === "success");
+    const finalReply = hasToolProblem
+      ? "أحتاج أن أحوّل طلبك للفريق لمراجعته والتأكد من تنفيذه بشكل صحيح."
+      : parsedOutput.reply;
 
     await db.insert(aiMessagesTable).values([
       { workspaceId: params.workspaceId, aiRunId: run.id, role: "system", content: systemPrompt, metadata: {} },
       { workspaceId: params.workspaceId, aiRunId: run.id, role: "user", content: userPrompt, metadata: {} },
-      { workspaceId: params.workspaceId, aiRunId: run.id, role: "assistant", content: aiOutput.content, metadata: { knowledgeSources } },
+      {
+        workspaceId: params.workspaceId,
+        aiRunId: run.id,
+        role: "assistant",
+        content: finalReply,
+        metadata: {
+          knowledgeSources,
+          toolResults,
+          rawOutput: parsedOutput.reply !== aiOutput.content ? aiOutput.content : undefined,
+        },
+      },
     ]);
 
     await db.update(aiRunsTable).set({
@@ -203,8 +240,12 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       estimatedCost: aiOutput.estimatedCost,
     });
 
-    const shouldEscalate = includesEscalationKeyword(aiOutput.content) || includesEscalationKeyword(lastInbound?.content ?? "");
-    return { reply: aiOutput.content, shouldEscalate, runId: run.id };
+    const shouldEscalate =
+      hasToolProblem ||
+      hasHandoff ||
+      includesEscalationKeyword(finalReply) ||
+      includesEscalationKeyword(lastInbound?.content ?? "");
+    return { reply: finalReply, shouldEscalate, runId: run.id, toolResults };
   } catch (err) {
     await db.update(aiRunsTable).set({
       status: "failed",
