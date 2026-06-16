@@ -5,7 +5,35 @@
 
 ## الحالة الإجمالية
 
-دفعة جاهزة للنشر — النطاقان 6–7 مُغلقان؛ النطاق 8 (PD-3) شبه مكتمل — **push بيد المالك**.
+دفعة جاهزة للنشر — النطاقان 6–7 مُغلقان؛ النطاق 8 (PD-3) شبه مكتمل؛ Hotfix H8-3 (صمت الوكيل) جاهز — **push بيد المالك**.
+
+---
+
+## Hotfix H8-3 — إصلاح "الوكيل صمت" + رسائل لا تظهر (16 يونيو 2026)
+
+بعد دفعات Cursor الثلاث (`d4c5b2e`, `b26da1c`, `baffd53`) ظهرت أعطال جديدة. الفحص كشف:
+
+| الرمز | العطل | الإصلاح | الملف |
+|---|---|---|---|
+| H8-3a | فشل الأداة لا يُصعّد بعد الآن → الوكيل يكرر وعد "سأحوّل لفريق" بلا تحويل فعلي | أعدت `hasToolProblem` لشرط `shouldEscalate` | `agent-reply.ts` |
+| H8-3b | رد `/internal/agent-reply` يكتب `shouldEscalate: false` دائماً (قيمة ثابتة خطأ) + لا تنبيه للفريق عند أي تصعيد | القيمة الحقيقية + `notifyWorkspace` على كل تصعيد | `internal.routes.ts` |
+| H8-3c | **خطر**: الـworker كان يعيد تفعيل الوكيل تلقائياً بعد ساعتين من أي محادثة مُصعَّدة للبشر بصمت — يخالف قاعدة "لا قرار حسّاس بلا إنسان" | حذف إعادة التفعيل التلقائي بالكامل — التصعيد للبشر يبقى ساري حتى يتدخّل أحد | `outbox-worker/index.ts` |
+| H8-3d | `api-server` بلا `max-instances` على Cloud Run؛ الـrealtime (SSE) في الذاكرة فقط → لو شغّلت نسخ متعددة، تأخير عرض الرسائل (polling كل 5-10s يخفّف الأثر لكن لا يلغيه) | `--min-instances=1 --max-instances=1` (يطابق الـworker) | `cloudbuild.yaml` |
+| H8-3e | الرسائل اليدوية الصادرة (ردّ موظف) لا تبثّ SSE — موظف آخر بتبويب آخر ينتظر الـpolling فقط | `emitWorkspaceEvent` لكل رسالة صادرة | `conversations.routes.ts` |
+
+**typecheck + build:** api-server ✅ outbox-worker ✅
+
+**متبقٍّ للـstaging:**
+```
+artifacts/api-server/src/lib/agent-reply.ts
+artifacts/api-server/src/routes/internal.routes.ts
+artifacts/api-server/src/modules/conversations/conversations.routes.ts
+artifacts/outbox-worker/src/index.ts
+cloudbuild.yaml
+WESAL_ONE_CHAT_HANDOFF.md
+```
+
+⚠️ **تنبيه مهم:** آخر 3 commits (`d4c5b2e`, `b26da1c`, `baffd53`) جاءت من Cursor مباشرة على `main` بدون مراجعة هنا. يُنصح بمراجعة أي عمل مستقبلي من Cursor في هذا المستودع قبل الدفع، خصوصاً للقرارات التي تخصّ سلوك التصعيد البشري/الأمان.
 
 ---
 
@@ -21,6 +49,7 @@
 | **النطاق 6** | الموثوقية والتشغيل | ✅ مُغلق (R6-6 يدوي) | `86fa6cb` |
 | **النطاق 7** | قاعدة المعرفة والاسترجاع | ✅ مُغلق | `86fa6cb` |
 | **النطاق 8** | الوسائط (PD-3) | 🔍 قيد التحقق | `86fa6cb` |
+| **النطاق 9** | الأتمتة والمتابعة والبث | ✅ مُغلق (الأتمتة مؤجّلة بقرار) | — |
 
 ---
 
@@ -48,7 +77,7 @@
 |---|---|---|---|
 | PD-1 | الإرسال اليدوي لا يصل للعميل | ✅ محلول | (سابق) |
 | PD-2 | رد الوكيل لا يظهر في الوارد | ✅ محلول | (سابق) |
-| PD-3 | الوسائط في الوارد (عرض + إرسال) | 🔍 قيد التحقق (M8-1…M8-5) | — |
+| PD-3 | الوسائط في الوارد (عرض + إرسال) | 🔧 إصلاح رد الوكيل على الصور (H8-1) | — |
 | PD-4 | وسائط المنتج من الكتالوج | ⛔ مؤجّل — يحتاج `catalog_management` | — |
 | PD-5 | مكالمات واتساب | ⛔ مؤجّل — يحتاج `business_calling` | — |
 | PD-6 | IG/Messenger: الربط + الاستقبال + الإرسال | ✅ محلول | (سابق) |
@@ -128,4 +157,43 @@
 ### بوابة الإغلاق — اختبار يدوي مطلوب
 1. صورة واردة من واتساب تظهر في الوارد
 2. إرسال صورة برابط من الوارد → تصل للعميل (WA/IG/Messenger)
+3. النص العادي ما زال يعمل
+
+---
+
+## النطاق 9 — الأتمتة والمتابعة والبث (فُحص 16 يونيو 2026)
+
+**الخريطة:**
+- `automations` + `automation-engine.ts` (worker) — محرّك كامل (شروط+إجراءات: send.template, add.tag, assign.conversation, create.task, create.followup) **لكنه غير مستورد في `index.ts` → لا يعمل أبداً حياً**.
+- تعارض كامن: استعلام claimDomainEvents في automation-engine يأخذ كل event_type ما عدا catalog.sync — يتداخل مع agent-runner الذي يأخذ `message.received/echo` بالتحديد. لو وُصِّل بدون تعديل، الاثنان يتنافسان على نفس الصفوف (FOR UPDATE SKIP LOCKED يمنع الازدواج، لكن لو فاز automation-engine يضيع رد الوكيل على تلك الرسالة).
+- `schedule_followup` (أداة الوكيل) → يُنشئ صفاً في `followups` فقط؛ لا إرسال تلقائي — تذكير لموظف يعرضه `GET /followups?due=true`. **سلوك سليم ومقصود، ليس عطلاً.**
+- `agent-learning.ts` (worker) — **غير مستورد أيضاً** → `learned_answers` فارغة دائماً. أثر منخفض (صمت، لا ضرر).
+- `billing-maintenance.ts` (worker) — **غير مستورد أيضاً** → الاشتراكات لا تنتقل active→grace→expired تلقائياً أبداً (يخص الفوترة، اكتشاف عرضي).
+- **Q9-1 (عطل مؤكّد):** `broadcasts.service.ts: startBroadcast()` يُدرج outbox event بحمولة `{ contactId, templateId, variableMapping }` بلا حقل `to` وبلا `templateName/language` — والـworker يرفض فوراً أي event بلا `to`. **كل حملة بث ستفشل 100% من رسائلها — الميزة معطّلة كاملاً منذ إنشائها.**
+- لا يوجد أيضاً مسار يُحدِّث `broadcast_recipients.status/sentAt` بعد نجاح إرسال الـworker — حتى بعد إصلاح `to`، شاشة تتبّع الحملة ستبقى "queued" دائماً.
+
+**بوابة الإغلاق:** ❌ — البث معطّل كلياً (Q9-1)، الأتمتة لا تعمل حياً (يتيمة).
+
+**قرار المالك:** الحد الأدنى للبث الآن، تأجيل الأتمتة.
+
+### مُغلق ✅
+| الرمز | الإصلاح | الملف |
+|---|---|---|
+| Q9-1 | `startBroadcast()` يبني `to` (هاتف العميل) + `templateName/language` + `components` من `variableMapping` بدل حمولة ناقصة كانت تفشل 100% | `broadcasts.service.ts` |
+| — | الأتمتة: فُحصت واجهة `AutomationsPage` — العنوان الفرعي يقول صراحة "بدون تنفيذ تلقائي مباشر في هذه المرحلة" — **صادقة بالفعل، لا تعديل لازم** | — |
+
+### مؤجّل (بقرار المالك) ⛔
+| البند | السبب |
+|---|---|
+| توصيل `automation-engine.ts` بالـworker | يحتاج فصل تعارض مع agent-runner أولاً؛ مؤجّل |
+| تتبّع حالة البث (sent/delivered/failed) في `broadcast_recipients` بعد إرسال الـworker | إصلاح لاحق، خارج الحد الأدنى الحالي |
+| `agent-learning.ts` / `billing-maintenance.ts` (worker، يتيمتان) | أثر منخفض / يخص الفوترة — تُسجَّل فقط |
+
+**typecheck + build:** api-server ✅
+
+**متبقٍّ للـstaging:**
+```
+artifacts/api-server/src/modules/broadcasts/broadcasts.service.ts
+WESAL_ONE_CHAT_HANDOFF.md
+```
 3. النص العادي ما زال يعمل

@@ -768,26 +768,8 @@ async function handleDomainEvent(event: DomainEventRow): Promise<void> {
   }
 
   if (conversation.agent_status === "human") {
-    const { rows: manualRows } = await pool.query<{ id: string }>(
-      `
-        SELECT id FROM messages
-        WHERE conversation_id=$1
-          AND direction='outbound'
-          AND sender_type='user'
-          AND sent_at > NOW() - INTERVAL '2 hours'
-        LIMIT 1
-      `,
-      [conversation.id],
-    );
-    if (manualRows.length > 0) {
-      await markDone(event.id);
-      return;
-    }
-    await pool.query(
-      "UPDATE conversations SET agent_status='active', updated_at=NOW() WHERE id=$1",
-      [conversation.id],
-    );
-    conversation.agent_status = "active";
+    await markDone(event.id);
+    return;
   }
 
   if (

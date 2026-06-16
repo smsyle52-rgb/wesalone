@@ -170,6 +170,24 @@ export async function previewBroadcast(workspaceId: string, id: string) {
   };
 }
 
+function templateComponentsFor(
+  variableMapping: Record<string, string>,
+  contact: { name: string | null; phone: string | null },
+): Array<Record<string, unknown>> {
+  const positions = Object.keys(variableMapping)
+    .filter((key) => /^\d+$/.test(key))
+    .sort((a, b) => Number(a) - Number(b));
+  if (positions.length === 0) return [];
+
+  return [{
+    type: "body",
+    parameters: positions.map((position) => ({
+      type: "text",
+      text: variableMapping[position] === "phone" ? (contact.phone ?? "") : (contact.name ?? ""),
+    })),
+  }];
+}
+
 export async function startBroadcast(workspaceId: string, id: string) {
   const { broadcast } = await getBroadcast(workspaceId, id);
   if (!["draft", "scheduled"].includes(broadcast.status)) {
@@ -177,7 +195,7 @@ export async function startBroadcast(workspaceId: string, id: string) {
   }
 
   const [template] = await db
-    .select({ status: whatsappTemplatesTable.status })
+    .select({ status: whatsappTemplatesTable.status, name: whatsappTemplatesTable.name, language: whatsappTemplatesTable.language })
     .from(whatsappTemplatesTable)
     .where(and(eq(whatsappTemplatesTable.id, broadcast.templateId), eq(whatsappTemplatesTable.workspaceId, workspaceId)))
     .limit(1);
@@ -189,6 +207,7 @@ export async function startBroadcast(workspaceId: string, id: string) {
   const now = new Date();
   const scheduledAt = broadcast.scheduledAt && broadcast.scheduledAt > now ? broadcast.scheduledAt : null;
   const status = scheduledAt ? "scheduled" : "sending";
+  const variableMapping = (broadcast.variableMapping ?? {}) as Record<string, string>;
 
   await db.transaction(async (tx) => {
     await tx
@@ -210,7 +229,8 @@ export async function startBroadcast(workspaceId: string, id: string) {
           workspaceId,
           contactId: contact.id,
           contactChannelId: null,
-          status: "queued",
+          status: contact.phone ? "queued" : "failed",
+          errorMessage: contact.phone ? null : "لا يوجد رقم هاتف لهذا العميل",
         })))
         .onConflictDoNothing()
         .returning({
@@ -218,22 +238,30 @@ export async function startBroadcast(workspaceId: string, id: string) {
           contactId: broadcastRecipientsTable.contactId,
         });
 
-      if (recipients.length > 0) {
-        await tx.insert(outboxEventsTable).values(recipients.map((recipient) => ({
-          workspaceId,
-          eventType: "message.send.whatsapp.template",
-          entityType: "broadcast_recipient",
-          entityId: recipient.id,
-          idempotencyKey: `${id}:${recipient.contactId}`,
-          nextAttemptAt: scheduledAt,
-          payload: {
-            broadcastId: id,
-            templateId: broadcast.templateId,
-            channelAccountId: broadcast.channelAccountId,
-            contactId: recipient.contactId,
-            variableMapping: broadcast.variableMapping,
-          },
-        }))).onConflictDoNothing();
+      const contactById = new Map(chunk.map((contact) => [contact.id, contact]));
+      const sendable = recipients.filter((recipient) => contactById.get(recipient.contactId)?.phone);
+
+      if (sendable.length > 0) {
+        await tx.insert(outboxEventsTable).values(sendable.map((recipient) => {
+          const contact = contactById.get(recipient.contactId)!;
+          return {
+            workspaceId,
+            eventType: "message.send.whatsapp.template",
+            entityType: "broadcast_recipient",
+            entityId: recipient.id,
+            idempotencyKey: `${id}:${recipient.contactId}`,
+            nextAttemptAt: scheduledAt,
+            payload: {
+              broadcastId: id,
+              channelAccountId: broadcast.channelAccountId,
+              to: contact.phone,
+              templateName: template.name,
+              language: template.language,
+              components: templateComponentsFor(variableMapping, contact),
+              contactId: recipient.contactId,
+            },
+          };
+        })).onConflictDoNothing();
       }
     }
   });

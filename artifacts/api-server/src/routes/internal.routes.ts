@@ -13,6 +13,7 @@ import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { runAgentReply } from "../lib/agent-reply";
 import { emitWorkspaceEvent } from "../lib/events";
+import { notifyWorkspace } from "../services/notifications";
 
 const router = Router();
 
@@ -140,6 +141,13 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
           .update(conversationsTable)
           .set({ agentStatus: "human", updatedAt: new Date() })
           .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)));
+        await notifyWorkspace({
+          workspaceId,
+          type: "conversation.needs_human",
+          titleAr: "محادثة تحتاج تدخل",
+          bodyAr: "لم يتمكن الوكيل من الرد، وتم تحويل المحادثة لمراجعة الفريق.",
+          link: `/inbox?conversation=${conversationId}`,
+        }).catch((err) => logger.warn({ err, conversationId }, "Failed to notify workspace of escalation"));
       }
 
       res.status(200).json({
@@ -226,12 +234,19 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         .update(conversationsTable)
         .set({ agentStatus: "human", updatedAt: new Date() })
         .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)));
+      await notifyWorkspace({
+        workspaceId,
+        type: "conversation.needs_human",
+        titleAr: "محادثة تحتاج تدخل",
+        bodyAr: "الوكيل أرسل رداً مؤقتاً وحوّل المحادثة لمراجعة الفريق.",
+        link: `/inbox?conversation=${conversationId}`,
+      }).catch((err) => logger.warn({ err, conversationId }, "Failed to notify workspace of escalation"));
     }
 
     res.status(200).json({
       success: true,
       runId: agentReply.runId,
-      shouldEscalate: false,
+      shouldEscalate: agentReply.shouldEscalate,
       toolResults: agentReply.toolResults,
       outboxEventId: event?.id ?? null,
     });

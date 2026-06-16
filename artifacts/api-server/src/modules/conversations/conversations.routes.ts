@@ -9,7 +9,7 @@ import {
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
-import { publishDomainEvent } from "../../lib/events";
+import { emitWorkspaceEvent, publishDomainEvent } from "../../lib/events";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
 import { fetchMetaMediaStream } from "../../services/meta-media";
@@ -904,6 +904,14 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
           entityId: message.id,
           payload: { conversationId: conv.id, contactId: conv.contactId, source, contentType },
           sessionUser: req.sessionUser,
+        });
+      } else {
+        emitWorkspaceEvent({
+          workspaceId: activeWorkspaceId,
+          type: "message.new",
+          entityType: "message",
+          entityId: message.id,
+          payload: { conversationId: conv.id, direction: effectiveDirection, source: "manual" },
         });
       }
     }

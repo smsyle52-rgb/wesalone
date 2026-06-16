@@ -290,6 +290,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     });
 
     const shouldEscalate =
+      hasToolProblem ||
       hasHandoff ||
       includesEscalationKeyword(finalReply) ||
       (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound));
