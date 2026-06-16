@@ -148,7 +148,6 @@ agent-runner (حلقة استهلاك داخل عملية outbox-worker — لا
 
 ### المرحلة 2 — أدوات المهمات (التمايز)
 المهام: تعريف الأدوات الخمس (1.7) بـ function calling · ربطها بـ orders/payments الموجودة · سجل أفعال الوكيل في المحادثة ("🤖 أنشأ الطلب #123") · حدود أمان (الوكيل لا يؤكد دفعاً — يسجّل ادعاءً للمراجعة).
-**تحديث 15 يونيو 2026:** تم تطبيق الأساس ونشره: خدمة `agent-tools.ts` للأدوات الخمس، ربطها في `agent-reply.ts` عبر JSON tool calls عند تفعيل `ai_agent_tools`، إرجاع `toolResults` من `/internal/agent-reply`، ودعم WhatsApp media في outbox-worker. التحقق نجح: `typecheck:libs`، نطاق الإنتاج بدون `mockup-sandbox`، و`build:prod`. تم حسم echo/statuses في `meta.routes.ts`: لا تُنشأ `message.echo` من `value.statuses`; فقط رسائل `senderType === "business"` توقف الوكيل 30 دقيقة. تمت إضافة سكربت `scripts/enable-phase2-agent-tools.ts` لتفعيل الأدوات لوكيل محدد عند توفر `DATABASE_URL` و`AGENT_ID`; لم يتم التفعيل المباشر لأن البيئة لا تحتوي `.env` ولا `gcloud`. المتبقي: تشغيل السكربت على قاعدة الإنتاج الآمنة، واختبار محادثة حيّة.
 **بوابة الخروج:** محادثة حية تنتج صف طلب حقيقي + تسجيل متابعة، بدون لمس بشري.
 
 ### المرحلة 3 — جودة الاسترجاع + المتابعات
