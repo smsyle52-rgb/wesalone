@@ -5,7 +5,7 @@
 
 ## الحالة الإجمالية
 
-**✅ PD-7** (`9cbf5a7`). **✅ PD-8** (`a3cb4a6`، parser ثلاثي). **✅ PD-9 مدفوع** (`e091e4c`، `coerceCurrency`) — لم يُؤكَّد حيّاً بعد لأنه كان محجوباً بـPD-10/PD-11. **✅ PD-10 المرحلة 1 مدفوعة** (`3efd9ca`، فرض JSON عند تفعيل الأدوات) — المرحلة 2 (function calling) مؤجلة. **🟡 PD-11 مُصلَح بالكود** (إعادة للوكيل + إيقاظ worker بحدث جديد — ينتظر push/اختبار حي).
+**✅ PD-7** (`9cbf5a7`). **✅ PD-8** (`a3cb4a6`، parser ثلاثي). **✅ PD-9 مدفوع** (`e091e4c`، `coerceCurrency`) — لم يُؤكَّد حيّاً بعد لأنه كان محجوباً بـPD-10/PD-11. **✅ PD-10 المرحلة 1 مدفوعة** (`3efd9ca`، فرض JSON عند تفعيل الأدوات) — المرحلة 2 (function calling) مؤجلة. **🟡 PD-11 مُصلَح بالكود v2** (إعادة للوكيل بصلاحية الوارد `conversations:resolve` + إيقاظ worker — ينتظر push/اختبار حي).
 
 > **سياق الجلسة:** اختبار `create_order` الحيّ كشف 3 طبقات على نفس المسار: PD-8 (تحليل) + PD-9 (عملة) + PD-10 (التزام صيغة الأدوات). الوكيل صمت بعد التصعيد بسبب PD-11 (فُكّ يدوياً عبر `UPDATE conversations SET agent_status='active'` للمحادثة `03f513bf`).
 
@@ -33,10 +33,12 @@
 
 **الجذر:** "إعادة فتح" تعدّل `status` فقط، بينما الـworker يتوقف عند `agent_status='human'`. وحتى عند إعادة `agent_status='active'` يدوياً، حدث الرسالة القديم يكون غالباً `done` لأن الـworker عالجه سابقاً وهو في وضع بشري، فلا يوجد `domain_event` جديد يوقظه.
 
-**الإصلاح:** في `PATCH /conversations/:id/agent-status` عند `status=active`:
+**الإصلاح v1:** في `PATCH /conversations/:id/agent-status` عند `status=active`:
 1. مسح `needsHuman` و`escalationReason`.
 2. نشر `message.received` جديد للمحادثة بـ`source=agent_reactivated` حتى يلتقطه الـworker فوراً.
 3. في الوارد: زر واضح "إعادة للوكيل" عند حالة `human` + نفس الفعل داخل قائمة المحادثة.
+
+**تصحيح v2 (بعد اختبار حي بالصورة):** الزر كان لا يظهر لأن الواجهة ربطته بـ`conversations:manage`، بينما مشغل الوارد يملك `conversations:resolve`. أُضيف مسار مخصص `POST /conversations/:id/reactivate-agent` محمي بـ`conversations:resolve` فقط؛ يفعل الإرجاع الآمن للوكيل ولا يعطي صلاحية إيقاف/إدارة حالات الوكيل العامة. الواجهة تستخدم هذا المسار عند `needsHuman`/`human`.
 
 **اختبار الإغلاق:** بعد النشر، افتح محادثة بشرية واضغط "إعادة للوكيل" لا "إعادة فتح" فقط؛ يجب أن ينتج domain_event جديد، ثم outbox reply.
 
