@@ -213,7 +213,15 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
   ];
 
   try {
-    const aiOutput = await runAIWithTimeout({ messages: runMessages, model, taskType: "draft_reply", maxTokens: agent.maxOutputTokens });
+    // PD-10: عند تفعيل الأدوات نطلب JSON صارماً (responseMimeType + حرارة منخفضة) ليلتزم النموذج بصيغة tool_calls
+    // ولا يردّ نصّاً صرفاً يُسقط الأدوات. بلا أدوات، الردّ نصّ حرّ كما هو.
+    const aiOutput = await runAIWithTimeout({
+      messages: runMessages,
+      model,
+      taskType: "draft_reply",
+      maxTokens: agent.maxOutputTokens,
+      responseFormat: executableTools.length > 0 ? "json" : "text",
+    });
 
     // H5-1 fix: لو AI غير متوفّر → صعّد للبشر بصمت، لا تُرسل نص تجريبي للعميل (محمية #10)
     if (aiOutput.fallbackUsed) {

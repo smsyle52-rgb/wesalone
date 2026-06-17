@@ -70,6 +70,8 @@ export interface AiRunInput {
   model: string;
   taskType: string;
   maxTokens?: number;
+  // PD-10: عند تفعيل الأدوات يجب أن يلتزم النموذج بـJSON صارم؛ "json" يفرض responseMimeType ويخفض الحرارة.
+  responseFormat?: "json" | "text";
 }
 
 export interface AiRunOutput {
@@ -89,9 +91,16 @@ function getMaxOutputTokens(input: AiRunInput): number {
   return Math.min(Math.floor(requested), 2048);
 }
 
-function getTemperature(): number {
-  if (!Number.isFinite(DEFAULT_TEMPERATURE)) return 0.3;
-  return Math.min(Math.max(DEFAULT_TEMPERATURE, 0), 1);
+// PD-10: المهمة تتطلّب JSON إمّا بنوعها (classify/extract/…) أو بعلَم صريح (ردود الوكيل عند تفعيل الأدوات).
+function wantsJson(input: AiRunInput): boolean {
+  return input.responseFormat === "json" || JSON_TASK_TYPES.has(input.taskType);
+}
+
+function getTemperature(input?: AiRunInput): number {
+  const base = Number.isFinite(DEFAULT_TEMPERATURE) ? Math.min(Math.max(DEFAULT_TEMPERATURE, 0), 1) : 0.3;
+  // مخرجات JSON المنظّمة تحتاج حرارة منخفضة لالتزام أعلى بالبنية.
+  if (input && wantsJson(input)) return Math.min(base, 0.1);
+  return base;
 }
 
 function summarizeError(err: unknown): Record<string, unknown> {
@@ -225,7 +234,8 @@ async function runGemini(input: AiRunInput): Promise<AiRunOutput> {
       contents: [{ role: "user", parts: [{ text: combined }] }],
       generationConfig: {
         maxOutputTokens: getMaxOutputTokens(input),
-        temperature: getTemperature(),
+        temperature: getTemperature(input),
+        ...(wantsJson(input) ? { responseMimeType: "application/json" } : {}),
       },
     });
 
@@ -234,7 +244,7 @@ async function runGemini(input: AiRunInput): Promise<AiRunOutput> {
     const promptTokens = usage?.promptTokenCount ?? Math.ceil(combined.length / 4);
     const completionTokens = usage?.candidatesTokenCount ?? Math.ceil(content.length / 4);
 
-    if (JSON_TASK_TYPES.has(input.taskType)) {
+    if (wantsJson(input)) {
       const hasJson = /[\[{]/.test(content);
       if (!hasJson) {
         logger.warn({ taskType: input.taskType }, "Gemini returned non-JSON for structured task, falling back to mock");
@@ -329,7 +339,8 @@ async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
         contents: [{ role: "user", parts: [{ text: combined }] }],
         generationConfig: {
           maxOutputTokens: getMaxOutputTokens(input),
-          temperature: getTemperature(),
+          temperature: getTemperature(input),
+          ...(wantsJson(input) ? { responseMimeType: "application/json" } : {}),
         },
       }),
     });
@@ -352,7 +363,7 @@ async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
     const promptTokens = data.usageMetadata?.promptTokenCount ?? Math.ceil(combined.length / 4);
     const completionTokens = data.usageMetadata?.candidatesTokenCount ?? Math.ceil(content.length / 4);
 
-    if (JSON_TASK_TYPES.has(input.taskType)) {
+    if (wantsJson(input)) {
       const hasJson = /[\[{]/.test(content);
       if (!hasJson) {
         logger.warn({ taskType: input.taskType }, "Vertex AI returned non-JSON for structured task, falling back to mock");
