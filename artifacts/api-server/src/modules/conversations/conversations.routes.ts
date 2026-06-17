@@ -597,6 +597,8 @@ router.patch("/:id/agent-status", requirePermission("conversations:manage"), asy
   if (parsed.data.status === "active") {
     updates.agentPausedUntil = null;
     updates.consecutiveAgentReplies = 0;
+    updates.needsHuman = false;
+    updates.escalationReason = null;
   } else if (parsed.data.status === "paused") {
     const pauseMinutes = parsed.data.pauseMinutes ?? 30;
     updates.agentPausedUntil = new Date(now.getTime() + pauseMinutes * 60_000);
@@ -624,6 +626,19 @@ router.patch("/:id/agent-status", requirePermission("conversations:manage"), asy
       pauseMinutes: parsed.data.pauseMinutes ?? null,
     },
   });
+
+  if (parsed.data.status === "active" && existing.agentStatus !== "active") {
+    await publishDomainEvent({
+      eventType: "message.received",
+      entityType: "conversation",
+      entityId: conversation.id,
+      payload: {
+        conversationId: conversation.id,
+        source: "agent_reactivated",
+      },
+      sessionUser: req.sessionUser,
+    });
+  }
 
   res.json({ conversation });
 });

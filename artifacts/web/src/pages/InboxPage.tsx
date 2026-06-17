@@ -1026,9 +1026,14 @@ export default function InboxPage() {
                               status: agentStatus === "active" ? "paused" : "active",
                             })}
                             disabled={changeAgentStatus.isPending}
-                            className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80 border border-border disabled:opacity-50"
+                            className={cn(
+                              "px-2 py-0.5 rounded-full text-xs font-medium border disabled:opacity-50",
+                              agentStatus === "human"
+                                ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
+                                : "bg-muted text-muted-foreground hover:bg-muted/80 border-border",
+                            )}
                           >
-                            {agentStatus === "active" ? "أوقف" : "أعد الوكيل"}
+                            {agentStatus === "active" ? "أوقف" : agentStatus === "human" ? "إعادة للوكيل" : "أعد الوكيل"}
                           </button>
                         )}
                       </div>
@@ -1096,6 +1101,14 @@ export default function InboxPage() {
                             {action.label}
                           </DropdownMenuItem>
                         ))}
+                        {showAgentControls && canManageConversationAgent && agentStatus === "human" && (
+                          <DropdownMenuItem
+                            className="cursor-pointer text-start font-medium text-green-700 focus:text-green-800"
+                            onSelect={() => changeAgentStatus.mutate({ convId: conv.id, status: "active" })}
+                          >
+                            إعادة للوكيل
+                          </DropdownMenuItem>
+                        )}
                         {conv.needsHuman && (
                           <div className="px-2 py-1.5 text-sm font-medium text-amber-700">
                             يحتاج تدخل
