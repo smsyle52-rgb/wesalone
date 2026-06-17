@@ -183,28 +183,76 @@ export function buildAgentToolPrompt(tools: ToolPolicy[]): string {
   ].join("\n");
 }
 
+// النماذج كثيراً ما تُخرج JSON بأسطر/أحرف تحكّم حقيقية داخل قيمة النص، فيكسر JSON.parse.
+// نهرّب أحرف التحكّم داخل السلاسل فقط (لا نلمس بنية الكائن) لإنقاذ التحليل.
+function escapeControlCharsInJsonStrings(raw: string): string {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw[i];
+    if (escaped) { out += ch; escaped = false; continue; }
+    if (ch === "\\") { out += ch; escaped = true; continue; }
+    if (ch === "\"") { inString = !inString; out += ch; continue; }
+    if (inString) {
+      const code = raw.charCodeAt(i);
+      if (code < 0x20) {
+        if (ch === "\n") out += "\\n";
+        else if (ch === "\r") out += "\\r";
+        else if (ch === "\t") out += "\\t";
+        else out += `\\u${code.toString(16).padStart(4, "0")}`;
+        continue;
+      }
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function extractReplyHeuristic(content: string): string | null {
+  const match = content.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (!match) return null;
+  try {
+    return (JSON.parse(`"${match[1]}"`) as string).trim();
+  } catch {
+    return match[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"").trim();
+  }
+}
+
 export function parseAgentToolResponse(content: string): { reply: string; toolCalls: AgentToolCall[] } {
-  const fallback = { reply: content.trim(), toolCalls: [] };
   const start = content.indexOf("{");
   const end = content.lastIndexOf("}");
-  if (start < 0 || end <= start) return fallback;
+  if (start < 0 || end <= start) return { reply: content.trim(), toolCalls: [] };
 
+  const candidate = content.slice(start, end + 1);
+  let parsed: Record<string, unknown> | null = null;
   try {
-    const parsed = JSON.parse(content.slice(start, end + 1)) as Record<string, unknown>;
-    const reply = typeof parsed.reply === "string" && parsed.reply.trim()
-      ? parsed.reply.trim()
-      : "تم استلام طلبك، وسنراجع التفاصيل ونؤكدها لك.";
-    const toolCalls = Array.isArray(parsed.tool_calls)
-      ? parsed.tool_calls
-        .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
-        .map((item) => ({ name: String(item.name ?? ""), arguments: item.arguments }))
-        .filter((item) => item.name)
-        .slice(0, 3)
-      : [];
-    return { reply, toolCalls };
+    parsed = JSON.parse(candidate) as Record<string, unknown>;
   } catch {
-    return fallback;
+    try {
+      parsed = JSON.parse(escapeControlCharsInJsonStrings(candidate)) as Record<string, unknown>;
+    } catch {
+      parsed = null;
+    }
   }
+
+  if (!parsed) {
+    // آخر خط دفاع: لا تُرسل JSON خاماً للعميل أبداً — استخرج النص يدوياً.
+    const heuristic = extractReplyHeuristic(candidate);
+    return { reply: heuristic ?? content.trim(), toolCalls: [] };
+  }
+
+  const reply = typeof parsed.reply === "string" && parsed.reply.trim()
+    ? parsed.reply.trim()
+    : "تم استلام طلبك، وسنراجع التفاصيل ونؤكدها لك.";
+  const toolCalls = Array.isArray(parsed.tool_calls)
+    ? parsed.tool_calls
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
+      .map((item) => ({ name: String(item.name ?? ""), arguments: item.arguments }))
+      .filter((item) => item.name)
+      .slice(0, 3)
+    : [];
+  return { reply, toolCalls };
 }
 
 async function loadConversation(workspaceId: string, conversationId: string): Promise<ConversationContext> {

@@ -5,7 +5,27 @@
 
 ## الحالة الإجمالية
 
-**🔴 PD-7 (توقّف الوكيل الكامل) — مُصلَح بالكود، ينتظر push + استرداد** — أعلى أولوية. التفاصيل أدناه.
+**✅ PD-7 مُصلَح ومُتحقَّق حيّاً** (مدفوع `9cbf5a7`، البوت ردّ، الاسترداد نجح). **🔴 PD-8 (JSON خام للعميل + أدوات ضائعة) مُصلَح بالكود، ينتظر push** — كُشف أثناء اختبار الأدوات الحيّ. التفاصيل أدناه.
+
+---
+
+## 🔴 Hotfix PD-8 — JSON خام يصل للعميل + استدعاءات أدوات ضائعة (16 يونيو 2026)
+
+**العَرَض:** أثناء اختبار `create_order` حيّاً، وصل العميل `{"reply":"..."}` خاماً بدل النص، و`create_order` لم يُستدعَ.
+
+**الجذر:** النموذج يضع أسطراً حقيقية داخل قيمة `reply` متعددة الفقرات → `JSON.parse` يفشل → `parseAgentToolResponse` كان يُرجع المحتوى الخام. **الأخطر:** نفس الفشل يُسقط `tool_calls` → أي ردّ متعدد الأسطر بأداة لا تُنفَّذ أداته أبداً.
+
+**الإصلاح (`agent-tools.ts`):** تحليل متين 3 طبقات — parse مباشر → تهريب أحرف التحكّم داخل السلاسل فقط → استخراج reply بـregex (آخر دفاع). **مُثبَت محلياً** على المُدخل الفاشل الحقيقي (نص نظيف + tool_calls سليمة + لا انحدار).
+
+**typecheck + build:** api-server ✅
+
+**متبقٍّ للـstaging:**
+```
+artifacts/api-server/src/lib/agent-tools.ts
+.claude/skills/wesal-one-agents/references/launch-readiness-plan.md
+.codex/skills/wesal-one-agents/references/launch-readiness-plan.md
+WESAL_ONE_CHAT_HANDOFF.md
+```
 
 ---
 
