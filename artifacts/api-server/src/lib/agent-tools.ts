@@ -71,20 +71,30 @@ type ExecuteParams = {
 
 const CURRENCY_VALUES = ["YER", "SAR", "USD"] as const;
 const ORDER_CHANNEL_VALUES = ["manual", "whatsapp", "phone", "website", "walk_in"] as const;
+
+// PD-9: النموذج يمرّر العملة بالعربية ("ريال يمني") — طبّعها لرمز ISO قبل التحقّق.
+function coerceCurrency(raw: unknown): unknown {
+  if (typeof raw !== "string") return raw;
+  const s = raw.trim().toLowerCase();
+  if (s === "yer" || s.includes("يمن") || s.includes("rial") || s.includes("ريال يمن")) return "YER";
+  if (s === "sar" || s.includes("سعود") || s.includes("riyal")) return "SAR";
+  if (s === "usd" || s.includes("دولار") || s.includes("dollar") || s === "$") return "USD";
+  return raw; // ابقَ كما هو — Zod يرفضه ويُطبَّق الافتراضي YER
+}
 const PAYMENT_METHOD_VALUES = ["cash", "transfer", "kuraimi", "jawali", "bank", "other"] as const;
 const FOLLOWUP_TYPE_VALUES = ["manual", "sales", "support", "collection", "reminder"] as const;
 
 const createOrderSchema = z.object({
-  currency: z.enum(CURRENCY_VALUES).default("YER"),
+  currency: z.preprocess(coerceCurrency, z.enum(CURRENCY_VALUES).default("YER")),
   channel: z.enum(ORDER_CHANNEL_VALUES).default("whatsapp"),
-  discount: z.number().min(0).default(0),
+  discount: z.preprocess((v) => (v === undefined || v === null ? 0 : Number(v)), z.number().min(0).default(0)),
   notes: z.string().max(1000).optional(),
   items: z.array(z.object({
     name: z.string().trim().min(1).max(200),
     description: z.string().trim().max(500).optional(),
-    quantity: z.number().int().min(1).max(999).default(1),
-    unitPrice: z.number().min(0).max(999999999).default(0),
-    currency: z.enum(CURRENCY_VALUES).optional(),
+    quantity: z.preprocess((v) => (v === undefined || v === null ? 1 : Number(v)), z.number().int().min(1).max(999).default(1)),
+    unitPrice: z.preprocess((v) => (v === undefined || v === null ? 0 : Number(v)), z.number().min(0).max(999999999).default(0)),
+    currency: z.preprocess(coerceCurrency, z.enum(CURRENCY_VALUES)).optional(),
   })).max(20).optional(),
 });
 
@@ -139,7 +149,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 function publicToolSpec(tool: ToolPolicy): string {
   const base = `${tool.key}: ${TOOL_LABELS[tool.key]}`;
   if (tool.key === "create_order") {
-    return `${base} Arguments: currency, channel, discount, notes, items[{name, quantity, unitPrice, currency, description}].`;
+    return `${base} Arguments: currency (use ISO code: YER for ريال يمني, SAR for ريال سعودي, USD for دولار), channel, discount, notes, items[{name, quantity, unitPrice, currency, description}].`;
   }
   if (tool.key === "log_payment_claim") {
     return `${base} Arguments: amount, currency, method, paymentMethodId, orderId, reference, notes, paidAt.`;
