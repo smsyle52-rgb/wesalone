@@ -578,6 +578,7 @@ router.patch("/:id/agent-status", requirePermission("conversations:manage"), asy
     id: conversationsTable.id,
     subject: conversationsTable.subject,
     agentStatus: conversationsTable.agentStatus,
+    needsHuman: conversationsTable.needsHuman,
   })
     .from(conversationsTable)
     .where(and(
@@ -627,7 +628,7 @@ router.patch("/:id/agent-status", requirePermission("conversations:manage"), asy
     },
   });
 
-  if (parsed.data.status === "active" && existing.agentStatus !== "active") {
+  if (parsed.data.status === "active" && (existing.agentStatus !== "active" || existing.needsHuman)) {
     await publishDomainEvent({
       eventType: "message.received",
       entityType: "conversation",

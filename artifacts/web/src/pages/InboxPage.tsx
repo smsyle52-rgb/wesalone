@@ -663,7 +663,11 @@ export default function InboxPage() {
     ? channelAccounts.find((account) => account.id === conv.channelAccountId)
     : null;
   const agentStatus = conv?.agentStatus as "active" | "paused" | "human" | undefined;
-  const showAgentControls = Boolean(conv?.channelAccountId && currentChannelAccount?.defaultAgentId && agentStatus);
+  const needsAgentReactivation = Boolean(conv?.needsHuman || agentStatus === "human");
+  const agentStatusAction = needsAgentReactivation ? "active" : agentStatus === "active" ? "paused" : "active";
+  const showAgentControls = Boolean(
+    (conv?.channelAccountId && currentChannelAccount?.defaultAgentId && agentStatus) || needsAgentReactivation,
+  );
   const agentPausedUntil = conv?.agentPausedUntil ? new Date(conv.agentPausedUntil) : null;
   const agentPausedUntilLabel = agentPausedUntil && !Number.isNaN(agentPausedUntil.getTime())
     ? agentPausedUntil.toLocaleTimeString("ar-YE-u-nu-latn", { hour: "2-digit", minute: "2-digit" })
@@ -673,7 +677,7 @@ export default function InboxPage() {
       ? { label: "🤖 يرد تلقائياً", className: "bg-green-50 text-green-700 border-green-200" }
       : agentStatus === "paused"
         ? { label: `⏸️ موقوف${agentPausedUntilLabel ? ` حتى ${agentPausedUntilLabel}` : ""}`, className: "bg-yellow-50 text-yellow-700 border-yellow-200" }
-        : agentStatus === "human"
+        : needsAgentReactivation
           ? { label: "👤 يرد بشري", className: "bg-gray-50 text-gray-700 border-gray-200" }
           : null;
 
@@ -1023,17 +1027,17 @@ export default function InboxPage() {
                           <button
                             onClick={() => changeAgentStatus.mutate({
                               convId: conv.id,
-                              status: agentStatus === "active" ? "paused" : "active",
+                              status: agentStatusAction,
                             })}
                             disabled={changeAgentStatus.isPending}
                             className={cn(
                               "px-2 py-0.5 rounded-full text-xs font-medium border disabled:opacity-50",
-                              agentStatus === "human"
+                              needsAgentReactivation
                                 ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
                                 : "bg-muted text-muted-foreground hover:bg-muted/80 border-border",
                             )}
                           >
-                            {agentStatus === "active" ? "أوقف" : agentStatus === "human" ? "إعادة للوكيل" : "أعد الوكيل"}
+                            {needsAgentReactivation ? "إعادة للوكيل" : agentStatus === "active" ? "أوقف" : "أعد الوكيل"}
                           </button>
                         )}
                       </div>
@@ -1101,7 +1105,7 @@ export default function InboxPage() {
                             {action.label}
                           </DropdownMenuItem>
                         ))}
-                        {showAgentControls && canManageConversationAgent && agentStatus === "human" && (
+                        {canManageConversationAgent && needsAgentReactivation && (
                           <DropdownMenuItem
                             className="cursor-pointer text-start font-medium text-green-700 focus:text-green-800"
                             onSelect={() => changeAgentStatus.mutate({ convId: conv.id, status: "active" })}
