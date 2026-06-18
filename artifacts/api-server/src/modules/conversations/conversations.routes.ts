@@ -314,8 +314,6 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
     aiSummary: conversationsTable.aiSummary,
     needsHuman: conversationsTable.needsHuman,
     escalationReason: conversationsTable.escalationReason,
-    agentStatus: conversationsTable.agentStatus,
-    agentPausedUntil: conversationsTable.agentPausedUntil,
     createdAt: conversationsTable.createdAt,
     updatedAt: conversationsTable.updatedAt,
     contactId: contactsTable.id,
