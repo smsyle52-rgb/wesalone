@@ -144,7 +144,7 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
       .from(contactChannelsTable)
       .where(and(
         eq(contactChannelsTable.workspaceId, workspaceId),
-        eq(contactChannelsTable.channelType, "whatsapp"),
+        sql`${contactChannelsTable.channelType} in ('phone', 'whatsapp', 'whatsapp_api')`,
         eq(contactChannelsTable.normalizedIdentifier, normalized),
       ))
       .limit(1);
@@ -152,7 +152,24 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
     let contactId = existingChannel?.contactId;
     let contactChannelId = existingChannel?.id;
 
-    if (!contactId) {
+    if (contactId) {
+      const [whatsappChannel] = await db
+        .insert(contactChannelsTable)
+        .values({
+          workspaceId,
+          contactId,
+          channelType: "whatsapp",
+          identifier: normalized,
+          normalizedIdentifier: normalized,
+          isPrimary: true,
+          isVerified: true,
+          optedIn: true,
+          providerData: { phoneNumberId },
+        })
+        .onConflictDoNothing()
+        .returning();
+      contactChannelId = whatsappChannel?.id ?? contactChannelId;
+    } else {
       const [contact] = await db
         .insert(contactsTable)
         .values({ workspaceId, name: normalized, phone: normalized, createdAt: new Date(), updatedAt: new Date() })

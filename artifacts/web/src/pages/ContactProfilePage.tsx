@@ -443,11 +443,11 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
             )}
             {canDelete && (
               <button
-                onClick={() => { if (confirm(`هل تريد حذف "${contact.name}"؟`)) deleteContact.mutate(); }}
+                onClick={() => { if (confirm(`هل تريد أرشفة "${contact.name}"؟ ستختفي من القائمة وتبقى سجلاتها محفوظة.`)) deleteContact.mutate(); }}
                 disabled={deleteContact.isPending}
                 className="px-3 py-1.5 text-xs bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors"
               >
-                حذف
+                أرشفة
               </button>
             )}
           </div>

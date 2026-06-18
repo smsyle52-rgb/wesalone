@@ -158,7 +158,7 @@ async function upsertContact(workspaceId: string, phone: string): Promise<Contac
     .from(contactChannelsTable)
     .where(and(
       eq(contactChannelsTable.workspaceId, workspaceId),
-      eq(contactChannelsTable.channelType, "whatsapp_api"),
+      sql`${contactChannelsTable.channelType} in ('phone', 'whatsapp', 'whatsapp_api')`,
       eq(contactChannelsTable.normalizedIdentifier, normalizedPhone),
     ))
     .limit(1);
@@ -172,7 +172,23 @@ async function upsertContact(workspaceId: string, phone: string): Promise<Contac
         eq(contactsTable.workspaceId, workspaceId),
       ))
       .returning();
-    if (contact) return contact;
+    if (contact) {
+      await db
+        .insert(contactChannelsTable)
+        .values({
+          workspaceId,
+          contactId: contact.id,
+          channelType: "whatsapp",
+          identifier: normalizedPhone,
+          normalizedIdentifier: normalizedPhone,
+          isPrimary: true,
+          isVerified: true,
+          optedIn: true,
+          providerData: { externalId: phone },
+        })
+        .onConflictDoNothing();
+      return contact;
+    }
   }
 
   const [existingContact] = await db
@@ -180,7 +196,7 @@ async function upsertContact(workspaceId: string, phone: string): Promise<Contac
     .from(contactsTable)
     .where(and(
       eq(contactsTable.workspaceId, workspaceId),
-      eq(contactsTable.phone, phone),
+      eq(contactsTable.phone, normalizedPhone),
     ))
     .limit(1);
 
@@ -188,8 +204,8 @@ async function upsertContact(workspaceId: string, phone: string): Promise<Contac
     .insert(contactsTable)
     .values({
       workspaceId,
-      name: phone,
-      phone,
+      name: normalizedPhone,
+      phone: normalizedPhone,
       lastContactedAt: new Date(),
     })
     .returning())[0];
@@ -210,8 +226,8 @@ async function upsertContact(workspaceId: string, phone: string): Promise<Contac
     .values({
       workspaceId,
       contactId: contact.id,
-      channelType: "whatsapp_api",
-      identifier: phone,
+      channelType: "whatsapp",
+      identifier: normalizedPhone,
       normalizedIdentifier: normalizedPhone,
       isPrimary: true,
       isVerified: true,

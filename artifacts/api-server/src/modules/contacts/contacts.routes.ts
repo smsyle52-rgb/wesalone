@@ -1,12 +1,22 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
-import { eq, and, ilike, desc, count, or } from "drizzle-orm";
+import { eq, and, ilike, desc, count, or, sql, inArray } from "drizzle-orm";
 import {
   db,
   contactsTable,
   contactChannelsTable,
   contactNotesTable,
   contactTimelineTable,
+  conversationsTable,
+  ticketsTable,
+  tasksTable,
+  followupsTable,
+  opportunitiesTable,
+  ordersTable,
+  paymentsTable,
+  debtsTable,
+  collectionNotesTable,
+  broadcastRecipientsTable,
 } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
@@ -18,10 +28,16 @@ import { logger } from "../../lib/logger";
 const router = Router();
 router.use(requireSession);
 
-const VALID_CHANNEL_TYPES = ["phone", "whatsapp", "telegram", "instagram", "email", "widget"] as const;
+const VALID_CHANNEL_TYPES = ["phone", "whatsapp", "whatsapp_api", "telegram", "instagram", "messenger", "email", "widget"] as const;
+const WHATSAPP_CHANNEL_TYPES = ["whatsapp", "whatsapp_api"] as const;
+const PHONE_IDENTITY_CHANNEL_TYPES = ["phone", "whatsapp", "whatsapp_api"] as const;
+
+function canonicalChannelType(channelType: string): string {
+  return channelType === "whatsapp_api" ? "whatsapp" : channelType;
+}
 
 function normalizeIdentifier(channelType: string, raw: string): string {
-  if (channelType === "phone" || channelType === "whatsapp") {
+  if (channelType === "phone" || WHATSAPP_CHANNEL_TYPES.includes(channelType as (typeof WHATSAPP_CHANNEL_TYPES)[number])) {
     const cleaned = raw.replace(/[^\d+]/g, "");
     if (cleaned.startsWith("+967")) return cleaned;
     if (cleaned.startsWith("00967")) return "+" + cleaned.slice(2);
@@ -32,6 +48,109 @@ function normalizeIdentifier(channelType: string, raw: string): string {
   }
   if (channelType === "email") return raw.toLowerCase().trim();
   return raw.trim().toLowerCase();
+}
+
+function contactIdentityChannels(contact: { phone?: string | null; email?: string | null }) {
+  const channels: Array<{ channelType: "phone" | "email"; identifier: string; normalizedIdentifier: string }> = [];
+  if (contact.phone?.trim()) {
+    channels.push({
+      channelType: "phone",
+      identifier: contact.phone.trim(),
+      normalizedIdentifier: normalizeIdentifier("phone", contact.phone),
+    });
+  }
+  if (contact.email?.trim()) {
+    channels.push({
+      channelType: "email",
+      identifier: contact.email.trim(),
+      normalizedIdentifier: normalizeIdentifier("email", contact.email),
+    });
+  }
+  return channels;
+}
+
+async function findDuplicateIdentityChannel(
+  workspaceId: string,
+  contact: { phone?: string | null; email?: string | null },
+  excludeContactId?: string,
+) {
+  for (const identity of contactIdentityChannels(contact)) {
+    const duplicateTypes = identity.channelType === "phone"
+      ? [...PHONE_IDENTITY_CHANNEL_TYPES]
+      : [identity.channelType];
+    const [duplicate] = await db
+      .select({ contactId: contactChannelsTable.contactId, channelType: contactChannelsTable.channelType, identifier: contactChannelsTable.identifier })
+      .from(contactChannelsTable)
+      .where(and(
+        eq(contactChannelsTable.workspaceId, workspaceId),
+        inArray(contactChannelsTable.channelType, duplicateTypes),
+        eq(contactChannelsTable.normalizedIdentifier, identity.normalizedIdentifier),
+      ))
+      .limit(1);
+    if (duplicate && duplicate.contactId !== excludeContactId) return duplicate;
+  }
+  return null;
+}
+
+async function ensureIdentityChannels(
+  workspaceId: string,
+  contactId: string,
+  contact: { phone?: string | null; email?: string | null },
+) {
+  const identities = contactIdentityChannels(contact);
+  const desiredByType = new Map(identities.map((identity) => [identity.channelType, identity]));
+  const generatedChannels = await db
+    .select()
+    .from(contactChannelsTable)
+    .where(and(
+      eq(contactChannelsTable.workspaceId, workspaceId),
+      eq(contactChannelsTable.contactId, contactId),
+      inArray(contactChannelsTable.channelType, ["phone", "email"]),
+      sql`${contactChannelsTable.providerData}->>'source' = 'contact_identity'`,
+    ));
+
+  for (const channel of generatedChannels) {
+    const desired = desiredByType.get(channel.channelType as "phone" | "email");
+    if (!desired) {
+      await db
+        .delete(contactChannelsTable)
+        .where(and(
+          eq(contactChannelsTable.workspaceId, workspaceId),
+          eq(contactChannelsTable.id, channel.id),
+        ));
+      continue;
+    }
+
+    await db
+      .update(contactChannelsTable)
+      .set({
+        identifier: desired.identifier,
+        normalizedIdentifier: desired.normalizedIdentifier,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(contactChannelsTable.workspaceId, workspaceId),
+        eq(contactChannelsTable.id, channel.id),
+      ));
+    desiredByType.delete(desired.channelType);
+  }
+
+  for (const identity of desiredByType.values()) {
+    await db
+      .insert(contactChannelsTable)
+      .values({
+        workspaceId,
+        contactId,
+        channelType: identity.channelType,
+        identifier: identity.identifier,
+        normalizedIdentifier: identity.normalizedIdentifier,
+        isPrimary: identity.channelType === "phone",
+        isVerified: false,
+        optedIn: false,
+        providerData: { source: "contact_identity" },
+      })
+      .onConflictDoNothing();
+  }
 }
 
 async function addTimeline(params: {
@@ -90,10 +209,15 @@ const createSchema = z.object({
   email: z.string().email("بريد إلكتروني غير صحيح").optional().or(z.literal("")),
   city: z.string().optional(),
   company: z.string().optional(),
+  customFields: z.record(z.unknown()).optional().default({}),
   tags: z.array(z.string()).optional().default([]),
 });
 
 const updateSchema = createSchema.partial();
+
+const mergeSchema = z.object({
+  sourceContactId: z.string().uuid("معرف جهة الاتصال المدموجة غير صحيح"),
+});
 
 const channelCreateSchema = z.object({
   channelType: z.enum(VALID_CHANNEL_TYPES, { message: "نوع القناة غير مدعوم" }),
@@ -125,13 +249,17 @@ router.get(
   async (req: AuthenticatedRequest, res: Response) => {
     const { activeWorkspaceId } = req.sessionUser;
     const search = req.query.search as string | undefined;
+    const includeArchived = req.query.includeArchived === "true";
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
     const offset = (page - 1) * limit;
 
+    const baseConditions = [eq(contactsTable.workspaceId, activeWorkspaceId)];
+    if (!includeArchived) baseConditions.push(sql`${contactsTable.archivedAt} IS NULL`);
+
     const where = search
       ? and(
-          eq(contactsTable.workspaceId, activeWorkspaceId),
+          ...baseConditions,
           or(
             ilike(contactsTable.name, `%${search}%`),
             ilike(contactsTable.phone, `%${search}%`),
@@ -139,7 +267,7 @@ router.get(
             ilike(contactsTable.company, `%${search}%`)
           )
         )
-      : eq(contactsTable.workspaceId, activeWorkspaceId);
+      : and(...baseConditions);
 
     const [contacts, [{ total }]] = await Promise.all([
       db
@@ -170,6 +298,16 @@ router.post(
 
     const { activeWorkspaceId, userId } = req.sessionUser;
 
+    const duplicateIdentity = await findDuplicateIdentityChannel(activeWorkspaceId, parsed.data);
+    if (duplicateIdentity) {
+      res.status(409).json({
+        error: "رقم الهاتف أو البريد مرتبط بجهة اتصال أخرى",
+        code: "CONTACT_IDENTITY_DUPLICATE",
+        contactId: duplicateIdentity.contactId,
+      });
+      return;
+    }
+
     const [contact] = await db
       .insert(contactsTable)
       .values({
@@ -178,6 +316,8 @@ router.post(
         createdBy: userId,
       })
       .returning();
+
+    await ensureIdentityChannels(activeWorkspaceId, contact.id, contact);
 
     await Promise.all([
       createAuditLog({
@@ -238,6 +378,20 @@ router.patch(
     const existing = await assertContactOwned(contactId, activeWorkspaceId, res);
     if (!existing) return;
 
+    const nextIdentity = {
+      phone: parsed.data.phone ?? existing.phone,
+      email: parsed.data.email ?? existing.email,
+    };
+    const duplicateIdentity = await findDuplicateIdentityChannel(activeWorkspaceId, nextIdentity, contactId);
+    if (duplicateIdentity) {
+      res.status(409).json({
+        error: "رقم الهاتف أو البريد مرتبط بجهة اتصال أخرى",
+        code: "CONTACT_IDENTITY_DUPLICATE",
+        contactId: duplicateIdentity.contactId,
+      });
+      return;
+    }
+
     const [contact] = await db
       .update(contactsTable)
       .set({ ...parsed.data, updatedAt: new Date() })
@@ -248,6 +402,8 @@ router.patch(
         )
       )
       .returning();
+
+    await ensureIdentityChannels(activeWorkspaceId, contact.id, contact);
 
     if (parsed.data.tags) {
       const previousTags = new Set(existing.tags ?? []);
@@ -301,25 +457,175 @@ router.delete(
     const existing = await assertContactOwned(contactId, activeWorkspaceId, res);
     if (!existing) return;
 
-    await db
-      .delete(contactsTable)
+    const [contact] = await db
+      .update(contactsTable)
+      .set({ archivedAt: new Date(), updatedAt: new Date() })
       .where(
         and(
           eq(contactsTable.id, contactId),
           eq(contactsTable.workspaceId, activeWorkspaceId)
         )
-      );
+      )
+      .returning();
 
     await createAuditLog({
       ...auditFromRequest(req, req.sessionUser),
-      action: "delete",
+      action: "update",
       severity: "warning",
       entityType: "contact",
       entityId: contactId,
       entityLabel: existing.name,
+      oldData: { archivedAt: existing.archivedAt },
+      newData: { operation: "archive", archivedAt: contact.archivedAt },
     });
 
-    res.json({ message: "تم حذف العميل بنجاح" });
+    await addTimeline({
+      workspaceId: activeWorkspaceId,
+      contactId,
+      eventType: "contact_archived",
+      title: "تمت أرشفة جهة الاتصال",
+      entityType: "contact",
+      entityId: contactId,
+      createdBy: userId,
+    });
+
+    res.json({ message: "تمت أرشفة جهة الاتصال بنجاح", contact });
+  }
+);
+
+router.post(
+  "/:id/merge",
+  requirePermission("contacts:update"),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = mergeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message });
+      return;
+    }
+
+    const { activeWorkspaceId, userId } = req.sessionUser;
+    const targetContactId = req.params.id as string;
+    const sourceContactId = parsed.data.sourceContactId;
+
+    if (targetContactId === sourceContactId) {
+      res.status(400).json({ error: "لا يمكن دمج جهة الاتصال في نفسها", code: "SAME_CONTACT" });
+      return;
+    }
+
+    const [target, source] = await Promise.all([
+      assertContactOwned(targetContactId, activeWorkspaceId, res),
+      assertContactOwned(sourceContactId, activeWorkspaceId, res),
+    ]);
+    if (!target || !source) return;
+
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      const targetChannels = await tx
+        .select()
+        .from(contactChannelsTable)
+        .where(and(eq(contactChannelsTable.workspaceId, activeWorkspaceId), eq(contactChannelsTable.contactId, targetContactId)));
+      const sourceChannels = await tx
+        .select()
+        .from(contactChannelsTable)
+        .where(and(eq(contactChannelsTable.workspaceId, activeWorkspaceId), eq(contactChannelsTable.contactId, sourceContactId)));
+
+      const targetChannelByIdentity = new Map(
+        targetChannels.map((channel) => [`${canonicalChannelType(channel.channelType)}:${channel.normalizedIdentifier}`, channel.id]),
+      );
+
+      for (const sourceChannel of sourceChannels) {
+        const identity = `${canonicalChannelType(sourceChannel.channelType)}:${sourceChannel.normalizedIdentifier}`;
+        const targetChannelId = targetChannelByIdentity.get(identity);
+        if (targetChannelId) {
+          await tx.update(conversationsTable)
+            .set({ contactChannelId: targetChannelId, updatedAt: now })
+            .where(and(eq(conversationsTable.workspaceId, activeWorkspaceId), eq(conversationsTable.contactChannelId, sourceChannel.id)));
+          await tx.update(broadcastRecipientsTable)
+            .set({ contactChannelId: targetChannelId })
+            .where(and(eq(broadcastRecipientsTable.workspaceId, activeWorkspaceId), eq(broadcastRecipientsTable.contactChannelId, sourceChannel.id)));
+          await tx.delete(contactChannelsTable)
+            .where(and(eq(contactChannelsTable.workspaceId, activeWorkspaceId), eq(contactChannelsTable.id, sourceChannel.id)));
+        } else {
+          await tx.update(contactChannelsTable)
+            .set({ contactId: targetContactId, updatedAt: now })
+            .where(and(eq(contactChannelsTable.workspaceId, activeWorkspaceId), eq(contactChannelsTable.id, sourceChannel.id)));
+          targetChannelByIdentity.set(identity, sourceChannel.id);
+        }
+      }
+
+      await Promise.all([
+        tx.update(conversationsTable).set({ contactId: targetContactId, updatedAt: now })
+          .where(and(eq(conversationsTable.workspaceId, activeWorkspaceId), eq(conversationsTable.contactId, sourceContactId))),
+        tx.update(ticketsTable).set({ contactId: targetContactId, updatedAt: now })
+          .where(and(eq(ticketsTable.workspaceId, activeWorkspaceId), eq(ticketsTable.contactId, sourceContactId))),
+        tx.update(tasksTable).set({ contactId: targetContactId, updatedAt: now })
+          .where(and(eq(tasksTable.workspaceId, activeWorkspaceId), eq(tasksTable.contactId, sourceContactId))),
+        tx.update(followupsTable).set({ contactId: targetContactId, updatedAt: now })
+          .where(and(eq(followupsTable.workspaceId, activeWorkspaceId), eq(followupsTable.contactId, sourceContactId))),
+        tx.update(opportunitiesTable).set({ contactId: targetContactId, updatedAt: now })
+          .where(and(eq(opportunitiesTable.workspaceId, activeWorkspaceId), eq(opportunitiesTable.contactId, sourceContactId))),
+        tx.update(ordersTable).set({ contactId: targetContactId, updatedAt: now })
+          .where(and(eq(ordersTable.workspaceId, activeWorkspaceId), eq(ordersTable.contactId, sourceContactId))),
+        tx.update(paymentsTable).set({ contactId: targetContactId, updatedAt: now })
+          .where(and(eq(paymentsTable.workspaceId, activeWorkspaceId), eq(paymentsTable.contactId, sourceContactId))),
+        tx.update(debtsTable).set({ contactId: targetContactId, updatedAt: now })
+          .where(and(eq(debtsTable.workspaceId, activeWorkspaceId), eq(debtsTable.contactId, sourceContactId))),
+        tx.update(collectionNotesTable).set({ contactId: targetContactId })
+          .where(and(eq(collectionNotesTable.workspaceId, activeWorkspaceId), eq(collectionNotesTable.contactId, sourceContactId))),
+        tx.update(broadcastRecipientsTable).set({ contactId: targetContactId })
+          .where(and(eq(broadcastRecipientsTable.workspaceId, activeWorkspaceId), eq(broadcastRecipientsTable.contactId, sourceContactId))),
+        tx.update(contactNotesTable).set({ contactId: targetContactId, updatedAt: now })
+          .where(and(eq(contactNotesTable.workspaceId, activeWorkspaceId), eq(contactNotesTable.contactId, sourceContactId))),
+        tx.update(contactTimelineTable).set({ contactId: targetContactId })
+          .where(and(eq(contactTimelineTable.workspaceId, activeWorkspaceId), eq(contactTimelineTable.contactId, sourceContactId))),
+      ]);
+
+      const mergedTags = Array.from(new Set([...(target.tags ?? []), ...(source.tags ?? [])]));
+      const mergedCustomFields = {
+        ...((source.customFields as Record<string, unknown> | null) ?? {}),
+        ...((target.customFields as Record<string, unknown> | null) ?? {}),
+      };
+
+      await tx.update(contactsTable)
+        .set({
+          tags: mergedTags,
+          customFields: mergedCustomFields,
+          updatedAt: now,
+        })
+        .where(and(eq(contactsTable.workspaceId, activeWorkspaceId), eq(contactsTable.id, targetContactId)));
+
+      await tx.update(contactsTable)
+        .set({
+          archivedAt: now,
+          updatedAt: now,
+        })
+        .where(and(eq(contactsTable.workspaceId, activeWorkspaceId), eq(contactsTable.id, sourceContactId)));
+
+      await tx.insert(contactTimelineTable).values({
+        workspaceId: activeWorkspaceId,
+        contactId: targetContactId,
+        eventType: "contact_merged",
+        title: "تم دمج جهة اتصال مكررة",
+        description: source.name,
+        entityType: "contact",
+        entityId: sourceContactId,
+        createdBy: userId,
+        metadata: { sourceContactId, sourceName: source.name },
+      });
+    });
+
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "update",
+      severity: "warning",
+      entityType: "contact",
+      entityId: targetContactId,
+      entityLabel: target.name,
+      oldData: { sourceContactId, sourceName: source.name },
+      newData: { operation: "merge", targetContactId, targetName: target.name },
+    });
+
+    res.json({ success: true, targetContactId, archivedSourceContactId: sourceContactId });
   }
 );
 
@@ -366,7 +672,11 @@ router.post(
     const contact = await assertContactOwned(contactId, activeWorkspaceId, res);
     if (!contact) return;
 
-    const norm = normalizeIdentifier(parsed.data.channelType, parsed.data.identifier);
+    const channelType = canonicalChannelType(parsed.data.channelType);
+    const norm = normalizeIdentifier(channelType, parsed.data.identifier);
+    const duplicateTypes = channelType === "whatsapp" || channelType === "phone"
+      ? [...PHONE_IDENTITY_CHANNEL_TYPES]
+      : [channelType];
 
     const [dup] = await db
       .select({ id: contactChannelsTable.id, contactId: contactChannelsTable.contactId })
@@ -374,7 +684,7 @@ router.post(
       .where(
         and(
           eq(contactChannelsTable.workspaceId, activeWorkspaceId),
-          eq(contactChannelsTable.channelType, parsed.data.channelType),
+          inArray(contactChannelsTable.channelType, duplicateTypes),
           eq(contactChannelsTable.normalizedIdentifier, norm)
         )
       )
@@ -394,7 +704,7 @@ router.post(
       .values({
         workspaceId: activeWorkspaceId,
         contactId,
-        channelType: parsed.data.channelType,
+        channelType,
         identifier: parsed.data.identifier.trim(),
         normalizedIdentifier: norm,
         isPrimary: parsed.data.isPrimary,
@@ -408,8 +718,8 @@ router.post(
         severity: "info",
         entityType: "contact_channel",
         entityId: channel.id,
-        entityLabel: `${parsed.data.channelType}: ${parsed.data.identifier}`,
-        newData: { contactId, channelType: parsed.data.channelType, identifier: parsed.data.identifier },
+        entityLabel: `${channelType}: ${parsed.data.identifier}`,
+        newData: { contactId, channelType, identifier: parsed.data.identifier },
       }),
       addTimeline({
         workspaceId: activeWorkspaceId,

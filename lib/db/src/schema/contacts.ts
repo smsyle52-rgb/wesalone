@@ -15,10 +15,12 @@ export const contactsTable = pgTable(
     city: text("city"),
     locationNote: text("location_note"),
     company: text("company"),
+    customFields: jsonb("custom_fields").notNull().default({}),
     tags: text("tags").array().notNull().default([]),
     totalOrders: integer("total_orders").notNull().default(0),
     totalSpent: numeric("total_spent", { precision: 12, scale: 2 }).notNull().default("0"),
     lastContactedAt: timestamp("last_contacted_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdBy: uuid("created_by").references(() => usersTable.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -26,6 +28,7 @@ export const contactsTable = pgTable(
   (table) => [
     index("idx_contacts_ws").on(table.workspaceId),
     index("idx_contacts_ws_created").on(table.workspaceId, table.createdAt),
+    index("idx_contacts_ws_archived_created").on(table.workspaceId, table.archivedAt, table.createdAt),
   ],
 );
 
