@@ -644,67 +644,6 @@ router.patch("/:id/agent-status", requirePermission("conversations:manage"), asy
   res.json({ conversation });
 });
 
-router.post("/:id/reactivate-agent", requirePermission("conversations:resolve"), async (req: AuthenticatedRequest, res: Response) => {
-  const { activeWorkspaceId } = req.sessionUser;
-  const [existing] = await db.select({
-    id: conversationsTable.id,
-    subject: conversationsTable.subject,
-    agentStatus: conversationsTable.agentStatus,
-    needsHuman: conversationsTable.needsHuman,
-  })
-    .from(conversationsTable)
-    .where(and(
-      eq(conversationsTable.id, req.params.id as string),
-      eq(conversationsTable.workspaceId, activeWorkspaceId)
-    ))
-    .limit(1);
-
-  if (!existing) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
-
-  const [conversation] = await db.update(conversationsTable)
-    .set({
-      agentStatus: "active",
-      agentPausedUntil: null,
-      consecutiveAgentReplies: 0,
-      needsHuman: false,
-      escalationReason: null,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
-    .returning();
-
-  if (!conversation) { res.status(500).json({ error: "فشل إرجاع المحادثة للوكيل" }); return; }
-
-  await createAuditLog({
-    ...auditFromRequest(req, req.sessionUser),
-    workspaceId: activeWorkspaceId,
-    action: "agent_status_change",
-    entityType: "conversation",
-    entityId: conversation.id,
-    entityLabel: conversation.subject ?? conversation.id.slice(0, 8),
-    newData: {
-      previousAgentStatus: existing.agentStatus,
-      agentStatus: "active",
-      source: "reactivate_agent",
-    },
-  });
-
-  if (existing.agentStatus !== "active" || existing.needsHuman) {
-    await publishDomainEvent({
-      eventType: "message.received",
-      entityType: "conversation",
-      entityId: conversation.id,
-      payload: {
-        conversationId: conversation.id,
-        source: "agent_reactivated",
-      },
-      sessionUser: req.sessionUser,
-    });
-  }
-
-  res.json({ conversation });
-});
-
 router.get("/:id/messages", requirePermission("conversations:read"), async (req: AuthenticatedRequest, res: Response) => {
   const { activeWorkspaceId } = req.sessionUser;
   const page = Math.max(1, parseInt(req.query.page as string) || 1);

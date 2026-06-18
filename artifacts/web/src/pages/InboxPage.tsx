@@ -233,7 +233,6 @@ export default function InboxPage() {
   const canCreateOrder = hasPermission("orders:create");
   const canUseAI = hasPermission("ai:use");
   const canManageConversationAgent = hasPermission("conversations:manage");
-  const canReactivateConversationAgent = canResolve || canManageConversationAgent;
   const canReadChannels = hasPermission("channels:read");
   const canReadQuickReplies = hasPermission("quick_replies:read");
   const canWriteSavedViews = hasPermission("saved_views:write");
@@ -485,15 +484,6 @@ export default function InboxPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
-      }),
-    onSuccess: invalidateDetail,
-  });
-
-  const reactivateAgent = useMutation({
-    mutationFn: ({ convId }: { convId: string }) =>
-      apiFetch(`conversations/${convId}/reactivate-agent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
       }),
     onSuccess: invalidateDetail,
   });
@@ -1033,12 +1023,13 @@ export default function InboxPage() {
                         <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap", agentBadge.className)}>
                           {agentBadge.label}
                         </span>
-                        {(needsAgentReactivation ? canReactivateConversationAgent : canManageConversationAgent) && (
+                        {canManageConversationAgent && (
                           <button
-                            onClick={() => needsAgentReactivation
-                              ? reactivateAgent.mutate({ convId: conv.id })
-                              : changeAgentStatus.mutate({ convId: conv.id, status: agentStatusAction })}
-                            disabled={needsAgentReactivation ? reactivateAgent.isPending : changeAgentStatus.isPending}
+                            onClick={() => changeAgentStatus.mutate({
+                              convId: conv.id,
+                              status: agentStatusAction,
+                            })}
+                            disabled={changeAgentStatus.isPending}
                             className={cn(
                               "px-2 py-0.5 rounded-full text-xs font-medium border disabled:opacity-50",
                               needsAgentReactivation
@@ -1114,10 +1105,10 @@ export default function InboxPage() {
                             {action.label}
                           </DropdownMenuItem>
                         ))}
-                        {canReactivateConversationAgent && needsAgentReactivation && (
+                        {canManageConversationAgent && needsAgentReactivation && (
                           <DropdownMenuItem
                             className="cursor-pointer text-start font-medium text-green-700 focus:text-green-800"
-                            onSelect={() => reactivateAgent.mutate({ convId: conv.id })}
+                            onSelect={() => changeAgentStatus.mutate({ convId: conv.id, status: "active" })}
                           >
                             إعادة للوكيل
                           </DropdownMenuItem>
