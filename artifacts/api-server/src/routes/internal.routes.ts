@@ -148,6 +148,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
           bodyAr: "لم يتمكن الوكيل من الرد، وتم تحويل المحادثة لمراجعة الفريق.",
           link: `/inbox?conversation=${conversationId}`,
         }).catch((err) => logger.warn({ err, conversationId }, "Failed to notify workspace of escalation"));
+        emitWorkspaceEvent({ workspaceId, type: "conversation.needs_human", entityType: "conversation", entityId: conversationId, payload: { conversationId } });
       }
 
       res.status(200).json({
@@ -250,6 +251,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         bodyAr: "تعذّر إرسال رد الوكيل تلقائياً، وتم تحويل المحادثة لمراجعة الفريق.",
         link: `/inbox?conversation=${conversationId}`,
       }).catch((err) => logger.warn({ err, conversationId }, "Failed to notify workspace of escalation"));
+      emitWorkspaceEvent({ workspaceId, type: "conversation.needs_human", entityType: "conversation", entityId: conversationId, payload: { conversationId } });
       res.status(200).json({
         success: true,
         runId: agentReply.runId,
@@ -272,6 +274,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         bodyAr: "الوكيل أرسل رداً مؤقتاً وحوّل المحادثة لمراجعة الفريق.",
         link: `/inbox?conversation=${conversationId}`,
       }).catch((err) => logger.warn({ err, conversationId }, "Failed to notify workspace of escalation"));
+      emitWorkspaceEvent({ workspaceId, type: "conversation.needs_human", entityType: "conversation", entityId: conversationId, payload: { conversationId } });
     }
 
     res.status(200).json({

@@ -14,8 +14,10 @@ export function openInboxStream(handlers: {
     handlers.onStatus?.("live");
     handlers.onMessageReceived?.(JSON.parse((event as MessageEvent).data));
   });
+  source.addEventListener("message.new", () => handlers.onMessageReceived?.(null));
   source.addEventListener("conversation.assigned", () => handlers.onMessageReceived?.(null));
   source.addEventListener("conversation.status_changed", () => handlers.onMessageReceived?.(null));
+  source.addEventListener("conversation.needs_human", () => handlers.onMessageReceived?.(null));
   source.addEventListener("broadcast.progress", () => handlers.onMessageReceived?.(null));
   source.onerror = () => handlers.onStatus?.("reconnecting");
 
