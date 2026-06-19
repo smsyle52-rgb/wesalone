@@ -946,6 +946,21 @@ EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
 -- =============================================================
+-- 0027_contacts_scope10 — أعمدة وفهارس جهات الاتصال (النطاق 10)
+-- أُضيف يدوياً 19 يونيو 2026: غيابه من هذه الحزمة سبّب توقّف استقبال
+-- واتساب ~5 ساعات (contacts.custom_fields مفقود → upsertContact يرمي).
+-- idempotent، آمن للتكرار. قاعدة حاكمة: أي migration جديد يُدمج هنا.
+-- =============================================================
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS custom_fields jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+CREATE INDEX IF NOT EXISTS idx_contacts_ws_archived_created ON contacts(workspace_id, archived_at, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contacts_ws_phone ON contacts(workspace_id, phone);
+CREATE INDEX IF NOT EXISTS idx_contacts_ws_email ON contacts(workspace_id, lower(email));
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_contacts_ws_name_trgm ON contacts USING gin (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_contacts_ws_company_trgm ON contacts USING gin (company gin_trgm_ops);
+
+-- =============================================================
 -- Verification queries (SELECT only, no mutations)
 -- These print confirmation that expected tables exist.
 -- =============================================================
