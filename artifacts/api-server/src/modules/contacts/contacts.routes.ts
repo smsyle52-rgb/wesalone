@@ -219,6 +219,58 @@ const mergeSchema = z.object({
   sourceContactId: z.string().uuid("معرف جهة الاتصال المدموجة غير صحيح"),
 });
 
+const importSchema = z.object({
+  csv: z.string().min(1, "ملف الاستيراد فارغ").max(1_000_000, "ملف الاستيراد أكبر من الحد المسموح"),
+});
+
+const IMPORT_HEADERS: Record<string, keyof z.infer<typeof createSchema>> = {
+  name: "name", "الاسم": "name",
+  phone: "phone", "الهاتف": "phone",
+  email: "email", "البريد": "email", "البريد الإلكتروني": "email",
+  city: "city", "المدينة": "city",
+  company: "company", "الشركة": "company",
+  tags: "tags", "الوسوم": "tags",
+};
+
+function parseCsv(csv: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+
+  for (let index = 0; index < csv.length; index += 1) {
+    const char = csv[index];
+    if (quoted) {
+      if (char === '"' && csv[index + 1] === '"') {
+        field += '"';
+        index += 1;
+      } else if (char === '"') quoted = false;
+      else field += char;
+      continue;
+    }
+    if (char === '"') quoted = true;
+    else if (char === ",") {
+      row.push(field.trim());
+      field = "";
+    } else if (char === "\n") {
+      row.push(field.trim());
+      if (row.some((value) => value.length > 0)) rows.push(row);
+      row = [];
+      field = "";
+    } else if (char !== "\r") field += char;
+  }
+  if (quoted) throw new Error("اقتباس غير مغلق في ملف CSV");
+  row.push(field.trim());
+  if (row.some((value) => value.length > 0)) rows.push(row);
+  return rows;
+}
+
+function csvCell(value: unknown): string {
+  let text = value == null ? "" : String(value);
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
 const channelCreateSchema = z.object({
   channelType: z.enum(VALID_CHANNEL_TYPES, { message: "نوع القناة غير مدعوم" }),
   identifier: z.string().min(1, "المعرّف مطلوب"),
@@ -282,6 +334,111 @@ router.get(
 
     res.json({ contacts, total: Number(total), page });
   }
+);
+
+router.get(
+  "/export.csv",
+  requirePermission("contacts:export"),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const contacts = await db.select({
+      name: contactsTable.name,
+      phone: contactsTable.phone,
+      email: contactsTable.email,
+      city: contactsTable.city,
+      company: contactsTable.company,
+      tags: contactsTable.tags,
+    }).from(contactsTable).where(and(
+      eq(contactsTable.workspaceId, req.sessionUser.activeWorkspaceId),
+      sql`${contactsTable.archivedAt} IS NULL`,
+    )).orderBy(desc(contactsTable.createdAt));
+
+    const lines = [
+      ["name", "phone", "email", "city", "company", "tags"].map(csvCell).join(","),
+      ...contacts.map((contact) => [
+        contact.name, contact.phone, contact.email, contact.city, contact.company, (contact.tags ?? []).join("|"),
+      ].map(csvCell).join(",")),
+    ];
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="contacts-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(`\uFEFF${lines.join("\r\n")}`);
+  },
+);
+
+router.post(
+  "/import",
+  requirePermission("contacts:create"),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsedBody = importSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json({ error: parsedBody.error.issues[0]?.message });
+      return;
+    }
+
+    let rows: string[][];
+    try {
+      rows = parseCsv(parsedBody.data.csv.replace(/^\uFEFF/, ""));
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "ملف CSV غير صالح" });
+      return;
+    }
+    if (rows.length < 2) {
+      res.status(400).json({ error: "يجب أن يحتوي الملف على عناوين وصف واحد على الأقل" });
+      return;
+    }
+    if (rows.length > 1001) {
+      res.status(400).json({ error: "الحد الأقصى للاستيراد هو 1000 جهة اتصال في المرة" });
+      return;
+    }
+
+    const headers = rows[0].map((header) => IMPORT_HEADERS[header.trim().toLowerCase()] ?? null);
+    if (!headers.includes("name")) {
+      res.status(400).json({ error: "عمود الاسم مطلوب (name أو الاسم)" });
+      return;
+    }
+
+    const { activeWorkspaceId, userId } = req.sessionUser;
+    const errors: Array<{ row: number; error: string }> = [];
+    let imported = 0;
+    let duplicates = 0;
+
+    for (let index = 1; index < rows.length; index += 1) {
+      const candidate: Record<string, unknown> = { tags: [] };
+      headers.forEach((header, column) => {
+        if (!header) return;
+        const value = rows[index][column]?.trim() ?? "";
+        candidate[header] = header === "tags"
+          ? value.split("|").map((tag) => tag.trim()).filter(Boolean)
+          : value;
+      });
+      const parsedContact = createSchema.safeParse(candidate);
+      if (!parsedContact.success) {
+        errors.push({ row: index + 1, error: parsedContact.error.issues[0]?.message ?? "بيانات غير صحيحة" });
+        continue;
+      }
+      const duplicate = await findDuplicateIdentityChannel(activeWorkspaceId, parsedContact.data);
+      if (duplicate) {
+        duplicates += 1;
+        continue;
+      }
+      const [contact] = await db.insert(contactsTable).values({
+        ...parsedContact.data,
+        workspaceId: activeWorkspaceId,
+        createdBy: userId,
+      }).returning();
+      await ensureIdentityChannels(activeWorkspaceId, contact.id, contact);
+      imported += 1;
+    }
+
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "create",
+      severity: "info",
+      entityType: "contact_import",
+      entityLabel: `استيراد ${imported} جهة اتصال`,
+      newData: { imported, duplicates, invalid: errors.length, totalRows: rows.length - 1 },
+    });
+    res.json({ imported, duplicates, invalid: errors.length, errors: errors.slice(0, 50) });
+  },
 );
 
 // ─── CREATE CONTACT ───────────────────────────────────────────────────────────

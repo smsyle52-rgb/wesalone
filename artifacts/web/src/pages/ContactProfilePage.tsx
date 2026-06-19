@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { Merge, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { formatDate, formatDateTime, timeAgo, cn, formatCurrency } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
@@ -39,6 +40,7 @@ const TIMELINE_ICONS: Record<string, string> = {
 type Contact = {
   id: string; name: string; phone?: string | null; email?: string | null;
   city?: string | null; company?: string | null; tags: string[];
+  customFields?: Record<string, unknown>;
   totalOrders: number; totalSpent: string; createdAt: string; updatedAt: string;
 };
 type Channel = {
@@ -112,6 +114,9 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
   const [payForm, setPayForm] = useState({ amount: "", currency: "YER", paymentMethodId: "", reference: "", notes: "" });
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
+  const [customFieldRows, setCustomFieldRows] = useState<Array<{ key: string; value: string }>>([]);
+  const [showMerge, setShowMerge] = useState(false);
+  const [mergeSearch, setMergeSearch] = useState("");
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [channelForm, setChannelForm] = useState({ channelType: "phone", identifier: "", isPrimary: false });
   const [channelError, setChannelError] = useState("");
@@ -163,6 +168,12 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
     enabled: canRead && canReadDebts && tab === "debts",
   });
 
+  const { data: mergeCandidatesData } = useQuery({
+    queryKey: ["contact-merge-candidates", mergeSearch],
+    queryFn: () => apiFetch(`contacts?search=${encodeURIComponent(mergeSearch)}&limit=20`),
+    enabled: showMerge && mergeSearch.trim().length >= 2,
+  });
+
   const [showDebtModal, setShowDebtModal] = useState(false);
   const [debtForm, setDebtForm] = useState({ amount: "", currency: "YER", dueAt: "", description: "" });
   const [debtError, setDebtError] = useState("");
@@ -197,6 +208,20 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["contacts"] });
       navigate("/contacts");
+    },
+  });
+
+  const mergeContact = useMutation({
+    mutationFn: (sourceContactId: string) => apiFetch(`contacts/${contactId}/merge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceContactId }),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contact", contactId] });
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+      setShowMerge(false);
+      setMergeSearch("");
     },
   });
 
@@ -368,10 +393,19 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
           <div className="flex flex-wrap gap-2">
             {canUpdate && (
               <button
-                onClick={() => { setEditForm(contact); setEditMode(true); }}
+                onClick={() => {
+                  setEditForm(contact);
+                  setCustomFieldRows(Object.entries(contact.customFields ?? {}).map(([key, value]) => ({ key, value: String(value ?? "") })));
+                  setEditMode(true);
+                }}
                 className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
               >
                 تعديل
+              </button>
+            )}
+            {canUpdate && (
+              <button onClick={() => setShowMerge(true)} className="px-3 py-1.5 text-xs border border-border rounded-lg text-foreground hover:bg-muted transition-colors flex items-center gap-1.5">
+                <Merge className="h-3.5 w-3.5" /> دمج مكرر
               </button>
             )}
             <DisabledAction label="💬 محادثة" />
@@ -471,6 +505,16 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
           <div className="flex flex-wrap gap-1 mt-3">
             {contact.tags.map((tag: string) => (
               <span key={tag} className="px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-full">{tag}</span>
+            ))}
+          </div>
+        )}
+        {Object.keys(contact.customFields ?? {}).length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-border">
+            {Object.entries(contact.customFields ?? {}).map(([key, value]) => (
+              <div key={key}>
+                <p className="text-xs text-muted-foreground mb-0.5">{key}</p>
+                <p className="text-sm font-medium text-foreground break-words">{String(value ?? "—")}</p>
+              </div>
             ))}
           </div>
         )}
@@ -823,6 +867,23 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
               />
             </div>
           </div>
+          <div className="space-y-2 border-t border-border pt-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">حقول مخصصة</label>
+              <button type="button" onClick={() => setCustomFieldRows((rows) => [...rows, { key: "", value: "" }])} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                <Plus className="h-3.5 w-3.5" /> إضافة حقل
+              </button>
+            </div>
+            {customFieldRows.map((row, index) => (
+              <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                <input value={row.key} onChange={(event) => setCustomFieldRows((rows) => rows.map((item, itemIndex) => itemIndex === index ? { ...item, key: event.target.value } : item))} placeholder="اسم الحقل" className="min-w-0 rounded-lg border border-input bg-background px-3 py-2 text-sm" />
+                <input value={row.value} onChange={(event) => setCustomFieldRows((rows) => rows.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item))} placeholder="القيمة" className="min-w-0 rounded-lg border border-input bg-background px-3 py-2 text-sm" />
+                <button type="button" title="حذف الحقل" onClick={() => setCustomFieldRows((rows) => rows.filter((_, itemIndex) => itemIndex !== index))} className="h-10 w-10 rounded-md border border-border text-destructive hover:bg-destructive/10">
+                  <Trash2 className="mx-auto h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1">الشركة</label>
@@ -847,12 +908,33 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
             </div>
           )}
           <button
-            onClick={() => updateContact.mutate(editForm)}
+            onClick={() => updateContact.mutate({
+              ...editForm,
+              customFields: Object.fromEntries(customFieldRows.filter((row) => row.key.trim()).map((row) => [row.key.trim(), row.value])),
+            })}
             disabled={updateContact.isPending || !editForm.name?.trim()}
             className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50"
           >
             {updateContact.isPending ? "جار الحفظ..." : "حفظ التعديلات"}
           </button>
+        </div>
+      </Modal>
+
+      <Modal open={showMerge} onClose={() => { setShowMerge(false); setMergeSearch(""); }} title="دمج جهة اتصال مكررة">
+        <div className="space-y-3">
+          <input value={mergeSearch} onChange={(event) => setMergeSearch(event.target.value)} placeholder="ابحث بالاسم أو الهاتف أو البريد" className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" />
+          <div className="max-h-72 overflow-y-auto divide-y divide-border rounded-md border border-border">
+            {(mergeCandidatesData?.contacts ?? []).filter((candidate: Contact) => candidate.id !== contactId).map((candidate: Contact) => (
+              <div key={candidate.id} className="flex items-center justify-between gap-3 p-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{candidate.name}</div>
+                  <div className="truncate text-xs text-muted-foreground" dir="ltr">{candidate.phone ?? candidate.email ?? "—"}</div>
+                </div>
+                <button disabled={mergeContact.isPending} onClick={() => { if (confirm(`سيتم دمج «${candidate.name}» داخل «${contact.name}» وأرشفة النسخة المكررة. هل تريد المتابعة؟`)) mergeContact.mutate(candidate.id); }} className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">دمج</button>
+              </div>
+            ))}
+          </div>
+          {mergeContact.isError && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{(mergeContact.error as Error).message}</div>}
         </div>
       </Modal>
 

@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { Download, Plus, Upload } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 
@@ -35,10 +37,15 @@ export default function ContactsPage() {
 
   const canRead = hasPermission("contacts:read");
   const canCreate = hasPermission("contacts:create");
+  const canExport = hasPermission("contacts:export");
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [showNew, setShowNew] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [csvText, setCsvText] = useState("");
+  const [importResult, setImportResult] = useState<any>(null);
+  const [exportError, setExportError] = useState("");
   const [form, setForm] = useState(BLANK_FORM);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -60,6 +67,34 @@ export default function ContactsPage() {
       setForm(BLANK_FORM);
     },
   });
+
+  const importContacts = useMutation({
+    mutationFn: () => apiFetch("contacts/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csv: csvText }),
+    }),
+    onSuccess: (result) => {
+      setImportResult(result);
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+    },
+  });
+
+  async function exportContacts() {
+    setExportError("");
+    const response = await fetch(`${BASE}/contacts/export.csv`, { credentials: "include" });
+    if (!response.ok) {
+      setExportError("تعذّر تصدير جهات الاتصال");
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `contacts-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
 
   const contacts: any[] = data?.contacts ?? [];
   const total: number = data?.total ?? 0;
@@ -134,25 +169,24 @@ export default function ContactsPage() {
       <PageHeader
         title="جهات الاتصال"
         subtitle={`${total} عميل في قاعدة البيانات`}
-        actions={
-          canCreate ? (
-            <button
-              onClick={() => setShowNew(true)}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
-            >
-              + إضافة جهة اتصال
-            </button>
-          ) : (
-            <button
-              disabled
-              title="ليس لديك صلاحية إضافة عملاء"
-              className="px-4 py-2 rounded-lg bg-primary/40 text-primary-foreground text-sm font-semibold cursor-not-allowed opacity-50"
-            >
-              + إضافة جهة اتصال
-            </button>
-          )
-        }
+        actions={<>
+          {canExport && (
+            <Button variant="outline" size="sm" onClick={exportContacts} title="تصدير CSV">
+              <Download /> تصدير
+            </Button>
+          )}
+          {canCreate && (
+            <Button variant="outline" size="sm" onClick={() => { setShowImport(true); setImportResult(null); }}>
+              <Upload /> استيراد
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setShowNew(true)} disabled={!canCreate} title={!canCreate ? "ليس لديك صلاحية إضافة عملاء" : undefined}>
+            <Plus /> إضافة جهة اتصال
+          </Button>
+        </>}
       />
+
+      {exportError && <div className="mb-4 text-sm text-destructive">{exportError}</div>}
 
       <div className="mb-4">
         <input
@@ -264,6 +298,34 @@ export default function ContactsPage() {
           >
             {createContact.isPending ? "جار الإضافة..." : "إضافة جهة الاتصال"}
           </button>
+        </div>
+      </Modal>
+
+      <Modal open={showImport} onClose={() => { setShowImport(false); setCsvText(""); setImportResult(null); }} title="استيراد جهات الاتصال">
+        <div className="space-y-4">
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              if (file) setCsvText(await file.text());
+            }}
+            className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+          <p className="text-xs text-muted-foreground">الأعمدة المدعومة: name، phone، email، city، company، tags. الحد الأقصى 1000 صف.</p>
+          {importContacts.isError && (
+            <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+              {(importContacts.error as Error).message}
+            </div>
+          )}
+          {importResult && (
+            <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+              أضيف: {importResult.imported}، مكرر: {importResult.duplicates}، غير صالح: {importResult.invalid}
+            </div>
+          )}
+          <Button className="w-full" onClick={() => importContacts.mutate()} disabled={!csvText || importContacts.isPending}>
+            <Upload /> {importContacts.isPending ? "جار الاستيراد..." : "بدء الاستيراد"}
+          </Button>
         </div>
       </Modal>
     </div>
