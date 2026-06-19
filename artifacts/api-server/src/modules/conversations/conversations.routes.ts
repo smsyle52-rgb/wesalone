@@ -640,16 +640,26 @@ router.patch("/:id/agent-status", requirePermission("conversations:resolve"), as
   });
 
   if (parsed.data.status === "active" && (existing.agentStatus !== "active" || existing.needsHuman)) {
-    await publishDomainEvent({
-      eventType: "message.received",
-      entityType: "conversation",
-      entityId: conversation.id,
-      payload: {
-        conversationId: conversation.id,
-        source: "agent_reactivated",
-      },
-      sessionUser: req.sessionUser,
-    });
+    // لا تُوقظ الوكيل إلا إذا كانت آخر رسالة من العميل (inbound) غير مُجابة. وإلا — حين تكون آخر
+    // رسالة ردّاً من الموظف/الوكيل والعميل لم يكتب جديداً — تُرجِع الإعادة الوكيل للعمل بصمت
+    // بلا ردّ تلقائي على رسالة قديمة (تصحيح: كان يردّ دائماً عند الإعادة).
+    const [lastMsg] = await db.select({ direction: messagesTable.direction })
+      .from(messagesTable)
+      .where(and(eq(messagesTable.conversationId, conversation.id), eq(messagesTable.workspaceId, activeWorkspaceId)))
+      .orderBy(desc(messagesTable.sentAt))
+      .limit(1);
+    if (lastMsg?.direction === "inbound") {
+      await publishDomainEvent({
+        eventType: "message.received",
+        entityType: "conversation",
+        entityId: conversation.id,
+        payload: {
+          conversationId: conversation.id,
+          source: "agent_reactivated",
+        },
+        sessionUser: req.sessionUser,
+      });
+    }
   }
 
   res.json({ conversation });
