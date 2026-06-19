@@ -31,3 +31,36 @@ export async function fetchMetaMediaStream(mediaId: string): Promise<{ body: Rea
 
   return { body: mediaResponse.body, contentType };
 }
+
+// vision: حدّ أقصى لحجم الصورة المُمرَّرة لنموذج Gemini/Vertex (تكلفة + أمان) — 5MB
+const MAX_VISION_MEDIA_BYTES = 5 * 1024 * 1024;
+
+/**
+ * يجلب وسائط Meta كـbase64 لتمريرها لنموذج vision (Gemini/Vertex multimodal).
+ * يُرجع null عند الفشل أو تجاوز الحجم — شبكة أمان كي لا تتعطّل حلقة الوكيل.
+ */
+export async function fetchMetaMediaBase64(
+  mediaId: string,
+): Promise<{ data: string; mimeType: string } | null> {
+  try {
+    const { body, contentType } = await fetchMetaMediaStream(mediaId);
+    const reader = body.getReader();
+    const chunks: Buffer[] = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.length;
+      if (total > MAX_VISION_MEDIA_BYTES) {
+        await reader.cancel().catch(() => {});
+        return null;
+      }
+      chunks.push(Buffer.from(value));
+    }
+    if (chunks.length === 0) return null;
+    return { data: Buffer.concat(chunks).toString("base64"), mimeType: contentType };
+  } catch {
+    return null;
+  }
+}

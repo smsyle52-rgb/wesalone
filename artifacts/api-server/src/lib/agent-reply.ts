@@ -221,6 +221,8 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       taskType: "draft_reply",
       maxTokens: agent.maxOutputTokens,
       responseFormat: executableTools.length > 0 ? "json" : "text",
+      // vision: مرّر الصور الواردة (base64) ليحلّلها النموذج بصرياً ويرد بناءً عليها.
+      images: mediaContext.images,
     });
 
     // H5-1 fix: لو AI غير متوفّر → صعّد للبشر بصمت، لا تُرسل نص تجريبي للعميل (محمية #10)

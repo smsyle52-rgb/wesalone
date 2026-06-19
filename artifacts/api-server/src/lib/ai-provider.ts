@@ -65,6 +65,12 @@ export interface AiMessage {
   content: string;
 }
 
+// vision: صورة inline تُمرَّر للنموذج متعدد الوسائط (Gemini/Vertex). data = base64.
+export interface AiImage {
+  mimeType: string;
+  data: string;
+}
+
 export interface AiRunInput {
   messages: AiMessage[];
   model: string;
@@ -72,6 +78,8 @@ export interface AiRunInput {
   maxTokens?: number;
   // PD-10: عند تفعيل الأدوات يجب أن يلتزم النموذج بـJSON صارم؛ "json" يفرض responseMimeType ويخفض الحرارة.
   responseFormat?: "json" | "text";
+  // vision: صور واردة تُمرَّر للنموذج ليحلّل محتواها (اختياري؛ تُتجاهَل في mock).
+  images?: AiImage[];
 }
 
 export interface AiRunOutput {
@@ -228,10 +236,14 @@ async function runGemini(input: AiRunInput): Promise<AiRunOutput> {
     const systemInstruction = [SAFETY_SYSTEM_PROMPT, originalSystem].filter(Boolean).join("\n\n");
     const userMsgs = input.messages.filter((m) => m.role !== "system");
     const combined = userMsgs.map((m) => m.content).join("\n\n");
+    // vision: ألحِق الصور الواردة كأجزاء inline ليحلّلها النموذج بصرياً.
+    const imageParts = (input.images ?? []).map((img) => ({
+      inlineData: { mimeType: img.mimeType, data: img.data },
+    }));
 
     const result = await model.generateContent({
       systemInstruction,
-      contents: [{ role: "user", parts: [{ text: combined }] }],
+      contents: [{ role: "user", parts: [{ text: combined }, ...imageParts] }],
       generationConfig: {
         maxOutputTokens: getMaxOutputTokens(input),
         temperature: getTemperature(input),
@@ -324,6 +336,10 @@ async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
     const systemInstruction = [SAFETY_SYSTEM_PROMPT, originalSystem].filter(Boolean).join("\n\n");
     const userMsgs = input.messages.filter((m) => m.role !== "system");
     const combined = userMsgs.map((m) => m.content).join("\n\n");
+    // vision: ألحِق الصور الواردة كأجزاء inline ليحلّلها النموذج بصرياً.
+    const imageParts = (input.images ?? []).map((img) => ({
+      inlineData: { mimeType: img.mimeType, data: img.data },
+    }));
     const host = VERTEX_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_LOCATION}-aiplatform.googleapis.com`;
     const modelPath = `projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_LOCATION}/publishers/google/models/${VERTEX_MODEL}`;
     const endpoint = `https://${host}/v1/${modelPath}:generateContent`;
@@ -336,7 +352,7 @@ async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
       },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ role: "user", parts: [{ text: combined }] }],
+        contents: [{ role: "user", parts: [{ text: combined }, ...imageParts] }],
         generationConfig: {
           maxOutputTokens: getMaxOutputTokens(input),
           temperature: getTemperature(input),

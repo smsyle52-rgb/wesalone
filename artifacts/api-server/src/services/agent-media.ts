@@ -1,5 +1,6 @@
 import type { messagesTable } from "@workspace/db";
-import { ACTIVE_PROVIDER } from "../lib/ai-provider";
+import { ACTIVE_PROVIDER, type AiImage } from "../lib/ai-provider";
+import { fetchMetaMediaBase64 } from "./meta-media";
 import { logger } from "../lib/logger";
 
 type MessageRow = typeof messagesTable.$inferSelect;
@@ -17,7 +18,12 @@ type MediaAttachment = {
 type MediaContext = {
   context: string;
   sources: string[];
+  // vision: صور واردة كـbase64 لتمريرها للنموذج متعدد الوسائط (Gemini/Vertex).
+  images: AiImage[];
 };
+
+// vision: حدّ أقصى لعدد الصور المُمرَّرة للنموذج في الرد الواحد (تكلفة + زمن).
+const MAX_VISION_IMAGES = 2;
 
 function asAttachments(value: unknown): MediaAttachment[] {
   if (!Array.isArray(value)) return [];
@@ -55,10 +61,25 @@ export async function loadMediaContext(messages: MessageRow[]): Promise<MediaCon
     .slice(-4);
 
   if (inboundMedia.length === 0) {
-    return { context: "", sources: [] };
+    return { context: "", sources: [], images: [] };
   }
 
   const dryRun = isDryRun();
+
+  // vision: اجلب آخر صورتين واردتين كـbase64 ليحلّلها النموذج بصرياً. عند الفشل تبقى القائمة
+  // فارغة وتُستخدم شبكة الأمان النصّية أدناه — فلا تتعطّل حلقة الوكيل.
+  const images: AiImage[] = [];
+  if (!dryRun) {
+    const imageAttachments = inboundMedia
+      .filter(({ attachment }) => attachment.type === "image" && typeof attachment.media_id === "string")
+      .slice(-MAX_VISION_IMAGES);
+    for (const { attachment } of imageAttachments) {
+      const fetched = await fetchMetaMediaBase64(String(attachment.media_id));
+      if (fetched && fetched.mimeType.startsWith("image/")) images.push(fetched);
+    }
+  }
+  const hasVision = images.length > 0;
+
   const lines: string[] = [];
   const sources: string[] = [];
 
@@ -70,9 +91,11 @@ export async function loadMediaContext(messages: MessageRow[]): Promise<MediaCon
     if (attachment.type === "image") {
       const caption = attachment.caption || message.content;
       lines.push(
-        dryRun
-          ? `- ${label}: الوضع التجريبي مفعل، لذلك لم يتم تنزيل الصورة. استخدم النص المرافق والمعرفة المتاحة، وإن لم تكفِ فاطلب توضيحاً قصيراً.`
-          : `- ${label}: لدى المحادثة صورة واردة${attachment.url ? ` عبر الرابط ${attachment.url}` : ""}. إن لم تكن تفاصيل الصورة واضحة في السياق، لا تخمّن واطلب توضيحاً قصيراً.`,
+        hasVision
+          ? `- ${label}: الصورة مرفقة بهذه المحادثة ومتاحة لك بصرياً — حلّل محتواها ورُدّ بناءً عليه مباشرةً. إن كانت غير واضحة فعلاً، اطلب توضيحاً قصيراً.`
+          : dryRun
+            ? `- ${label}: الوضع التجريبي مفعل، لذلك لم يتم تنزيل الصورة. استخدم النص المرافق والمعرفة المتاحة، وإن لم تكفِ فاطلب توضيحاً قصيراً.`
+            : `- ${label}: وصلت صورة لكن تعذّر تحليلها بصرياً الآن. لا تخمّن محتواها واطلب توضيحاً قصيراً.`,
       );
       if (caption && !isPlaceholderContent(String(caption))) lines.push(`  وصف مرافق: ${caption}`);
       continue;
@@ -90,10 +113,11 @@ export async function loadMediaContext(messages: MessageRow[]): Promise<MediaCon
     lines.push(`- ${label}: تم حفظ مرجع الوسائط مع الرسالة. لا تفترض تفاصيل غير ظاهرة في المعرفة أو النص.`);
   }
 
-  logger.debug({ mediaCount: inboundMedia.length, dryRun }, "Agent media context assembled");
+  logger.debug({ mediaCount: inboundMedia.length, imageCount: images.length, dryRun }, "Agent media context assembled");
 
   return {
     context: `\n\nسياق الوسائط الواردة:\n${lines.join("\n")}`,
     sources,
+    images,
   };
 }
