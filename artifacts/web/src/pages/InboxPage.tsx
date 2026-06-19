@@ -207,10 +207,11 @@ function isProviderLive(providerStatus: any): boolean {
 }
 
 function providerLiveLabel(providerStatus: any): string {
-  if (providerStatus?.provider === "vertex" && !providerStatus?.fallbackMode) return "Vertex AI مفعّل";
-  if (providerStatus?.provider === "gemini" && !providerStatus?.fallbackMode) return "Gemini مفعّل";
-  if (providerStatus?.fallbackMode) return "وضع تجريبي (Fallback)";
-  return "وضع تجريبي";
+  // محمية #10: لا يُكشف اسم الموديل (Vertex/Gemini) ولا عبارة «وضع تجريبي» في الواجهة.
+  if (!providerStatus?.fallbackMode && (providerStatus?.provider === "vertex" || providerStatus?.provider === "gemini")) {
+    return "المساعد الذكي مفعّل";
+  }
+  return "المساعد غير متاح مؤقتاً";
 }
 
 export default function InboxPage() {
@@ -1335,9 +1336,7 @@ export default function InboxPage() {
                       )}>
                         {isProviderLive(providerStatus)
                           ? `🟢 ${providerLiveLabel(providerStatus)}`
-                          : providerStatus.fallbackMode
-                            ? "🟠 وضع تجريبي (Fallback)"
-                            : "🟡 وضع تجريبي"}
+                          : "🟡 المساعد غير متاح مؤقتاً"}
                       </span>
                     )}
                   </div>

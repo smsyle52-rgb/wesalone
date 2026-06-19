@@ -314,6 +314,10 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
     aiSummary: conversationsTable.aiSummary,
     needsHuman: conversationsTable.needsHuman,
     escalationReason: conversationsTable.escalationReason,
+    // PD-11 fix: الواجهة تحتاج حالة الوكيل لإظهار الشارة وزر «إعادة/أوقف الوكيل»؛ كانت مفقودة من البيانات.
+    agentStatus: conversationsTable.agentStatus,
+    agentPausedUntil: conversationsTable.agentPausedUntil,
+    consecutiveAgentReplies: conversationsTable.consecutiveAgentReplies,
     createdAt: conversationsTable.createdAt,
     updatedAt: conversationsTable.updatedAt,
     contactId: contactsTable.id,
@@ -332,10 +336,12 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
 
   if (!conv) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
 
-  const [messages, contactChannels, assignedMember, activeTicket] = await Promise.all([
+  const [messagesDesc, contactChannels, assignedMember, activeTicket] = await Promise.all([
+    // PD-2 fix: اجلب أحدث 100 رسالة (desc) ثم اعكسها للعرض — `asc.limit(100)` كان يجلب
+    // أقدم 100 رسالة فيُخفي الرسائل الجديدة كلياً في المحادثات الطويلة (>100 رسالة).
     db.select().from(messagesTable)
       .where(and(eq(messagesTable.conversationId, conv.id), eq(messagesTable.workspaceId, activeWorkspaceId)))
-      .orderBy(asc(messagesTable.sentAt))
+      .orderBy(desc(messagesTable.sentAt))
       .limit(100),
     conv.contactId ? db.select().from(contactChannelsTable)
       .where(and(eq(contactChannelsTable.contactId, conv.contactId), eq(contactChannelsTable.workspaceId, activeWorkspaceId)))
@@ -359,6 +365,9 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
       .orderBy(desc(ticketsTable.createdAt))
       .limit(1),
   ]);
+
+  // PD-2 fix: اعكس الرسائل المجلوبة تنازلياً لتُعرَض تصاعدياً (الأقدم→الأحدث) في الخيط.
+  const messages = messagesDesc.slice().reverse();
 
   const whatsappChannel = contactChannels.find(
     (c) => c.channelType === "whatsapp" || c.channelType === "whatsapp_manual" || c.channelType === "phone"

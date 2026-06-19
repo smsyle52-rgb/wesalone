@@ -88,6 +88,23 @@ async function runAIWithTimeout(input: Parameters<typeof runAI>[0], timeoutMs = 
   }
 }
 
+// محمية #10: آخر دفاع — لو تسرّب JSON خام {"reply":...} (فشل تحليل ردّ النموذج، فئة PD-8)،
+// استخرج النص فقط فلا يصل ردّ خام للعميل أو التاجر أبداً. النص العادي يمرّ كما هو.
+function sanitizeReply(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") && /"reply"\s*:/.test(trimmed)) {
+    const match = trimmed.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (match) {
+      try {
+        return (JSON.parse(`"${match[1]}"`) as string).trim();
+      } catch {
+        return match[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').trim();
+      }
+    }
+  }
+  return trimmed;
+}
+
 function includesEscalationKeyword(value: string): boolean {
   return ESCALATION_KEYWORDS.some((keyword) => value.includes(keyword));
 }
@@ -250,7 +267,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     const hasHandoff = toolResults.some((result) => result.tool === "handoff_to_human" && result.status === "success");
     const finalReply = hasToolProblem
       ? "أحتاج أن أحوّل طلبك للفريق لمراجعته والتأكد من تنفيذه بشكل صحيح."
-      : parsedOutput.reply.trim();
+      : sanitizeReply(parsedOutput.reply);
 
     if (!finalReply) {
       await db.update(aiRunsTable).set({
