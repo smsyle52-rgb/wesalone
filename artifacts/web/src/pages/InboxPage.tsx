@@ -232,7 +232,9 @@ export default function InboxPage() {
   const canCreateOpportunity = hasPermission("opportunities:create");
   const canCreateOrder = hasPermission("orders:create");
   const canUseAI = hasPermission("ai:use");
-  const canManageConversationAgent = hasPermission("conversations:manage");
+  // PD-11 fix: conversations:manage غير معرّفة في النظام (لا يملكها أحد) → الزر كان لا يظهر أبداً.
+  // resolve صلاحية موجودة يملكها كل موظف يدير الوارد (owner/manager/agent).
+  const canManageConversationAgent = hasPermission("conversations:resolve");
   const canReadChannels = hasPermission("channels:read");
   const canReadQuickReplies = hasPermission("quick_replies:read");
   const canWriteSavedViews = hasPermission("saved_views:write");

@@ -566,7 +566,9 @@ router.patch("/:id/assign", requirePermission("conversations:assign"), async (re
   res.json({ conversation: conv, assigneeName });
 });
 
-router.patch("/:id/agent-status", requirePermission("conversations:manage"), async (req: AuthenticatedRequest, res: Response) => {
+// PD-11 fix: الصلاحية كانت conversations:manage وهي غير معرّفة في النظام إطلاقاً → لا يملكها أحد
+// (ولا المالك) فالزر لا يظهر والمسار يُرفض. resolve صلاحية موجودة يملكها كل من يدير الوارد.
+router.patch("/:id/agent-status", requirePermission("conversations:resolve"), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = agentStatusSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
