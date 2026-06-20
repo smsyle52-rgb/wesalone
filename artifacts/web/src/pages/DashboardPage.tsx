@@ -226,6 +226,9 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
+            <Button asChild size="sm" className="mt-2 w-full">
+              <Link href="/start">فتح دليل الإعداد الكامل</Link>
+            </Button>
           </CardContent>
         </Card>
 
@@ -344,15 +347,20 @@ export default function DashboardPage() {
               وصال ون يجمع المحادثات، المتابعة، الكتالوج، والوكيل الذكي في مسار واحد. أكمل هذه الخطوات ثم راقب الأداء من هذه اللوحة.
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {setupSteps.map((step, index) => (
-              <div key={step} className="rounded-lg border border-border/80 bg-card/80 p-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-black text-primary-foreground">{index + 1}</span>
-                  <span className="text-sm font-bold text-foreground">{step}</span>
+          <div className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {setupSteps.map((step, index) => (
+                <div key={step} className="rounded-lg border border-border/80 bg-card/80 p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-black text-primary-foreground">{index + 1}</span>
+                    <span className="text-sm font-bold text-foreground">{step}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            <Button asChild size="sm">
+              <Link href="/start">فتح دليل الإعداد الكامل</Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

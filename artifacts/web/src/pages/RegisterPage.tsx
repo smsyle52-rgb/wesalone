@@ -31,7 +31,7 @@ export default function RegisterPage() {
         permissions: data.user.permissions ?? [],
         roleSlugs: data.user.roleSlugs ?? [],
       }, data.workspaceId ?? "");
-      navigate("/dashboard");
+      navigate("/start");
     },
     onError: (e: Error) => setError(e.message),
   });
