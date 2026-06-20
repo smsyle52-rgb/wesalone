@@ -301,20 +301,44 @@ export default function Layout({ children }: { children: ReactNode }) {
             <div className="mb-4 hidden items-center justify-end lg:flex">
               <NotificationCenter />
             </div>
-            {user && user.emailVerified === false && (
-              <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
-                <span>بريدك الإلكتروني غير مؤكد. أكّد البريد حتى تبقى روابط الاستعادة والتنبيهات موثوقة.</span>
-                <button
-                  type="button"
-                  onClick={() => resendVerificationMut.mutate()}
-                  className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-60"
-                  disabled={resendVerificationMut.isPending}
-                >
-                  {resendVerificationMut.isPending ? "جار الإرسال..." : "إعادة إرسال رابط التأكيد"}
-                </button>
+            {user && user.emailVerified === false ? (
+              <div className="flex min-h-[70vh] items-center justify-center" dir="rtl">
+                <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center shadow-sm">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-3xl">
+                    ✉️
+                  </div>
+                  <h2 className="mb-2 text-xl font-bold text-amber-900">تأكيد البريد الإلكتروني مطلوب</h2>
+                  <p className="mb-1 text-sm text-amber-800">
+                    أرسلنا رابط تأكيد إلى
+                  </p>
+                  <p className="mb-4 font-semibold text-amber-900">{user.email}</p>
+                  <p className="mb-6 text-sm text-amber-700">
+                    يجب تأكيد بريدك الإلكتروني من <strong>support@wesal.one</strong> قبل استخدام النظام.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => resendVerificationMut.mutate()}
+                    className="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-60"
+                    disabled={resendVerificationMut.isPending || resendVerificationMut.isSuccess}
+                  >
+                    {resendVerificationMut.isPending
+                      ? "جار الإرسال..."
+                      : resendVerificationMut.isSuccess
+                      ? "✅ تم إرسال الرابط — تحقق من بريدك"
+                      : "إعادة إرسال رابط التأكيد"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { fetch(`${import.meta.env.BASE_URL}api/auth/logout`, { method: "POST", credentials: "include" }).then(() => window.location.href = "/login"); }}
+                    className="mt-3 w-full rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm text-amber-800 hover:bg-amber-50"
+                  >
+                    تسجيل الخروج
+                  </button>
+                </div>
               </div>
+            ) : (
+              children
             )}
-            {children}
           </div>
         </main>
         <MobileBottomNav location={location} hasPermission={hasPermission} onOpenMenu={() => setSidebarOpen(true)} />

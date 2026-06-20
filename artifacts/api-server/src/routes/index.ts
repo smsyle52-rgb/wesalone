@@ -25,6 +25,7 @@ import approvalsRouter from "../modules/approvals/approvals.routes";
 import analyticsRouter from "../modules/analytics/analytics.routes";
 import reportsRouter from "../modules/reports/reports.routes";
 import { apiLimiter } from "../lib/rateLimiter";
+import { requireVerifiedEmail } from "../middlewares/requireVerifiedEmail";
 
 const router: IRouter = Router();
 
@@ -32,6 +33,7 @@ router.use(healthRouter);
 router.use("/webhooks", webhookMetaRouter);
 router.use(apiLimiter);
 router.use("/auth", authRouter);
+router.use(requireVerifiedEmail);
 router.use("/workspace", workspaceRouter);
 router.use("/users", usersRouter);
 router.use("/audit-logs", auditRouter);

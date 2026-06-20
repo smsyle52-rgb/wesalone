@@ -39,7 +39,7 @@ async function shouldNotify(workspaceId: string, userId: string, channel: "in_ap
 
 export async function sendSystemEmail(to: string, input: { type: string; titleAr: string; bodyAr: string; link?: string | null }): Promise<void> {
   const webhookUrl = process.env.EMAIL_WEBHOOK_URL;
-  const from = process.env.EMAIL_FROM ?? "Wesal One <no-reply@wesal.one>";
+  const from = process.env.EMAIL_FROM ?? "وصال ون <support@wesal.one>";
 
   if (!webhookUrl || process.env.EMAIL_DRY_RUN === "true") {
     logger.info({ to, type: input.type, title: input.titleAr, link: input.link ?? null }, "Email notification DRY_RUN");
