@@ -975,6 +975,32 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_fee numeric(12,2) NOT NULL 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS cod_enabled boolean NOT NULL DEFAULT false;
 
 -- =============================================================
+-- 0029_products_inventory — كتالوج المخزون الداخلي وربطه ببنود الطلبات (نطاق المخزون)
+-- جدول inventory_products منفصل عن products (الأخير يخص كتالوج ميتا المتزامن).
+-- idempotent، آمن للتكرار. قاعدة حاكمة: أي migration جديد يُدمج هنا.
+-- =============================================================
+CREATE TABLE IF NOT EXISTS inventory_products (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  description text,
+  sku text,
+  price numeric(12,2) NOT NULL DEFAULT 0,
+  currency text NOT NULL DEFAULT 'YER',
+  unit text,
+  image_url text,
+  quantity_available integer,
+  delivery_policy text NOT NULL DEFAULT 'all',
+  is_archived boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_inv_products_workspace ON inventory_products(workspace_id, is_archived);
+CREATE INDEX IF NOT EXISTS idx_inv_products_sku ON inventory_products(workspace_id, sku);
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS inventory_product_id uuid REFERENCES inventory_products(id) ON DELETE SET NULL;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS discount numeric(12,2) NOT NULL DEFAULT 0;
+
+-- =============================================================
 -- Verification queries (SELECT only, no mutations)
 -- These print confirmation that expected tables exist.
 -- =============================================================
@@ -990,7 +1016,7 @@ AND tablename IN (
   'api_keys','notification_preferences','idempotency_keys',
   'catalog_sources','products','social_posts','ad_campaigns','catalog_sync_runs',
   'sector_profiles','learned_answers','usage_counters','payment_submissions',
-  'notifications','auth_tokens'
+  'notifications','auth_tokens','inventory_products'
 )
 ORDER BY tablename;
 

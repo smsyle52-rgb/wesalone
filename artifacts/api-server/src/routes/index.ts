@@ -24,6 +24,7 @@ import aiRouter from "../modules/ai/ai.routes";
 import approvalsRouter from "../modules/approvals/approvals.routes";
 import analyticsRouter from "../modules/analytics/analytics.routes";
 import reportsRouter from "../modules/reports/reports.routes";
+import productsRouter from "../modules/products/products.routes";
 import { apiLimiter, webhookLimiter } from "../lib/rateLimiter";
 import { requireVerifiedEmail } from "../middlewares/requireVerifiedEmail";
 
@@ -56,5 +57,6 @@ router.use("/ai", aiRouter);
 router.use("/approvals", approvalsRouter);
 router.use("/analytics", analyticsRouter);
 router.use("/reports", reportsRouter);
+router.use("/products", productsRouter);
 
 export default router;

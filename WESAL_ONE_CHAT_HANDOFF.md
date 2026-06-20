@@ -1,5 +1,5 @@
 # WESAL ONE — الحالة الحيّة
-آخر تحديث: 20 يونيو 2026 (جلسة مسائية)
+آخر تحديث: 21 يونيو 2026 (جلسة Claude Code — نطاق المخزون)
 
 ---
 
@@ -365,22 +365,49 @@
 
 ---
 
-## ⏳ نطاق المخزون (منتجات) — متطلبات مقفلة (20 يونيو 2026)
+## ✅ نطاق المخزون (منتجات) — مبني كاملاً (21 يونيو 2026، Claude Code)
 
 **الطلب (المالك):** ربط الطلبات بكتالوج منتجات من المخزون، مع سياسة توصيل على مستوى المنتج.
 
-**المتطلبات المقفلة:**
+**المتطلبات المنجزة:**
 
-| # | المتطلب | الملاحظة |
+| # | المتطلب | الحالة |
 |---|---|---|
-| M-1 | جدول `products`: اسم، سعر، وحدة، وصف، صورة، كمية متاحة | الأساس |
-| M-2 | سياسة التوصيل على المنتج: `pickup_only` / `local` / `all` | تُقيّد خيارات التسليم في نموذج الطلب تلقائياً |
-| M-3 | ربط `order_items.product_id → products.id` | عند إضافة بند من المخزون يُسحب الاسم والسعر تلقائياً |
-| M-4 | زر "اختر من المخزون" في نموذج بند الطلب | إضافة يدوية تبقى كما هي (للأصناف غير المسجّلة) |
-| M-5 | صفحة إدارة المخزون | إضافة/تعديل/أرشفة منتج؛ تتبّع الكمية |
-| M-6 | الأقسام في نموذج الطلب لا تتغيّر بناءً على نوع التسليم | سياسة التوصيل تُفلتر الخيارات، لا تُخفي أقساماً |
+| M-1 | جدول `inventory_products` (14 عمود: اسم، سعر، وحدة، وصف، صورة، كمية، SKU، عملة) | ✅ `lib/db/src/schema/products.ts` |
+| M-2 | سياسة التوصيل: `pickup_only` / `local` / `all` على مستوى المنتج | ✅ حقل `delivery_policy` |
+| M-3 | ربط `order_items.inventory_product_id → inventory_products.id` + حقل `discount` | ✅ `lib/db/src/schema/order_items.ts` |
+| M-4 | زر "اختر من المخزون" في نموذج بند الطلب — يملأ الاسم والسعر تلقائياً | ✅ `OrdersPage.tsx` (picker dropdown) |
+| M-5 | صفحة إدارة المخزون `/inventory` — إضافة/تعديل/أرشفة + تتبّع الكمية (+/-) | ✅ `ProductsPage.tsx` |
+| M-6 | صلاحيات products:read/create/update/delete — agent يملك read | ✅ `seed.ts` |
 
-**الحالة:** ⏸️ معلّق — يُفتح بعد إغلاق نطاق 12 (مدفوعات). نطاق 11 معلّق أيضاً ريثما يُبنى المخزون (الدفعة 3 + ربط المنتجات).
+**ملفات جديدة/محدَّثة:**
+
+| الملف | التغيير |
+|---|---|
+| `lib/db/src/schema/products.ts` | جدول `inventory_products` (Drizzle) |
+| `lib/db/drizzle/0029_products_inventory.sql` | migration idempotent — CREATE TABLE + ALTER TABLE order_items |
+| `scripts/migrate-phase345.sql` | **دُمج 0029 هنا** → يُطبَّق تلقائياً وقت النشر قبل deploy (صفر نافذة انكسار، عكس PD-12) |
+| `lib/db/src/schema/order_items.ts` | إضافة `inventoryProductId` + `discount` |
+| `lib/db/src/schema/index.ts` | `export * from "./products"` |
+| `artifacts/api-server/src/lib/audit.ts` | إضافة `products_create|update|delete` لـ`AuditAction` |
+| `artifacts/api-server/src/lib/seed.ts` | 4 صلاحيات products + products:read للوكيل |
+| `artifacts/api-server/src/modules/products/products.routes.ts` | CRUD كامل (GET list/one, POST, PATCH, PATCH/quantity, DELETE soft) |
+| `artifacts/api-server/src/routes/index.ts` | `router.use("/products", productsRouter)` |
+| `artifacts/web/src/pages/ProductsPage.tsx` | صفحة كاملة (بحث + فلتر أرشيف + إضافة/تعديل + تعديل كمية) |
+| `artifacts/web/src/App.tsx` | Route `/inventory` → ProductsPage |
+| `artifacts/web/src/components/Layout.tsx` | رابط nav المخزون (permission: products:read) |
+| `artifacts/web/src/i18n/locales/ar\|en/common.json` | مفتاح `inventory` |
+
+**ملاحظة تسمية:** الجدول `inventory_products` (لا `products`) لتجنّب التعارض مع `products` الموجود في `catalog.ts` (كتالوج ميتا المتزامن).
+
+**typecheck:** api-server ✅ · web ✅
+
+**ما يتبقّى قبل الإغلاق الكامل:**
+1. ✅ migration: دُمج 0029 في `migrate-phase345.sql` → يُطبَّق تلقائياً وقت النشر (لا حاجة Cloud Shell).
+2. اختبار حيّ بعد النشر: افتح `/inventory` → أضف منتجاً → اختَره في بند طلب → تأكّد من ملء الاسم والسعر.
+3. seed.ts يُشغَّل عند النشر (صلاحيات products تُضاف تلقائياً لـowner/manager + read للوكيل).
+4. **ربط سياسة التوصيل** بنموذج الطلب (M-6): الفلترة لم تُبنَ بعد (scope خارج M-4).
+5. الدفعة 3 (نطاق 11): أداة وكيل `get_order_status` — لا تزال مؤجّلة.
 
 ---
 
@@ -431,7 +458,7 @@
 | نطاق 10 — جهات الاتصال | CSV استيراد/تصدير، custom_fields | ✅ مغلق (`f52a262`) |
 | نطاق 11 — الطلبات + التوصيل | أنواع التسليم، حالة التوصيل، COD، رسوم | ⏸️ اختبار حيّ ✅ — معلّق (ينتظر المخزون) |
 | نطاق 12 — المدفوعات | تسجيل دفعة، حالة جزئي/مدفوع | ✅ اختبار حيّ ✅ — مغلق |
-| نطاق المخزون — منتجات | كتالوج + سياسة توصيل + ربط بالطلبات | ⏳ مخطَّط (بعد نطاق 12) |
+| نطاق المخزون — منتجات | كتالوج + سياسة توصيل + ربط بالطلبات | ✅ مبني — ينتظر migration 0029 على الإنتاج + اختبار حيّ |
 
 ### حوادث الإنتاج
 **✅ PD-7** (`9cbf5a7`). **✅ PD-8** (`a3cb4a6`، parser ثلاثي). **✅ PD-9 مدفوع** (`e091e4c`، `coerceCurrency`) — لم يُؤكَّد حيّاً بعد لأنه كان محجوباً بـPD-10/PD-11. **✅ PD-10 المرحلة 1 مدفوعة** (`3efd9ca`، فرض JSON عند تفعيل الأدوات) — المرحلة 2 (function calling) مؤجلة. **⏸️ PD-2/PD-11 مؤجلان إلى Claude Code بقرار المالك** بعد اختبار الإنتاج في 19 يونيو: الرسائل لا تظهر في الوارد، وزر «إعادة للوكيل» يختفي ويعود ولا يعمل بثبات رغم `9d4ddfb` و`8fce81b`.

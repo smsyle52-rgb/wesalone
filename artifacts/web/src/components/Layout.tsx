@@ -81,6 +81,7 @@ const navGroups: NavGroup[] = [
     key: "groupCustomers",
     items: [
       { path: "/contacts", key: "contacts", permission: "contacts:read", icon: Users },
+      { path: "/inventory", key: "inventory", permission: "products:read", icon: Package },
       { path: "/orders", key: "orders", permission: "orders:read", icon: Package },
       { path: "/payments", key: "payments", permission: "payments:read", icon: CreditCard },
       { path: "/opportunities", key: "opportunities", permission: "opportunities:read", icon: Target },

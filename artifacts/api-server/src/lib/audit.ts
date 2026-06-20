@@ -49,7 +49,8 @@ export type AuditAction =
   | "broadcast_create" | "broadcast_update" | "broadcast_start" | "broadcast_cancel"
   | "automation_create" | "automation_update" | "automation_delete" | "automation_activate" | "automation_pause" | "automation_test_run"
   | "catalog_source_create" | "catalog_source_disable" | "catalog_sync_requested"
-  | "agent_status_change";
+  | "agent_status_change"
+  | "products_create" | "products_update" | "products_delete";
 
 export type AuditSeverity = "info" | "warning" | "critical";
 

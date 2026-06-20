@@ -31,3 +31,4 @@ export * from "./reports";
 export * from "./catalog";
 export * from "./sectors";
 export * from "./notifications";
+export * from "./products";

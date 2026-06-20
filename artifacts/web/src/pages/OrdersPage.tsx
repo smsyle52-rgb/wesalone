@@ -108,6 +108,8 @@ export default function OrdersPage() {
   const [showItemForm, setShowItemForm] = useState(false);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [itemForm, setItemForm] = useState(emptyItemForm);
+  const [inventorySearch, setInventorySearch] = useState("");
+  const [showInventoryPicker, setShowInventoryPicker] = useState(false);
 
   const [pendingStatus, setPendingStatus] = useState<{ status: string } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -151,6 +153,13 @@ export default function OrdersPage() {
     queryKey: ["order-payments", selectedOrderId],
     queryFn: () => apiFetch(`payments?orderId=${selectedOrderId}&limit=20`),
     enabled: !!selectedOrderId && hasPermission("payments:read"),
+  });
+
+  const { data: inventoryData } = useQuery({
+    queryKey: ["inventory-picker", inventorySearch],
+    queryFn: () => apiFetch(`products?${inventorySearch ? `search=${encodeURIComponent(inventorySearch)}` : ""}`),
+    enabled: showInventoryPicker && hasPermission("products:read"),
+    staleTime: 60_000,
   });
 
   const orders: any[] = data?.orders ?? [];
@@ -706,6 +715,48 @@ export default function OrdersPage() {
 
               {showItemForm && (
                 <div className="mb-3 p-3 bg-muted/30 rounded-xl border border-border space-y-2">
+                  {/* منتخب المخزون */}
+                  {!editItemId && hasPermission("products:read") && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => { setShowInventoryPicker(!showInventoryPicker); setInventorySearch(""); }}
+                        className="w-full text-xs text-right px-2 py-1.5 rounded-lg border border-dashed border-primary/40 text-primary hover:bg-primary/5 transition-colors"
+                      >
+                        📦 اختر من المخزون (اختياري)
+                      </button>
+                      {showInventoryPicker && (
+                        <div className="absolute z-20 mt-1 w-full bg-background border border-border rounded-xl shadow-lg p-2 space-y-1.5 max-h-56 overflow-y-auto">
+                          <input
+                            autoFocus
+                            type="search"
+                            value={inventorySearch}
+                            onChange={(e) => setInventorySearch(e.target.value)}
+                            placeholder="ابحث عن منتج..."
+                            className="w-full px-2 py-1.5 text-xs rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          />
+                          {(inventoryData?.products ?? []).length === 0 ? (
+                            <p className="text-xs text-muted-foreground text-center py-2">لا توجد منتجات</p>
+                          ) : (
+                            (inventoryData?.products ?? []).map((p: any) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  setItemForm({ ...itemForm, name: p.name, unitPrice: p.price, description: p.description ?? "", currency: p.currency });
+                                  setShowInventoryPicker(false);
+                                }}
+                                className="w-full text-right px-2 py-1.5 hover:bg-muted rounded-lg text-xs flex justify-between items-center gap-2"
+                              >
+                                <span className="font-medium truncate">{p.name}</span>
+                                <span className="text-muted-foreground shrink-0">{Number(p.price).toLocaleString()} {p.currency}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="col-span-2">
                       <label className="block text-xs font-medium mb-1">اسم البند *</label>
