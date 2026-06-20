@@ -24,6 +24,19 @@
 **القرار المعماري:** العزل يعتمد على تقييد يدوي لكل استعلام بـ`workspaceId` من الجلسة (لا RLS بعد). مطبَّق باتساق لافت عبر كل الوحدات.
 **توصية تصليب لاحقة (غير حاجزة):** إضافة Postgres Row-Level Security كطبقة دفاع عميق — حتى لو نُسي فلتر واحد مستقبلاً لا تتسرّب البيانات. الخطة تصنّف RLS «مثالياً» لا إلزامياً.
 
+### النطاق 3 — الأسرار والاعتمادات · **اجتاز البوابة** ✅
+| ما فُحص | النتيجة |
+|---|---|
+| المسارات الداخلية | `/internal/*` (cleanup-outbox، cleanup-domain-events، agent-reply) كلها خلف `requireInternalSecret` بمقارنة `timingSafeEqual` ثابتة الزمن، fail-closed (503 إن غاب السر، 401 إن اختلف). |
+| توكنات ميتا | تُخزَّن كـ`credentialsSecretRef` (إشارة لـSecret Manager، لا توكن خام)؛ ردود الـAPI تكشف `Boolean(...)`/`hasCredentialReference` فقط. |
+| تسريب التوكن في اللوق | لا يُسجَّل أبداً — فقط `channelAccountId`؛ اللوق ينقّح `authorization`/`cookie`/`set-cookie`؛ التوكن في رأس HTTP لميتا فقط. |
+| أسرار مكتوبة نصاً | **صفر** (مسح Google/OpenAI/Meta/private keys/Slack عبر المستودع كلّه). |
+| ملفات `.env` | فقط `.env.example` (قيم نائبة) متعقَّب؛ `.gitignore` يغطّي `.env`/`.env.*`/`*.env.local`. |
+| تاريخ git (229 commit) | **صفر** أسرار حقيقية — فقط قوالب `<PASSWORD>` في وثائق النشر. |
+| أسرار البيئة | `SESSION_SECRET`/`INTERNAL_SECRET` مطلوبة من env (حقن Secret Manager على Cloud Run) + فحص قوّة. |
+
+**ملاحظة معمارية (غير حاجزة — نشِطة قبل التوسّع):** مُحلِّل Secret Manager وقت التشغيل لتوكنات العملاء الفردية (`credentialsSecretRef`) **غير مُفعَّل بعد** — `getAccessToken` يرجع لـ`META_SYSTEM_USER_TOKEN`/`META_ACCESS_TOKEN` من env (توكن نظام مزوّد تقني، في Secret Manager لا مكشوف) ويسجّل تحذيراً عند وجود إشارة فقط. كافٍ للنموذج الحالي؛ يجب تفعيل المُحلِّل عند إدخال تجار كثُر بتوكنات منفصلة. لا تسريب — كل التوكنات في Secret Manager.
+
 ---
 
 ## ⏳ نطاق المخزون (منتجات) — متطلبات مقفلة (20 يونيو 2026)
