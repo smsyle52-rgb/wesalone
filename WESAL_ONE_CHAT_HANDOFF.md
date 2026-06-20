@@ -51,6 +51,30 @@
 
 **ملاحظتان طفيفتان (غير حاجزتين):** (1) تطبيقان لاستقبال واتساب (`handleMetaPayload` + `handleMetaWhatsAppWebhook`)؛ الثاني ميت من مسار الـwebhook (تكرار صيانة لا خلل). (2) فرض نافذة 24س الاستباقي لواتساب فقط؛ ماسنجر/إنستغرام يعتمدان رفض المنصّة + مسار الإعادة/الفشل.
 
+### النطاق 5 — وقت تشغيل الوكيل · **اجتاز البوابة** ✅ (20 يونيو 2026)
+| ما فُحص | النتيجة |
+|---|---|
+| تعميم `runAgentReply` على القنوات الثلاث | ✅ `runAgentReply` لا يعتمد على نوع القناة — يولّد الرد النصي فقط. `/internal/agent-reply` يُدرج في outbox بـeventType مخصص: `message.send.instagram.text` / `message.send.messenger.text` / `message.send.whatsapp.text`. معمّم بالكامل. |
+| أداة `create_order` | ✅ schema Zod + recalcOrderTotal + audit log + contact timeline + domain event. مقيّدة بـworkspaceId. |
+| أداة `log_payment_claim` | ✅ تسجّل `status="pending"` فقط — لا تأكيد مالي إطلاقاً. SAFETY_SYSTEM_PROMPT يحظر ذلك صراحةً. |
+| أداة `schedule_followup` | ✅ تتحقق من وجود contactId؛ تُنشئ followup مرتبطاً بالمحادثة. |
+| أداة `handoff_to_human` | ✅ تُحدّث `agentStatus="human"` + `needsHuman=true` + `escalationReason`؛ تُطلق SSE event. |
+| أداة `send_product_media` | ✅ تبحث عن منتج بالاسم/id؛ تُدرج outbox `message.send.whatsapp.media`. فعلياً خاصة بواتساب (الـeventType ثابت). |
+| أمان تفعيل الأدوات | ✅ الأداة تعمل فقط إن `isEnabled=true AND !requiresApproval` في `ai_agent_tools` (per-agent config). |
+| حماية فشل AI | ✅ `runAIWithTimeout` 30 ثانية + `fallbackUsed→shouldEscalate` (صامت للبشر، لا نص تجريبي للعميل). |
+| منع تسريب JSON | ✅ `sanitizeReply` + `parseAgentToolResponse` (هروب أحرف التحكم + heuristic extraction) — لا يصل JSON خام للعميل. |
+| حماية التكرار (anti-loop) | ✅ `consecutive_agent_replies >= 2` → توقف مؤقت؛ `message.echo` → إيقاف مؤقت. |
+| كلمات التصعيد | ✅ `ESCALATION_KEYWORDS` ("أكلم إنسان"/"مدير"/"شكوى"/"إلغاء") → تصعيد فوري. |
+| استرجاع المعرفة | ✅ بحث هجين ثلاثي: TSV (PostgreSQL full-text) + Lexical (ilike) + Vector (cosine similarity مع `text-embedding-005`). |
+| عزل المعرفة | ✅ كل استعلامات المعرفة مقيّدة بـworkspaceId. |
+| معالجة الوسائط | ✅ `loadMediaContext` يجلب الصور كـbase64 للنموذج؛ دمج metadata النصي للصوت/الفيديو؛ يتعامل مع dry-run بأمان. |
+| مزوّد AI | ✅ Vertex AI (الإنتاج) ← Gemini (احتياط) ← Mock (تجريبي). Vertex يستخدم GCP metadata token (لا سر مكشوف). |
+| SAFETY_SYSTEM_PROMPT | ✅ يحظر صراحةً تأكيد/رفض المدفوعات، تغيير الأرصدة، حذف البيانات، تغيير الصلاحيات. |
+
+**ملاحظتان (غير حاجزتين):**
+1. **`send_product_media` لواتساب فقط:** الـoutbox eventType ثابت على `whatsapp.media` — إذا فعّلها تاجر على إنستغرام/ماسنجر، ستفشل الأداة بـ`hasToolProblem=true` ويُرسَل رد افتراضي "أحتاج أن أحوّل طلبك للفريق". لا ضرر للعميل، لكن يجب توثيق القيد للتجار.
+2. **`EMBEDDINGS_DRY_RUN` صحيح بالافتراضي:** التضمينات الـvector تستخدم pseudo-hash إلا إذا عُيِّن `EMBEDDINGS_DRY_RUN=false` + `VERTEX_PROJECT_ID` في Secret Manager. البحث النصي (lexical+TSV) يعمل دائماً، لكن جودة البحث الدلالي أعلى مع Vertex. **يجب التأكد من تعيين هذين المتغيّرين في Cloud Run.**
+
 ---
 
 ## ⏳ نطاق المخزون (منتجات) — متطلبات مقفلة (20 يونيو 2026)
