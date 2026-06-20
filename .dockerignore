@@ -31,6 +31,9 @@ uploads
 uploads/**
 **/uploads
 **/uploads/**
+# استثناء: مجلد كود الرفع المصدري ليس مجلد ملفات مرفوعة — يجب أن يدخل حاوية البناء
+!artifacts/api-server/src/modules/uploads
+!artifacts/api-server/src/modules/uploads/**
 
 zipFile.zip
 *.zip
