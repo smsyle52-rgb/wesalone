@@ -75,6 +75,24 @@
 1. **`send_product_media` لواتساب فقط:** الـoutbox eventType ثابت على `whatsapp.media` — إذا فعّلها تاجر على إنستغرام/ماسنجر، ستفشل الأداة بـ`hasToolProblem=true` ويُرسَل رد افتراضي "أحتاج أن أحوّل طلبك للفريق". لا ضرر للعميل، لكن يجب توثيق القيد للتجار.
 2. **`EMBEDDINGS_DRY_RUN` صحيح بالافتراضي:** التضمينات الـvector تستخدم pseudo-hash إلا إذا عُيِّن `EMBEDDINGS_DRY_RUN=false` + `VERTEX_PROJECT_ID` في Secret Manager. البحث النصي (lexical+TSV) يعمل دائماً، لكن جودة البحث الدلالي أعلى مع Vertex. **يجب التأكد من تعيين هذين المتغيّرين في Cloud Run.**
 
+### النطاق 6 — الموثوقية والتشغيل · **اجتاز البوابة** ✅ (20 يونيو 2026)
+| ما فُحص | النتيجة |
+|---|---|
+| Idempotency (لا ردود مكررة) | ✅ `outbox_events.idempotency_key` مع `onConflictDoNothing()` — محادثة واحدة لا تُرسَل مرتين. domain_events: `FOR UPDATE SKIP LOCKED` — نسختان متوازيتان لا تتعارضان. وارد Meta: dedup بـ`providerMessageId`. |
+| Retry الفاشل (outbox) | ✅ 3 محاولات بـbackoff (60s/120s) → فشل دائم → `logAlert(outbox.permanently_failed)` + تصعيد المحادثة للبشر. |
+| Retry الفاشل (domain_events) | ✅ العالق في `processing > 10` دقائق يُعاد إلى `pending` تلقائياً عبر `/internal/cleanup-domain-events` (كل 5 دقائق). الفاشل نهائياً يُعلَّم `failed` ومرئي في Cloud Logging. |
+| Cleanup stale | ✅ `runCleanup` كل 5 دقائق: outbox (processing/pending > 5 دق → failed)؛ domain_events (processing > 10 دق → pending). |
+| Alerting | ✅ `logAlert` يكتب `{severity:"CRITICAL", alert:type}` على stdout → Cloud Logging يلتقطه → يمكن إنشاء log-based alerts على `outbox.permanently_failed` + `domain_event.failed`. |
+| Heartbeat | ✅ `writeHeartbeat` كل 10 ثوان → جدول `service_heartbeats` → مراقبة خارجية ممكنة. |
+| Deploy pipeline | ✅ triggeران منفصلان (api-server + worker)؛ `CLOUD_LOGGING_ONLY`؛ `ON_ERROR_STOP=1` يُفشل البناء عند خطأ SQL؛ `verify-migration` يتحقق من 6 جداول حرجة. |
+| Loop protection | ✅ `startLoop` يمنع تداخل جولتين (علَم `running`). `--max-instances=1` على Cloud Run → نسخة واحدة. |
+| رؤية الأخطاء | ✅ أخطاء outbox + domain events تُسجَّل بـ`logger.error` + `logAlert(CRITICAL)` → مرئية في Cloud Logging. |
+
+**ملاحظتان (غير حاجزتين):**
+1. **`EMBEDDINGS_DRY_RUN` غائب من Cloud Build:** لا يُعيَّن `EMBEDDINGS_DRY_RUN=false` في `cloudbuild.yaml` أو `cloudbuild.worker.yaml` — البحث الدلالي يعمل بـpseudo-hash في الإنتاج. يجب إضافته لأحد `--set-env-vars` في deploy-staging step. **متوسطة — تؤثر على جودة الاسترجاع، لا على الاستقرار.**
+2. **outbox SELECT بلا SKIP LOCKED:** `runOutboxSender` يقرأ outbox بلا قفل صفوف — محمية بـ`max-instances=1` حالياً، لكن `idempotency_key` + `onConflictDoNothing` كافيان لمنع إدراج مكرر حتى لو تغيّر ذلك. **منخفضة.**
+3. **verify-migration يتحقق من الجداول لا الأعمدة:** الملاحظة الموثّقة من PD-12 — يُوصى بتوسيعه للأعمدة الحرجة. **منخفضة — موثّقة مسبقاً.**
+
 ---
 
 ## ⏳ نطاق المخزون (منتجات) — متطلبات مقفلة (20 يونيو 2026)
