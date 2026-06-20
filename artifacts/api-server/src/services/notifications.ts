@@ -1,3 +1,4 @@
+import { Resend } from "resend";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   db,
@@ -38,27 +39,24 @@ async function shouldNotify(workspaceId: string, userId: string, channel: "in_ap
 }
 
 export async function sendSystemEmail(to: string, input: { type: string; titleAr: string; bodyAr: string; link?: string | null }): Promise<void> {
-  const webhookUrl = process.env.EMAIL_WEBHOOK_URL;
+  const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM ?? "وصال ون <support@wesal.one>";
 
-  if (!webhookUrl || process.env.EMAIL_DRY_RUN === "true") {
+  if (!apiKey || process.env.EMAIL_DRY_RUN === "true") {
     logger.info({ to, type: input.type, title: input.titleAr, link: input.link ?? null }, "Email notification DRY_RUN");
     return;
   }
 
-  const response = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from,
-      to,
-      subject: input.titleAr,
-      text: `${input.bodyAr}${input.link ? `\n\n${input.link}` : ""}`,
-    }),
+  const resend = new Resend(apiKey);
+  const { error } = await resend.emails.send({
+    from,
+    to,
+    subject: input.titleAr,
+    text: `${input.bodyAr}${input.link ? `\n\n${input.link}` : ""}`,
   });
 
-  if (!response.ok) {
-    throw new Error(`Email provider returned ${response.status}`);
+  if (error) {
+    throw new Error(`Resend error: ${error.message}`);
   }
 }
 
