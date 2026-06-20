@@ -183,7 +183,7 @@ export default function DashboardPage() {
   const mobileTiles: MobileTile[] = [
     { label: "الوارد", href: "/inbox", permission: "conversations:read", icon: Inbox, badge: openConversations },
     { label: "الوكلاء", href: "/agents", permission: "ai:read", icon: Bot },
-    { label: "المنتجات", href: "/catalog", permission: "catalog:read", icon: ShoppingBag },
+    { label: "المخزون", href: "/inventory", permission: "products:read", icon: ShoppingBag },
     { label: "الطلبات", href: "/orders", permission: "orders:read", icon: Package, badge: summary?.ordersToday ?? 0 },
     { label: "العملاء", href: "/contacts", permission: "contacts:read", icon: Users },
     { label: "المدفوعات", href: "/payments", permission: "payments:read", icon: CreditCard },

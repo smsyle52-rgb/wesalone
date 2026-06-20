@@ -411,6 +411,51 @@
 
 ---
 
+## ✅ رفع صور المنتجات — تخزين سحابي احترافي (21 يونيو 2026، Claude Code)
+
+**الطلب (المالك):** رفع صورة المنتج مباشرة (مثل المنصات الناجحة)، لا مجرد لصق رابط.
+
+**القرار المعماري (مُكيَّف لبنية esbuild bundle بلا node_modules وقت التشغيل):**
+- لا SDK ثقيل ولا `sharp` (native، لا يُحزَم) → رفع لـGCS عبر **JSON REST API + توكن metadata server** (نفس نمط `ai-provider.ts`).
+- **ضغط/تصغير في المتصفح** عبر Canvas API (حتى 1200px، WebP/JPEG q0.85) قبل الرفع → صورة 5MB تصير ~200KB.
+- **صفر تبعيات npm جديدة** (لا تغيير في lock file) · يعيد استخدام عمود `image_url` (لا تغيير schema).
+- عزل المستأجر في المسار: `products/{workspaceId}/{uuid}.ext` · قائمة بيضاء (JPG/PNG/WebP) · سقف 6MB · صلاحية products:create أو update.
+- فشل آمن: لو `UPLOADS_BUCKET` غير مضبوط → 503 وحقل الرابط يبقى يعمل.
+
+**ملفات:**
+| الملف | التغيير |
+|---|---|
+| `artifacts/api-server/src/lib/storage.ts` | جديد — `uploadImageBuffer` عبر GCS REST + metadata token |
+| `artifacts/api-server/src/modules/uploads/uploads.routes.ts` | جديد — `POST /api/uploads/product-image` (express.raw، بلا multer) |
+| `artifacts/api-server/src/routes/index.ts` | تسجيل `/uploads` |
+| `artifacts/web/src/lib/imageUpload.ts` | جديد — ضغط Canvas + رفع |
+| `artifacts/web/src/pages/ProductsPage.tsx` | زر رفع + معاينة + إزالة (الرابط يبقى خياراً متقدّماً) |
+| `cloudbuild.yaml` | `_UPLOADS_BUCKET` + env var على الخدمة |
+| `.env.example` | توثيق `UPLOADS_BUCKET` |
+
+**بنية تحتية مطلوبة مرة واحدة (المالك، Cloud Shell):** إنشاء باكت `khadamatak-auth-uploads` + public-read + منح حساب خدمة Cloud Run صلاحية `storage.objectAdmin`. (يُفضَّل قبل الدفع؛ وإن تأخّر، الرابط يعمل والرفع يرجع خطأً مهذّباً حتى يُنشأ.)
+
+**typecheck:** api ✅ web ✅ · **esbuild bundle:** ✅
+
+---
+
+## 🗑️ حذف قسم الكتالوج القديم (21 يونيو 2026، Claude Code)
+
+**السبب (المالك):** قسم "المنتجات والمخزون" القديم (`/catalog` كتالوج ميتا) صار مكرّراً ومربكاً مع "المخزون" الجديد.
+
+**فحص أمان قبل الحذف:** `catalog.routes.ts` **غير مُسجَّل** في `routes/index.ts` (backend ميت أصلاً، يطابق ملاحظة «الكتالوج غير متوفر حالياً») · الوكيل لا يستخدمه · جداول `products`/`catalog_sources` مستقلة عن `inventory_products`. ⇒ الحذف آمن صفر مخاطر.
+
+**ما حُذف/عُدّل (واجهة فقط):**
+- حُذف `artifacts/web/src/pages/CatalogPage.tsx` + 3 مسارات `/catalog*` من App.tsx
+- نُقل رابط "المخزون" إلى مجموعة **المتجر** (مكانه المنطقي)، وأُزيل من مجموعة العملاء — `Layout.tsx`
+- أُعيد توجيه كل مداخل المنتجات للمخزون الجديد: `MobileBottomNav.tsx`، `DashboardPage.tsx`، `BusinessSetupPage.tsx` (`/catalog` → `/inventory`)
+
+**مُبقىً عمداً (inert، إزالته مخاطرة بلا فائدة):** backend الكتالوج غير المسجّل + جداول `products`/`catalog_sources`/`ad_campaigns` + ترجمات `pages.json:catalog`.
+
+**typecheck:** web ✅ · **web build (BASE_PATH=/):** ✅
+
+---
+
 ## ⏸️ توسعة النطاق 11 — التوصيل والسندات والدفع عند الاستلام (20 يونيو 2026، Claude Code)
 
 **الطلب (المالك):** قسم طلبات تشغيلي عام — فصل تفاصيل/تعديل، حالة التوصيل، نوع التسليم (استلام/مندوب داخلي/مكتب نقل)، الدفع عند الاستلام، سند مكتب النقل (صورة/رابط) + رقمه، رقم مندوب التوصيل الداخلي، رسوم التوصيل تُضاف للإجمالي.

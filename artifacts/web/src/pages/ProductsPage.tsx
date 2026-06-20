@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/context/AuthContext";
+import { uploadProductImage } from "@/lib/imageUpload";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
 const apiFetch = async (path: string, opts?: RequestInit) => {
@@ -76,6 +77,8 @@ export default function ProductsPage() {
   const [qtyModal, setQtyModal] = useState<Product | null>(null);
   const [qtyAdj, setQtyAdj] = useState("");
   const [err, setErr] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["products", showArchived, search],
@@ -122,6 +125,7 @@ export default function ProductsPage() {
     setEditing(null);
     setForm({ ...emptyForm });
     setErr("");
+    setUploadErr("");
     setModalOpen(true);
   };
 
@@ -139,6 +143,7 @@ export default function ProductsPage() {
       deliveryPolicy: p.deliveryPolicy,
     });
     setErr("");
+    setUploadErr("");
     setModalOpen(true);
   };
 
@@ -372,13 +377,53 @@ export default function ProductsPage() {
             </div>
 
             <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">رابط صورة المنتج</label>
+              <label className="text-xs font-medium text-gray-600 block mb-1">صورة المنتج</label>
+              <div className="flex items-center gap-3">
+                {form.imageUrl ? (
+                  <img src={form.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover border shrink-0" />
+                ) : (
+                  <div className="w-16 h-16 rounded-lg border border-dashed flex items-center justify-center text-gray-300 text-2xl shrink-0">🖼️</div>
+                )}
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <label className="inline-block">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      disabled={uploading}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        setUploadErr("");
+                        setUploading(true);
+                        try {
+                          const url = await uploadProductImage(file);
+                          setForm(f => ({ ...f, imageUrl: url }));
+                        } catch (er) {
+                          setUploadErr((er as Error).message);
+                        } finally {
+                          setUploading(false);
+                        }
+                      }}
+                    />
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium ${uploading ? "opacity-50 cursor-wait" : "cursor-pointer hover:bg-gray-50 text-gray-700"}`}>
+                      {uploading ? "⏳ جاري الرفع..." : form.imageUrl ? "📷 تغيير الصورة" : "📷 رفع صورة"}
+                    </span>
+                  </label>
+                  {form.imageUrl && !uploading && (
+                    <button type="button" onClick={() => setForm(f => ({ ...f, imageUrl: "" }))}
+                      className="text-xs text-red-500 hover:underline mr-3">إزالة</button>
+                  )}
+                  {uploadErr && <p className="text-xs text-red-600">{uploadErr}</p>}
+                </div>
+              </div>
               <input
                 type="url"
                 value={form.imageUrl}
                 onChange={(e) => setForm(f => ({ ...f, imageUrl: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                placeholder="https://..."
+                className="w-full mt-2 border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200"
+                placeholder="أو الصق رابط صورة مباشر https://..."
                 dir="ltr"
               />
             </div>

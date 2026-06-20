@@ -49,9 +49,9 @@ const setupSteps = [
     icon: Bot,
   },
   {
-    title: "زامن المنتجات",
-    description: "اربط كتالوج ميتا أو مصادر المنتجات حتى يعرف الوكيل الأسعار والتوفر بدون تخمين.",
-    href: "/catalog",
+    title: "أضف منتجاتك",
+    description: "أضف منتجاتك وأسعارها وكمياتها في المخزون حتى يعرف الوكيل الأسعار والتوفر بدون تخمين.",
+    href: "/inventory",
     icon: ShoppingBag,
   },
   {
@@ -211,9 +211,9 @@ export default function BusinessSetupPage() {
               </Link>
             </Button>
             <Button asChild variant="outline" className="w-full justify-start">
-              <Link href="/catalog">
+              <Link href="/inventory">
                 <ShoppingBag className="h-4 w-4" />
-                مراجعة المنتجات والكتالوج
+                مراجعة المخزون والمنتجات
               </Link>
             </Button>
             <Button asChild variant="outline" className="w-full justify-start">

@@ -40,7 +40,6 @@ import BroadcastEditorPage from "@/pages/BroadcastEditorPage";
 import BroadcastDetailPage from "@/pages/BroadcastDetailPage";
 import AutomationsPage from "@/pages/AutomationsPage";
 import AutomationEditorPage from "@/pages/AutomationEditorPage";
-import CatalogPage from "@/pages/CatalogPage";
 import AdminPaymentsPage from "@/pages/AdminPaymentsPage";
 import ProductsPage from "@/pages/ProductsPage";
 import NotFound from "@/pages/not-found";
@@ -120,9 +119,6 @@ function Router() {
       <Route path="/inventory" component={() => <ProtectedRoute component={ProductsPage} />} />
       <Route path="/payments" component={() => <ProtectedRoute component={PaymentsPage} />} />
       <Route path="/debts" component={() => <ProtectedRoute component={DebtsPage} />} />
-      <Route path="/catalog/posts" component={() => <ProtectedRoute component={() => <CatalogPage tab="posts" />} />} />
-      <Route path="/catalog/ads" component={() => <ProtectedRoute component={() => <CatalogPage tab="ads" />} />} />
-      <Route path="/catalog" component={() => <ProtectedRoute component={() => <CatalogPage tab="products" />} />} />
       <Route path="/knowledge" component={() => <ProtectedRoute component={KnowledgePage} />} />
       <Route path="/agents/:id" component={({ params }) => (
         <ProtectedRoute component={() => <AgentDetailPage agentId={params.id} />} />

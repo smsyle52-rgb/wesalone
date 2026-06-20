@@ -19,7 +19,7 @@ const routeItems: MobileBottomNavItem[] = [
   { path: "/dashboard", label: "الرئيسية", icon: LayoutDashboard },
   { path: "/inbox", label: "الوارد", permission: "conversations:read", icon: Inbox },
   { path: "/agents", label: "الوكلاء", permission: "ai:read", icon: Bot },
-  { path: "/catalog", label: "المنتجات", permission: "catalog:read", icon: ShoppingBag },
+  { path: "/inventory", label: "المخزون", permission: "products:read", icon: ShoppingBag },
 ];
 
 function isActiveRoute(location: string, path: string) {
