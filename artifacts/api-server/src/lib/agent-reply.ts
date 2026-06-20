@@ -90,19 +90,27 @@ async function runAIWithTimeout(input: Parameters<typeof runAI>[0], timeoutMs = 
 
 // محمية #10: آخر دفاع — لو تسرّب JSON خام {"reply":...} (فشل تحليل ردّ النموذج، فئة PD-8)،
 // استخرج النص فقط فلا يصل ردّ خام للعميل أو التاجر أبداً. النص العادي يمرّ كما هو.
+// يتعامل مع JSON المقطوع (بلا اقتباس/قوس ختامي): لو تعذّر استخراج أي نص يُرجِع "" ليُصعَّد بدل التسريب.
 function sanitizeReply(text: string): string {
   const trimmed = text.trim();
-  if (trimmed.startsWith("{") && /"reply"\s*:/.test(trimmed)) {
-    const match = trimmed.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    if (match) {
-      try {
-        return (JSON.parse(`"${match[1]}"`) as string).trim();
-      } catch {
-        return match[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').trim();
-      }
+  if (!(trimmed.startsWith("{") && /"reply"\s*:/.test(trimmed))) return trimmed;
+
+  // 1) قيمة reply مكتملة باقتباس ختامي. 2) مقطوعة حتى نهاية النص.
+  const body = (trimmed.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/)
+    ?? trimmed.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)$/))?.[1];
+  if (body !== undefined) {
+    let decoded: string;
+    try {
+      decoded = (JSON.parse(`"${body.replace(/\\+$/, "")}"`) as string).trim();
+    } catch {
+      decoded = body
+        .replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r")
+        .replace(/\\"/g, '"').replace(/\\\\/g, "\\").replace(/\\+$/, "").trim();
     }
+    if (decoded) return decoded;
   }
-  return trimmed;
+  // تعذّر استخراج أي نص صالح — لا تُسرّب JSON خاماً؛ أرجِع فارغاً ليُصعَّد للبشر.
+  return "";
 }
 
 function includesEscalationKeyword(value: string): boolean {
@@ -175,6 +183,10 @@ export async function runAgentReply(params: {
     .limit(15);
   const messages = recentMessages.reverse();
   const lastInbound = [...messages].reverse().find((message) => message.direction === "inbound");
+  // لا تردّ على رسالة واردة فارغة (مسافات فقط) وبلا وسائط — تمنع ردوداً مكرّرة بلا داعٍ (سبام).
+  if (lastInbound && !(lastInbound.content ?? "").trim() && !hasInboundMedia(lastInbound)) {
+    return { reply: "", shouldEscalate: false, runId: "", toolResults: [] };
+  }
   const searchQuery = inboundSearchQuery(lastInbound) || lastInbound?.content || messages[messages.length - 1]?.content || "";
   const knowledgeSources = await searchKnowledgeForAi({ workspaceId: params.workspaceId, query: searchQuery });
   const mediaContext = await loadMediaContext(messages);

@@ -219,20 +219,43 @@ function escapeControlCharsInJsonStrings(raw: string): string {
   return out;
 }
 
-function extractReplyHeuristic(content: string): string | null {
-  const match = content.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-  if (!match) return null;
+function decodeJsonStringBody(body: string): string {
   try {
-    return (JSON.parse(`"${match[1]}"`) as string).trim();
+    // أزِل أي backslash معلّق من escape مقطوع قبل المحاولة.
+    return (JSON.parse(`"${body.replace(/\\+$/, "")}"`) as string).trim();
   } catch {
-    return match[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"").trim();
+    return body
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\r/g, "\r")
+      .replace(/\\"/g, "\"")
+      .replace(/\\\\/g, "\\")
+      .replace(/\\+$/, "")
+      .trim();
   }
+}
+
+function extractReplyHeuristic(content: string): string | null {
+  // 1) قيمة reply مكتملة (باقتباس ختامي).
+  const full = content.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (full) return decodeJsonStringBody(full[1]);
+  // 2) JSON مقطوع: لا اقتباس ختامي — خذ كل ما بعد "reply":" حتى نهاية النص (فئة PD-8).
+  const truncated = content.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)$/);
+  if (truncated) {
+    const decoded = decodeJsonStringBody(truncated[1]);
+    return decoded || null;
+  }
+  return null;
 }
 
 export function parseAgentToolResponse(content: string): { reply: string; toolCalls: AgentToolCall[] } {
   const start = content.indexOf("{");
   const end = content.lastIndexOf("}");
-  if (start < 0 || end <= start) return { reply: content.trim(), toolCalls: [] };
+  if (start < 0 || end <= start) {
+    // JSON مقطوع بلا قوس إغلاق (PD-8): لا تُرجع الخام للعميل — حاول استخراج نصّ reply.
+    const heuristic = extractReplyHeuristic(content);
+    return { reply: heuristic ?? content.trim(), toolCalls: [] };
+  }
 
   const candidate = content.slice(start, end + 1);
   let parsed: Record<string, unknown> | null = null;
