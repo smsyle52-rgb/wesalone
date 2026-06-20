@@ -529,7 +529,7 @@ export default function OrdersPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium mb-1">سعر الوحدة *</label>
-                      <input type="number" min="0" value={itemForm.unitPrice} onChange={(e) => setItemForm({ ...itemForm, unitPrice: e.target.value })}
+                      <input type="number" value={itemForm.unitPrice} onChange={(e) => setItemForm({ ...itemForm, unitPrice: e.target.value })}
                         className="w-full px-2 py-1.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" dir="ltr" />
                     </div>
                     <div className="col-span-2">
@@ -546,7 +546,7 @@ export default function OrdersPage() {
                     <p className="text-xs text-destructive">{(addItem.error as Error | null)?.message ?? (updateItem.error as Error | null)?.message}</p>
                   )}
                   <div className="flex gap-2">
-                    <button onClick={handleItemSave} disabled={itemSaveLoading || !itemForm.name.trim() || !itemForm.quantity || !itemForm.unitPrice}
+                    <button onClick={handleItemSave} disabled={itemSaveLoading || !itemForm.name.trim() || Number(itemForm.quantity) < 1 || Number(itemForm.unitPrice) < 0 || itemForm.unitPrice === ""}
                       className="flex-1 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50">
                       {itemSaveLoading ? "جار الحفظ..." : editItemId ? "تحديث البند" : "إضافة البند"}
                     </button>
@@ -667,12 +667,9 @@ export default function OrdersPage() {
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">العملة</label>
-              <select value={payForm.currency} onChange={(e) => setPayForm({ ...payForm, currency: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-                <option value="YER">ريال يمني</option>
-                <option value="SAR">ريال سعودي</option>
-                <option value="USD">دولار</option>
-              </select>
+              <div className="px-3 py-2 rounded-lg border border-input bg-muted/40 text-sm text-muted-foreground">
+                {selectedOrder?.currency === "YER" ? "ريال يمني" : selectedOrder?.currency === "SAR" ? "ريال سعودي" : "دولار"}
+              </div>
             </div>
           </div>
           <div>
