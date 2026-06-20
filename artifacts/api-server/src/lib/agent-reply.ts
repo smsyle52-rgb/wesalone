@@ -232,7 +232,14 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     turnCount: messages.length,
     imageCount: mediaContext.images.length,
   });
-  const route = resolveModel(mediaContext.images.length > 0 ? "vision" : "text.reply", tier);
+  const route = resolveModel(
+    mediaContext.images.length > 0
+      ? "vision"
+      : mediaContext.audio.length > 0
+        ? "voice"
+        : "text.reply",
+    tier,
+  );
 
   const [run] = await db.insert(aiRunsTable).values({
     workspaceId: params.workspaceId,
@@ -265,6 +272,8 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       responseFormat: executableTools.length > 0 ? "json" : "text",
       // vision: مرّر الصور الواردة (base64) ليحلّلها النموذج بصرياً ويرد بناءً عليها.
       images: mediaContext.images,
+      // voice: مرّر الملاحظات الصوتية الواردة (base64) ليفهمها النموذج سمعياً ويرد على محتواها.
+      audio: mediaContext.audio,
     });
 
     // H5-1 fix: لو AI غير متوفّر → صعّد للبشر بصمت، لا تُرسل نص تجريبي للعميل (محمية #10)

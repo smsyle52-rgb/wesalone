@@ -79,6 +79,12 @@ export interface AiImage {
   data: string;
 }
 
+// voice: ملاحظة صوتية واردة (base64) تُمرَّر للنموذج متعدد الوسائط ليفهم محتواها سمعياً.
+export interface AiAudio {
+  mimeType: string;
+  data: string;
+}
+
 export interface AiRunInput {
   messages: AiMessage[];
   model: string;
@@ -88,6 +94,8 @@ export interface AiRunInput {
   responseFormat?: "json" | "text";
   // vision: صور واردة تُمرَّر للنموذج ليحلّل محتواها (اختياري؛ تُتجاهَل في mock).
   images?: AiImage[];
+  // voice: ملاحظات صوتية واردة تُمرَّر للنموذج ليفهم محتواها سمعياً (اختياري؛ تُتجاهَل في mock).
+  audio?: AiAudio[];
   // راوتر الموديلات: معرّف Vertex المحدّد لهذه المهمة (من resolveModel). عند غيابه يُستخدم VERTEX_MODEL.
   modelId?: string;
 }
@@ -279,10 +287,14 @@ async function runGemini(input: AiRunInput): Promise<AiRunOutput> {
     const imageParts = (input.images ?? []).map((img) => ({
       inlineData: { mimeType: img.mimeType, data: img.data },
     }));
+    // voice: ألحِق الملاحظات الصوتية الواردة كأجزاء inline ليفهمها النموذج سمعياً.
+    const audioParts = (input.audio ?? []).map((clip) => ({
+      inlineData: { mimeType: clip.mimeType, data: clip.data },
+    }));
 
     const result = await model.generateContent({
       systemInstruction,
-      contents: [{ role: "user", parts: [{ text: combined }, ...imageParts] }],
+      contents: [{ role: "user", parts: [{ text: combined }, ...imageParts, ...audioParts] }],
       generationConfig: {
         maxOutputTokens: getMaxOutputTokens(input),
         temperature: getTemperature(input),
@@ -379,6 +391,10 @@ async function callVertexModel(modelId: string, input: AiRunInput, token: string
   const imageParts = (input.images ?? []).map((img) => ({
     inlineData: { mimeType: img.mimeType, data: img.data },
   }));
+  // voice: ألحِق الملاحظات الصوتية الواردة كأجزاء inline ليفهمها النموذج سمعياً ويرد على محتواها.
+  const audioParts = (input.audio ?? []).map((clip) => ({
+    inlineData: { mimeType: clip.mimeType, data: clip.data },
+  }));
   const host = VERTEX_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_LOCATION}-aiplatform.googleapis.com`;
   const modelPath = `projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_LOCATION}/publishers/google/models/${modelId}`;
   const endpoint = `https://${host}/v1/${modelPath}:generateContent`;
@@ -391,7 +407,7 @@ async function callVertexModel(modelId: string, input: AiRunInput, token: string
     },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemInstruction }] },
-      contents: [{ role: "user", parts: [{ text: combined }, ...imageParts] }],
+      contents: [{ role: "user", parts: [{ text: combined }, ...imageParts, ...audioParts] }],
       generationConfig: {
         maxOutputTokens: getMaxOutputTokens(input),
         temperature: getTemperature(input),

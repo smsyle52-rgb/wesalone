@@ -1,9 +1,9 @@
 // ─── Model Router (مصدر الحقيقة الوحيد لتوجيه الموديلات) ───────────────────────
 // قرار المالك (20 يونيو 2026): لكل مهمة موديل ومستوى. هذا الملف يحدّد الموديل المناسب
 // لكل (مهمة × مستوى). الأسماء قابلة للتبديل عبر env دون لمس الكود.
-// المرحلة 1 تغطّي النص والرؤية فقط؛ الصوت/OCR/المكالمات تُضاف في مراحل لاحقة.
+// المرحلة 1 تغطّي النص والرؤية؛ فهم الصوت الوارد أُضيف (voice). الـOCR/المكالمات لاحقاً.
 
-export type ModelTask = "text.reply" | "vision";
+export type ModelTask = "text.reply" | "vision" | "voice";
 export type ModelTier = "normal" | "hard";
 
 // البديل الآمن: الموديل العامل حالياً على Vertex. لو تعذّر الموديل المطلوب (مثلاً preview
@@ -16,6 +16,9 @@ const ROUTES: Record<string, string> = {
   "text.reply.hard": process.env.MODEL_TEXT_HARD ?? "gemini-3.1-pro-preview",
   "vision.normal": process.env.MODEL_VISION_NORMAL ?? "gemini-3-flash-preview",
   "vision.hard": process.env.MODEL_VISION_HARD ?? "gemini-3.1-pro-preview",
+  // فهم الملاحظات الصوتية الواردة سمعياً (قرار المالك: flash للعادي، pro للصعب).
+  "voice.normal": process.env.MODEL_VOICE_NORMAL ?? "gemini-3-flash-preview",
+  "voice.hard": process.env.MODEL_VOICE_HARD ?? "gemini-3.1-pro-preview",
 };
 
 export interface ModelRoute {

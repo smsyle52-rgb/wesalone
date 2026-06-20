@@ -1,5 +1,5 @@
 import type { messagesTable } from "@workspace/db";
-import { ACTIVE_PROVIDER, type AiImage } from "../lib/ai-provider";
+import { ACTIVE_PROVIDER, type AiAudio, type AiImage } from "../lib/ai-provider";
 import { fetchMetaMediaBase64 } from "./meta-media";
 import { logger } from "../lib/logger";
 
@@ -20,10 +20,20 @@ type MediaContext = {
   sources: string[];
   // vision: صور واردة كـbase64 لتمريرها للنموذج متعدد الوسائط (Gemini/Vertex).
   images: AiImage[];
+  // voice: ملاحظات صوتية واردة كـbase64 ليفهمها النموذج سمعياً ويرد على محتواها.
+  audio: AiAudio[];
 };
 
 // vision: حدّ أقصى لعدد الصور المُمرَّرة للنموذج في الرد الواحد (تكلفة + زمن).
 const MAX_VISION_IMAGES = 2;
+// voice: نمرّر آخر ملاحظة صوتية واحدة فقط (تكلفة + زمن؛ نادراً ما يلزم أكثر).
+const MAX_VOICE_CLIPS = 1;
+// voice: أنواع MIME صوتية يفهمها Gemini سمعياً. ننظّف لاحقاً لاحقة «; codecs=...».
+const SUPPORTED_AUDIO_MIME = ["audio/ogg", "audio/mpeg", "audio/mp3", "audio/wav", "audio/aac", "audio/flac", "audio/m4a", "audio/mp4"];
+
+function normalizeAudioMime(mime: string): string {
+  return mime.split(";")[0]!.trim().toLowerCase();
+}
 
 function asAttachments(value: unknown): MediaAttachment[] {
   if (!Array.isArray(value)) return [];
@@ -61,7 +71,7 @@ export async function loadMediaContext(messages: MessageRow[]): Promise<MediaCon
     .slice(-4);
 
   if (inboundMedia.length === 0) {
-    return { context: "", sources: [], images: [] };
+    return { context: "", sources: [], images: [], audio: [] };
   }
 
   const dryRun = isDryRun();
@@ -79,6 +89,23 @@ export async function loadMediaContext(messages: MessageRow[]): Promise<MediaCon
     }
   }
   const hasVision = images.length > 0;
+
+  // voice: اجلب آخر ملاحظة صوتية واردة كـbase64 ليفهمها النموذج سمعياً ويرد على محتواها.
+  // عند الفشل تبقى القائمة فارغة وتُستخدم شبكة الأمان النصّية أدناه — فلا تتعطّل حلقة الوكيل.
+  const audio: AiAudio[] = [];
+  if (!dryRun) {
+    const audioAttachments = inboundMedia
+      .filter(({ attachment }) =>
+        (attachment.type === "audio" || attachment.type === "voice") && typeof attachment.media_id === "string")
+      .slice(-MAX_VOICE_CLIPS);
+    for (const { attachment } of audioAttachments) {
+      const fetched = await fetchMetaMediaBase64(String(attachment.media_id));
+      if (!fetched) continue;
+      const mimeType = normalizeAudioMime(fetched.mimeType);
+      if (SUPPORTED_AUDIO_MIME.includes(mimeType)) audio.push({ mimeType, data: fetched.data });
+    }
+  }
+  const hasVoice = audio.length > 0;
 
   const lines: string[] = [];
   const sources: string[] = [];
@@ -103,9 +130,11 @@ export async function loadMediaContext(messages: MessageRow[]): Promise<MediaCon
 
     if (attachment.type === "audio" || attachment.type === "voice") {
       lines.push(
-        dryRun
-          ? `- ${label}: الوضع التجريبي مفعل، لذلك لم يتم تفريغ الصوت. إذا لم يوجد نص كافٍ، اطلب من العميل كتابة المطلوب أو انتظر تدخل الفريق.`
-          : `- ${label}: توجد ملاحظة صوتية واردة. إذا فشل التفريغ أو لم يظهر نص واضح، لا تعطّل المحادثة؛ اكتب رداً لطيفاً يقول إن الرسالة وصلت وسيتم التأكد منها.`,
+        hasVoice
+          ? `- ${label}: الملاحظة الصوتية مرفقة بهذه المحادثة ومسموعة لك — استمع إلى محتواها وافهم طلب العميل ورُدّ عليه مباشرةً كأنه كتبه نصاً. إن كان الصوت غير واضح فعلاً، اطلب توضيحاً قصيراً.`
+          : dryRun
+            ? `- ${label}: الوضع التجريبي مفعل، لذلك لم يتم تفريغ الصوت. إذا لم يوجد نص كافٍ، اطلب من العميل كتابة المطلوب أو انتظر تدخل الفريق.`
+            : `- ${label}: وصلت ملاحظة صوتية لكن تعذّر سماعها الآن. لا تخمّن محتواها؛ اكتب رداً لطيفاً يقول إن الرسالة وصلت وسيتم التأكد منها.`,
       );
       continue;
     }
@@ -113,11 +142,12 @@ export async function loadMediaContext(messages: MessageRow[]): Promise<MediaCon
     lines.push(`- ${label}: تم حفظ مرجع الوسائط مع الرسالة. لا تفترض تفاصيل غير ظاهرة في المعرفة أو النص.`);
   }
 
-  logger.debug({ mediaCount: inboundMedia.length, imageCount: images.length, dryRun }, "Agent media context assembled");
+  logger.debug({ mediaCount: inboundMedia.length, imageCount: images.length, audioCount: audio.length, dryRun }, "Agent media context assembled");
 
   return {
     context: `\n\nسياق الوسائط الواردة:\n${lines.join("\n")}`,
     sources,
     images,
+    audio,
   };
 }
