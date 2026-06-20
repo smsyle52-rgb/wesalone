@@ -37,12 +37,13 @@ async function recalcTotal(orderId: string, workspaceId: string): Promise<string
   const [{ itemsSum }] = await db.select({ itemsSum: sum(orderItemsTable.total) })
     .from(orderItemsTable)
     .where(and(eq(orderItemsTable.orderId, orderId), eq(orderItemsTable.workspaceId, workspaceId)));
-  const [ord] = await db.select({ discount: ordersTable.discount, paidAmount: ordersTable.paidAmount })
+  const [ord] = await db.select({ discount: ordersTable.discount, paidAmount: ordersTable.paidAmount, deliveryFee: ordersTable.deliveryFee })
     .from(ordersTable)
     .where(and(eq(ordersTable.id, orderId), eq(ordersTable.workspaceId, workspaceId)))
     .limit(1);
   if (!ord) throw new Error("ORDER_NOT_FOUND");
-  const total = Math.max(0, Number(itemsSum ?? 0) - Number(ord?.discount ?? 0));
+  // الإجمالي = مجموع البنود + رسوم التوصيل − الخصم
+  const total = Math.max(0, Number(itemsSum ?? 0) + Number(ord?.deliveryFee ?? 0) - Number(ord?.discount ?? 0));
   const paidAmount = Number(ord?.paidAmount ?? 0);
   const paymentStatus = derivePaymentStatus(total, paidAmount);
   await db.update(ordersTable)
@@ -50,6 +51,18 @@ async function recalcTotal(orderId: string, workspaceId: string): Promise<string
     .where(and(eq(ordersTable.id, orderId), eq(ordersTable.workspaceId, workspaceId)));
   return String(total);
 }
+
+// حقول التوصيل (النطاق 11): مشتركة بين الإنشاء والتعديل. الرابط صورة سند فقط (https).
+const deliveryFields = {
+  deliveryType: z.enum(["pickup", "local", "shipping"]).optional(),
+  deliveryAgentPhone: z.string().max(30).optional().nullable(),
+  carrierName: z.string().max(120).optional().nullable(),
+  carrierPhone: z.string().max(30).optional().nullable(),
+  deliveryReceiptUrl: z.string().url("رابط السند غير صحيح").max(2000).optional().nullable(),
+  deliveryAddress: z.string().max(500).optional().nullable(),
+  deliveryFee: z.number().min(0).optional(),
+  codEnabled: z.boolean().optional(),
+};
 
 const createSchema = z.object({
   contactId: z.string().uuid("معرّف العميل غير صحيح").optional(),
@@ -61,6 +74,7 @@ const createSchema = z.object({
   currency: z.enum(["YER", "SAR", "USD"]).default("YER"),
   discount: z.number().min(0).default(0),
   notes: z.string().optional(),
+  ...deliveryFields,
 });
 
 const updateSchema = z.object({
@@ -69,6 +83,16 @@ const updateSchema = z.object({
   assignedMembershipId: z.string().uuid().optional().nullable(),
   discount: z.number().min(0).optional(),
   notes: z.string().optional().nullable(),
+  ...deliveryFields,
+});
+
+// دورة حالة التوصيل: تتدرّج حسب نوع التسليم. لا قفزات خلفية.
+const DELIVERY_STATUS_LABELS: Record<string, string> = {
+  preparing: "قيد التجهيز", ready: "جاهز", out_for_delivery: "خرج للتوصيل",
+  handed_to_carrier: "سُلّم للمكتب", delivered: "تم التسليم",
+};
+const deliveryStatusSchema = z.object({
+  deliveryStatus: z.enum(["preparing", "ready", "out_for_delivery", "handed_to_carrier", "delivered"]),
 });
 
 const statusSchema = z.object({
@@ -112,7 +136,10 @@ router.get("/", requirePermission("orders:read"), async (req: AuthenticatedReque
       deliveredAt: ordersTable.deliveredAt, cancelledAt: ordersTable.cancelledAt,
       returnedAt: ordersTable.returnedAt, cancelReason: ordersTable.cancelReason,
       returnedReason: ordersTable.returnedReason, createdAt: ordersTable.createdAt,
-      updatedAt: ordersTable.updatedAt, contactName: contactsTable.name, contactPhone: contactsTable.phone,
+      updatedAt: ordersTable.updatedAt,
+      deliveryType: ordersTable.deliveryType, deliveryStatus: ordersTable.deliveryStatus,
+      deliveryFee: ordersTable.deliveryFee, codEnabled: ordersTable.codEnabled,
+      contactName: contactsTable.name, contactPhone: contactsTable.phone,
     })
       .from(ordersTable)
       .leftJoin(contactsTable, eq(ordersTable.contactId, contactsTable.id))
@@ -161,6 +188,7 @@ router.post("/", requirePermission("orders:create"), async (req: AuthenticatedRe
     .from(ordersTable).where(eq(ordersTable.workspaceId, activeWorkspaceId));
   const orderNumber = `ORD${String(Number(existingCount) + 1).padStart(5, "0")}`;
 
+  const deliveryType = parsed.data.deliveryType ?? "pickup";
   const [order] = await db.insert(ordersTable).values({
     workspaceId: activeWorkspaceId, orderNumber, status: "new",
     channel: parsed.data.channel, contactId: parsed.data.contactId,
@@ -168,7 +196,18 @@ router.post("/", requirePermission("orders:create"), async (req: AuthenticatedRe
     sourceMessageId: parsed.data.sourceMessageId, assignedMembershipId: parsed.data.assignedMembershipId,
     currency: parsed.data.currency, discount: String(parsed.data.discount),
     notes: parsed.data.notes, createdBy: userId,
+    // التوصيل: نوع التسليم يبدأ دورة الحالة عند "قيد التجهيز" لغير الاستلام من المحل
+    deliveryType,
+    deliveryStatus: deliveryType === "pickup" ? null : "preparing",
+    deliveryAgentPhone: parsed.data.deliveryAgentPhone ?? null,
+    carrierName: parsed.data.carrierName ?? null,
+    carrierPhone: parsed.data.carrierPhone ?? null,
+    deliveryReceiptUrl: parsed.data.deliveryReceiptUrl ?? null,
+    deliveryAddress: parsed.data.deliveryAddress ?? null,
+    deliveryFee: String(parsed.data.deliveryFee ?? 0),
+    codEnabled: parsed.data.codEnabled ?? false,
   }).returning();
+  if (parsed.data.deliveryFee && parsed.data.deliveryFee > 0) await recalcTotal(order.id, activeWorkspaceId);
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
@@ -217,6 +256,11 @@ router.get("/:id", requirePermission("orders:read"), async (req: AuthenticatedRe
     confirmedAt: ordersTable.confirmedAt, deliveredAt: ordersTable.deliveredAt,
     cancelledAt: ordersTable.cancelledAt, returnedAt: ordersTable.returnedAt,
     createdAt: ordersTable.createdAt, updatedAt: ordersTable.updatedAt,
+    deliveryType: ordersTable.deliveryType, deliveryStatus: ordersTable.deliveryStatus,
+    deliveryAgentPhone: ordersTable.deliveryAgentPhone, carrierName: ordersTable.carrierName,
+    carrierPhone: ordersTable.carrierPhone, deliveryReceiptUrl: ordersTable.deliveryReceiptUrl,
+    deliveryAddress: ordersTable.deliveryAddress, deliveryFee: ordersTable.deliveryFee,
+    codEnabled: ordersTable.codEnabled,
     contactName: contactsTable.name, contactPhone: contactsTable.phone,
   })
     .from(ordersTable)
@@ -238,7 +282,7 @@ router.patch("/:id", requirePermission("orders:update"), async (req: Authenticat
   if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
   const { activeWorkspaceId, userId } = req.sessionUser;
 
-  const [existing] = await db.select({ id: ordersTable.id, orderNumber: ordersTable.orderNumber, status: ordersTable.status, contactId: ordersTable.contactId })
+  const [existing] = await db.select({ id: ordersTable.id, orderNumber: ordersTable.orderNumber, status: ordersTable.status, contactId: ordersTable.contactId, deliveryStatus: ordersTable.deliveryStatus })
     .from(ordersTable)
     .where(and(eq(ordersTable.id, req.params.id as string), eq(ordersTable.workspaceId, activeWorkspaceId))).limit(1);
   if (!existing) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
@@ -252,12 +296,25 @@ router.patch("/:id", requirePermission("orders:update"), async (req: Authenticat
   if ("assignedMembershipId" in parsed.data) updateData.assignedMembershipId = parsed.data.assignedMembershipId;
   if (parsed.data.discount !== undefined) updateData.discount = String(parsed.data.discount);
   if ("notes" in parsed.data) updateData.notes = parsed.data.notes;
+  // التوصيل: عند تغيير النوع لغير الاستلام وبلا حالة سابقة، نبدأ دورة "قيد التجهيز"
+  if (parsed.data.deliveryType !== undefined) {
+    updateData.deliveryType = parsed.data.deliveryType;
+    if (parsed.data.deliveryType !== "pickup" && !existing.deliveryStatus) updateData.deliveryStatus = "preparing";
+    if (parsed.data.deliveryType === "pickup") updateData.deliveryStatus = null;
+  }
+  if ("deliveryAgentPhone" in parsed.data) updateData.deliveryAgentPhone = parsed.data.deliveryAgentPhone;
+  if ("carrierName" in parsed.data) updateData.carrierName = parsed.data.carrierName;
+  if ("carrierPhone" in parsed.data) updateData.carrierPhone = parsed.data.carrierPhone;
+  if ("deliveryReceiptUrl" in parsed.data) updateData.deliveryReceiptUrl = parsed.data.deliveryReceiptUrl;
+  if ("deliveryAddress" in parsed.data) updateData.deliveryAddress = parsed.data.deliveryAddress;
+  if (parsed.data.deliveryFee !== undefined) updateData.deliveryFee = String(parsed.data.deliveryFee);
+  if (parsed.data.codEnabled !== undefined) updateData.codEnabled = parsed.data.codEnabled;
 
   const [order] = await db.update(ordersTable).set(updateData)
     .where(and(eq(ordersTable.id, req.params.id as string), eq(ordersTable.workspaceId, activeWorkspaceId)))
     .returning();
 
-  if (parsed.data.discount !== undefined) await recalcTotal(order.id, activeWorkspaceId);
+  if (parsed.data.discount !== undefined || parsed.data.deliveryFee !== undefined) await recalcTotal(order.id, activeWorkspaceId);
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
@@ -341,6 +398,57 @@ router.patch("/:id/status", requirePermission("orders:update"), async (req: Auth
       title: newStatus === "cancelled"
         ? `تم إلغاء الطلب: ${order.orderNumber}${cancelReason ? ` — ${cancelReason}` : ""}`
         : `الطلب ${order.orderNumber}: تغيّرت الحالة إلى ${STATUS_LABELS[newStatus] ?? newStatus}`,
+      entityType: "order", entityId: order.id, createdBy: userId,
+    });
+  }
+
+  res.json({ order });
+});
+
+// PATCH /api/orders/:id/delivery-status — تحديث حالة التوصيل (دورة مستقلة عن حالة الطلب)
+router.patch("/:id/delivery-status", requirePermission("orders:update"), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = deliveryStatusSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message }); return; }
+  const { activeWorkspaceId, userId } = req.sessionUser;
+  const { deliveryStatus: newDeliveryStatus } = parsed.data;
+
+  const [existing] = await db.select({
+    id: ordersTable.id, orderNumber: ordersTable.orderNumber, status: ordersTable.status,
+    contactId: ordersTable.contactId, deliveryType: ordersTable.deliveryType, deliveryStatus: ordersTable.deliveryStatus,
+  })
+    .from(ordersTable)
+    .where(and(eq(ordersTable.id, req.params.id as string), eq(ordersTable.workspaceId, activeWorkspaceId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
+  if (existing.deliveryType === "pickup") {
+    res.status(422).json({ error: "هذا الطلب استلام من المحل ولا يحتاج تتبّع توصيل" }); return;
+  }
+  if (existing.status === "cancelled" || existing.status === "returned") {
+    res.status(422).json({ error: "لا يمكن تحديث توصيل طلب مُلغى أو مُرتجع" }); return;
+  }
+
+  const updateData: Record<string, unknown> = { deliveryStatus: newDeliveryStatus, updatedAt: new Date() };
+  // وصول التوصيل لـ"تم التسليم" يدفع حالة الطلب لـ delivered إن لم تكن نهائية بعد
+  if (newDeliveryStatus === "delivered" && ["confirmed", "processing", "ready"].includes(existing.status)) {
+    updateData.status = "delivered";
+    updateData.deliveredAt = new Date();
+  }
+
+  const [order] = await db.update(ordersTable).set(updateData)
+    .where(and(eq(ordersTable.id, req.params.id as string), eq(ordersTable.workspaceId, activeWorkspaceId)))
+    .returning();
+
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "update", severity: "info", entityType: "order",
+    entityId: order.id, entityLabel: order.orderNumber,
+    oldData: { deliveryStatus: existing.deliveryStatus }, newData: { deliveryStatus: newDeliveryStatus },
+  });
+
+  if (existing.contactId) {
+    await addContactTimeline({
+      workspaceId: activeWorkspaceId, contactId: existing.contactId,
+      eventType: "order_status_changed",
+      title: `الطلب ${order.orderNumber}: التوصيل ${DELIVERY_STATUS_LABELS[newDeliveryStatus] ?? newDeliveryStatus}`,
       entityType: "order", entityId: order.id, createdBy: userId,
     });
   }

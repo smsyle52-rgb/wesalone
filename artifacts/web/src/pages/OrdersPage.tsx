@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -32,6 +32,21 @@ const ORDER_NEXT: Record<string, Array<{ status: string; label: string; danger?:
 const NEEDS_REASON = (currentStatus: string, nextStatus: string) =>
   (nextStatus === "cancelled" && currentStatus !== "new") || nextStatus === "returned";
 
+// التوصيل (النطاق 11)
+const DELIVERY_TYPE_LABELS: Record<string, string> = {
+  pickup: "استلام من المحل", local: "توصيل داخل المدينة", shipping: "شحن خارج المدينة",
+};
+const DELIVERY_TYPE_ICONS: Record<string, string> = { pickup: "🏪", local: "🛵", shipping: "📦" };
+const DELIVERY_STATUS_LABELS: Record<string, string> = {
+  preparing: "قيد التجهيز", ready: "جاهز", out_for_delivery: "خرج للتوصيل",
+  handed_to_carrier: "سُلّم للمكتب", delivered: "تم التسليم",
+};
+// تدفّق حالة التوصيل حسب نوع التسليم — لا قفزات خلفية
+const DELIVERY_FLOW: Record<string, string[]> = {
+  local: ["preparing", "ready", "out_for_delivery", "delivered"],
+  shipping: ["preparing", "ready", "handed_to_carrier", "delivered"],
+};
+
 function PermissionDenied() {
   return (
     <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800 text-sm text-center">
@@ -60,9 +75,13 @@ function computeOrderPaymentStatus(total: string | number, paid: string | number
   return "partial";
 }
 
-const emptyCreateForm = { contactId: "", channel: "manual", currency: "YER", notes: "" };
+const emptyCreateForm = { contactId: "", channel: "manual", currency: "YER", notes: "", deliveryType: "pickup", deliveryFee: "0", codEnabled: false };
 const emptyItemForm = { name: "", description: "", quantity: "1", unitPrice: "0", currency: "YER" };
 const emptyPayForm = { amount: "", currency: "YER", paymentMethodId: "", reference: "", notes: "" };
+const emptyEditForm = {
+  channel: "manual", discount: "0", notes: "", deliveryType: "pickup", deliveryFee: "0", codEnabled: false,
+  deliveryAgentPhone: "", carrierName: "", carrierPhone: "", deliveryReceiptUrl: "", deliveryAddress: "",
+};
 
 export default function OrdersPage() {
   const { hasPermission } = useAuth();
@@ -83,6 +102,8 @@ export default function OrdersPage() {
   const [createForm, setCreateForm] = useState(emptyCreateForm);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [detailMode, setDetailMode] = useState<"view" | "edit">("view");
+  const [editForm, setEditForm] = useState(emptyEditForm);
 
   const [showItemForm, setShowItemForm] = useState(false);
   const [editItemId, setEditItemId] = useState<string | null>(null);
@@ -135,6 +156,25 @@ export default function OrdersPage() {
   const orders: any[] = data?.orders ?? [];
   const counts: Record<string, number> = data?.counts ?? {};
   const selectedOrder = detailData?.order ?? null;
+  // عند فتح وضع التعديل، نملأ النموذج من بيانات الطلب الحالية
+  useEffect(() => {
+    if (detailMode === "edit" && selectedOrder) {
+      setEditForm({
+        channel: selectedOrder.channel ?? "manual",
+        discount: String(selectedOrder.discount ?? "0"),
+        notes: selectedOrder.notes ?? "",
+        deliveryType: selectedOrder.deliveryType ?? "pickup",
+        deliveryFee: String(selectedOrder.deliveryFee ?? "0"),
+        codEnabled: !!selectedOrder.codEnabled,
+        deliveryAgentPhone: selectedOrder.deliveryAgentPhone ?? "",
+        carrierName: selectedOrder.carrierName ?? "",
+        carrierPhone: selectedOrder.carrierPhone ?? "",
+        deliveryReceiptUrl: selectedOrder.deliveryReceiptUrl ?? "",
+        deliveryAddress: selectedOrder.deliveryAddress ?? "",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailMode, selectedOrder?.id]);
   const items: any[] = detailData?.items ?? [];
   const payMethods: any[] = payMethodsData?.methods ?? [];
   const orderPaymentsList: any[] = orderPayments?.payments ?? [];
@@ -169,6 +209,25 @@ export default function OrdersPage() {
       qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       setSelectedOrderId(null);
+    },
+  });
+
+  const updateOrder = useMutation({
+    mutationFn: (body: any) => apiFetch(`orders/${selectedOrderId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => {
+      refetchDetail();
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      setDetailMode("view");
+    },
+  });
+
+  const changeDeliveryStatus = useMutation({
+    mutationFn: (deliveryStatus: string) =>
+      apiFetch(`orders/${selectedOrderId}/delivery-status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deliveryStatus }) }),
+    onSuccess: () => {
+      refetchDetail();
+      qc.invalidateQueries({ queryKey: ["orders"] });
     },
   });
 
@@ -230,6 +289,24 @@ export default function OrdersPage() {
     }
   }
 
+  function handleEditSave() {
+    const isPickup = editForm.deliveryType === "pickup";
+    // نرسل حقول التوصيل المناسبة فقط؛ غير المعنيّة null لتنظيف القيم القديمة عند تغيير النوع
+    updateOrder.mutate({
+      channel: editForm.channel,
+      discount: Number(editForm.discount) || 0,
+      notes: editForm.notes || null,
+      deliveryType: editForm.deliveryType,
+      deliveryFee: Number(editForm.deliveryFee) || 0,
+      codEnabled: editForm.codEnabled,
+      deliveryAgentPhone: editForm.deliveryType === "local" ? (editForm.deliveryAgentPhone || null) : null,
+      carrierName: editForm.deliveryType === "shipping" ? (editForm.carrierName || null) : null,
+      carrierPhone: editForm.deliveryType === "shipping" ? (editForm.carrierPhone || null) : null,
+      deliveryReceiptUrl: editForm.deliveryType === "shipping" ? (editForm.deliveryReceiptUrl || null) : null,
+      deliveryAddress: isPickup ? null : (editForm.deliveryAddress || null),
+    });
+  }
+
   function handleStatusClick(next: { status: string; danger?: boolean }) {
     if (!selectedOrder) return;
     if (NEEDS_REASON(selectedOrder.status, next.status)) {
@@ -268,14 +345,33 @@ export default function OrdersPage() {
     { key: "contactName", label: "العميل", render: (r: any) => <span className="text-sm text-foreground">{r.contactName ?? "—"}</span> },
     { key: "channel", label: "القناة", render: (r: any) => <span className="text-xs text-muted-foreground">{orderChannelLabels[r.channel] ?? r.channel}</span> },
     { key: "totalAmount", label: "الإجمالي", render: (r: any) => <span className="font-semibold text-sm">{formatCurrency(r.totalAmount ?? 0, r.currency)}</span> },
-    { key: "payStatus", label: "الدفع", render: (r: any) => paymentStatusBadge(computeOrderPaymentStatus(r.totalAmount, r.paidAmount)) },
+    { key: "delivery", label: "التوصيل", render: (r: any) => (
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs text-muted-foreground whitespace-nowrap">{DELIVERY_TYPE_ICONS[r.deliveryType] ?? ""} {DELIVERY_TYPE_LABELS[r.deliveryType] ?? "—"}</span>
+        {r.deliveryStatus && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 w-fit">{DELIVERY_STATUS_LABELS[r.deliveryStatus]}</span>}
+      </div>
+    )},
+    { key: "payStatus", label: "الدفع", render: (r: any) => (
+      <div className="flex flex-col gap-0.5">
+        {paymentStatusBadge(computeOrderPaymentStatus(r.totalAmount, r.paidAmount))}
+        {r.codEnabled && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 w-fit">عند الاستلام</span>}
+      </div>
+    )},
     { key: "status", label: "الحالة", render: (r: any) => <StatusBadge status={r.status} /> },
     { key: "createdAt", label: "التاريخ", render: (r: any) => <span className="text-xs text-muted-foreground">{formatDate(r.createdAt)}</span> },
     { key: "actions", label: "", render: (r: any) => (
-      <button onClick={() => setSelectedOrderId(r.id)}
-        className="text-xs px-2 py-1 bg-muted hover:bg-muted/70 rounded text-muted-foreground transition-colors">
-        تفاصيل
-      </button>
+      <div className="flex gap-1.5">
+        <button onClick={() => { setSelectedOrderId(r.id); setDetailMode("view"); }}
+          className="text-xs px-2 py-1 bg-muted hover:bg-muted/70 rounded text-muted-foreground transition-colors inline-flex items-center gap-1">
+          👁 تفاصيل
+        </button>
+        {canUpdate && !["cancelled", "returned"].includes(r.status) && (
+          <button onClick={() => { setSelectedOrderId(r.id); setDetailMode("edit"); }}
+            className="text-xs px-2 py-1 bg-primary/10 hover:bg-primary/20 rounded text-primary transition-colors inline-flex items-center gap-1">
+            ✏️ تعديل
+          </button>
+        )}
+      </div>
     )},
   ];
 
@@ -368,6 +464,27 @@ export default function OrdersPage() {
               </select>
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">نوع التسليم</label>
+              <select value={createForm.deliveryType} onChange={(e) => setCreateForm({ ...createForm, deliveryType: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="pickup">🏪 استلام من المحل</option>
+                <option value="local">🛵 توصيل داخل المدينة</option>
+                <option value="shipping">📦 شحن خارج المدينة</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">رسوم التوصيل</label>
+              <input type="number" value={createForm.deliveryFee} onChange={(e) => setCreateForm({ ...createForm, deliveryFee: e.target.value })}
+                disabled={createForm.deliveryType === "pickup"}
+                className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50" dir="ltr" />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={createForm.codEnabled} onChange={(e) => setCreateForm({ ...createForm, codEnabled: e.target.checked })} />
+            <span>الدفع عند الاستلام</span>
+          </label>
           <div>
             <label className="block text-sm font-medium mb-1">ملاحظات</label>
             <textarea value={createForm.notes} onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
@@ -380,7 +497,15 @@ export default function OrdersPage() {
             </div>
           )}
           <button
-            onClick={() => createOrder.mutate({ ...createForm, contactId: createForm.contactId || undefined })}
+            onClick={() => createOrder.mutate({
+              contactId: createForm.contactId || undefined,
+              channel: createForm.channel,
+              currency: createForm.currency,
+              notes: createForm.notes || undefined,
+              deliveryType: createForm.deliveryType,
+              deliveryFee: createForm.deliveryType === "pickup" ? 0 : (Number(createForm.deliveryFee) || 0),
+              codEnabled: createForm.codEnabled,
+            })}
             disabled={createOrder.isPending}
             className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50">
             {createOrder.isPending ? "جار الإنشاء..." : "إنشاء الطلب"}
@@ -388,13 +513,27 @@ export default function OrdersPage() {
         </div>
       </Modal>
 
-      {/* ── Order Detail Modal ───────────────────────────────────── */}
+      {/* ── Order Detail / Edit Modal ────────────────────────────── */}
       <Modal
         open={!!selectedOrderId}
-        onClose={() => { setSelectedOrderId(null); setPendingStatus(null); setShowItemForm(false); setShowPayModal(false); }}
-        title={selectedOrder ? `طلب ${selectedOrder.orderNumber}` : "تفاصيل الطلب"}>
-        {selectedOrder && (
+        onClose={() => { setSelectedOrderId(null); setDetailMode("view"); setPendingStatus(null); setShowItemForm(false); setShowPayModal(false); }}
+        title={selectedOrder ? `${detailMode === "edit" ? "تعديل" : "طلب"} ${selectedOrder.orderNumber}` : "تفاصيل الطلب"}>
+        {selectedOrder && detailMode === "edit" && (
+          <OrderEditForm
+            form={editForm} setForm={setEditForm}
+            onSave={handleEditSave} onCancel={() => setDetailMode("view")}
+            isSaving={updateOrder.isPending} error={(updateOrder.error as Error | null)?.message}
+            currency={selectedOrder.currency}
+          />
+        )}
+        {selectedOrder && detailMode === "view" && (
           <div className="space-y-4">
+            {canUpdate && !isTerminal && (
+              <button onClick={() => setDetailMode("edit")}
+                className="w-full py-2 rounded-lg border border-primary/30 bg-primary/5 text-primary text-sm font-medium hover:bg-primary/10 transition-colors inline-flex items-center justify-center gap-1.5">
+                ✏️ تعديل بيانات الطلب والتوصيل
+              </button>
+            )}
             {/* Order Info */}
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="flex flex-col gap-0.5">
@@ -453,7 +592,59 @@ export default function OrdersPage() {
                   </p>
                 </div>
               </div>
+              {selectedOrder.codEnabled && (
+                <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 mt-1">
+                  💵 الدفع عند الاستلام — يُحصّل المتبقي ({formatCurrency(remaining, selectedOrder.currency)}) عند تسليم الطلب
+                </div>
+              )}
             </div>
+
+            {/* Delivery Panel (view) */}
+            {selectedOrder.deliveryType && selectedOrder.deliveryType !== "pickup" && (
+              <div className="border border-border rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">التوصيل</span>
+                  <span className="text-xs font-medium">{DELIVERY_TYPE_ICONS[selectedOrder.deliveryType]} {DELIVERY_TYPE_LABELS[selectedOrder.deliveryType]}</span>
+                </div>
+                {selectedOrder.deliveryType === "local" && selectedOrder.deliveryAgentPhone && (
+                  <div className="text-sm flex justify-between"><span className="text-muted-foreground">مندوب التوصيل</span><span dir="ltr">{selectedOrder.deliveryAgentPhone}</span></div>
+                )}
+                {selectedOrder.deliveryType === "shipping" && (
+                  <>
+                    {selectedOrder.carrierName && <div className="text-sm flex justify-between"><span className="text-muted-foreground">مكتب النقل</span><span>{selectedOrder.carrierName}</span></div>}
+                    {selectedOrder.carrierPhone && <div className="text-sm flex justify-between"><span className="text-muted-foreground">رقم المكتب</span><span dir="ltr">{selectedOrder.carrierPhone}</span></div>}
+                    {selectedOrder.deliveryReceiptUrl && (
+                      <a href={selectedOrder.deliveryReceiptUrl} target="_blank" rel="noreferrer" className="text-sm text-primary underline inline-flex items-center gap-1">📄 عرض سند الشحن</a>
+                    )}
+                  </>
+                )}
+                {selectedOrder.deliveryAddress && <div className="text-sm flex justify-between gap-2"><span className="text-muted-foreground shrink-0">العنوان</span><span className="text-left">{selectedOrder.deliveryAddress}</span></div>}
+                {Number(selectedOrder.deliveryFee) > 0 && <div className="text-sm flex justify-between"><span className="text-muted-foreground">رسوم التوصيل</span><span>{formatCurrency(selectedOrder.deliveryFee, selectedOrder.currency)}</span></div>}
+
+                {selectedOrder.deliveryStatus && (
+                  <div className="pt-2 border-t border-border">
+                    <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                      {(DELIVERY_FLOW[selectedOrder.deliveryType] ?? []).map((st) => {
+                        const flow = DELIVERY_FLOW[selectedOrder.deliveryType] ?? [];
+                        const done = flow.indexOf(st) <= flow.indexOf(selectedOrder.deliveryStatus);
+                        return <span key={st} className={`text-[10px] px-2 py-0.5 rounded-full border ${done ? "bg-green-50 text-green-700 border-green-200" : "bg-muted text-muted-foreground border-border"}`}>{DELIVERY_STATUS_LABELS[st]}</span>;
+                      })}
+                    </div>
+                    {canUpdate && !isTerminal && (() => {
+                      const flow = DELIVERY_FLOW[selectedOrder.deliveryType] ?? [];
+                      const next = flow[flow.indexOf(selectedOrder.deliveryStatus) + 1];
+                      return next ? (
+                        <button onClick={() => changeDeliveryStatus.mutate(next)} disabled={changeDeliveryStatus.isPending}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 disabled:opacity-50">
+                          {changeDeliveryStatus.isPending ? "جار التحديث..." : `← ${DELIVERY_STATUS_LABELS[next]}`}
+                        </button>
+                      ) : null;
+                    })()}
+                    {changeDeliveryStatus.isError && <p className="text-xs text-destructive mt-1">{(changeDeliveryStatus.error as Error)?.message}</p>}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Status Actions */}
             {!isTerminal && nextActions.length > 0 && canUpdate && !pendingStatus && (
@@ -707,6 +898,120 @@ export default function OrdersPage() {
           </button>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+type EditFormState = typeof emptyEditForm;
+
+function OrderEditForm({ form, setForm, onSave, onCancel, isSaving, error, currency }: {
+  form: EditFormState;
+  setForm: (f: EditFormState) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  isSaving: boolean;
+  error?: string;
+  currency: string;
+}) {
+  const isPickup = form.deliveryType === "pickup";
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium mb-1">القناة</label>
+          <select value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+            {Object.entries(orderChannelLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">الخصم ({currency})</label>
+          <input type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" dir="ltr" />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium mb-1.5">نوع التسليم</label>
+        <div className="grid grid-cols-3 gap-2">
+          {(["pickup", "local", "shipping"] as const).map((t) => (
+            <button key={t} type="button" onClick={() => setForm({ ...form, deliveryType: t })}
+              className={`py-2 px-1 rounded-lg text-xs font-medium border transition-colors ${form.deliveryType === t ? "bg-primary/10 text-primary border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+              {DELIVERY_TYPE_ICONS[t]}<br />{DELIVERY_TYPE_LABELS[t]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {form.deliveryType === "local" && (
+        <div>
+          <label className="block text-xs font-medium mb-1">رقم مندوب التوصيل</label>
+          <input value={form.deliveryAgentPhone} onChange={(e) => setForm({ ...form, deliveryAgentPhone: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" dir="ltr" placeholder="77xxxxxxx" />
+        </div>
+      )}
+
+      {form.deliveryType === "shipping" && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium mb-1">اسم مكتب النقل</label>
+              <input value={form.carrierName} onChange={(e) => setForm({ ...form, carrierName: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="مكتب النقل..." />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">رقم المكتب</label>
+              <input value={form.carrierPhone} onChange={(e) => setForm({ ...form, carrierPhone: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" dir="ltr" placeholder="77xxxxxxx" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">رابط صورة سند الشحن</label>
+            <input value={form.deliveryReceiptUrl} onChange={(e) => setForm({ ...form, deliveryReceiptUrl: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" dir="ltr" placeholder="https://..." />
+            <p className="text-[11px] text-muted-foreground mt-1">الصق رابط صورة السند (من واتساب أو أي رابط https).</p>
+            {form.deliveryReceiptUrl && /^https?:\/\//.test(form.deliveryReceiptUrl) && (
+              <img src={form.deliveryReceiptUrl} alt="معاينة السند" className="mt-2 max-h-32 rounded-lg border border-border object-contain" />
+            )}
+          </div>
+        </>
+      )}
+
+      {!isPickup && (
+        <>
+          <div>
+            <label className="block text-xs font-medium mb-1">عنوان التوصيل</label>
+            <input value={form.deliveryAddress} onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="الحي، الشارع، علامة مميزة..." />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">رسوم التوصيل ({currency})</label>
+            <input type="number" value={form.deliveryFee} onChange={(e) => setForm({ ...form, deliveryFee: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" dir="ltr" />
+          </div>
+        </>
+      )}
+
+      <label className="flex items-center gap-2 text-sm cursor-pointer py-1">
+        <input type="checkbox" checked={form.codEnabled} onChange={(e) => setForm({ ...form, codEnabled: e.target.checked })} />
+        <span>الدفع عند الاستلام</span>
+      </label>
+
+      <div>
+        <label className="block text-xs font-medium mb-1">ملاحظات</label>
+        <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" rows={2} placeholder="تفاصيل الطلب..." />
+      </div>
+
+      {error && <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-destructive text-xs">{error}</div>}
+
+      <div className="flex gap-2">
+        <button onClick={onSave} disabled={isSaving}
+          className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50">
+          {isSaving ? "جار الحفظ..." : "حفظ التعديلات"}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2.5 rounded-lg border border-border text-sm hover:bg-muted">إلغاء</button>
+      </div>
     </div>
   );
 }
