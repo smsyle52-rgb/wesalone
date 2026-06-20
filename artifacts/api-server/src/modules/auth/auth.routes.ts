@@ -9,7 +9,7 @@ import {
   workspaceMembershipsTable,
 } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
-import { registerWorkspace, loginUser, loadUserPermissions, hashPassword, verifyPassword } from "./auth.service";
+import { registerWorkspace, loginUser, loadUserPermissions, hashPassword, verifyPassword, AuthError } from "./auth.service";
 import { createAuditLog } from "../../lib/audit";
 import type { AuthenticatedRequest, SessionUser } from "../../lib/types";
 import { logger } from "../../lib/logger";
@@ -130,10 +130,12 @@ router.post("/register", signupLimiter, async (req: Request, res: Response) => {
       workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "حدث خطأ داخلي";
     logger.error({ err }, "Registration failed");
-    const statusCode = message.includes("مسجل") ? 409 : 500;
-    res.status(statusCode).json({ error: message });
+    if (err instanceof AuthError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: "حدث خطأ داخلي" });
   }
 });
 
@@ -181,9 +183,12 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
       workspaceId: sessionData.activeWorkspaceId,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "حدث خطأ داخلي";
     logger.error({ err }, "Login failed");
-    res.status(401).json({ error: message });
+    if (err instanceof AuthError) {
+      res.status(401).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: "حدث خطأ داخلي" });
   }
 });
 

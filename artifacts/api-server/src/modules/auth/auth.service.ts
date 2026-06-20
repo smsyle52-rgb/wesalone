@@ -21,6 +21,19 @@ import { logger } from "../../lib/logger";
 
 const SALT_ROUNDS = 12;
 
+/**
+ * Expected, user-facing authentication errors (invalid credentials, suspended
+ * account, deactivated workspace, etc.). The auth routes return AuthError.message
+ * to the client as-is; any other thrown error is treated as unexpected and returns
+ * a generic message so internal details are never leaked to the client.
+ */
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthError";
+  }
+}
+
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
 }
@@ -70,7 +83,7 @@ export async function registerWorkspace(data: {
     .limit(1);
 
   if (existingUser) {
-    throw new Error("هذا البريد الإلكتروني مسجل مسبقاً");
+    throw new AuthError("هذا البريد الإلكتروني مسجل مسبقاً");
   }
 
   const passwordHash = await hashPassword(password);
@@ -197,18 +210,18 @@ export async function loginUser(data: {
 
   if (!user) {
     await recordLogin(null, false, "user_not_found");
-    throw new Error("البريد الإلكتروني أو كلمة المرور غير صحيحة");
+    throw new AuthError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
   }
 
   if (user.status !== "active") {
     await recordLogin(user.id, false, "account_suspended");
-    throw new Error("هذا الحساب موقوف. تواصل مع مسؤول النظام");
+    throw new AuthError("هذا الحساب موقوف. تواصل مع مسؤول النظام");
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
     await recordLogin(user.id, false, "wrong_password");
-    throw new Error("البريد الإلكتروني أو كلمة المرور غير صحيحة");
+    throw new AuthError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
   }
 
   const [membership] = await db
@@ -224,7 +237,7 @@ export async function loginUser(data: {
 
   if (!membership) {
     await recordLogin(user.id, false, "no_active_workspace");
-    throw new Error("لا توجد منشأة مرتبطة بهذا الحساب");
+    throw new AuthError("لا توجد منشأة مرتبطة بهذا الحساب");
   }
 
   const [workspace] = await db
@@ -235,7 +248,7 @@ export async function loginUser(data: {
 
   if (workspace?.status === "deactivated") {
     await recordLogin(user.id, false, "workspace_deactivated");
-    throw new Error("مساحة العمل معطلة حالياً. تواصل مع مالك الحساب لإعادة التفعيل.");
+    throw new AuthError("مساحة العمل معطلة حالياً. تواصل مع مالك الحساب لإعادة التفعيل.");
   }
 
   const { permissions, roleSlugs } = await loadUserPermissions(membership.id);

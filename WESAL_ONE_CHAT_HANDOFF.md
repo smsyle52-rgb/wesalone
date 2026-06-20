@@ -3,7 +3,7 @@
 
 ---
 
-## 🔒 خطة الإطلاق — النطاق 1 (المصادقة) ✅ + النطاق 2 (عزل العملاء) ✅ (20 يونيو 2026، Claude Code)
+## 🔒 خطة الإطلاق — النطاقات 1–7 ✅ · 8 مؤجَّل ⏸️ · 9 ✅ (20 يونيو 2026، Claude Code)
 
 ### النطاق 1 — المصادقة والجلسات · **اجتاز البوابة** ✅
 فحص read-only: جلسات خادم (PostgreSQL/connect-pg-simple، 24س)، كوكي httpOnly+secure(prod)+sameSite=lax، SESSION_SECRET مطلوب و≥32 حرف في الإنتاج، bcrypt salt=12، خطأ موحّد للدخول، session fixation محمي بـregenerate، honeypot+challenge على التسجيل، rate limits (login 8/15دق، signup 3/س). إعادة/تغيير كلمة المرور تُبطل **كل** الجلسات.
@@ -92,6 +92,81 @@
 1. **`EMBEDDINGS_DRY_RUN` غائب من Cloud Build:** لا يُعيَّن `EMBEDDINGS_DRY_RUN=false` في `cloudbuild.yaml` أو `cloudbuild.worker.yaml` — البحث الدلالي يعمل بـpseudo-hash في الإنتاج. يجب إضافته لأحد `--set-env-vars` في deploy-staging step. **متوسطة — تؤثر على جودة الاسترجاع، لا على الاستقرار.**
 2. **outbox SELECT بلا SKIP LOCKED:** `runOutboxSender` يقرأ outbox بلا قفل صفوف — محمية بـ`max-instances=1` حالياً، لكن `idempotency_key` + `onConflictDoNothing` كافيان لمنع إدراج مكرر حتى لو تغيّر ذلك. **منخفضة.**
 3. **verify-migration يتحقق من الجداول لا الأعمدة:** الملاحظة الموثّقة من PD-12 — يُوصى بتوسيعه للأعمدة الحرجة. **منخفضة — موثّقة مسبقاً.**
+
+### النطاق 7 — حماية البيانات والامتثال · **اجتاز البوابة** ✅ (20 يونيو 2026)
+
+| ما فُحص | النتيجة |
+|---|---|
+| TLS / HTTPS | ✅ Cloud Run يُنهي TLS على مستوى البنية التحتية — كل الطلبات HTTPS إلزاماً. `app.set("trust proxy", 1)` صحيح لـCloud Run. |
+| رؤوس الأمان | ✅ `securityHeaders.ts`: `X-Frame-Options: DENY`، `X-Content-Type-Options: nosniff`، `Referrer-Policy: strict-origin-when-cross-origin`، `Permissions-Policy: camera=(), microphone=(), geolocation=()`. |
+| CORS | ✅ `ALLOWED_ORIGINS` فارغة في الإنتاج → رفض كل الأصول الأجنبية؛ مع قائمة → الأصول المدرجة فقط. `credentials: true` بأمان مع فحص الأصل. |
+| تشفير في السكون | ✅ Cloud SQL PostgreSQL: تشفير AES-256 افتراضي من Google؛ Cloud SQL Proxy يُشفّر الاتصال بين Cloud Run والقاعدة. |
+| النسخ الاحتياطي | ✅ `docs/ops/BACKUP.md` موجود مع تعليمات التحقق والإنشاء اليدوي والاستعادة. `DEPLOY_RUNBOOK.md` يتضمّن `--backup-start-time=03:00` — النسخ اليومي مُدرج في أمر إنشاء الـinstance. |
+| تسجيل IP | ✅ `audit_logs.ip_address` مسجَّل على كل حدث حساس؛ `login_events.ip_address` مسجَّل على كل محاولة دخول (نجاح + فشل). |
+| سلامة سجلّات التدقيق | ✅ `audit.ts` يحمل `APPEND-ONLY GUARD` — لا UPDATE/DELETE على `audit_logs` في كود الخدمة. التعليق يُرشد لإضافة PostgreSQL RULE في الإنتاج. |
+| حذف جهات الاتصال | ✅ `DELETE /contacts/:id` = حذف ناعم (`archivedAt`) مع audit log + timeline. البيانات تبقى مقيّدة بالـworkspace. |
+| تعطيل الـWorkspace | ✅ `POST /workspace/deactivate` يعيّن `status="deactivated"` + `deactivatedAt` + سبب مع تأكيد بالاسم + audit log. |
+
+**ملاحظات (غير حاجزة للبايلوت):**
+1. **HSTS مفقود:** `securityHeaders.ts` لا يُضيف `Strict-Transport-Security` — أضفه: `res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains")`. **منخفضة.**
+2. **PITR غير مؤكّد:** `replit.md` يُشير إلى `❌ Not configured` للـPoint-in-Time Recovery. فعّله من Cloud Console قبل أول عميل مدفوع. **متوسطة — بعد البايلوت.**
+3. **لا اختبار استعادة موثَّق:** `BACKUP.md` ينصح بالاختبار لكن لا سجلّ لاختبار فعلي. نفّذ استعادة تجريبية على instance مؤقتة قبل التوسّع. **متوسطة.**
+4. **لا مسار محو بيانات (Right to Erasure):** الحذف الناعم فقط — لا endpoint لمحو البيانات بالكامل. PDPL السعودي يُلزم بإتاحة طلبات المحو. للبايلوت: حدّد عملية يدوية موثّقة (script دعم) مؤقتاً. **مهمة — قبل الإطلاق العام.**
+5. **لا DPA / سياسة خصوصية:** لا ملف عقد معالجة بيانات في الكود. ابدأ بوثيقة بسيطة قبل التعاقد مع التجار. **مهمة — قبل الإطلاق العام.**
+6. **لا سياسة احتفاظ للبيانات:** `audit_logs` و`login_events` تنمو بلا تنظيف. وثّق سياسة (مثلاً 90 يوماً لـlogin_events) قبل التوسّع. **منخفضة.**
+7. **PostgreSQL RULE للتدقيق غير مؤكّد في الإنتاج:** الكود يُرشد لإضافته لكن لا دليل على تطبيقه على Cloud SQL. **منخفضة.**
+
+### النطاق 8 — الفوترة والحدود والحصص · **مؤجَّل بقرار المالك** ⏸️ (20 يونيو 2026)
+
+**قرار المالك (20 يونيو):** تأجيل فحص/إغلاق نطاق الفوترة والانتقال مباشرةً إلى نطاق 9 (التصليب الأمني). لا يحجب الإطلاق التجريبي.
+
+**رصد أوّلي (read-only، غير مكتمل — للسياق فقط):**
+- البنية موجودة وسليمة شكلاً: `services/billing.ts` فيه `checkLimit` (channels/agents/monthly_messages/team_members/contacts) + `recordUsage` (عدّادات شهرية بـ`onConflictDoUpdate`) + `getActiveSubscription` + `getUsageSnapshot` + `getLimitWarnings`.
+- الفرض مطبَّق فعلاً في بعض المسارات: إنشاء وكيل يُرجع `402` عند تجاوز حد الوكلاء (`ai.routes.ts`).
+- بوابة الثقة (`trust-gate.ts`) تفرض حصصاً تشغيلية: `dailyAutoSendQuota`، `maxAutoRepliesPerConversation`، قوائم منع/مواضيع/عتبة ثقة.
+- باقات `seed.ts`: free(200 رسالة)/basic(1000)/pro(5000)/unlimited — حدود معرّفة لكل باقة.
+- **ما يحتاج فحصاً عند العودة:** هل `checkLimit("monthly_messages")` مفروض فعلاً قبل إرسال كل رسالة صادرة؟ هل `recordUsage` مستدعى في مسار الإرسال؟ منع تجاوز الحصة على القنوات. (مؤجَّل.)
+
+**الحالة:** ⏸️ مؤجَّل — يُعاد فتحه بقرار المالك بعد نطاق 9.
+
+### النطاق 9 — التصليب الأمني الشامل ✅ مُغلق (20 يونيو 2026)
+
+> **منهجية:** فحص بكوديكس (read-only، gpt-5.5) ككادح، وكلود مشرفاً **تحقّق من كل ادّعاء بنفسه** قبل الاعتماد. تدقيق التبعيات شغّله كلود (sandbox كوديكس منعه).
+
+**ما هو صلب (مُتحقَّق):**
+| ما فُحص | النتيجة |
+|---|---|
+| تحديد المعدّل | ✅ شامل: `authLimiter` على register/login/forgot/reset/change-password/resend؛ `aiRunLimiter` على تشغيل AI؛ `paymentActionLimiter` على تأكيد/رفض الدفع؛ `reportGenerateLimiter`؛ `apiLimiter` عام (300/دق، مفتاح session-or-IP). |
+| CORS | ✅ مقفل إنتاجياً — `ALLOWED_ORIGINS` فارغة ⇒ رفض كل الأصول الأجنبية؛ مع قائمة ⇒ المُدرَجة فقط. |
+| رؤوس الأمان | ✅ `X-Frame-Options: DENY`، `X-Content-Type-Options: nosniff`، `Referrer-Policy`، `Permissions-Policy`، `X-Request-Id`. |
+| حقن SQL | ✅ لا تركيب نصّي خام لمدخل مستخدم — كل استعلامات Drizzle مُمعلَمة (`${value}`). |
+| تسريب آثار الأخطاء | ✅ المعالج العام في `app.ts` يرجع رسالة عربية موحّدة + code؛ **لا `err.stack` للعميل أبداً**. |
+| تحقّق Zod | ✅ الغالبية العظمى من مسارات POST/PATCH/PUT تمرّ بـ`safeParse(req.body)` قبل المنطق. |
+
+**ملاحظات مُتحقَّقة (تصليب — غير حاجزة للبايلوت المغلق):**
+1. **webhook ميتا بلا تحديد معدّل:** `POST /api/webhooks/meta` مُركَّب **قبل** `apiLimiter` ولا يستخدم `webhookLimiter`. والأخير (`rateLimiter.ts:94`، 600/دق) **مُعرَّف ومستخدَم لا مكان**. HMAC SHA-256 يرفض الطلبات المزيّفة رخيصاً (خطر DoS محدود)، لكن وصْل المحدّد الجاهز = سطر واحد. **متوسطة-منخفضة.**
+2. **تسريب `err.message` في auth:** `auth.routes.ts:133` (register) و`:186` (login) يمرّران `err.message` الخام للعميل. الرسائل التجارية مقبولة، لكن خطأ داخلي غير متوقّع قد يكشف نصّه (500/401). يُفضّل رسالة موحّدة للحالة غير التجارية. **منخفضة-متوسطة (كشف معلومات).**
+3. **`switch-workspace` بفحص يدوي لا Zod:** `auth.routes.ts:393` يقرأ `req.body.workspaceId` بفحص `typeof` — لكن **العضوية مُتحقَّقة** (403 لغير العضو) ⇒ العزل سليم. تفاوت أسلوبي. **منخفضة.**
+4. **HSTS مفقود:** (نفس ملاحظة نطاق 7) — أضِف `Strict-Transport-Security`. CSP مُفوَّض للواجهة عمداً. **منخفضة.**
+
+**تصحيحات إشرافية (بالغ كوديكس — صُحّحت):**
+- `followups POST`: كوديكس قال "يقرأ contactId قبل التحقق" — لكن `safeParse` يلي مباشرةً (سطر 113) + فحص ملكية workspace. **ليست ثغرة.**
+- `integrations/webhooks.routes.ts`: كوديكس نفسه لاحظ أنه **غير مُركَّب** في `routes/index.ts` — مسار ميّت، بلا أثر.
+
+**تدقيق التبعيات (`pnpm audit --prod` — شغّله كلود):** ~~5 ثغرات (1 عالية + 4 متوسطة)~~ → **No known vulnerabilities found** ✅ (بعد تطبيق `pnpm.overrides`)
+
+**دفعة التصليح المُطبَّقة (20 يونيو 2026):**
+| # | الملف | التصليح |
+|---|---|---|
+| 1 | `securityHeaders.ts` | أُضيف `Strict-Transport-Security: max-age=31536000; includeSubDomains` |
+| 2 | `routes/index.ts` | وُصِل `webhookLimiter` (600/دق) على `/webhooks` قبل `apiLimiter` |
+| 3 | `auth.service.ts` | أُضيفت `class AuthError`؛ 6 `throw new Error` → `throw new AuthError` |
+| 4 | `auth.routes.ts` | catch blocks: `AuthError` → رسالة العميل؛ خطأ مجهول → `"حدث خطأ داخلي"` |
+| 5 | `package.json` | `pnpm.overrides`: path-to-regexp@8.4.0، qs@6.15.2، ip-address@10.1.1، postcss@8.5.10 |
+
+**النتيجة:** `corepack pnpm run typecheck` (api-server) → صفر أخطاء ✅ · `pnpm audit --prod` → صفر ثغرات ✅
+
+**بوابة الإغلاق:** ✅ **أساس أمني صلب + دفعة التصليح مُطبَّقة ومُتحقَّقة.** TypeScript يمرّ، audit نظيف. جاهز للدفع.
 
 ---
 
