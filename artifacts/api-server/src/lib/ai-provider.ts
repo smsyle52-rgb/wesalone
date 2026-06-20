@@ -88,6 +88,8 @@ export interface AiRunInput {
   responseFormat?: "json" | "text";
   // vision: صور واردة تُمرَّر للنموذج ليحلّل محتواها (اختياري؛ تُتجاهَل في mock).
   images?: AiImage[];
+  // راوتر الموديلات: معرّف Vertex المحدّد لهذه المهمة (من resolveModel). عند غيابه يُستخدم VERTEX_MODEL.
+  modelId?: string;
 }
 
 export interface AiRunOutput {
@@ -127,6 +129,35 @@ function summarizeError(err: unknown): Record<string, unknown> {
     };
   }
   return { message: String(err).slice(0, 300) };
+}
+
+// راوتر الموديلات: لو موديل preview غير متاح على المشروع، لا نطرق بابه في كل رسالة.
+// نضعه في "تهدئة" 10 دقائق بعد فشل دلالته على عدم التوفّر، ونذهب للبديل مباشرةً.
+const MODEL_COOLDOWN_MS = 10 * 60 * 1000;
+const modelCooldown = new Map<string, number>();
+
+function isModelUnavailableError(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes("not found") ||
+    msg.includes("not_found") ||
+    msg.includes("does not exist") ||
+    msg.includes("is not supported") ||
+    msg.includes("was not found") ||
+    msg.includes("status 404") ||
+    msg.includes("permission") ||
+    msg.includes("not allowed")
+  );
+}
+
+function modelInCooldown(modelId: string): boolean {
+  const expiresAt = modelCooldown.get(modelId);
+  if (!expiresAt) return false;
+  if (Date.now() > expiresAt) {
+    modelCooldown.delete(modelId);
+    return false;
+  }
+  return true;
 }
 
 // ─── Mock provider ────────────────────────────────────────────────────────────
@@ -331,6 +362,71 @@ async function getMetadataAccessToken(): Promise<string> {
   }
 }
 
+type VertexCallResult = {
+  content: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
+// استدعاء Vertex لموديل محدّد. يرمي خطأً عند الفشل أو الردّ الفارغ ليتولّاه المتصل (سقوط للبديل).
+async function callVertexModel(modelId: string, input: AiRunInput, token: string): Promise<VertexCallResult> {
+  const originalSystem = input.messages.find((m) => m.role === "system")?.content ?? "";
+  const systemInstruction = [SAFETY_SYSTEM_PROMPT, originalSystem].filter(Boolean).join("\n\n");
+  const userMsgs = input.messages.filter((m) => m.role !== "system");
+  const combined = userMsgs.map((m) => m.content).join("\n\n");
+  // vision: ألحِق الصور الواردة كأجزاء inline ليحلّلها النموذج بصرياً.
+  const imageParts = (input.images ?? []).map((img) => ({
+    inlineData: { mimeType: img.mimeType, data: img.data },
+  }));
+  const host = VERTEX_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_LOCATION}-aiplatform.googleapis.com`;
+  const modelPath = `projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_LOCATION}/publishers/google/models/${modelId}`;
+  const endpoint = `https://${host}/v1/${modelPath}:generateContent`;
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      contents: [{ role: "user", parts: [{ text: combined }, ...imageParts] }],
+      generationConfig: {
+        maxOutputTokens: getMaxOutputTokens(input),
+        temperature: getTemperature(input),
+        // PD-8 جذري: تعطيل "التفكير" يمنع التهام توكنات الإخراج وقطع JSON منتصف الردّ.
+        thinkingConfig: { thinkingBudget: THINKING_BUDGET },
+        ...(wantsJson(input) ? { responseMimeType: "application/json" } : {}),
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Vertex AI generateContent failed with status ${res.status}: ${body.slice(0, 300)}`);
+  }
+
+  const data = await res.json() as VertexGenerateContentResponse;
+  const content = data.candidates
+    ?.flatMap((candidate) => candidate.content?.parts?.map((part) => part.text ?? "") ?? [])
+    .join("\n")
+    .trim();
+
+  if (!content) {
+    throw new Error("Vertex AI returned an empty response");
+  }
+
+  const promptTokens = data.usageMetadata?.promptTokenCount ?? Math.ceil(combined.length / 4);
+  const completionTokens = data.usageMetadata?.candidatesTokenCount ?? Math.ceil(content.length / 4);
+  return {
+    content,
+    promptTokens,
+    completionTokens,
+    totalTokens: data.usageMetadata?.totalTokenCount ?? promptTokens + completionTokens,
+  };
+}
+
 async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
   if (!VERTEX_CONFIGURED || !VERTEX_PROJECT_ID) {
     logger.warn("Vertex AI is not configured, falling back to mock");
@@ -338,59 +434,33 @@ async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
     return { ...(await runMock(input)), fallbackUsed: true };
   }
 
+  // راوتر الموديلات: الموديل المطلوب (من resolveModel) مع سقوط آمن للموديل العامل.
+  const requested = input.modelId ?? VERTEX_MODEL;
+  const fallback = VERTEX_MODEL;
+  // لو الموديل المطلوب في تهدئة (ثبت عدم توفّره مؤخراً) لا تطرق بابه — اذهب للبديل فوراً.
+  const primary = requested !== fallback && modelInCooldown(requested) ? fallback : requested;
+
   try {
     const token = await getMetadataAccessToken();
-    const originalSystem = input.messages.find((m) => m.role === "system")?.content ?? "";
-    const systemInstruction = [SAFETY_SYSTEM_PROMPT, originalSystem].filter(Boolean).join("\n\n");
-    const userMsgs = input.messages.filter((m) => m.role !== "system");
-    const combined = userMsgs.map((m) => m.content).join("\n\n");
-    // vision: ألحِق الصور الواردة كأجزاء inline ليحلّلها النموذج بصرياً.
-    const imageParts = (input.images ?? []).map((img) => ({
-      inlineData: { mimeType: img.mimeType, data: img.data },
-    }));
-    const host = VERTEX_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_LOCATION}-aiplatform.googleapis.com`;
-    const modelPath = `projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_LOCATION}/publishers/google/models/${VERTEX_MODEL}`;
-    const endpoint = `https://${host}/v1/${modelPath}:generateContent`;
 
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ role: "user", parts: [{ text: combined }, ...imageParts] }],
-        generationConfig: {
-          maxOutputTokens: getMaxOutputTokens(input),
-          temperature: getTemperature(input),
-          // PD-8 جذري: تعطيل "التفكير" يمنع التهام توكنات الإخراج وقطع JSON منتصف الردّ.
-          thinkingConfig: { thinkingBudget: THINKING_BUDGET },
-          ...(wantsJson(input) ? { responseMimeType: "application/json" } : {}),
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Vertex AI generateContent failed with status ${res.status}: ${body.slice(0, 300)}`);
+    let usedModel = primary;
+    let result: VertexCallResult;
+    try {
+      result = await callVertexModel(primary, input, token);
+    } catch (primaryErr) {
+      if (primary === fallback) throw primaryErr;
+      // الموديل المطلوب غير متاح/مرفوض → ضعه في تهدئة وجرّب البديل العامل (لا نكسر الإنتاج).
+      if (isModelUnavailableError(primaryErr)) modelCooldown.set(primary, Date.now() + MODEL_COOLDOWN_MS);
+      logger.warn(
+        { err: summarizeError(primaryErr), requested: primary, fallback },
+        "Vertex primary model failed — retrying with safe fallback model",
+      );
+      usedModel = fallback;
+      result = await callVertexModel(fallback, input, token);
     }
-
-    const data = await res.json() as VertexGenerateContentResponse;
-    const content = data.candidates
-      ?.flatMap((candidate) => candidate.content?.parts?.map((part) => part.text ?? "") ?? [])
-      .join("\n")
-      .trim();
-
-    if (!content) {
-      throw new Error("Vertex AI returned an empty response");
-    }
-
-    const promptTokens = data.usageMetadata?.promptTokenCount ?? Math.ceil(combined.length / 4);
-    const completionTokens = data.usageMetadata?.candidatesTokenCount ?? Math.ceil(content.length / 4);
 
     if (wantsJson(input)) {
-      const hasJson = /[\[{]/.test(content);
+      const hasJson = /[\[{]/.test(result.content);
       if (!hasJson) {
         logger.warn({ taskType: input.taskType }, "Vertex AI returned non-JSON for structured task, falling back to mock");
         _fallbackMode = true;
@@ -402,11 +472,11 @@ async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
 
     return {
       provider: "vertex",
-      model: VERTEX_MODEL,
-      content,
-      promptTokens,
-      completionTokens,
-      totalTokens: data.usageMetadata?.totalTokenCount ?? promptTokens + completionTokens,
+      model: usedModel,
+      content: result.content,
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      totalTokens: result.totalTokens,
       estimatedCost: 0,
       fallbackUsed: false,
     };

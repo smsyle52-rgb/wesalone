@@ -11,6 +11,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { searchKnowledgeForAi } from "../services/knowledge-retrieval";
 import { loadMediaContext } from "../services/agent-media";
 import { ACTIVE_PROVIDER, getDefaultModel, runAI } from "./ai-provider";
+import { classifyComplexity, resolveModel } from "./model-router";
 import {
   buildAgentToolPrompt,
   executeAgentToolCalls,
@@ -223,6 +224,16 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
 المطلوب: رد احترافي مناسب باللغة العربية.`;
   const model = agent.defaultModel || getDefaultModel();
 
+  // راوتر الموديلات (المرحلة 1): اختر flash للعادي / pro للصعب، ووجّه الصور لمسار الرؤية.
+  // الصعوبة من إشارات التصعيد/التعارض وتعدّد النوايا وضعف تطابق المعرفة.
+  const tier = classifyComplexity({
+    inboundText: lastInbound?.content ?? "",
+    knowledgeMatchCount: knowledgeSources.length,
+    turnCount: messages.length,
+    imageCount: mediaContext.images.length,
+  });
+  const route = resolveModel(mediaContext.images.length > 0 ? "vision" : "text.reply", tier);
+
   const [run] = await db.insert(aiRunsTable).values({
     workspaceId: params.workspaceId,
     agentId: params.agentId,
@@ -247,6 +258,8 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     const aiOutput = await runAIWithTimeout({
       messages: runMessages,
       model,
+      // راوتر الموديلات: المعرّف المحدّد لمستوى/مهمة هذا الردّ (يُستخدم على مسار Vertex مع سقوط آمن).
+      modelId: route.modelId,
       taskType: "draft_reply",
       maxTokens: agent.maxOutputTokens,
       responseFormat: executableTools.length > 0 ? "json" : "text",
