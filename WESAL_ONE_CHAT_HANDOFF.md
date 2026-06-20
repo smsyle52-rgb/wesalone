@@ -37,6 +37,20 @@
 
 **ملاحظة معمارية (غير حاجزة — نشِطة قبل التوسّع):** مُحلِّل Secret Manager وقت التشغيل لتوكنات العملاء الفردية (`credentialsSecretRef`) **غير مُفعَّل بعد** — `getAccessToken` يرجع لـ`META_SYSTEM_USER_TOKEN`/`META_ACCESS_TOKEN` من env (توكن نظام مزوّد تقني، في Secret Manager لا مكشوف) ويسجّل تحذيراً عند وجود إشارة فقط. كافٍ للنموذج الحالي؛ يجب تفعيل المُحلِّل عند إدخال تجار كثُر بتوكنات منفصلة. لا تسريب — كل التوكنات في Secret Manager.
 
+### النطاق 4 — متانة القنوات الثلاث · **اجتاز البوابة** ✅
+| ما فُحص | النتيجة |
+|---|---|
+| تحقق HMAC | `verifyMetaSignature` (HMAC-SHA256 + `timingSafeEqual`) يُنفَّذ **قبل** أي معالجة على POST /meta؛ fail-closed (لا سرّ → رفض الكل)؛ لا تجاوز بأي علَم بيئة. GET يفحص verify-token. |
+| تعميم الاستقبال | القنوات الثلاث: واتساب (`handleMetaPayload`)، إنستغرام + ماسنجر (`ingestMetaChannelMessage` المشترك) — كلها تنشئ `domain_events: message.received` → توقظ حلقة الرد (إصلاح PD-6). |
+| تعميم الإرسال | `outbox-worker` يوجّه حسب `channel_type`: إنستغرام→`igAccountId/messages`، ماسنجر→`pageId/messages`، واتساب→`phoneNumberId/messages` (`messaging_product`). |
+| عزل القناة | كل وارد يشتق `workspaceId` من حساب القناة (phone_number_id/igAccountId/pageId)؛ كل الاستعلامات مقيّدة. |
+| نافذة 24 ساعة | إعادة استخدام محادثة خلال 24س؛ صادر واتساب يفرض 24س → تصعيد للبشر عند الانتهاء (Q3). |
+| أخطاء الإرسال | إعادة 3 مرات بـbackoff (60s/120s) → فشل دائم → `logAlert` + تصعيد المحادثة للبشر (Q4). لا فشل صامت. |
+| إصدار Graph موحّد | `META_GRAPH_VERSION` واحد عبر كل المسارات. |
+| منع التكرار | dedup بـ`providerMessageId` على كل مسارات الوارد. |
+
+**ملاحظتان طفيفتان (غير حاجزتين):** (1) تطبيقان لاستقبال واتساب (`handleMetaPayload` + `handleMetaWhatsAppWebhook`)؛ الثاني ميت من مسار الـwebhook (تكرار صيانة لا خلل). (2) فرض نافذة 24س الاستباقي لواتساب فقط؛ ماسنجر/إنستغرام يعتمدان رفض المنصّة + مسار الإعادة/الفشل.
+
 ---
 
 ## ⏳ نطاق المخزون (منتجات) — متطلبات مقفلة (20 يونيو 2026)
