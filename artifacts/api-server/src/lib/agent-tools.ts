@@ -357,7 +357,7 @@ export async function loadOrderStatusContext(
     .limit(1);
   if (!conversation?.contactId) return "";
 
-  const orders = await db
+  const rows = await db
     .select({
       orderNumber: ordersTable.orderNumber,
       status: ordersTable.status,
@@ -375,8 +375,18 @@ export async function loadOrderStatusContext(
     .from(ordersTable)
     .where(and(eq(ordersTable.workspaceId, workspaceId), eq(ordersTable.contactId, conversation.contactId)))
     .orderBy(desc(ordersTable.createdAt))
-    .limit(limit);
-  if (orders.length === 0) return "";
+    .limit(limit * 3);
+  if (rows.length === 0) return "";
+
+  // منع التكرار: قد توجد صفوف بنفس رقم الطلب (سباق توليد الرقم) — اعرض كل رقم مرّة واحدة فقط.
+  const seen = new Set<string>();
+  const orders: typeof rows = [];
+  for (const row of rows) {
+    if (seen.has(row.orderNumber)) continue;
+    seen.add(row.orderNumber);
+    orders.push(row);
+    if (orders.length >= limit) break;
+  }
 
   const lines = orders.map((order) => {
     const parts: string[] = [`طلب ${order.orderNumber}`, `الحالة: ${arLabel(ORDER_STATUS_LABELS, order.status)}`];

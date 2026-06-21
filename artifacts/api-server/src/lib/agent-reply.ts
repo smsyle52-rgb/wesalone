@@ -12,6 +12,7 @@ import { searchKnowledgeForAi } from "../services/knowledge-retrieval";
 import { loadMediaContext } from "../services/agent-media";
 import { ACTIVE_PROVIDER, getDefaultModel, runAI } from "./ai-provider";
 import { classifyComplexity, resolveModel } from "./model-router";
+import { logger } from "./logger";
 import {
   buildAgentToolPrompt,
   executeAgentToolCalls,
@@ -193,7 +194,13 @@ export async function runAgentReply(params: {
   const knowledgeSources = await searchKnowledgeForAi({ workspaceId: params.workspaceId, query: searchQuery });
   const mediaContext = await loadMediaContext(messages);
   // get_order_status (الدفعة 3): احقن حالة طلبات العميل في السياق ليردّ الوكيل على «وين طلبي؟» بدقّة (بنية أحادية التمرير).
-  const orderStatusContext = await loadOrderStatusContext(params.workspaceId, params.conversationId);
+  // حماية: فشل جلب الطلبات يجب ألّا يكسر الردّ كلّه — تدهور رشيق إلى سياق فارغ.
+  let orderStatusContext = "";
+  try {
+    orderStatusContext = await loadOrderStatusContext(params.workspaceId, params.conversationId);
+  } catch (err) {
+    logger.warn({ err, conversationId: params.conversationId }, "loadOrderStatusContext failed — continuing without order context");
+  }
   const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
   const toolPrompt = buildAgentToolPrompt(executableTools);
   const mediaGuidance = mediaContext.sources.length > 0
@@ -213,7 +220,7 @@ export async function runAgentReply(params: {
   const systemPrompt = [
     toolPrompt,
     `Current date/time: ${new Date().toISOString()}.`,
-    instructions?.rolePrompt ?? "أنت وكيل خدمة عملاء عربي لمنصة وصال ون.",
+    instructions?.rolePrompt ?? "أنت موظف خدمة عملاء ومبيعات محترف تردّ على عملاء النشاط التجاري. أجب بإيجاز ومهنية على آخر رسالة من العميل مباشرةً.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
     `اللهجة: ${agent.dialect}.`,
     agent.tone ? `النبرة: ${agent.tone}.` : "",
@@ -224,8 +231,8 @@ export async function runAgentReply(params: {
 المحادثة:
 ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}${orderStatusContext ? `\n\n${orderStatusContext}` : ""}
 
-المطلوب: رد احترافي مناسب باللغة العربية.`;
-  const model = agent.defaultModel || getDefaultModel();
+المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. لا تكرّر ردّاً سابقاً حرفياً، ولا تكتفِ بعبارة ختامية عامة إلا إذا أنهى العميل المحادثة فعلاً. رد موجز ومهني بالعربية.`;
+  const model = agent.defaultModel && agent.defaultModel !== "mock" ? agent.defaultModel : getDefaultModel();
 
   // راوتر الموديلات (المرحلة 1): اختر flash للعادي / pro للصعب، ووجّه الصور لمسار الرؤية.
   // الصعوبة من إشارات التصعيد/التعارض وتعدّد النوايا وضعف تطابق المعرفة.
