@@ -84,6 +84,39 @@ function coerceCurrency(raw: unknown): unknown {
 const PAYMENT_METHOD_VALUES = ["cash", "transfer", "kuraimi", "jawali", "bank", "other"] as const;
 const FOLLOWUP_TYPE_VALUES = ["manual", "sales", "support", "collection", "reminder"] as const;
 
+// get_order_status (الدفعة 3): خرائط عربية لحالات الطلب/التوصيل/الدفع — مع سقوط آمن للقيمة الخام.
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  new: "جديد",
+  confirmed: "مؤكّد",
+  processing: "قيد المعالجة",
+  completed: "مكتمل",
+  delivered: "تم التسليم",
+  cancelled: "ملغى",
+  returned: "مُرتجع",
+};
+const DELIVERY_TYPE_LABELS: Record<string, string> = {
+  pickup: "استلام من المتجر",
+  local: "توصيل محلي (مندوب)",
+  shipping: "شحن عبر مكتب نقل",
+};
+const DELIVERY_STATUS_LABELS: Record<string, string> = {
+  preparing: "قيد التجهيز",
+  ready: "جاهز للتسليم",
+  out_for_delivery: "في الطريق إليك",
+  handed_to_carrier: "سُلّم لمكتب النقل",
+  delivered: "تم التسليم",
+};
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  unpaid: "غير مدفوع",
+  partial: "مدفوع جزئياً",
+  paid: "مدفوع بالكامل",
+};
+
+function arLabel(map: Record<string, string>, value: string | null | undefined): string {
+  if (!value) return "";
+  return map[value] ?? value;
+}
+
 const createOrderSchema = z.object({
   currency: z.preprocess(coerceCurrency, z.enum(CURRENCY_VALUES).default("YER")),
   channel: z.enum(ORDER_CHANNEL_VALUES).default("whatsapp"),
@@ -304,6 +337,65 @@ async function loadConversation(workspaceId: string, conversationId: string): Pr
 
   if (!conversation) throw new Error("CONVERSATION_NOT_FOUND");
   return conversation;
+}
+
+/**
+ * get_order_status (الدفعة 3 — نطاق 11): سياق حالة طلبات العميل الحالي للوكيل.
+ * بنية الردّ أحادية التمرير (لا function calling بعد) → نحقن الحالة في السياق بدل tool_call،
+ * فيردّ الوكيل بمعلومة دقيقة في رسالة واحدة بلا هلوسة. عزل صارم: workspaceId + contactId.
+ * يُرجع نصّاً عربياً مختصراً (أو "" إن لا عميل/طلبات). حقول مرئية للعميل فقط — لا ملاحظات داخلية.
+ */
+export async function loadOrderStatusContext(
+  workspaceId: string,
+  conversationId: string,
+  limit = 3,
+): Promise<string> {
+  const [conversation] = await db
+    .select({ contactId: conversationsTable.contactId })
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)))
+    .limit(1);
+  if (!conversation?.contactId) return "";
+
+  const orders = await db
+    .select({
+      orderNumber: ordersTable.orderNumber,
+      status: ordersTable.status,
+      totalAmount: ordersTable.totalAmount,
+      currency: ordersTable.currency,
+      paymentStatus: ordersTable.paymentStatus,
+      deliveryType: ordersTable.deliveryType,
+      deliveryStatus: ordersTable.deliveryStatus,
+      deliveryAgentPhone: ordersTable.deliveryAgentPhone,
+      carrierName: ordersTable.carrierName,
+      carrierPhone: ordersTable.carrierPhone,
+      deliveredAt: ordersTable.deliveredAt,
+      codEnabled: ordersTable.codEnabled,
+    })
+    .from(ordersTable)
+    .where(and(eq(ordersTable.workspaceId, workspaceId), eq(ordersTable.contactId, conversation.contactId)))
+    .orderBy(desc(ordersTable.createdAt))
+    .limit(limit);
+  if (orders.length === 0) return "";
+
+  const lines = orders.map((order) => {
+    const parts: string[] = [`طلب ${order.orderNumber}`, `الحالة: ${arLabel(ORDER_STATUS_LABELS, order.status)}`];
+    if (order.deliveryType) parts.push(`التسليم: ${arLabel(DELIVERY_TYPE_LABELS, order.deliveryType)}`);
+    if (order.deliveryStatus) parts.push(`حالة التوصيل: ${arLabel(DELIVERY_STATUS_LABELS, order.deliveryStatus)}`);
+    if (order.deliveryAgentPhone) parts.push(`رقم المندوب: ${order.deliveryAgentPhone}`);
+    if (order.carrierName) {
+      parts.push(`مكتب النقل: ${order.carrierName}${order.carrierPhone ? ` (${order.carrierPhone})` : ""}`);
+    }
+    parts.push(`الإجمالي: ${order.totalAmount} ${order.currency}`);
+    parts.push(`الدفع: ${arLabel(PAYMENT_STATUS_LABELS, order.paymentStatus)}${order.codEnabled ? " — عند الاستلام" : ""}`);
+    if (order.deliveredAt) parts.push(`تاريخ التسليم: ${order.deliveredAt.toISOString().slice(0, 10)}`);
+    return `- ${parts.join(" | ")}`;
+  });
+
+  return [
+    "حالة طلبات هذا العميل (للرجوع فقط إن سأل عن حالة طلبه أو توصيله — لا تذكرها تلقائياً، ولا تخمّن ما هو غير مذكور هنا):",
+    ...lines,
+  ].join("\n");
 }
 
 async function appendToolNote(params: {

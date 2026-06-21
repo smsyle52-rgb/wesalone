@@ -16,6 +16,7 @@ import {
   buildAgentToolPrompt,
   executeAgentToolCalls,
   loadExecutableAgentTools,
+  loadOrderStatusContext,
   parseAgentToolResponse,
   type AgentToolResult,
 } from "./agent-tools";
@@ -191,6 +192,8 @@ export async function runAgentReply(params: {
   const searchQuery = inboundSearchQuery(lastInbound) || lastInbound?.content || messages[messages.length - 1]?.content || "";
   const knowledgeSources = await searchKnowledgeForAi({ workspaceId: params.workspaceId, query: searchQuery });
   const mediaContext = await loadMediaContext(messages);
+  // get_order_status (الدفعة 3): احقن حالة طلبات العميل في السياق ليردّ الوكيل على «وين طلبي؟» بدقّة (بنية أحادية التمرير).
+  const orderStatusContext = await loadOrderStatusContext(params.workspaceId, params.conversationId);
   const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
   const toolPrompt = buildAgentToolPrompt(executableTools);
   const mediaGuidance = mediaContext.sources.length > 0
@@ -219,7 +222,7 @@ export async function runAgentReply(params: {
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.
 
 المحادثة:
-${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}
+${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}${orderStatusContext ? `\n\n${orderStatusContext}` : ""}
 
 المطلوب: رد احترافي مناسب باللغة العربية.`;
   const model = agent.defaultModel || getDefaultModel();
