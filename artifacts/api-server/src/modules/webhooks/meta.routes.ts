@@ -9,10 +9,12 @@ import {
   db,
   domainEventsTable,
   messagesTable,
+  outboxEventsTable,
 } from "@workspace/db";
 import { env } from "../../lib/env";
 import { logger } from "../../lib/logger";
 import { handleMetaWebhook } from "../integrations/meta-webhook.handler";
+import { notifyWorkspace } from "../../services/notifications";
 
 type RequestWithRawBody = Request & { rawBody?: Buffer };
 
@@ -39,6 +41,14 @@ type MetaStatus = {
   [key: string]: unknown;
 };
 
+type MetaCall = {
+  id?: string;
+  from?: string;
+  timestamp?: string;
+  event?: string;
+  [key: string]: unknown;
+};
+
 type MetaChangeValue = {
   metadata?: {
     phone_number_id?: string;
@@ -46,6 +56,7 @@ type MetaChangeValue = {
   };
   messages?: MetaMessage[];
   statuses?: MetaStatus[];
+  calls?: MetaCall[];
   [key: string]: unknown;
 };
 
@@ -433,6 +444,69 @@ async function handleEchoEvent(value: MetaChangeValue, externalThreadId: string 
   });
 }
 
+// PD-5 (نطاق 25): WhatsApp Calling MVP. We do not answer voice (no WebRTC/STT/TTS); instead we log
+// the incoming call, escalate to a human, and send a fixed text inviting the customer to message.
+// Dormant until the WhatsApp number has Calling enabled and the `calls` webhook field is subscribed.
+async function handleInboundCall(value: MetaChangeValue, call: MetaCall): Promise<void> {
+  const phoneNumberId = value.metadata?.phone_number_id;
+  const from = typeof call?.from === "string" ? call.from : undefined;
+  const callId = typeof call?.id === "string" ? call.id : undefined;
+  const event = typeof call?.event === "string" ? call.event : undefined;
+
+  // Structure-only diagnostic (no PII) — the WhatsApp Calling payload shape can vary by rollout.
+  logger.info({ phoneNumberId, callId, event, callKeys: call ? Object.keys(call) : [] }, "WhatsApp call webhook received");
+
+  if (!phoneNumberId || !from || !callId) {
+    logger.warn({ phoneNumberId, callId }, "Skipping incomplete WhatsApp call event");
+    return;
+  }
+
+  const channel = await findWhatsappChannel(phoneNumberId);
+  if (!channel) {
+    logger.warn({ phoneNumberId }, "No WhatsApp channel account found for call event");
+    return;
+  }
+
+  const contact = await upsertContact(channel.workspaceId, from);
+  const content = "📞 مكالمة واتساب واردة";
+  const conversation = await upsertConversation(channel, contact.id, from, content);
+
+  // Log the call (dedup by call id). We intentionally do NOT emit message.received: the AI must not
+  // "answer" a voice call — we escalate to a human and send a fixed text instead.
+  const timestamp = call?.timestamp != null ? String(call.timestamp) : undefined;
+  const messageId = await insertInboundMessage(conversation, { id: callId, timestamp }, content);
+  if (!messageId) return; // duplicate call event
+
+  await db.update(conversationsTable)
+    .set({ agentStatus: "human", needsHuman: true, escalationReason: "whatsapp_call", updatedAt: new Date() })
+    .where(and(eq(conversationsTable.id, conversation.id), eq(conversationsTable.workspaceId, channel.workspaceId)));
+
+  // Fixed auto-reply within the 24h customer window (the customer just initiated contact by calling).
+  await db.insert(outboxEventsTable).values({
+    workspaceId: channel.workspaceId,
+    eventType: "message.send.whatsapp.text",
+    entityType: "conversation",
+    entityId: conversation.id,
+    idempotencyKey: `call-autoreply:${callId}`,
+    payload: {
+      channelAccountId: channel.id,
+      conversationId: conversation.id,
+      to: from,
+      text: "شكراً لتواصلك! لا نستقبل المكالمات حالياً، لكن اكتب رسالتك هنا وسنردّ عليك فوراً. 🌟",
+    },
+    status: "pending",
+    nextAttemptAt: new Date(),
+  }).onConflictDoNothing();
+
+  await notifyWorkspace({
+    workspaceId: channel.workspaceId,
+    type: "message.received",
+    titleAr: "مكالمة واتساب واردة",
+    bodyAr: `حاول ${from} الاتصال عبر واتساب — تابع المحادثة نصياً.`,
+    link: `/inbox?conversation=${conversation.id}`,
+  });
+}
+
 async function handleMetaPayload(payload: MetaPayload): Promise<void> {
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
@@ -446,6 +520,10 @@ async function handleMetaPayload(payload: MetaPayload): Promise<void> {
         }
 
         await handleInboundMessage(value, message);
+      }
+
+      for (const call of value.calls ?? []) {
+        await handleInboundCall(value, call);
       }
     }
   }
