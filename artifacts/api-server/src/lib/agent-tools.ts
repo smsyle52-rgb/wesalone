@@ -13,7 +13,7 @@ import {
   outboxEventsTable,
   paymentMethodsTable,
   paymentsTable,
-  productsTable,
+  inventoryProductsTable,
 } from "@workspace/db";
 import { and, count, desc, eq, ilike, sum } from "drizzle-orm";
 import { z } from "zod";
@@ -166,7 +166,7 @@ const TOOL_LABELS: Record<AgentToolKey, string> = {
   create_order: "Create a new order linked to the current conversation/contact.",
   log_payment_claim: "Log a pending payment claim for human review. Never confirms money.",
   schedule_followup: "Schedule a future follow-up for the current contact.",
-  send_product_media: "Send one visible product image from the catalog through WhatsApp.",
+  send_product_media: "Send one product image from the merchant's inventory to the customer on the current channel (WhatsApp, Instagram, or Messenger).",
   handoff_to_human: "Move the conversation to human handling immediately.",
 };
 
@@ -765,17 +765,17 @@ async function executeSendProductMedia(params: ExecuteParams, conversation: Conv
 
   let product;
   if (data.productId) {
-    [product] = await db.select().from(productsTable)
-      .where(and(eq(productsTable.id, data.productId), eq(productsTable.workspaceId, params.workspaceId)))
+    [product] = await db.select().from(inventoryProductsTable)
+      .where(and(eq(inventoryProductsTable.id, data.productId), eq(inventoryProductsTable.workspaceId, params.workspaceId)))
       .limit(1);
   } else if (data.externalProductId) {
-    [product] = await db.select().from(productsTable)
-      .where(and(eq(productsTable.externalProductId, data.externalProductId), eq(productsTable.workspaceId, params.workspaceId)))
+    [product] = await db.select().from(inventoryProductsTable)
+      .where(and(eq(inventoryProductsTable.sku, data.externalProductId), eq(inventoryProductsTable.workspaceId, params.workspaceId)))
       .limit(1);
   } else if (data.productName) {
-    [product] = await db.select().from(productsTable)
-      .where(and(eq(productsTable.workspaceId, params.workspaceId), eq(productsTable.isVisible, true), ilike(productsTable.name, `%${data.productName}%`)))
-      .orderBy(desc(productsTable.syncedAt))
+    [product] = await db.select().from(inventoryProductsTable)
+      .where(and(eq(inventoryProductsTable.workspaceId, params.workspaceId), eq(inventoryProductsTable.isArchived, false), ilike(inventoryProductsTable.name, `%${data.productName}%`)))
+      .orderBy(desc(inventoryProductsTable.updatedAt))
       .limit(1);
   }
 
@@ -784,13 +784,22 @@ async function executeSendProductMedia(params: ExecuteParams, conversation: Conv
 
   const captionParts = [
     data.caption ?? product.name,
-    product.price ? `${product.price} ${product.currency ?? ""}`.trim() : "",
-    product.productUrl ?? "",
+    Number(product.price) > 0 ? `${product.price} ${product.currency ?? ""}`.trim() : "",
   ].filter(Boolean);
+  const caption = captionParts.join("\n").slice(0, 1000);
+
+  // PD-4: route product media by the conversation's channel (not hardcoded WhatsApp).
+  // Worker sends the image via {channel}.media; for IG/Messenger we also pass `text` (caption)
+  // because their media payload has no caption field, so the name/price arrive as a follow-up.
+  const mediaEventType = conversation.channel === "instagram"
+    ? "message.send.instagram.media"
+    : conversation.channel === "messenger"
+      ? "message.send.messenger.media"
+      : "message.send.whatsapp.media";
 
   const [event] = await db.insert(outboxEventsTable).values({
     workspaceId: params.workspaceId,
-    eventType: "message.send.whatsapp.media",
+    eventType: mediaEventType,
     entityType: "conversation",
     entityId: conversation.id,
     idempotencyKey: `tool:product-media:${params.aiRunId}:${product.id}`,
@@ -800,7 +809,8 @@ async function executeSendProductMedia(params: ExecuteParams, conversation: Conv
       to: conversation.externalThreadId,
       mediaType: "image",
       mediaUrl: product.imageUrl,
-      caption: captionParts.join("\n").slice(0, 1000),
+      caption,
+      text: conversation.channel === "instagram" || conversation.channel === "messenger" ? caption : undefined,
       productId: product.id,
       aiRunId: params.aiRunId,
       autoReply: true,
