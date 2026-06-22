@@ -41,3 +41,80 @@ description: >-
 - أسرار/توكنات في Secret Manager فقط؛ تطبيق ميتا (1437258534807702) لا يُلمس إلا بطلب صريح.
 - تأكّد من الصلاحية قبل البناء (الكتالوج/الإعلانات غير متوفرين حالياً).
 - صيغة الأوامر: ROLE / TARGET / CONTEXT / TASK / CONSTRAINTS / OUTPUT.
+
+## Wesal One UI Foundation
+
+### المعمارية المعتمدة
+- `Base UI` (`@base-ui/react`) هو محرك الـprimitives والسلوك وإمكانية الوصول.
+- `shadcn/ui` بنمط `base-nova` هو مصدر المكونات القابلة للتعديل والمحفوظة داخل المستودع.
+- `Tailwind CSS v4` وCSS Variables هما طبقة التنسيق.
+- `@workspace/ui` في `lib/ui` هي الحزمة المشتركة الرسمية، و`@workspace/ui/styles/tokens.css` هو مدخل الـDesign Tokens المركزي للألوان والمسافات والحواف والظلال والحركة.
+- وصال ون عربي أولاً، وRTL أولاً، وMobile First. يستعمل `DirectionProvider` اتجاه RTL افتراضياً، ويحدد تطبيق الويب الاتجاه الفعلي حسب اللغة.
+- الحزمة للعرض والتفاعل فقط؛ لا تستورد API clients أو المصادقة أو قاعدة البيانات أو routes أو منطق المنتج.
+
+### قواعد إلزامية للوكلاء والمطورين
+- افحص `@workspace/ui` قبل إنشاء أي مكون جديد. لا تنشئ نسخة ثانية من Button أو Dialog أو Select أو Drawer أو أي مكون موجود.
+- استخدم Design Tokens بدلاً من الألوان والقيم العشوائية، واستخدم الخصائص المنطقية `start` و`end` و`inline` و`block` بدلاً من الاعتماد المباشر على `left` و`right`.
+- يجب أن تدعم المكونات الجديدة RTL والجوال ولوحة المفاتيح وfocus المرئي وحالات disabled وloading وerror وإمكانية الوصول.
+- لا تستخدم primitive library أخرى دون قرار معماري موثق. تبقى مكونات Radix القديمة حتى تُهاجر كل شاشة عمداً وتُختبر.
+- لا تغيّر APIs أو قاعدة البيانات أو المصادقة أو الصلاحيات أو منطق الأعمال ضمن مهام التصميم، ولا تعِد كتابة الصفحات كاملة دون ضرورة.
+- لا تستخدم الشكل الافتراضي لـshadcn كهوية نهائية؛ هوية وصال ون البصرية تُبنى فوق النظام المشترك.
+- كل شاشة تُصمم لاحقاً في مهمة مستقلة وفرع مستقل. لا تعدّل عدة شاشات حساسة في دفعة واحدة دون اختبارات.
+- شغّل اختبارات المكونات وtypecheck وbuild قبل الدمج، ووثّق أي استثناء مبرر بدلاً من تكرار مكون مشترك.
+
+### المكونات والـexports المتاحة
+تُستورد المكونات من subpaths صريحة في `@workspace/ui`:
+
+- **Buttons:** `Button`, `buttonVariants`, `IconButton`, وtype export باسم `IconButtonProps`.
+- **Fields and Inputs:** `Input`, `Textarea`, `Label`, `Field`, `FieldLabel`, `FieldDescription`, `FieldError`, `FieldGroup`, `FieldLegend`, `FieldSeparator`, `FieldSet`, `FieldContent`, `FieldTitle`, `InputGroup`, `InputGroupAddon`, `InputGroupButton`, `InputGroupText`, `InputGroupInput`, `InputGroupTextarea`.
+- **Selection controls:** `Checkbox`, `RadioGroup`, `RadioGroupItem`, `Switch`, `Select`, `SelectContent`, `SelectGroup`, `SelectItem`, `SelectLabel`, `SelectScrollDownButton`, `SelectScrollUpButton`, `SelectSeparator`, `SelectTrigger`, `SelectValue`, `Combobox`, `ComboboxInput`, `ComboboxContent`, `ComboboxList`, `ComboboxItem`, `ComboboxGroup`, `ComboboxLabel`, `ComboboxCollection`, `ComboboxEmpty`, `ComboboxSeparator`, `ComboboxChips`, `ComboboxChip`, `ComboboxChipsInput`, `ComboboxTrigger`, `ComboboxValue`, `useComboboxAnchor`.
+- **Menus and Popovers:** `DropdownMenu`, `DropdownMenuPortal`, `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuGroup`, `DropdownMenuLabel`, `DropdownMenuItem`, `DropdownMenuCheckboxItem`, `DropdownMenuRadioGroup`, `DropdownMenuRadioItem`, `DropdownMenuSeparator`, `DropdownMenuShortcut`, `DropdownMenuSub`, `DropdownMenuSubTrigger`, `DropdownMenuSubContent`, `Popover`, `PopoverContent`, `PopoverDescription`, `PopoverHeader`, `PopoverTitle`, `PopoverTrigger`, `Tooltip`, `TooltipTrigger`, `TooltipContent`, `TooltipProvider`.
+- **Dialogs and Drawers:** `Dialog`, `DialogClose`, `DialogContent`, `DialogDescription`, `DialogFooter`, `DialogHeader`, `DialogOverlay`, `DialogPortal`, `DialogTitle`, `DialogTrigger`, `AlertDialog`, `AlertDialogAction`, `AlertDialogCancel`, `AlertDialogContent`, `AlertDialogDescription`, `AlertDialogFooter`, `AlertDialogHeader`, `AlertDialogMedia`, `AlertDialogOverlay`, `AlertDialogPortal`, `AlertDialogTitle`, `AlertDialogTrigger`, `Drawer`, `DrawerTrigger`, `DrawerClose`, `DrawerContent`, `DrawerHeader`, `DrawerFooter`, `DrawerTitle`, `DrawerDescription`, `Sheet`, `SheetTrigger`, `SheetClose`, `SheetContent`, `SheetHeader`, `SheetFooter`, `SheetTitle`, `SheetDescription`.
+- **Tabs and navigation primitives:** `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`, `tabsListVariants`, `ScrollArea`, `ScrollBar`, `Separator`.
+- **Feedback and status states:** `Badge`, `badgeVariants`, `Toaster`, `Skeleton`, `Spinner`.
+- **Tables and data display:** `Avatar`, `AvatarImage`, `AvatarFallback`, `AvatarGroup`, `AvatarGroupCount`, `AvatarBadge`, `Table`, `TableHeader`, `TableBody`, `TableFooter`, `TableHead`, `TableRow`, `TableCell`, `TableCaption`.
+- **Loading, Empty and Error states:** `LoadingState`, `Empty`, `EmptyHeader`, `EmptyTitle`, `EmptyDescription`, `EmptyContent`, `EmptyMedia`, `ErrorState`.
+- **Infrastructure:** `DirectionProvider` و`cn` من `@workspace/ui/lib/utils`.
+
+للقائمة الدقيقة عند التطوير، اعتبر `lib/ui/package.json` وexports ملفات `lib/ui/src/components/*` المرجع التنفيذي؛ لا تخمّن اسماً غير موجود.
+
+### طريقة الاستخدام
+
+```tsx
+import { Button } from "@workspace/ui/button";
+import { Field, FieldLabel } from "@workspace/ui/field";
+import { Input } from "@workspace/ui/input";
+
+export function ContactNameField() {
+  return (
+    <Field>
+      <FieldLabel htmlFor="contact-name">اسم جهة الاتصال</FieldLabel>
+      <Input id="contact-name" name="contactName" />
+      <Button type="submit">حفظ</Button>
+    </Field>
+  );
+}
+```
+
+### مختبر المكونات
+- الصفحة في `artifacts/web/src/pages/dev/UiLabPage.tsx` والمسار المحلي `/__ui-lab`.
+- شغّل `corepack pnpm --filter @workspace/web dev` ثم افتح `/__ui-lab`.
+- التحميل والمسار محميان بـ`import.meta.env.DEV` في `artifacts/web/src/App.tsx`، ولذلك لا يظهر المختبر في Production.
+- يُستخدم لفحص RTL/LTR والجوال (بدءاً من 320px) وlight/dark والتركيز ولوحة المفاتيح وEscape وعودة التركيز والحالات المختلفة والقص والoverflow.
+
+### أوامر التحقق الفعلية
+
+```powershell
+corepack pnpm install --frozen-lockfile
+corepack pnpm --filter @workspace/ui test
+corepack pnpm --filter @workspace/ui run typecheck
+corepack pnpm run typecheck
+corepack pnpm run build:prod
+```
+
+لا يحتوي المستودع حالياً على إعداد lint أو product integration-test runner؛ لا تخترع أمراً لهما حتى تُضاف أدوات مخصصة.
+
+### خطة التصميم القادمة وحالة النظام
+- تأسيس النظام اكتمل، ولم يبدأ تصميم صفحات المنتج بعد. إعادة التصميم ستكون شاشة شاشة، وكل شاشة تستخدم المكونات المشتركة.
+- commits المرجعية: `e05e3eb` لتوثيق اكتمال التأسيس، و`3bf215b` لحالة `main` المعتمدة بعد الدمج.
+- الحالة المعتمدة: `WESAL_UI_FOUNDATION_READY`.
