@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
 
 function apiFetch(path: string, opts?: RequestInit) {
@@ -43,10 +44,9 @@ function Badge({ status }: { status: string }) {
 type KnowledgeBase = { id: string; name: string; description?: string | null; status: string; createdAt: string };
 type KnowledgeSource = { id: string; type: string; title: string; status: string; rawText?: string | null; createdAt: string };
 type KnowledgeDocument = { id: string; title: string; contentText: string; status: string; tokenEstimate?: number | null; createdAt: string };
-type KnowledgeChunk = { id: string; chunkIndex: number; chunkText: string; tokenEstimate?: number | null; embeddingStatus: string };
 type FaqEntry = { id: string; question: string; answer: string; category?: string | null; status: string; createdAt: string };
 
-type KnowledgeTab = "sources" | "documents" | "faqs" | "chunks" | "settings";
+type KnowledgeTab = "sources" | "documents" | "faqs" | "settings";
 
 export default function KnowledgePage() {
   const { hasPermission } = useAuth();
@@ -71,7 +71,6 @@ export default function KnowledgePage() {
   const [editFaqForm, setEditFaqForm] = useState({ question: "", answer: "", category: "" });
   const [editingDoc, setEditingDoc] = useState<KnowledgeDocument | null>(null);
   const [editDocForm, setEditDocForm] = useState({ title: "", contentText: "" });
-  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
@@ -99,12 +98,6 @@ export default function KnowledgePage() {
     queryKey: ["knowledge-faqs", selectedBaseId],
     queryFn: () => apiFetch(`bases/${selectedBaseId}/faqs`),
     enabled: !!selectedBaseId && canRead && activeTab === "faqs",
-  });
-
-  const chunksQuery = useQuery({
-    queryKey: ["knowledge-chunks", selectedDocId],
-    queryFn: () => apiFetch(`documents/${selectedDocId}/chunks`),
-    enabled: !!selectedDocId && canRead,
   });
 
   const searchQuery_ = useQuery({
@@ -173,14 +166,6 @@ export default function KnowledgePage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-docs", selectedBaseId] }),
   });
 
-  const rechunkDoc = useMutation({
-    mutationFn: (id: string) => apiFetch(`documents/${id}/rechunk`, { method: "POST" }),
-    onSuccess: (_, id) => {
-      qc.invalidateQueries({ queryKey: ["knowledge-chunks", id] });
-      setSelectedDocId(id);
-    },
-  });
-
   const createFaq = useMutation({
     mutationFn: (data: object) => apiFetch(`bases/${selectedBaseId}/faqs`, { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
@@ -217,27 +202,26 @@ export default function KnowledgePage() {
   const sources: KnowledgeSource[] = sourcesQuery.data?.sources ?? [];
   const documents: KnowledgeDocument[] = docsQuery.data?.documents ?? [];
   const faqs: FaqEntry[] = faqsQuery.data?.faqs ?? [];
-  const chunks: KnowledgeChunk[] = chunksQuery.data?.chunks ?? [];
 
   const tabs: { id: KnowledgeTab; label: string; icon: string }[] = [
     { id: "sources", label: "المصادر", icon: "📂" },
     { id: "documents", label: "الوثائق", icon: "📄" },
     { id: "faqs", label: "الأسئلة الشائعة", icon: "❓" },
-    { id: "chunks", label: "المقاطع", icon: "🔀" },
     { id: "settings", label: "الإعدادات", icon: "⚙️" },
   ];
 
   return (
     <div dir="rtl" className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">قاعدة المعرفة</h1>
-        {canCreate && (
+      <PageHeader
+        title="قاعدة المعرفة"
+        subtitle="مصدر معرفة الوكيل: منتجاتك وسياساتك وأسئلتك الشائعة."
+        actions={canCreate && (
           <button onClick={() => setShowCreateBase(true)}
-            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
             + قاعدة معرفة جديدة
           </button>
         )}
-      </div>
+      />
 
       {/* Search bar */}
       <div className="flex gap-2">
@@ -293,19 +277,6 @@ export default function KnowledgePage() {
                     {(searchQuery_.data.results.documents as { id: string; title: string }[]).map((d) => (
                       <div key={d.id} className="bg-muted/50 rounded p-3">
                         <p className="text-sm font-medium">📄 {d.title}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {(searchQuery_.data.results?.chunks ?? []).length > 0 && (
-                <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground mb-2">مقاطع النصوص</h3>
-                  <div className="space-y-2">
-                    {(searchQuery_.data.results.chunks as KnowledgeChunk[]).map((c) => (
-                      <div key={c.id} className="bg-muted/50 rounded p-3">
-                        <p className="text-xs text-muted-foreground">مقطع {c.chunkIndex + 1}</p>
-                        <p className="text-sm mt-0.5 line-clamp-3">{c.chunkText}</p>
                       </div>
                     ))}
                   </div>
@@ -498,7 +469,7 @@ export default function KnowledgePage() {
                                 <Badge status={doc.status} />
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
-                                {doc.tokenEstimate ? `~${doc.tokenEstimate} رمز` : ""} • {doc.contentText.length} حرف
+                                {doc.contentText.length} حرف
                               </p>
                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.contentText}</p>
                             </div>
@@ -508,21 +479,6 @@ export default function KnowledgePage() {
                                   onClick={() => { setEditingDoc(doc); setEditDocForm({ title: doc.title, contentText: doc.contentText }); }}
                                   className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted">
                                   تعديل
-                                </button>
-                              )}
-                              {canUpdate && (
-                                <button
-                                  onClick={() => { rechunkDoc.mutate(doc.id); }}
-                                  disabled={rechunkDoc.isPending}
-                                  className="text-xs text-muted-foreground hover:text-blue-600 transition-colors px-2 py-1 rounded hover:bg-muted">
-                                  {rechunkDoc.isPending ? "..." : "إعادة تقسيم"}
-                                </button>
-                              )}
-                              {canRead && (
-                                <button
-                                  onClick={() => { setSelectedDocId(doc.id === selectedDocId ? null : doc.id); setActiveTab("chunks"); }}
-                                  className="text-xs text-blue-600 hover:underline px-2 py-1">
-                                  عرض المقاطع
                                 </button>
                               )}
                               {canDelete && doc.status !== "archived" && (
@@ -601,51 +557,6 @@ export default function KnowledgePage() {
                   </div>
                 )}
 
-                {/* ── Chunks ── */}
-                {activeTab === "chunks" && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-sm">مقاطع النصوص (Chunks)</h3>
-                      {selectedDocId && (
-                        <span className="text-xs text-muted-foreground">الوثيقة: {documents.find(d => d.id === selectedDocId)?.title ?? selectedDocId.slice(0, 8)}</span>
-                      )}
-                    </div>
-                    {!selectedDocId && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p className="text-2xl mb-2">🔀</p>
-                        <p className="font-medium">اختر وثيقة لعرض مقاطعها</p>
-                        <button onClick={() => setActiveTab("documents")} className="text-xs text-primary underline mt-2">
-                          انتقل إلى الوثائق
-                        </button>
-                      </div>
-                    )}
-                    {selectedDocId && chunksQuery.isLoading && <p className="text-sm text-muted-foreground animate-pulse">جار التحميل...</p>}
-                    {selectedDocId && chunksQuery.isError && (
-                      <div>
-                        <p className="text-sm text-red-500">{chunksQuery.error?.message}</p>
-                        <button onClick={() => chunksQuery.refetch()} className="text-xs underline mt-1">إعادة المحاولة</button>
-                      </div>
-                    )}
-                    {selectedDocId && !chunksQuery.isLoading && chunks.length === 0 && (
-                      <p className="text-center py-4 text-muted-foreground text-sm">لا توجد مقاطع لهذه الوثيقة</p>
-                    )}
-                    <div className="space-y-2">
-                      {chunks.map((chunk) => (
-                        <div key={chunk.id} className="border border-border rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold text-muted-foreground">مقطع {chunk.chunkIndex + 1}</span>
-                            <div className="flex items-center gap-2">
-                              {chunk.tokenEstimate && <span className="text-xs text-muted-foreground">~{chunk.tokenEstimate} رمز</span>}
-                              <Badge status={chunk.embeddingStatus} />
-                            </div>
-                          </div>
-                          <p className="text-sm leading-relaxed">{chunk.chunkText}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* ── Settings ── */}
                 {activeTab === "settings" && (
                   <div className="space-y-4">
@@ -665,16 +576,6 @@ export default function KnowledgePage() {
                         <label className="text-xs font-semibold text-muted-foreground">الحالة</label>
                         <div className="mt-1">{selectedBase && <Badge status={selectedBase.status} />}</div>
                       </div>
-                    </div>
-                    <div className="bg-muted/30 border border-border rounded-lg p-4">
-                      <h4 className="text-sm font-semibold mb-2">فهرس التضمينات (Embeddings)</h4>
-                      <div className="flex items-center gap-2">
-                        <Badge status="not_configured" />
-                        <span className="text-xs text-muted-foreground">المزود: بدون (سيتم تفعيله في مرحلة لاحقة)</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        سيتم دعم pgvector و Vertex Vector Search في مرحلة قادمة. جميع المقاطع الحالية في حالة "بانتظار التضمين".
-                      </p>
                     </div>
                   </div>
                 )}
@@ -801,7 +702,7 @@ export default function KnowledgePage() {
                   className="w-full mt-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary h-48 resize-none"
                   placeholder="أدخل محتوى الوثيقة..." />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {createDocForm.contentText.length} حرف • سيتم تقسيمه تلقائياً إلى مقاطع
+                  {createDocForm.contentText.length} حرف
                 </p>
               </div>
               {createDoc.isError && <p className="text-sm text-red-500">{createDoc.error?.message}</p>}

@@ -243,20 +243,9 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
               <span className="font-medium">{t("agents.fields.name")}</span>
               <input value={settings.name} onChange={(event) => setSettings({ ...settings, name: event.target.value })} disabled={!canConfigure} className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60" />
             </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{t("agents.fields.model")}</span>
-              <select value={settings.defaultModel} onChange={(event) => setSettings({ ...settings, defaultModel: event.target.value })} disabled={!canConfigure} className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60">
-                {["mock", "gemini_flash_lite", "gemini_flash", "gemini_pro"].map((model) => <option key={model} value={model}>{t(`agents.models.${model}`)}</option>)}
-              </select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{t("agents.fields.temperature")}</span>
-              <input type="number" min="0" max="2" step="0.1" value={settings.temperature} onChange={(event) => setSettings({ ...settings, temperature: event.target.value })} disabled={!canConfigure} className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60" />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{t("agents.fields.maxTokens")}</span>
-              <input type="number" min="128" max="8192" value={settings.maxOutputTokens} onChange={(event) => setSettings({ ...settings, maxOutputTokens: event.target.value })} disabled={!canConfigure} className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60" />
-            </label>
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs leading-6 text-muted-foreground md:col-span-2">
+              يعمل هذا الوكيل على محرّك ذكاء يُدار تلقائياً لاختيار أفضل جودة وسرعة لكل رسالة — لا حاجة لأي ضبط تقني منك.
+            </div>
             {canConfigure && (
               <button onClick={() => saveSettings.mutate()} className="inline-flex w-fit items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
                 <Save className="h-4 w-4" />
@@ -393,7 +382,6 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="font-medium">{run.taskType}</div>
-                    <div className="text-muted-foreground">{run.provider} · {run.model}</div>
                   </div>
                   <div className="text-start text-xs text-muted-foreground">{formatDateTime(run.createdAt)}</div>
                 </div>
