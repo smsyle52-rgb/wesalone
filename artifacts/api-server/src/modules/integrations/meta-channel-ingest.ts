@@ -1,3 +1,4 @@
+import { createDecipheriv, createHash } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   channelAccountsTable,
@@ -25,6 +26,58 @@ type IngestMetaChannelMessageParams = {
   timestamp?: number | null;
   providerPayload: Record<string, unknown>;
 };
+
+const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION ?? "v22.0";
+
+// Decrypt the per-channel page token (enc:v1:) so we can read the sender's public profile.
+function decryptTokenRef(ref: string | null | undefined): string | null {
+  if (!ref || !ref.startsWith("enc:v1:")) return null;
+  const secret = process.env.META_OAUTH_STATE_SECRET ?? process.env.SESSION_SECRET;
+  if (!secret) return null;
+  try {
+    const parts = ref.split(":");
+    if (parts.length !== 5) return null;
+    const key = createHash("sha256").update(secret).digest();
+    const iv = Buffer.from(parts[2], "base64url");
+    const tag = Buffer.from(parts[3], "base64url");
+    const data = Buffer.from(parts[4], "base64url");
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
+}
+
+// Best-effort display name from Meta (page token). Falls back to null so callers keep a placeholder.
+async function fetchMetaContactName(
+  channelType: MetaChannelType,
+  senderId: string,
+  credentialsSecretRef: string | null,
+): Promise<string | null> {
+  const token = decryptTokenRef(credentialsSecretRef) ?? process.env.META_SYSTEM_USER_TOKEN ?? process.env.META_ACCESS_TOKEN;
+  if (!token || !senderId) return null;
+  const fields = channelType === "instagram" ? "name,username" : "first_name,last_name";
+  try {
+    const res = await fetch(`https://graph.facebook.com/${META_GRAPH_VERSION}/${senderId}?fields=${fields}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    if (channelType === "instagram") {
+      const name = typeof data?.name === "string" ? data.name.trim() : "";
+      const username = typeof data?.username === "string" ? data.username.trim() : "";
+      return name || (username ? `@${username}` : null);
+    }
+    const full = [data?.first_name, data?.last_name]
+      .filter((part) => typeof part === "string" && part.trim())
+      .join(" ")
+      .trim();
+    return full || null;
+  } catch {
+    return null;
+  }
+}
 
 async function findChannelAccount(
   channelType: MetaChannelType,
@@ -87,11 +140,12 @@ export async function ingestMetaChannelMessage(params: IngestMetaChannelMessageP
   let contactChannelId = existingChannel?.id;
 
   if (!contactId) {
+    const fetchedName = await fetchMetaContactName(params.channelType, normalizedIdentifier, channelAccount.credentialsSecretRef);
     const [contact] = await db
       .insert(contactsTable)
       .values({
         workspaceId,
-        name: `${params.channelType}:${normalizedIdentifier}`,
+        name: fetchedName ?? `${params.channelType}:${normalizedIdentifier}`,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
