@@ -337,6 +337,10 @@ const metaEmbeddedSignupMessengerSchema = z.object({
   pageName: z.string().trim().optional(),
 });
 
+const metaEmbeddedSignupInstagramMessengerSchema = z.object({
+  code: z.string().trim().min(1),
+});
+
 function currentMetaSession(req: AuthenticatedRequest): { options: MetaChannelOptions; tokenRefs: MetaTokenRefs } {
   const stored = (req.session as any).metaChannelOptions;
   if (stored?.workspaceId === req.sessionUser.activeWorkspaceId && Date.now() - stored.createdAt < 30 * 60_000) {
@@ -403,6 +407,120 @@ async function upsertMetaChannelAccount(params: {
       tokenStoredAsReference: Boolean(params.credentialsSecretRef),
     },
   });
+
+  return account;
+}
+
+function serializeChannelAccount(account: typeof channelAccountsTable.$inferSelect) {
+  return {
+    id: account.id,
+    channelType: account.channelType,
+    channel_type: account.channelType,
+    name: account.name,
+    displayName: account.displayName,
+    status: account.status,
+    providerConfig: account.providerConfig,
+    hasCredentialReference: Boolean(account.credentialsSecretRef),
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+  };
+}
+
+// Shared Instagram connect logic — used by /instagram/complete and the combined IG+Messenger flow.
+// Fetches the linked page token (for outbound IG calls), stores it encrypted, creates the channel
+// account keyed by igAccountId (for ingest lookup), and subscribes the page to messaging webhooks.
+async function connectInstagramChannel(params: {
+  req: AuthenticatedRequest;
+  userToken: string;
+  igAccountId: string;
+  linkedPageId: string;
+  username?: string;
+  pageToken?: string | null;
+}) {
+  let pageToken = params.pageToken ?? null;
+  if (!pageToken) {
+    try {
+      const pageData = await callMetaGraph(`${params.linkedPageId}?fields=access_token`, params.userToken);
+      pageToken = typeof pageData?.access_token === "string" ? pageData.access_token : null;
+    } catch (err) {
+      params.req.log?.warn({ err, linkedPageId: params.linkedPageId }, "Failed to fetch Instagram linked page token; will store user token");
+    }
+  }
+
+  const username = params.username ?? "";
+  const account = await upsertMetaChannelAccount({
+    req: params.req,
+    channelType: "instagram",
+    name: `instagram-${params.igAccountId}`,
+    displayName: username ? `Instagram @${username}` : `Instagram ${params.igAccountId}`,
+    providerConfig: {
+      provider: "meta",
+      igAccountId: params.igAccountId,
+      pageId: params.linkedPageId,
+      username,
+      embeddedSignup: true,
+      connectedAt: new Date().toISOString(),
+    },
+    lookupKey: "igAccountId",
+    lookupValue: params.igAccountId,
+    credentialsSecretRef: encryptedTokenRef(pageToken ?? params.userToken),
+  });
+
+  try {
+    await postMetaGraph(`${params.linkedPageId}/subscribed_apps`, pageToken ?? params.userToken, {
+      subscribed_fields: "messages,messaging_postbacks,messaging_optins",
+    });
+  } catch (err) {
+    params.req.log?.warn({ err, linkedPageId: params.linkedPageId, channelAccountId: account.id }, "Instagram page webhook subscription failed; continuing");
+  }
+
+  return account;
+}
+
+// Shared Messenger connect logic — used by /messenger/complete and the combined IG+Messenger flow.
+async function connectMessengerChannel(params: {
+  req: AuthenticatedRequest;
+  userToken: string;
+  pageId: string;
+  pageName?: string;
+  pageToken?: string | null;
+}) {
+  let pageName = params.pageName ?? "";
+  let pageToken = params.pageToken ?? null;
+  if (!pageToken) {
+    try {
+      const pageData = await callMetaGraph(`${params.pageId}?fields=access_token,name`, params.userToken);
+      pageToken = typeof pageData?.access_token === "string" ? pageData.access_token : null;
+      if (!pageName && typeof pageData?.name === "string") pageName = pageData.name;
+    } catch (err) {
+      params.req.log?.warn({ err, pageId: params.pageId }, "Failed to fetch Messenger page token; will store user token");
+    }
+  }
+
+  const account = await upsertMetaChannelAccount({
+    req: params.req,
+    channelType: "messenger",
+    name: `messenger-${params.pageId}`,
+    displayName: pageName ? `Messenger ${pageName}` : `Messenger ${params.pageId}`,
+    providerConfig: {
+      provider: "meta",
+      pageId: params.pageId,
+      pageName,
+      embeddedSignup: true,
+      connectedAt: new Date().toISOString(),
+    },
+    lookupKey: "pageId",
+    lookupValue: params.pageId,
+    credentialsSecretRef: encryptedTokenRef(pageToken ?? params.userToken),
+  });
+
+  try {
+    await postMetaGraph(`${params.pageId}/subscribed_apps`, pageToken ?? params.userToken, {
+      subscribed_fields: "messages,messaging_postbacks,messaging_optins",
+    });
+  } catch (err) {
+    params.req.log?.warn({ err, pageId: params.pageId, channelAccountId: account.id }, "Messenger page webhook subscription failed; continuing");
+  }
 
   return account;
 }
@@ -797,59 +915,15 @@ router.post("/meta/embedded-signup/instagram/complete", requirePermission("integ
     return;
   }
 
-  // Fetch page access token for the linked FB page (needed for outbound IG API calls)
-  let pageToken: string | null = null;
-  try {
-    const pageData = await callMetaGraph(`${linkedPageId}?fields=access_token`, userToken);
-    pageToken = typeof pageData?.access_token === "string" ? pageData.access_token : null;
-  } catch (err) {
-    req.log?.warn({ err, linkedPageId }, "Failed to fetch Instagram linked page token; will store user token");
-  }
-
-  const tokenRef = encryptedTokenRef(pageToken ?? userToken);
-  const username = parsed.data.username ?? "";
-  const connectedAt = new Date().toISOString();
-
-  const account = await upsertMetaChannelAccount({
+  const account = await connectInstagramChannel({
     req,
-    channelType: "instagram",
-    name: `instagram-${igAccountId}`,
-    displayName: username ? `Instagram @${username}` : `Instagram ${igAccountId}`,
-    providerConfig: {
-      provider: "meta",
-      igAccountId,
-      pageId: linkedPageId,
-      username,
-      embeddedSignup: true,
-      connectedAt,
-    },
-    lookupKey: "igAccountId",
-    lookupValue: igAccountId,
-    credentialsSecretRef: tokenRef,
+    userToken,
+    igAccountId,
+    linkedPageId,
+    username: parsed.data.username,
   });
 
-  // Subscribe the linked FB page to receive Instagram messaging webhook events
-  try {
-    await postMetaGraph(`${linkedPageId}/subscribed_apps`, pageToken ?? userToken, {
-      subscribed_fields: "messages,messaging_postbacks,messaging_optins",
-    });
-  } catch (err) {
-    req.log?.warn({ err, linkedPageId, channelAccountId: account.id }, "Instagram page webhook subscription failed; continuing");
-  }
-
-  res.status(201).json({
-    account: {
-      id: account.id,
-      channelType: account.channelType,
-      name: account.name,
-      displayName: account.displayName,
-      status: account.status,
-      providerConfig: account.providerConfig,
-      hasCredentialReference: Boolean(account.credentialsSecretRef),
-      createdAt: account.createdAt,
-      updatedAt: account.updatedAt,
-    },
-  });
+  res.status(201).json({ account: serializeChannelAccount(account) });
 });
 
 // PD-6 fix: Messenger embedded signup — creates channel account with pageId for ingest lookup
@@ -886,58 +960,85 @@ router.post("/meta/embedded-signup/messenger/complete", requirePermission("integ
     return;
   }
 
-  let pageName = parsed.data.page_name ?? parsed.data.pageName ?? "";
-  let pageToken: string | null = null;
-  try {
-    const pageData = await callMetaGraph(`${pageId}?fields=access_token,name`, userToken);
-    pageToken = typeof pageData?.access_token === "string" ? pageData.access_token : null;
-    if (!pageName && typeof pageData?.name === "string") pageName = pageData.name;
-  } catch (err) {
-    req.log?.warn({ err, pageId }, "Failed to fetch Messenger page token; will store user token");
-  }
-
-  const tokenRef = encryptedTokenRef(pageToken ?? userToken);
-  const connectedAt = new Date().toISOString();
-
-  const account = await upsertMetaChannelAccount({
+  const account = await connectMessengerChannel({
     req,
-    channelType: "messenger",
-    name: `messenger-${pageId}`,
-    displayName: pageName ? `Messenger ${pageName}` : `Messenger ${pageId}`,
-    providerConfig: {
-      provider: "meta",
-      pageId,
-      pageName,
-      embeddedSignup: true,
-      connectedAt,
-    },
-    lookupKey: "pageId",
-    lookupValue: pageId,
-    credentialsSecretRef: tokenRef,
+    userToken,
+    pageId,
+    pageName: parsed.data.page_name ?? parsed.data.pageName,
   });
 
-  // Subscribe the page to receive Messenger webhook events
-  try {
-    await postMetaGraph(`${pageId}/subscribed_apps`, pageToken ?? userToken, {
-      subscribed_fields: "messages,messaging_postbacks,messaging_optins",
-    });
-  } catch (err) {
-    req.log?.warn({ err, pageId, channelAccountId: account.id }, "Messenger page webhook subscription failed; continuing");
+  res.status(201).json({ account: serializeChannelAccount(account) });
+});
+
+// PD-6 fix: Instagram + Messenger via a single FB.login (instagram_messenger config). The popup
+// does not return WhatsApp-style identifiers, so we discover the granted pages/IG accounts via Graph
+// (reusing fetchMetaChannelOptions) and connect each through the shared connect helpers
+// (channel creation + subscribed_apps + encrypted token). Meta app config is untouched.
+router.post("/meta/embedded-signup/instagram-messenger/complete", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = metaEmbeddedSignupInstagramMessengerSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "بيانات ربط إنستغرام وماسنجر غير صالحة", details: parsed.error.flatten() });
+    return;
   }
 
-  res.status(201).json({
-    account: {
-      id: account.id,
-      channelType: account.channelType,
-      name: account.name,
-      displayName: account.displayName,
-      status: account.status,
-      providerConfig: account.providerConfig,
-      hasCredentialReference: Boolean(account.credentialsSecretRef),
-      createdAt: account.createdAt,
-      updatedAt: account.updatedAt,
-    },
-  });
+  let userToken: string | null = null;
+  try {
+    userToken = await exchangeCodeForToken(req, parsed.data.code, { redirectUri: null });
+  } catch (err) {
+    req.log?.warn({ err }, "Meta Instagram/Messenger signup token exchange failed");
+    res.status(502).json({ error: "تعذر تبديل كود Meta إلى رمز وصول", code: "meta_token_exchange_failed" });
+    return;
+  }
+  if (!userToken) {
+    res.status(409).json({ error: "تعذر تجهيز رمز وصول Meta. تحقق من META_APP_ID و META_APP_SECRET.", code: "meta_token_exchange_unavailable" });
+    return;
+  }
+
+  let discovered: { options: MetaChannelOptions; tokenRefs: MetaTokenRefs };
+  try {
+    discovered = await fetchMetaChannelOptions(userToken);
+  } catch (err) {
+    req.log?.warn({ err }, "Instagram/Messenger discovery failed");
+    res.status(502).json({ error: "تعذر اكتشاف الصفحات وحسابات إنستغرام من Meta", code: "meta_discovery_failed" });
+    return;
+  }
+
+  const pages = discovered.options.facebook_pages;
+  const instagramAccounts = discovered.options.instagram_accounts;
+  if (pages.length === 0 && instagramAccounts.length === 0) {
+    res.status(409).json({
+      error: "لم نعثر على صفحات فيسبوك أو حسابات إنستغرام مرتبطة بهذا الحساب. تأكد من منح الصلاحيات أثناء الربط.",
+      code: "no_pages_or_instagram",
+    });
+    return;
+  }
+
+  const requestedChannelCount = pages.length + instagramAccounts.length;
+  const channelLimit = await checkLimit(req.sessionUser.activeWorkspaceId, "channels");
+  if (channelLimit.limit !== null && channelLimit.current + requestedChannelCount > channelLimit.limit) {
+    res.status(402).json({
+      error: "وصلت حد باقتك لعدد القنوات. قم بترقية الباقة قبل الربط.",
+      code: "plan_limit_reached",
+      limit: channelLimit,
+    });
+    return;
+  }
+
+  const created: Array<typeof channelAccountsTable.$inferSelect> = [];
+  for (const page of pages) {
+    created.push(await connectMessengerChannel({ req, userToken, pageId: page.page_id, pageName: page.name }));
+  }
+  for (const ig of instagramAccounts) {
+    created.push(await connectInstagramChannel({
+      req,
+      userToken,
+      igAccountId: ig.ig_account_id,
+      linkedPageId: ig.linked_page_id,
+      username: ig.username,
+    }));
+  }
+
+  res.status(201).json({ accounts: created.map(serializeChannelAccount) });
 });
 
 router.get("/meta/embedded-signup/callback", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {

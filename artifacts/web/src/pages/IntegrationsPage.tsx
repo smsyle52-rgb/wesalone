@@ -510,6 +510,26 @@ export default function IntegrationsPage() {
     }
   }
 
+  // Instagram + Messenger use one FB.login; the popup returns only a code (no WhatsApp identifiers).
+  // The backend discovers the granted pages/IG accounts and connects them (creation + subscription).
+  async function completeInstagramMessengerSignup(code: string) {
+    const res = await fetch(`${BASE}/integrations/meta/embedded-signup/instagram-messenger/complete`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Meta embedded signup failed");
+    const accounts = (data.accounts ?? []) as ConnectedChannel[];
+    if (accounts.length > 0) {
+      setConnectedChannels((current) => {
+        const newIds = new Set(accounts.map((account) => account.id));
+        return [...accounts, ...current.filter((item) => !newIds.has(item.id))];
+      });
+    }
+  }
+
   async function startMetaSignup(option = metaSignupOptions[0]) {
     if (metaSignupInFlightRef.current) {
       logMetaSignupDiagnostic("signup_ignored", {
@@ -580,14 +600,18 @@ export default function IntegrationsPage() {
       signupSessionErrorRef.current = null;
       const code = await loginWithFacebook(configId, option.key);
       codeReceived = Boolean(code);
-      const sessionInfo = await waitForCapturedSignupInfo();
-      logMetaSignupDiagnostic("embedded_signup_identifiers", {
-        optionKey: option.key,
-        codeReceived: Boolean(code),
-        wabaIdReceived: Boolean(sessionInfo.waba_id),
-        phoneNumberIdReceived: Boolean(sessionInfo.phone_number_id),
-      });
-      await completeEmbeddedSignup(code, configId, option.backendKey, sessionInfo);
+      if (option.key === "instagramMessenger") {
+        await completeInstagramMessengerSignup(code);
+      } else {
+        const sessionInfo = await waitForCapturedSignupInfo();
+        logMetaSignupDiagnostic("embedded_signup_identifiers", {
+          optionKey: option.key,
+          codeReceived: Boolean(code),
+          wabaIdReceived: Boolean(sessionInfo.waba_id),
+          phoneNumberIdReceived: Boolean(sessionInfo.phone_number_id),
+        });
+        await completeEmbeddedSignup(code, configId, option.backendKey, sessionInfo);
+      }
     } catch (err) {
       logMetaSignupDiagnostic("signup_failed", {
         optionKey: option.key,
