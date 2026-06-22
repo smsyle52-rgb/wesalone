@@ -739,9 +739,30 @@ WESAL_ONE_CHAT_HANDOFF.md
 | PD-3 | الوسائط في الوارد (عرض + إرسال + vision) | ✅ محلول — الوكيل يحلّل الصور بصرياً، اختُبر حيّاً 19 يونيو | `c85f2f9` |
 | PD-4 | وسائط المنتج من الكتالوج | ⛔ مؤجّل — يحتاج `catalog_management` | — |
 | PD-5 | مكالمات واتساب | ⛔ مؤجّل — يحتاج `business_calling` | — |
-| PD-6 | IG/Messenger: الربط + الاستقبال + الإرسال | ✅ محلول | (سابق) |
+| PD-6 | IG/Messenger: الربط + الاستقبال + الإرسال | 🔧 إصلاح ثانٍ محلي — ينتظر الدفع والاختبار الحي | `ffea61a` + محلي |
 | PD-11 | زر «إعادة للوكيل» يتذبذب ولا يعيد الوكيل بثبات | ⏸️ مؤجّل إلى Claude Code بقرار المالك | `9d4ddfb` `8fce81b` |
 | H5-1 | نص تجريبي يصل للعميل | ✅ محلول | (سابق) |
+
+---
+
+## 🔧 PD-6 — فشل اكتشاف الصفحات بعد نجاح التسجيل المضمن (22 يونيو 2026، Codex)
+
+**الدليل الحي:** نافذة Meta اكتملت بنجاح والواجهة وصلت إلى endpoint الجديد، ثم ظهر الخطأ
+«تعذر اكتشاف الصفحات وحسابات إنستغرام من Meta» (`meta_discovery_failed`).
+
+**الجذر:** مسار IG/Messenger في commit `ffea61a` كان يستدعي `fetchMetaChannelOptions()` العام. هذا المساعد يشغّل
+`Promise.all` بين `me/accounts` المطلوب للقناتين و`me/businesses` الذي يطلب أيضاً
+`owned_product_catalogs` و`owned_ad_accounts`. التطبيق لا يملك `catalog_management` أو `ads_management`؛ فشل طلب
+الأعمال غير الضروري كان يُسقط اكتشاف الصفحات السليم كله.
+
+**الإصلاح المحلي:** استخراج `fetchMetaPageOptions()` الذي يطلب `me/accounts` فقط، واستخدامه في endpoint
+`/meta/embedded-signup/instagram-messenger/complete`. بقي المسار العام يستعمل نفس المساعد للصفحات مع اكتشاف الأعمال،
+بلا تكرار للمنطق وبلا تغيير لإعدادات تطبيق Meta.
+
+**التحقق:** `typecheck:libs` ✅ · `api-server typecheck` ✅ · `api-server build` ✅. `build:prod` متوقف محلياً بسبب
+تثبيت `landing-next` الناقص (`next/dist/server/require-hook` مفقود)، لا بسبب PD-6.
+
+**بوابة الإغلاق:** بعد الدفع: ربط IG/Messenger → ظهور القناتين «نشط» → رسالة واردة → رد صادر يصل للعميل.
 
 ---
 

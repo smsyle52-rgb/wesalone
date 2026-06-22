@@ -223,10 +223,41 @@ function fallbackMetaOptions(): { options: MetaChannelOptions; tokenRefs: MetaTo
   };
 }
 
+async function fetchMetaPageOptions(userToken: string): Promise<{
+  facebookPages: MetaChannelOptions["facebook_pages"];
+  instagramAccounts: MetaChannelOptions["instagram_accounts"];
+  pageTokenRefs: Record<string, string>;
+}> {
+  const pages = await callMetaGraph(
+    "me/accounts?fields=id,name,access_token,instagram_business_account{id,username}",
+    userToken,
+  );
+
+  const facebookPages: MetaChannelOptions["facebook_pages"] = [];
+  const instagramAccounts: MetaChannelOptions["instagram_accounts"] = [];
+  const pageTokenRefs: Record<string, string> = {};
+
+  for (const page of pages?.data ?? []) {
+    const pageId = String(page.id);
+    facebookPages.push({ page_id: pageId, name: String(page.name ?? "Facebook Page") });
+    const ref = encryptedTokenRef(typeof page.access_token === "string" ? page.access_token : null);
+    if (ref) pageTokenRefs[pageId] = ref;
+    if (page.instagram_business_account?.id) {
+      instagramAccounts.push({
+        ig_account_id: String(page.instagram_business_account.id),
+        username: String(page.instagram_business_account.username ?? page.instagram_business_account.id),
+        linked_page_id: pageId,
+      });
+    }
+  }
+
+  return { facebookPages, instagramAccounts, pageTokenRefs };
+}
+
 async function fetchMetaChannelOptions(userToken: string): Promise<{ options: MetaChannelOptions; tokenRefs: MetaTokenRefs }> {
-  const [businesses, pages] = await Promise.all([
+  const [businesses, pageOptions] = await Promise.all([
     callMetaGraph("me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name}},owned_product_catalogs{id,name},owned_ad_accounts{id,name,account_id}", userToken),
-    callMetaGraph("me/accounts?fields=id,name,access_token,instagram_business_account{id,username}", userToken),
+    fetchMetaPageOptions(userToken),
   ]);
 
   const whatsappAccounts: MetaChannelOptions["whatsapp_accounts"] = [];
@@ -261,35 +292,17 @@ async function fetchMetaChannelOptions(userToken: string): Promise<{ options: Me
     }
   }
 
-  const facebookPages: MetaChannelOptions["facebook_pages"] = [];
-  const instagramAccounts: MetaChannelOptions["instagram_accounts"] = [];
-  const pageTokenRefs: Record<string, string> = {};
-
-  for (const page of pages?.data ?? []) {
-    const pageId = String(page.id);
-    facebookPages.push({ page_id: pageId, name: String(page.name ?? "Facebook Page") });
-    const ref = encryptedTokenRef(typeof page.access_token === "string" ? page.access_token : null);
-    if (ref) pageTokenRefs[pageId] = ref;
-    if (page.instagram_business_account?.id) {
-      instagramAccounts.push({
-        ig_account_id: String(page.instagram_business_account.id),
-        username: String(page.instagram_business_account.username ?? page.instagram_business_account.id),
-        linked_page_id: pageId,
-      });
-    }
-  }
-
   return {
     options: {
       whatsapp_accounts: whatsappAccounts,
-      facebook_pages: facebookPages,
-      instagram_accounts: instagramAccounts,
+      facebook_pages: pageOptions.facebookPages,
+      instagram_accounts: pageOptions.instagramAccounts,
       commerce_catalogs: commerceCatalogs,
       ad_accounts: adAccounts,
     },
     tokenRefs: {
       userTokenRef: encryptedTokenRef(userToken) ?? undefined,
-      pageTokenRefs,
+      pageTokenRefs: pageOptions.pageTokenRefs,
     },
   };
 }
@@ -994,17 +1007,19 @@ router.post("/meta/embedded-signup/instagram-messenger/complete", requirePermiss
     return;
   }
 
-  let discovered: { options: MetaChannelOptions; tokenRefs: MetaTokenRefs };
+  let discovered: Awaited<ReturnType<typeof fetchMetaPageOptions>>;
   try {
-    discovered = await fetchMetaChannelOptions(userToken);
+    // This signup token is scoped to Pages/Instagram. Do not couple discovery to
+    // WhatsApp, catalog, or ads fields that may legitimately be unavailable.
+    discovered = await fetchMetaPageOptions(userToken);
   } catch (err) {
     req.log?.warn({ err }, "Instagram/Messenger discovery failed");
     res.status(502).json({ error: "تعذر اكتشاف الصفحات وحسابات إنستغرام من Meta", code: "meta_discovery_failed" });
     return;
   }
 
-  const pages = discovered.options.facebook_pages;
-  const instagramAccounts = discovered.options.instagram_accounts;
+  const pages = discovered.facebookPages;
+  const instagramAccounts = discovered.instagramAccounts;
   if (pages.length === 0 && instagramAccounts.length === 0) {
     res.status(409).json({
       error: "لم نعثر على صفحات فيسبوك أو حسابات إنستغرام مرتبطة بهذا الحساب. تأكد من منح الصلاحيات أثناء الربط.",
