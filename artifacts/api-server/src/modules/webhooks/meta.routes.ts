@@ -118,6 +118,24 @@ function parsePayload(req: RequestWithRawBody, rawBody: Buffer): MetaPayload {
   return JSON.parse(rawBody.toString("utf8")) as MetaPayload;
 }
 
+// Structure-only summary (no message text/PII) to diagnose IG/Messenger webhooks that arrive but
+// store nothing — reveals payload shape (messaging[] vs changes[]) and the recipient/account id.
+function describeMetaPayload(payload: any): Record<string, unknown> {
+  const entry = Array.isArray(payload?.entry) ? payload.entry[0] : undefined;
+  const messaging = Array.isArray(entry?.messaging) ? entry.messaging[0] : undefined;
+  const change = Array.isArray(entry?.changes) ? entry.changes[0] : undefined;
+  return {
+    object: payload?.object,
+    entryKeys: entry ? Object.keys(entry) : [],
+    hasMessaging: Array.isArray(entry?.messaging),
+    hasChanges: Array.isArray(entry?.changes),
+    messagingKeys: messaging ? Object.keys(messaging) : [],
+    messageKeys: messaging?.message ? Object.keys(messaging.message) : [],
+    changeField: change?.field,
+    recipientId: messaging?.recipient?.id ?? change?.value?.recipient?.id ?? entry?.id,
+  };
+}
+
 function verifyMetaSignature(req: Request, rawBody: Buffer): boolean {
   const secret = env.META_APP_SECRET ?? env.META_WEBHOOK_SECRET;
   const signature = req.header("x-hub-signature-256");
@@ -466,7 +484,10 @@ router.post("/meta", express.raw({ type: "*/*", limit: "2mb" }), async (req: Req
     // PD-6 fix: route instagram/page (Messenger) webhooks to the shared dispatcher
     const objectType = (payload as any)?.object;
     if (objectType === "instagram" || objectType === "page") {
-      await handleMetaWebhook(payload);
+      const result = await handleMetaWebhook(payload);
+      if (result.messagesCreated === 0) {
+        logger.warn({ webhook: describeMetaPayload(payload) }, "Meta IG/Messenger webhook stored no messages");
+      }
     } else {
       await handleMetaPayload(payload);
     }

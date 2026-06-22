@@ -77,7 +77,7 @@ router.post("/cleanup-domain-events", async (req: Request, res: Response): Promi
     UPDATE domain_events
     SET status = 'pending'
     WHERE status = 'processing'
-      AND updated_at < NOW() - INTERVAL '10 minutes'
+      AND created_at < NOW() - INTERVAL '10 minutes'
   `);
 
   res.status(200).json({ updated: result.rowCount ?? 0 });
