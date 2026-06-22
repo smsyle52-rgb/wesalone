@@ -97,11 +97,6 @@ function phoneNumberIdFromConfig(providerConfig: unknown): string | undefined {
   return stringField(config, "phone_number_id") ?? stringField(config, "phoneNumberId");
 }
 
-function igAccountIdFromConfig(providerConfig: unknown): string | undefined {
-  const config = asRecord(providerConfig);
-  return stringField(config, "igAccountId") ?? stringField(config, "ig_account_id");
-}
-
 function pageIdFromConfig(providerConfig: unknown): string | undefined {
   const config = asRecord(providerConfig);
   return stringField(config, "pageId") ?? stringField(config, "page_id");
@@ -293,7 +288,7 @@ async function sendWhatsAppTemplate(params: {
 }
 
 async function sendInstagramMedia(params: {
-  igAccountId: string;
+  pageId: string;
   recipientId: string;
   mediaUrl: string;
   mediaType: string;
@@ -301,7 +296,7 @@ async function sendInstagramMedia(params: {
 }): Promise<void> {
   const attachmentType = ["image", "video", "audio"].includes(params.mediaType) ? params.mediaType : "image";
   const response = await fetch(
-    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.igAccountId}/messages`,
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.pageId}/messages`,
     {
       method: "POST",
       headers: {
@@ -316,6 +311,7 @@ async function sendInstagramMedia(params: {
             payload: { url: params.mediaUrl },
           },
         },
+        messaging_type: "RESPONSE",
       }),
     },
   );
@@ -362,13 +358,13 @@ async function sendMessengerMedia(params: {
 }
 
 async function sendInstagramMessage(params: {
-  igAccountId: string;
+  pageId: string;
   recipientId: string;
   text: string;
   pageToken: string;
 }): Promise<void> {
   const response = await fetch(
-    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.igAccountId}/messages`,
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.pageId}/messages`,
     {
       method: "POST",
       headers: {
@@ -378,6 +374,7 @@ async function sendInstagramMessage(params: {
       body: JSON.stringify({
         recipient: { id: params.recipientId },
         message: { text: params.text },
+        messaging_type: "RESPONSE",
       }),
     },
   );
@@ -441,19 +438,21 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
 
   // PD-6 fix: route outbound message by channel type
   if (channel.channel_type === "instagram") {
-    const igAccountId = igAccountIdFromConfig(channel.provider_config);
-    if (!igAccountId) throw new Error(`Channel account ${channelAccountId} has no igAccountId`);
+    // IG (Facebook-login model) sends through the LINKED PAGE with a page token + IGSID recipient.
+    // Posting to {igAccountId}/messages returns Meta error (#3) "does not have the capability".
+    const pageId = pageIdFromConfig(channel.provider_config);
+    if (!pageId) throw new Error(`Channel account ${channelAccountId} has no linked pageId for Instagram send`);
     const pageToken = decryptTokenRef(channel.credentials_secret_ref) ?? process.env.META_SYSTEM_USER_TOKEN;
     if (!pageToken) throw new Error(`No access token for Instagram channel ${channelAccountId}`);
 
     const isMediaEvent = event.event_type === "message.send.instagram.media" || Boolean(mediaUrl);
     if (isMediaEvent) {
       if (!mediaUrl) throw new Error("Instagram media outbox payload must include mediaUrl");
-      await sendInstagramMedia({ igAccountId, recipientId: to, mediaUrl, mediaType, pageToken });
-      if (text) await sendInstagramMessage({ igAccountId, recipientId: to, text, pageToken });
+      await sendInstagramMedia({ pageId, recipientId: to, mediaUrl, mediaType, pageToken });
+      if (text) await sendInstagramMessage({ pageId, recipientId: to, text, pageToken });
     } else {
       if (!text) throw new Error("Instagram outbox payload must include text or body");
-      await sendInstagramMessage({ igAccountId, recipientId: to, text, pageToken });
+      await sendInstagramMessage({ pageId, recipientId: to, text, pageToken });
     }
     await markOutboxDone(event.id);
     return;
