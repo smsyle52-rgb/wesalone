@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider, useTranslation } from "react-i18next";
@@ -43,6 +43,13 @@ import AutomationEditorPage from "@/pages/AutomationEditorPage";
 import AdminPaymentsPage from "@/pages/AdminPaymentsPage";
 import ProductsPage from "@/pages/ProductsPage";
 import NotFound from "@/pages/not-found";
+import { DirectionProvider } from "@workspace/ui/direction-provider";
+import { TooltipProvider } from "@workspace/ui/tooltip";
+import { Toaster } from "@workspace/ui/sonner";
+
+const UiLabPage = import.meta.env.DEV
+  ? lazy(() => import("@/pages/dev/UiLabPage"))
+  : null;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,16 +68,17 @@ function LoadingScreen() {
   );
 }
 
-function DirectionManager() {
+function DirectionManager({ children }: { children: ReactNode }) {
   const { i18n } = useTranslation();
+  const direction = i18n.language?.startsWith("en") ? "ltr" : "rtl";
 
   useEffect(() => {
     const language = i18n.language?.startsWith("en") ? "en" : "ar";
     document.documentElement.lang = language;
-    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
-  }, [i18n.language]);
+    document.documentElement.dir = direction;
+  }, [direction, i18n.language]);
 
-  return null;
+  return <DirectionProvider direction={direction}><TooltipProvider>{children}</TooltipProvider></DirectionProvider>;
 }
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -94,6 +102,16 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
 function Router() {
   return (
     <Switch>
+      {UiLabPage ? (
+        <Route
+          path="/__ui-lab"
+          component={() => (
+            <Suspense fallback={<LoadingScreen />}>
+              <UiLabPage />
+            </Suspense>
+          )}
+        />
+      ) : null}
       <Route path="/login" component={() => <PublicRoute component={LoginPage} />} />
       <Route path="/register" component={() => <PublicRoute component={RegisterPage} />} />
       <Route path="/forgot-password" component={() => <PublicRoute component={ForgotPasswordPage} />} />
@@ -156,14 +174,16 @@ function App() {
   return (
     <ErrorBoundary>
       <I18nextProvider i18n={i18n}>
-        <DirectionManager />
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-          </AuthProvider>
-        </QueryClientProvider>
+        <DirectionManager>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Router />
+                <Toaster />
+              </WouterRouter>
+            </AuthProvider>
+          </QueryClientProvider>
+        </DirectionManager>
       </I18nextProvider>
     </ErrorBoundary>
   );
