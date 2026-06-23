@@ -866,56 +866,42 @@ ALTER TABLE payment_submissions ADD COLUMN IF NOT EXISTS exchange_rate_snapshot 
 UPDATE plans SET
   price_usd = 0,
   price_usd_annual = 0,
-  limits = '{"channels":"all","agents":1,"monthly_messages":200,"team_members":1,"contacts":100}'::jsonb,
+  limits = '{"channels":"all","agents":1,"monthly_messages":200,"team_members":1,"contacts":100,"monthly_points":200,"knowledge_documents":50,"products":20}'::jsonb,
   features = ARRAY['inbox','ai_agent','catalog','automation','campaigns','analytics','vision_voice']
 WHERE key = 'trial' OR slug = 'trial';
 
 UPDATE plans SET
   price_usd = 10,
   price_usd_annual = 96,
-  limits = '{"channels":1,"agents":1,"monthly_messages":1000,"team_members":2,"contacts":1000}'::jsonb,
+  limits = '{"channels":1,"agents":1,"monthly_messages":1000,"team_members":2,"contacts":1000,"monthly_points":2000,"knowledge_documents":50,"products":100}'::jsonb,
   features = ARRAY['inbox','ai_agent','catalog','basic_automation']
 WHERE key = 'starter' OR slug = 'starter';
 
 UPDATE plans SET
   price_usd = 25,
   price_usd_annual = 240,
-  limits = '{"channels":3,"agents":3,"monthly_messages":5000,"team_members":5,"contacts":10000}'::jsonb,
+  limits = '{"channels":3,"agents":3,"monthly_messages":5000,"team_members":5,"contacts":10000,"monthly_points":10000,"knowledge_documents":1000,"products":2000}'::jsonb,
   features = ARRAY['inbox','ai_agent','catalog','automation','campaigns','advanced_analytics','vision_voice']
 WHERE key = 'growth' OR slug = 'growth';
 
 UPDATE plans SET
   price_usd = 50,
   price_usd_annual = 480,
-  limits = '{"channels":"unlimited","agents":"unlimited","monthly_messages":"unlimited","team_members":"unlimited","contacts":"unlimited"}'::jsonb,
+  limits = '{"channels":"unlimited","agents":"unlimited","monthly_messages":"unlimited","team_members":"unlimited","contacts":"unlimited","monthly_points":50000,"knowledge_documents":"unlimited","products":"unlimited"}'::jsonb,
   features = ARRAY['everything','priority_support']
 WHERE key = 'business' OR slug = 'business';
 
 -- =============================================================
--- Billing patch B: points-based metering (AI usage) + storage caps
+-- Billing patch B: points-based metering (AI usage) columns
 -- نموذج هجين: الباقة = ميزات + نقاط ذكاء شهرية مُضمَّنة. وزن الردّ: عادي=1، صعب/رؤية/صوت=3.
 -- النقاط هي مقياس التكلفة (استدلال الذكاء)؛ knowledge_documents وproducts حدود تخزين.
+-- حدود الباقات (monthly_points/knowledge_documents/products) تُضبط ذرّياً ضمن كتلة الباقات
+-- أعلاه (patch A) بكتابة مباشرة — لا دمج `||` كي لا تُمحى ببناء قديم متزامن.
 -- مزوّد تقني (Tech Provider): رسائل ميتا على WABA التاجر — لا تدخل تكلفتنا.
 -- =============================================================
 
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS points_balance integer NOT NULL DEFAULT 0;
 ALTER TABLE usage_counters ADD COLUMN IF NOT EXISTS points_used integer NOT NULL DEFAULT 0;
-
-UPDATE plans SET limits = limits
-  || '{"monthly_points":200,"knowledge_documents":50,"products":20}'::jsonb
-WHERE key = 'trial' OR slug = 'trial';
-
-UPDATE plans SET limits = limits
-  || '{"monthly_points":2000,"knowledge_documents":50,"products":100}'::jsonb
-WHERE key = 'starter' OR slug = 'starter';
-
-UPDATE plans SET limits = limits
-  || '{"monthly_points":10000,"knowledge_documents":1000,"products":2000}'::jsonb
-WHERE key = 'growth' OR slug = 'growth';
-
-UPDATE plans SET limits = limits
-  || '{"monthly_points":50000,"knowledge_documents":"unlimited","products":"unlimited"}'::jsonb
-WHERE key = 'business' OR slug = 'business';
 
 -- =============================================================
 -- Closure Phase 4A: in-app notifications
