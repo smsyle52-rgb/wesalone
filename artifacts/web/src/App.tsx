@@ -14,6 +14,8 @@ import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import DashboardPage from "@/pages/DashboardPage";
+import AutomationHubPage from "@/pages/AutomationHubPage";
+import MorePage from "@/pages/MorePage";
 import InboxPage from "@/pages/InboxPage";
 import TicketsPage from "@/pages/TicketsPage";
 import TasksFollowupsPage from "@/pages/TasksFollowupsPage";
@@ -123,6 +125,8 @@ function Router() {
       <Route path="/contact" component={() => <PublicContentPage kind="contact" />} />
       <Route path="/products" component={() => <PublicContentPage kind="products" />} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
+      <Route path="/automation-hub" component={() => <ProtectedRoute component={AutomationHubPage} />} />
+      <Route path="/more" component={() => <ProtectedRoute component={MorePage} />} />
       <Route path="/start" component={() => <ProtectedRoute component={BusinessSetupPage} />} />
       <Route path="/inbox" component={() => <ProtectedRoute component={InboxPage} />} />
       <Route path="/tickets" component={() => <ProtectedRoute component={TicketsPage} />} />

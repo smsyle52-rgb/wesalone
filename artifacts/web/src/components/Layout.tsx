@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   BarChart3,
@@ -16,7 +16,6 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
-  Menu,
   Package,
   Plug,
   ReceiptText,
@@ -112,6 +111,33 @@ const navGroups: NavGroup[] = [
   },
 ];
 
+const mobileTitles: Array<{ match: (location: string) => boolean; title: string; description?: string }> = [
+  { match: (location) => location === "/dashboard", title: "الرئيسية", description: "ملخص سريع ليوم العمل" },
+  { match: (location) => location.startsWith("/inbox"), title: "الوارد", description: "محادثات العملاء" },
+  { match: (location) => location.startsWith("/contacts"), title: "العملاء", description: "جهات الاتصال" },
+  { match: (location) => location.startsWith("/automation-hub"), title: "الأتمتة والذكاء", description: "الوكلاء والمعرفة والقوالب" },
+  { match: (location) => location.startsWith("/more"), title: "المزيد", description: "كل الأدوات حسب صلاحياتك" },
+  { match: (location) => location.startsWith("/integrations"), title: "القنوات", description: "واتساب وإنستغرام وماسنجر" },
+  { match: (location) => location.startsWith("/settings"), title: "الإعدادات", description: "النشاط والفريق والأمان" },
+  { match: (location) => location.startsWith("/orders"), title: "الطلبات" },
+  { match: (location) => location.startsWith("/payments"), title: "المدفوعات" },
+  { match: (location) => location.startsWith("/inventory"), title: "المخزون" },
+  { match: (location) => location.startsWith("/agents"), title: "الوكلاء" },
+  { match: (location) => location.startsWith("/knowledge"), title: "قاعدة المعرفة" },
+  { match: (location) => location.startsWith("/templates"), title: "القوالب" },
+  { match: (location) => location.startsWith("/broadcasts"), title: "الحملات" },
+  { match: (location) => location.startsWith("/analytics"), title: "التحليلات" },
+  { match: (location) => location.startsWith("/reports"), title: "التقارير" },
+  { match: (location) => location.startsWith("/audit-logs"), title: "سجل النشاط" },
+  { match: (location) => location.startsWith("/tasks"), title: "المهام" },
+];
+
+async function fetchWorkspaceShellInfo() {
+  const res = await fetch(`${import.meta.env.BASE_URL}api/workspace`, { credentials: "include" });
+  if (!res.ok) return null;
+  return res.json() as Promise<{ workspace?: { name?: string; settings?: Record<string, unknown> } }>;
+}
+
 function readCollapsedGroups() {
   if (typeof window === "undefined") return {};
 
@@ -124,12 +150,27 @@ function readCollapsedGroups() {
 export default function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { user, clearAuth, hasPermission } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(readCollapsedGroups);
   const qc = useQueryClient();
   const { t, i18n } = useTranslation("common");
   const direction = i18n.language?.startsWith("en") ? "ltr" : "rtl";
   const languageLabel = i18n.language?.startsWith("en") ? "AR" : "EN";
+  const mobileHeader = mobileTitles.find((item) => item.match(location)) ?? {
+    match: () => true,
+    title: t("brand.name"),
+    description: undefined,
+  };
+  const workspaceQuery = useQuery({
+    queryKey: ["workspace-shell-info"],
+    queryFn: fetchWorkspaceShellInfo,
+    staleTime: 5 * 60_000,
+  });
+  const workspace = workspaceQuery.data?.workspace;
+  const workspaceName =
+    workspace?.name ||
+    (typeof workspace?.settings?.companyName === "string" ? workspace.settings.companyName : "") ||
+    (typeof workspace?.settings?.business_name === "string" ? workspace.settings.business_name : "") ||
+    t("brand.name");
 
   const logoutMut = useMutation({
     mutationFn: async () => {
@@ -176,18 +217,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background" dir={direction}>
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-20 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
       <aside
         className={cn(
-          "fixed inset-y-0 end-0 z-30 flex w-72 flex-col border-s border-sidebar-border bg-sidebar transition-transform duration-300 lg:relative lg:translate-x-0",
-          sidebarOpen
-            ? "pointer-events-auto translate-x-0"
-            : direction === "rtl"
-              ? "pointer-events-none -translate-x-full lg:pointer-events-auto lg:translate-x-0"
-              : "pointer-events-none translate-x-full lg:pointer-events-auto lg:translate-x-0"
+          "hidden w-72 flex-col border-s border-sidebar-border bg-sidebar lg:relative lg:flex lg:translate-x-0",
         )}
       >
         <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
@@ -227,7 +259,6 @@ export default function Layout({ children }: { children: ReactNode }) {
                         <Link
                           key={item.path}
                           href={item.path}
-                          onClick={() => setSidebarOpen(false)}
                           className={cn(
                             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-bold transition-colors",
                             active
@@ -275,24 +306,26 @@ export default function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
-          <h1 className="font-bold text-foreground">{t("brand.name")}</h1>
+        <header className="flex min-h-[4.25rem] items-center justify-between border-b border-border bg-card px-4 py-2 lg:hidden">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-black text-primary">
+                {workspaceName.trim().slice(0, 1) || "و"}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold text-primary">{workspaceName}</p>
+                <h1 className="truncate text-base font-extrabold leading-tight text-foreground">{mobileHeader.title}</h1>
+              </div>
+            </div>
+            {mobileHeader.description && (
+              <p className="mt-0.5 truncate pe-3 text-xs text-muted-foreground">{mobileHeader.description}</p>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <NotificationCenter />
-            <button
-              onClick={toggleLanguage}
-              className="rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted"
-              title={t("language.switch")}
-            >
-              {languageLabel}
-            </button>
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="rounded-md p-2 text-muted-foreground hover:bg-muted"
-              aria-label={t("nav.openMenu")}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-sm font-black text-primary">
+              {user?.name?.trim().slice(0, 1) ?? "م"}
+            </div>
           </div>
         </header>
 
@@ -341,7 +374,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             )}
           </div>
         </main>
-        <MobileBottomNav location={location} hasPermission={hasPermission} onOpenMenu={() => setSidebarOpen(true)} />
+        <MobileBottomNav location={location} hasPermission={hasPermission} />
       </div>
     </div>
   );
