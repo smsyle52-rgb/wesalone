@@ -12,6 +12,7 @@ import { securityHeaders, requestId } from "./middlewares/securityHeaders";
 import { env } from "./lib/env";
 
 const app: Express = express();
+app.disable("x-powered-by");
 
 const allowedOrigins = (env.ALLOWED_ORIGINS ?? "")
   .split(",")
