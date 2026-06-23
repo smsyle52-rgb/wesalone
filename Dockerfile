@@ -16,6 +16,8 @@ COPY lib/api-client-react/package.json lib/api-client-react/package.json
 COPY lib/api-spec/package.json lib/api-spec/package.json
 COPY lib/api-zod/package.json lib/api-zod/package.json
 COPY lib/db/package.json lib/db/package.json
+COPY lib/ui/package.json lib/ui/package.json
+COPY artifacts/landing-next/package.json artifacts/landing-next/package.json
 COPY scripts/package.json scripts/package.json
 
 RUN corepack pnpm install --frozen-lockfile
