@@ -142,6 +142,8 @@ export async function rotate(workspaceId: string, conversationId: string, agentI
     const output = await runAI({
       model: getDefaultModel(),
       taskType: "summarize",
+      // فوترة النقاط: تلخيص الذاكرة استهلاك ذكاء على مساحة العمل — يُحتسب نقاطاً مركزياً في runAI.
+      workspaceId,
       messages: [
         { role: "system", content: "لخص هذا الجزء من المحادثة كسياق قصير ودقيق لوكيل خدمة العملاء. لا تضف معلومات غير موجودة." },
         { role: "user", content: `${existingSummary}المحادثة:\n${transcript}` },

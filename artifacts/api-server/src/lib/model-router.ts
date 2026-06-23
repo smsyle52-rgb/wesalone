@@ -35,15 +35,29 @@ export function resolveModel(task: ModelTask, tier: ModelTier): ModelRoute {
   return { modelId, fallbackId: SAFE_FALLBACK_MODEL, tier, task };
 }
 
-// ─── وزن النقاط (فوترة الاستهلاك) ──────────────────────────────────────────────
-// قرار المالك: ردّ نصّي عادي (flash) = نقطة واحدة؛ صعب (pro) أو رؤية أو صوت = 3 نقاط.
-// مصدر الحقيقة الوحيد للوزن — يُستهلك في حلقة الوكيل عبر recordPoints.
-export const POINTS_PER_NORMAL = 1;
-export const POINTS_PER_HARD = 3;
+// ─── فوترة النقاط حسب استهلاك التوكنات (موحّد، بلا تفريق نماذج) ───────────────────
+// كل استهلاك توكنات يُحسب بمعدل واحد: ردّ، تلخيص، بحث في الطلبات/المخزون/المعرفة/المنتجات،
+// رؤية، صوت، وقراءة إيصالات مستقبلاً. التاجر يرى «نقاط» فقط (تجريد) — لا أسماء نماذج.
+// محادثة قصيرة → توكنات قليلة → نقاط قليلة؛ محادثة معقّدة/طويلة → توكنات كثيرة → نقاط كثيرة.
+//
+// النقطة مُسعّرة على أغلى نموذج (أسوأ حالة) فيُضمن هامش 100% مهما كان النموذج المستخدم فعلياً.
+// كل القيم قابلة للضبط بالـenv دون لمس الكود.
 
-export function pointsForRoute(route: Pick<ModelRoute, "task" | "tier">): number {
-  if (route.task === "vision" || route.task === "voice") return POINTS_PER_HARD;
-  return route.tier === "hard" ? POINTS_PER_HARD : POINTS_PER_NORMAL;
+// كم توكن (إدخال+إخراج) تساوي نقطة واحدة — وحدة التجريد الموحّدة للتاجر.
+export const TOKENS_PER_POINT = Number(process.env.TOKENS_PER_POINT ?? "100");
+
+// تكلفتنا القصوى لكل مليون توكن (USD) — تُسعّر على أغلى نموذج (pro) كأسوأ حالة لضمان الهامش.
+const WORST_COST_PER_M_TOKENS = Number(process.env.WORST_COST_PER_M_TOKENS ?? "5.00");
+
+// تكلفتنا الفعلية القصوى مقابل نقطة (USD). سعر الباقة = نقاط × هذه × 2 (هامش 100% مضمون).
+// بالقيم الافتراضية: نقطة = 100 توكن، تكلفتها ≤ 0.0005$ → سعر الباقة = نقاط × 0.001$.
+export const POINT_COST_USD = (TOKENS_PER_POINT / 1_000_000) * WORST_COST_PER_M_TOKENS;
+
+/** النقاط المستهلَكة من إجمالي توكنات أي استدعاء ذكاء (1 على الأقل لأي استهلاك فعلي). */
+export function pointsForTokens(totalTokens: number): number {
+  const tokens = Math.max(0, Math.floor(totalTokens || 0));
+  if (tokens <= 0) return 0;
+  return Math.max(1, Math.ceil(tokens / TOKENS_PER_POINT));
 }
 
 // ─── مصنّف الصعوبة (heuristic شفّاف، بلا استدعاء AI إضافي) ──────────────────────

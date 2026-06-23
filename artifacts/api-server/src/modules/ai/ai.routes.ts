@@ -1126,7 +1126,8 @@ async function createAndRunAI(params: {
     { role: "user" as const, content: userPrompt },
   ];
 
-  const aiOutput = await runAI({ messages, model, taskType });
+  // فوترة النقاط: كل ميزات الذكاء (تلخيص/تصنيف/اقتراح/مسودة) تمرّ هنا — يُحتسب استهلاكها نقاطاً مركزياً في runAI.
+  const aiOutput = await runAI({ messages, model, taskType, workspaceId });
 
   await db.insert(aiMessagesTable).values([
     ...messages.map((message) => ({ workspaceId, aiRunId: run.id, role: message.role, content: message.content, metadata: {} })),

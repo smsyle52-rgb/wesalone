@@ -633,7 +633,7 @@ function BillingTabV2() {
           )}
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span>تُحتسب نقطة واحدة لكل ردّ عادي، و3 نقاط للردود التي تحتاج تحليلاً أعمق أو فهم صور وملاحظات صوتية.</span>
+            <span>تُحتسب النقاط حسب حجم استهلاك الذكاء الفعلي في كل ردّ — الردود الأطول أو الأعقد أو التي تحلّل صوراً وملاحظات صوتية تستهلك نقاطاً أكثر.</span>
             {points.balance > 0 && <span className="rounded-full bg-secondary px-3 py-1 font-bold text-foreground">رصيد إضافي: {fmtNum(points.balance)} نقطة</span>}
           </div>
 

@@ -11,8 +11,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { searchKnowledgeForAi } from "../services/knowledge-retrieval";
 import { loadMediaContext } from "../services/agent-media";
 import { ACTIVE_PROVIDER, getDefaultModel, runAI } from "./ai-provider";
-import { classifyComplexity, pointsForRoute, resolveModel } from "./model-router";
-import { recordPoints } from "../services/billing";
+import { classifyComplexity, resolveModel } from "./model-router";
 import { logger } from "./logger";
 import {
   buildAgentToolPrompt,
@@ -278,6 +277,8 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       model,
       // راوتر الموديلات: المعرّف المحدّد لمستوى/مهمة هذا الردّ (يُستخدم على مسار Vertex مع سقوط آمن).
       modelId: route.modelId,
+      // فوترة النقاط: يُحتسب استهلاك توكنات هذا الردّ (بما فيه الرؤية/الصوت) نقاطاً مركزياً في runAI.
+      workspaceId: params.workspaceId,
       taskType: "draft_reply",
       maxTokens: agent.maxOutputTokens,
       responseFormat: executableTools.length > 0 ? "json" : "text",
@@ -360,14 +361,6 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       completionTokens: aiOutput.completionTokens,
       estimatedCost: aiOutput.estimatedCost,
     });
-
-    // فوترة النقاط: سجّل استهلاك نقاط الذكاء لهذا الردّ الناجح (عادي=1، صعب/رؤية/صوت=3).
-    // لا يكسر الردّ لو فشل التسجيل — الفوترة لا تُعطّل خدمة العميل (تدهور رشيق).
-    try {
-      await recordPoints(params.workspaceId, pointsForRoute(route));
-    } catch (err) {
-      logger.warn({ err, workspaceId: params.workspaceId }, "recordPoints failed — reply unaffected");
-    }
 
     const shouldEscalate =
       hasToolProblem ||

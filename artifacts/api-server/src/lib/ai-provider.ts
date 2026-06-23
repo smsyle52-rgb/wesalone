@@ -1,4 +1,6 @@
 import { logger } from "./logger";
+import { pointsForTokens } from "./model-router";
+import { recordPoints } from "../services/billing";
 
 // ─── Model Mapping (single source of truth) ───────────────────────────────────
 
@@ -98,6 +100,8 @@ export interface AiRunInput {
   audio?: AiAudio[];
   // راوتر الموديلات: معرّف Vertex المحدّد لهذه المهمة (من resolveModel). عند غيابه يُستخدم VERTEX_MODEL.
   modelId?: string;
+  // فوترة النقاط: عند تمريره يُحتسب استهلاك توكنات هذا الاستدعاء نقاطاً على مساحة العمل (مركزياً في runAI).
+  workspaceId?: string;
 }
 
 export interface AiRunOutput {
@@ -505,7 +509,7 @@ async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
-export async function runAI(input: AiRunInput): Promise<AiRunOutput> {
+async function runProvider(input: AiRunInput): Promise<AiRunOutput> {
   if (ACTIVE_PROVIDER === "vertex") {
     return runVertex(input);
   }
@@ -513,6 +517,21 @@ export async function runAI(input: AiRunInput): Promise<AiRunOutput> {
     return runGemini(input);
   }
   return { ...(await runMock(input)), fallbackUsed: true };
+}
+
+export async function runAI(input: AiRunInput): Promise<AiRunOutput> {
+  const output = await runProvider(input);
+  // فوترة النقاط مركزياً: أي استدعاء ذكاء حقيقي يحمل workspaceId يُحتسب استهلاك توكناته نقاطاً.
+  // يشمل تلقائياً كل المسارات (ردّ، تلخيص، بحث، رؤية، صوت، قراءة إيصالات) دون تكرار أو نسيان.
+  // الوضع التجريبي/السقوط لا يُفوتَر (لا استهلاك حقيقي). لا يكسر الاستدعاء لو فشل التسجيل (تدهور رشيق).
+  if (input.workspaceId && !output.fallbackUsed && output.provider !== "mock") {
+    try {
+      await recordPoints(input.workspaceId, pointsForTokens(output.totalTokens));
+    } catch (err) {
+      logger.warn({ err, workspaceId: input.workspaceId }, "recordPoints failed — AI call unaffected");
+    }
+  }
+  return output;
 }
 
 // ─── Provider status ──────────────────────────────────────────────────────────
