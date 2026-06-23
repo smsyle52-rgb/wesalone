@@ -891,6 +891,10 @@ UPDATE plans SET
   features = ARRAY['everything','priority_support']
 WHERE key = 'business' OR slug = 'business';
 
+-- الريال السعودي مثبّت على الدولار (3.75) — يضمن ظهور سعر SAR في الباقات دون اعتماد على جدول أسعار الصرف.
+UPDATE plans SET price_sar = round((COALESCE(price_usd, 0) * 3.75)::numeric, 2)
+WHERE key IN ('trial','starter','growth','business') OR slug IN ('trial','starter','growth','business');
+
 -- =============================================================
 -- Billing patch B: points-based metering (AI usage) columns
 -- نموذج هجين: الباقة = ميزات + نقاط ذكاء شهرية مُضمَّنة. وزن الردّ: عادي=1، صعب/رؤية/صوت=3.

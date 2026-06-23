@@ -501,7 +501,8 @@ function NotificationsTab() {
 function BillingTabV2() {
   const qc = useQueryClient();
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
-  const [currency, setCurrency] = useState<"USD" | "YER" | "SAR">("YER");
+  // العرض بالدولار (أساسي، من السعر الخام) + الريال السعودي (محوّل من الخادم) — لا ريال يمني في الباقات.
+  const [currency] = useState<"USD" | "YER" | "SAR">("SAR");
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("kuraimi");
   const [amountYer, setAmountYer] = useState("");
@@ -515,7 +516,7 @@ function BillingTabV2() {
       body: JSON.stringify({
         planId: selectedPlanId || selectedPlan?.id,
         amountYer,
-        amountCurrency: currency,
+        amountCurrency: "USD",
         exchangeRateSnapshot: selectedPlan ? (billingCycle === "annual" ? selectedPlan.displayPriceAnnual : selectedPlan.displayPriceMonthly) : null,
         paymentMethod,
         reference: reference || null,
@@ -685,43 +686,35 @@ function BillingTabV2() {
             <button className={`rounded-md px-3 py-1.5 ${billingCycle === "monthly" ? "bg-card shadow-sm" : ""}`} onClick={() => setBillingCycle("monthly")}>شهري</button>
             <button className={`rounded-md px-3 py-1.5 ${billingCycle === "annual" ? "bg-card shadow-sm" : ""}`} onClick={() => setBillingCycle("annual")}>سنوي</button>
           </div>
-          <div className="rounded-lg border border-border bg-secondary p-1 text-sm">
-            {(["YER", "SAR", "USD"] as const).map((item) => (
-              <button key={item} className={`rounded-md px-3 py-1.5 ${currency === item ? "bg-card shadow-sm" : ""}`} onClick={() => setCurrency(item)}>
-                {item === "YER" ? "﷼ يمني" : item === "SAR" ? "﷼ سعودي" : "USD"}
-              </button>
-            ))}
-          </div>
         </div>
-        <div className="mt-5 grid gap-4 lg:grid-cols-4">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {plans.map((plan: any) => {
+            const usd = billingCycle === "annual" ? Number(plan.priceUsdAnnual ?? 0) : Number(plan.priceUsd ?? 0);
             const display = billingCycle === "annual" ? plan.displayPriceAnnual : plan.displayPriceMonthly;
-            const price = display?.amount ?? 0;
+            const sar = display?.currency === "SAR" ? Number(display.amount ?? 0) : null;
             const active = current?.planId === plan.id;
+            const isSelected = selectedPlanId === plan.id;
             return (
-              <button key={plan.id} type="button" onClick={() => { setSelectedPlanId(plan.id); setAmountYer(String(price ?? "")); }} className={`rounded-xl border p-4 text-start transition hover:-translate-y-1 hover:shadow-lg ${selectedPlanId === plan.id ? "border-accent ring-2 ring-accent/20" : active ? "border-primary" : "border-border"}`}>
+              <button key={plan.id} type="button" onClick={() => { setSelectedPlanId(plan.id); setAmountYer(String(usd || "")); }} className={`rounded-xl border p-4 text-start transition hover:-translate-y-1 hover:shadow-lg ${isSelected ? "border-accent ring-2 ring-accent/20" : active ? "border-primary" : "border-border"}`}>
                 <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-lg font-black text-foreground">{plan.nameAr ?? plan.name}</h4>
-                  {active && <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">حالية</span>}
+                  <h4 className="text-base font-black text-foreground">{plan.nameAr ?? plan.name}</h4>
+                  {active && <span className="rounded-full bg-primary/10 px-2 py-1 text-[11px] font-bold text-primary">حالية</span>}
                 </div>
-                <div className="mt-3 text-2xl font-black text-primary">{Number(price ?? 0).toLocaleString("ar-u-nu-latn")} <span className="text-xs text-muted-foreground">ريال</span></div>
-                {billingCycle === "annual" && <p className="mt-1 text-xs font-bold text-accent">خصم سنوي تقريبي 20%</p>}
-                <ul className="mt-4 space-y-2 text-xs text-muted-foreground">
-                  <li className="font-bold text-foreground">نقاط الذكاء الشهرية: {prettyLimit(plan.limits?.monthly_points)}</li>
-                  <li>القنوات: {prettyLimit(plan.limits?.channels)}</li>
-                  <li>الوكلاء: {prettyLimit(plan.limits?.agents)}</li>
-                  <li>جهات الاتصال: {prettyLimit(plan.limits?.contacts)}</li>
-                  <li>مستندات المعرفة: {prettyLimit(plan.limits?.knowledge_documents)}</li>
-                  <li>المنتجات: {prettyLimit(plan.limits?.products)}</li>
+                <div className="mt-2 text-2xl font-black text-primary">
+                  ${usd.toLocaleString("ar-u-nu-latn")}
+                  <span className="text-xs font-bold text-muted-foreground"> / {billingCycle === "annual" ? "سنة" : "شهر"}</span>
+                </div>
+                {sar !== null && <div className="mt-0.5 text-xs text-muted-foreground">≈ {sar.toLocaleString("ar-u-nu-latn")} ﷼ سعودي</div>}
+                {billingCycle === "annual" && <p className="mt-1 text-[11px] font-bold text-accent">خصم سنوي ~20%</p>}
+                <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+                  <li className="font-bold text-foreground">{prettyLimit(plan.limits?.monthly_points)} نقطة ذكاء / شهر</li>
+                  <li>القنوات: {prettyLimit(plan.limits?.channels)} · الوكلاء: {prettyLimit(plan.limits?.agents)}</li>
                 </ul>
-                <div className="mt-4 border-t border-border/60 pt-3 text-xs text-muted-foreground">
-                  <p className="mb-2 font-bold text-foreground">المزايا</p>
-                  <ul className="space-y-1">
-                    {(Array.isArray(plan.features) ? plan.features : []).map((feature: string) => (
-                      <li key={feature}>✓ {featureLabels[feature] ?? feature}</li>
-                    ))}
-                  </ul>
-                </div>
+                <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  {(Array.isArray(plan.features) ? plan.features : []).slice(0, 4).map((feature: string) => (
+                    <li key={feature}>✓ {featureLabels[feature] ?? feature}</li>
+                  ))}
+                </ul>
               </button>
             );
           })}
@@ -743,11 +736,11 @@ function BillingTabV2() {
           {submitPayment.isSuccess && <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">تم استلام طلبك، سيتم تفعيل باقتك بعد مراجعة الدفع.</div>}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-semibold">الباقة
-              <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={selectedPlanId || selectedPlan?.id || ""} onChange={(event) => { setSelectedPlanId(event.target.value); const plan = plans.find((item: any) => item.id === event.target.value); const display = billingCycle === "annual" ? plan?.displayPriceAnnual : plan?.displayPriceMonthly; setAmountYer(String(display?.amount ?? "")); }}>
+              <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={selectedPlanId || selectedPlan?.id || ""} onChange={(event) => { setSelectedPlanId(event.target.value); const plan = plans.find((item: any) => item.id === event.target.value); const usd = billingCycle === "annual" ? plan?.priceUsdAnnual : plan?.priceUsd; setAmountYer(String(usd ?? "")); }}>
                 {plans.map((plan: any) => <option key={plan.id} value={plan.id}>{plan.nameAr ?? plan.name}</option>)}
               </select>
             </label>
-            <label className="text-sm font-semibold">المبلغ بالريال اليمني
+            <label className="text-sm font-semibold">المبلغ (دولار أمريكي)
               <input className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={amountYer} onChange={(event) => setAmountYer(event.target.value)} />
             </label>
             <label className="text-sm font-semibold">طريقة الدفع
