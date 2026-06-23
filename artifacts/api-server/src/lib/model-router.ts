@@ -35,6 +35,17 @@ export function resolveModel(task: ModelTask, tier: ModelTier): ModelRoute {
   return { modelId, fallbackId: SAFE_FALLBACK_MODEL, tier, task };
 }
 
+// ─── وزن النقاط (فوترة الاستهلاك) ──────────────────────────────────────────────
+// قرار المالك: ردّ نصّي عادي (flash) = نقطة واحدة؛ صعب (pro) أو رؤية أو صوت = 3 نقاط.
+// مصدر الحقيقة الوحيد للوزن — يُستهلك في حلقة الوكيل عبر recordPoints.
+export const POINTS_PER_NORMAL = 1;
+export const POINTS_PER_HARD = 3;
+
+export function pointsForRoute(route: Pick<ModelRoute, "task" | "tier">): number {
+  if (route.task === "vision" || route.task === "voice") return POINTS_PER_HARD;
+  return route.tier === "hard" ? POINTS_PER_HARD : POINTS_PER_NORMAL;
+}
+
 // ─── مصنّف الصعوبة (heuristic شفّاف، بلا استدعاء AI إضافي) ──────────────────────
 // "صعب" → يُرقّى إلى موديل pro: حالات التصعيد والتعارض والقرارات الدقيقة.
 

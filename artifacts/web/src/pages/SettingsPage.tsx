@@ -533,6 +533,7 @@ function BillingTabV2() {
   const current = data?.subscription;
   const limits = current?.limits ?? {};
   const usage = data?.usage ?? {};
+  const points = data?.points ?? null;
   const selectedPlan = plans.find((plan: any) => plan.id === selectedPlanId) ?? plans.find((plan: any) => (plan.key ?? plan.slug) !== "trial") ?? plans[0];
   const selectedDisplay = selectedPlan ? (billingCycle === "annual" ? selectedPlan.displayPriceAnnual : selectedPlan.displayPriceMonthly) : null;
   const featureLabels: Record<string, string> = {
@@ -554,6 +555,9 @@ function BillingTabV2() {
     monthly_messages: "الرسائل الشهرية",
     team_members: "أعضاء الفريق",
     contacts: "جهات الاتصال",
+    monthly_points: "نقاط الذكاء الشهرية",
+    knowledge_documents: "مستندات المعرفة",
+    products: "المنتجات",
   };
   const prettyLimit = (value: unknown) => {
     if (value === "all" || value === "unlimited" || value === -1) return "غير محدود";
@@ -575,7 +579,19 @@ function BillingTabV2() {
     { label: "الوكلاء", value: usage.agents ?? 0, limit: limitValue("agents") },
     { label: "جهات الاتصال", value: usage.contacts ?? 0, limit: limitValue("contacts") },
     { label: "أعضاء الفريق", value: usage.teamMembers ?? 0, limit: limitValue("team_members") },
+    { label: "مستندات المعرفة", value: usage.knowledgeDocuments ?? 0, limit: limitValue("knowledge_documents") },
+    { label: "المنتجات", value: usage.products ?? 0, limit: limitValue("products") },
   ];
+
+  // لوحة استهلاك نقاط الذكاء — المقياس الأساسي للفوترة. اللون يتدرّج مع الاقتراب من الحد.
+  const pointsPct = points?.percentUsed ?? 0;
+  const pointsUnlimited = points != null && points.included === null;
+  const pointsBarColor = points?.exhausted || pointsPct >= 90
+    ? "bg-rose-500"
+    : pointsPct >= 70
+      ? "bg-amber-500"
+      : "bg-emerald-500";
+  const fmtNum = (value: number) => Number(value ?? 0).toLocaleString("ar-u-nu-latn");
 
   if (isLoading) return <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">جار تحميل بيانات الفوترة...</div>;
 
@@ -585,6 +601,48 @@ function BillingTabV2() {
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
           وصلت حد باقتك في بعض الموارد. يمكنك الاستمرار في متابعة بياناتك، ولإضافة موارد جديدة يرجى ترقية الباقة.
         </div>
+      )}
+
+      {points && (
+        <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-primary">استهلاك نقاط الذكاء هذا الشهر</p>
+              <h3 className="mt-1 text-3xl font-black text-foreground">
+                {fmtNum(points.used)}
+                {!pointsUnlimited && <span className="text-lg font-bold text-muted-foreground"> / {fmtNum(points.included ?? 0)}</span>}
+                <span className="ms-2 text-sm font-bold text-muted-foreground">نقطة</span>
+              </h3>
+            </div>
+            <div className="text-end text-sm">
+              {pointsUnlimited ? (
+                <span className="rounded-full bg-primary/10 px-3 py-1 font-bold text-primary">نقاط غير محدودة</span>
+              ) : (
+                <>
+                  <p className={`text-2xl font-black ${points.exhausted ? "text-rose-600" : "text-emerald-600"}`}>{fmtNum(points.remaining ?? 0)}</p>
+                  <p className="text-muted-foreground">المتبقي</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {!pointsUnlimited && (
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-secondary">
+              <div className={`h-full rounded-full transition-all ${pointsBarColor}`} style={{ width: `${Math.min(100, pointsPct)}%` }} />
+            </div>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>تُحتسب نقطة واحدة لكل ردّ عادي، و3 نقاط للردود التي تحتاج تحليلاً أعمق أو فهم صور وملاحظات صوتية.</span>
+            {points.balance > 0 && <span className="rounded-full bg-secondary px-3 py-1 font-bold text-foreground">رصيد إضافي: {fmtNum(points.balance)} نقطة</span>}
+          </div>
+
+          {points.exhausted && (
+            <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-900">
+              نفدت نقاط باقتك لهذا الشهر. سيستمر استقبال الرسائل وتحويلها لفريقك، ولاستئناف الردود التلقائية يرجى ترقية الباقة أو إضافة رصيد نقاط.
+            </div>
+          )}
+        </section>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
@@ -649,10 +707,12 @@ function BillingTabV2() {
                 <div className="mt-3 text-2xl font-black text-primary">{Number(price ?? 0).toLocaleString("ar-u-nu-latn")} <span className="text-xs text-muted-foreground">ريال</span></div>
                 {billingCycle === "annual" && <p className="mt-1 text-xs font-bold text-accent">خصم سنوي تقريبي 20%</p>}
                 <ul className="mt-4 space-y-2 text-xs text-muted-foreground">
-                  <li>القنوات: {plan.limits?.channels ?? "غير محدود"}</li>
-                  <li>الوكلاء: {plan.limits?.agents ?? "غير محدود"}</li>
-                  <li>الرسائل الشهرية: {plan.limits?.monthly_messages?.toLocaleString?.("ar-u-nu-latn") ?? "غير محدود"}</li>
-                  <li>جهات الاتصال: {plan.limits?.contacts?.toLocaleString?.("ar-u-nu-latn") ?? "غير محدود"}</li>
+                  <li className="font-bold text-foreground">نقاط الذكاء الشهرية: {prettyLimit(plan.limits?.monthly_points)}</li>
+                  <li>القنوات: {prettyLimit(plan.limits?.channels)}</li>
+                  <li>الوكلاء: {prettyLimit(plan.limits?.agents)}</li>
+                  <li>جهات الاتصال: {prettyLimit(plan.limits?.contacts)}</li>
+                  <li>مستندات المعرفة: {prettyLimit(plan.limits?.knowledge_documents)}</li>
+                  <li>المنتجات: {prettyLimit(plan.limits?.products)}</li>
                 </ul>
                 <div className="mt-4 border-t border-border/60 pt-3 text-xs text-muted-foreground">
                   <p className="mb-2 font-bold text-foreground">المزايا</p>

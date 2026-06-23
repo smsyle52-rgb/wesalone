@@ -32,6 +32,8 @@ export const subscriptionsTable = pgTable("subscriptions", {
   currentPeriodEnd: date("current_period_end"),
   paymentMethod: text("payment_method"),
   lastPaymentRef: text("last_payment_ref"),
+  // رصيد نقاط مُشترى (top-up) فوق نقاط الباقة الشهرية — يُستهلك بعد نفاد نقاط الباقة
+  pointsBalance: integer("points_balance").notNull().default(0),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -47,6 +49,8 @@ export const usageCountersTable = pgTable(
     agentsCount: integer("agents_count").notNull().default(0),
     contactsCount: integer("contacts_count").notNull().default(0),
     teamMembers: integer("team_members").notNull().default(0),
+    // نقاط الذكاء المستهلكة خلال الشهر (ردّ عادي=1، صعب/رؤية/صوت=3) — المقياس الأساسي للفوترة
+    pointsUsed: integer("points_used").notNull().default(0),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

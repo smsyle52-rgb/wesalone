@@ -892,6 +892,32 @@ UPDATE plans SET
 WHERE key = 'business' OR slug = 'business';
 
 -- =============================================================
+-- Billing patch B: points-based metering (AI usage) + storage caps
+-- نموذج هجين: الباقة = ميزات + نقاط ذكاء شهرية مُضمَّنة. وزن الردّ: عادي=1، صعب/رؤية/صوت=3.
+-- النقاط هي مقياس التكلفة (استدلال الذكاء)؛ knowledge_documents وproducts حدود تخزين.
+-- مزوّد تقني (Tech Provider): رسائل ميتا على WABA التاجر — لا تدخل تكلفتنا.
+-- =============================================================
+
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS points_balance integer NOT NULL DEFAULT 0;
+ALTER TABLE usage_counters ADD COLUMN IF NOT EXISTS points_used integer NOT NULL DEFAULT 0;
+
+UPDATE plans SET limits = limits
+  || '{"monthly_points":200,"knowledge_documents":50,"products":20}'::jsonb
+WHERE key = 'trial' OR slug = 'trial';
+
+UPDATE plans SET limits = limits
+  || '{"monthly_points":2000,"knowledge_documents":50,"products":100}'::jsonb
+WHERE key = 'starter' OR slug = 'starter';
+
+UPDATE plans SET limits = limits
+  || '{"monthly_points":10000,"knowledge_documents":1000,"products":2000}'::jsonb
+WHERE key = 'growth' OR slug = 'growth';
+
+UPDATE plans SET limits = limits
+  || '{"monthly_points":50000,"knowledge_documents":"unlimited","products":"unlimited"}'::jsonb
+WHERE key = 'business' OR slug = 'business';
+
+-- =============================================================
 -- Closure Phase 4A: in-app notifications
 -- =============================================================
 

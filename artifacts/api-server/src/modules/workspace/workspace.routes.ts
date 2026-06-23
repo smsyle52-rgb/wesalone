@@ -19,7 +19,7 @@ import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
-import { getActiveSubscription, getDisplayPrice, getLimitWarnings, getUsageSnapshot, type BillingCurrency } from "../../services/billing";
+import { getActiveSubscription, getDisplayPrice, getLimitWarnings, getPointsStatus, getUsageSnapshot, type BillingCurrency } from "../../services/billing";
 
 const router = Router();
 
@@ -165,13 +165,14 @@ router.get("/usage", requirePermission("settings:read"), async (req: Request, re
   const authReq = req as AuthenticatedRequest;
   try {
     const workspaceId = authReq.sessionUser.activeWorkspaceId;
-    const [subscription, usage, limitWarnings] = await Promise.all([
+    const [subscription, usage, limitWarnings, points] = await Promise.all([
       getActiveSubscription(workspaceId),
       getUsageSnapshot(workspaceId),
       getLimitWarnings(workspaceId),
+      getPointsStatus(workspaceId),
     ]);
 
-    res.json({ subscription, usage, limitWarnings });
+    res.json({ subscription, usage, limitWarnings, points });
   } catch (err) {
     logger.error({ err }, "Failed to get usage");
     res.status(500).json({ error: "حدث خطأ داخلي" });
@@ -233,10 +234,11 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
     ? String(req.query.currency) as BillingCurrency
     : "YER";
   try {
-    const [subscription, usage, limitWarnings, plansRaw, paymentSubmissions] = await Promise.all([
+    const [subscription, usage, limitWarnings, points, plansRaw, paymentSubmissions] = await Promise.all([
       getActiveSubscription(workspaceId),
       getUsageSnapshot(workspaceId),
       getLimitWarnings(workspaceId),
+      getPointsStatus(workspaceId),
       db.select().from(plansTable).where(eq(plansTable.isActive, true)).orderBy(plansTable.sortOrder),
       db
         .select({
@@ -267,6 +269,7 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
       subscription,
       usage,
       limitWarnings,
+      points,
       currency,
       plans,
       paymentSubmissions,

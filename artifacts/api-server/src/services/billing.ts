@@ -5,6 +5,8 @@ import {
   contactsTable,
   db,
   exchangeRatesTable,
+  inventoryProductsTable,
+  knowledgeDocumentsTable,
   messagesTable,
   plansTable,
   subscriptionsTable,
@@ -12,7 +14,15 @@ import {
   workspaceMembershipsTable,
 } from "@workspace/db";
 
-export type PlanLimitKey = "channels" | "agents" | "monthly_messages" | "team_members" | "contacts";
+export type PlanLimitKey =
+  | "channels"
+  | "agents"
+  | "monthly_messages"
+  | "team_members"
+  | "contacts"
+  | "monthly_points"
+  | "knowledge_documents"
+  | "products";
 
 export type LimitCheck = {
   allowed: boolean;
@@ -117,6 +127,7 @@ export async function getActiveSubscription(workspaceId: string) {
       currentPeriodEnd: subscriptionsTable.currentPeriodEnd,
       paymentMethod: subscriptionsTable.paymentMethod,
       lastPaymentRef: subscriptionsTable.lastPaymentRef,
+      pointsBalance: subscriptionsTable.pointsBalance,
       planKey: plansTable.key,
       planSlug: plansTable.slug,
       planName: plansTable.name,
@@ -149,6 +160,22 @@ async function usageValue(workspaceId: string, key: PlanLimitKey): Promise<numbe
   }
   if (key === "team_members") {
     const [row] = await db.select({ value: count() }).from(workspaceMembershipsTable).where(and(eq(workspaceMembershipsTable.workspaceId, workspaceId), eq(workspaceMembershipsTable.status, "active")));
+    return row?.value ?? 0;
+  }
+  if (key === "monthly_points") {
+    const [row] = await db
+      .select({ value: usageCountersTable.pointsUsed })
+      .from(usageCountersTable)
+      .where(and(eq(usageCountersTable.workspaceId, workspaceId), eq(usageCountersTable.periodMonth, currentPeriodMonth())))
+      .limit(1);
+    return row?.value ?? 0;
+  }
+  if (key === "knowledge_documents") {
+    const [row] = await db.select({ value: count() }).from(knowledgeDocumentsTable).where(eq(knowledgeDocumentsTable.workspaceId, workspaceId));
+    return row?.value ?? 0;
+  }
+  if (key === "products") {
+    const [row] = await db.select({ value: count() }).from(inventoryProductsTable).where(and(eq(inventoryProductsTable.workspaceId, workspaceId), eq(inventoryProductsTable.isArchived, false)));
     return row?.value ?? 0;
   }
   const [row] = await db
@@ -195,13 +222,68 @@ export async function recordUsage(workspaceId: string, metric: "messages_sent" |
     });
 }
 
+/**
+ * يسجّل استهلاك نقاط الذكاء للفترة الحالية (ردّ عادي=1، صعب/رؤية/صوت=3).
+ * يُستدعى من حلقة الوكيل بعد كل ردّ ناجح. آمن للتزامن (atomic increment).
+ */
+export async function recordPoints(workspaceId: string, points: number): Promise<void> {
+  if (!Number.isFinite(points) || points <= 0) return;
+  const periodMonth = currentPeriodMonth();
+  await db
+    .insert(usageCountersTable)
+    .values({ workspaceId, periodMonth, pointsUsed: points })
+    .onConflictDoUpdate({
+      target: [usageCountersTable.workspaceId, usageCountersTable.periodMonth],
+      set: {
+        pointsUsed: sql`${usageCountersTable.pointsUsed} + ${points}`,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+export type PointsStatus = {
+  periodMonth: string;
+  used: number;
+  included: number | null;
+  balance: number;
+  remaining: number | null;
+  percentUsed: number | null;
+  exhausted: boolean;
+  planKey: string | null;
+  status: string | null;
+};
+
+/**
+ * حالة نقاط مساحة العمل: المستهلك مقابل المُضمَّن في الباقة + الرصيد المُشترى.
+ * included=null يعني نقاط غير محدودة (لا تُحسب نسبة ولا نفاد).
+ */
+export async function getPointsStatus(workspaceId: string): Promise<PointsStatus> {
+  const subscription = await getActiveSubscription(workspaceId);
+  const used = await usageValue(workspaceId, "monthly_points");
+  const included = numericLimit(subscription?.limits, "monthly_points");
+  const balance = subscription?.pointsBalance ?? 0;
+  const planKey = subscription?.planKey ?? subscription?.planSlug ?? null;
+  const status = subscription?.status ?? null;
+
+  if (included === null) {
+    return { periodMonth: currentPeriodMonth(), used, included: null, balance, remaining: null, percentUsed: null, exhausted: false, planKey, status };
+  }
+
+  const remaining = Math.max(0, included + balance - used);
+  const percentUsed = included > 0 ? Math.min(100, Math.round((used / included) * 100)) : 100;
+  return { periodMonth: currentPeriodMonth(), used, included, balance, remaining, percentUsed, exhausted: remaining <= 0, planKey, status };
+}
+
 export async function getUsageSnapshot(workspaceId: string) {
-  const [channels, agents, contacts, teamMembers, messages] = await Promise.all([
+  const [channels, agents, contacts, teamMembers, messages, points, knowledgeDocuments, products] = await Promise.all([
     usageValue(workspaceId, "channels"),
     usageValue(workspaceId, "agents"),
     usageValue(workspaceId, "contacts"),
     usageValue(workspaceId, "team_members"),
     usageValue(workspaceId, "monthly_messages"),
+    usageValue(workspaceId, "monthly_points"),
+    usageValue(workspaceId, "knowledge_documents"),
+    usageValue(workspaceId, "products"),
   ]);
   return {
     periodMonth: currentPeriodMonth(),
@@ -210,11 +292,14 @@ export async function getUsageSnapshot(workspaceId: string) {
     contacts,
     teamMembers,
     messagesSent: messages,
+    pointsUsed: points,
+    knowledgeDocuments,
+    products,
   };
 }
 
 export async function getLimitWarnings(workspaceId: string) {
-  const keys: PlanLimitKey[] = ["channels", "agents", "monthly_messages", "team_members", "contacts"];
+  const keys: PlanLimitKey[] = ["channels", "agents", "monthly_messages", "team_members", "contacts", "monthly_points", "knowledge_documents", "products"];
   const checks = await Promise.all(keys.map((key) => checkLimit(workspaceId, key).then((check) => ({ key, ...check }))));
   return checks.filter((check) => check.limit !== null && check.current >= check.limit);
 }
