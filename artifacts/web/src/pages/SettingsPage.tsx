@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
 import { PaymentMethodsTab } from "@/components/settings/PaymentMethodsTab";
@@ -1190,42 +1191,47 @@ export default function SettingsPage() {
   const canInvite = hasPermission("users:invite");
   const members = usersData?.members ?? usersData?.users ?? [];
 
-  const tabGroups: { label: string; tabs: { id: Tab; label: string }[] }[] = [
+  type TabEntry =
+    | { kind: "tab"; id: Tab; label: string }
+    | { kind: "link"; href: string; label: string; permission?: string };
+
+  const tabGroups: { label: string; tabs: TabEntry[] }[] = [
     {
-      label: "\u0645\u0633\u0627\u062d\u0629 \u0627\u0644\u0639\u0645\u0644",
+      label: "\u0646\u0634\u0627\u0637\u0643 \u0627\u0644\u062a\u062c\u0627\u0631\u064a",
       tabs: [
-        { id: "workspace", label: "\u0645\u0633\u0627\u062d\u0629 \u0627\u0644\u0639\u0645\u0644" },
-        { id: "users", label: "\u0627\u0644\u0641\u0631\u064a\u0642" },
-        { id: "invite", label: "\u062f\u0639\u0648\u0629 \u0639\u0636\u0648" },
+        { kind: "tab", id: "workspace", label: "\u0645\u0633\u0627\u062d\u0629 \u0627\u0644\u0639\u0645\u0644" },
+        { kind: "tab", id: "business-hours", label: "\u0633\u0627\u0639\u0627\u062a \u0627\u0644\u0639\u0645\u0644" },
+        { kind: "tab", id: "sla", label: "\u0642\u0648\u0627\u0639\u062f \u0627\u0644\u0627\u0633\u062a\u062c\u0627\u0628\u0629" },
+        { kind: "tab", id: "quick-replies", label: "\u0627\u0644\u0631\u062f\u0648\u062f \u0627\u0644\u0633\u0631\u064a\u0639\u0629" },
+        { kind: "tab", id: "channels", label: "\u0627\u0644\u0642\u0646\u0648\u0627\u062a" },
       ],
     },
     {
-      label: "\u0627\u0644\u062a\u0634\u063a\u064a\u0644",
+      label: "\u0627\u0644\u0641\u0631\u064a\u0642 \u0648\u0627\u0644\u0635\u0644\u0627\u062d\u064a\u0627\u062a",
       tabs: [
-        { id: "business-hours", label: "\u0633\u0627\u0639\u0627\u062a \u0627\u0644\u0639\u0645\u0644" },
-        { id: "sla", label: "\u0642\u0648\u0627\u0639\u062f \u0627\u0644\u0627\u0633\u062a\u062c\u0627\u0628\u0629" },
-        { id: "quick-replies", label: "\u0627\u0644\u0631\u062f\u0648\u062f \u0627\u0644\u0633\u0631\u064a\u0639\u0629" },
-        { id: "channels", label: "\u0627\u0644\u0642\u0646\u0648\u0627\u062a" },
+        { kind: "tab", id: "users", label: "\u0623\u0639\u0636\u0627\u0621 \u0627\u0644\u0641\u0631\u064a\u0642" },
+        { kind: "tab", id: "invite", label: "\u062f\u0639\u0648\u0629 \u0639\u0636\u0648" },
       ],
     },
     {
       label: "\u0627\u0644\u0645\u0627\u0644\u064a\u0629",
       tabs: [
-        { id: "payment-methods", label: "\u0637\u0631\u0642 \u0627\u0644\u062f\u0641\u0639" },
-        { id: "exchange-rates", label: "\u0623\u0633\u0639\u0627\u0631 \u0627\u0644\u0635\u0631\u0641" },
+        { kind: "tab", id: "payment-methods", label: "\u0637\u0631\u0642 \u0627\u0644\u062f\u0641\u0639" },
+        { kind: "tab", id: "exchange-rates", label: "\u0623\u0633\u0639\u0627\u0631 \u0627\u0644\u0635\u0631\u0641" },
       ],
     },
     {
       label: "\u0627\u0644\u0641\u0648\u062a\u0631\u0629 \u0648\u0627\u0644\u0627\u0634\u062a\u0631\u0627\u0643",
-      tabs: [{ id: "billing", label: "\u0627\u0644\u0641\u0648\u062a\u0631\u0629" }],
+      tabs: [{ kind: "tab", id: "billing", label: "\u0627\u0644\u0641\u0648\u062a\u0631\u0629" }],
     },
     {
-      label: "\u0627\u0644\u0646\u0638\u0627\u0645",
+      label: "\u0627\u0644\u0623\u0645\u0627\u0646 \u0648\u0627\u0644\u062d\u0633\u0627\u0628",
       tabs: [
-        { id: "notifications", label: "\u0627\u0644\u062a\u0646\u0628\u064a\u0647\u0627\u062a" },
-        { id: "security", label: "\u0627\u0644\u0623\u0645\u0627\u0646" },
-        { id: "api-keys", label: "\u0645\u0641\u0627\u062a\u064a\u062d API" },
-        { id: "danger", label: "\u0627\u0644\u0645\u0646\u0637\u0642\u0629 \u0627\u0644\u062e\u0637\u0631\u0629" },
+        { kind: "tab", id: "notifications", label: "\u0627\u0644\u062a\u0646\u0628\u064a\u0647\u0627\u062a" },
+        { kind: "tab", id: "security", label: "\u0627\u0644\u0623\u0645\u0627\u0646" },
+        { kind: "tab", id: "api-keys", label: "\u0645\u0641\u0627\u062a\u064a\u062d API" },
+        { kind: "link", href: "/audit-logs", label: "\u0633\u062c\u0644 \u0627\u0644\u0646\u0634\u0627\u0637", permission: "audit_logs:read" },
+        { kind: "tab", id: "danger", label: "\u0627\u0644\u0645\u0646\u0637\u0642\u0629 \u0627\u0644\u062e\u0637\u0631\u0629" },
       ],
     },
   ];
@@ -1241,19 +1247,33 @@ export default function SettingsPage() {
               {group.label}
             </div>
             <div className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
-              {group.tabs.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={`rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap text-start transition-colors ${
-                    tab === t.id
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-background hover:text-foreground"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+              {group.tabs.map((t) => {
+                if (t.kind === "link") {
+                  if (t.permission && !hasPermission(t.permission)) return null;
+                  return (
+                    <Link
+                      key={t.href}
+                      href={t.href}
+                      className="rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap text-start transition-colors text-muted-foreground hover:bg-background hover:text-foreground"
+                    >
+                      {t.label}
+                    </Link>
+                  );
+                }
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    className={`rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap text-start transition-colors ${
+                      tab === t.id
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-background hover:text-foreground"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ))}
