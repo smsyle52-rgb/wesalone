@@ -1,4 +1,4 @@
-import { db, rolesTable, permissionsTable, rolePermissionsTable, plansTable } from "@workspace/db";
+import { db, rolesTable, permissionsTable, rolePermissionsTable, plansTable, pointTopupProductsTable } from "@workspace/db";
 import { eq, and, inArray, notInArray } from "drizzle-orm";
 import { logger } from "./logger";
 
@@ -204,61 +204,51 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
 };
 
+// ─── حزم الشحن الافتراضية (idempotent — لا تُكتب فوق تعديلات الإدارة) ────────────
+const SYSTEM_TOPUP_PRODUCTS = [
+  { slug: "topup_5k",  nameAr: "شحنة صغيرة",  nameEn: "Small Bundle",  points: 5000,  priceCents: 700,  currency: "USD", sortOrder: 10 },
+  { slug: "topup_20k", nameAr: "شحنة مرنة",   nameEn: "Flex Bundle",   points: 20000, priceCents: 2500, currency: "USD", sortOrder: 20 },
+  { slug: "topup_50k", nameAr: "شحنة كبيرة",  nameEn: "Large Bundle",  points: 50000, priceCents: 5900, currency: "USD", sortOrder: 30 },
+];
+
+// ─── الباقات الخمس المعتمدة (مصدر الحقيقة التشغيلي الوحيد) ───────────────────────
+// مطابقة حرفياً لكتلة Billing patch C في scripts/migrate-phase345.sql. يُعاد فرضها عند كل
+// إقلاع (upsert بالـslug) فلا تعود أي خطة تاريخية (trial/المحترف/الفريق). النقاط في limits.monthly_points.
+// الأعمال = مخصّصة (لا سعر ثابت). auto_reply=false للمجاني (اقتراح فقط، لا إرسال تلقائي).
 const SYSTEM_PLANS = [
   {
-    name: "تجربة مجانية",
-    slug: "trial",
-    key: "trial",
-    nameAr: "تجربة مجانية",
-    priceYer: "0",
-    priceYerAnnual: "0",
-    priceUsd: "0",
-    priceUsdAnnual: "0",
-    billingCycle: "monthly",
-    sortOrder: 10,
-    limits: { channels: "all", agents: 1, monthly_messages: 200, team_members: 1, contacts: 100 },
-    features: ["inbox", "ai_agent", "catalog", "automation", "campaigns", "analytics", "vision_voice"],
+    name: "Free", slug: "free", key: "free", nameAr: "مجاني",
+    priceUsd: "0", priceUsdAnnual: "0", priceSar: "0", priceYer: null,
+    billingCycle: "monthly", sortOrder: 10,
+    limits: { channels: 1, agents: 1, team_members: 1, contacts: 100, monthly_points: 1000, knowledge_bases: 1, products: 20, auto_reply: false },
+    features: ["inbox", "ai_agent", "catalog"],
   },
   {
-    name: "المبتدئ",
-    slug: "starter",
-    key: "starter",
-    nameAr: "البداية",
-    priceYer: "15000",
-    priceYerAnnual: "144000",
-    priceUsd: "10",
-    priceUsdAnnual: "96",
-    billingCycle: "monthly",
-    sortOrder: 20,
-    limits: { channels: 1, agents: 1, monthly_messages: 1000, team_members: 2, contacts: 1000 },
+    name: "Starter", slug: "starter", key: "starter", nameAr: "البداية",
+    priceUsd: "19", priceUsdAnnual: "182", priceSar: "71.25", priceYer: null,
+    billingCycle: "monthly", sortOrder: 20,
+    limits: { channels: 1, agents: 1, team_members: 2, contacts: 1000, monthly_points: 10000, knowledge_bases: 1, products: 500, auto_reply: true },
     features: ["inbox", "ai_agent", "catalog", "basic_automation"],
   },
   {
-    name: "المحترف",
-    slug: "growth",
-    key: "growth",
-    nameAr: "النمو",
-    priceYer: "35000",
-    priceYerAnnual: "336000",
-    priceUsd: "25",
-    priceUsdAnnual: "240",
-    billingCycle: "monthly",
-    sortOrder: 30,
-    limits: { channels: 3, agents: 3, monthly_messages: 5000, team_members: 5, contacts: 10000 },
+    name: "Growth", slug: "growth", key: "growth", nameAr: "النمو",
+    priceUsd: "59", priceUsdAnnual: "566", priceSar: "221.25", priceYer: null,
+    billingCycle: "monthly", sortOrder: 30,
+    limits: { channels: 3, agents: 3, team_members: 5, contacts: 10000, monthly_points: 40000, knowledge_bases: 5, products: 5000, auto_reply: true },
     features: ["inbox", "ai_agent", "catalog", "automation", "campaigns", "advanced_analytics", "vision_voice"],
   },
   {
-    name: "الفريق",
-    slug: "business",
-    key: "business",
-    nameAr: "الأعمال",
-    priceYer: "75000",
-    priceYerAnnual: "720000",
-    priceUsd: "50",
-    priceUsdAnnual: "480",
-    billingCycle: "monthly",
-    sortOrder: 40,
-    limits: { channels: "unlimited", agents: "unlimited", monthly_messages: "unlimited", team_members: "unlimited", contacts: "unlimited" },
+    name: "Professional", slug: "professional", key: "professional", nameAr: "احترافي",
+    priceUsd: "149", priceUsdAnnual: "1430", priceSar: "558.75", priceYer: null,
+    billingCycle: "monthly", sortOrder: 40,
+    limits: { channels: 10, agents: 10, team_members: 15, contacts: 50000, monthly_points: 100000, knowledge_bases: 20, products: 25000, auto_reply: true },
+    features: ["inbox", "ai_agent", "catalog", "automation", "campaigns", "advanced_analytics", "vision_voice", "priority_support"],
+  },
+  {
+    name: "Business", slug: "business", key: "business", nameAr: "الأعمال",
+    priceUsd: null, priceUsdAnnual: null, priceSar: null, priceYer: null,
+    billingCycle: "monthly", sortOrder: 50,
+    limits: { channels: "custom", agents: "custom", team_members: "custom", contacts: "custom", monthly_points: "custom", knowledge_bases: "custom", products: "custom", auto_reply: true },
     features: ["everything", "priority_support"],
   },
 ];
@@ -337,6 +327,19 @@ export async function runSeed() {
     }
   }
   logger.info("Seeded system plans");
+
+  // حزم الشحن الافتراضية (مرة واحدة — لا تُكتب فوق تعديلات الإدارة)
+  for (const product of SYSTEM_TOPUP_PRODUCTS) {
+    const existing = await db
+      .select({ id: pointTopupProductsTable.id })
+      .from(pointTopupProductsTable)
+      .where(eq(pointTopupProductsTable.slug, product.slug))
+      .limit(1);
+    if (!existing.length) {
+      await db.insert(pointTopupProductsTable).values(product);
+    }
+  }
+  logger.info("Seeded system topup products");
 
   logger.info("Seed complete.");
 }
