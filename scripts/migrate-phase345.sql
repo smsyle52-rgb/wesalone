@@ -821,91 +821,128 @@ CREATE TABLE IF NOT EXISTS payment_submissions (
 CREATE INDEX IF NOT EXISTS idx_payment_submissions_ws_status ON payment_submissions(workspace_id, status);
 CREATE INDEX IF NOT EXISTS idx_payment_submissions_status_created ON payment_submissions(status, created_at);
 
-INSERT INTO plans (key, slug, name, name_ar, price_yer, price_yer_annual, billing_cycle, is_active, sort_order, limits, features)
-VALUES
-  ('trial', 'trial', 'Trial', 'تجربة مجانية', 0, 0, 'monthly', true, 10, '{"channels":3,"agents":3,"monthly_messages":1000,"team_members":5,"contacts":500}'::jsonb, ARRAY['inbox','ai_agent','catalog','analytics','campaigns']),
-  ('starter', 'starter', 'Starter', 'البداية', 15000, 144000, 'monthly', true, 20, '{"channels":2,"agents":1,"monthly_messages":2000,"team_members":3,"contacts":1000}'::jsonb, ARRAY['inbox','ai_agent','catalog']),
-  ('growth', 'growth', 'Growth', 'النمو', 35000, 336000, 'monthly', true, 30, '{"channels":5,"agents":3,"monthly_messages":10000,"team_members":10,"contacts":10000}'::jsonb, ARRAY['inbox','ai_agent','catalog','analytics','campaigns']),
-  ('business', 'business', 'Business', 'الأعمال', 75000, 720000, 'monthly', true, 40, '{"channels":10,"agents":10,"monthly_messages":50000,"team_members":30,"contacts":50000}'::jsonb, ARRAY['inbox','ai_agent','catalog','analytics','campaigns','priority_support'])
-ON CONFLICT (slug) DO UPDATE SET
-  key = EXCLUDED.key,
-  name_ar = EXCLUDED.name_ar,
-  price_yer = EXCLUDED.price_yer,
-  price_yer_annual = EXCLUDED.price_yer_annual,
-  billing_cycle = EXCLUDED.billing_cycle,
-  is_active = EXCLUDED.is_active,
-  sort_order = EXCLUDED.sort_order,
-  limits = EXCLUDED.limits,
-  features = EXCLUDED.features;
-
 -- =============================================================
--- Billing patch A: USD-canonical multi-currency pricing
+-- Billing schema columns (USD-canonical pricing + points metering)
 -- =============================================================
 
 ALTER TABLE plans ADD COLUMN IF NOT EXISTS price_usd numeric(10,2);
 ALTER TABLE plans ADD COLUMN IF NOT EXISTS price_usd_annual numeric(10,2);
 ALTER TABLE plans ADD COLUMN IF NOT EXISTS price_sar numeric(10,2);
-
-UPDATE plans
-SET price_usd = CASE
-  WHEN key = 'trial' OR slug = 'trial' THEN 0
-  WHEN key = 'starter' OR slug = 'starter' THEN 10
-  WHEN key = 'growth' OR slug = 'growth' THEN 25
-  WHEN key = 'business' OR slug = 'business' THEN 50
-  ELSE COALESCE(price_usd, 0)
-END
-WHERE price_usd IS NULL;
-
-UPDATE plans
-SET price_usd_annual = round((price_usd * 12 * 0.8)::numeric, 2)
-WHERE price_usd_annual IS NULL AND price_usd IS NOT NULL;
-
 ALTER TABLE payment_submissions ADD COLUMN IF NOT EXISTS amount_currency text NOT NULL DEFAULT 'YER';
 ALTER TABLE payment_submissions ADD COLUMN IF NOT EXISTS exchange_rate_snapshot jsonb;
-
-UPDATE plans SET
-  price_usd = 0,
-  price_usd_annual = 0,
-  limits = '{"channels":"all","agents":1,"monthly_messages":200,"team_members":1,"contacts":100,"monthly_points":2000,"knowledge_documents":50,"products":20}'::jsonb,
-  features = ARRAY['inbox','ai_agent','catalog','automation','campaigns','analytics','vision_voice']
-WHERE key = 'trial' OR slug = 'trial';
-
-UPDATE plans SET
-  price_usd = 10,
-  price_usd_annual = 96,
-  limits = '{"channels":1,"agents":1,"monthly_messages":1000,"team_members":2,"contacts":1000,"monthly_points":10000,"knowledge_documents":50,"products":100}'::jsonb,
-  features = ARRAY['inbox','ai_agent','catalog','basic_automation']
-WHERE key = 'starter' OR slug = 'starter';
-
-UPDATE plans SET
-  price_usd = 25,
-  price_usd_annual = 240,
-  limits = '{"channels":3,"agents":3,"monthly_messages":5000,"team_members":5,"contacts":10000,"monthly_points":25000,"knowledge_documents":1000,"products":2000}'::jsonb,
-  features = ARRAY['inbox','ai_agent','catalog','automation','campaigns','advanced_analytics','vision_voice']
-WHERE key = 'growth' OR slug = 'growth';
-
-UPDATE plans SET
-  price_usd = 50,
-  price_usd_annual = 480,
-  limits = '{"channels":"unlimited","agents":"unlimited","monthly_messages":"unlimited","team_members":"unlimited","contacts":"unlimited","monthly_points":50000,"knowledge_documents":"unlimited","products":"unlimited"}'::jsonb,
-  features = ARRAY['everything','priority_support']
-WHERE key = 'business' OR slug = 'business';
-
--- الريال السعودي مثبّت على الدولار (3.75) — يضمن ظهور سعر SAR في الباقات دون اعتماد على جدول أسعار الصرف.
-UPDATE plans SET price_sar = round((COALESCE(price_usd, 0) * 3.75)::numeric, 2)
-WHERE key IN ('trial','starter','growth','business') OR slug IN ('trial','starter','growth','business');
-
--- =============================================================
--- Billing patch B: points-based metering (AI usage) columns
--- نموذج هجين: الباقة = ميزات + نقاط ذكاء شهرية مُضمَّنة. وزن الردّ: عادي=1، صعب/رؤية/صوت=3.
--- النقاط هي مقياس التكلفة (استدلال الذكاء)؛ knowledge_documents وproducts حدود تخزين.
--- حدود الباقات (monthly_points/knowledge_documents/products) تُضبط ذرّياً ضمن كتلة الباقات
--- أعلاه (patch A) بكتابة مباشرة — لا دمج `||` كي لا تُمحى ببناء قديم متزامن.
--- مزوّد تقني (Tech Provider): رسائل ميتا على WABA التاجر — لا تدخل تكلفتنا.
--- =============================================================
-
+-- اسم الخطة التاريخي يُحفظ كنص قبل حذف مرجع الخطة (حماية المدفوعات التاريخية).
+ALTER TABLE payment_submissions ADD COLUMN IF NOT EXISTS plan_name_snapshot text;
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS points_balance integer NOT NULL DEFAULT 0;
 ALTER TABLE usage_counters ADD COLUMN IF NOT EXISTS points_used integer NOT NULL DEFAULT 0;
+
+-- =============================================================
+-- Billing patch C — Phase 1: حصر الكتالوج في 5 باقات (حذف فعلي + ترحيل آمن)
+-- يحذف كل خطة تاريخية (trial/المحترف/الفريق/أي قديمة) فعلياً بعد ترحيل اشتراكاتها.
+-- transactional + idempotent. المصدر التشغيلي المطابق: artifacts/api-server/src/lib/seed.ts
+-- mapping: trial→free · starter/growth/business تُعاد تعريفها بنفس الـslug · أي خطة أخرى→free.
+-- =============================================================
+BEGIN;
+
+-- (1) snapshot للرجوع عند فشل الترحيل فقط (مرة واحدة؛ لا يُستخدم تشغيلياً ولا يُعاد توليده).
+CREATE TABLE IF NOT EXISTS billing_legacy_snapshot (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  kind text NOT NULL,
+  ref_id uuid,
+  workspace_id uuid,
+  plan_slug text,
+  plan_name text,
+  status text,
+  raw jsonb NOT NULL,
+  snapshot_at timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO billing_legacy_snapshot (kind, ref_id, plan_slug, plan_name, raw)
+SELECT 'plan', p.id, p.slug, p.name, to_jsonb(p) FROM plans p
+WHERE NOT EXISTS (SELECT 1 FROM billing_legacy_snapshot WHERE kind = 'plan');
+
+INSERT INTO billing_legacy_snapshot (kind, ref_id, workspace_id, plan_slug, status, raw)
+SELECT 'subscription', s.id, s.workspace_id, p.slug, s.status, to_jsonb(s)
+FROM subscriptions s JOIN plans p ON p.id = s.plan_id
+WHERE NOT EXISTS (SELECT 1 FROM billing_legacy_snapshot WHERE kind = 'subscription');
+
+-- (2) احفظ اسم الخطة التاريخي في المدفوعات قبل أي تغيير مرجع.
+UPDATE payment_submissions ps SET plan_name_snapshot = p.name
+FROM plans p WHERE p.id = ps.plan_id AND ps.plan_name_snapshot IS NULL;
+
+-- (3) أنشئ/حدّث الخطط الخمس المعتمدة (نفس تعريف seed.ts — مصدر واحد).
+INSERT INTO plans (key, slug, name, name_ar, price_usd, price_usd_annual, price_sar, price_yer, billing_cycle, is_active, sort_order, limits, features)
+VALUES
+  ('free','free','Free','مجاني', 0, 0, 0, NULL, 'monthly', true, 10,
+    '{"channels":1,"agents":1,"team_members":1,"contacts":100,"monthly_points":1000,"knowledge_bases":1,"products":20,"auto_reply":false}'::jsonb,
+    ARRAY['inbox','ai_agent','catalog']),
+  ('starter','starter','Starter','البداية', 19, 182, 71.25, NULL, 'monthly', true, 20,
+    '{"channels":1,"agents":1,"team_members":2,"contacts":1000,"monthly_points":10000,"knowledge_bases":1,"products":500,"auto_reply":true}'::jsonb,
+    ARRAY['inbox','ai_agent','catalog','basic_automation']),
+  ('growth','growth','Growth','النمو', 59, 566, 221.25, NULL, 'monthly', true, 30,
+    '{"channels":3,"agents":3,"team_members":5,"contacts":10000,"monthly_points":40000,"knowledge_bases":5,"products":5000,"auto_reply":true}'::jsonb,
+    ARRAY['inbox','ai_agent','catalog','automation','campaigns','advanced_analytics','vision_voice']),
+  ('professional','professional','Professional','احترافي', 149, 1430, 558.75, NULL, 'monthly', true, 40,
+    '{"channels":10,"agents":10,"team_members":15,"contacts":50000,"monthly_points":100000,"knowledge_bases":20,"products":25000,"auto_reply":true}'::jsonb,
+    ARRAY['inbox','ai_agent','catalog','automation','campaigns','advanced_analytics','vision_voice','priority_support']),
+  ('business','business','Business','الأعمال', NULL, NULL, NULL, NULL, 'monthly', true, 50,
+    '{"channels":"custom","agents":"custom","team_members":"custom","contacts":"custom","monthly_points":"custom","knowledge_bases":"custom","products":"custom","auto_reply":true}'::jsonb,
+    ARRAY['everything','priority_support'])
+ON CONFLICT (slug) DO UPDATE SET
+  key = EXCLUDED.key, name = EXCLUDED.name, name_ar = EXCLUDED.name_ar,
+  price_usd = EXCLUDED.price_usd, price_usd_annual = EXCLUDED.price_usd_annual,
+  price_sar = EXCLUDED.price_sar, price_yer = EXCLUDED.price_yer,
+  billing_cycle = EXCLUDED.billing_cycle, is_active = EXCLUDED.is_active,
+  sort_order = EXCLUDED.sort_order, limits = EXCLUDED.limits, features = EXCLUDED.features;
+
+-- (4) رحّل اشتراكات ومدفوعات أي خطة خارج الخمس → free (trial والتاريخية)، مع الحفاظ على الدورة والحالة.
+UPDATE subscriptions s
+SET plan_id = (SELECT id FROM plans WHERE slug = 'free'), updated_at = now()
+FROM plans old
+WHERE old.id = s.plan_id AND old.slug NOT IN ('free','starter','growth','professional','business');
+
+UPDATE payment_submissions ps
+SET plan_id = (SELECT id FROM plans WHERE slug = 'free')
+FROM plans old
+WHERE old.id = ps.plan_id AND old.slug NOT IN ('free','starter','growth','professional','business');
+
+-- (4b) حماية دفاعية: أي اشتراك بمرجع خطة معلّق (لا وجود لها) → free.
+UPDATE subscriptions s
+SET plan_id = (SELECT id FROM plans WHERE slug = 'free'), updated_at = now()
+WHERE NOT EXISTS (SELECT 1 FROM plans p WHERE p.id = s.plan_id);
+
+-- (5) تقرير الترحيل (الأرقام تظهر في سجل خطوة migrate-database عند التطبيق).
+DO $$
+DECLARE v_old int; v_repointed int; r record;
+BEGIN
+  SELECT count(*) INTO v_old FROM plans WHERE slug NOT IN ('free','starter','growth','professional','business');
+  SELECT count(*) INTO v_repointed FROM billing_legacy_snapshot
+    WHERE kind = 'subscription' AND plan_slug NOT IN ('free','starter','growth','professional','business');
+  RAISE NOTICE '[catalog-migration] خطط قديمة ستُحذف: %', v_old;
+  RAISE NOTICE '[catalog-migration] اشتراكات رُحّلت من خطط قديمة إلى free: %', v_repointed;
+  FOR r IN SELECT p.slug, count(*) AS n FROM subscriptions s JOIN plans p ON p.id = s.plan_id GROUP BY p.slug ORDER BY p.slug LOOP
+    RAISE NOTICE '[catalog-migration] اشتراكات على الباقة %: %', r.slug, r.n;
+  END LOOP;
+END $$;
+
+-- (6) احذف الخطط القديمة/التاريخية فعلياً (آمن: لا مراجع بعد الترحيل).
+DELETE FROM plans WHERE slug NOT IN ('free','starter','growth','professional','business');
+
+-- (7) تحقق صارم — أي إخفاق يُفشل الترحيل ويُرجِعه بالكامل.
+DO $$
+DECLARE v_count int;
+BEGIN
+  SELECT count(*) INTO v_count FROM plans;
+  IF v_count <> 5 THEN RAISE EXCEPTION 'catalog-migration: المتوقع 5 باقات، الموجود %', v_count; END IF;
+  IF EXISTS (SELECT 1 FROM plans WHERE slug NOT IN ('free','starter','growth','professional','business')) THEN
+    RAISE EXCEPTION 'catalog-migration: ما زالت توجد خطة تاريخية في الكتالوج'; END IF;
+  IF EXISTS (SELECT 1 FROM subscriptions s JOIN plans p ON p.id = s.plan_id
+             WHERE p.slug NOT IN ('free','starter','growth','professional','business')) THEN
+    RAISE EXCEPTION 'catalog-migration: ما زال اشتراك مرتبطاً بخطة تاريخية'; END IF;
+  IF EXISTS (SELECT 1 FROM subscriptions s LEFT JOIN plans p ON p.id = s.plan_id WHERE p.id IS NULL) THEN
+    RAISE EXCEPTION 'catalog-migration: اشتراك بمرجع خطة معلّق'; END IF;
+END $$;
+
+COMMIT;
 
 -- =============================================================
 -- Closure Phase 4A: in-app notifications
@@ -1038,5 +1075,268 @@ ORDER BY tablename;
 
 COMMIT;
 
--- Print final status
+-- =============================================================
+-- Phase 2: نظام محفظة النقاط وشحن الرصيد
+-- تعديل payment_submissions + 5 جداول جديدة
+-- idempotent — آمن للتكرار (IF NOT EXISTS + ON CONFLICT DO NOTHING)
+--
+-- ترتيب إنشاء الجداول (مهم — FK dependencies):
+--   1. point_wallets           (refs: workspaces)
+--   2. point_topup_products    (refs: none)
+--   3. point_purchase_orders   (refs: workspaces, point_topup_products)
+--      credited_grant_id بلا FK حتى يُنشأ point_grants أولاً
+--   4. point_grants            (refs: workspaces, point_wallets)
+--   5. point_ledger            (refs: workspaces, point_wallets, point_grants)
+--   6. ALTER payment_submissions  — يضيف FK إلى point_purchase_orders (الآن موجود)
+--   7. ALTER point_purchase_orders — يضيف FK إلى point_grants (الآن موجود)
+-- =============================================================
+
+-- ── 1. point_wallets ─────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS point_wallets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid UNIQUE NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'active',
+  version integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- ── 2. point_topup_products ──────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS point_topup_products (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug text UNIQUE NOT NULL,
+  name_ar text NOT NULL,
+  name_en text NOT NULL,
+  description_ar text,
+  description_en text,
+  points integer NOT NULL,
+  price_cents integer NOT NULL,
+  currency text NOT NULL DEFAULT 'USD',
+  is_active boolean NOT NULL DEFAULT true,
+  sort_order integer NOT NULL DEFAULT 100,
+  allowed_plan_slugs text[] NOT NULL DEFAULT '{}',
+  effective_from timestamptz,
+  effective_until timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_ptp_points     CHECK (points      > 0),
+  CONSTRAINT chk_ptp_price      CHECK (price_cents > 0),
+  CONSTRAINT chk_ptp_currency   CHECK (currency IN ('USD'))
+);
+
+-- حزم افتراضية — idempotent
+INSERT INTO point_topup_products (slug, name_ar, name_en, points, price_cents, currency, sort_order)
+VALUES
+  ('topup_5k',  'شحنة صغيرة', 'Small Bundle', 5000,  700,  'USD', 10),
+  ('topup_20k', 'شحنة مرنة',  'Flex Bundle',  20000, 2500, 'USD', 20),
+  ('topup_50k', 'شحنة كبيرة', 'Large Bundle', 50000, 5900, 'USD', 30)
+ON CONFLICT (slug) DO NOTHING;
+
+-- ── 3. point_purchase_orders (بدون FK إلى point_grants حتى الآن) ──
+
+CREATE TABLE IF NOT EXISTS point_purchase_orders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE RESTRICT,
+  topup_product_id uuid NOT NULL REFERENCES point_topup_products(id),
+  product_slug_snapshot text NOT NULL,
+  product_name_snapshot text NOT NULL,
+  points_snapshot integer NOT NULL,
+  price_cents_snapshot integer NOT NULL,
+  currency_snapshot text NOT NULL DEFAULT 'USD',
+  status text NOT NULL DEFAULT 'pending_payment',
+  approved_at timestamptz,
+  approved_by uuid REFERENCES users(id),
+  rejected_at timestamptz,
+  rejected_by uuid REFERENCES users(id),
+  rejection_reason text,
+  -- credited_grant_id بلا FK هنا — يُضاف بعد إنشاء point_grants (بند 7 أدناه)
+  credited_grant_id uuid,
+  idempotency_key text UNIQUE NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_ppo_points    CHECK (points_snapshot > 0),
+  CONSTRAINT chk_ppo_price     CHECK (price_cents_snapshot > 0),
+  CONSTRAINT chk_ppo_status    CHECK (status IN (
+    'pending_payment','under_review','approved','rejected',
+    'expired','cancelled','refunded','chargeback'
+  )),
+  CONSTRAINT chk_ppo_approved_has_grant CHECK (
+    status <> 'approved' OR credited_grant_id IS NOT NULL
+  ),
+  CONSTRAINT chk_ppo_rejected_no_grant CHECK (
+    status <> 'rejected' OR credited_grant_id IS NULL
+  )
+);
+
+-- ── 4. point_grants ──────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS point_grants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE RESTRICT,
+  wallet_id uuid NOT NULL REFERENCES point_wallets(id),
+  grant_type text NOT NULL,
+  original_micro_points bigint NOT NULL,
+  remaining_micro_points bigint NOT NULL,
+  starts_at timestamptz NOT NULL,
+  expires_at timestamptz,
+  status text NOT NULL DEFAULT 'active',
+  source_type text,
+  source_id text,
+  idempotency_key text UNIQUE NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_point_grants_remaining  CHECK (remaining_micro_points >= 0),
+  CONSTRAINT chk_point_grants_original   CHECK (original_micro_points > 0),
+  CONSTRAINT chk_point_grants_remaining_le_original CHECK (remaining_micro_points <= original_micro_points),
+  CONSTRAINT chk_point_grants_status     CHECK (status IN ('active','exhausted','expired','frozen','reversed')),
+  CONSTRAINT chk_purchased_has_expiry    CHECK (grant_type <> 'purchased' OR expires_at IS NOT NULL)
+);
+
+-- ── 5. point_ledger ──────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS point_ledger (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE RESTRICT,
+  wallet_id uuid NOT NULL REFERENCES point_wallets(id),
+  grant_id uuid REFERENCES point_grants(id),
+  transaction_type text NOT NULL,
+  micro_points bigint NOT NULL,
+  source_type text,
+  source_id text,
+  idempotency_key text UNIQUE NOT NULL,
+  reason text,
+  actor_type text,
+  actor_id text,
+  metadata jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_pl_type CHECK (transaction_type IN (
+    'credit','debit','expiration','reversal','refund','admin_adjustment'
+  ))
+);
+
+-- ── 6. تعديل payment_submissions (بعد إنشاء point_purchase_orders) ──────────
+-- submission_type + plan_id nullable + point_purchase_order_id FK + receipt_file_url
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='payment_submissions' AND column_name='submission_type') THEN
+    ALTER TABLE payment_submissions
+      ADD COLUMN submission_type text NOT NULL DEFAULT 'subscription';
+  END IF;
+  -- رفع NOT NULL من plan_id (مطلوب فقط لـsubscription، اختياري لـpoint_topup)
+  BEGIN
+    ALTER TABLE payment_submissions ALTER COLUMN plan_id DROP NOT NULL;
+  EXCEPTION WHEN others THEN NULL;
+  END;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='payment_submissions' AND column_name='point_purchase_order_id') THEN
+    -- point_purchase_orders موجود الآن — FK آمن
+    ALTER TABLE payment_submissions
+      ADD COLUMN point_purchase_order_id uuid REFERENCES point_purchase_orders(id) ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='payment_submissions' AND column_name='receipt_file_url') THEN
+    ALTER TABLE payment_submissions ADD COLUMN receipt_file_url text;
+  END IF;
+END $$;
+
+-- CHECK: subscription ⇒ plan_id وجوباً؛ point_topup ⇒ point_purchase_order_id وجوباً
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_ps_type_refs') THEN
+    ALTER TABLE payment_submissions ADD CONSTRAINT chk_ps_type_refs CHECK (
+      (submission_type = 'subscription'  AND plan_id IS NOT NULL AND point_purchase_order_id IS NULL) OR
+      (submission_type = 'point_topup'   AND plan_id IS NULL     AND point_purchase_order_id IS NOT NULL)
+    );
+  END IF;
+END $$;
+
+-- ── 6b. payment_submissions: paid_amount_minor + paid_currency + nullable amount_yer ──
+-- Phase-1 subscriptions used amount_yer; Phase-2 point_topup rows use paid_amount_minor.
+
+DO $$
+BEGIN
+  -- جعل amount_yer nullable (الصفوف القديمة تحتفظ بقيمتها، الجديدة لا تحتاجه)
+  BEGIN
+    ALTER TABLE payment_submissions ALTER COLUMN amount_yer DROP NOT NULL;
+  EXCEPTION WHEN others THEN NULL;
+  END;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='payment_submissions' AND column_name='paid_amount_minor') THEN
+    ALTER TABLE payment_submissions ADD COLUMN paid_amount_minor text;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='payment_submissions' AND column_name='paid_currency') THEN
+    ALTER TABLE payment_submissions ADD COLUMN paid_currency text;
+  END IF;
+END $$;
+
+-- ── 6c. point_purchase_orders: paid_amount_minor + paid_currency + refund columns ──
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='point_purchase_orders' AND column_name='paid_amount_minor') THEN
+    ALTER TABLE point_purchase_orders ADD COLUMN paid_amount_minor text;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='point_purchase_orders' AND column_name='paid_currency') THEN
+    ALTER TABLE point_purchase_orders ADD COLUMN paid_currency text;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='point_purchase_orders' AND column_name='refund_type') THEN
+    ALTER TABLE point_purchase_orders ADD COLUMN refund_type text;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='point_purchase_orders' AND column_name='refunded_at') THEN
+    ALTER TABLE point_purchase_orders ADD COLUMN refunded_at timestamptz;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='point_purchase_orders' AND column_name='refunded_by') THEN
+    ALTER TABLE point_purchase_orders ADD COLUMN refunded_by uuid REFERENCES users(id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='point_purchase_orders' AND column_name='refunded_amount_minor') THEN
+    ALTER TABLE point_purchase_orders ADD COLUMN refunded_amount_minor text;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='point_purchase_orders' AND column_name='refunded_currency') THEN
+    ALTER TABLE point_purchase_orders ADD COLUMN refunded_currency text;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='point_purchase_orders' AND column_name='refund_reason') THEN
+    ALTER TABLE point_purchase_orders ADD COLUMN refund_reason text;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name='point_purchase_orders' AND column_name='refund_idempotency_key') THEN
+    ALTER TABLE point_purchase_orders ADD COLUMN refund_idempotency_key text UNIQUE;
+  END IF;
+END $$;
+
+-- ── 7. FK مؤجل: point_purchase_orders.credited_grant_id → point_grants ───────
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_ppo_credited_grant') THEN
+    ALTER TABLE point_purchase_orders
+      ADD CONSTRAINT fk_ppo_credited_grant
+      FOREIGN KEY (credited_grant_id) REFERENCES point_grants(id);
+  END IF;
+END $$;
+
+-- ── Indexes ───────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_point_wallets_ws          ON point_wallets(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_point_grants_ws_status    ON point_grants(workspace_id, status);
+CREATE INDEX IF NOT EXISTS idx_point_grants_ws_expires   ON point_grants(workspace_id, expires_at);
+CREATE INDEX IF NOT EXISTS idx_point_grants_wallet       ON point_grants(wallet_id);
+CREATE INDEX IF NOT EXISTS idx_ppo_ws_status             ON point_purchase_orders(workspace_id, status);
+CREATE INDEX IF NOT EXISTS idx_ppo_status_created        ON point_purchase_orders(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_point_ledger_ws_created   ON point_ledger(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_point_ledger_wallet       ON point_ledger(wallet_id);
+CREATE INDEX IF NOT EXISTS idx_point_ledger_grant        ON point_ledger(grant_id);
+
 SELECT 'MIGRATION_BUNDLE_APPLIED_SUCCESSFULLY' AS status;

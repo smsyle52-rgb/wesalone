@@ -26,6 +26,8 @@ import analyticsRouter from "../modules/analytics/analytics.routes";
 import reportsRouter from "../modules/reports/reports.routes";
 import productsRouter from "../modules/products/products.routes";
 import uploadsRouter from "../modules/uploads/uploads.routes";
+import pointsRouter from "../modules/points/points.routes";
+import adminRouter from "../modules/admin/admin.routes";
 import { apiLimiter, webhookLimiter } from "../lib/rateLimiter";
 import { requireVerifiedEmail } from "../middlewares/requireVerifiedEmail";
 
@@ -60,5 +62,7 @@ router.use("/analytics", analyticsRouter);
 router.use("/reports", reportsRouter);
 router.use("/products", productsRouter);
 router.use("/uploads", uploadsRouter);
+router.use("/points", pointsRouter);
+router.use("/admin", adminRouter);
 
 export default router;

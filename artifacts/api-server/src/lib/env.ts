@@ -42,6 +42,20 @@ const META_APP_SECRET           = optionalEnv("META_APP_SECRET");
 const INTERNAL_SECRET            = isProduction
   ? requireEnv("INTERNAL_SECRET", "Shared secret for internal worker endpoints.")
   : optionalEnv("INTERNAL_SECRET", "")!;
+// إيميلات مديري المنصة مفصولة بفاصلة — الوصول العابر للـworkspaces
+const PLATFORM_ADMIN_EMAILS_RAW = optionalEnv("PLATFORM_ADMIN_EMAILS", "");
+const PLATFORM_ADMIN_EMAILS = PLATFORM_ADMIN_EMAILS_RAW
+  ? PLATFORM_ADMIN_EMAILS_RAW.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)
+  : [];
+
+// Startup warning — logs مستوى warn في production إذا لم يُضبط المتغير
+// لا تُسجَّل قيم الإيميلات (no secrets in logs)
+if (isProduction && PLATFORM_ADMIN_EMAILS.length === 0) {
+  console.warn(
+    "[env] WARNING: PLATFORM_ADMIN_EMAILS is not set. " +
+    "/admin/points/* routes will return 503 until this is configured in Cloud Run.",
+  );
+}
 
 export const env = {
   NODE_ENV,
@@ -58,5 +72,6 @@ export const env = {
   META_WEBHOOK_SECRET,
   META_APP_SECRET,
   INTERNAL_SECRET,
+  PLATFORM_ADMIN_EMAILS,
   isProduction,
 } as const;

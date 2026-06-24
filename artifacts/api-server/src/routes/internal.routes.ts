@@ -12,6 +12,7 @@ import {
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { runAgentReply } from "../lib/agent-reply";
+import { runExpireGrantsJob } from "../jobs/expire-grants";
 import { emitWorkspaceEvent } from "../lib/events";
 import { notifyWorkspace } from "../services/notifications";
 
@@ -287,6 +288,18 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
   } catch (err) {
     logger.error({ err, workspaceId, conversationId, agentId }, "Internal agent reply failed");
     res.status(500).json({ success: false, error: "Internal agent reply failed" });
+  }
+});
+
+// POST /internal/jobs/expire-grants — يشغّله Cloud Scheduler يومياً (أو يدوياً)
+router.post("/jobs/expire-grants", async (req: Request, res: Response): Promise<void> => {
+  if (!requireInternalSecret(req, res)) return;
+  try {
+    const result = await runExpireGrantsJob();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    logger.error({ err }, "expire-grants-job: failed via HTTP");
+    res.status(500).json({ ok: false, error: "job failed" });
   }
 });
 

@@ -64,13 +64,23 @@ export const paymentSubmissionsTable = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     workspaceId: uuid("workspace_id").notNull().references(() => workspacesTable.id, { onDelete: "cascade" }),
-    planId: uuid("plan_id").notNull().references(() => plansTable.id),
-    amountYer: numeric("amount_yer", { precision: 14, scale: 2 }).notNull(),
+    // submissionType: subscription (plan payment) | point_topup (points recharge)
+    submissionType: text("submission_type").notNull().default("subscription"),
+    // planId مطلوب فقط عند submission_type='subscription'
+    planId: uuid("plan_id").references(() => plansTable.id),
+    // pointPurchaseOrderId مطلوب فقط عند submission_type='point_topup'
+    pointPurchaseOrderId: uuid("point_purchase_order_id"),
+    // Legacy Phase-1 subscription payments — YER amount (nullable for new point_topup rows)
+    amountYer: numeric("amount_yer", { precision: 14, scale: 2 }),
     amountCurrency: text("amount_currency").notNull().default("YER"),
     exchangeRateSnapshot: jsonb("exchange_rate_snapshot"),
+    // Phase-2+ multi-currency: string in minor units (e.g. "70000" = 700.00 USD at 2 decimals)
+    paidAmountMinor: text("paid_amount_minor"),
+    paidCurrency: text("paid_currency"),
     paymentMethod: text("payment_method").notNull(),
     reference: text("reference"),
     receiptNote: text("receipt_note"),
+    receiptFileUrl: text("receipt_file_url"),
     status: text("status").notNull().default("pending"),
     reviewedBy: uuid("reviewed_by").references(() => usersTable.id),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
