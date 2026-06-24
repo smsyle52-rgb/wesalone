@@ -41,6 +41,8 @@ import BroadcastDetailPage from "@/pages/BroadcastDetailPage";
 import AutomationsPage from "@/pages/AutomationsPage";
 import AutomationEditorPage from "@/pages/AutomationEditorPage";
 import AdminPaymentsPage from "@/pages/AdminPaymentsPage";
+import AdminPointsPage from "@/pages/AdminPointsPage";
+import PointsWalletPage from "@/pages/PointsWalletPage";
 import ProductsPage from "@/pages/ProductsPage";
 import NotFound from "@/pages/not-found";
 import { DirectionProvider } from "@workspace/ui/direction-provider";
@@ -164,6 +166,8 @@ function Router() {
       <Route path="/automations" component={() => <ProtectedRoute component={AutomationsPage} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
       <Route path="/admin/payments" component={() => <ProtectedRoute component={AdminPaymentsPage} />} />
+      <Route path="/admin/points" component={() => <ProtectedRoute component={AdminPointsPage} />} />
+      <Route path="/points" component={() => <ProtectedRoute component={PointsWalletPage} />} />
       <Route path="/" component={() => <PublicRoute component={LandingPage} />} />
       <Route component={NotFound} />
     </Switch>
