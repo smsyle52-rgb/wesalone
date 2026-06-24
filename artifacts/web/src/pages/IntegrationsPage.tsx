@@ -4,6 +4,7 @@ import type { IconType } from "react-icons";
 import { FaFacebookMessenger, FaInstagram, FaWhatsapp } from "react-icons/fa6";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { cn } from "@/lib/utils";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@workspace/ui/sheet";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
 const FACEBOOK_SDK_SCRIPT_ID = "facebook-jssdk";
@@ -369,6 +370,7 @@ export default function IntegrationsPage() {
   const [isLoadingChannels, setIsLoadingChannels] = useState(true);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [metaSignupConfig, setMetaSignupConfig] = useState<MetaSignupConfig | null>(null);
+  const [linkSheetOpen, setLinkSheetOpen] = useState(false);
   const metaSignupInFlightRef = useRef(false);
   const signupSessionInfoRef = useRef<EmbeddedSignupSessionInfo | null>(null);
   const signupSessionErrorRef = useRef<string | null>(null);
@@ -690,7 +692,56 @@ export default function IntegrationsPage() {
             </p>
             {metaError && <p className="mt-2 text-sm text-destructive">{metaError}</p>}
           </div>
-          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto">
+          {/* Mobile: single trigger + Sheet */}
+          <div className="md:hidden">
+            <Sheet open={linkSheetOpen} onOpenChange={setLinkSheetOpen}>
+              <button
+                type="button"
+                onClick={() => setLinkSheetOpen(true)}
+                disabled={isStartingMeta}
+                className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isStartingMeta ? "جار التجهيز..." : "ربط قناة"}
+              </button>
+              <SheetContent side="bottom" className="rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                <SheetHeader>
+                  <SheetTitle>اختر نوع الربط</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4 grid gap-2">
+                  {metaSignupButtons.map((option) => {
+                    const disabled = isStartingMeta || (!option.configId && !isWhatsAppSignupOption(option.key));
+                    const OptionIcon = option.key === "whatsappStandard" || option.key === "whatsappCoexistence"
+                      ? FaWhatsapp
+                      : option.key === "instagramMessenger"
+                      ? FaInstagram
+                      : FaFacebookMessenger;
+                    const iconTone = option.key === "whatsappStandard" || option.key === "whatsappCoexistence"
+                      ? "text-[#128C4A]"
+                      : option.key === "instagramMessenger"
+                      ? "text-pink-600"
+                      : "text-blue-600";
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => {
+                          setLinkSheetOpen(false);
+                          void startMetaSignup(option);
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl border border-border bg-background px-4 py-3 text-start disabled:opacity-50 hover:bg-muted/50"
+                      >
+                        <OptionIcon className={cn("h-5 w-5 shrink-0", iconTone)} />
+                        <span className="text-sm font-medium text-foreground">{option.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+          {/* Desktop: original buttons grid */}
+          <div className="hidden w-auto grid-cols-1 gap-2 sm:grid-cols-2 md:grid">
             {metaSignupButtons.map((option) => {
               const disabled = isStartingMeta || (!option.configId && !isWhatsAppSignupOption(option.key));
               return (

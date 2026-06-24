@@ -2,7 +2,6 @@ import { Link } from "wouter";
 import {
   BarChart3,
   CreditCard,
-  FileText,
   Megaphone,
   Package,
   Plug,
@@ -31,7 +30,6 @@ const moreItems: MoreItem[] = [
   { title: "المهام", description: "المهام والمتابعات اليومية", href: "/tasks", permission: "tasks:read", icon: ShieldCheck },
   { title: "المدفوعات", description: "التأكيدات وطرق الدفع", href: "/payments", permission: "payments:read", icon: CreditCard },
   { title: "التكاملات والقنوات", description: "واتساب وإنستغرام وماسنجر", href: "/integrations", permission: "channels:read", icon: Plug },
-  { title: "سجل النشاط", description: "ضمن أدوات الأمان والمتابعة", href: "/audit-logs", permission: "audit_logs:read", icon: FileText },
   { title: "الإعدادات", description: "النشاط التجاري والأمان والفوترة", href: "/settings", permission: "settings:read", icon: Settings },
 ];
 
