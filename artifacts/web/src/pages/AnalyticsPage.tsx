@@ -63,7 +63,36 @@ function StatCard({ label, value, sub }: { label: string; value: unknown; sub?: 
 function StatusTable({ rows, statusLabel = "الحالة" }: { rows: { status?: string; stage?: string; taskType?: string; direction?: string; provider?: string; channel?: string; count: number; total?: number; value?: number }[]; statusLabel?: string }) {
   if (!rows.length) return <div className="text-xs text-muted-foreground">لا توجد بيانات</div>;
   return (
-    <div className="overflow-x-auto">
+    <>
+      <div className="grid gap-2 md:hidden">
+        {rows.map((r, i) => (
+          <div key={i} className="rounded-lg border border-border bg-background p-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">{statusLabel}</span>
+              <span className="min-w-0 truncate text-sm font-semibold text-foreground">{r.status ?? r.stage ?? r.taskType ?? r.direction ?? r.provider ?? r.channel ?? "—"}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span className="block text-muted-foreground">العدد</span>
+                <span className="font-medium text-foreground">{r.count.toLocaleString("ar-SA-u-nu-latn")}</span>
+              </div>
+              {r.total !== undefined && (
+                <div>
+                  <span className="block text-muted-foreground">الإجمالي</span>
+                  <span className="font-medium text-foreground">{Number(r.total).toLocaleString("ar-SA-u-nu-latn")}</span>
+                </div>
+              )}
+              {r.value !== undefined && (
+                <div>
+                  <span className="block text-muted-foreground">القيمة</span>
+                  <span className="font-medium text-foreground">{Number(r.value).toLocaleString("ar-SA-u-nu-latn")}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-muted-foreground">
@@ -85,6 +114,7 @@ function StatusTable({ rows, statusLabel = "الحالة" }: { rows: { status?: 
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -279,7 +309,25 @@ export default function AnalyticsPage() {
           {!team.data.teamStats?.length ? (
             <div className="text-sm text-muted-foreground py-8 text-center">لا توجد بيانات لأعضاء الفريق</div>
           ) : (
-            <div className="bg-card border border-border rounded-xl overflow-x-auto">
+            <>
+            <div className="grid gap-3 md:hidden">
+              {team.data.teamStats.map((m: { userId: string; name: string; email: string; messagesSent: number; tasksCompleted: number; followupsCompleted: number; ordersCreated: number; paymentsRecorded: number }) => (
+                <div key={m.userId} className="rounded-xl border border-border bg-card p-4">
+                  <div className="mb-3">
+                    <div className="font-semibold text-foreground">{m.name}</div>
+                    <div className="text-xs text-muted-foreground">{m.email}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div><span className="block text-muted-foreground">رسائل مرسلة</span><span className="font-medium">{m.messagesSent.toLocaleString("ar-SA-u-nu-latn")}</span></div>
+                    <div><span className="block text-muted-foreground">مهام مكتملة</span><span className="font-medium">{m.tasksCompleted.toLocaleString("ar-SA-u-nu-latn")}</span></div>
+                    <div><span className="block text-muted-foreground">متابعات مكتملة</span><span className="font-medium">{m.followupsCompleted.toLocaleString("ar-SA-u-nu-latn")}</span></div>
+                    <div><span className="block text-muted-foreground">طلبات منشأة</span><span className="font-medium">{m.ordersCreated.toLocaleString("ar-SA-u-nu-latn")}</span></div>
+                    <div><span className="block text-muted-foreground">مدفوعات مسجلة</span><span className="font-medium">{m.paymentsRecorded.toLocaleString("ar-SA-u-nu-latn")}</span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto rounded-xl border border-border bg-card md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-muted-foreground">
@@ -308,6 +356,7 @@ export default function AnalyticsPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       )}

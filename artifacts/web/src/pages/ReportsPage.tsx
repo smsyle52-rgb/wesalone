@@ -40,7 +40,21 @@ function GeneratedReportView({ data, type }: { data: Record<string, unknown>; ty
           return (
             <div key={key}>
               <div className="text-xs font-semibold text-muted-foreground mb-1.5">{key}</div>
-              <div className="overflow-x-auto">
+              <div className="grid gap-2 md:hidden">
+                {val.map((row: Record<string, unknown>, i) => (
+                  <div key={i} className="rounded-lg border border-border bg-background p-3">
+                    <div className="grid gap-2 text-xs">
+                      {Object.entries(row).map(([rowKey, rowVal]) => (
+                        <div key={rowKey} className="flex items-start justify-between gap-3 border-b border-border/40 pb-1 last:border-0 last:pb-0">
+                          <span className="text-muted-foreground">{rowKey}</span>
+                          <span className="min-w-0 text-start font-medium text-foreground break-words">{String(rowVal ?? "—")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-muted-foreground">

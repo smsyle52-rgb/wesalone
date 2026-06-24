@@ -330,59 +330,113 @@ export default function DebtsPage() {
         </div>
       ) : (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">العميل</th>
-                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">المبلغ</th>
-                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">المتبقي</th>
-                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">الحالة</th>
-                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">الاستحقاق</th>
-                <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">التقادم</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDebts.map((d) => (
-                <tr key={d.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <button onClick={() => navigate(`/contacts/${d.contactId}`)}
-                      className="font-medium text-foreground hover:text-primary hover:underline transition-colors text-start">
-                      {d.contactName ?? "—"}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-foreground">{formatCurrency(d.amount, d.currency)}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn("font-medium", Number(d.remainingAmount) > 0 ? "text-destructive" : "text-green-600")}>
+          <div className="grid gap-3 p-3 md:hidden">
+            {filteredDebts.map((d) => (
+              <div key={d.id} className="rounded-xl border border-border bg-background p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <button
+                    onClick={() => navigate(`/contacts/${d.contactId}`)}
+                    className="min-w-0 truncate text-start text-sm font-semibold text-foreground hover:text-primary hover:underline"
+                  >
+                    {d.contactName ?? "—"}
+                  </button>
+                  <DebtBadge status={d.status} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="block text-muted-foreground">المبلغ</span>
+                    <span className="font-semibold text-foreground">{formatCurrency(d.amount, d.currency)}</span>
+                  </div>
+                  <div>
+                    <span className="block text-muted-foreground">المتبقي</span>
+                    <span className={cn("font-semibold", Number(d.remainingAmount) > 0 ? "text-destructive" : "text-green-600")}>
                       {formatCurrency(d.remainingAmount, d.currency)}
                     </span>
-                  </td>
-                  <td className="px-4 py-3"><DebtBadge status={d.status} /></td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{d.dueAt ? formatDate(d.dueAt) : "—"}</td>
-                  <td className="px-4 py-3">
+                  </div>
+                  <div>
+                    <span className="block text-muted-foreground">الاستحقاق</span>
+                    <span className="font-medium text-foreground">{d.dueAt ? formatDate(d.dueAt) : "—"}</span>
+                  </div>
+                  <div>
+                    <span className="block text-muted-foreground">التقادم</span>
                     {d.dueAt ? (
-                      <span className={cn("text-xs px-2 py-0.5 rounded-full border", {
-                        "bg-muted text-muted-foreground border-border": d.agingBucket === "غير مستحق",
-                        "bg-amber-50 text-amber-700 border-amber-200": d.agingBucket === "1-7 أيام",
-                        "bg-orange-50 text-orange-700 border-orange-200": d.agingBucket === "8-30 يوم",
-                        "bg-red-50 text-red-700 border-red-200": d.agingBucket === "أكثر من 30 يوم",
+                      <span className={cn("inline-flex rounded-full border px-2 py-0.5 font-medium", {
+                        "border-border bg-muted text-muted-foreground": d.agingBucket === "غير مستحق",
+                        "border-amber-200 bg-amber-50 text-amber-700": d.agingBucket === "1-7 أيام",
+                        "border-orange-200 bg-orange-50 text-orange-700": d.agingBucket === "8-30 يوم",
+                        "border-red-200 bg-red-50 text-red-700": d.agingBucket === "أكثر من 30 يوم",
                       })}>
                         {d.agingBucket}
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => setSelectedDebtId(d.id)}
-                      className="text-xs px-2 py-1 bg-muted hover:bg-muted/70 rounded text-muted-foreground transition-colors">
-                      تفاصيل
-                    </button>
-                  </td>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedDebtId(d.id)}
+                  className="mt-3 w-full rounded-lg bg-muted px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/70"
+                >
+                  تفاصيل
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">العميل</th>
+                  <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">المبلغ</th>
+                  <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">المتبقي</th>
+                  <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">الحالة</th>
+                  <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">الاستحقاق</th>
+                  <th className="text-start px-4 py-3 text-xs font-semibold text-muted-foreground">التقادم</th>
+                  <th className="px-4 py-3" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredDebts.map((d) => (
+                  <tr key={d.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3">
+                      <button onClick={() => navigate(`/contacts/${d.contactId}`)}
+                        className="font-medium text-foreground hover:text-primary hover:underline transition-colors text-start">
+                        {d.contactName ?? "—"}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-foreground">{formatCurrency(d.amount, d.currency)}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn("font-medium", Number(d.remainingAmount) > 0 ? "text-destructive" : "text-green-600")}>
+                        {formatCurrency(d.remainingAmount, d.currency)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3"><DebtBadge status={d.status} /></td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{d.dueAt ? formatDate(d.dueAt) : "—"}</td>
+                    <td className="px-4 py-3">
+                      {d.dueAt ? (
+                        <span className={cn("text-xs px-2 py-0.5 rounded-full border", {
+                          "bg-muted text-muted-foreground border-border": d.agingBucket === "غير مستحق",
+                          "bg-amber-50 text-amber-700 border-amber-200": d.agingBucket === "1-7 أيام",
+                          "bg-orange-50 text-orange-700 border-orange-200": d.agingBucket === "8-30 يوم",
+                          "bg-red-50 text-red-700 border-red-200": d.agingBucket === "أكثر من 30 يوم",
+                        })}>
+                          {d.agingBucket}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => setSelectedDebtId(d.id)}
+                        className="text-xs px-2 py-1 bg-muted hover:bg-muted/70 rounded text-muted-foreground transition-colors">
+                        تفاصيل
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
