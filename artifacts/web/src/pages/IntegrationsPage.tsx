@@ -1,5 +1,7 @@
 import { Link } from "wouter";
 import { useEffect, useRef, useState } from "react";
+import type { IconType } from "react-icons";
+import { FaFacebookMessenger, FaInstagram, FaWhatsapp } from "react-icons/fa6";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { cn } from "@/lib/utils";
 
@@ -264,6 +266,12 @@ type ConnectedChannel = {
   updatedAt?: string;
 };
 
+const channelMeta: Record<ConnectedChannel["channelType"], { label: string; Icon: IconType; tone: string }> = {
+  whatsapp: { label: "واتساب", Icon: FaWhatsapp, tone: "bg-[#25D366]/10 text-[#128C4A]" },
+  instagram: { label: "إنستغرام", Icon: FaInstagram, tone: "bg-pink-500/10 text-pink-600" },
+  messenger: { label: "ماسنجر", Icon: FaFacebookMessenger, tone: "bg-blue-500/10 text-blue-600" },
+};
+
 const manualChannels = [
   {
     name: "الصندوق اليدوي",
@@ -327,18 +335,20 @@ function ChannelCard({ channel }: { channel: (typeof manualChannels)[number] }) 
 }
 
 function ConnectedChannelCard({ channel }: { channel: ConnectedChannel }) {
-  const label = channel.channelType === "whatsapp"
-    ? "واتساب"
-    : channel.channelType === "instagram"
-      ? "إنستقرام"
-      : "ماسنجر";
+  const meta = channelMeta[channel.channelType];
+  const Icon = meta.Icon;
 
   return (
     <div className="rounded-xl border border-border bg-background p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+        <div className="flex min-w-0 items-start gap-3">
+          <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl", meta.tone)}>
+            <Icon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-foreground">{meta.label}</h3>
           <p className="mt-1 text-sm text-muted-foreground">{channel.displayName}</p>
+          </div>
         </div>
         <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
           {channel.status === "active" ? "نشط" : channel.status}
@@ -699,24 +709,31 @@ export default function IntegrationsPage() {
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          {metaChannelStatuses.map((item) => (
-            <div key={item.type} className="rounded-xl border border-border bg-background p-4">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-foreground">
-                  {item.type === "whatsapp" ? "WhatsApp" : item.type === "instagram" ? "Instagram" : "Messenger"}
-                </span>
-                <span className={cn(
-                  "rounded-full border px-2.5 py-1 text-xs font-medium",
-                  item.channel ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600",
-                )}>
-                  {item.channel ? "متصل" : "غير متصل"}
-                </span>
+          {metaChannelStatuses.map((item) => {
+            const meta = channelMeta[item.type];
+            const Icon = meta.Icon;
+            return (
+              <div key={item.type} className="rounded-xl border border-border bg-background p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl", meta.tone)}>
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">{meta.label}</span>
+                  </div>
+                  <span className={cn(
+                    "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium",
+                    item.channel ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 text-slate-600",
+                  )}>
+                    {item.channel ? "متصل" : "غير متصل"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {item.channel?.displayName ?? "لم يتم ربط قناة بعد"}
+                </p>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {item.channel?.displayName ?? "لم يتم ربط قناة بعد"}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">

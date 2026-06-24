@@ -16,24 +16,83 @@ interface DataTableProps<T> {
   isLoading?: boolean;
 }
 
-export function DataTable<T>({ columns, data, keyExtractor, onRowClick, emptyMessage = "لا توجد بيانات", isLoading }: DataTableProps<T>) {
+function readCell<T>(row: T, col: Column<T>) {
+  return col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? "-");
+}
+
+export function DataTable<T>({
+  columns,
+  data,
+  keyExtractor,
+  onRowClick,
+  emptyMessage = "لا توجد بيانات",
+  isLoading,
+}: DataTableProps<T>) {
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
           <span className="animate-pulse">جار التحميل...</span>
         </div>
       </div>
     );
   }
+
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="grid gap-3 p-3 md:hidden">
+        {data.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            {emptyMessage}
+          </div>
+        ) : (
+          data.map((row) => {
+            const rowKey = keyExtractor(row);
+            const titleColumn = columns[0];
+            const detailColumns = columns.slice(1, 4);
+
+            return (
+              <div
+                key={rowKey}
+                onClick={() => onRowClick?.(row)}
+                role={onRowClick ? "button" : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={(event) => {
+                  if (!onRowClick) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onRowClick(row);
+                  }
+                }}
+                className={cn(
+                  "w-full rounded-xl border border-border bg-background p-4 text-start shadow-sm",
+                  onRowClick && "cursor-pointer transition hover:border-primary/30 hover:bg-muted/40",
+                )}
+              >
+                <div className="min-w-0 text-sm font-extrabold text-foreground">{readCell(row, titleColumn)}</div>
+                <div className="mt-3 grid gap-2 text-xs">
+                  {detailColumns.map((col) => (
+                    <div key={col.key} className="flex items-start justify-between gap-3">
+                      <span className="shrink-0 font-bold text-muted-foreground">{col.label}</span>
+                      <span className="min-w-0 text-end text-foreground">{readCell(row, col)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
               {columns.map((col) => (
-                <th key={col.key} className={cn("px-4 py-3 text-start font-semibold text-muted-foreground whitespace-nowrap", col.className)}>
+                <th
+                  key={col.key}
+                  className={cn("whitespace-nowrap px-4 py-3 text-start font-semibold text-muted-foreground", col.className)}
+                >
                   {col.label}
                 </th>
               ))}
@@ -42,7 +101,7 @@ export function DataTable<T>({ columns, data, keyExtractor, onRowClick, emptyMes
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="text-center py-12 text-muted-foreground text-sm">
+                <td colSpan={columns.length} className="py-12 text-center text-sm text-muted-foreground">
                   {emptyMessage}
                 </td>
               </tr>
@@ -51,11 +110,14 @@ export function DataTable<T>({ columns, data, keyExtractor, onRowClick, emptyMes
                 <tr
                   key={keyExtractor(row)}
                   onClick={() => onRowClick?.(row)}
-                  className={cn("border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors", onRowClick && "cursor-pointer")}
+                  className={cn(
+                    "border-b border-border/50 transition-colors last:border-0 hover:bg-muted/30",
+                    onRowClick && "cursor-pointer",
+                  )}
                 >
                   {columns.map((col) => (
                     <td key={col.key} className={cn("px-4 py-3 text-start text-foreground", col.className)}>
-                      {col.render ? col.render(row) : String((row as any)[col.key] ?? "—")}
+                      {readCell(row, col)}
                     </td>
                   ))}
                 </tr>

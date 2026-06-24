@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
@@ -292,7 +292,77 @@ export default function AuditLogsPage() {
         <>
           {/* Table */}
           <div className="bg-card border border-border rounded-xl overflow-hidden mb-4">
-            <div className="overflow-x-auto">
+            <div className="grid gap-3 p-3 md:hidden">
+              {data.logs.map((log) => {
+                const isExpanded = expandedId === log.id;
+                const hasChangeData = log.oldData !== undefined || log.newData !== undefined;
+                const hasActualData = (log.oldData && Object.keys(log.oldData).length > 0) ||
+                                     (log.newData && Object.keys(log.newData).length > 0);
+                return (
+                  <div key={log.id} className="rounded-xl border border-border bg-background p-4">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground">
+                          {log.actorLabel ?? (log.actorType === "system" ? "النظام" : "—")}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{formatDate(log.createdAt)}</div>
+                      </div>
+                      <Badge
+                        label={SEVERITY_LABELS[log.severity] ?? log.severity}
+                        colorClass={SEVERITY_COLORS[log.severity] ?? "bg-gray-100 text-gray-600"}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="block text-muted-foreground">الإجراء</span>
+                        <Badge
+                          label={ACTION_LABELS[log.action] ?? log.action}
+                          colorClass={ACTION_COLORS[log.action] ?? "bg-gray-100 text-gray-700"}
+                        />
+                      </div>
+                      <div>
+                        <span className="block text-muted-foreground">الكيان</span>
+                        <span className="font-medium text-foreground">{ENTITY_LABELS[log.entityType] ?? log.entityType}</span>
+                        {log.entityLabel && <span className="mt-0.5 block truncate text-muted-foreground">{log.entityLabel}</span>}
+                      </div>
+                      <div className="col-span-2">
+                        <span className="block text-muted-foreground">العنوان</span>
+                        <span className="font-medium text-foreground">{log.ipAddress ?? "—"}</span>
+                      </div>
+                    </div>
+                    {hasActualData && (
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                        className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-xs font-medium text-primary hover:bg-muted"
+                      >
+                        {isExpanded ? "إخفاء التفاصيل" : "عرض التفاصيل"}
+                      </button>
+                    )}
+                    {isExpanded && hasChangeData && (
+                      <div className="mt-3 grid gap-3 text-xs">
+                        {log.oldData && Object.keys(log.oldData).length > 0 && (
+                          <div>
+                            <p className="mb-1 font-semibold text-muted-foreground">قبل التعديل:</p>
+                            <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs leading-relaxed text-foreground">
+                              {JSON.stringify(log.oldData, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                        {log.newData && Object.keys(log.newData).length > 0 && (
+                          <div>
+                            <p className="mb-1 font-semibold text-muted-foreground">بعد التعديل:</p>
+                            <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs leading-relaxed text-foreground">
+                              {JSON.stringify(log.newData, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/40 text-start">
@@ -311,9 +381,8 @@ export default function AuditLogsPage() {
                     const hasActualData = (log.oldData && Object.keys(log.oldData).length > 0) ||
                                          (log.newData && Object.keys(log.newData).length > 0);
                     return (
-                      <>
+                      <Fragment key={log.id}>
                         <tr
-                          key={log.id}
                           className="hover:bg-muted/30 transition-colors cursor-default"
                           onClick={() => hasActualData && setExpandedId(isExpanded ? null : log.id)}
                         >
@@ -380,7 +449,7 @@ export default function AuditLogsPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
