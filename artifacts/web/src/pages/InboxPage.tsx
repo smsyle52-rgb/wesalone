@@ -10,6 +10,8 @@ import { formatDateTime, timeAgo, channelLabels, statusLabels, priorityLabels, c
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { openInboxStream, type InboxStreamStatus } from "@/lib/realtime";
+import { FaWhatsapp, FaInstagram, FaFacebookMessenger } from "react-icons/fa6";
+import { Search, MoreHorizontal, Star, ArrowRight, User, FileText, ArrowLeftRight, StickyNote, Sparkles, Plus, Smile, Paperclip, Mic, Send, ShieldCheck, AlertTriangle, Clock } from "lucide-react";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
 
@@ -202,6 +204,26 @@ function CompactStatusChip({ status }: { status: string }) {
   );
 }
 
+function ChannelIconBadge({ channel, size = 18 }: { channel: string; size?: number }) {
+  const s = size;
+  if (channel.startsWith("whatsapp")) return <FaWhatsapp size={s} className="text-[#128C4A]" />;
+  if (channel === "instagram") return <FaInstagram size={s} className="text-pink-600" />;
+  if (channel === "messenger") return <FaFacebookMessenger size={s} className="text-blue-600" />;
+  return <span style={{ fontSize: s * 0.8 }}>💬</span>;
+}
+
+function ContactInitials({ name, size = 40 }: { name?: string | null; size?: number }) {
+  const initials = (name ?? "؟").trim().slice(0, 2);
+  return (
+    <span
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
+      className="inline-flex shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary"
+    >
+      {initials}
+    </span>
+  );
+}
+
 function isProviderLive(providerStatus: any): boolean {
   return (providerStatus?.provider === "vertex" || providerStatus?.provider === "gemini") && !providerStatus?.fallbackMode;
 }
@@ -215,7 +237,7 @@ function providerLiveLabel(providerStatus: any): string {
 }
 
 export default function InboxPage() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const qc = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<EventSource | null>(null);
@@ -271,7 +293,16 @@ export default function InboxPage() {
   const [quickForm, setQuickForm] = useState({ title: "", priority: "normal", type: "manual", dueAt: "", notes: "" });
   const [orderForm, setOrderForm] = useState({ channel: "manual", currency: "YER", notes: "" });
   const [realtimeStatus, setRealtimeStatus] = useState<InboxStreamStatus>("reconnecting");
+  const [showMobileAiSheet, setShowMobileAiSheet] = useState(false);
   selectedConvIdRef.current = selectedConvId;
+
+  const { data: workspaceData } = useQuery({
+    queryKey: ["workspace-name-inbox"],
+    queryFn: () => apiFetch("workspace"),
+    enabled: canRead,
+    staleTime: 300000,
+  });
+  const workspaceName: string = (workspaceData as { workspace?: { name?: string } } | undefined)?.workspace?.name ?? "وصال ون";
 
   const params = new URLSearchParams();
   if (viewFilter) params.set("view", viewFilter);
@@ -697,6 +728,446 @@ export default function InboxPage() {
 
   return (
     <div dir="rtl" className="flex flex-col h-screen overflow-hidden">
+
+      {/* ═══════════ MOBILE LAYOUT (md:hidden) ═══════════ */}
+      <div className="md:hidden flex flex-col h-full overflow-hidden bg-background">
+
+        {/* ── MOBILE: LIST VIEW ── */}
+        {mobileView === "list" && (
+          <>
+            {/* Header */}
+            <header className="shrink-0 flex items-center justify-between px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 bg-background border-b border-border">
+              <button className="h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground">
+                <Search size={18} />
+              </button>
+              <h1 className="text-base font-black text-foreground tracking-tight">{workspaceName}</h1>
+              <ContactInitials name={user?.name} size={36} />
+            </header>
+
+            {/* Channel Filter Chips */}
+            <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 overflow-x-auto border-b border-border/40" style={{ scrollbarWidth: "none" }}>
+              {(
+                [
+                  { key: "", label: "الكل", icon: null, special: false },
+                  { key: "unread", label: `غير مقروءة${list.filter((c: any) => (c.unreadCount ?? 0) > 0).length > 0 ? ` ${list.filter((c: any) => (c.unreadCount ?? 0) > 0).length}` : ""}`, icon: null, special: true },
+                  { key: "whatsapp", label: "واتساب", icon: <FaWhatsapp size={13} className="text-[#128C4A]" />, special: false },
+                  { key: "instagram", label: "إنستغرام", icon: <FaInstagram size={13} className="text-pink-600" />, special: false },
+                  { key: "messenger", label: "ماسنجر", icon: <FaFacebookMessenger size={13} className="text-blue-600" />, special: false },
+                ] as { key: string; label: string; icon: React.ReactNode; special: boolean }[]
+              ).map(({ key, label, icon, special }) => {
+                const isActive = special ? statusFilter === "new" : key === "" ? (channelFilter === "" && statusFilter !== "new") : channelFilter === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      if (special) setStatusFilter(statusFilter === "new" ? "" : "new");
+                      else { setChannelFilter(channelFilter === key ? "" : key); if (statusFilter === "new") setStatusFilter(""); }
+                    }}
+                    className={cn(
+                      "shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.75rem] font-bold whitespace-nowrap border transition-colors",
+                      isActive
+                        ? special ? "bg-red-500 text-white border-red-500" : "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-muted-foreground border-border"
+                    )}
+                  >
+                    {icon}
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Stats Card */}
+            <div className="shrink-0 mx-3 my-2 rounded-2xl border border-border bg-card px-4 py-3 grid grid-cols-3 gap-2 text-center">
+              <div>
+                <div className="text-xl font-black text-foreground">
+                  {list.filter((c: any) => c.status === "open" || c.status === "new").length}
+                </div>
+                <div className="text-[0.65rem] text-muted-foreground leading-tight mt-0.5">المحادثات{"\n"}النشطة</div>
+              </div>
+              <div className="border-x border-border">
+                <div className="text-xl font-black text-amber-500">
+                  {list.filter((c: any) => (c.unreadCount ?? 0) > 0).length}
+                </div>
+                <div className="text-[0.65rem] text-muted-foreground leading-tight mt-0.5">بانتظار{"\n"}الرد</div>
+              </div>
+              <div>
+                <div className="text-xl font-black text-red-500">
+                  {list.filter((c: any) => (c.unreadCount ?? 0) > 0 && c.lastMessageAt && new Date(c.lastMessageAt).getTime() < Date.now() - defaultSlaMinutes * 60 * 1000).length}
+                </div>
+                <div className="text-[0.65rem] text-muted-foreground leading-tight mt-0.5">متأخرة</div>
+              </div>
+            </div>
+
+            {/* List label */}
+            <div className="shrink-0 flex items-center justify-between px-4 mb-1">
+              <span className="text-sm font-bold text-foreground">المحادثات</span>
+              <span className="text-xs text-muted-foreground">الأحدث أولاً</span>
+            </div>
+
+            {/* Conversation Items */}
+            <div className="flex-1 overflow-y-auto">
+              {isLoading ? (
+                <div className="flex items-center justify-center h-40 text-muted-foreground text-sm animate-pulse">جار التحميل...</div>
+              ) : sortedList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground text-sm">
+                  <span className="text-2xl">📭</span>
+                  <span>لا توجد محادثات</span>
+                </div>
+              ) : (
+                sortedList.map((c: any) => (
+                  <button key={c.id} onClick={() => selectConv(c)} className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3.5 border-b border-border/40 transition-colors text-start",
+                    selectedConvId === c.id ? "bg-primary/8" : "hover:bg-muted/30"
+                  )}>
+                    <div className="relative shrink-0">
+                      <ContactInitials name={c.contactName} size={44} />
+                      <span className="absolute -bottom-0.5 -start-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-card shadow ring-1 ring-card">
+                        <ChannelIconBadge channel={c.channel} size={12} />
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <span className={cn("text-sm truncate", (c.unreadCount ?? 0) > 0 ? "font-black text-foreground" : "font-semibold text-foreground/80")}>
+                          {c.contactName ?? "عميل غير معروف"}
+                        </span>
+                        <span className="text-[0.68rem] text-muted-foreground shrink-0">{timeAgo(c.lastMessageAt ?? c.createdAt)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs text-muted-foreground truncate leading-snug">{c.lastMessage ?? c.subject ?? "—"}</span>
+                        {(c.unreadCount ?? 0) > 0 && (
+                          <span className="shrink-0 h-5 min-w-5 rounded-full bg-primary text-primary-foreground text-[0.65rem] font-black flex items-center justify-center px-1">
+                            {c.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      {(c.priority === "high" || c.priority === "urgent" || c.agentStatus === "active" || c.needsHuman) && (
+                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                          {(c.priority === "high" || c.priority === "urgent") && (
+                            <span className="text-[0.6rem] px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 font-bold">أولوية عالية</span>
+                          )}
+                          {c.agentStatus === "active" && (
+                            <span className="text-[0.6rem] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-200 font-bold">يتابعه الذكاء</span>
+                          )}
+                          {c.needsHuman && (
+                            <span className="text-[0.6rem] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border font-bold">محول لموظف</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+              <div className="h-[calc(1rem+env(safe-area-inset-bottom))]" />
+            </div>
+
+            {/* FAB */}
+            {canCreate && (
+              <button
+                onClick={() => setShowNewConv(true)}
+                className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] start-4 z-20 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-xl flex items-center justify-center hover:bg-primary/90 transition-colors"
+              >
+                <Plus size={24} />
+              </button>
+            )}
+          </>
+        )}
+
+        {/* ── MOBILE: CONVERSATION DETAIL ── */}
+        {mobileView === "detail" && (
+          <>
+            {/* Conversation Header */}
+            <header className="shrink-0 flex items-center gap-2 px-3 pt-[calc(0.6rem+env(safe-area-inset-top))] pb-3 bg-background border-b border-border">
+              <button onClick={() => setMobileView("list")} className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted hover:bg-muted/80 text-foreground">
+                <ArrowRight size={18} />
+              </button>
+              {conv ? (
+                <div className="flex-1 min-w-0 flex items-center justify-center gap-2">
+                  <div className="relative shrink-0">
+                    <ContactInitials name={conv.contactName} size={36} />
+                    <span className="absolute -bottom-0.5 -start-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-card shadow ring-1 ring-card">
+                      <ChannelIconBadge channel={conv.channel} size={10} />
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-foreground truncate">{conv.contactName ?? "عميل غير معروف"}</div>
+                    <div className="text-xs text-muted-foreground">{channelLabels[conv.channel] ?? conv.channel} · {statusLabels[conv.status] ?? conv.status}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1" />
+              )}
+              <div className="flex items-center gap-1 shrink-0">
+                <button className="h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80">
+                  <Search size={16} />
+                </button>
+                <button className="h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80">
+                  <Star size={16} />
+                </button>
+                {conv && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80">
+                        <MoreHorizontal size={16} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {canManageConversationAgent && (
+                        <DropdownMenuItem onClick={() => changeAgentStatus.mutate({ convId: conv.id, status: agentStatusAction })}>
+                          {needsAgentReactivation ? "إعادة للوكيل" : agentStatus === "active" ? "إيقاف الوكيل" : "إعادة الوكيل"}
+                        </DropdownMenuItem>
+                      )}
+                      {statusActions.map((a) => (
+                        <DropdownMenuItem key={a.next} onClick={() => changeStatus.mutate({ convId: conv.id, status: a.next })}>
+                          {a.label}
+                        </DropdownMenuItem>
+                      ))}
+                      {waLink && (
+                        <DropdownMenuItem onClick={() => window.open(waLink, "_blank")}>
+                          فتح واتساب
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+            </header>
+
+            {/* Agent status bar */}
+            {conv && showAgentControls && agentBadge && (
+              <div className="shrink-0 flex items-center justify-between px-4 py-2 bg-muted/30 border-b border-border/50">
+                <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium", agentBadge.className)}>{agentBadge.label}</span>
+                {canManageConversationAgent && (
+                  <button
+                    onClick={() => changeAgentStatus.mutate({ convId: conv.id, status: agentStatusAction })}
+                    disabled={changeAgentStatus.isPending}
+                    className={cn("px-3 py-1 rounded-full text-xs font-medium border disabled:opacity-50",
+                      needsAgentReactivation ? "bg-green-600 text-white border-green-600" : "bg-muted text-muted-foreground border-border")}
+                  >
+                    {needsAgentReactivation ? "إعادة للوكيل" : agentStatus === "active" ? "أوقف" : "أعد الوكيل"}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Horizontal Action Bar */}
+            {conv && (
+              <div className="shrink-0 flex items-stretch bg-card border-b border-border">
+                {[
+                  { icon: <User size={16} />, label: "معلومات العميل", action: undefined as (() => void) | undefined },
+                  { icon: <FileText size={16} />, label: "قالب", action: undefined as (() => void) | undefined },
+                  { icon: <ArrowLeftRight size={16} />, label: "تحويل", action: undefined as (() => void) | undefined },
+                  { icon: <StickyNote size={16} />, label: "ملاحظة", action: () => setMessageMode("note") as void },
+                ].map(({ icon, label, action }) => (
+                  <button
+                    key={label}
+                    onClick={action}
+                    className="flex flex-col items-center justify-center gap-1 flex-1 py-2.5 hover:bg-muted/50 transition-colors border-e border-border last:border-e-0"
+                  >
+                    <span className="text-muted-foreground">{icon}</span>
+                    <span className="text-[0.6rem] text-muted-foreground font-medium">{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+              {detailLoading ? (
+                <div className="flex items-center justify-center h-20 text-muted-foreground text-sm animate-pulse">جار التحميل...</div>
+              ) : !conv ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground text-sm">
+                  <span className="text-4xl">💬</span>
+                  <span>اختر محادثة من القائمة</span>
+                </div>
+              ) : (
+                visibleMessages.map((msg: any) => {
+                  const isInternal = msg.type === "note" || msg.source === "note" || msg.direction === "internal" || msg.isPrivateNote;
+                  const isOutbound = msg.direction === "outbound";
+                  return (
+                    <div key={msg.id} className={cn("flex items-end gap-2", isInternal ? "justify-center" : isOutbound ? "justify-start" : "justify-end")}>
+                      {isInternal ? (
+                        <div className="max-w-[90%] rounded-2xl px-4 py-2.5 text-sm bg-amber-50 border border-amber-200 text-amber-800 italic">
+                          <div className="flex items-center gap-1 mb-1 not-italic font-bold text-amber-700 text-xs">
+                            🔒 ملاحظة داخلية {msg.senderName && <span>— {msg.senderName}</span>}
+                          </div>
+                          <div>{msg.content}</div>
+                          <div className="text-xs mt-1 opacity-60">{formatDateTime(msg.sentAt)}</div>
+                        </div>
+                      ) : isOutbound ? (
+                        <>
+                          <div className="max-w-[78%] px-3.5 py-2.5 rounded-2xl rounded-bl-sm text-sm bg-primary text-primary-foreground">
+                            {msg.content && <div className="whitespace-pre-wrap">{msg.content}</div>}
+                            {selectedConvId && <MessageAttachments conversationId={selectedConvId} messageId={msg.id} attachments={msg.attachments} />}
+                            <div className="text-[0.65rem] mt-1 opacity-60 flex items-center gap-1 justify-end">
+                              {msg.senderName && <span>{msg.senderName}</span>}
+                              <span>{formatDateTime(msg.sentAt)}</span>
+                            </div>
+                          </div>
+                          <span className="shrink-0 h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-black text-primary">و</span>
+                        </>
+                      ) : (
+                        <>
+                          <ContactInitials name={conv.contactName} size={28} />
+                          <div className="max-w-[78%] px-3.5 py-2.5 rounded-2xl rounded-br-sm text-sm bg-muted text-foreground">
+                            {msg.content && <div className="whitespace-pre-wrap">{msg.content}</div>}
+                            {selectedConvId && <MessageAttachments conversationId={selectedConvId} messageId={msg.id} attachments={msg.attachments} />}
+                            <div className="text-[0.65rem] mt-1 opacity-60">{formatDateTime(msg.sentAt)}</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* AI Result Card (summary/draft/classify above composer) */}
+            {canUseAI && aiPanel === "draft" && aiDraft && (
+              <div className="shrink-0 mx-3 mb-2 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles size={14} className="text-purple-600" />
+                  <span className="text-xs font-bold text-purple-700">اقتراح الذكاء</span>
+                  <button onClick={() => { setAiPanel(null); setAiDraft(null); }} className="ms-auto text-purple-400 hover:text-purple-600 text-sm">✕</button>
+                </div>
+                <p className="text-xs text-purple-900 leading-relaxed mb-3">{aiDraft}</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { setMessageText(aiDraft); setMessageMode("reply"); setAiPanel(null); setAiDraft(null); }}
+                    className="flex-1 rounded-xl bg-purple-600 text-white text-xs font-bold py-2 hover:bg-purple-700 transition-colors"
+                  >
+                    إدراج الرد +
+                  </button>
+                  <button className="px-3 py-2 rounded-xl border border-purple-200 text-xs font-medium text-purple-700 hover:bg-purple-100 flex items-center gap-1">
+                    تعديل ✏
+                  </button>
+                </div>
+              </div>
+            )}
+            {canUseAI && aiPanel === "summary" && aiSummary && (
+              <div className="shrink-0 mx-3 mb-2 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Sparkles size={14} className="text-purple-600" />
+                  <span className="text-xs font-bold text-purple-700">ملخص المحادثة</span>
+                  <button onClick={() => { setAiPanel(null); setAiSummary(null); }} className="ms-auto text-purple-400 hover:text-purple-600 text-sm">✕</button>
+                </div>
+                <p className="text-xs text-purple-900 leading-relaxed">{aiSummary}</p>
+              </div>
+            )}
+            {canUseAI && aiPanel === "classify" && aiClassify && (
+              <div className="shrink-0 mx-3 mb-2 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Sparkles size={14} className="text-purple-600" />
+                  <span className="text-xs font-bold text-purple-700">تصنيف المحادثة</span>
+                  <button onClick={() => { setAiPanel(null); setAiClassify(null); }} className="ms-auto text-purple-400 hover:text-purple-600 text-sm">✕</button>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {aiClassify.category != null && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{String(aiClassify.category)}</span>}
+                  {aiClassify.priority != null && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{String(aiClassify.priority)}</span>}
+                  {aiClassify.sentiment != null && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{String(aiClassify.sentiment)}</span>}
+                </div>
+              </div>
+            )}
+            {canUseAI && aiLoading && (
+              <div className="shrink-0 mx-3 mb-2 text-center text-xs text-purple-600 animate-pulse">الذكاء الاصطناعي يعمل...</div>
+            )}
+            {canUseAI && aiError && (
+              <div className="shrink-0 mx-3 mb-2 text-xs text-destructive bg-red-50 border border-red-200 rounded-xl px-3 py-2">{aiError}</div>
+            )}
+
+            {/* Composer */}
+            {canReply ? (
+              <div className="shrink-0 bg-background border-t border-border px-3 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                {workspaceName && (
+                  <div className="text-xs text-center text-muted-foreground mb-2">
+                    الرد سيكون من فريق {workspaceName}
+                  </div>
+                )}
+                <div className={cn(
+                  "flex items-center gap-2 rounded-2xl border px-3 py-2",
+                  messageMode === "note" ? "border-yellow-300 bg-yellow-50" : "border-border bg-card"
+                )}>
+                  <button
+                    onClick={() => setShowMobileAiSheet(true)}
+                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-purple-50 text-purple-600 hover:bg-purple-100"
+                    title="أدوات الذكاء"
+                  >
+                    <Sparkles size={15} />
+                  </button>
+                  <textarea
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    rows={1}
+                    placeholder={messageMode === "note" ? "ملاحظة داخلية (لا يراها العميل)..." : "اكتب ردك..."}
+                    className="flex-1 bg-transparent text-sm outline-none resize-none min-h-[1.5rem] max-h-24"
+                  />
+                  {messageMode === "note" && (
+                    <button onClick={() => setMessageMode("reply")} className="shrink-0 text-[0.65rem] text-yellow-700 font-bold px-2 py-1 rounded-full bg-yellow-100 border border-yellow-200">
+                      ملاحظة
+                    </button>
+                  )}
+                  <button
+                    onClick={() => (messageText.trim() || mediaUrl.trim()) && sendMessage.mutate({
+                      content: messageText,
+                      isNote: messageMode === "note",
+                      outboundMediaUrl: messageMode === "note" ? undefined : mediaUrl.trim() || undefined,
+                    })}
+                    disabled={(!messageText.trim() && !mediaUrl.trim()) || sendMessage.isPending}
+                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90 transition-colors"
+                  >
+                    {sendMessage.isPending ? <span className="text-xs">...</span> : <Send size={15} />}
+                  </button>
+                </div>
+                {sendMessage.isError && (
+                  <p className="text-xs text-destructive mt-1 text-center">{(sendMessage.error as Error)?.message}</p>
+                )}
+              </div>
+            ) : (
+              <div className="shrink-0 px-4 py-3 border-t border-border text-center text-xs text-yellow-700 bg-yellow-50 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                ليس لديك صلاحية الرد على المحادثات
+              </div>
+            )}
+
+            {/* AI Tools Bottom Sheet */}
+            <Drawer open={showMobileAiSheet} onOpenChange={setShowMobileAiSheet}>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle>أدوات الذكاء الاصطناعي</DrawerTitle>
+                  <DrawerDescription>تحليل المحادثة وتوليد مقترحات للرد</DrawerDescription>
+                </DrawerHeader>
+                {canUseAI && selectedConvId ? (
+                  <div className="px-4 pb-6 grid grid-cols-2 gap-3">
+                    {[
+                      { emoji: "🤖", label: "لخص المحادثة", action: runAISummarize },
+                      { emoji: "✍️", label: "اقترح رد", action: runAIDraft },
+                      { emoji: "🏷️", label: "صنّف الطلب", action: runAIClassify },
+                      { emoji: "💡", label: "اقترح الخطوة التالية", action: runAISuggest },
+                    ].map(({ emoji, label, action }) => (
+                      <button
+                        key={label}
+                        onClick={() => { action(); setShowMobileAiSheet(false); }}
+                        disabled={aiLoading}
+                        className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-4 hover:bg-muted/50 disabled:opacity-50 transition-colors"
+                      >
+                        <span className="text-2xl">{emoji}</span>
+                        <span className="text-xs font-bold text-foreground">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-4 pb-6 text-center text-sm text-muted-foreground">اختر محادثة أولاً</div>
+                )}
+              </DrawerContent>
+            </Drawer>
+          </>
+        )}
+      </div>
+      {/* ═══════════ END MOBILE LAYOUT ═══════════ */}
+
+      {/* ═══════════ DESKTOP LAYOUT (hidden md:flex) ═══════════ */}
+      <div className="hidden md:flex md:flex-col md:flex-1 md:overflow-hidden">
       <div className="shrink-0 px-4 pt-4 pb-0">
         <PageHeader
           title="صندوق الوارد"
@@ -1503,6 +1974,8 @@ export default function InboxPage() {
           )}
         </div>
       </div>
+      </div>
+      {/* ═══════════ END DESKTOP LAYOUT ═══════════ */}
 
       <Modal open={showNewConv} onClose={() => setShowNewConv(false)} title="محادثة جديدة" size="sm">
         <div className="space-y-3">
