@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import express, { Router, type Request, type Response } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
@@ -13,6 +12,7 @@ import {
 } from "@workspace/db";
 import { env } from "../../lib/env";
 import { logger } from "../../lib/logger";
+import { verifyMetaHmac } from "../../lib/meta-signature";
 import { handleMetaWebhook } from "../integrations/meta-webhook.handler";
 import { notifyWorkspace } from "../../services/notifications";
 
@@ -149,18 +149,7 @@ function describeMetaPayload(payload: any): Record<string, unknown> {
 
 function verifyMetaSignature(req: Request, rawBody: Buffer): boolean {
   const secret = env.META_APP_SECRET ?? env.META_WEBHOOK_SECRET;
-  const signature = req.header("x-hub-signature-256");
-  if (!secret || !signature?.startsWith("sha256=")) return false;
-
-  const signatureHex = signature.slice("sha256=".length);
-  if (!/^[a-fA-F0-9]+$/.test(signatureHex)) return false;
-
-  const expectedHex = createHmac("sha256", secret).update(rawBody).digest("hex");
-  const expected = Buffer.from(expectedHex, "hex");
-  const provided = Buffer.from(signatureHex, "hex");
-
-  if (provided.length !== expected.length) return false;
-  return timingSafeEqual(provided, expected);
+  return verifyMetaHmac(rawBody, req.header("x-hub-signature-256"), secret ?? "");
 }
 
 async function findWhatsappChannel(phoneNumberId: string): Promise<ChannelAccount | undefined> {
