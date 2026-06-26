@@ -33,3 +33,4 @@ export * from "./sectors";
 export * from "./notifications";
 export * from "./products";
 export * from "./point_wallet";
+export * from "./sequences";

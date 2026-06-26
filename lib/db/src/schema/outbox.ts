@@ -1,5 +1,6 @@
 import { index, pgTable, text, timestamp, uuid, jsonb, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { workspacesTable } from "./workspaces";
+import { channelAccountsTable } from "./conversations";
 
 export const outboxEventsTable = pgTable(
   "outbox_events",
@@ -16,6 +17,10 @@ export const outboxEventsTable = pgTable(
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    // W1-T1 parity columns — written by W4-T1 delivery ledger, not yet read
+    providerAccountId: uuid("provider_account_id"),
+    channelAccountId: uuid("channel_account_id").references(() => channelAccountsTable.id, { onDelete: "set null" }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("uq_outbox_events_workspace_idempotency").on(table.workspaceId, table.idempotencyKey),
