@@ -1,0 +1,446 @@
+# Sonnet execution task graph — Wesal One ↔ Chatwoot parity
+# One task per execution. Status: todo | in_progress | blocked | done.
+# Reference: chatwoot @ d0b1c055e8fa40ab19e4898ed6cf1aafd24431fc (patterns only, no code copy, no enterprise/).
+# Base Wesal SHA at audit: 3aa394c267569e335ee9142223c76bb47af17a47 (branch fix/mobile-reference-redesign).
+# Global rule: owner pushes; new SQL merged into scripts/migrate-phase345.sql; typecheck+build:prod+live smoke every task.
+
+meta:
+  base_sha: "3aa394c267569e335ee9142223c76bb47af17a47"
+  chatwoot_ref: "d0b1c055e8fa40ab19e4898ed6cf1aafd24431fc"
+  protections:
+    - "live inbound→reply must keep working after every task"
+    - "every new query scoped by workspace_id"
+    - "AI-authored messages: sender_id=null, sender_name=agent.name (PD-7)"
+    - "no commit/push by the agent — owner only"
+    - "no second inbox/user/tenant system; consolidate, never duplicate"
+
+tasks:
+
+  - id: W1-T1
+    title: "Add additive parity columns (write-only) + backfill display_id atomically"
+    objective: "Introduce conversations/messages/channel_accounts/outbox_events columns, written but not yet read, with atomic per-workspace display_id."
+    status: done
+    wave: 1
+    dependencies: []
+    verified_current_files:
+      - lib/db/src/schema/conversations.ts
+      - lib/db/src/schema/outbox.ts
+      - lib/db/src/schema/integrations.ts
+      - scripts/migrate-phase345.sql
+    files_to_modify:
+      - lib/db/src/schema/conversations.ts
+      - lib/db/src/schema/outbox.ts
+      - lib/db/src/schema/integrations.ts
+      - scripts/migrate-phase345.sql
+    files_to_create:
+      - lib/db/drizzle/0030_parity_columns.sql
+      - lib/db/src/schema/sequences.ts   # workspace_sequences
+    files_to_delete: []
+    database_changes: "ADD COLUMN IF NOT EXISTS: conversations(display_id,lifecycle_state,ai_substate,labels text[],waiting_since,first_reply_created_at); messages(message_type,content_attributes); channel_accounts(external_account_id,external_business_id,external_phone_id,health_status,last_health_at); outbox_events(provider_account_id,channel_account_id,failed_at). New table workspace_sequences. Backfill display_id via sequence; UNIQUE(workspace_id,display_id) after backfill."
+    api_changes: "none (columns not yet surfaced)"
+    event_changes: "none"
+    tests_required:
+      - "vitest: display_id backfill is gapless+unique per workspace and atomic under concurrency"
+      - "tenant-isolation harness (new) green for conversations/messages"
+    acceptance_criteria:
+      - "typecheck + build:prod pass"
+      - "0030 merged idempotently into migrate-phase345.sql; verify-migration asserts new columns"
+      - "no live behavior change; new rows get display_id"
+    rollback: "columns nullable/ignored; revert code; do not drop"
+    chatwoot_references: ["app/models/conversation.rb", "app/models/message.rb"]
+    do_not_touch: ["agent runtime", "web UI", "provider_accounts data"]
+    risk_level: medium
+    estimated_complexity: M
+
+  - id: W1-T2
+    title: "Tenant-isolation test harness + Meta webhook contract tests"
+    objective: "Stand up the standing isolation suite and contract tests for WhatsApp changes[] vs IG/Messenger messaging[]."
+    status: done
+    wave: 1
+    dependencies: [W1-T1]
+    verified_current_files:
+      - artifacts/api-server/src/modules/webhooks/meta.routes.ts
+      - artifacts/api-server/src/modules/integrations/meta-webhook.handler.ts
+      - artifacts/api-server/src/__tests__
+    files_to_modify: ["artifacts/api-server/package.json"]
+    files_to_create:
+      - artifacts/api-server/src/__tests__/isolation.spec.ts
+      - artifacts/api-server/src/__tests__/meta-webhook-contract.spec.ts
+    files_to_delete: []
+    database_changes: "none (test DB only)"
+    api_changes: "none"
+    event_changes: "none"
+    tests_required:
+      - "workspace A/B cannot read each other across all list/detail endpoints"
+      - "both Meta payload shapes normalize; HMAC accept/reject"
+    acceptance_criteria: ["suites run via corepack pnpm --filter @workspace/api-server test", "all green"]
+    rollback: "tests only; revert"
+    chatwoot_references: ["app/services/whatsapp", "app/services/instagram"]
+    do_not_touch: ["production routes behavior"]
+    risk_level: low
+    estimated_complexity: M
+
+  - id: W2-T1
+    title: "Persist webhook_events + fast-ack in POST /meta (behind INGEST_DEFERRED)"
+    objective: "Make the live webhook durable: verify HMAC, persist raw event + correlation id, return 200 fast; keep inline path when flag off."
+    status: todo
+    wave: 2
+    dependencies: [W1-T1, W1-T2]
+    verified_current_files:
+      - artifacts/api-server/src/modules/webhooks/meta.routes.ts
+      - lib/db/src/schema/integrations.ts
+      - artifacts/api-server/src/modules/integrations/webhookIngest.service.ts
+    files_to_modify:
+      - artifacts/api-server/src/modules/webhooks/meta.routes.ts
+      - artifacts/api-server/src/lib/env.ts
+    files_to_create: []
+    files_to_delete: []
+    database_changes: "use existing webhook_events (UNIQUE provider,idempotency_key); add correlation_id column if absent"
+    api_changes: "POST /meta returns 200 after persist (behavior change gated by flag)"
+    event_changes: "none yet (still emits domain_events inline when flag off)"
+    tests_required: ["replay/dup → one webhook_events row", "signature fail → 200, no persist of processed"]
+    acceptance_criteria: ["inbound still delivered with flag on (shadow) and off", "every inbound has webhook_events row + correlation id"]
+    rollback: "INGEST_DEFERRED=false → inline path"
+    chatwoot_references: ["app/controllers/webhooks", "app/services/*/incoming_message_service"]
+    do_not_touch: ["HMAC verification strength", "domain_events contract"]
+    risk_level: high
+    estimated_complexity: M
+
+  - id: W2-T2
+    title: "Split provider normalization into adapters + ingestion-dispatcher (worker)"
+    objective: "Move upsert/normalize logic out of meta.routes into whatsapp/instagram/messenger adapters; worker claims webhook_events(received)→adapter→emit domain_events→processed; failures→dead_letter_events."
+    status: todo
+    wave: 2
+    dependencies: [W2-T1]
+    verified_current_files:
+      - artifacts/api-server/src/modules/webhooks/meta.routes.ts
+      - artifacts/api-server/src/modules/integrations/meta-channel-ingest.ts
+      - artifacts/api-server/src/modules/integrations/instagram.handler.ts
+      - artifacts/api-server/src/modules/integrations/messenger.handler.ts
+      - artifacts/outbox-worker/src/index.ts
+    files_to_modify:
+      - artifacts/outbox-worker/src/index.ts
+      - artifacts/api-server/src/routes/index.ts
+    files_to_create:
+      - artifacts/api-server/src/modules/integrations/adapters/whatsapp.adapter.ts
+      - artifacts/api-server/src/modules/integrations/adapters/instagram.adapter.ts
+      - artifacts/api-server/src/modules/integrations/adapters/messenger.adapter.ts
+      - artifacts/outbox-worker/src/ingestion-dispatcher.ts
+    files_to_delete: []   # decide on webhooks.routes.ts after proof
+    database_changes: "writes webhook_events.status received→processing→processed|failed; dead_letter_events on permafail; inbound_event_links on success"
+    api_changes: "mount exactly one ingestion route"
+    event_changes: "domain_events(message.received) now emitted by dispatcher, not inline"
+    tests_required: ["adapter unit per provider", "forced failure → DLQ → replay", "no duplicate domain_events"]
+    acceptance_criteria: ["shadow counts match inline path before flip", "live inbound→reply intact"]
+    rollback: "INGEST_DEFERRED=false"
+    chatwoot_references: ["app/services/*/incoming_message_builder", "app/jobs/event_dispatcher_job.rb"]
+    do_not_touch: ["agent runtime", "outbox send"]
+    risk_level: high
+    estimated_complexity: L
+
+  - id: W3-T1
+    title: "Conversation lifecycle state machine (single writer) + PD-11 reactivate fix"
+    objective: "Create lifecycle.ts as the only writer of status/agent_status (projections of lifecycle_state/ai_substate); reactivate-agent emits a fresh inbound-class event."
+    status: todo
+    wave: 3
+    dependencies: [W1-T1]
+    verified_current_files:
+      - artifacts/api-server/src/modules/conversations/conversations.routes.ts
+      - artifacts/api-server/src/lib/agent-reply.ts
+      - artifacts/outbox-worker/src/index.ts
+    files_to_modify:
+      - artifacts/api-server/src/modules/conversations/conversations.routes.ts
+      - artifacts/api-server/src/lib/agent-reply.ts
+    files_to_create:
+      - artifacts/api-server/src/modules/conversations/lifecycle.ts
+      - artifacts/api-server/src/modules/conversations/conversation.service.ts
+    files_to_delete: []
+    database_changes: "writes lifecycle_state/ai_substate; status/agent_status become projections"
+    api_changes: "POST /conversations/:id/reactivate-agent emits fresh event; PATCH /:id/status routed via lifecycle"
+    event_changes: "conversation.reactivated; conversation.assigned/resolved emit activity messages"
+    tests_required: ["PD-11 reproduction fixed", "handoff/escalation behavior unchanged", "PD-7 sender invariant"]
+    acceptance_criteria: ["reopen→bot re-engages", "no other code writes status/agent_status"]
+    rollback: "UNIFIED_LIFECYCLE=false → legacy writers"
+    chatwoot_references: ["app/models/conversation.rb (AssignmentHandler, determine_conversation_status, reset_agent_bot_when_assignee_present)"]
+    do_not_touch: ["agent-tools business logic", "escalation keyword set semantics"]
+    risk_level: high
+    estimated_complexity: L
+
+  - id: W3-T2
+    title: "Typed messages (message_type, content_attributes) + reply/quote"
+    objective: "Enable reads of message_type/content_attributes; support inReplyTo on send/render; activity messages first-class."
+    status: todo
+    wave: 3
+    dependencies: [W1-T1, W3-T1]
+    verified_current_files:
+      - lib/db/src/schema/conversations.ts
+      - artifacts/api-server/src/modules/conversations/conversations.routes.ts
+    files_to_modify:
+      - artifacts/api-server/src/modules/conversations/conversations.routes.ts
+    files_to_create: []
+    files_to_delete: []
+    database_changes: "reads message_type/content_attributes (cols from W1-T1)"
+    api_changes: "POST messages accepts inReplyTo; GET messages returns message_type/content_attributes"
+    event_changes: "none"
+    tests_required: ["reply links resolve", "activity message rendering", "ordering stable"]
+    acceptance_criteria: ["typecheck+build", "no regression in message list"]
+    rollback: "revert; columns remain unused"
+    chatwoot_references: ["app/models/message.rb"]
+    do_not_touch: ["attachment storage path", "media proxy"]
+    risk_level: medium
+    estimated_complexity: M
+
+  - id: W3-T3
+    title: "Conversation labels CRUD + filtering"
+    objective: "Add conversation labels (text[]) with add/remove endpoints and list filter."
+    status: todo
+    wave: 3
+    dependencies: [W1-T1]
+    verified_current_files:
+      - artifacts/api-server/src/modules/conversations/conversations.routes.ts
+    files_to_modify:
+      - artifacts/api-server/src/modules/conversations/conversations.routes.ts
+    files_to_create:
+      - artifacts/api-server/src/modules/conversations/labels.ts
+    files_to_delete: []
+    database_changes: "uses conversations.labels text[] (from W1-T1)"
+    api_changes: "POST/DELETE /conversations/:id/labels; GET /conversations?label="
+    event_changes: "conversation.label.changed (optional)"
+    tests_required: ["label add/remove", "filter returns scoped results", "isolation"]
+    acceptance_criteria: ["typecheck+build", "labels workspace-scoped"]
+    rollback: "revert routes"
+    chatwoot_references: ["app/models/concerns/labelable.rb"]
+    do_not_touch: ["contacts.tags"]
+    risk_level: low
+    estimated_complexity: S
+
+  - id: W4-T1
+    title: "Consolidate outbox + feed provider_delivery_attempts + delivery receipts"
+    objective: "Single outbox_events as the live writer; record an attempts row per send; reconcile status webhooks to messages.delivery_status."
+    status: todo
+    wave: 4
+    dependencies: [W1-T1, W2-T2]
+    verified_current_files:
+      - artifacts/outbox-worker/src/index.ts
+      - lib/db/src/schema/integrations.ts
+      - lib/db/src/schema/outbox.ts
+    files_to_modify:
+      - artifacts/outbox-worker/src/index.ts
+    files_to_create:
+      - artifacts/outbox-worker/src/senders/whatsapp.ts
+      - artifacts/outbox-worker/src/senders/instagram.ts
+      - artifacts/outbox-worker/src/senders/messenger.ts
+    files_to_delete: []
+    database_changes: "write provider_delivery_attempts each send; outbox_messages gets no new writer (deprecate later)"
+    api_changes: "none"
+    event_changes: "delivery receipt updates messages.delivery_status"
+    tests_required: ["each message.send.* maps to right Graph call (mock fetch)", "permafail→DLQ+escalate", "24h window"]
+    acceptance_criteria: ["sends unchanged", "attempts row per send", "status from receipts"]
+    rollback: "revert; outbox_events path retained"
+    chatwoot_references: ["app/jobs/send_reply_job.rb"]
+    do_not_touch: ["outbox_events payload contract", "idempotency keys"]
+    risk_level: medium
+    estimated_complexity: L
+
+  - id: W4-T2
+    title: "Realtime via Postgres LISTEN/NOTIFY (multi-instance safe)"
+    objective: "Back emitWorkspaceEvent/SSE with LISTEN/NOTIFY so events survive >1 instance; keep EventEmitter as local fast-path."
+    status: todo
+    wave: 4
+    dependencies: [W2-T2]
+    verified_current_files:
+      - artifacts/api-server/src/lib/events.ts
+    files_to_modify:
+      - artifacts/api-server/src/lib/events.ts
+    files_to_create:
+      - artifacts/api-server/src/lib/realtime.ts
+    files_to_delete: []
+    database_changes: "none (LISTEN/NOTIFY only)"
+    api_changes: "SSE envelope versioned (v:1)"
+    event_changes: "realtime publish via NOTIFY channel per workspace"
+    tests_required: ["two instances both receive event", "reconnect/poll fallback"]
+    acceptance_criteria: ["with REALTIME_PUBSUB on, multi-instance fan-out works", "max-instances can exceed 1 in a later infra change"]
+    rollback: "REALTIME_PUBSUB=false → in-process EventEmitter, keep max-instances=1"
+    chatwoot_references: ["app/listeners/action_cable_listener.rb"]
+    do_not_touch: ["SSE auth/session scoping"]
+    risk_level: medium
+    estimated_complexity: M
+
+  - id: W4-T3
+    title: "Single event-dispatcher (replace multi-loop polling of domain_events)"
+    objective: "One claimer fans domain_events to idempotent subscribers (agent, notify, realtime); ready to add automation subscriber."
+    status: todo
+    wave: 4
+    dependencies: [W2-T2]
+    verified_current_files:
+      - artifacts/outbox-worker/src/index.ts
+    files_to_modify:
+      - artifacts/outbox-worker/src/index.ts
+    files_to_create:
+      - artifacts/outbox-worker/src/event-dispatcher.ts
+    files_to_delete: []
+    database_changes: "subscriber progress tracked idempotently per (event,subscriber)"
+    api_changes: "none"
+    event_changes: "dispatcher routes events; agent subscriber preserves current /internal/agent-reply call"
+    tests_required: ["dispatch idempotency", "agent path unchanged", "no double-processing with 2 workers"]
+    acceptance_criteria: ["live inbound→reply intact", "EVENT_DISPATCHER flag toggles cleanly"]
+    rollback: "EVENT_DISPATCHER=false → existing agent-runner loop"
+    chatwoot_references: ["app/jobs/event_dispatcher_job.rb", "app/listeners/*"]
+    do_not_touch: ["agent reply logic"]
+    risk_level: high
+    estimated_complexity: L
+
+  - id: W5-T1
+    title: "Agent availability + per-channel round-robin auto-assignment"
+    objective: "Add membership availability; assignment_policies; assignmentSubscriber assigns online agents; reset-bot-on-assign."
+    status: todo
+    wave: 5
+    dependencies: [W3-T1, W4-T3]
+    verified_current_files:
+      - lib/db/src/schema/rbac.ts
+      - artifacts/api-server/src/modules/conversations/conversations.routes.ts
+    files_to_modify:
+      - lib/db/src/schema/rbac.ts
+      - scripts/migrate-phase345.sql
+    files_to_create:
+      - lib/db/drizzle/0031_assignment.sql
+      - lib/db/src/schema/assignment.ts
+      - artifacts/api-server/src/modules/conversations/assignment.ts
+    files_to_delete: []
+    database_changes: "workspace_memberships.availability; new assignment_policies table"
+    api_changes: "assignment policy CRUD; PATCH /:id/assign writes activity message"
+    event_changes: "conversation.assigned consumed by assignmentSubscriber"
+    tests_required: ["round-robin even across online", "offline skipped", "assign clears AI auto-send"]
+    acceptance_criteria: ["AUTO_ASSIGNMENT default off; on→assigns correctly"]
+    rollback: "policies off by default"
+    chatwoot_references: ["app/models/concerns/auto_assignment_handler.rb", "app/services/auto_assignment"]
+    do_not_touch: ["RBAC permission slugs"]
+    risk_level: medium
+    estimated_complexity: L
+
+  - id: W5-T2
+    title: "Re-home automation-engine as a dispatcher subscriber"
+    objective: "Wire automation-engine.ts behind the event-dispatcher (no competing poll), with loop guards + audit."
+    status: todo
+    wave: 5
+    dependencies: [W4-T3]
+    verified_current_files:
+      - artifacts/outbox-worker/src/automation-engine.ts
+      - artifacts/outbox-worker/src/index.ts
+    files_to_modify:
+      - artifacts/outbox-worker/src/automation-engine.ts
+      - artifacts/outbox-worker/src/event-dispatcher.ts
+    files_to_create: []
+    files_to_delete: []
+    database_changes: "none (uses existing automations schema)"
+    api_changes: "none"
+    event_changes: "automation subscriber consumes dispatched events"
+    tests_required: ["automations fire without racing agent replies", "loop guard", "audit entry"]
+    acceptance_criteria: ["AUTOMATIONS_WIRED off by default; on→rules execute once"]
+    rollback: "AUTOMATIONS_WIRED=false (engine stays dormant)"
+    chatwoot_references: ["app/listeners/automation_rule_listener.rb", "app/services/automation_rules"]
+    do_not_touch: ["agent-runner contention guarantees"]
+    risk_level: medium
+    estimated_complexity: M
+
+  - id: W6-T1
+    title: "Channel-model cutover: backfill provider_accounts → channel_accounts, deprecate"
+    objective: "Backfill external ids/health into channel_accounts, flip reads to one model, mark provider_accounts/outbox_messages deprecated (retain tables)."
+    status: todo
+    wave: 6
+    dependencies: [W2-T2, W4-T1]
+    verified_current_files:
+      - lib/db/src/schema/integrations.ts
+      - artifacts/api-server/src/modules/channels/channels.routes.ts
+      - artifacts/api-server/src/modules/integrations/integrations.routes.ts
+    files_to_modify:
+      - artifacts/api-server/src/modules/channels/channels.routes.ts
+      - artifacts/api-server/src/modules/integrations/integrations.routes.ts
+    files_to_create:
+      - scripts/migrations/backfill-channels.ts
+    files_to_delete: []
+    database_changes: "backfill channel_accounts from provider_accounts; no drops"
+    api_changes: "channels read one model; health surfaced"
+    event_changes: "integration health/error fed from live path"
+    tests_required: ["one channel model read everywhere", "no cross-tenant", "deprecated tables zero writers (grep)"]
+    acceptance_criteria: ["ONE_CHANNEL_MODEL on; channels UI correct"]
+    rollback: "ONE_CHANNEL_MODEL=false → read provider_accounts fallback"
+    chatwoot_references: ["app/models/inbox.rb", "app/models/channel/*"]
+    do_not_touch: ["secret refs / token decryption"]
+    risk_level: high
+    estimated_complexity: L
+
+  - id: W6-T2
+    title: "Correlation-id tracing + right-to-erasure + credential cleanup"
+    objective: "Surface end-to-end correlation id; add contact PII erasure endpoint; clear credentials on channel disconnect."
+    status: todo
+    wave: 6
+    dependencies: [W2-T2]
+    verified_current_files:
+      - artifacts/api-server/src/modules/contacts/contacts.routes.ts
+      - artifacts/api-server/src/lib/audit.ts
+    files_to_modify:
+      - artifacts/api-server/src/modules/contacts/contacts.routes.ts
+    files_to_create:
+      - artifacts/api-server/src/modules/contacts/erasure.ts
+    files_to_delete: []
+    database_changes: "erasure removes/redacts contact PII + messages content per policy; audit retained"
+    api_changes: "POST /contacts/:id/erase (permissioned)"
+    event_changes: "correlation_id carried through events"
+    tests_required: ["erasure removes PII, keeps audit", "trace webhook→reply by correlation id"]
+    acceptance_criteria: ["PDPL erasure path exists", "trace works"]
+    rollback: "revert; soft-delete remains"
+    chatwoot_references: ["app/services/account_deletion_service.rb"]
+    do_not_touch: ["audit append-only guard"]
+    risk_level: medium
+    estimated_complexity: M
+
+  - id: W7-T1
+    title: "Surface parity capabilities in Inbox UI (last)"
+    objective: "Show display_id, labels, unified status, assignment, presence; respect RTL/mobile; no backend change."
+    status: todo
+    wave: 7
+    dependencies: [W3-T1, W3-T3, W5-T1]
+    verified_current_files:
+      - artifacts/web/src/pages/InboxPage.tsx
+    files_to_modify:
+      - artifacts/web/src/pages/InboxPage.tsx
+    files_to_create: []
+    files_to_delete: []
+    database_changes: "none"
+    api_changes: "consume additive fields"
+    event_changes: "consume versioned realtime envelope"
+    tests_required: ["lib/ui vitest where applicable", "no horizontal overflow mobile", "desktop lg+ unchanged"]
+    acceptance_criteria: ["UI reflects new capabilities; no regression"]
+    rollback: "revert UI commits"
+    chatwoot_references: []
+    do_not_touch: ["desktop layout lg+", "mobile redesign structure"]
+    risk_level: low
+    estimated_complexity: M
+
+  - id: W8-T1
+    title: "Drop deprecated schema (reversible) after proof"
+    objective: "Drop provider_accounts/outbox_messages and retired columns once grep-proven zero writers/readers."
+    status: todo
+    wave: 8
+    dependencies: [W6-T1]
+    verified_current_files:
+      - lib/db/src/schema/integrations.ts
+    files_to_modify:
+      - lib/db/src/schema/integrations.ts
+      - scripts/migrate-phase345.sql
+    files_to_create:
+      - lib/db/drizzle/0032_drop_deprecated.sql
+    files_to_delete: []
+    database_changes: "DROP provider_accounts, outbox_messages (reversible migration); only after deletion-proof checklist"
+    api_changes: "none"
+    event_changes: "none"
+    tests_required: ["grep proof: zero references", "full regression + live smoke"]
+    acceptance_criteria: ["deletion proof (doc 05) satisfied for each object"]
+    rollback: "reversible migration; restore from backup if needed"
+    chatwoot_references: []
+    do_not_touch: ["any table with live writers"]
+    risk_level: high
+    estimated_complexity: M
+
+first_task_to_execute: W1-T1
