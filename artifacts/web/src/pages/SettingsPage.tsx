@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PaymentMethodsTab } from "@/components/settings/PaymentMethodsTab";
 import { ExchangeRatesTab } from "@/components/settings/ExchangeRatesTab";
 import { useLocation, useSearch } from "wouter";
+import { ChevronLeft, Building2, Clock, Timer, MessageSquare, Plug, Users, UserPlus, CreditCard, RefreshCw, Receipt, Bell, ShieldCheck, Key, FileText, AlertTriangle, ArrowRight as BackArrow } from "lucide-react";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
 const apiFetch = async (path: string, opts?: RequestInit) => {
@@ -1143,9 +1144,11 @@ export default function SettingsPage() {
   const [inviteForm, setInviteForm] = useState({ email: "", name: "", password: "", role: "agent" });
   const [inviteError, setInviteError] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
+  const [mobileSettingsHome, setMobileSettingsHome] = useState(() => !new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").has("tab"));
 
   const setTab = (nextTab: Tab) => {
     setTabState(nextTab);
+    setMobileSettingsHome(false);
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     if (nextTab === "workspace") {
@@ -1236,11 +1239,110 @@ export default function SettingsPage() {
     },
   ];
 
+  const mobileTabItems: { tab?: Tab; href?: string; icon: React.ElementType; label: string; description: string; permission?: string }[] = [
+    { tab: "workspace",      icon: Building2,   label: "مساحة العمل",       description: "اسم النشاط والشعار والبيانات الأساسية" },
+    { tab: "business-hours", icon: Clock,        label: "ساعات العمل",       description: "أوقات الرد والجداول اليومية" },
+    { tab: "sla",            icon: Timer,        label: "قواعد الاستجابة",   description: "مهل الرد وأولويات المحادثات" },
+    { tab: "quick-replies",  icon: MessageSquare,label: "الردود السريعة",    description: "قوالب الردود المحفوظة" },
+    { tab: "channels",       icon: Plug,         label: "القنوات",           description: "واتساب وإنستغرام وماسنجر" },
+    { tab: "users",          icon: Users,        label: "أعضاء الفريق",      description: "إدارة الأعضاء والأدوار" },
+    { tab: "invite",         icon: UserPlus,     label: "دعوة عضو",          description: "أضف موظفاً جديداً للفريق", permission: "users:invite" },
+    { tab: "payment-methods",icon: CreditCard,   label: "طرق الدفع",         description: "إدارة خيارات الدفع للعملاء" },
+    { tab: "exchange-rates", icon: RefreshCw,    label: "أسعار الصرف",       description: "نسب تحويل العملات" },
+    { tab: "billing",        icon: Receipt,      label: "الفوترة",           description: "الاشتراك والنقاط والفواتير" },
+    { tab: "notifications",  icon: Bell,         label: "التنبيهات",         description: "إشعارات التطبيق والبريد" },
+    { tab: "security",       icon: ShieldCheck,  label: "الأمان",            description: "كلمة المرور والجلسات النشطة" },
+    { tab: "api-keys",       icon: Key,          label: "مفاتيح API",        description: "توليد وإدارة مفاتيح الوصول" },
+    { href: "/audit-logs",   icon: FileText,     label: "سجل النشاط",        description: "سجل عمليات الفريق والتغييرات", permission: "audit_logs:read" },
+    { tab: "danger",         icon: AlertTriangle,label: "المنطقة الخطرة",    description: "حذف أو تعطيل مساحة العمل" },
+  ];
+
   return (
     <div dir="rtl">
-      <PageHeader title="الإعدادات" subtitle="إدارة مساحة العمل والفريق والمالية" />
 
-      <div className="mb-6 grid gap-3 rounded-2xl border border-border bg-card p-3 lg:grid-cols-5">
+      {/* ═══ MOBILE: Settings Home List ═══ */}
+      {mobileSettingsHome && (
+        <div className="md:hidden">
+          {/* Security status card */}
+          <div className="mb-4 flex items-center gap-3 rounded-2xl bg-green-50 border border-green-200 px-4 py-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-600">
+              <ShieldCheck size={20} />
+            </span>
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-green-800">حسابك آمن</div>
+              <div className="text-xs text-green-700">آخر تسجيل دخول كان الآن</div>
+            </div>
+          </div>
+
+          {/* Settings groups */}
+          {[
+            { label: "إعدادات عامة", items: mobileTabItems.slice(0, 5) },
+            { label: "الفريق", items: mobileTabItems.slice(5, 7) },
+            { label: "المالية", items: mobileTabItems.slice(7, 10) },
+            { label: "الأمان والحساب", items: mobileTabItems.slice(10) },
+          ].map((group) => {
+            const visibleItems = group.items.filter((item) => !item.permission || hasPermission(item.permission));
+            if (!visibleItems.length) return null;
+            return (
+              <div key={group.label} className="mb-4">
+                <div className="px-1 pb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">{group.label}</div>
+                <div className="rounded-2xl border border-border bg-card overflow-hidden divide-y divide-border/50">
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    const handleClick = item.href ? undefined : () => { if (item.tab) setTab(item.tab); };
+                    if (item.href) {
+                      return (
+                        <Link key={item.href} href={item.href}>
+                          <span className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors cursor-pointer">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                              <Icon size={18} />
+                            </span>
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm font-semibold text-foreground">{item.label}</span>
+                              <span className="block text-xs text-muted-foreground mt-0.5">{item.description}</span>
+                            </span>
+                            <ChevronLeft size={16} className="shrink-0 text-muted-foreground/60" />
+                          </span>
+                        </Link>
+                      );
+                    }
+                    return (
+                      <button key={item.tab} onClick={handleClick} className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors text-start">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Icon size={18} />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-semibold text-foreground">{item.label}</span>
+                          <span className="block text-xs text-muted-foreground mt-0.5">{item.description}</span>
+                        </span>
+                        <ChevronLeft size={16} className="shrink-0 text-muted-foreground/60" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ═══ MOBILE: Back button when in a tab ═══ */}
+      {!mobileSettingsHome && (
+        <div className="md:hidden mb-4">
+          <button onClick={() => setMobileSettingsHome(true)} className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+            <BackArrow size={16} />
+            <span>الإعدادات</span>
+          </button>
+        </div>
+      )}
+
+      {/* ═══ DESKTOP: PageHeader (hidden on mobile when showing home list) ═══ */}
+      <div className={mobileSettingsHome ? "hidden md:block" : "block"}>
+        <PageHeader title="الإعدادات" subtitle="إدارة مساحة العمل والفريق والمالية" />
+      </div>
+
+      {/* ═══ DESKTOP: Tab navigation grid ═══ */}
+      <div className={`mb-6 grid gap-3 rounded-2xl border border-border bg-card p-3 lg:grid-cols-5 ${mobileSettingsHome ? "hidden md:grid" : "hidden md:grid"}`}>
         {tabGroups.map((group) => (
           <div key={group.label} className="min-w-0 rounded-xl bg-muted/30 p-2">
             <div className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -1278,6 +1380,9 @@ export default function SettingsPage() {
           </div>
         ))}
       </div>
+
+      {/* Tab content — hidden on mobile when showing settings home list */}
+      <div className={mobileSettingsHome ? "hidden md:block" : "block"}>
 
       {tab === "workspace" && <WorkspaceTab />}
 
@@ -1382,6 +1487,8 @@ export default function SettingsPage() {
       {tab === "billing" && <BillingTabV2 />}
       {tab === "api-keys" && <ApiKeysTab />}
       {tab === "danger" && <AccountLifecycleTab />}
+
+      </div>{/* end tab content wrapper */}
     </div>
   );
 }
