@@ -109,7 +109,7 @@ tasks:
   - id: W2-T2
     title: "Split provider normalization into adapters + ingestion-dispatcher (worker)"
     objective: "Move upsert/normalize logic out of meta.routes into whatsapp/instagram/messenger adapters; worker claims webhook_events(received)→adapter→emit domain_events→processed; failures→dead_letter_events."
-    status: todo
+    status: done
     wave: 2
     dependencies: [W2-T1]
     verified_current_files:
