@@ -8,7 +8,7 @@ interface TransitionInput {
   orderId: string;
   targetState: CommerceOrderState;
   userId: string;
-  correlationId: string;
+  correlationId: string | number;
   idempotencyKey: string;
   reason?: string;
   reservationExpiresAt?: Date | null;
@@ -26,6 +26,7 @@ function ensureTransitionAllowed(current: CommerceOrderState, target: CommerceOr
 
 export async function transitionOrder(input: TransitionInput) {
   const client = await pool.connect();
+  const correlationId = String(input.correlationId);
   try {
     await client.query("BEGIN");
 
@@ -75,7 +76,7 @@ export async function transitionOrder(input: TransitionInput) {
         workspaceId: input.workspaceId,
         orderId: input.orderId,
         userId: input.userId,
-        correlationId: input.correlationId,
+        correlationId,
         idempotencyKey: `reserve:${input.idempotencyKey}`,
         expiresAt: input.reservationExpiresAt,
       });
@@ -84,7 +85,7 @@ export async function transitionOrder(input: TransitionInput) {
         workspaceId: input.workspaceId,
         orderId: input.orderId,
         userId: input.userId,
-        correlationId: input.correlationId,
+        correlationId,
         idempotencyKey: `release:${input.idempotencyKey}`,
         movementType: "Cancellation",
         reason: input.reason?.trim() || "إلغاء الطلب",
@@ -94,7 +95,7 @@ export async function transitionOrder(input: TransitionInput) {
         workspaceId: input.workspaceId,
         orderId: input.orderId,
         userId: input.userId,
-        correlationId: input.correlationId,
+        correlationId,
         idempotencyKey: `sale:${input.idempotencyKey}`,
       });
     } else if (input.targetState === "Returned" || (input.targetState === "Exchanged" && current !== "Returned")) {
@@ -102,7 +103,7 @@ export async function transitionOrder(input: TransitionInput) {
         workspaceId: input.workspaceId,
         orderId: input.orderId,
         userId: input.userId,
-        correlationId: input.correlationId,
+        correlationId,
         idempotencyKey: `return:${input.idempotencyKey}`,
       });
     }
@@ -141,7 +142,7 @@ export async function transitionOrder(input: TransitionInput) {
        (workspace_id, order_id, from_state, to_state, reason, correlation_id, idempotency_key, changed_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
       [input.workspaceId, input.orderId, current, input.targetState,
-        input.reason ?? null, input.correlationId, input.idempotencyKey, input.userId],
+        input.reason ?? null, correlationId, input.idempotencyKey, input.userId],
     );
 
     await client.query("COMMIT");
