@@ -1,11 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { transitionOrder } from "./order-lifecycle.service";
 
 const suite = process.env.DATABASE_URL ? describe : describe.skip;
-const createdUsers: string[] = [];
-const createdWorkspaces: string[] = [];
 
 async function createFixture(quantity = 1, onHand = 1) {
   const userId = randomUUID();
@@ -59,8 +57,6 @@ async function createFixture(quantity = 1, onHand = 1) {
     [itemId, workspaceId, orderId, productId, variantId, locationId, quantity, quantity * 100],
   );
 
-  createdUsers.push(userId);
-  createdWorkspaces.push(workspaceId);
   return { userId, workspaceId, productId, variantId, locationId, orderId, itemId };
 }
 
@@ -96,15 +92,6 @@ async function reserve(fixture: Awaited<ReturnType<typeof createFixture>>, key: 
 }
 
 suite("Commerce Safety Stabilization on PostgreSQL", () => {
-  afterEach(async () => {
-    while (createdWorkspaces.length) {
-      await pool.query("DELETE FROM workspaces WHERE id = $1", [createdWorkspaces.pop()]);
-    }
-    while (createdUsers.length) {
-      await pool.query("DELETE FROM users WHERE id = $1", [createdUsers.pop()]);
-    }
-  });
-
   it("rolls back inventory, order state, movements, and transition together", async () => {
     const fixture = await createFixture(2, 1);
 
