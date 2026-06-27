@@ -15,7 +15,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:16
@@ -65,6 +65,7 @@ jobs:
           psql -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           CREATE DATABASE commerce_fresh;
           CREATE DATABASE commerce_old;
+          CREATE DATABASE commerce_integration;
           SQL
 
       - name: Migrate empty database
@@ -107,6 +108,19 @@ jobs:
           cat /tmp/verify-migrations.log
           exit "$status"
 
+      - name: Bootstrap full integration-test database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/commerce_integration
+        run: |
+          set +e
+          {
+            pnpm --filter @workspace/db migrate
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrate-phase345.sql
+          } > /tmp/integration-bootstrap.log 2>&1
+          status=$?
+          cat /tmp/integration-bootstrap.log
+          exit "$status"
+
       - name: Typecheck
         run: |
           set +e
@@ -115,14 +129,24 @@ jobs:
           cat /tmp/typecheck.log
           exit "$status"
 
-      - name: Run unit and PostgreSQL integration tests
+      - name: Run unit tests
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/commerce_fresh
+          DATABASE_URL: ""
         run: |
           set +e
-          pnpm --filter @workspace/api-server test > /tmp/tests.log 2>&1
+          pnpm --filter @workspace/api-server test > /tmp/unit-tests.log 2>&1
           status=$?
-          cat /tmp/tests.log
+          cat /tmp/unit-tests.log
+          exit "$status"
+
+      - name: Run PostgreSQL integration tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/commerce_integration
+        run: |
+          set +e
+          pnpm --filter @workspace/api-server test:integration > /tmp/integration-tests.log 2>&1
+          status=$?
+          cat /tmp/integration-tests.log
           exit "$status"
 
       - name: Build API
