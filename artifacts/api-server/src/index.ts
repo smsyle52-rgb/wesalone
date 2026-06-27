@@ -2,6 +2,7 @@ import "./lib/env"; // Must be first — validates all required env vars at star
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runSeed } from "./lib/seed";
+import { runCommerceSafetySeed } from "./lib/commerceSafetySeed";
 
 const rawPort = process.env["PORT"];
 
@@ -16,6 +17,7 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 runSeed()
+  .then(runCommerceSafetySeed)
   .then(() => {
     app.listen(port, (err) => {
       if (err) {
