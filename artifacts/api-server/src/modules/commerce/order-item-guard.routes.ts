@@ -4,8 +4,7 @@ import { pool } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
-import { ORDER_TRANSITIONS, type CommerceOrderState, CommerceConflictError } from "./commerce.constants";
-import { transitionOrder } from "./order-lifecycle.service";
+import { type CommerceOrderState, CommerceConflictError } from "./commerce.constants";
 
 const router = Router();
 router.use(requireSession);
@@ -42,12 +41,14 @@ router.patch("/orders/:id/items/:itemId", requirePermission("orders:update"), as
     return;
   }
   const workspaceId = req.sessionUser.activeWorkspaceId;
+  const orderId = String(req.params.id);
+  const itemId = String(req.params.itemId);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const orderResult = await client.query<{ status: CommerceOrderState }>(
       "SELECT status FROM orders WHERE id = $1 AND workspace_id = $2 FOR UPDATE",
-      [req.params.id, workspaceId],
+      [orderId, workspaceId],
     );
     const order = orderResult.rows[0];
     if (!order) throw new CommerceConflictError("ORDER_NOT_FOUND", "الطلب غير موجود");
@@ -59,7 +60,7 @@ router.patch("/orders/:id/items/:itemId", requirePermission("orders:update"), as
     }>(
       `SELECT id, product_variant_id, quantity, discount, tax FROM order_items
        WHERE id = $1 AND order_id = $2 AND workspace_id = $3 FOR UPDATE`,
-      [req.params.itemId, req.params.id, workspaceId],
+      [itemId, orderId, workspaceId],
     );
     const item = itemResult.rows[0];
     if (!item?.product_variant_id) {
@@ -81,9 +82,9 @@ router.patch("/orders/:id/items/:itemId", requirePermission("orders:update"), as
               description = COALESCE($5, description), updated_at = now()
        WHERE id = $6 AND order_id = $7 AND workspace_id = $8 RETURNING *`,
       [quantity, variant.price, discount, total, parsed.data.description ?? null,
-        req.params.itemId, req.params.id, workspaceId],
+        itemId, orderId, workspaceId],
     );
-    const orderTotal = await recalculateOrder(client, workspaceId, req.params.id as string);
+    const orderTotal = await recalculateOrder(client, workspaceId, orderId);
     await client.query("COMMIT");
     res.json({ item: updated.rows[0], orderTotal });
   } catch (error) {
@@ -100,12 +101,14 @@ router.patch("/orders/:id/items/:itemId", requirePermission("orders:update"), as
 
 router.delete("/orders/:id/items/:itemId", requirePermission("orders:update"), async (req: AuthenticatedRequest, res: Response) => {
   const workspaceId = req.sessionUser.activeWorkspaceId;
+  const orderId = String(req.params.id);
+  const itemId = String(req.params.itemId);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const orderResult = await client.query<{ status: CommerceOrderState }>(
       "SELECT status FROM orders WHERE id = $1 AND workspace_id = $2 FOR UPDATE",
-      [req.params.id, workspaceId],
+      [orderId, workspaceId],
     );
     const order = orderResult.rows[0];
     if (!order) throw new CommerceConflictError("ORDER_NOT_FOUND", "الطلب غير موجود");
@@ -114,10 +117,10 @@ router.delete("/orders/:id/items/:itemId", requirePermission("orders:update"), a
     }
     const deleted = await client.query(
       "DELETE FROM order_items WHERE id = $1 AND order_id = $2 AND workspace_id = $3 RETURNING id",
-      [req.params.itemId, req.params.id, workspaceId],
+      [itemId, orderId, workspaceId],
     );
     if (!deleted.rowCount) throw new CommerceConflictError("ORDER_ITEM_NOT_FOUND", "البند غير موجود");
-    const orderTotal = await recalculateOrder(client, workspaceId, req.params.id as string);
+    const orderTotal = await recalculateOrder(client, workspaceId, orderId);
     await client.query("COMMIT");
     res.json({ success: true, orderTotal });
   } catch (error) {
@@ -136,23 +139,6 @@ const deliverySchema = z.object({
   deliveryStatus: z.enum(["preparing", "ready", "out_for_delivery", "handed_to_carrier", "delivered"]),
 });
 
-function pathToDelivered(from: CommerceOrderState) {
-  if (from === "Delivered") return [] as CommerceOrderState[];
-  const queue: Array<{ state: CommerceOrderState; path: CommerceOrderState[] }> = [{ state: from, path: [] }];
-  const visited = new Set<CommerceOrderState>([from]);
-  while (queue.length) {
-    const current = queue.shift()!;
-    for (const next of ORDER_TRANSITIONS[current.state] ?? []) {
-      if (next === "Cancelled" || next === "Returned" || next === "Exchanged" || visited.has(next)) continue;
-      const path = [...current.path, next];
-      if (next === "Delivered") return path;
-      visited.add(next);
-      queue.push({ state: next, path });
-    }
-  }
-  return null;
-}
-
 router.patch("/orders/:id/delivery-status", requirePermission("orders:update"), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = deliverySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -160,9 +146,10 @@ router.patch("/orders/:id/delivery-status", requirePermission("orders:update"), 
     return;
   }
   const workspaceId = req.sessionUser.activeWorkspaceId;
+  const orderId = String(req.params.id);
   const existing = await pool.query<{ status: CommerceOrderState; delivery_type: string }>(
     "SELECT status, delivery_type FROM orders WHERE id = $1 AND workspace_id = $2",
-    [req.params.id, workspaceId],
+    [orderId, workspaceId],
   );
   const order = existing.rows[0];
   if (!order) {
@@ -173,35 +160,19 @@ router.patch("/orders/:id/delivery-status", requirePermission("orders:update"), 
     res.status(409).json({ error: "طلب الاستلام من المحل لا يملك دورة توصيل" });
     return;
   }
-  const key = req.id || crypto.randomUUID();
-  try {
-    if (parsed.data.deliveryStatus === "delivered" && order.status !== "Delivered") {
-      const path = pathToDelivered(order.status);
-      if (!path) throw new CommerceConflictError("INVALID_ORDER_TRANSITION", "لا يمكن إكمال تسليم هذا الطلب");
-      for (let index = 0; index < path.length; index += 1) {
-        await transitionOrder({
-          workspaceId,
-          orderId: req.params.id as string,
-          targetState: path[index]!,
-          userId: req.sessionUser.userId,
-          correlationId: key,
-          idempotencyKey: `${key}:delivery:${index}`,
-        });
-      }
-    }
-    const updated = await pool.query(
-      `UPDATE orders SET delivery_status = $1, updated_at = now()
-       WHERE id = $2 AND workspace_id = $3 RETURNING id, status, delivery_status AS "deliveryStatus"`,
-      [parsed.data.deliveryStatus, req.params.id, workspaceId],
-    );
-    res.json({ order: updated.rows[0] });
-  } catch (error) {
-    if (error instanceof CommerceConflictError) {
-      res.status(409).json({ error: error.message, code: error.code });
-      return;
-    }
-    throw error;
+  if (parsed.data.deliveryStatus === "delivered" && order.status !== "Delivered") {
+    res.status(409).json({
+      error: "يجب نقل الطلب صراحة إلى حالة Delivered قبل تعليم التوصيل كمكتمل",
+      code: "ORDER_NOT_DELIVERED",
+    });
+    return;
   }
+  const updated = await pool.query(
+    `UPDATE orders SET delivery_status = $1, updated_at = now()
+     WHERE id = $2 AND workspace_id = $3 RETURNING id, status, delivery_status AS "deliveryStatus"`,
+    [parsed.data.deliveryStatus, orderId, workspaceId],
+  );
+  res.json({ order: updated.rows[0] });
 });
 
 export default router;
