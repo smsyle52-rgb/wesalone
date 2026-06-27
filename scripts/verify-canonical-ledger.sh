@@ -75,12 +75,19 @@ done
 
 comm -13 <(cut -f1-3 "$AUDIT_DIR/ledger-columns.tsv" | tail -n +2 | LC_ALL=C sort) <(cut -f1-3 "$AUDIT_DIR/schema-columns.tsv" | tail -n +2 | LC_ALL=C sort) > "$AUDIT_DIR/missing-columns.tsv" || true
 comm -23 <(cut -f1-3 "$AUDIT_DIR/ledger-columns.tsv" | tail -n +2 | LC_ALL=C sort) <(cut -f1-3 "$AUDIT_DIR/schema-columns.tsv" | tail -n +2 | LC_ALL=C sort) > "$AUDIT_DIR/extra-columns.tsv" || true
+comm -3 <(tail -n +2 "$AUDIT_DIR/ledger-columns.tsv" | LC_ALL=C sort) <(tail -n +2 "$AUDIT_DIR/schema-columns.tsv" | LC_ALL=C sort) > "$AUDIT_DIR/column-definition-diff.tsv" || true
 comm -3 <(tail -n +2 "$AUDIT_DIR/ledger-constraints.tsv" | LC_ALL=C sort) <(tail -n +2 "$AUDIT_DIR/schema-constraints.tsv" | LC_ALL=C sort) > "$AUDIT_DIR/constraint-diff.tsv" || true
 comm -3 <(tail -n +2 "$AUDIT_DIR/ledger-indexes.tsv" | LC_ALL=C sort) <(tail -n +2 "$AUDIT_DIR/schema-indexes.tsv" | LC_ALL=C sort) > "$AUDIT_DIR/index-diff.tsv" || true
+comm -3 <(tail -n +2 "$AUDIT_DIR/ledger-functions.tsv" | LC_ALL=C sort) <(tail -n +2 "$AUDIT_DIR/schema-functions.tsv" | LC_ALL=C sort) > "$AUDIT_DIR/function-diff.tsv" || true
+comm -3 <(tail -n +2 "$AUDIT_DIR/ledger-triggers.tsv" | LC_ALL=C sort) <(tail -n +2 "$AUDIT_DIR/schema-triggers.tsv" | LC_ALL=C sort) > "$AUDIT_DIR/trigger-diff.tsv" || true
+comm -3 <(tail -n +2 "$AUDIT_DIR/ledger-sequences.tsv" | LC_ALL=C sort) <(tail -n +2 "$AUDIT_DIR/schema-sequences.tsv" | LC_ALL=C sort) > "$AUDIT_DIR/sequence-diff.tsv" || true
 {
-  echo "# FUNCTIONS"; comm -3 <(tail -n +2 "$AUDIT_DIR/ledger-functions.tsv" | LC_ALL=C sort) <(tail -n +2 "$AUDIT_DIR/schema-functions.tsv" | LC_ALL=C sort) || true
-  echo "# TRIGGERS"; comm -3 <(tail -n +2 "$AUDIT_DIR/ledger-triggers.tsv" | LC_ALL=C sort) <(tail -n +2 "$AUDIT_DIR/schema-triggers.tsv" | LC_ALL=C sort) || true
-  echo "# SEQUENCES"; comm -3 <(tail -n +2 "$AUDIT_DIR/ledger-sequences.tsv" | LC_ALL=C sort) <(tail -n +2 "$AUDIT_DIR/schema-sequences.tsv" | LC_ALL=C sort) || true
+  echo "# FUNCTIONS"
+  cat "$AUDIT_DIR/function-diff.tsv"
+  echo "# TRIGGERS"
+  cat "$AUDIT_DIR/trigger-diff.tsv"
+  echo "# SEQUENCES"
+  cat "$AUDIT_DIR/sequence-diff.tsv"
 } > "$AUDIT_DIR/functions-triggers-diff.tsv"
 
 comm -13 <(tail -n +2 "$AUDIT_DIR/ledger-tables.tsv" | cut -f1-2 | LC_ALL=C sort) <(tail -n +2 "$AUDIT_DIR/schema-tables.tsv" | cut -f1-2 | LC_ALL=C sort) > "$AUDIT_DIR/missing-tables.tsv" || true
@@ -90,12 +97,16 @@ missing_tables=$(wc -l < "$AUDIT_DIR/missing-tables.tsv" | tr -d ' ')
 extra_tables=$(wc -l < "$AUDIT_DIR/extra-tables.tsv" | tr -d ' ')
 missing_columns=$(wc -l < "$AUDIT_DIR/missing-columns.tsv" | tr -d ' ')
 extra_columns=$(wc -l < "$AUDIT_DIR/extra-columns.tsv" | tr -d ' ')
+column_definition_diffs=$(wc -l < "$AUDIT_DIR/column-definition-diff.tsv" | tr -d ' ')
 constraint_diffs=$(wc -l < "$AUDIT_DIR/constraint-diff.tsv" | tr -d ' ')
 index_diffs=$(wc -l < "$AUDIT_DIR/index-diff.tsv" | tr -d ' ')
-function_trigger_sequence_diffs=$(wc -l < "$AUDIT_DIR/functions-triggers-diff.tsv" | tr -d ' ')
+function_diffs=$(wc -l < "$AUDIT_DIR/function-diff.tsv" | tr -d ' ')
+trigger_diffs=$(wc -l < "$AUDIT_DIR/trigger-diff.tsv" | tr -d ' ')
+sequence_diffs=$(wc -l < "$AUDIT_DIR/sequence-diff.tsv" | tr -d ' ')
+function_trigger_sequence_diffs=$((function_diffs + trigger_diffs + sequence_diffs))
 
 DRIFT_FOUND=false
-if [ "$missing_tables" != "0" ] || [ "$extra_tables" != "0" ] || [ "$missing_columns" != "0" ] || [ "$extra_columns" != "0" ] || [ "$constraint_diffs" != "0" ] || [ "$index_diffs" != "0" ] || [ "$function_trigger_sequence_diffs" != "0" ]; then
+if [ "$missing_tables" != "0" ] || [ "$extra_tables" != "0" ] || [ "$missing_columns" != "0" ] || [ "$extra_columns" != "0" ] || [ "$column_definition_diffs" != "0" ] || [ "$constraint_diffs" != "0" ] || [ "$index_diffs" != "0" ] || [ "$function_trigger_sequence_diffs" != "0" ]; then
   DRIFT_FOUND=true
 fi
 
@@ -105,8 +116,12 @@ fi
   echo "EXTRA_TABLES=$extra_tables"
   echo "MISSING_COLUMNS=$missing_columns"
   echo "EXTRA_COLUMNS=$extra_columns"
+  echo "COLUMN_DEFINITION_DIFF_LINES=$column_definition_diffs"
   echo "CONSTRAINT_DIFF_LINES=$constraint_diffs"
   echo "INDEX_DIFF_LINES=$index_diffs"
+  echo "FUNCTION_DIFF_LINES=$function_diffs"
+  echo "TRIGGER_DIFF_LINES=$trigger_diffs"
+  echo "SEQUENCE_DIFF_LINES=$sequence_diffs"
   echo "FUNCTION_TRIGGER_SEQUENCE_DIFF_LINES=$function_trigger_sequence_diffs"
   echo "Rules enforced: ledger_db uses migrate only; schema_db uses push only; no phase345; no 0030 manual; no inline column patching."
 } | tee "$AUDIT_DIR/workflow-summary.txt"
@@ -114,7 +129,16 @@ fi
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
   echo "drift_found=$DRIFT_FOUND" >> "$GITHUB_OUTPUT"
   echo "missing_tables=$missing_tables" >> "$GITHUB_OUTPUT"
+  echo "extra_tables=$extra_tables" >> "$GITHUB_OUTPUT"
   echo "missing_columns=$missing_columns" >> "$GITHUB_OUTPUT"
+  echo "extra_columns=$extra_columns" >> "$GITHUB_OUTPUT"
+  echo "column_definition_diffs=$column_definition_diffs" >> "$GITHUB_OUTPUT"
+  echo "constraint_diffs=$constraint_diffs" >> "$GITHUB_OUTPUT"
+  echo "index_diffs=$index_diffs" >> "$GITHUB_OUTPUT"
+  echo "function_diffs=$function_diffs" >> "$GITHUB_OUTPUT"
+  echo "trigger_diffs=$trigger_diffs" >> "$GITHUB_OUTPUT"
+  echo "sequence_diffs=$sequence_diffs" >> "$GITHUB_OUTPUT"
+  echo "function_trigger_sequence_diffs=$function_trigger_sequence_diffs" >> "$GITHUB_OUTPUT"
 fi
 
 exit 0
