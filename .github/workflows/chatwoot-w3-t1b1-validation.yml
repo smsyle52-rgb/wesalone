@@ -66,6 +66,11 @@ jobs:
           set -o pipefail
           pnpm --filter @workspace/db migrate 2>&1 | tee /tmp/migrate.log
 
+      - name: Apply supplemental schema migrations (0017-0030)
+        run: |
+          set -o pipefail
+          psql "$DATABASE_URL" -f scripts/migrate-phase345.sql 2>&1 | tee /tmp/migrate-phase345.log
+
       - name: API typecheck
         run: |
           set -o pipefail
