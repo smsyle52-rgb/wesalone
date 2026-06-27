@@ -82,6 +82,9 @@ jobs:
       - name: Run database migrations
         run: pnpm --filter @workspace/db migrate
 
+      - name: Synchronize isolated PostgreSQL schema
+        run: pnpm --filter @workspace/db push
+
       - name: Build TypeScript project references
         run: pnpm run typecheck:libs
 
@@ -102,7 +105,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - name: Run WhatsApp Business Profile tests
+      - name: Run WhatsApp Business Profile unit and route tests
         shell: bash
         run: |
           set -o pipefail
@@ -111,14 +114,33 @@ jobs:
             src/__tests__/whatsapp-business-profile.spec.ts \
             src/__tests__/whatsapp-business-profile-hardening.spec.ts \
             src/__tests__/whatsapp-business-profile.routes.spec.ts \
-            2>&1 | tee whatsapp-business-profile-vitest.log
+            2>&1 | tee whatsapp-business-profile-unit-vitest.log
 
-      - name: Upload WhatsApp Business Profile Vitest log
+      - name: Upload WhatsApp Business Profile unit test log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: whatsapp-business-profile-vitest-log
-          path: whatsapp-business-profile-vitest.log
+          name: whatsapp-business-profile-unit-vitest-log
+          path: whatsapp-business-profile-unit-vitest.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Run WhatsApp Business Profile PostgreSQL integration test
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server exec vitest run \
+            --config vitest.whatsapp-postgres.config.ts \
+            --reporter verbose \
+            src/__tests__/whatsapp-business-profile-postgres.integration.spec.ts \
+            2>&1 | tee whatsapp-business-profile-postgres-vitest.log
+
+      - name: Upload WhatsApp Business Profile PostgreSQL test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-business-profile-postgres-vitest-log
+          path: whatsapp-business-profile-postgres-vitest.log
           if-no-files-found: error
           retention-days: 1
 
@@ -126,7 +148,7 @@ jobs:
         shell: bash
         run: |
           test_name="preserves a real concurrent providerConfig update in PostgreSQL"
-          matching_lines="$(grep -F "$test_name" whatsapp-business-profile-vitest.log || true)"
+          matching_lines="$(grep -F "$test_name" whatsapp-business-profile-postgres-vitest.log || true)"
           if [ -z "$matching_lines" ]; then
             echo "ERROR: PostgreSQL concurrency test was not reported."
             exit 1
@@ -144,7 +166,19 @@ jobs:
           echo "PostgreSQL concurrency test executed and passed."
 
       - name: Web typecheck
-        run: pnpm --filter @workspace/web typecheck
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/web typecheck 2>&1 | tee web-typecheck.log
+
+      - name: Upload Web typecheck log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-typecheck-log
+          path: web-typecheck.log
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Build API (production bundle)
         run: pnpm --filter @workspace/api-server build
