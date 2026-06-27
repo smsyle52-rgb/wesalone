@@ -34,23 +34,6 @@ const CANONICAL_TARGET: Record<string, CommerceOrderState> = {
   returned: "Returned",
 };
 
-function findPath(from: CommerceOrderState, target: CommerceOrderState): CommerceOrderState[] | null {
-  if (from === target) return [];
-  const queue: Array<{ state: CommerceOrderState; path: CommerceOrderState[] }> = [{ state: from, path: [] }];
-  const visited = new Set<CommerceOrderState>([from]);
-  while (queue.length) {
-    const current = queue.shift()!;
-    for (const next of ORDER_TRANSITIONS[current.state] ?? []) {
-      if (visited.has(next)) continue;
-      const path = [...current.path, next];
-      if (next === target) return path;
-      visited.add(next);
-      queue.push({ state: next, path });
-    }
-  }
-  return null;
-}
-
 router.get("/products", requirePermission("products:read"), async (req: AuthenticatedRequest, res: Response) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
   const result = await pool.query(
@@ -196,9 +179,7 @@ router.post("/orders/:id/items", requirePermission("orders:update"), async (req:
     next();
     return;
   }
-  const product = await pool.query<{
-    variant_id: string; location_id: string;
-  }>(
+  const product = await pool.query<{ variant_id: string; location_id: string }>(
     `SELECT v.id AS variant_id, l.location_id
      FROM inventory_products p
      JOIN product_variants v ON v.workspace_id = p.workspace_id AND v.product_id = p.id AND v.status = 'active'
@@ -250,30 +231,38 @@ router.patch("/orders/:id/status", requirePermission("orders:update"), async (re
     res.status(404).json({ error: "الطلب غير موجود" });
     return;
   }
+
+  if (LEGACY_STATUS[current] === parsed.data.status) {
+    res.json({ order: { id: req.params.id, status: parsed.data.status, canonicalStatus: current }, idempotent: true });
+    return;
+  }
+
   const target = CANONICAL_TARGET[parsed.data.status];
-  const path = findPath(current, target);
-  if (path === null) {
+  if (!(ORDER_TRANSITIONS[current] ?? []).includes(target)) {
     res.status(409).json({ error: `لا يمكن تغيير حالة الطلب من ${current} إلى ${target}`, code: "INVALID_ORDER_TRANSITION" });
     return;
   }
+
   const baseKey = req.id || crypto.randomUUID();
   const reason = parsed.data.status === "cancelled" ? parsed.data.cancelReason : parsed.data.returnedReason;
   try {
-    let fromState = current;
-    for (let index = 0; index < path.length; index += 1) {
-      const step = path[index]!;
-      await transitionOrder({
-        workspaceId: req.sessionUser.activeWorkspaceId,
-        orderId: req.params.id as string,
-        targetState: step,
-        userId: req.sessionUser.userId,
-        correlationId: baseKey,
-        idempotencyKey: `${baseKey}:${index}:${step}`,
-        reason,
-      });
-      fromState = step;
-    }
-    res.json({ order: { id: req.params.id, status: LEGACY_STATUS[fromState] ?? fromState, canonicalStatus: fromState } });
+    const transition = await transitionOrder({
+      workspaceId: req.sessionUser.activeWorkspaceId,
+      orderId: req.params.id as string,
+      targetState: target,
+      userId: req.sessionUser.userId,
+      correlationId: baseKey,
+      idempotencyKey: `legacy:${baseKey}:${target}`,
+      reason,
+    });
+    res.json({
+      order: {
+        id: req.params.id,
+        status: LEGACY_STATUS[transition.toState] ?? transition.toState,
+        canonicalStatus: transition.toState,
+      },
+      transition,
+    });
   } catch (error) {
     if (error instanceof CommerceConflictError) {
       res.status(409).json({ error: error.message, code: error.code });
