@@ -11,7 +11,6 @@ export function hydrateCommerceContext(req: Request, _res: Response, next: NextF
       capabilities.add("inventory:manage");
       capabilities.add("inventory:adjust");
     }
-    if (capabilities.has("payments:confirm")) capabilities.add("payments:refund");
     authReq.sessionUser.permissions = [...capabilities];
   }
   next();
