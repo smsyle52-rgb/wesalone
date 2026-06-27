@@ -68,18 +68,40 @@ jobs:
           SQL
 
       - name: Migrate empty database
+        id: migrate_fresh
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/commerce_fresh
-        run: pnpm --filter @workspace/db migrate
+        run: |
+          set +e
+          pnpm --filter @workspace/db migrate > /tmp/migrate-fresh.log 2>&1
+          status=$?
+          cat /tmp/migrate-fresh.log
+          exit "$status"
 
       - name: Migrate old main database then upgrade with branch migrations
+        id: migrate_old
         run: |
-          git worktree add /tmp/khadamatak-main origin/main
-          cd /tmp/khadamatak-main
-          pnpm install --frozen-lockfile
-          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/commerce_old pnpm --filter @workspace/db migrate
-          cd "$GITHUB_WORKSPACE"
-          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/commerce_old pnpm --filter @workspace/db migrate
+          set +e
+          {
+            git worktree add /tmp/khadamatak-main origin/main
+            cd /tmp/khadamatak-main
+            pnpm install --frozen-lockfile
+            DATABASE_URL=postgresql://postgres:postgres@localhost:5432/commerce_old pnpm --filter @workspace/db migrate
+            cd "$GITHUB_WORKSPACE"
+            DATABASE_URL=postgresql://postgres:postgres@localhost:5432/commerce_old pnpm --filter @workspace/db migrate
+          } > /tmp/migrate-old.log 2>&1
+          status=$?
+          cat /tmp/migrate-old.log
+          exit "$status"
+
+      - name: Upload migration diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-diagnostics
+          path: /tmp/migrate-*.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Verify migration results
         run: |
