@@ -28,6 +28,7 @@ import productsRouter from "../modules/products/products.routes";
 import uploadsRouter from "../modules/uploads/uploads.routes";
 import pointsRouter from "../modules/points/points.routes";
 import adminRouter from "../modules/admin/admin.routes";
+import legacyCommerceCompatRouter from "../modules/commerce/legacy-commerce-compat.routes";
 import inventoryRouter from "../modules/commerce/inventory.routes";
 import commerceProductsRouter from "../modules/commerce/products-commerce.routes";
 import commerceOrdersRouter from "../modules/commerce/orders-commerce.routes";
@@ -52,9 +53,7 @@ router.use("/tasks", tasksRouter);
 router.use("/followups", followupsRouter);
 router.use("/opportunities", opportunitiesRouter);
 
-// Commerce handlers intentionally precede legacy handlers. They replace only the
-// routes they implement and allow the remaining existing order/payment/product UI
-// endpoints to continue working during the gradual migration.
+router.use(legacyCommerceCompatRouter);
 router.use("/inventory", inventoryRouter);
 router.use("/products", commerceProductsRouter);
 router.use("/orders", commerceOrdersRouter);
