@@ -25,8 +25,9 @@ const adjustmentSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(200),
 });
 
-function correlationId(req: AuthenticatedRequest) {
-  return req.id || req.header("x-correlation-id") || crypto.randomUUID();
+function correlationId(req: AuthenticatedRequest): string {
+  if (req.id !== undefined && req.id !== null) return String(req.id);
+  return req.header("x-correlation-id") || crypto.randomUUID();
 }
 
 function handleCommerceError(error: unknown, res: Response) {
@@ -118,10 +119,11 @@ router.post("/levels/:id/adjust", requirePermission("inventory:adjust"), async (
     return;
   }
   const { activeWorkspaceId, userId } = req.sessionUser;
+  const levelId = String(req.params.id);
   const level = await pool.query<{ product_variant_id: string; location_id: string }>(
     `SELECT product_variant_id, location_id FROM inventory_stock_levels
      WHERE id = $1 AND workspace_id = $2`,
-    [req.params.id, activeWorkspaceId],
+    [levelId, activeWorkspaceId],
   );
   const stock = level.rows[0];
   if (!stock) {
@@ -146,7 +148,7 @@ router.post("/levels/:id/adjust", requirePermission("inventory:adjust"), async (
       action: "update",
       severity: "warning",
       entityType: "inventory_stock_level",
-      entityId: req.params.id,
+      entityId: levelId,
       newData: parsed.data,
     });
     res.json({ stock: result });
