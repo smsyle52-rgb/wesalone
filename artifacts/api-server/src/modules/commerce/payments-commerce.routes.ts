@@ -40,9 +40,9 @@ function paymentStatus(total: number, netPaid: number, refunded: number) {
   return "PartiallyPaid";
 }
 
-async function recalculateOrderPayment(client: import("pg").PoolClient, workspaceId: string, orderId: string) {
+async function paymentSummary(client: import("pg").PoolClient, workspaceId: string, orderId: string, persist: boolean) {
   const orderResult = await client.query<{ total_amount: string }>(
-    "SELECT total_amount FROM orders WHERE id = $1 AND workspace_id = $2 FOR UPDATE",
+    `SELECT total_amount FROM orders WHERE id = $1 AND workspace_id = $2${persist ? " FOR UPDATE" : ""}`,
     [orderId, workspaceId],
   );
   const order = orderResult.rows[0];
@@ -60,11 +60,24 @@ async function recalculateOrderPayment(client: import("pg").PoolClient, workspac
   const refunded = Number(paidResult.rows[0]!.refunded);
   const netPaid = Math.max(0, paid - refunded);
   const status = paymentStatus(Number(order.total_amount), netPaid, refunded);
-  await client.query(
-    "UPDATE orders SET paid_amount = $1, payment_status = $2, updated_at = now(), version = version + 1 WHERE id = $3 AND workspace_id = $4",
-    [netPaid.toFixed(2), status, orderId, workspaceId],
-  );
-  return { totalAmount: Number(order.total_amount), paid, refunded, netPaid, remaining: Math.max(0, Number(order.total_amount) - netPaid), status };
+  if (persist) {
+    await client.query(
+      "UPDATE orders SET paid_amount = $1, payment_status = $2, updated_at = now(), version = version + 1 WHERE id = $3 AND workspace_id = $4",
+      [netPaid.toFixed(2), status, orderId, workspaceId],
+    );
+  }
+  return {
+    totalAmount: Number(order.total_amount),
+    paid,
+    refunded,
+    netPaid,
+    remaining: Math.max(0, Number(order.total_amount) - netPaid),
+    status,
+  };
+}
+
+function nullableText(value: unknown) {
+  return value == null ? null : String(value);
 }
 
 router.get("/", requirePermission("payments:read"), async (req: AuthenticatedRequest, res: Response) => {
@@ -100,16 +113,10 @@ router.post("/", requirePermission("payments:create"), async (req: Authenticated
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const prior = await client.query(
-      "SELECT * FROM payments WHERE workspace_id = $1 AND idempotency_key = $2 LIMIT 1",
-      [activeWorkspaceId, parsed.data.idempotencyKey],
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [`payment:${activeWorkspaceId}:${parsed.data.idempotencyKey}`],
     );
-    if (prior.rows[0]) {
-      await client.query("COMMIT");
-      res.json({ payment: prior.rows[0], idempotent: true });
-      return;
-    }
-
     const orderResult = await client.query<{
       id: string; total_amount: string; currency: string; contact_id: string | null; status: string;
     }>(
@@ -119,6 +126,30 @@ router.post("/", requirePermission("payments:create"), async (req: Authenticated
     );
     const order = orderResult.rows[0];
     if (!order) throw new Error("ORDER_NOT_FOUND");
+
+    const prior = await client.query<{
+      id: string; order_id: string | null; amount: string; currency: string; method: string;
+      external_reference: string | null; receipt_url: string | null; notes: string | null;
+    }>(
+      `SELECT id, order_id, amount, currency, method, external_reference, receipt_url, notes
+       FROM payments WHERE workspace_id = $1 AND idempotency_key = $2 LIMIT 1`,
+      [activeWorkspaceId, parsed.data.idempotencyKey],
+    );
+    const priorPayment = prior.rows[0];
+    if (priorPayment) {
+      const sameRequest = priorPayment.order_id === parsed.data.orderId
+        && Number(priorPayment.amount) === parsed.data.amount
+        && priorPayment.currency === parsed.data.currency
+        && priorPayment.method === parsed.data.method
+        && priorPayment.external_reference === nullableText(parsed.data.externalReference)
+        && priorPayment.receipt_url === nullableText(parsed.data.receiptUrl)
+        && priorPayment.notes === nullableText(parsed.data.notes);
+      if (!sameRequest) throw new Error("IDEMPOTENCY_KEY_REUSED");
+      await client.query("COMMIT");
+      res.json({ payment: priorPayment, idempotent: true });
+      return;
+    }
+
     if (["Cancelled", "Returned"].includes(order.status)) throw new Error("ORDER_TERMINAL");
     if (order.currency !== parsed.data.currency) throw new Error("CURRENCY_MISMATCH");
 
@@ -169,6 +200,7 @@ router.post("/", requirePermission("payments:create"), async (req: Authenticated
       ORDER_TERMINAL: "لا يمكن تسجيل دفعة على طلب ملغي أو مرتجع",
       CURRENCY_MISMATCH: "عملة الدفعة لا تطابق عملة الطلب",
       OVERPAYMENT: "مجموع الدفعات المعلقة والمؤكدة يتجاوز قيمة الطلب",
+      IDEMPOTENCY_KEY_REUSED: "استُخدم مفتاح idempotency نفسه لبيانات دفعة مختلفة",
     };
     if (messages[code]) {
       res.status(code === "ORDER_NOT_FOUND" ? 404 : 409).json({ error: messages[code], code });
@@ -194,7 +226,7 @@ router.post("/:id/confirm", requirePermission("payments:confirm"), async (req: A
     const payment = paymentResult.rows[0];
     if (!payment) throw new Error("PAYMENT_NOT_FOUND");
     if (["Paid", "confirmed"].includes(payment.status)) {
-      const summary = payment.order_id ? await recalculateOrderPayment(client, activeWorkspaceId, payment.order_id) : null;
+      const summary = payment.order_id ? await paymentSummary(client, activeWorkspaceId, payment.order_id, false) : null;
       await client.query("COMMIT");
       res.json({ payment, summary, idempotent: true });
       return;
@@ -207,7 +239,7 @@ router.post("/:id/confirm", requirePermission("payments:confirm"), async (req: A
        WHERE id = $2 AND workspace_id = $3`,
       [userId, payment.id, activeWorkspaceId],
     );
-    const summary = payment.order_id ? await recalculateOrderPayment(client, activeWorkspaceId, payment.order_id) : null;
+    const summary = payment.order_id ? await paymentSummary(client, activeWorkspaceId, payment.order_id, true) : null;
     await client.query("COMMIT");
 
     await createAuditLog({
@@ -282,15 +314,10 @@ router.post("/:id/refunds", requirePermission("payments:refund"), async (req: Au
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const prior = await client.query(
-      "SELECT * FROM payment_refunds WHERE workspace_id = $1 AND idempotency_key = $2 LIMIT 1",
-      [activeWorkspaceId, parsed.data.idempotencyKey],
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [`refund:${activeWorkspaceId}:${parsed.data.idempotencyKey}`],
     );
-    if (prior.rows[0]) {
-      await client.query("COMMIT");
-      res.json({ refund: prior.rows[0], idempotent: true });
-      return;
-    }
     const paymentResult = await client.query<{
       id: string; order_id: string | null; amount: string; currency: string; status: string;
     }>(
@@ -299,6 +326,26 @@ router.post("/:id/refunds", requirePermission("payments:refund"), async (req: Au
     );
     const payment = paymentResult.rows[0];
     if (!payment) throw new Error("PAYMENT_NOT_FOUND");
+
+    const prior = await client.query<{
+      id: string; payment_id: string; amount: string; reason: string; external_reference: string | null;
+    }>(
+      `SELECT id, payment_id, amount, reason, external_reference
+       FROM payment_refunds WHERE workspace_id = $1 AND idempotency_key = $2 LIMIT 1`,
+      [activeWorkspaceId, parsed.data.idempotencyKey],
+    );
+    const priorRefund = prior.rows[0];
+    if (priorRefund) {
+      const sameRequest = priorRefund.payment_id === payment.id
+        && Number(priorRefund.amount) === parsed.data.amount
+        && priorRefund.reason === parsed.data.reason
+        && priorRefund.external_reference === nullableText(parsed.data.externalReference);
+      if (!sameRequest) throw new Error("IDEMPOTENCY_KEY_REUSED");
+      await client.query("COMMIT");
+      res.json({ refund: priorRefund, idempotent: true });
+      return;
+    }
+
     if (!["Paid", "PartiallyRefunded", "confirmed"].includes(payment.status)) throw new Error("PAYMENT_NOT_REFUNDABLE");
     const refundsResult = await client.query<{ total: string }>(
       `SELECT COALESCE(SUM(amount), 0)::text AS total FROM payment_refunds
@@ -324,6 +371,7 @@ router.post("/:id/refunds", requirePermission("payments:refund"), async (req: Au
       PAYMENT_NOT_FOUND: "الدفعة غير موجودة",
       PAYMENT_NOT_REFUNDABLE: "لا يمكن استرجاع مبلغ من دفعة غير معتمدة",
       OVER_REFUND: "مجموع مبالغ الاسترجاع يتجاوز قيمة الدفعة",
+      IDEMPOTENCY_KEY_REUSED: "استُخدم مفتاح idempotency نفسه لبيانات استرجاع مختلفة",
     };
     if (messages[code]) {
       res.status(code === "PAYMENT_NOT_FOUND" ? 404 : 409).json({ error: messages[code], code });
@@ -349,7 +397,7 @@ router.post("/refunds/:refundId/confirm", requirePermission("payments:refund"), 
     const refund = refundResult.rows[0];
     if (!refund) throw new Error("REFUND_NOT_FOUND");
     if (refund.status === "Refunded") {
-      const summary = refund.order_id ? await recalculateOrderPayment(client, activeWorkspaceId, refund.order_id) : null;
+      const summary = refund.order_id ? await paymentSummary(client, activeWorkspaceId, refund.order_id, false) : null;
       await client.query("COMMIT");
       res.json({ refund, summary, idempotent: true });
       return;
@@ -374,7 +422,7 @@ router.post("/refunds/:refundId/confirm", requirePermission("payments:refund"), 
       "UPDATE payments SET status = $1, updated_at = now() WHERE id = $2 AND workspace_id = $3",
       [paymentState, refund.payment_id, activeWorkspaceId],
     );
-    const summary = refund.order_id ? await recalculateOrderPayment(client, activeWorkspaceId, refund.order_id) : null;
+    const summary = refund.order_id ? await paymentSummary(client, activeWorkspaceId, refund.order_id, true) : null;
     await client.query("COMMIT");
 
     await createAuditLog({
