@@ -8,7 +8,7 @@ interface TransitionInput {
   orderId: string;
   targetState: CommerceOrderState;
   userId: string;
-  correlationId: string | number;
+  correlationId: unknown;
   idempotencyKey: string;
   reason?: string;
   reservationExpiresAt?: Date | null;
@@ -26,7 +26,7 @@ function ensureTransitionAllowed(current: CommerceOrderState, target: CommerceOr
 
 export async function transitionOrder(input: TransitionInput) {
   const client = await pool.connect();
-  const correlationId = String(input.correlationId);
+  const correlationId = input.correlationId == null ? crypto.randomUUID() : String(input.correlationId);
   try {
     await client.query("BEGIN");
 
