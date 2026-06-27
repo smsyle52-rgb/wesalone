@@ -8,9 +8,11 @@ import { publishDomainEvent } from "../../lib/events";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { ORDER_STATES, CommerceConflictError } from "./commerce.constants";
 import { transitionOrder } from "./order-lifecycle.service";
+import orderCreateRouter from "./order-create.routes";
 
 const router = Router();
 router.use(requireSession);
+router.use(orderCreateRouter);
 
 const catalogItemSchema = z.object({
   productVariantId: z.string().uuid(),
