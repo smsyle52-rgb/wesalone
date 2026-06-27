@@ -1,0 +1,109 @@
+name: WhatsApp Business Profile Validation
+
+on:
+  push:
+    branches:
+      - chore/whatsapp-validation-ci
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate — typecheck · migrations · tests · build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: wesal_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_local_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:ci_local_only@localhost:5432/wesal_test
+      NODE_ENV: test
+      META_DRY_RUN: "true"
+      META_GRAPH_VERSION: v22.0
+      # Suppress secret printing: DATABASE_URL is set above with local-only credentials
+      # No production or staging URL is used anywhere in this workflow
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Enable Corepack and activate pnpm 10.33.2
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.2 --activate
+          pnpm --version
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for PostgreSQL…"
+            sleep 1
+          done
+          echo "PostgreSQL is ready."
+
+      - name: Verify DATABASE_URL is set (guard)
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "ERROR: DATABASE_URL is not set — aborting to prevent skipped PostgreSQL tests from appearing as passing."
+            exit 1
+          fi
+          echo "DATABASE_URL is present (value masked)."
+
+      - name: Run database migrations
+        run: pnpm --filter @workspace/db migrate
+
+      - name: API typecheck
+        run: pnpm --filter @workspace/api-server typecheck
+
+      - name: Web typecheck
+        run: pnpm --filter @workspace/web typecheck
+
+      - name: Run WhatsApp Business Profile tests (unit + PostgreSQL)
+        run: |
+          pnpm --filter @workspace/api-server exec vitest run \
+            src/__tests__/whatsapp-business-profile.spec.ts \
+            src/__tests__/whatsapp-business-profile-hardening.spec.ts \
+            src/__tests__/whatsapp-business-profile.routes.spec.ts
+
+      - name: Verify PostgreSQL test was NOT skipped
+        run: |
+          # Re-run hardening spec in verbose mode and confirm the postgresIt test ran
+          pnpm --filter @workspace/api-server exec vitest run \
+            --reporter verbose \
+            src/__tests__/whatsapp-business-profile-hardening.spec.ts 2>&1 | tee /tmp/hardening-verbose.txt
+          if grep -qE "skip|SKIP" /tmp/hardening-verbose.txt; then
+            echo "ERROR: One or more postgresIt tests were skipped — DATABASE_URL may not have reached Vitest."
+            cat /tmp/hardening-verbose.txt
+            exit 1
+          fi
+          echo "PostgreSQL test executed successfully (no skips detected)."
+
+      - name: Run full api-server test suite
+        run: pnpm --filter @workspace/api-server test
+
+      - name: Build API (production bundle)
+        run: pnpm --filter @workspace/api-server build
+
+      - name: Build Web (production bundle)
+        env:
+          BASE_PATH: /
+        run: pnpm --filter @workspace/web build
