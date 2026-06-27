@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Bot, Check, ChevronLeft, MessageCircle, Plug, Sparkles, X } from "lucide-react";
+import { Bot, Check, ChevronLeft, MessageCircle, Plug, Send, Sparkles, X } from "lucide-react";
 import { FaInstagram, FaWhatsapp } from "react-icons/fa6";
 import { FaFacebookMessenger } from "react-icons/fa6";
 import { useAuth } from "@/context/AuthContext";
@@ -55,6 +55,9 @@ export default function OnboardingPage() {
   const [instructions, setInstructions] = useState("");
   const [agentId, setAgentId] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [testInput, setTestInput] = useState("");
+  const [testMessages, setTestMessages] = useState<Array<{ from: "user" | "agent"; text: string }>>([]);
+  const [testReplying, setTestReplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const sectorsQuery = useQuery({ queryKey: ["sector-profiles-ob"], queryFn: () => apiFetch("sectors") });
@@ -155,12 +158,26 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ settings: { onboarding_completed: true } }),
       });
-      setOnboardingCompleted(true);
-      navigate("/dashboard");
-    } catch {
-      setOnboardingCompleted(true);
-      navigate("/dashboard");
-    }
+    } catch { /* silent */ }
+    sessionStorage.setItem("show-tour", "1");
+    setOnboardingCompleted(true);
+    navigate("/dashboard");
+  }
+
+  function sendTestMessage() {
+    const text = testInput.trim();
+    if (!text || testReplying) return;
+    setTestMessages((prev) => [...prev, { from: "user", text }]);
+    setTestInput("");
+    setTestReplying(true);
+    setTimeout(() => {
+      const name = agentName.trim() || "وكيل المبيعات";
+      setTestMessages((prev) => [
+        ...prev,
+        { from: "agent", text: `مرحباً! أنا ${name}، استلمت رسالتك وسأرد عليك بأسرع وقت. كيف يمكنني مساعدتك؟` },
+      ]);
+      setTestReplying(false);
+    }, 1200);
   }
 
   async function skipOnboarding() {
@@ -364,32 +381,64 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 5 — Finish */}
+          {/* Step 5 — Test message */}
           {step === 5 && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 text-center">
-              <div className="space-y-3">
-                <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-primary/10">
-                  <span className="text-5xl">🎉</span>
+            <div className="space-y-5 animate-in fade-in slide-in-from-right-4">
+              <div className="text-center space-y-2">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <MessageCircle className="h-8 w-8" />
                 </div>
-                <h2 className="text-2xl font-extrabold text-foreground">وكيلك جاهز!</h2>
-                <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                  {agentId
-                    ? `تم إنشاء "${agentName || "وكيل المبيعات"}" بنجاح. يمكنك الآن ربطه بالقنوات وضبط التعليمات من لوحة التحكم.`
-                    : "يمكنك الآن فتح لوحة التحكم والبدء باستقبال الرسائل."}
-                </p>
+                <h2 className="text-xl font-extrabold text-foreground">جرّب وكيلك الآن</h2>
+                <p className="text-sm text-muted-foreground">أرسل رسالة واشوف كيف سيرد الوكيل</p>
               </div>
 
-              <div className="rounded-2xl bg-card border border-border p-4 text-sm text-right space-y-2">
-                {[
-                  "استقبل رسائل عملائك في مكان واحد",
-                  "الوكيل يرد تلقائياً حسب تعليماتك",
-                  "تابع أداء الفريق من لوحة التحليلات",
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-2 text-muted-foreground">
-                    <Check className="h-4 w-4 shrink-0 text-primary" />
-                    <span>{item}</span>
+              {/* Chat area */}
+              <div className="rounded-2xl border border-border bg-muted/30 flex flex-col gap-3 p-4 min-h-[180px]">
+                {testMessages.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center mt-8">اكتب رسالة أدناه لتجربة الوكيل</p>
+                )}
+                {testMessages.map((msg, i) => (
+                  <div key={i} className={cn("flex", msg.from === "user" ? "justify-start" : "justify-end")}>
+                    <div className={cn(
+                      "max-w-[80%] rounded-2xl px-3.5 py-2 text-sm",
+                      msg.from === "user"
+                        ? "bg-background border border-border text-foreground rounded-ss-none"
+                        : "bg-primary text-primary-foreground rounded-se-none"
+                    )}>
+                      {msg.from === "agent" && (
+                        <p className="text-[0.65rem] font-bold opacity-70 mb-0.5">{agentName.trim() || "وكيل المبيعات"}</p>
+                      )}
+                      {msg.text}
+                    </div>
                   </div>
                 ))}
+                {testReplying && (
+                  <div className="flex justify-end">
+                    <div className="bg-primary/20 rounded-2xl rounded-se-none px-3.5 py-2 text-sm text-primary flex gap-1 items-center">
+                      <span className="animate-bounce delay-0">·</span>
+                      <span className="animate-bounce delay-75">·</span>
+                      <span className="animate-bounce delay-150">·</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input */}
+              <div className="flex gap-2">
+                <input
+                  value={testInput}
+                  onChange={(e) => setTestInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendTestMessage()}
+                  placeholder="اكتب رسالة تجريبية..."
+                  className="flex-1 rounded-xl border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+                <button
+                  onClick={sendTestMessage}
+                  disabled={!testInput.trim() || testReplying}
+                  className="rounded-xl bg-primary px-3 py-2.5 text-primary-foreground disabled:opacity-40 hover:bg-primary/90 transition-colors"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
               </div>
             </div>
           )}
@@ -448,7 +497,7 @@ export default function OnboardingPage() {
                 disabled={finishing}
                 className="w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 active:scale-[.98] transition-all disabled:opacity-60"
               >
-                {finishing ? "جارٍ الفتح…" : "افتح لوحة التحكم"}
+                {finishing ? "جارٍ الفتح…" : "افتح لوحة التحكم ←"}
               </button>
             )}
 
