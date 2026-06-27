@@ -83,7 +83,20 @@ jobs:
         run: pnpm run typecheck:libs
 
       - name: WhatsApp Business Profile typecheck
-        run: pnpm --filter @workspace/api-server exec tsc -p tsconfig.whatsapp-business-profile.json --noEmit
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server exec tsc \
+            -p tsconfig.whatsapp-business-profile.json \
+            --noEmit 2>&1 | tee /tmp/whatsapp-feature-typecheck.txt
+
+      - name: Upload WhatsApp feature typecheck log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-feature-typecheck-log
+          path: /tmp/whatsapp-feature-typecheck.txt
+          if-no-files-found: error
 
       - name: Run WhatsApp Business Profile tests
         shell: bash
@@ -154,4 +167,16 @@ jobs:
         run: pnpm run typecheck:libs
 
       - name: Run full api-server typecheck for legacy error reporting
-        run: pnpm --filter @workspace/api-server typecheck
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server typecheck \
+            2>&1 | tee /tmp/full-api-typecheck.txt
+
+      - name: Upload full API typecheck log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-api-typecheck-log
+          path: /tmp/full-api-typecheck.txt
+          if-no-files-found: error
