@@ -83,7 +83,7 @@ tasks:
   - id: W2-T1
     title: "Persist webhook_events + fast-ack in POST /meta (behind INGEST_DEFERRED)"
     objective: "Make the live webhook durable: verify HMAC, persist raw event + correlation id, return 200 fast; keep inline path when flag off."
-    status: todo
+    status: done
     wave: 2
     dependencies: [W1-T1, W1-T2]
     verified_current_files:

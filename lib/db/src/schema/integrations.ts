@@ -66,6 +66,7 @@ export const webhookEventsTable = pgTable(
     eventType: text("event_type").notNull(),
     externalEventId: text("external_event_id"),
     idempotencyKey: text("idempotency_key").notNull(),
+    correlationId: uuid("correlation_id"),
     headers: jsonb("headers").notNull().default({}),
     payload: jsonb("payload").notNull().default({}),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
@@ -80,6 +81,7 @@ export const webhookEventsTable = pgTable(
     index("idx_webhook_events_account").on(table.providerAccountId),
     index("idx_webhook_events_status").on(table.status),
     index("idx_webhook_events_received_at").on(table.receivedAt),
+    index("idx_webhook_events_correlation").on(table.correlationId),
   ],
 );
 

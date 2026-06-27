@@ -1,4 +1,5 @@
 import express, { Router, type Request, type Response } from "express";
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   channelAccountsTable,
@@ -14,6 +15,7 @@ import { env } from "../../lib/env";
 import { logger } from "../../lib/logger";
 import { verifyMetaHmac } from "../../lib/meta-signature";
 import { handleMetaWebhook } from "../integrations/meta-webhook.handler";
+import { ingestWebhookEvent } from "../integrations/webhookIngest.service";
 import { notifyWorkspace } from "../../services/notifications";
 
 type RequestWithRawBody = Request & { rawBody?: Buffer };
@@ -546,8 +548,22 @@ router.post("/meta", express.raw({ type: "*/*", limit: "2mb" }), async (req: Req
     return;
   }
 
+  const payload = (() => { try { return parsePayload(req, rawBody); } catch { return null; } })();
+  if (!payload) {
+    res.status(200).send("EVENT_RECEIVED");
+    return;
+  }
+
+  // W2-T1: fast-ack path — persist raw event, skip inline processing
+  if (env.INGEST_DEFERRED) {
+    const correlationId = randomUUID();
+    ingestWebhookEvent({ provider: "meta", headers: req.headers, payload, correlationId })
+      .catch((err) => logger.error({ err, correlationId }, "Failed to persist deferred webhook_events row"));
+    res.status(200).send("EVENT_RECEIVED");
+    return;
+  }
+
   try {
-    const payload = parsePayload(req, rawBody);
     // PD-6 fix: route instagram/page (Messenger) webhooks to the shared dispatcher
     const objectType = (payload as any)?.object;
     if (objectType === "instagram" || objectType === "page") {

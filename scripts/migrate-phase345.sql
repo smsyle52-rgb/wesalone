@@ -1536,4 +1536,18 @@ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+-- ── W2-T1: correlation_id on webhook_events ───────────────────────────────────
+-- Links a received webhook_events row to the domain_events / outbox_events it
+-- produces. NULL when INGEST_DEFERRED=false (inline processing, no correlation).
+
+DO $$
+BEGIN
+  ALTER TABLE webhook_events ADD COLUMN correlation_id uuid;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_webhook_events_correlation
+  ON webhook_events(correlation_id)
+  WHERE correlation_id IS NOT NULL;
+
 SELECT 'MIGRATION_BUNDLE_APPLIED_SUCCESSFULLY' AS status;
