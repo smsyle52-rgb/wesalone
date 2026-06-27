@@ -1,0 +1,118 @@
+name: Chatwoot W3-T1B1 Lifecycle Validation
+
+on:
+  push:
+    branches:
+      - chore/chatwoot-w3-t1b1-validation-ci
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate — typecheck · migrations · lifecycle tests · build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: wesal_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_local_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:ci_local_only@localhost:5432/wesal_test
+      NODE_ENV: test
+      META_DRY_RUN: "true"
+      CI: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm 10.33.2
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify DATABASE_URL guard
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "ERROR: DATABASE_URL is not set — aborting."
+            exit 1
+          fi
+          echo "DATABASE_URL is set (value masked)."
+
+      - name: Build lib declarations (typecheck:libs)
+        run: pnpm run typecheck:libs
+
+      - name: Run database migrations
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/db migrate 2>&1 | tee /tmp/migrate.log
+
+      - name: API typecheck
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server typecheck 2>&1 | tee /tmp/typecheck-api.log
+
+      - name: Run lifecycle tests (unit)
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server exec vitest run \
+            src/tests/conversation-lifecycle.spec.ts \
+            src/tests/conversation-lifecycle-writers.spec.ts \
+            src/tests/conversation-lifecycle-compatibility.spec.ts \
+            src/tests/conversation-lifecycle-routes-actual.spec.ts \
+            2>&1 | tee /tmp/lifecycle-unit.log
+
+      - name: Run lifecycle PostgreSQL test
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server exec vitest run \
+            --reporter verbose \
+            src/tests/conversation-lifecycle-postgres.spec.ts \
+            2>&1 | tee /tmp/lifecycle-postgres.log
+
+      - name: Verify PostgreSQL test was NOT skipped
+        run: |
+          if grep -qiE "^\s*(skip|SKIP|skipped)" /tmp/lifecycle-postgres.log; then
+            echo "ERROR: PostgreSQL lifecycle test was skipped — DATABASE_URL may not have reached Vitest."
+            cat /tmp/lifecycle-postgres.log
+            exit 1
+          fi
+          echo "PostgreSQL lifecycle test executed (no skips detected)."
+
+      - name: Run full api-server test suite
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server test 2>&1 | tee /tmp/test-full.log
+
+      - name: Build API (production bundle)
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server build 2>&1 | tee /tmp/build-api.log
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatwoot-w3-t1b1-validation-logs
+          path: /tmp/*.log
+          retention-days: 3
+          if-no-files-found: ignore
