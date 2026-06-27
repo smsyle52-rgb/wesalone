@@ -28,6 +28,7 @@ import productsRouter from "../modules/products/products.routes";
 import uploadsRouter from "../modules/uploads/uploads.routes";
 import pointsRouter from "../modules/points/points.routes";
 import adminRouter from "../modules/admin/admin.routes";
+import commerceOrderSafetyRouter from "../modules/commerce/commerce-order-safety.routes";
 import legacyCommerceCompatRouter from "../modules/commerce/legacy-commerce-compat.routes";
 import inventoryRouter from "../modules/commerce/inventory.routes";
 import commerceProductsRouter from "../modules/commerce/products-commerce.routes";
@@ -52,7 +53,7 @@ router.use("/tickets", ticketsRouter);
 router.use("/tasks", tasksRouter);
 router.use("/followups", followupsRouter);
 router.use("/opportunities", opportunitiesRouter);
-
+router.use(commerceOrderSafetyRouter);
 router.use(legacyCommerceCompatRouter);
 router.use("/inventory", inventoryRouter);
 router.use("/products", commerceProductsRouter);
