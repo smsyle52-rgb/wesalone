@@ -34,6 +34,15 @@ async function readOrder(workspaceId: string, orderId: string) {
   return order;
 }
 
+async function movementAlreadyRecorded(workspaceId: string, idempotencyPrefix: string) {
+  const result = await pool.query(
+    `SELECT id FROM inventory_movements
+     WHERE workspace_id = $1 AND idempotency_key LIKE $2 LIMIT 1`,
+    [workspaceId, `${idempotencyPrefix}:%`],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 async function persistSimpleTransition(
   input: TransitionInput,
   currentState: CommerceOrderState,
@@ -47,6 +56,10 @@ async function persistSimpleTransition(
     );
     const current = locked.rows[0]?.status;
     if (!current) throw new CommerceConflictError("ORDER_NOT_FOUND", "الطلب غير موجود");
+    if (current === input.targetState) {
+      await client.query("COMMIT");
+      return { fromState: current, toState: input.targetState, idempotent: true };
+    }
     if (current !== currentState) {
       throw new CommerceConflictError("ORDER_STATE_CHANGED", "تغيّرت حالة الطلب أثناء العملية، أعد المحاولة");
     }
@@ -89,7 +102,7 @@ async function persistSimpleTransition(
         input.reason ?? null, input.correlationId, input.userId],
     );
     await client.query("COMMIT");
-    return { fromState: current, toState: input.targetState };
+    return { fromState: current, toState: input.targetState, idempotent: false };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -100,6 +113,9 @@ async function persistSimpleTransition(
 
 export async function transitionOrder(input: TransitionInput) {
   const order = await readOrder(input.workspaceId, input.orderId);
+  if (order.status === input.targetState) {
+    return { fromState: order.status, toState: input.targetState, idempotent: true };
+  }
   ensureTransitionAllowed(order.status, input.targetState);
 
   if (input.targetState === "Reserved") {
@@ -127,26 +143,32 @@ export async function transitionOrder(input: TransitionInput) {
   }
 
   if (input.targetState === "Delivered") {
-    await consumeInventoryForOrder({
-      workspaceId: input.workspaceId,
-      orderId: input.orderId,
-      userId: input.userId,
-      correlationId: input.correlationId,
-      idempotencyKey: `sale:${input.idempotencyKey}`,
-    });
+    const saleKey = `sale:${input.idempotencyKey}`;
+    if (!(await movementAlreadyRecorded(input.workspaceId, saleKey))) {
+      await consumeInventoryForOrder({
+        workspaceId: input.workspaceId,
+        orderId: input.orderId,
+        userId: input.userId,
+        correlationId: input.correlationId,
+        idempotencyKey: saleKey,
+      });
+    }
   }
 
   if (input.targetState === "Returned" || input.targetState === "Exchanged") {
     if (!input.reason?.trim()) {
       throw new CommerceConflictError("RETURN_REASON_REQUIRED", "سبب الإرجاع أو الاستبدال مطلوب");
     }
-    await returnInventoryForOrder({
-      workspaceId: input.workspaceId,
-      orderId: input.orderId,
-      userId: input.userId,
-      correlationId: input.correlationId,
-      idempotencyKey: `return:${input.idempotencyKey}`,
-    });
+    const returnKey = `return:${input.idempotencyKey}`;
+    if (!(await movementAlreadyRecorded(input.workspaceId, returnKey))) {
+      await returnInventoryForOrder({
+        workspaceId: input.workspaceId,
+        orderId: input.orderId,
+        userId: input.userId,
+        correlationId: input.correlationId,
+        idempotencyKey: returnKey,
+      });
+    }
   }
 
   return persistSimpleTransition(input, order.status);
