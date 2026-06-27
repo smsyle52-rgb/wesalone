@@ -6,7 +6,7 @@ import workspaceRouter from "../modules/workspace/workspace.routes";
 import usersRouter from "../modules/users/users.routes";
 import auditRouter from "../modules/audit/audit.routes";
 import contactsRouter from "../modules/contacts/contacts.routes";
-import conversationLifecycleRouter from "../modules/conversations/conversation-lifecycle-api.routes";
+import { registerUnifiedConversationLifecycleRoutes } from "../modules/conversations/conversation-lifecycle.routes";
 import conversationsRouter from "../modules/conversations/conversations.routes";
 import ticketsRouter from "../modules/tickets/tickets.routes";
 import tasksRouter from "../modules/tasks/tasks.routes";
@@ -33,6 +33,8 @@ import { apiLimiter, webhookLimiter } from "../lib/rateLimiter";
 import { requireVerifiedEmail } from "../middlewares/requireVerifiedEmail";
 
 const router: IRouter = Router();
+const conversationLifecycleRouter = Router();
+registerUnifiedConversationLifecycleRoutes(conversationLifecycleRouter);
 
 router.use(healthRouter);
 router.use("/webhooks", webhookLimiter, webhookMetaRouter);
