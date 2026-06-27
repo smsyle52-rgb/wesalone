@@ -34,5 +34,8 @@ export * from "./notifications";
 export * from "./products";
 export * from "./product_variants";
 export * from "./stock_locations";
+export * from "./inventory_reservations";
+export * from "./inventory_movements";
+export * from "./order_history";
 export * from "./point_wallet";
 export * from "./sequences";
