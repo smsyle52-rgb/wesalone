@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import router from "./routes";
 import internalRouter from "./routes/internal.routes";
+import whatsappBusinessProfileRouter from "./modules/whatsapp-management/whatsapp-business-profile.routes";
 import { logger } from "./lib/logger";
 import { sessionMiddleware } from "./lib/session";
 import { AppError } from "./lib/errors";
@@ -81,6 +82,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 app.use("/internal", internalRouter);
 app.use(sessionMiddleware);
 
+app.use("/api/whatsapp-management", whatsappBusinessProfileRouter);
 app.use("/api", router);
 
 // ── Static frontend serving (Cloud Run single-container mode) ──────────────────
