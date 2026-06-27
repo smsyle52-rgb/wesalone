@@ -1,7 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "types": ["node", "express-session"]
   },
   "include": [
     "src/modules/whatsapp-management/**/*.ts",
