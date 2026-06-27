@@ -29,6 +29,58 @@ export type ConversationLifecyclePlan = Readonly<{
 
 export type DashboardConversationStatus = LegacyConversationStatus;
 export type DashboardAgentStatus = LegacyAgentStatus;
+export type CompatibilityLifecycleRecord = ConversationLifecycleRecord & Readonly<{
+  agentPausedUntil?: Date | string | null;
+}>;
+export type CanonicalDashboardStatus = Exclude<DashboardConversationStatus, "bot" | "closed">;
+
+export function canonicalDashboardStatus(status: DashboardConversationStatus): CanonicalDashboardStatus {
+  if (status === "bot") return "pending";
+  if (status === "closed") return "resolved";
+  return status;
+}
+
+function timestamp(value: Date | string | null | undefined): number | null {
+  if (!value) return null;
+  const result = value instanceof Date ? value.getTime() : Date.parse(value);
+  return Number.isFinite(result) ? result : null;
+}
+
+function hasActiveAgentPause(record: CompatibilityLifecycleRecord, now: Date): boolean {
+  const pausedUntil = timestamp(record.agentPausedUntil);
+  return pausedUntil !== null && pausedUntil > now.getTime();
+}
+
+/**
+ * Conservative coexistence policy: while old and unified writers overlap, any
+ * restrictive legacy or unified signal wins over a conflicting permissive one.
+ */
+export function normalizeConversationLifecycleForCoexistence(
+  record: CompatibilityLifecycleRecord,
+  now: Date = new Date(),
+): NormalizedConversationLifecycle {
+  const normalized = normalizeConversationLifecycle(record);
+  const lifecycleState = record.status === "resolved" || record.status === "closed"
+    ? "resolved"
+    : record.status === "snoozed"
+      ? "snoozed"
+      : normalized.state.lifecycleState;
+
+  const aiSubstate = normalized.state.aiSubstate === "ai_blocked"
+    ? "ai_blocked"
+    : record.needsHuman || record.assignedMembershipId || record.agentStatus === "human"
+      || normalized.state.aiSubstate === "human_controlled"
+      ? "human_controlled"
+      : record.agentStatus === "paused" || hasActiveAgentPause(record, now)
+        || normalized.state.aiSubstate === "ai_paused"
+        ? "ai_paused"
+        : "ai_active";
+
+  return {
+    state: { lifecycleState, aiSubstate },
+    source: normalized.source,
+  };
+}
 
 function preserveLegacyProjection(record: ConversationLifecycleRecord): LifecycleProjection {
   const normalized = normalizeConversationLifecycle(record);
@@ -55,11 +107,13 @@ function isLegacyAgentStatus(value: unknown): value is LegacyAgentStatus {
 }
 
 export function planConversationLifecycleTransition(
-  record: ConversationLifecycleRecord,
+  record: CompatibilityLifecycleRecord,
   event: LifecycleEvent,
   options: Readonly<{ unifiedLifecycleEnabled: boolean }>,
 ): ConversationLifecyclePlan {
-  const normalized = normalizeConversationLifecycle(record);
+  const normalized = options.unifiedLifecycleEnabled
+    ? normalizeConversationLifecycleForCoexistence(record)
+    : normalizeConversationLifecycle(record);
 
   if (!options.unifiedLifecycleEnabled) {
     return {
@@ -107,33 +161,26 @@ export function lifecycleWriteValues(
   };
 }
 
-/**
- * The legacy dashboard has more status labels than the unified lifecycle axes.
- * `bot` collapses to pending and `closed` collapses to resolved, matching the
- * fallback/projection rules introduced in W3-T1A.
- */
 export function lifecycleEventForDashboardStatus(
-  record: ConversationLifecycleRecord,
+  record: CompatibilityLifecycleRecord,
   requestedStatus: DashboardConversationStatus,
 ): LifecycleEvent {
-  const current = normalizeConversationLifecycle(record).state.lifecycleState;
+  const current = normalizeConversationLifecycleForCoexistence(record).state.lifecycleState;
+  const canonicalStatus = canonicalDashboardStatus(requestedStatus);
 
-  switch (requestedStatus) {
-    case "resolved":
-    case "closed":
-      return { type: "resolve", reason: `dashboard_status:${requestedStatus}` };
-    case "open":
-      return current === "resolved"
-        ? { type: "reopen", reason: "dashboard_status:open" }
-        : { type: "set_lifecycle", target: "open", reason: "dashboard_status:open" };
-    case "pending":
-    case "bot":
-      return { type: "set_lifecycle", target: "pending", reason: `dashboard_status:${requestedStatus}` };
-    case "snoozed":
-      return { type: "set_lifecycle", target: "snoozed", reason: "dashboard_status:snoozed" };
-    case "new":
-      return { type: "set_lifecycle", target: "new", reason: "dashboard_status:new" };
+  if (canonicalStatus === "resolved") {
+    return { type: "resolve", reason: `dashboard_status:${requestedStatus}` };
   }
+  if (canonicalStatus === "open") {
+    return current === "resolved"
+      ? { type: "reopen", reason: "dashboard_status:open" }
+      : { type: "set_lifecycle", target: "open", reason: "dashboard_status:open" };
+  }
+  return {
+    type: "set_lifecycle",
+    target: canonicalStatus,
+    reason: `dashboard_status:${requestedStatus}`,
+  };
 }
 
 export function lifecycleEventForDashboardAgentStatus(status: DashboardAgentStatus): LifecycleEvent {
@@ -147,26 +194,46 @@ export function lifecycleEventForDashboardAgentStatus(status: DashboardAgentStat
   }
 }
 
-export function canUnifiedAgentReply(record: ConversationLifecycleRecord): boolean {
-  const { state } = normalizeConversationLifecycle(record);
+export function canUnifiedAgentReply(
+  record: CompatibilityLifecycleRecord,
+  now: Date = new Date(),
+): boolean {
+  const { state } = normalizeConversationLifecycleForCoexistence(record, now);
   return state.aiSubstate === "ai_active"
     && state.lifecycleState !== "resolved"
     && state.lifecycleState !== "snoozed";
 }
 
-export function shouldPublishAgentReactivationEvent(input: Readonly<{
-  requestedStatus: DashboardAgentStatus;
-  lifecycleChanged: boolean;
-  conversation: ConversationLifecycleRecord;
-  lastMessageDirection: string | null | undefined;
-}>): boolean {
-  return input.requestedStatus === "active"
-    && input.lifecycleChanged
-    && input.lastMessageDirection === "inbound"
-    && canUnifiedAgentReply(input.conversation);
+export function wasAgentReactivationNeeded(
+  record: CompatibilityLifecycleRecord,
+): boolean {
+  return record.aiSubstate !== "ai_active"
+    || record.agentStatus !== "active"
+    || Boolean(record.needsHuman)
+    || Boolean(record.assignedMembershipId)
+    || record.agentPausedUntil !== null && record.agentPausedUntil !== undefined;
 }
 
-export type AtomicLifecycleStore<TTransaction, TRow extends ConversationLifecycleRecord> = Readonly<{
+export function shouldPublishAgentReactivationEvent(input: Readonly<{
+  requestedStatus: DashboardAgentStatus;
+  previous?: CompatibilityLifecycleRecord;
+  lifecycleChanged?: boolean;
+  conversation: CompatibilityLifecycleRecord;
+  lastMessageDirection: string | null | undefined;
+  now?: Date;
+}>): boolean {
+  const now = input.now ?? new Date();
+  const neededBefore = input.previous
+    ? wasAgentReactivationNeeded(input.previous)
+    : Boolean(input.lifecycleChanged);
+
+  return input.requestedStatus === "active"
+    && neededBefore
+    && input.lastMessageDirection === "inbound"
+    && canUnifiedAgentReply(input.conversation, now);
+}
+
+export type AtomicLifecycleStore<TTransaction, TRow extends CompatibilityLifecycleRecord> = Readonly<{
   transaction<TResult>(callback: (transaction: TTransaction) => Promise<TResult>): Promise<TResult>;
   loadForUpdate(
     transaction: TTransaction,
@@ -182,7 +249,7 @@ export type AtomicLifecycleStore<TTransaction, TRow extends ConversationLifecycl
   ): Promise<TRow | null>;
 }>;
 
-export type AtomicLifecycleResult<TRow extends ConversationLifecycleRecord> =
+export type AtomicLifecycleResult<TRow extends CompatibilityLifecycleRecord> =
   | Readonly<{ kind: "not_found" }>
   | Readonly<{
       kind: "disabled";
@@ -210,7 +277,7 @@ export type AtomicLifecycleResult<TRow extends ConversationLifecycleRecord> =
       lifecycleChanged: boolean;
     }>;
 
-export type AtomicLifecycleOperation<TTransaction, TRow extends ConversationLifecycleRecord> = Readonly<{
+export type AtomicLifecycleOperation<TTransaction, TRow extends CompatibilityLifecycleRecord> = Readonly<{
   workspaceId: string;
   conversationId: string;
   event: LifecycleEvent;
@@ -232,14 +299,9 @@ export type AtomicLifecycleOperation<TTransaction, TRow extends ConversationLife
   }>) => Promise<void>;
 }>;
 
-/**
- * Executes the unified lifecycle write behind one transaction. The workspace id
- * is carried through both the locking read and update so a conversation from a
- * different workspace can never be mutated by this operation.
- */
 export async function executeAtomicConversationLifecycleTransition<
   TTransaction,
-  TRow extends ConversationLifecycleRecord,
+  TRow extends CompatibilityLifecycleRecord,
 >(
   store: AtomicLifecycleStore<TTransaction, TRow>,
   operation: AtomicLifecycleOperation<TTransaction, TRow>,

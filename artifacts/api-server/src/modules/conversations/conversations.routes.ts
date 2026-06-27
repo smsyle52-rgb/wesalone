@@ -16,9 +16,11 @@ import { logger } from "../../lib/logger";
 import { fetchMetaMediaStream } from "../../services/meta-media";
 import {
   applyConversationLifecycleEventAtomic,
+  canonicalDashboardStatus,
   lifecycleEventForDashboardAgentStatus,
   lifecycleEventForDashboardStatus,
   shouldPublishAgentReactivationEvent,
+  wasAgentReactivationNeeded,
 } from "./conversation.service";
 
 const router = Router();
@@ -321,7 +323,6 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
     aiSummary: conversationsTable.aiSummary,
     needsHuman: conversationsTable.needsHuman,
     escalationReason: conversationsTable.escalationReason,
-    // PD-11 fix: الواجهة تحتاج حالة الوكيل لإظهار الشارة وزر «إعادة/أوقف الوكيل»؛ كانت مفقودة من البيانات.
     agentStatus: conversationsTable.agentStatus,
     agentPausedUntil: conversationsTable.agentPausedUntil,
     consecutiveAgentReplies: conversationsTable.consecutiveAgentReplies,
@@ -344,8 +345,6 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
   if (!conv) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
 
   const [messagesDesc, contactChannels, assignedMember, activeTicket] = await Promise.all([
-    // PD-2 fix: اجلب أحدث 100 رسالة (desc) ثم اعكسها للعرض — `asc.limit(100)` كان يجلب
-    // أقدم 100 رسالة فيُخفي الرسائل الجديدة كلياً في المحادثات الطويلة (>100 رسالة).
     db.select().from(messagesTable)
       .where(and(eq(messagesTable.conversationId, conv.id), eq(messagesTable.workspaceId, activeWorkspaceId)))
       .orderBy(desc(messagesTable.sentAt))
@@ -373,7 +372,6 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
       .limit(1),
   ]);
 
-  // PD-2 fix: اعكس الرسائل المجلوبة تنازلياً لتُعرَض تصاعدياً (الأقدم→الأحدث) في الخيط.
   const messages = messagesDesc.slice().reverse();
 
   const whatsappChannel = contactChannels.find(
@@ -513,14 +511,18 @@ router.patch("/:id/status", requirePermission("conversations:resolve"), async (r
     return;
   }
 
+  const requestedStatus = newStatus;
+  const canonicalStatus = canonicalDashboardStatus(requestedStatus);
   const [existing] = await db.select({
     id: conversationsTable.id,
     status: conversationsTable.status,
     lifecycleState: conversationsTable.lifecycleState,
     aiSubstate: conversationsTable.aiSubstate,
     agentStatus: conversationsTable.agentStatus,
+    agentPausedUntil: conversationsTable.agentPausedUntil,
     needsHuman: conversationsTable.needsHuman,
     assignedMembershipId: conversationsTable.assignedMembershipId,
+    closedAt: conversationsTable.closedAt,
     contactId: conversationsTable.contactId,
     contactName: contactsTable.name,
   })
@@ -534,15 +536,15 @@ router.patch("/:id/status", requirePermission("conversations:resolve"), async (r
 
   if (!existing) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
 
-  const currentStatus = existing.status as ConvStatus;
+  const currentStatus = (existing.closedAt ? "closed" : existing.status) as ConvStatus;
   const allowed = ALLOWED_TRANSITIONS[currentStatus] ?? [];
 
-  if (!allowed.includes(newStatus as ConvStatus)) {
+  if (!allowed.includes(requestedStatus as ConvStatus)) {
     const isManagerOrOwner = req.sessionUser.permissions.includes("channels:manage");
-    if (currentStatus === "closed" && newStatus === "open" && isManagerOrOwner) {
+    if (currentStatus === "closed" && requestedStatus === "open" && isManagerOrOwner) {
     } else {
       res.status(422).json({
-        error: `لا يمكن تغيير الحالة من "${currentStatus}" إلى "${newStatus}"`,
+        error: `لا يمكن تغيير الحالة من "${currentStatus}" إلى "${requestedStatus}"`,
         code: "INVALID_TRANSITION",
       });
       return;
@@ -550,21 +552,42 @@ router.patch("/:id/status", requirePermission("conversations:resolve"), async (r
   }
 
   const now = new Date();
+  let statusDomainEventCreated = false;
   const lifecycleResult = await applyConversationLifecycleEventAtomic({
     workspaceId: activeWorkspaceId,
     conversationId: existing.id,
-    event: lifecycleEventForDashboardStatus(existing, newStatus),
+    event: lifecycleEventForDashboardStatus(existing, requestedStatus),
     unifiedLifecycleEnabled: true,
     additionalUpdates: () => {
       const updates: Record<string, unknown> = { updatedAt: now };
-      if (newStatus === "resolved") updates.resolvedAt = now;
-      if (newStatus === "closed") { updates.closedAt = now; updates.resolvedAt = now; }
-      if (newStatus === "snoozed" && parsed.data.snoozedUntil) {
+      if (canonicalStatus === "resolved") updates.resolvedAt = now;
+      if (requestedStatus === "closed") updates.closedAt = now;
+      if (requestedStatus === "resolved" || requestedStatus === "open") updates.closedAt = null;
+      if (canonicalStatus === "snoozed" && parsed.data.snoozedUntil) {
         updates.snoozedUntil = new Date(parsed.data.snoozedUntil);
       }
       return updates;
     },
-    shouldWriteNoop: (current) => newStatus === "closed" && current.status !== "closed",
+    shouldWriteNoop: (current) => current.status !== canonicalStatus
+      || (requestedStatus === "closed" && !current.closedAt)
+      || (requestedStatus === "open" && current.closedAt !== null),
+    onWritten: async ({ transaction, previous, conversation }) => {
+      await transaction.insert(domainEventsTable).values({
+        workspaceId: activeWorkspaceId,
+        eventType: "conversation.status_changed",
+        entityType: "conversation",
+        entityId: conversation.id,
+        payload: {
+          conversationId: conversation.id,
+          previousStatus: previous.closedAt ? "closed" : previous.status,
+          requestedStatus,
+          canonicalStatus,
+          actorUserId: req.sessionUser.userId,
+          actorMembershipId: req.sessionUser.activeMembershipId,
+        },
+      });
+      statusDomainEventCreated = true;
+    },
   });
 
   if (lifecycleResult.kind === "not_found") {
@@ -594,7 +617,7 @@ router.patch("/:id/status", requirePermission("conversations:resolve"), async (r
     entityType: "conversation",
     entityId: conv.id,
     entityLabel: `محادثة ${existing.contactName ?? conv.id.slice(0, 8)}`,
-    newData: { previousStatus: currentStatus, newStatus },
+    newData: { previousStatus: currentStatus, requestedStatus, canonicalStatus },
   });
 
   await addContactTimeline({
@@ -603,9 +626,22 @@ router.patch("/:id/status", requirePermission("conversations:resolve"), async (r
     eventType: "conversation_status_changed",
     entityType: "conversation",
     entityId: conv.id,
-    title: `تغيّرت حالة المحادثة إلى "${newStatus}"`,
+    title: `تغيّرت حالة المحادثة إلى "${canonicalStatus}"`,
+    description: requestedStatus === canonicalStatus
+      ? undefined
+      : `الحالة المطلوبة: ${requestedStatus} — الحالة المعتمدة: ${canonicalStatus}`,
     createdBy: userId,
   });
+
+  if (statusDomainEventCreated) {
+    emitWorkspaceEvent({
+      workspaceId: activeWorkspaceId,
+      type: "conversation.status_changed",
+      entityType: "conversation",
+      entityId: conv.id,
+      payload: { requestedStatus, canonicalStatus },
+    });
+  }
 
   res.json({ conversation: conv });
 });
@@ -780,8 +816,6 @@ router.patch("/:id/assign", requirePermission("conversations:assign"), async (re
   res.json({ conversation: conv, assigneeName });
 });
 
-// PD-11 fix: الصلاحية كانت conversations:manage وهي غير معرّفة في النظام إطلاقاً → لا يملكها أحد
-// (ولا المالك) فالزر لا يظهر والمسار يُرفض. resolve صلاحية موجودة يملكها كل من يدير الوارد.
 router.patch("/:id/agent-status", requirePermission("conversations:resolve"), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = agentStatusSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -847,9 +881,6 @@ router.patch("/:id/agent-status", requirePermission("conversations:resolve"), as
     });
 
     if (parsed.data.status === "active" && (existing.agentStatus !== "active" || existing.needsHuman)) {
-      // لا تُوقظ الوكيل إلا إذا كانت آخر رسالة من العميل (inbound) غير مُجابة. وإلا — حين تكون آخر
-      // رسالة ردّاً من الموظف/الوكيل والعميل لم يكتب جديداً — تُرجِع الإعادة الوكيل للعمل بصمت
-      // بلا ردّ تلقائي على رسالة قديمة (تصحيح: كان يردّ دائماً عند الإعادة).
       const [lastMsg] = await db.select({ direction: messagesTable.direction })
         .from(messagesTable)
         .where(and(eq(messagesTable.conversationId, conversation.id), eq(messagesTable.workspaceId, activeWorkspaceId)))
@@ -907,6 +938,7 @@ router.patch("/:id/agent-status", requirePermission("conversations:resolve"), as
         updates.agentPausedUntil = null;
         updates.consecutiveAgentReplies = 0;
         updates.needsHuman = false;
+        updates.assignedMembershipId = null;
         updates.escalationReason = null;
       } else if (parsed.data.status === "paused") {
         const pauseMinutes = parsed.data.pauseMinutes ?? 30;
@@ -919,13 +951,11 @@ router.patch("/:id/agent-status", requirePermission("conversations:resolve"), as
     },
     shouldWriteNoop: (current) => {
       if (parsed.data.status === "paused") return true;
-      if (parsed.data.status === "active") {
-        return current.agentStatus !== "active" || Boolean(current.needsHuman) || current.agentPausedUntil !== null;
-      }
+      if (parsed.data.status === "active") return wasAgentReactivationNeeded(current);
       return current.agentStatus !== "human" || !current.needsHuman;
     },
-    onWritten: async ({ transaction, conversation, lifecycleChanged }) => {
-      if (parsed.data.status !== "active" || !lifecycleChanged) return;
+    onWritten: async ({ transaction, previous, conversation }) => {
+      if (parsed.data.status !== "active") return;
 
       const [lastMsg] = await transaction.select({ direction: messagesTable.direction })
         .from(messagesTable)
@@ -937,9 +967,10 @@ router.patch("/:id/agent-status", requirePermission("conversations:resolve"), as
         .limit(1);
       if (!shouldPublishAgentReactivationEvent({
         requestedStatus: parsed.data.status,
-        lifecycleChanged,
+        previous,
         conversation,
         lastMessageDirection: lastMsg?.direction,
+        now,
       })) return;
 
       await transaction.insert(domainEventsTable).values({
@@ -1184,7 +1215,6 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
       sentAt: new Date(),
     }).returning();
 
-    // PD-1 fix: أضف outbox event للرسائل الخارجة اليدوية كي تصل للعميل عبر القناة الصحيحة
     if (isOutboundToChannel) {
       if (hasMedia) {
         const outboxEventType = conv.channel === "instagram"
