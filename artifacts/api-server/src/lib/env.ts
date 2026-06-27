@@ -40,6 +40,7 @@ const META_WEBHOOK_VERIFY_TOKEN = optionalEnv("META_WEBHOOK_VERIFY_TOKEN");
 const META_WEBHOOK_SECRET       = optionalEnv("META_WEBHOOK_SECRET");
 const META_APP_SECRET           = optionalEnv("META_APP_SECRET");
 const INGEST_DEFERRED           = optionalEnv("INGEST_DEFERRED");
+const UNIFIED_LIFECYCLE         = optionalEnv("UNIFIED_LIFECYCLE", "false")!;
 const INTERNAL_SECRET            = isProduction
   ? requireEnv("INTERNAL_SECRET", "Shared secret for internal worker endpoints.")
   : optionalEnv("INTERNAL_SECRET", "")!;
@@ -73,6 +74,7 @@ export const env = {
   META_WEBHOOK_SECRET,
   META_APP_SECRET,
   INGEST_DEFERRED: INGEST_DEFERRED === "true",
+  UNIFIED_LIFECYCLE: UNIFIED_LIFECYCLE === "true",
   INTERNAL_SECRET,
   PLATFORM_ADMIN_EMAILS,
   isProduction,
