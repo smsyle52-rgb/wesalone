@@ -151,7 +151,46 @@
         "componentText": "نص المكون. يمكنك استخدام {{1}} أو {{name}}",
         "example": "مثال للمعاينة",
         "variableExample": "قيمة مثال",
-        "variableDescription": "وصف المتغير"
+        "variableDescription": "وصف المتغير",
+        "exampleValue": "مثال على القيمة"
+      },
+      "sections": {
+        "general": "معلومات القالب",
+        "header": "الرأس (اختياري)",
+        "body": "جسم الرسالة",
+        "footer": "التذييل (اختياري)",
+        "buttons": "الأزرار (اختياري)"
+      },
+      "previewTitle": "معاينة واتساب",
+      "addVariable": "إضافة متغير",
+      "addButton": "إضافة زر",
+      "header": {
+        "none": "بلا رأس",
+        "text": "نص",
+        "placeholder": "مرحباً {{1}}، عرضك الخاص...",
+        "varExample": "مثال للمتغير",
+        "mediaNote": "سيُطلب منك رفع الوسيط عند الإرسال الفعلي عبر واتساب."
+      },
+      "body": {
+        "placeholder": "مرحباً {{1}}، طلبك رقم {{2}} جاهز للاستلام.",
+        "varExamples": "أمثلة على المتغيرات",
+        "nonContiguous": "المتغيرات غير متتالية. سيتم ترقيمها تلقائياً عند الحفظ."
+      },
+      "footer": {
+        "placeholder": "ردّ بـ \"لا\" لإلغاء الاشتراك"
+      },
+      "buttons": {
+        "quickReply": "ردّ سريع",
+        "phone": "رقم هاتف",
+        "url": "رابط URL",
+        "copyCode": "نسخ الكود",
+        "otp": "OTP",
+        "textPlaceholder": "نص الزر (25 حرف كحد أقصى)",
+        "urlExamplePlaceholder": "مثال: page/123",
+        "dynamicUrlNote": "الجزء الديناميكي {{1}} يحتاج مثالاً للموافقة",
+        "codePlaceholder": "كود المصادقة",
+        "otpNote": "سيُنشئ واتساب تلقائياً زر «نسخ الكود» مع الكود المؤقت.",
+        "empty": "لا توجد أزرار. أضف أزراراً للردود السريعة أو الإجراءات."
       }
     }
   },

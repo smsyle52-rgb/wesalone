@@ -151,7 +151,46 @@
         "componentText": "Component text. You can use {{1}} or {{name}}",
         "example": "Preview example",
         "variableExample": "Example value",
-        "variableDescription": "Variable description"
+        "variableDescription": "Variable description",
+        "exampleValue": "Example value"
+      },
+      "sections": {
+        "general": "Template details",
+        "header": "Header (optional)",
+        "body": "Message body",
+        "footer": "Footer (optional)",
+        "buttons": "Buttons (optional)"
+      },
+      "previewTitle": "WhatsApp preview",
+      "addVariable": "Add variable",
+      "addButton": "Add button",
+      "header": {
+        "none": "No header",
+        "text": "Text",
+        "placeholder": "Hello {{1}}, your special offer...",
+        "varExample": "Variable example",
+        "mediaNote": "You will be asked to upload the media when actually sending via WhatsApp."
+      },
+      "body": {
+        "placeholder": "Hello {{1}}, your order {{2}} is ready for pickup.",
+        "varExamples": "Variable examples",
+        "nonContiguous": "Variables are not sequential. They will be renumbered automatically on save."
+      },
+      "footer": {
+        "placeholder": "Reply STOP to unsubscribe"
+      },
+      "buttons": {
+        "quickReply": "Quick reply",
+        "phone": "Phone number",
+        "url": "URL",
+        "copyCode": "Copy code",
+        "otp": "OTP",
+        "textPlaceholder": "Button label (max 25 chars)",
+        "urlExamplePlaceholder": "Example: page/123",
+        "dynamicUrlNote": "The dynamic part {{1}} requires an example for approval",
+        "codePlaceholder": "Authentication code",
+        "otpNote": "WhatsApp will automatically generate a «Copy code» button with a one-time code.",
+        "empty": "No buttons. Add quick-reply or action buttons."
       }
     }
   },

@@ -1,10 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Send, Save, Trash2 } from "lucide-react";
+import { Plus, Send, Save, Trash2, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { TemplateWhatsAppPreview } from "@/components/TemplateWhatsAppPreview";
+
+// ─── Shared types (used by TemplateWhatsAppPreview) ─────────────────────────
+
+export type HeaderFormat = "none" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
+
+export type ButtonDraft =
+  | { type: "QUICK_REPLY"; text: string }
+  | { type: "PHONE_NUMBER"; text: string; phone_number: string }
+  | { type: "URL"; text: string; url: string; example?: string }
+  | { type: "COPY_CODE"; example: string }
+  | { type: "OTP" };
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
 
 const BASE = `${import.meta.env.BASE_URL}api`;
 
@@ -22,51 +36,110 @@ async function apiFetch(path: string, opts?: RequestInit) {
   return res.json();
 }
 
-interface TemplateComponent {
-  type: "HEADER" | "BODY" | "FOOTER" | "BUTTONS";
-  format?: string;
-  text?: string;
-  example?: string;
-}
-
-interface TemplateVariable {
-  key: string;
-  example?: string;
-  description?: string;
-}
-
-const componentTypes: TemplateComponent["type"][] = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
-const tabs = ["general", "components", "variables", "preview"] as const;
-
-function detectVariables(components: TemplateComponent[]) {
-  const found = new Set<string>();
-  for (const component of components) {
-    const pattern = /{{\s*([^}]+)\s*}}/g;
-    const text = component.text ?? "";
-    let match = pattern.exec(text);
-    while (match) {
-      found.add(match[1].trim());
-      match = pattern.exec(text);
-    }
+function getVarNumbers(text: string): number[] {
+  const seen = new Set<number>();
+  const ordered: number[] = [];
+  for (const m of (text || "").matchAll(/\{\{(\d+)\}\}/g)) {
+    const n = parseInt(m[1]);
+    if (!seen.has(n)) { seen.add(n); ordered.push(n); }
   }
-  return [...found];
+  return ordered;
 }
+
+function renumberBody(text: string): { text: string; oldToNew: Map<number, number> } {
+  const ordered = getVarNumbers(text);
+  if (ordered.every((n, i) => n === i + 1)) return { text, oldToNew: new Map() };
+  const oldToNew = new Map(ordered.map((old, i) => [old, i + 1] as [number, number]));
+  let result = text;
+  for (const [old, next] of oldToNew) result = result.replaceAll(`{{${old}}}`, `__V${next}__`);
+  for (let i = 1; i <= oldToNew.size; i++) result = result.replaceAll(`__V${i}__`, `{{${i}}}`);
+  return { text: result, oldToNew };
+}
+
+function insertAtCursor(
+  el: HTMLTextAreaElement | HTMLInputElement | null,
+  current: string,
+  insertion: string,
+): { value: string; cursor: number } {
+  const pos = el?.selectionStart ?? current.length;
+  const before = current.slice(0, pos);
+  const after = current.slice(pos);
+  const sp1 = before.length > 0 && !/\s$/.test(before) ? " " : "";
+  const sp2 = after.length > 0 && !/^\s/.test(after) ? " " : "";
+  const full = sp1 + insertion + sp2;
+  return { value: before + full + after, cursor: pos + full.length };
+}
+
+function getButtonValidationError(buttons: ButtonDraft[], category: string): string | null {
+  if (!buttons.length) return null;
+  const types = buttons.map((b) => b.type);
+  const hasQR = types.some((t) => t === "QUICK_REPLY");
+  const hasOTP = types.some((t) => t === "OTP");
+  const hasCopy = types.some((t) => t === "COPY_CODE");
+  const hasCTA = types.some((t) => t === "PHONE_NUMBER" || t === "URL");
+  if (hasQR && hasCTA) return "لا يمكن دمج الردود السريعة مع أزرار الإجراء";
+  if (hasOTP && buttons.length > 1) return "زر OTP يجب أن يكون بمفرده";
+  if ((hasOTP || hasCopy) && category !== "authentication") return "أزرار OTP ونسخ الكود متاحة فقط لفئة المصادقة";
+  if (category === "authentication" && hasCTA) return "فئة المصادقة لا تدعم أزرار الهاتف أو الروابط";
+  const ctaCount = types.filter((t) => t === "PHONE_NUMBER" || t === "URL").length;
+  if (ctaCount > 2) return "الحد الأقصى زرين من نوع الإجراء (هاتف + رابط)";
+  if (types.filter((t) => t === "QUICK_REPLY").length > 10) return "الحد الأقصى 10 ردود سريعة";
+  return null;
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function TemplateEditorPage({ templateId }: { templateId?: string }) {
   const { t } = useTranslation("pages");
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("general");
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    name: "",
-    language: "ar",
-    category: "utility",
-    channelAccountId: "",
-    status: "draft",
-  });
-  const [components, setComponents] = useState<TemplateComponent[]>([{ type: "BODY", text: "", example: "" }]);
-  const [variables, setVariables] = useState<TemplateVariable[]>([]);
+  const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  // General
+  const [name, setName] = useState("");
+  const [language, setLanguage] = useState("ar");
+  const [category, setCategory] = useState<"marketing" | "utility" | "authentication">("utility");
+  const [channelAccountId, setChannelAccountId] = useState("");
+  const [status, setStatus] = useState("draft");
+
+  // Header
+  const [headerFormat, setHeaderFormat] = useState<HeaderFormat>("none");
+  const [headerText, setHeaderText] = useState("");
+  const [headerVarExample, setHeaderVarExample] = useState("");
+
+  // Body
+  const [bodyText, setBodyText] = useState("");
+  const [bodyVarExamples, setBodyVarExamples] = useState<Record<number, string>>({});
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const headerInputRef = useRef<HTMLInputElement>(null);
+
+  // Footer
+  const [footerText, setFooterText] = useState("");
+
+  // Buttons
+  const [buttons, setButtons] = useState<ButtonDraft[]>([]);
+  const [newButtonType, setNewButtonType] = useState<ButtonDraft["type"]>("QUICK_REPLY");
+
+  const bodyVarNums = useMemo(() => getVarNumbers(bodyText), [bodyText]);
+  const headerHasVar = headerText.includes("{{1}}");
+  const buttonError = useMemo(() => getButtonValidationError(buttons, category), [buttons, category]);
+  const bodyVarsContiguous = bodyVarNums.every((n, i) => n === i + 1);
+  const isAuthentication = category === "authentication";
+
+  const isDraft = status === "draft";
+  const canSaveDraft = name.trim() && bodyText.trim();
+  const canSubmit =
+    canSaveDraft &&
+    !buttonError &&
+    bodyVarsContiguous &&
+    bodyVarNums.every((n) => bodyVarExamples[n]?.trim()) &&
+    (!headerHasVar || headerVarExample.trim()) &&
+    buttons.every((b) => {
+      if (b.type === "URL") return !(b.url?.includes("{{1}}")) || (b.example && b.example.trim() !== "");
+      return true;
+    });
+
+  // ─── Data loading ────────────────────────────────────────────────────────
 
   const detailQuery = useQuery({
     queryKey: ["template", templateId],
@@ -82,46 +155,136 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
   useEffect(() => {
     const template = detailQuery.data?.template;
     if (!template) return;
-    setForm({
-      name: template.name ?? "",
-      language: template.language ?? "ar",
-      category: template.category ?? "utility",
-      channelAccountId: template.channelAccountId ?? "",
-      status: template.status ?? "draft",
+
+    setName(template.name ?? "");
+    setLanguage(template.language ?? "ar");
+    setCategory(template.category ?? "utility");
+    setChannelAccountId(template.channelAccountId ?? "");
+    setStatus(template.status ?? "draft");
+
+    const comps: Array<Record<string, unknown>> = Array.isArray(template.components) ? template.components : [];
+
+    const header = comps.find((c) => c["type"] === "HEADER") as Record<string, unknown> | undefined;
+    if (header) {
+      setHeaderFormat((header["format"] as HeaderFormat | undefined) ?? "TEXT");
+      setHeaderText((header["text"] as string) ?? "");
+      const ex = (header["example"] as Record<string, unknown> | undefined);
+      setHeaderVarExample((ex?.["header_text"] as string[] | undefined)?.[0] ?? "");
+    } else {
+      setHeaderFormat("none");
+      setHeaderText("");
+      setHeaderVarExample("");
+    }
+
+    const body = comps.find((c) => c["type"] === "BODY") as Record<string, unknown> | undefined;
+    if (body) {
+      const bt = (body["text"] as string) ?? "";
+      setBodyText(bt);
+      const ex = (body["example"] as Record<string, unknown> | undefined);
+      const bodyExArr = (ex?.["body_text"] as string[][] | undefined)?.[0] ?? [];
+      const varNums = getVarNumbers(bt);
+      const examples: Record<number, string> = {};
+      varNums.forEach((n, i) => { examples[n] = bodyExArr[i] ?? ""; });
+      setBodyVarExamples(examples);
+    } else {
+      setBodyText("");
+      setBodyVarExamples({});
+    }
+
+    const footer = comps.find((c) => c["type"] === "FOOTER") as Record<string, unknown> | undefined;
+    setFooterText((footer?.["text"] as string) ?? "");
+
+    const buttonsComp = comps.find((c) => c["type"] === "BUTTONS") as Record<string, unknown> | undefined;
+    const rawButtons = (buttonsComp?.["buttons"] as Array<Record<string, unknown>> | undefined) ?? [];
+    // Normalize URL button example: string[] from API → string in UI
+    const loadedButtons: ButtonDraft[] = rawButtons.map((btn) => {
+      if (btn["type"] === "URL" && Array.isArray(btn["example"])) {
+        return { ...btn, example: (btn["example"] as string[])[0] ?? "" } as ButtonDraft;
+      }
+      return btn as ButtonDraft;
     });
-    setComponents(Array.isArray(template.components) && template.components.length > 0 ? template.components : [{ type: "BODY", text: "", example: "" }]);
-    setVariables(Array.isArray(template.variables) ? template.variables : []);
+    setButtons(loadedButtons);
   }, [detailQuery.data]);
 
-  useEffect(() => {
-    const detected = detectVariables(components);
-    setVariables((current) => {
-      const byKey = new Map(current.map((item) => [item.key, item]));
-      return detected.map((key) => byKey.get(key) ?? { key, example: "", description: "" });
-    });
-  }, [components]);
+  // ─── Build API payload ────────────────────────────────────────────────────
 
-  const isDraft = form.status === "draft";
-  const isValid = form.name.trim() && form.category && components.some((component) => component.text?.trim());
-  const channelAccounts = channelsQuery.data?.accounts ?? [];
+  function buildPayload(renumber: boolean) {
+    let finalBody = bodyText;
+    let finalBodyVarExamples = bodyVarExamples;
 
-  const previewText = useMemo(
-    () => components.map((component) => component.text).filter(Boolean).join("\n\n"),
-    [components],
-  );
+    if (renumber) {
+      const { text: rb, oldToNew } = renumberBody(bodyText);
+      finalBody = rb;
+      if (oldToNew.size > 0) {
+        const reverseMap = new Map([...oldToNew.entries()].map(([k, v]) => [v, k] as [number, number]));
+        const newExamples: Record<number, string> = {};
+        getVarNumbers(rb).forEach((n) => {
+          const originalN = reverseMap.get(n) ?? n;
+          newExamples[n] = bodyVarExamples[originalN] ?? "";
+        });
+        finalBodyVarExamples = newExamples;
+      }
+    }
 
-  async function saveTemplate() {
-    const payload = {
-      name: form.name,
-      language: form.language,
-      category: form.category,
-      channelAccountId: form.channelAccountId || null,
+    const bodyVarNums2 = getVarNumbers(finalBody);
+    const bodyExamplesArr = bodyVarNums2.map((n) => finalBodyVarExamples[n] ?? "");
+
+    const components: unknown[] = [];
+
+    if (headerFormat !== "none") {
+      const headerComp: Record<string, unknown> = { type: "HEADER", format: headerFormat };
+      if (headerFormat === "TEXT") {
+        headerComp["text"] = headerText;
+        if (headerHasVar && headerVarExample) {
+          headerComp["example"] = { header_text: [headerVarExample] };
+        }
+      }
+      components.push(headerComp);
+    }
+
+    const bodyComp: Record<string, unknown> = { type: "BODY", text: finalBody };
+    if (bodyExamplesArr.length > 0) {
+      bodyComp["example"] = { body_text: [bodyExamplesArr] };
+    }
+    components.push(bodyComp);
+
+    if (footerText.trim()) components.push({ type: "FOOTER", text: footerText });
+    if (buttons.length > 0) {
+      // Meta API requires url button example as string[], not string
+      const apiButtons = buttons.map((btn) => {
+        if (btn.type === "URL" && typeof btn.example === "string" && btn.example) {
+          return { ...btn, example: [btn.example] };
+        }
+        return btn;
+      });
+      components.push({ type: "BUTTONS", buttons: apiButtons });
+    }
+
+    return {
+      name,
+      language,
+      category,
+      channelAccountId: channelAccountId || null,
       components,
-      variables,
+      variables: [],
     };
+  }
+
+  // ─── Actions ─────────────────────────────────────────────────────────────
+
+  async function saveTemplate(renumber: boolean) {
+    const payload = buildPayload(renumber);
     const result = templateId
-      ? await apiFetch(`templates/${templateId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
-      : await apiFetch("templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      ? await apiFetch(`templates/${templateId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+      : await apiFetch("templates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
     return result.template;
   }
 
@@ -129,11 +292,11 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
     setSaving(true);
     setMessage(null);
     try {
-      const template = await saveTemplate();
-      setMessage(t("templates.editor.saved"));
+      const template = await saveTemplate(true);
+      setMessage({ type: "ok", text: t("templates.editor.saved") });
       if (!templateId) setLocation(`/templates/${template.id}`);
     } catch (err) {
-      setMessage((err as Error).message);
+      setMessage({ type: "err", text: (err as Error).message });
     } finally {
       setSaving(false);
     }
@@ -143,20 +306,98 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
     setSaving(true);
     setMessage(null);
     try {
-      const template = await saveTemplate();
+      const template = await saveTemplate(true);
       await apiFetch(`templates/${template.id}/submit`, { method: "POST" });
-      setMessage(t("templates.editor.submitted"));
+      setMessage({ type: "ok", text: t("templates.editor.submitted") });
       setLocation("/templates");
     } catch (err) {
-      setMessage((err as Error).message);
+      setMessage({ type: "err", text: (err as Error).message });
     } finally {
       setSaving(false);
     }
   }
 
-  function updateComponent(index: number, next: Partial<TemplateComponent>) {
-    setComponents((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...next } : item)));
+  // ─── Variable insertion ───────────────────────────────────────────────────
+
+  const insertBodyVar = useCallback(() => {
+    const current = bodyText;
+    const nums = getVarNumbers(current);
+    const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+    const { value, cursor } = insertAtCursor(bodyRef.current, current, `{{${next}}}`);
+    setBodyText(value);
+    requestAnimationFrame(() => {
+      bodyRef.current?.focus();
+      bodyRef.current?.setSelectionRange(cursor, cursor);
+    });
+  }, [bodyText]);
+
+  const insertHeaderVar = useCallback(() => {
+    if (headerHasVar) return;
+    const { value, cursor } = insertAtCursor(headerInputRef.current, headerText, "{{1}}");
+    setHeaderText(value);
+    requestAnimationFrame(() => {
+      headerInputRef.current?.focus();
+      headerInputRef.current?.setSelectionRange(cursor, cursor);
+    });
+  }, [headerText, headerHasVar]);
+
+  // ─── Button management ────────────────────────────────────────────────────
+
+  const canAddButton = useMemo(() => {
+    if (!isDraft) return false;
+    const types = buttons.map((b) => b.type);
+    const hasOTP = types.some((t) => t === "OTP");
+    if (hasOTP) return false;
+    if (isAuthentication) {
+      const hasCopy = types.some((t) => t === "COPY_CODE");
+      return !hasCopy;
+    }
+    const hasQR = types.some((t) => t === "QUICK_REPLY");
+    const hasCTA = types.some((t) => t === "PHONE_NUMBER" || t === "URL");
+    const ctaCount = types.filter((t) => t === "PHONE_NUMBER" || t === "URL").length;
+    if (hasCTA && ctaCount >= 2) return false;
+    if (hasQR && types.length >= 10) return false;
+    return true;
+  }, [buttons, isDraft, isAuthentication]);
+
+  function addButton() {
+    let btn: ButtonDraft;
+    switch (newButtonType) {
+      case "QUICK_REPLY": btn = { type: "QUICK_REPLY", text: "" }; break;
+      case "PHONE_NUMBER": btn = { type: "PHONE_NUMBER", text: "", phone_number: "" }; break;
+      case "URL": btn = { type: "URL", text: "", url: "" }; break;
+      case "COPY_CODE": btn = { type: "COPY_CODE", example: "" }; break;
+      case "OTP": btn = { type: "OTP" }; break;
+    }
+    setButtons((prev) => [...prev, btn]);
   }
+
+  function updateButton(idx: number, patch: Partial<ButtonDraft>) {
+    setButtons((prev) => prev.map((b, i) => (i === idx ? { ...b, ...patch } as ButtonDraft : b)));
+  }
+
+  function changeButtonType(idx: number, nextType: ButtonDraft["type"]) {
+    const old = buttons[idx];
+    const text = "text" in old ? old.text : "";
+    let btn: ButtonDraft;
+    switch (nextType) {
+      case "QUICK_REPLY": btn = { type: "QUICK_REPLY", text }; break;
+      case "PHONE_NUMBER": btn = { type: "PHONE_NUMBER", text, phone_number: "" }; break;
+      case "URL": btn = { type: "URL", text, url: "" }; break;
+      case "COPY_CODE": btn = { type: "COPY_CODE", example: "" }; break;
+      case "OTP": btn = { type: "OTP" }; break;
+    }
+    setButtons((prev) => prev.map((b, i) => (i === idx ? btn : b)));
+  }
+
+  const channelAccounts: Array<{ id: string; displayName?: string; name: string }> =
+    channelsQuery.data?.accounts ?? [];
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
+  const fieldClass = "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50";
+  const sectionClass = "rounded-xl border border-border bg-card p-5 space-y-4";
+  const labelClass = "block text-sm font-medium text-foreground mb-1";
 
   return (
     <div dir="rtl">
@@ -165,11 +406,19 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
         subtitle={t("templates.editor.subtitle")}
         actions={
           <div className="flex gap-2">
-            <button onClick={handleSave} disabled={saving || !isValid || !isDraft} className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50">
+            <button
+              onClick={handleSave}
+              disabled={saving || !canSaveDraft || !isDraft}
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+            >
               <Save className="h-4 w-4" />
               {t("templates.editor.saveDraft")}
             </button>
-            <button onClick={handleSubmit} disabled={saving || !isValid || !isDraft} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+            <button
+              onClick={handleSubmit}
+              disabled={saving || !canSubmit || !isDraft}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
               <Send className="h-4 w-4" />
               {t("templates.editor.submit")}
             </button>
@@ -177,7 +426,18 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
         }
       />
 
-      {message && <div className="mb-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">{message}</div>}
+      {message && (
+        <div
+          className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+            message.type === "ok"
+              ? "border-green-200 bg-green-50 text-green-800"
+              : "border-destructive/20 bg-destructive/5 text-destructive"
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
+
       {detailQuery.data?.template?.status && (
         <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
           <span>{t("templates.editor.currentStatus")}</span>
@@ -185,97 +445,403 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`rounded-full px-4 py-2 text-sm font-medium ${activeTab === tab ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
-          >
-            {t(`templates.editor.tabs.${tab}`)}
-          </button>
-        ))}
-      </div>
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        {/* ── Left: form ─────────────────────────────────────────────────── */}
+        <div className="space-y-5 min-w-0">
 
-      <div className="rounded-xl border border-border bg-card p-5">
-        {activeTab === "general" && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{t("templates.editor.fields.name")}</span>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={!isDraft} className="w-full rounded-lg border border-input bg-background px-3 py-2" />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{t("templates.editor.fields.language")}</span>
-              <select value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })} disabled={!isDraft} className="w-full rounded-lg border border-input bg-background px-3 py-2">
-                <option value="ar">ar</option>
-                <option value="en">en</option>
-              </select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{t("templates.editor.fields.category")}</span>
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} disabled={!isDraft} className="w-full rounded-lg border border-input bg-background px-3 py-2">
-                <option value="marketing">{t("templates.categories.marketing")}</option>
-                <option value="utility">{t("templates.categories.utility")}</option>
-                <option value="authentication">{t("templates.categories.authentication")}</option>
-              </select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{t("templates.editor.fields.channelAccount")}</span>
-              <select value={form.channelAccountId} onChange={(e) => setForm({ ...form, channelAccountId: e.target.value })} disabled={!isDraft} className="w-full rounded-lg border border-input bg-background px-3 py-2">
-                <option value="">{t("templates.editor.fields.noChannelAccount")}</option>
-                {channelAccounts.map((account: any) => (
-                  <option key={account.id} value={account.id}>{account.displayName ?? account.name}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-        )}
+          {/* General info */}
+          <div className={sectionClass}>
+            <h3 className="text-sm font-semibold text-foreground">{t("templates.editor.sections.general")}</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1">
+                <span className={labelClass}>{t("templates.editor.fields.name")}</span>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value.replace(/ /g, "_"))}
+                  disabled={!isDraft}
+                  maxLength={120}
+                  placeholder="my_template_name"
+                  className={fieldClass}
+                  dir="ltr"
+                />
+              </label>
 
-        {activeTab === "components" && (
-          <div className="space-y-4">
-            {components.map((component, index) => (
-              <div key={`${component.type}-${index}`} className="rounded-lg border border-border p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <select value={component.type} onChange={(e) => updateComponent(index, { type: e.target.value as TemplateComponent["type"] })} disabled={!isDraft} className="rounded-lg border border-input bg-background px-3 py-2 text-sm">
-                    {componentTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-                  </select>
-                  {components.length > 1 && (
-                    <button onClick={() => setComponents((current) => current.filter((_, itemIndex) => itemIndex !== index))} disabled={!isDraft} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-destructive/20 text-destructive hover:bg-destructive/10 disabled:opacity-50">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                <textarea value={component.text ?? ""} onChange={(e) => updateComponent(index, { text: e.target.value })} disabled={!isDraft} rows={5} className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder={t("templates.editor.fields.componentText")} />
-                <input value={component.example ?? ""} onChange={(e) => updateComponent(index, { example: e.target.value })} disabled={!isDraft} className="mt-3 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder={t("templates.editor.fields.example")} />
-              </div>
-            ))}
-            <button onClick={() => setComponents((current) => [...current, { type: "FOOTER", text: "", example: "" }])} disabled={!isDraft} className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50">
-              <Plus className="h-4 w-4" />
-              {t("templates.editor.addComponent")}
-            </button>
-          </div>
-        )}
+              <label className="space-y-1">
+                <span className={labelClass}>{t("templates.editor.fields.language")}</span>
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  disabled={!isDraft}
+                  className={fieldClass}
+                >
+                  <option value="ar">العربية (ar)</option>
+                  <option value="en">English (en)</option>
+                </select>
+              </label>
 
-        {activeTab === "variables" && (
-          <div className="space-y-3">
-            {variables.length === 0 && <div className="text-sm text-muted-foreground">{t("templates.editor.noVariables")}</div>}
-            {variables.map((variable, index) => (
-              <div key={variable.key} className="grid gap-3 rounded-lg border border-border p-4 md:grid-cols-3">
-                <div className="text-sm font-semibold">{variable.key}</div>
-                <input value={variable.example ?? ""} onChange={(e) => setVariables((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, example: e.target.value } : item))} disabled={!isDraft} className="rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder={t("templates.editor.fields.variableExample")} />
-                <input value={variable.description ?? ""} onChange={(e) => setVariables((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, description: e.target.value } : item))} disabled={!isDraft} className="rounded-lg border border-input bg-background px-3 py-2 text-sm" placeholder={t("templates.editor.fields.variableDescription")} />
-              </div>
-            ))}
-          </div>
-        )}
+              <label className="space-y-1">
+                <span className={labelClass}>{t("templates.editor.fields.category")}</span>
+                <select
+                  value={category}
+                  onChange={(e) => {
+                    const cat = e.target.value as typeof category;
+                    setCategory(cat);
+                    if (cat === "authentication") {
+                      // drop incompatible buttons
+                      setButtons((prev) => prev.filter((b) => b.type === "OTP" || b.type === "COPY_CODE"));
+                      setNewButtonType("COPY_CODE");
+                    } else {
+                      setButtons((prev) => prev.filter((b) => b.type !== "OTP" && b.type !== "COPY_CODE"));
+                      setNewButtonType("QUICK_REPLY");
+                    }
+                  }}
+                  disabled={!isDraft}
+                  className={fieldClass}
+                >
+                  <option value="marketing">{t("templates.categories.marketing")}</option>
+                  <option value="utility">{t("templates.categories.utility")}</option>
+                  <option value="authentication">{t("templates.categories.authentication")}</option>
+                </select>
+              </label>
 
-        {activeTab === "preview" && (
-          <div className="mx-auto max-w-md rounded-2xl bg-muted p-4">
-            <div className="rounded-2xl rounded-tr-sm bg-primary p-4 text-sm leading-7 text-primary-foreground whitespace-pre-wrap">
-              {previewText || t("templates.editor.previewEmpty")}
+              <label className="space-y-1">
+                <span className={labelClass}>{t("templates.editor.fields.channelAccount")}</span>
+                <select
+                  value={channelAccountId}
+                  onChange={(e) => setChannelAccountId(e.target.value)}
+                  disabled={!isDraft}
+                  className={fieldClass}
+                >
+                  <option value="">{t("templates.editor.fields.noChannelAccount")}</option>
+                  {channelAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.displayName ?? acc.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
-        )}
+
+          {/* Header */}
+          <div className={sectionClass}>
+            <h3 className="text-sm font-semibold text-foreground">{t("templates.editor.sections.header")}</h3>
+
+            {/* Format selector */}
+            <div className="flex flex-wrap gap-2">
+              {(["none", "TEXT", "IMAGE", "VIDEO", "DOCUMENT"] as const).map((fmt) => (
+                <button
+                  key={fmt}
+                  type="button"
+                  disabled={!isDraft}
+                  onClick={() => { setHeaderFormat(fmt); if (fmt !== "TEXT") { setHeaderText(""); setHeaderVarExample(""); } }}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    headerFormat === fmt
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-muted-foreground hover:bg-muted"
+                  } disabled:opacity-50`}
+                >
+                  {fmt === "none" ? t("templates.editor.header.none") : fmt}
+                </button>
+              ))}
+            </div>
+
+            {/* Text header input */}
+            {headerFormat === "TEXT" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className={labelClass}>{t("templates.editor.header.text")}</span>
+                  <span className="text-xs text-muted-foreground">{headerText.length}/60</span>
+                </div>
+                <input
+                  ref={headerInputRef}
+                  value={headerText}
+                  onChange={(e) => setHeaderText(e.target.value)}
+                  disabled={!isDraft}
+                  maxLength={60}
+                  placeholder={t("templates.editor.header.placeholder")}
+                  className={fieldClass}
+                />
+                {!headerHasVar && (
+                  <button
+                    type="button"
+                    disabled={!isDraft}
+                    onClick={insertHeaderVar}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50"
+                  >
+                    <Plus className="h-3 w-3" />
+                    {t("templates.editor.addVariable")}
+                  </button>
+                )}
+                {headerHasVar && (
+                  <label className="block space-y-1">
+                    <span className="text-xs text-muted-foreground">{t("templates.editor.header.varExample")} {"{{1}}"}</span>
+                    <input
+                      value={headerVarExample}
+                      onChange={(e) => setHeaderVarExample(e.target.value)}
+                      disabled={!isDraft}
+                      placeholder={t("templates.editor.fields.exampleValue")}
+                      className={fieldClass}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
+
+            {headerFormat !== "none" && headerFormat !== "TEXT" && (
+              <p className="text-xs text-muted-foreground">
+                {t("templates.editor.header.mediaNote")}
+              </p>
+            )}
+          </div>
+
+          {/* Body */}
+          <div className={sectionClass}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">{t("templates.editor.sections.body")}</h3>
+              <span className="text-xs text-muted-foreground">{bodyText.length}/1024</span>
+            </div>
+
+            <div className="space-y-2">
+              <textarea
+                ref={bodyRef}
+                value={bodyText}
+                onChange={(e) => setBodyText(e.target.value)}
+                disabled={!isDraft}
+                rows={5}
+                maxLength={1024}
+                placeholder={t("templates.editor.body.placeholder")}
+                className={`${fieldClass} resize-none`}
+              />
+              <button
+                type="button"
+                disabled={!isDraft}
+                onClick={insertBodyVar}
+                className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50"
+              >
+                <Plus className="h-3 w-3" />
+                {t("templates.editor.addVariable")}
+              </button>
+
+              {!bodyVarsContiguous && bodyVarNums.length > 0 && (
+                <p className="flex items-center gap-1 text-xs text-amber-600">
+                  <TriangleAlert className="h-3 w-3 shrink-0" />
+                  {t("templates.editor.body.nonContiguous")}
+                </p>
+              )}
+            </div>
+
+            {/* Per-variable examples */}
+            {bodyVarNums.length > 0 && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <span className="text-xs font-medium text-muted-foreground">{t("templates.editor.body.varExamples")}</span>
+                {bodyVarNums.map((n) => (
+                  <div key={n} className="flex items-center gap-2">
+                    <code className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs font-mono">{`{{${n}}}`}</code>
+                    <input
+                      value={bodyVarExamples[n] ?? ""}
+                      onChange={(e) => setBodyVarExamples((prev) => ({ ...prev, [n]: e.target.value }))}
+                      disabled={!isDraft}
+                      placeholder={t("templates.editor.fields.exampleValue")}
+                      className={`${fieldClass} flex-1`}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className={sectionClass}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">{t("templates.editor.sections.footer")}</h3>
+              <span className="text-xs text-muted-foreground">{footerText.length}/60</span>
+            </div>
+            <input
+              value={footerText}
+              onChange={(e) => setFooterText(e.target.value)}
+              disabled={!isDraft}
+              maxLength={60}
+              placeholder={t("templates.editor.footer.placeholder")}
+              className={fieldClass}
+            />
+          </div>
+
+          {/* Buttons */}
+          <div className={sectionClass}>
+            <h3 className="text-sm font-semibold text-foreground">{t("templates.editor.sections.buttons")}</h3>
+
+            {buttonError && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {buttonError}
+              </div>
+            )}
+
+            {/* Existing buttons */}
+            <div className="space-y-3">
+              {buttons.map((btn, idx) => (
+                <div key={idx} className="rounded-lg border border-border p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    {/* Type selector per button */}
+                    <select
+                      value={btn.type}
+                      onChange={(e) => changeButtonType(idx, e.target.value as ButtonDraft["type"])}
+                      disabled={!isDraft}
+                      className="rounded-lg border border-input bg-background px-2 py-1 text-xs"
+                    >
+                      {!isAuthentication && <option value="QUICK_REPLY">{t("templates.editor.buttons.quickReply")}</option>}
+                      {!isAuthentication && <option value="PHONE_NUMBER">{t("templates.editor.buttons.phone")}</option>}
+                      {!isAuthentication && <option value="URL">{t("templates.editor.buttons.url")}</option>}
+                      {isAuthentication && <option value="COPY_CODE">{t("templates.editor.buttons.copyCode")}</option>}
+                      {isAuthentication && <option value="OTP">{t("templates.editor.buttons.otp")}</option>}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setButtons((prev) => prev.filter((_, i) => i !== idx))}
+                      disabled={!isDraft}
+                      className="mr-auto text-destructive hover:text-destructive/80 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Type-specific fields */}
+                  {btn.type === "QUICK_REPLY" && (
+                    <input
+                      value={btn.text}
+                      onChange={(e) => updateButton(idx, { text: e.target.value } as Partial<ButtonDraft>)}
+                      disabled={!isDraft}
+                      maxLength={25}
+                      placeholder={t("templates.editor.buttons.textPlaceholder")}
+                      className={fieldClass}
+                    />
+                  )}
+
+                  {btn.type === "PHONE_NUMBER" && (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <input
+                        value={btn.text}
+                        onChange={(e) => updateButton(idx, { text: e.target.value } as Partial<ButtonDraft>)}
+                        disabled={!isDraft}
+                        maxLength={25}
+                        placeholder={t("templates.editor.buttons.textPlaceholder")}
+                        className={fieldClass}
+                      />
+                      <input
+                        value={btn.phone_number}
+                        onChange={(e) => updateButton(idx, { phone_number: e.target.value } as Partial<ButtonDraft>)}
+                        disabled={!isDraft}
+                        maxLength={20}
+                        placeholder="+966500000000"
+                        className={fieldClass}
+                        dir="ltr"
+                      />
+                    </div>
+                  )}
+
+                  {btn.type === "URL" && (
+                    <div className="space-y-2">
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <input
+                          value={btn.text}
+                          onChange={(e) => updateButton(idx, { text: e.target.value } as Partial<ButtonDraft>)}
+                          disabled={!isDraft}
+                          maxLength={25}
+                          placeholder={t("templates.editor.buttons.textPlaceholder")}
+                          className={fieldClass}
+                        />
+                        <input
+                          value={btn.url}
+                          onChange={(e) => updateButton(idx, { url: e.target.value } as Partial<ButtonDraft>)}
+                          disabled={!isDraft}
+                          maxLength={2000}
+                          placeholder="https://example.com/{{1}}"
+                          className={fieldClass}
+                          dir="ltr"
+                        />
+                      </div>
+                      {btn.url?.includes("{{1}}") && (
+                        <input
+                          value={btn.example ?? ""}
+                          onChange={(e) => updateButton(idx, { example: e.target.value } as Partial<ButtonDraft>)}
+                          disabled={!isDraft}
+                          placeholder={t("templates.editor.buttons.urlExamplePlaceholder")}
+                          className={fieldClass}
+                          dir="ltr"
+                        />
+                      )}
+                      {btn.url?.includes("{{1}}") && (
+                        <p className="text-xs text-muted-foreground">{t("templates.editor.buttons.dynamicUrlNote")}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {btn.type === "COPY_CODE" && (
+                    <input
+                      value={btn.example}
+                      onChange={(e) => updateButton(idx, { example: e.target.value } as Partial<ButtonDraft>)}
+                      disabled={!isDraft}
+                      maxLength={15}
+                      placeholder={t("templates.editor.buttons.codePlaceholder")}
+                      className={fieldClass}
+                      dir="ltr"
+                    />
+                  )}
+
+                  {btn.type === "OTP" && (
+                    <p className="text-xs text-muted-foreground">{t("templates.editor.buttons.otpNote")}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add button row */}
+            {isDraft && canAddButton && (
+              <div className="flex items-center gap-2">
+                <select
+                  value={newButtonType}
+                  onChange={(e) => setNewButtonType(e.target.value as ButtonDraft["type"])}
+                  className="rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
+                >
+                  {!isAuthentication && <option value="QUICK_REPLY">{t("templates.editor.buttons.quickReply")}</option>}
+                  {!isAuthentication && <option value="PHONE_NUMBER">{t("templates.editor.buttons.phone")}</option>}
+                  {!isAuthentication && <option value="URL">{t("templates.editor.buttons.url")}</option>}
+                  {isAuthentication && <option value="COPY_CODE">{t("templates.editor.buttons.copyCode")}</option>}
+                  {isAuthentication && <option value="OTP">{t("templates.editor.buttons.otp")}</option>}
+                </select>
+                <button
+                  type="button"
+                  onClick={addButton}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                >
+                  <Plus className="h-4 w-4" />
+                  {t("templates.editor.addButton")}
+                </button>
+              </div>
+            )}
+
+            {buttons.length === 0 && (
+              <p className="text-xs text-muted-foreground">{t("templates.editor.buttons.empty")}</p>
+            )}
+          </div>
+        </div>
+
+        {/* ── Right: preview ──────────────────────────────────────────────── */}
+        <div className="lg:sticky lg:top-4 lg:self-start">
+          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">{t("templates.editor.previewTitle")}</h3>
+            <TemplateWhatsAppPreview
+              headerFormat={headerFormat}
+              headerText={headerText}
+              headerVarExample={headerVarExample}
+              bodyText={bodyText}
+              bodyVarExamples={bodyVarExamples}
+              footerText={footerText}
+              buttons={buttons}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
