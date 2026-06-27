@@ -9,6 +9,9 @@ on:
       - feat/whatsapp-profile-status
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: WhatsApp feature gate — PostgreSQL · typecheck · tests · build
@@ -97,6 +100,7 @@ jobs:
           name: whatsapp-feature-typecheck-log
           path: /tmp/whatsapp-feature-typecheck.txt
           if-no-files-found: error
+          retention-days: 1
 
       - name: Run WhatsApp Business Profile tests
         shell: bash
@@ -107,13 +111,22 @@ jobs:
             src/__tests__/whatsapp-business-profile.spec.ts \
             src/__tests__/whatsapp-business-profile-hardening.spec.ts \
             src/__tests__/whatsapp-business-profile.routes.spec.ts \
-            2>&1 | tee /tmp/whatsapp-business-profile-tests.txt
+            2>&1 | tee whatsapp-business-profile-vitest.log
+
+      - name: Upload WhatsApp Business Profile Vitest log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-business-profile-vitest-log
+          path: whatsapp-business-profile-vitest.log
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Verify PostgreSQL concurrency test executed
         shell: bash
         run: |
           test_name="preserves a real concurrent providerConfig update in PostgreSQL"
-          matching_lines="$(grep -F "$test_name" /tmp/whatsapp-business-profile-tests.txt || true)"
+          matching_lines="$(grep -F "$test_name" whatsapp-business-profile-vitest.log || true)"
           if [ -z "$matching_lines" ]; then
             echo "ERROR: PostgreSQL concurrency test was not reported."
             exit 1
@@ -180,3 +193,4 @@ jobs:
           name: full-api-typecheck-log
           path: /tmp/full-api-typecheck.txt
           if-no-files-found: error
+          retention-days: 1
