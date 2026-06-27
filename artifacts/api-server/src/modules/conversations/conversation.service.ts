@@ -29,6 +29,13 @@ export type ConversationLifecyclePlan = Readonly<{
 
 export type DashboardConversationStatus = LegacyConversationStatus;
 export type DashboardAgentStatus = LegacyAgentStatus;
+export type CanonicalDashboardStatus = Exclude<DashboardConversationStatus, "bot" | "closed">;
+
+export function canonicalDashboardStatus(status: DashboardConversationStatus): CanonicalDashboardStatus {
+  if (status === "bot") return "pending";
+  if (status === "closed") return "resolved";
+  return status;
+}
 
 function preserveLegacyProjection(record: ConversationLifecycleRecord): LifecycleProjection {
   const normalized = normalizeConversationLifecycle(record);
@@ -117,23 +124,21 @@ export function lifecycleEventForDashboardStatus(
   requestedStatus: DashboardConversationStatus,
 ): LifecycleEvent {
   const current = normalizeConversationLifecycle(record).state.lifecycleState;
+  const canonicalStatus = canonicalDashboardStatus(requestedStatus);
 
-  switch (requestedStatus) {
-    case "resolved":
-    case "closed":
-      return { type: "resolve", reason: `dashboard_status:${requestedStatus}` };
-    case "open":
-      return current === "resolved"
-        ? { type: "reopen", reason: "dashboard_status:open" }
-        : { type: "set_lifecycle", target: "open", reason: "dashboard_status:open" };
-    case "pending":
-    case "bot":
-      return { type: "set_lifecycle", target: "pending", reason: `dashboard_status:${requestedStatus}` };
-    case "snoozed":
-      return { type: "set_lifecycle", target: "snoozed", reason: "dashboard_status:snoozed" };
-    case "new":
-      return { type: "set_lifecycle", target: "new", reason: "dashboard_status:new" };
+  if (canonicalStatus === "resolved") {
+    return { type: "resolve", reason: `dashboard_status:${requestedStatus}` };
   }
+  if (canonicalStatus === "open") {
+    return current === "resolved"
+      ? { type: "reopen", reason: "dashboard_status:open" }
+      : { type: "set_lifecycle", target: "open", reason: "dashboard_status:open" };
+  }
+  return {
+    type: "set_lifecycle",
+    target: canonicalStatus,
+    reason: `dashboard_status:${requestedStatus}`,
+  };
 }
 
 export function lifecycleEventForDashboardAgentStatus(status: DashboardAgentStatus): LifecycleEvent {
@@ -147,23 +152,43 @@ export function lifecycleEventForDashboardAgentStatus(status: DashboardAgentStat
   }
 }
 
-export function canUnifiedAgentReply(record: ConversationLifecycleRecord): boolean {
-  const { state } = normalizeConversationLifecycle(record);
+export function canUnifiedAgentReply(
+  record: ConversationLifecycleRecord,
+  now: Date = new Date(),
+): boolean {
+  const { state } = normalizeConversationLifecycle(record, { now });
   return state.aiSubstate === "ai_active"
     && state.lifecycleState !== "resolved"
     && state.lifecycleState !== "snoozed";
 }
 
+export function wasAgentReactivationNeeded(
+  record: ConversationLifecycleRecord,
+): boolean {
+  return record.aiSubstate !== "ai_active"
+    || record.agentStatus !== "active"
+    || Boolean(record.needsHuman)
+    || Boolean(record.assignedMembershipId)
+    || record.agentPausedUntil !== null && record.agentPausedUntil !== undefined;
+}
+
 export function shouldPublishAgentReactivationEvent(input: Readonly<{
   requestedStatus: DashboardAgentStatus;
-  lifecycleChanged: boolean;
+  previous?: ConversationLifecycleRecord;
+  lifecycleChanged?: boolean;
   conversation: ConversationLifecycleRecord;
   lastMessageDirection: string | null | undefined;
+  now?: Date;
 }>): boolean {
+  const now = input.now ?? new Date();
+  const neededBefore = input.previous
+    ? wasAgentReactivationNeeded(input.previous)
+    : Boolean(input.lifecycleChanged);
+
   return input.requestedStatus === "active"
-    && input.lifecycleChanged
+    && neededBefore
     && input.lastMessageDirection === "inbound"
-    && canUnifiedAgentReply(input.conversation);
+    && canUnifiedAgentReply(input.conversation, now);
 }
 
 export type AtomicLifecycleStore<TTransaction, TRow extends ConversationLifecycleRecord> = Readonly<{
