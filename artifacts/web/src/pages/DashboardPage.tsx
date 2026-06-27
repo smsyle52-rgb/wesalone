@@ -153,14 +153,6 @@ function DistributionPanel({ title, rows }: { title: string; rows: { label: stri
   );
 }
 
-const setupSteps = [
-  "عرّف نشاطك التجاري",
-  "اربط قنوات التواصل",
-  "أضف قاعدة المعرفة",
-  "اختبر الوكيل الذكي",
-  "ابدأ متابعة العملاء",
-];
-
 export default function DashboardPage() {
   const { user, hasPermission } = useAuth();
   const canViewAnalytics = hasPermission("analytics:read");
@@ -206,31 +198,6 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
-
-        <Card className="overflow-hidden border-primary/10 bg-gradient-to-l from-primary/8 via-card to-accent/10">
-          <CardContent className="space-y-3 p-4">
-            <div>
-              <p className="text-xs font-bold text-primary">دليل التشغيل السريع</p>
-              <h2 className="mt-1 text-base font-extrabold text-foreground">ابدأ من الخطوات التي تجعل التجربة مفهومة لفريقك</h2>
-              <p className="mt-1 text-xs leading-6 text-muted-foreground">
-                وصال ون يجمع المحادثات، المتابعة، الكتالوج، والوكيل الذكي في مسار واحد.
-              </p>
-            </div>
-            <div className="grid gap-2">
-              {setupSteps.map((step, index) => (
-                <div key={step} className="rounded-lg border border-border/80 bg-card/80 px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[0.68rem] font-black text-primary-foreground">{index + 1}</span>
-                    <span className="text-xs font-bold text-foreground">{step}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Button asChild size="sm" className="mt-2 w-full">
-              <Link href="/start">فتح دليل الإعداد الكامل</Link>
-            </Button>
-          </CardContent>
-        </Card>
 
         {!canViewAnalytics ? (
           <Card className="border-amber-200 bg-amber-50">
@@ -337,33 +304,6 @@ export default function DashboardPage() {
           </Button>
         )}
       />
-
-      <Card className="overflow-hidden border-primary/10 bg-gradient-to-l from-primary/8 via-card to-accent/10">
-        <CardContent className="grid gap-6 p-5 lg:grid-cols-[1.2fr_.8fr] lg:p-6">
-          <div>
-            <p className="text-sm font-bold text-primary">دليل التشغيل السريع</p>
-            <h2 className="mt-2 text-2xl font-extrabold text-foreground">ابدأ من الخطوات التي تجعل التجربة مفهومة لفريقك</h2>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              وصال ون يجمع المحادثات، المتابعة، الكتالوج، والوكيل الذكي في مسار واحد. أكمل هذه الخطوات ثم راقب الأداء من هذه اللوحة.
-            </p>
-          </div>
-          <div className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {setupSteps.map((step, index) => (
-                <div key={step} className="rounded-lg border border-border/80 bg-card/80 p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-black text-primary-foreground">{index + 1}</span>
-                    <span className="text-sm font-bold text-foreground">{step}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Button asChild size="sm">
-              <Link href="/start">فتح دليل الإعداد الكامل</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {!canViewAnalytics ? (
         <Card className="border-amber-200 bg-amber-50">

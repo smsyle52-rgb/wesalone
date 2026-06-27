@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,6 +36,7 @@ type NavItem = {
   key: string;
   permission?: string;
   icon: LucideIcon;
+  tourId?: string;
 };
 
 type NavGroup = {
@@ -54,14 +55,14 @@ const navGroups: NavGroup[] = [
     slug: "conversations",
     key: "groupConversations",
     items: [
-      { path: "/inbox", key: "inbox", permission: "conversations:read", icon: Inbox },
+      { path: "/inbox", key: "inbox", permission: "conversations:read", icon: Inbox, tourId: "nav-inbox" },
     ],
   },
   {
     slug: "intelligence",
     key: "groupIntelligence",
     items: [
-      { path: "/agents", key: "agents", permission: "ai:read", icon: Bot },
+      { path: "/agents", key: "agents", permission: "ai:read", icon: Bot, tourId: "nav-agents" },
       { path: "/knowledge", key: "knowledge", permission: "knowledge:read", icon: BookOpen },
       { path: "/templates", key: "templates", permission: "templates:read", icon: FileText },
       { path: "/broadcasts", key: "broadcasts", permission: "broadcasts:read", icon: Megaphone },
@@ -79,7 +80,7 @@ const navGroups: NavGroup[] = [
     slug: "customers",
     key: "groupCustomers",
     items: [
-      { path: "/contacts", key: "contacts", permission: "contacts:read", icon: Users },
+      { path: "/contacts", key: "contacts", permission: "contacts:read", icon: Users, tourId: "nav-contacts" },
       { path: "/orders", key: "orders", permission: "orders:read", icon: Package },
       { path: "/payments", key: "payments", permission: "payments:read", icon: CreditCard },
       { path: "/opportunities", key: "opportunities", permission: "opportunities:read", icon: Target },
@@ -104,7 +105,7 @@ const navGroups: NavGroup[] = [
     slug: "setup",
     key: "groupSetup",
     items: [
-      { path: "/integrations", key: "integrations", permission: "channels:read", icon: Plug },
+      { path: "/integrations", key: "integrations", permission: "channels:read", icon: Plug, tourId: "nav-integrations" },
       { path: "/settings?tab=billing", key: "billing", permission: "settings:read", icon: CreditCard },
       { path: "/settings", key: "settings", permission: "settings:read", icon: Settings },
     ],
@@ -147,6 +148,124 @@ function readCollapsedGroups() {
   }, {});
 }
 
+const TOUR_STEPS = [
+  { target: "nav-inbox", title: "صندوق الوارد", text: "هنا يصلك كل شيء — رسائل العملاء من واتساب وإنستغرام وماسنجر في مكان واحد. لن تفوتك رسالة بعد اليوم." },
+  { target: "nav-agents", title: "ضوابط الوكيل", text: "من صفحة الوكلاء تستطيع تفعيل الوكيل أو إيقافه، وتعديل تعليماته وأسلوب رده في أي وقت." },
+  { target: "nav-agents", title: "التحويل للإنسان", text: "داخل أي محادثة ستجد زر «حوّل للإنسان» — اضغطه لتولي المحادثة يدوياً وإيقاف الوكيل مؤقتاً لتلك المحادثة." },
+  { target: "nav-contacts", title: "العملاء", text: "سجل موحد لكل عميل تفاعل معك عبر أي قناة، مع تاريخ طلباته ومحادثاته وبياناته الكاملة." },
+  { target: "nav-integrations", title: "إعدادات القناة", text: "من صفحة القنوات تستطيع ربط قنوات جديدة أو تعديل إعدادات القنوات الحالية في أي وقت." },
+  { target: "nav-integrations", title: "قطع وإعادة الاتصال", text: "إذا واجهت مشكلة في قناة، استخدم «قطع الاتصال» ثم «إعادة الاتصال» لاستعادة الخدمة دون فقدان الإعدادات." },
+] as const;
+
+type TourRect = { top: number; left: number; right: number; bottom: number; width: number; height: number } | null;
+
+function GuidedTour({ tourDone, onComplete }: { tourDone: boolean; onComplete: () => void }) {
+  const [active, setActive] = useState(false);
+  const [step, setStep] = useState(0);
+  const [rect, setRect] = useState<TourRect>(null);
+
+  const currentStep = TOUR_STEPS[step];
+
+  const measureTarget = useCallback(() => {
+    if (!currentStep) return;
+    const el = document.querySelector(`[data-tour="${currentStep.target}"]`);
+    if (el) {
+      const r = el.getBoundingClientRect();
+      setRect({ top: r.top, left: r.left, right: r.right, bottom: r.bottom, width: r.width, height: r.height });
+    } else {
+      setRect(null);
+    }
+  }, [currentStep]);
+
+  useEffect(() => {
+    if (tourDone) return;
+    const flag = sessionStorage.getItem("show-tour");
+    if (flag === "1") {
+      sessionStorage.removeItem("show-tour");
+      setActive(true);
+    }
+  }, [tourDone]);
+
+  useEffect(() => {
+    if (!active) return;
+    measureTarget();
+    const onResize = () => measureTarget();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [active, measureTarget]);
+
+  function advance() {
+    if (step < TOUR_STEPS.length - 1) {
+      setStep((s) => s + 1);
+    } else {
+      finish();
+    }
+  }
+
+  function finish() {
+    setActive(false);
+    onComplete();
+  }
+
+  if (!active || tourDone) return null;
+
+  const PAD = 6;
+  const isMobile = !rect || rect.width === 0;
+
+  return (
+    <div className="fixed inset-0 z-[9998]" dir="rtl" aria-modal="true" role="dialog">
+      {isMobile ? (
+        <div className="pointer-events-none absolute inset-0 bg-black/60" />
+      ) : (
+        <>
+          <div className="pointer-events-none absolute bg-black/60" style={{ top: 0, left: 0, right: 0, height: Math.max(0, rect.top - PAD) }} />
+          <div className="pointer-events-none absolute bg-black/60" style={{ top: rect.top - PAD, left: 0, width: Math.max(0, rect.left - PAD), height: rect.height + PAD * 2 }} />
+          <div className="pointer-events-none absolute bg-black/60" style={{ top: rect.top - PAD, left: rect.right + PAD, right: 0, height: rect.height + PAD * 2 }} />
+          <div className="pointer-events-none absolute bg-black/60" style={{ top: rect.bottom + PAD, left: 0, right: 0, bottom: 0 }} />
+          <div className="pointer-events-none absolute rounded-xl ring-2 ring-primary ring-offset-2" style={{ top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 }} />
+        </>
+      )}
+
+      {/* Tooltip */}
+      {isMobile ? (
+        <div className="absolute bottom-24 inset-x-4 rounded-2xl border border-border bg-card shadow-2xl p-5 space-y-4">
+          <div>
+            <p className="text-xs font-bold text-primary">{step + 1} / {TOUR_STEPS.length}</p>
+            <h3 className="mt-1 text-base font-extrabold text-foreground">{currentStep.title}</h3>
+            <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{currentStep.text}</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={advance} className="flex-1 rounded-lg bg-primary py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90">
+              {step < TOUR_STEPS.length - 1 ? "التالي" : "فهمت"}
+            </button>
+            <button onClick={finish} className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50">تخطي الجولة</button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="absolute w-72 rounded-2xl border border-border bg-card shadow-2xl p-5 space-y-4"
+          style={{
+            top: Math.max(8, rect.top + rect.height / 2 - 80),
+            right: window.innerWidth - rect.left + 16,
+          }}
+        >
+          <div>
+            <p className="text-xs font-bold text-primary">{step + 1} / {TOUR_STEPS.length}</p>
+            <h3 className="mt-1 text-base font-extrabold text-foreground">{currentStep.title}</h3>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{currentStep.text}</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <button onClick={advance} className="w-full rounded-lg bg-primary py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90">
+              {step < TOUR_STEPS.length - 1 ? "التالي" : "فهمت"}
+            </button>
+            <button onClick={finish} className="w-full rounded-lg border border-border py-2 text-sm text-muted-foreground hover:bg-muted/50">تخطي الجولة</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { user, clearAuth, hasPermission } = useAuth();
@@ -166,6 +285,19 @@ export default function Layout({ children }: { children: ReactNode }) {
     staleTime: 5 * 60_000,
   });
   const workspace = workspaceQuery.data?.workspace;
+  const tourDone = workspace?.settings?.tour_completed === true;
+
+  const completeTour = useCallback(async () => {
+    try {
+      await fetch(`${import.meta.env.BASE_URL}api/workspace`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: { tour_completed: true } }),
+      });
+      qc.invalidateQueries({ queryKey: ["workspace-shell-info"] });
+    } catch { /* non-critical */ }
+  }, [qc]);
   const workspaceName =
     workspace?.name ||
     (typeof workspace?.settings?.companyName === "string" ? workspace.settings.companyName : "") ||
@@ -259,6 +391,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                         <Link
                           key={item.path}
                           href={item.path}
+                          data-tour={item.tourId}
                           className={cn(
                             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-bold transition-colors",
                             active
@@ -376,6 +509,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </main>
         <MobileBottomNav location={location} hasPermission={hasPermission} />
       </div>
+      <GuidedTour tourDone={tourDone} onComplete={completeTour} />
     </div>
   );
 }
