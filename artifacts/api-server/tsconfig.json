@@ -3,6 +3,10 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
+    "baseUrl": ".",
+    "paths": {
+      "pg": ["./src/types/database-client.ts"]
+    },
     "types": ["node"]
   },
   "include": ["src"],
