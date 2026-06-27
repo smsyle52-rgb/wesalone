@@ -1,4 +1,5 @@
-import { index, pgTable, text, timestamp, integer, uuid, boolean, jsonb } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { index, pgTable, text, timestamp, integer, uuid, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { workspacesTable } from "./workspaces";
 import { contactsTable } from "./contacts";
 import { contactChannelsTable } from "./contacts";
@@ -18,6 +19,12 @@ export const channelAccountsTable = pgTable("channel_accounts", {
   createdBy: uuid("created_by").references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // W1-T1 parity columns — written by trigger/backfill, not yet read by app code
+  externalAccountId: text("external_account_id"),
+  externalBusinessId: text("external_business_id"),
+  externalPhoneId: text("external_phone_id"),
+  healthStatus: text("health_status"),
+  lastHealthAt: timestamp("last_health_at", { withTimezone: true }),
 });
 
 export const conversationsTable = pgTable(
@@ -49,11 +56,20 @@ export const conversationsTable = pgTable(
     closedAt: timestamp("closed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    // W1-T1 parity columns — written by trigger/backfill, not yet read by app code
+    displayId: integer("display_id"),
+    lifecycleState: text("lifecycle_state"),
+    aiSubstate: text("ai_substate"),
+    labels: text("labels").array().notNull().default(sql`'{}'`),
+    waitingSince: timestamp("waiting_since", { withTimezone: true }),
+    firstReplyCreatedAt: timestamp("first_reply_created_at", { withTimezone: true }),
   },
   (table) => [
     index("idx_conv_ws_status").on(table.workspaceId, table.status),
     index("idx_conv_ws_assigned").on(table.workspaceId, table.assignedMembershipId),
     index("idx_conv_ws_lastmsg").on(table.workspaceId, table.lastMessageAt),
+    uniqueIndex("uq_conversations_ws_display_id").on(table.workspaceId, table.displayId),
+    index("idx_conv_ws_display_id").on(table.workspaceId, table.displayId),
   ],
 );
 
@@ -78,6 +94,9 @@ export const messagesTable = pgTable(
     providerPayload: jsonb("provider_payload"),
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // W1-T1 parity columns — written but not yet read by app code
+    messageType: text("message_type"),
+    contentAttributes: jsonb("content_attributes"),
   },
   (table) => [
     index("idx_msg_conv_created").on(table.conversationId, table.createdAt),

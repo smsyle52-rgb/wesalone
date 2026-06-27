@@ -1,5 +1,5 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import express, { Router, type Request, type Response } from "express";
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   channelAccountsTable,
@@ -13,7 +13,9 @@ import {
 } from "@workspace/db";
 import { env } from "../../lib/env";
 import { logger } from "../../lib/logger";
+import { verifyMetaHmac } from "../../lib/meta-signature";
 import { handleMetaWebhook } from "../integrations/meta-webhook.handler";
+import { ingestWebhookEvent } from "../integrations/webhookIngest.service";
 import { notifyWorkspace } from "../../services/notifications";
 
 type RequestWithRawBody = Request & { rawBody?: Buffer };
@@ -149,18 +151,7 @@ function describeMetaPayload(payload: any): Record<string, unknown> {
 
 function verifyMetaSignature(req: Request, rawBody: Buffer): boolean {
   const secret = env.META_APP_SECRET ?? env.META_WEBHOOK_SECRET;
-  const signature = req.header("x-hub-signature-256");
-  if (!secret || !signature?.startsWith("sha256=")) return false;
-
-  const signatureHex = signature.slice("sha256=".length);
-  if (!/^[a-fA-F0-9]+$/.test(signatureHex)) return false;
-
-  const expectedHex = createHmac("sha256", secret).update(rawBody).digest("hex");
-  const expected = Buffer.from(expectedHex, "hex");
-  const provided = Buffer.from(signatureHex, "hex");
-
-  if (provided.length !== expected.length) return false;
-  return timingSafeEqual(provided, expected);
+  return verifyMetaHmac(rawBody, req.header("x-hub-signature-256"), secret ?? "");
 }
 
 async function findWhatsappChannel(phoneNumberId: string): Promise<ChannelAccount | undefined> {
@@ -557,8 +548,22 @@ router.post("/meta", express.raw({ type: "*/*", limit: "2mb" }), async (req: Req
     return;
   }
 
+  const payload = (() => { try { return parsePayload(req, rawBody); } catch { return null; } })();
+  if (!payload) {
+    res.status(200).send("EVENT_RECEIVED");
+    return;
+  }
+
+  // W2-T1: fast-ack path — persist raw event, skip inline processing
+  if (env.INGEST_DEFERRED) {
+    const correlationId = randomUUID();
+    ingestWebhookEvent({ provider: "meta", headers: req.headers, payload, correlationId })
+      .catch((err) => logger.error({ err, correlationId }, "Failed to persist deferred webhook_events row"));
+    res.status(200).send("EVENT_RECEIVED");
+    return;
+  }
+
   try {
-    const payload = parsePayload(req, rawBody);
     // PD-6 fix: route instagram/page (Messenger) webhooks to the shared dispatcher
     const objectType = (payload as any)?.object;
     if (objectType === "instagram" || objectType === "page") {

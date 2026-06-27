@@ -74,6 +74,7 @@ export async function ingestWebhookEvent(params: {
   provider: string;
   headers: IncomingHttpHeaders;
   payload: unknown;
+  correlationId?: string;
 }) {
   if (!isIntegrationProvider(params.provider)) {
     return { accepted: false, duplicate: false, reason: "unsupported_provider" as const };
@@ -99,6 +100,7 @@ export async function ingestWebhookEvent(params: {
       eventType: extractEventType(provider, params.payload),
       externalEventId,
       idempotencyKey,
+      correlationId: params.correlationId ?? null,
       headers: sanitizeHeaders(params.headers),
       payload: typeof params.payload === "undefined" ? {} : JSON.parse(stableStringify(params.payload)),
       status: "received",

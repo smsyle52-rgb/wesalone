@@ -8,7 +8,11 @@ import {
   conversationsTable,
   messagesTable,
   outboxEventsTable,
+  webhookEventsTable,
 } from "@workspace/db";
+import { dispatchWhatsAppWebhook } from "../modules/integrations/adapters/whatsapp.adapter";
+import { dispatchInstagramWebhook } from "../modules/integrations/adapters/instagram.adapter";
+import { dispatchMessengerWebhook } from "../modules/integrations/adapters/messenger.adapter";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 import { runAgentReply } from "../lib/agent-reply";
@@ -51,6 +55,14 @@ function requireInternalSecret(req: Request, res: Response): boolean {
 
 router.post("/cleanup-outbox", async (req: Request, res: Response): Promise<void> => {
   if (!requireInternalSecret(req, res)) return;
+
+  // Reset webhook_events stuck in processing > 10 minutes back to received
+  await db.execute(sql`
+    UPDATE webhook_events
+    SET status = 'received'
+    WHERE status = 'processing'
+      AND received_at < NOW() - INTERVAL '10 minutes'
+  `);
 
   const result = await db.execute(sql`
     UPDATE outbox_events
@@ -288,6 +300,61 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
   } catch (err) {
     logger.error({ err, workspaceId, conversationId, agentId }, "Internal agent reply failed");
     res.status(500).json({ success: false, error: "Internal agent reply failed" });
+  }
+});
+
+const dispatchWebhookSchema = z.object({ webhookEventId: z.string().uuid() });
+
+router.post("/dispatch-webhook-event", async (req: Request, res: Response): Promise<void> => {
+  if (!requireInternalSecret(req, res)) return;
+
+  const parsed = dispatchWebhookSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+    return;
+  }
+
+  const { webhookEventId } = parsed.data;
+
+  const [row] = await db
+    .select({ id: webhookEventsTable.id, payload: webhookEventsTable.payload })
+    .from(webhookEventsTable)
+    .where(eq(webhookEventsTable.id, webhookEventId))
+    .limit(1);
+
+  if (!row) {
+    res.status(404).json({ error: "webhook_events row not found", webhookEventId });
+    return;
+  }
+
+  const objectType = (row.payload as any)?.object;
+
+  try {
+    let result;
+    if (objectType === "whatsapp_business_account") {
+      result = await dispatchWhatsAppWebhook(row.payload);
+    } else if (objectType === "instagram") {
+      result = await dispatchInstagramWebhook(row.payload);
+    } else if (objectType === "page") {
+      result = await dispatchMessengerWebhook(row.payload);
+    } else {
+      await db
+        .update(webhookEventsTable)
+        .set({ status: "failed", errorMessage: `unsupported object type: ${objectType}`, processedAt: new Date() })
+        .where(eq(webhookEventsTable.id, webhookEventId));
+      res.status(200).json({ handled: false, messagesCreated: 0, statusesUpdated: 0, reason: "unsupported_object_type" });
+      return;
+    }
+
+    await db
+      .update(webhookEventsTable)
+      .set({ status: "processed", processedAt: new Date() })
+      .where(eq(webhookEventsTable.id, webhookEventId));
+
+    res.status(200).json({ handled: result.handled, messagesCreated: result.messagesCreated, statusesUpdated: result.statusesUpdated });
+  } catch (err) {
+    logger.error({ err, webhookEventId }, "dispatch-webhook-event: adapter threw");
+    res.status(500).json({ error: "adapter_error", message: err instanceof Error ? err.message : String(err) });
   }
 });
 

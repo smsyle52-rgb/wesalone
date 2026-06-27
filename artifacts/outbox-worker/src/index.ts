@@ -1,11 +1,14 @@
 import { createDecipheriv, createHash } from "node:crypto";
 import { createServer } from "node:http";
 import pg from "pg";
+import { runIngestionDispatcher } from "./ingestion-dispatcher";
 
 const OUTBOX_INTERVAL_MS = 3_000;
 const AGENT_INTERVAL_MS = 5_000;
+const INGESTION_INTERVAL_MS = 3_000;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const CLEANUP_INTERVAL_MS = 300_000;
+const INGEST_DEFERRED = process.env.INGEST_DEFERRED === "true";
 const META_GRAPH_VERSION = "v22.0";
 const API_SERVER_URL = (process.env.API_SERVER_URL ?? "http://localhost:8080").replace(/\/$/, "");
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "";
@@ -884,5 +887,10 @@ startLoop("outbox sender", OUTBOX_INTERVAL_MS, runOutboxSender);
 startLoop("agent runner", AGENT_INTERVAL_MS, runAgentRunner);
 startLoop("heartbeat", HEARTBEAT_INTERVAL_MS, writeHeartbeat);
 startLoop("cleanup", CLEANUP_INTERVAL_MS, runCleanup);
+if (INGEST_DEFERRED) {
+  startLoop("ingestion dispatcher", INGESTION_INTERVAL_MS, () =>
+    runIngestionDispatcher({ pool, apiServerUrl: API_SERVER_URL, internalSecret: INTERNAL_SECRET }),
+  );
+}
 
 logger.info("Outbox worker started");
