@@ -30,7 +30,7 @@ import pointsRouter from "../modules/points/points.routes";
 import adminRouter from "../modules/admin/admin.routes";
 import commerceOrderSafetyRouter from "../modules/commerce/commerce-order-safety.routes";
 import legacyCommerceCompatRouter from "../modules/commerce/legacy-commerce-compat.routes";
-import inventoryRouter from "../modules/commerce/inventory.routes";
+import inventoryRouter from "../modules/commerce/commerce-inventory-entry.routes";
 import commerceProductsRouter from "../modules/commerce/products-commerce.routes";
 import commerceOrdersRouter from "../modules/commerce/orders-commerce.routes";
 import commercePaymentsRouter from "../modules/commerce/payments-commerce.routes";
