@@ -159,4 +159,70 @@ router.patch("/accounts/:id", requirePermission("channels:manage"), async (req: 
   res.json({ account });
 });
 
+router.post("/accounts/:id/disconnect", requirePermission("channels:manage"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const [existing] = await db
+    .select()
+    .from(channelAccountsTable)
+    .where(and(
+      eq(channelAccountsTable.id, req.params.id as string),
+      eq(channelAccountsTable.workspaceId, activeWorkspaceId)
+    ))
+    .limit(1);
+
+  if (!existing) { res.status(404).json({ error: "حساب القناة غير موجود" }); return; }
+
+  const [account] = await db
+    .update(channelAccountsTable)
+    .set({ status: "disabled", providerConfig: null, updatedAt: new Date() })
+    .where(eq(channelAccountsTable.id, existing.id))
+    .returning();
+
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "channel_disconnect",
+    severity: "warning",
+    entityType: "channel_account",
+    entityId: account.id,
+    entityLabel: account.name,
+    newData: { status: "disabled" },
+  });
+
+  logger.info({ accountId: account.id, channelType: account.channelType }, "Channel disconnected");
+  res.json({ account });
+});
+
+router.post("/accounts/:id/reconnect", requirePermission("channels:manage"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const [existing] = await db
+    .select()
+    .from(channelAccountsTable)
+    .where(and(
+      eq(channelAccountsTable.id, req.params.id as string),
+      eq(channelAccountsTable.workspaceId, activeWorkspaceId)
+    ))
+    .limit(1);
+
+  if (!existing) { res.status(404).json({ error: "حساب القناة غير موجود" }); return; }
+  if (existing.status !== "disabled") { res.status(400).json({ error: "القناة ليست في حالة قطع الاتصال" }); return; }
+
+  const [account] = await db
+    .update(channelAccountsTable)
+    .set({ status: "active", updatedAt: new Date() })
+    .where(eq(channelAccountsTable.id, existing.id))
+    .returning();
+
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "channel_reconnect",
+    severity: "info",
+    entityType: "channel_account",
+    entityId: account.id,
+    entityLabel: account.name,
+    newData: { status: "active" },
+  });
+
+  res.json({ account });
+});
+
 export default router;

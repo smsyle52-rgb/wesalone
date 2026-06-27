@@ -14,6 +14,7 @@ import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import DashboardPage from "@/pages/DashboardPage";
+import OnboardingPage from "@/pages/OnboardingPage";
 import AutomationHubPage from "@/pages/AutomationHubPage";
 import MorePage from "@/pages/MorePage";
 import InboxPage from "@/pages/InboxPage";
@@ -47,6 +48,7 @@ import AdminPointsPage from "@/pages/AdminPointsPage";
 import PointsWalletPage from "@/pages/PointsWalletPage";
 import ProductsPage from "@/pages/ProductsPage";
 import NotFound from "@/pages/not-found";
+import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { DirectionProvider } from "@workspace/ui/direction-provider";
 import { TooltipProvider } from "@workspace/ui/tooltip";
 import { Toaster } from "@workspace/ui/sonner";
@@ -86,9 +88,10 @@ function DirectionManager({ children }: { children: ReactNode }) {
 }
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, onboardingCompleted } = useAuth();
   if (isLoading) return <LoadingScreen />;
   if (!user) return <Redirect to="/login" />;
+  if (!onboardingCompleted) return <Redirect to="/onboarding" />;
   return (
     <Layout>
       <Component />
@@ -96,10 +99,25 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   );
 }
 
-function PublicRoute({ component: Component }: { component: React.ComponentType }) {
+function ProtectedRouteNoGate({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return <LoadingScreen />;
-  if (user) return <Redirect to="/dashboard" />;
+  if (!user) return <Redirect to="/login" />;
+  return <Layout><Component /></Layout>;
+}
+
+function OnboardingRoute() {
+  const { user, isLoading, onboardingCompleted } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (!user) return <Redirect to="/login" />;
+  if (onboardingCompleted) return <Redirect to="/dashboard" />;
+  return <OnboardingPage />;
+}
+
+function PublicRoute({ component: Component }: { component: React.ComponentType }) {
+  const { user, isLoading, onboardingCompleted } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (user) return <Redirect to={onboardingCompleted ? "/dashboard" : "/onboarding"} />;
   return <Component />;
 }
 
@@ -126,10 +144,11 @@ function Router() {
       <Route path="/terms" component={() => <PublicContentPage kind="terms" />} />
       <Route path="/contact" component={() => <PublicContentPage kind="contact" />} />
       <Route path="/products" component={() => <PublicContentPage kind="products" />} />
+      <Route path="/onboarding" component={OnboardingRoute} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
       <Route path="/automation-hub" component={() => <ProtectedRoute component={AutomationHubPage} />} />
       <Route path="/more" component={() => <ProtectedRoute component={MorePage} />} />
-      <Route path="/start" component={() => <ProtectedRoute component={BusinessSetupPage} />} />
+      <Route path="/start" component={() => <ProtectedRouteNoGate component={BusinessSetupPage} />} />
       <Route path="/inbox" component={() => <ProtectedRoute component={InboxPage} />} />
       <Route path="/tickets" component={() => <ProtectedRoute component={TicketsPage} />} />
       <Route path="/tasks" component={() => <ProtectedRoute component={TasksFollowupsPage} />} />
@@ -188,6 +207,7 @@ function App() {
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
                 <Router />
                 <Toaster />
+                <PwaInstallBanner />
               </WouterRouter>
             </AuthProvider>
           </QueryClientProvider>

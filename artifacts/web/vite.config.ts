@@ -37,10 +37,12 @@ export default defineConfig({
         start_url: "/",
         scope: "/",
         display: "standalone",
+        display_override: ["standalone", "minimal-ui", "browser"],
         background_color: "#FFFFFF",
         theme_color: "#1B3A5C",
         dir: "rtl",
         lang: "ar",
+        categories: ["business", "productivity"],
         icons: [
           {
             src: "/icons/wesal-one-192.png",

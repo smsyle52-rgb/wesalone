@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { registerWorkspace, loginUser, loadUserPermissions, hashPassword, verifyPassword, AuthError } from "./auth.service";
+import { v4 as uuidv4 } from "uuid";
 import { createAuditLog } from "../../lib/audit";
 import type { AuthenticatedRequest, SessionUser } from "../../lib/types";
 import { logger } from "../../lib/logger";
@@ -62,11 +63,11 @@ const registerSchema = z.object({
   email: z.string().email("بريد إلكتروني غير صحيح"),
   password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
   workspaceName: z.string().min(2, "اسم المنشأة يجب أن يكون على الأقل حرفين").max(100),
+  phone: z.string().max(30).optional(),
 });
 
 const protectedRegisterSchema = registerSchema.extend({
   website: z.string().max(0).optional().default(""),
-  challengeAnswer: z.string().trim().refine((value) => value === "7", "إجابة التحقق غير صحيحة"),
 });
 
 const loginSchema = z.object({
@@ -126,7 +127,8 @@ router.post("/register", signupLimiter, async (req: Request, res: Response) => {
 
     res.status(201).json({
       message: "تم إنشاء الحساب بنجاح",
-      user: { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified },
+      user: { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified, permissions: [], roleSlugs: [] },
+      workspaceId: workspace.id,
       workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
     });
   } catch (err) {
@@ -287,7 +289,7 @@ router.get("/me", requireSession, async (req: Request, res: Response) => {
 
   try {
     const [workspace] = await db
-      .select({ id: workspacesTable.id, name: workspacesTable.name, slug: workspacesTable.slug, status: workspacesTable.status, plan: workspacesTable.plan })
+      .select({ id: workspacesTable.id, name: workspacesTable.name, slug: workspacesTable.slug, status: workspacesTable.status, plan: workspacesTable.plan, settings: workspacesTable.settings })
       .from(workspacesTable)
       .where(eq(workspacesTable.id, activeWorkspaceId))
       .limit(1);
@@ -301,6 +303,7 @@ router.get("/me", requireSession, async (req: Request, res: Response) => {
 
     req.session.user = { ...authReq.sessionUser, permissions, roleSlugs };
 
+    const wsSettings = (workspace?.settings ?? {}) as Record<string, unknown>;
     res.json({
       user: {
         id: userId,
@@ -310,10 +313,115 @@ router.get("/me", requireSession, async (req: Request, res: Response) => {
         permissions,
         roleSlugs,
       },
-      workspace,
+      workspace: workspace ? { id: workspace.id, name: workspace.name, slug: workspace.slug, status: workspace.status, plan: workspace.plan } : null,
+      onboardingCompleted: wsSettings.onboarding_completed === true,
     });
   } catch (err) {
     logger.error({ err }, "Failed to load /me");
+    res.status(500).json({ error: "حدث خطأ داخلي" });
+  }
+});
+
+router.post("/google", authLimiter, async (req: Request, res: Response) => {
+  const { credential } = req.body;
+  if (!credential || typeof credential !== "string") {
+    res.status(400).json({ error: "مطلوب رمز Google" });
+    return;
+  }
+
+  try {
+    const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+    if (!tokenInfoRes.ok) {
+      res.status(401).json({ error: "رمز Google غير صالح" });
+      return;
+    }
+    const tokenInfo = await tokenInfoRes.json() as Record<string, unknown>;
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (clientId && tokenInfo.aud !== clientId) {
+      res.status(401).json({ error: "رمز Google غير صالح" });
+      return;
+    }
+
+    const email = typeof tokenInfo.email === "string" ? tokenInfo.email.toLowerCase() : null;
+    const name = typeof tokenInfo.name === "string" ? tokenInfo.name : (email ?? "مستخدم");
+    if (!email || tokenInfo.email_verified !== "true") {
+      res.status(401).json({ error: "البريد الإلكتروني من Google غير مؤكد" });
+      return;
+    }
+
+    const [existingUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, email))
+      .limit(1);
+
+    if (existingUser) {
+      const [membership] = await db
+        .select()
+        .from(workspaceMembershipsTable)
+        .where(eq(workspaceMembershipsTable.userId, existingUser.id))
+        .orderBy(workspaceMembershipsTable.createdAt)
+        .limit(1);
+
+      if (!membership) {
+        res.status(500).json({ error: "حدث خطأ داخلي" });
+        return;
+      }
+
+      if (!existingUser.emailVerified) {
+        await db.update(usersTable).set({ emailVerified: true, updatedAt: new Date() }).where(eq(usersTable.id, existingUser.id));
+      }
+
+      const { permissions, roleSlugs } = await loadUserPermissions(membership.id);
+      await establishSession(req, { userId: existingUser.id, activeWorkspaceId: membership.workspaceId, activeMembershipId: membership.id, permissions, roleSlugs, name: existingUser.name, email: existingUser.email, emailVerified: true });
+
+      res.json({ message: "تم تسجيل الدخول بنجاح", isNewUser: false, user: { id: existingUser.id, name: existingUser.name, email: existingUser.email, emailVerified: true, permissions, roleSlugs }, workspaceId: membership.workspaceId });
+      return;
+    }
+
+    const { user, workspace, membership } = await registerWorkspace({
+      ownerName: name,
+      email,
+      password: uuidv4(),
+      workspaceName: name,
+    });
+
+    await db.update(usersTable).set({ emailVerified: true, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+    const { permissions, roleSlugs } = await loadUserPermissions(membership.id);
+    await establishSession(req, { userId: user.id, activeWorkspaceId: workspace.id, activeMembershipId: membership.id, permissions, roleSlugs, name: user.name, email: user.email, emailVerified: true });
+    await sendVerificationEmail({ id: user.id, email: user.email, name: user.name }).catch(() => {});
+
+    res.status(201).json({ message: "تم إنشاء الحساب بنجاح", isNewUser: true, user: { id: user.id, name: user.name, email: user.email, emailVerified: true, permissions, roleSlugs }, workspaceId: workspace.id });
+  } catch (err) {
+    logger.error({ err }, "Google auth failed");
+    if (err instanceof AuthError) { res.status(409).json({ error: err.message }); return; }
+    res.status(500).json({ error: "حدث خطأ داخلي" });
+  }
+});
+
+router.post("/change-email", requireSession, authLimiter, async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  const { newEmail, password } = req.body;
+  if (!newEmail || typeof newEmail !== "string" || !password || typeof password !== "string") {
+    res.status(400).json({ error: "البريد الجديد وكلمة المرور مطلوبان" });
+    return;
+  }
+  const emailParsed = z.string().email().safeParse(newEmail.toLowerCase().trim());
+  if (!emailParsed.success) { res.status(400).json({ error: "بريد إلكتروني غير صحيح" }); return; }
+
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, authReq.sessionUser.userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "المستخدم غير موجود" }); return; }
+    const valid = await verifyPassword(password, user.passwordHash);
+    if (!valid) { res.status(400).json({ error: "كلمة المرور غير صحيحة" }); return; }
+    const [conflict] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, emailParsed.data)).limit(1);
+    if (conflict) { res.status(409).json({ error: "هذا البريد الإلكتروني مستخدم بالفعل" }); return; }
+    await db.update(usersTable).set({ email: emailParsed.data, emailVerified: false, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+    await sendVerificationEmail({ id: user.id, email: emailParsed.data, name: user.name }).catch((e) => logger.error({ e }, "Failed to send verification after email change"));
+    res.json({ ok: true, message: "تم تحديث البريد الإلكتروني — تحقق من بريدك الجديد" });
+  } catch (err) {
+    logger.error({ err }, "Change email failed");
     res.status(500).json({ error: "حدث خطأ داخلي" });
   }
 });

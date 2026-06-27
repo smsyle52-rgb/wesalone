@@ -50,7 +50,8 @@ export type AuditAction =
   | "automation_create" | "automation_update" | "automation_delete" | "automation_activate" | "automation_pause" | "automation_test_run"
   | "catalog_source_create" | "catalog_source_disable" | "catalog_sync_requested"
   | "agent_status_change"
-  | "products_create" | "products_update" | "products_delete";
+  | "products_create" | "products_update" | "products_delete"
+  | "channel_disconnect" | "channel_reconnect";
 
 export type AuditSeverity = "info" | "warning" | "critical";
 
