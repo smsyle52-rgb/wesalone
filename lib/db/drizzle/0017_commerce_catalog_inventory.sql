@@ -1,8 +1,35 @@
+CREATE TABLE IF NOT EXISTS inventory_products (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  description text,
+  sku text,
+  barcode text,
+  price numeric(14,2) NOT NULL DEFAULT 0,
+  cost numeric(14,2),
+  currency text NOT NULL DEFAULT 'YER',
+  unit text,
+  image_url text,
+  images jsonb NOT NULL DEFAULT '[]'::jsonb,
+  low_stock_threshold integer NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'active',
+  quantity_available integer,
+  delivery_policy text NOT NULL DEFAULT 'all',
+  is_archived boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 ALTER TABLE inventory_products ADD COLUMN IF NOT EXISTS barcode text;
 ALTER TABLE inventory_products ADD COLUMN IF NOT EXISTS cost numeric(14,2);
 ALTER TABLE inventory_products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE inventory_products ADD COLUMN IF NOT EXISTS low_stock_threshold integer NOT NULL DEFAULT 0;
 ALTER TABLE inventory_products ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+
+CREATE INDEX IF NOT EXISTS idx_inv_products_workspace ON inventory_products(workspace_id, is_archived);
+CREATE INDEX IF NOT EXISTS idx_inv_products_status ON inventory_products(workspace_id, status);
+CREATE INDEX IF NOT EXISTS idx_inv_products_sku ON inventory_products(workspace_id, sku);
+CREATE INDEX IF NOT EXISTS idx_inv_products_barcode ON inventory_products(workspace_id, barcode);
 
 CREATE TABLE IF NOT EXISTS product_variants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
