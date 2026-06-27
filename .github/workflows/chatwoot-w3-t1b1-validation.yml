@@ -71,6 +71,14 @@ jobs:
           set -o pipefail
           psql "$DATABASE_URL" -f scripts/migrate-phase345.sql 2>&1 | tee /tmp/migrate-phase345.log
 
+      - name: Add schema-only columns missing from all migrations
+        run: |
+          psql "$DATABASE_URL" <<'SQL'
+          ALTER TABLE conversations ADD COLUMN IF NOT EXISTS agent_status text NOT NULL DEFAULT 'active';
+          ALTER TABLE conversations ADD COLUMN IF NOT EXISTS agent_paused_until timestamptz;
+          ALTER TABLE conversations ADD COLUMN IF NOT EXISTS consecutive_agent_replies integer NOT NULL DEFAULT 0;
+          SQL
+
       - name: API typecheck
         run: |
           set -o pipefail
