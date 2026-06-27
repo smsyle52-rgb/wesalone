@@ -32,5 +32,7 @@ export * from "./catalog";
 export * from "./sectors";
 export * from "./notifications";
 export * from "./products";
+export * from "./product_variants";
+export * from "./stock_locations";
 export * from "./point_wallet";
 export * from "./sequences";
