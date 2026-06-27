@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "express-session"]
+  },
+  "include": [
+    "src/modules/whatsapp-management/**/*.ts",
+    "src/services/meta-whatsapp-business-profile.ts",
+    "src/__tests__/whatsapp-business-profile.spec.ts",
+    "src/__tests__/whatsapp-business-profile-hardening.spec.ts",
+    "src/__tests__/whatsapp-business-profile.routes.spec.ts",
+    "src/lib/audit.ts",
+    "src/lib/rateLimiter.ts",
+    "src/lib/types.ts",
+    "src/middlewares/requireVerifiedEmail.ts"
+  ],
+  "references": [
+    {
+      "path": "../../lib/db"
+    },
+    {
+      "path": "../../lib/api-zod"
+    }
+  ]
+}

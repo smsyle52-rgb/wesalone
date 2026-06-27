@@ -1,6 +1,4 @@
-import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import type { ChannelAccount } from "@workspace/db";
 import { assertTrustedWhatsAppAccount, mergeBusinessProfileSnapshot, WhatsAppBusinessProfileError } from "../services/meta-whatsapp-business-profile";
@@ -73,37 +71,4 @@ describe("WhatsApp Business Profile hardening", () => {
     expect(source).toContain("mergeBusinessProfileSnapshot(trustedLatest.providerConfig, update)");
     expect(source).not.toContain("mergeBusinessProfileSnapshot(account.providerConfig, update)");
   });
-});
-
-const postgresIt = process.env.DATABASE_URL ? it : it.skip;
-
-postgresIt("preserves a real concurrent providerConfig update in PostgreSQL", async () => {
-  const { db, channelAccountsTable, workspacesTable } = await import("@workspace/db");
-  const { persistBusinessProfileStateAtomic } = await import("../modules/whatsapp-management/whatsapp-business-profile.service");
-  const workspaceId = randomUUID();
-  const channelAccountId = randomUUID();
-  await db.insert(workspacesTable).values({ id: workspaceId, name: "Profile concurrency test", slug: `profile-${randomUUID()}` });
-  try {
-    const [initial] = await db.insert(channelAccountsTable).values({
-      id: channelAccountId,
-      workspaceId,
-      channelType: "whatsapp",
-      name: "test",
-      displayName: "test",
-      status: "active",
-      providerConfig: { provider: "meta", waba_id: "w", phone_number_id: "p", meta_app_id: "a", existingChannelSetting: true },
-    }).returning();
-    const stale = assertTrustedWhatsAppAccount(initial, workspaceId);
-    await db.update(channelAccountsTable).set({
-      providerConfig: { ...(initial.providerConfig as Record<string, unknown>), concurrentSetting: { enabled: true } },
-    }).where(eq(channelAccountsTable.id, channelAccountId));
-    await persistBusinessProfileStateAtomic(stale, { profile: { about: "لقطة ذرية" }, syncedAt: new Date().toISOString(), lastError: null });
-    const [saved] = await db.select().from(channelAccountsTable).where(eq(channelAccountsTable.id, channelAccountId)).limit(1);
-    const config = saved.providerConfig as any;
-    expect(config.concurrentSetting.enabled).toBe(true);
-    expect(config.existingChannelSetting).toBe(true);
-    expect(config.whatsappManagement.businessProfile.profile.about).toBe("لقطة ذرية");
-  } finally {
-    await db.delete(workspacesTable).where(eq(workspacesTable.id, workspaceId));
-  }
 });

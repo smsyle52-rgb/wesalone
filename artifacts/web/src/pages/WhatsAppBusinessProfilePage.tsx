@@ -126,7 +126,7 @@ export default function WhatsAppBusinessProfilePage() {
   }
 
   return <div dir="rtl" className="space-y-5">
-    <PageHeader title="الملف التجاري في واتساب" description="اعرض وحدّث البيانات الحقيقية المتزامنة مع Meta دون تغيير إعدادات الربط." />
+    <PageHeader title="الملف التجاري في واتساب" subtitle="اعرض وحدّث البيانات الحقيقية المتزامنة مع Meta دون تغيير إعدادات الربط." />
     <div className="max-w-5xl space-y-4">
       <section className="rounded-xl border border-border bg-card p-4">
         <Field id="whatsapp-profile-account" label="حساب واتساب">

@@ -1,0 +1,242 @@
+name: WhatsApp Business Profile Validation
+
+on:
+  push:
+    branches:
+      - chore/whatsapp-validation-ci
+  pull_request:
+    branches:
+      - feat/whatsapp-profile-status
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: WhatsApp feature gate — PostgreSQL · typecheck · tests · build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: wesal_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_local_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:ci_local_only@localhost:5432/wesal_test
+      NODE_ENV: test
+      META_DRY_RUN: "true"
+      META_GRAPH_VERSION: v22.0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Enable Corepack and activate pnpm 10.33.2
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.2 --activate
+          pnpm --version
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for PostgreSQL…"
+            sleep 1
+          done
+          echo "PostgreSQL is ready."
+
+      - name: Verify isolated DATABASE_URL is set
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "ERROR: DATABASE_URL is not set."
+            exit 1
+          fi
+          case "$DATABASE_URL" in
+            *localhost:5432/wesal_test) ;;
+            *)
+              echo "ERROR: DATABASE_URL is not the isolated CI database."
+              exit 1
+              ;;
+          esac
+          echo "Isolated DATABASE_URL is present."
+
+      - name: Run database migrations
+        run: pnpm --filter @workspace/db migrate
+
+      - name: Synchronize isolated PostgreSQL schema
+        run: pnpm --filter @workspace/db push
+
+      - name: Build TypeScript project references
+        run: pnpm run typecheck:libs
+
+      - name: WhatsApp Business Profile typecheck
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server exec tsc \
+            -p tsconfig.whatsapp-business-profile.json \
+            --noEmit 2>&1 | tee /tmp/whatsapp-feature-typecheck.txt
+
+      - name: Upload WhatsApp feature typecheck log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-feature-typecheck-log
+          path: /tmp/whatsapp-feature-typecheck.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Run WhatsApp Business Profile unit and route tests
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server exec vitest run \
+            --reporter verbose \
+            src/__tests__/whatsapp-business-profile.spec.ts \
+            src/__tests__/whatsapp-business-profile-hardening.spec.ts \
+            src/__tests__/whatsapp-business-profile.routes.spec.ts \
+            2>&1 | tee whatsapp-business-profile-unit-vitest.log
+
+      - name: Upload WhatsApp Business Profile unit test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-business-profile-unit-vitest-log
+          path: whatsapp-business-profile-unit-vitest.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Run WhatsApp Business Profile PostgreSQL integration test
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server exec vitest run \
+            --config vitest.whatsapp-postgres.config.ts \
+            --reporter verbose \
+            src/__tests__/whatsapp-business-profile-postgres.integration.spec.ts \
+            2>&1 | tee whatsapp-business-profile-postgres-vitest.log
+
+      - name: Upload WhatsApp Business Profile PostgreSQL test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-business-profile-postgres-vitest-log
+          path: whatsapp-business-profile-postgres-vitest.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Verify PostgreSQL concurrency test executed
+        shell: bash
+        run: |
+          test_name="preserves a real concurrent providerConfig update in PostgreSQL"
+          matching_lines="$(grep -F "$test_name" whatsapp-business-profile-postgres-vitest.log || true)"
+          if [ -z "$matching_lines" ]; then
+            echo "ERROR: PostgreSQL concurrency test was not reported."
+            exit 1
+          fi
+          if printf '%s\n' "$matching_lines" | grep -Eq 'skip|SKIP|↓|○'; then
+            echo "ERROR: PostgreSQL concurrency test was skipped."
+            printf '%s\n' "$matching_lines"
+            exit 1
+          fi
+          if ! printf '%s\n' "$matching_lines" | grep -F '✓' >/dev/null; then
+            echo "ERROR: PostgreSQL concurrency test did not report a passing result."
+            printf '%s\n' "$matching_lines"
+            exit 1
+          fi
+          echo "PostgreSQL concurrency test executed and passed."
+
+      - name: Web typecheck
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/web typecheck 2>&1 | tee web-typecheck.log
+
+      - name: Upload Web typecheck log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-typecheck-log
+          path: web-typecheck.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Build API (production bundle)
+        run: pnpm --filter @workspace/api-server build
+
+      - name: Build Web (production bundle)
+        shell: bash
+        env:
+          BASE_PATH: /
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/web build 2>&1 | tee whatsapp-web-build.log
+
+      - name: Upload WhatsApp Web build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-web-build-log
+          path: whatsapp-web-build.log
+          if-no-files-found: error
+          retention-days: 1
+
+  full-api-typecheck-report:
+    name: Full API typecheck — legacy report only
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Enable Corepack and activate pnpm 10.33.2
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.2 --activate
+          pnpm --version
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build TypeScript project references
+        run: pnpm run typecheck:libs
+
+      - name: Run full api-server typecheck for legacy error reporting
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server typecheck \
+            2>&1 | tee /tmp/full-api-typecheck.txt
+
+      - name: Upload full API typecheck log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-api-typecheck-log
+          path: /tmp/full-api-typecheck.txt
+          if-no-files-found: error
+          retention-days: 1
