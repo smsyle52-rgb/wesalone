@@ -1,4 +1,12 @@
+export type QueryResult<T> = {
+  rows: T[];
+  rowCount: number | null;
+};
+
 export type PoolClient = {
-  query: (text: string, values?: unknown[]) => Promise<any>;
+  query: <T = Record<string, unknown>>(
+    text: string,
+    values?: unknown[],
+  ) => Promise<QueryResult<T>>;
   release: () => void;
 };
