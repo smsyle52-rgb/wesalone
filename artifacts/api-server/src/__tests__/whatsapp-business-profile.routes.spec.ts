@@ -30,6 +30,19 @@ import whatsappBusinessProfileRouter from "../modules/whatsapp-management/whatsa
 const ACCOUNT_ID = "00000000-0000-4000-8000-000000000001";
 const WORKSPACE_ID = "00000000-0000-4000-8000-000000000010";
 
+type FetchInit = Parameters<typeof fetch>[1];
+type FetchResponse = Awaited<ReturnType<typeof fetch>>;
+type JsonObject = Record<string, unknown>;
+type RequestWithSession = Request & { session: { user?: SessionUser } };
+
+async function readJsonObject(response: FetchResponse): Promise<JsonObject> {
+  const value: unknown = await response.json();
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError("Expected a JSON object response");
+  }
+  return value as JsonObject;
+}
+
 function user(overrides: Partial<SessionUser> = {}): SessionUser {
   return {
     userId: "00000000-0000-4000-8000-000000000100",
@@ -49,14 +62,14 @@ function successResult() {
     account: { id: ACCOUNT_ID, displayName: "WhatsApp test" },
     profile: { about: "وصال ون" },
     syncedAt: "2026-06-27T10:00:00.000Z",
-  } as any;
+  };
 }
 
 function buildApp(sessionUser: SessionUser | null): Express {
   const app = express();
   app.use(express.json({ limit: "10mb" }));
   app.use((req: Request, _res: Response, next: NextFunction) => {
-    (req as any).session = sessionUser ? { user: sessionUser } : {};
+    (req as RequestWithSession).session = sessionUser ? { user: sessionUser } : {};
     next();
   });
   const protectedApi = Router();
@@ -97,7 +110,7 @@ describe("WhatsApp Business Profile routes", () => {
     await Promise.all(servers.splice(0).map(close));
   });
 
-  async function request(sessionUser: SessionUser | null, path: string, init?: RequestInit) {
+  async function request(sessionUser: SessionUser | null, path: string, init?: FetchInit) {
     const running = await listen(buildApp(sessionUser));
     servers.push(running.server);
     return fetch(`${running.baseUrl}${path}`, init);
@@ -106,19 +119,22 @@ describe("WhatsApp Business Profile routes", () => {
   it("rejects an unauthenticated user", async () => {
     const response = await request(null, `/api/whatsapp-management/accounts/${ACCOUNT_ID}/business-profile`);
     expect(response.status).toBe(401);
-    expect((await response.json()).code).toBe("UNAUTHORIZED");
+    const body = await readJsonObject(response);
+    expect(body.code).toBe("UNAUTHORIZED");
   });
 
   it("rejects an unverified email before entering the feature router", async () => {
     const response = await request(user({ emailVerified: false }), `/api/whatsapp-management/accounts/${ACCOUNT_ID}/business-profile`);
     expect(response.status).toBe(403);
-    expect((await response.json()).code).toBe("EMAIL_NOT_VERIFIED");
+    const body = await readJsonObject(response);
+    expect(body.code).toBe("EMAIL_NOT_VERIFIED");
   });
 
   it("requires integrations:read for GET", async () => {
     const response = await request(user({ permissions: [] }), `/api/whatsapp-management/accounts/${ACCOUNT_ID}/business-profile`);
     expect(response.status).toBe(403);
-    expect((await response.json()).requiredPermission).toBe("integrations:read");
+    const body = await readJsonObject(response);
+    expect(body.requiredPermission).toBe("integrations:read");
   });
 
   it("requires integrations:update for PATCH", async () => {
@@ -128,7 +144,8 @@ describe("WhatsApp Business Profile routes", () => {
       { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ about: "وصال ون" }) },
     );
     expect(response.status).toBe(403);
-    expect((await response.json()).requiredPermission).toBe("integrations:update");
+    const body = await readJsonObject(response);
+    expect(body.requiredPermission).toBe("integrations:update");
   });
 
   it("passes only activeWorkspaceId to the service and rejects another workspace", async () => {
@@ -139,7 +156,8 @@ describe("WhatsApp Business Profile routes", () => {
     ));
     const response = await request(user(), `/api/whatsapp-management/accounts/${ACCOUNT_ID}/business-profile`);
     expect(response.status).toBe(404);
-    expect((await response.json()).code).toBe("WHATSAPP_ACCOUNT_NOT_FOUND");
+    const body = await readJsonObject(response);
+    expect(body.code).toBe("WHATSAPP_ACCOUNT_NOT_FOUND");
     expect(serviceMocks.syncBusinessProfile).toHaveBeenCalledWith(WORKSPACE_ID, ACCOUNT_ID);
   });
 
@@ -151,7 +169,8 @@ describe("WhatsApp Business Profile routes", () => {
     ));
     const response = await request(user(), `/api/whatsapp-management/accounts/${ACCOUNT_ID}/business-profile`);
     expect(response.status).toBe(409);
-    expect((await response.json()).code).toBe("WHATSAPP_ACCOUNT_INACTIVE");
+    const body = await readJsonObject(response);
+    expect(body.code).toBe("WHATSAPP_ACCOUNT_INACTIVE");
   });
 
   it("updates the profile successfully through PATCH", async () => {
@@ -161,7 +180,8 @@ describe("WhatsApp Business Profile routes", () => {
       { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ about: "وصال ون" }) },
     );
     expect(response.status).toBe(200);
-    expect((await response.json()).source).toBe("meta");
+    const body = await readJsonObject(response);
+    expect(body.source).toBe("meta");
     expect(serviceMocks.updateBusinessProfile).toHaveBeenCalledWith(WORKSPACE_ID, ACCOUNT_ID, { about: "وصال ون" });
   });
 
@@ -178,17 +198,19 @@ describe("WhatsApp Business Profile routes", () => {
       { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ about: "وصال ون" }) },
     );
     expect(response.status).toBe(502);
-    expect((await response.json()).code).toBe("META_BUSINESS_PROFILE_ERROR");
+    const body = await readJsonObject(response);
+    expect(body.code).toBe("META_BUSINESS_PROFILE_ERROR");
   });
 
   it("rejects an unsupported profile image MIME type", async () => {
     const response = await request(
       user(),
       `/api/whatsapp-management/accounts/${ACCOUNT_ID}/business-profile/photo`,
-      { method: "POST", headers: { "Content-Type": "image/gif" }, body: Buffer.from("GIF89a") as unknown as BodyInit },
+      { method: "POST", headers: { "Content-Type": "image/gif" }, body: new Uint8Array(Buffer.from("GIF89a")) },
     );
     expect(response.status).toBe(415);
-    expect((await response.json()).code).toBe("PROFILE_IMAGE_MIME_NOT_ALLOWED");
+    const body = await readJsonObject(response);
+    expect(body.code).toBe("PROFILE_IMAGE_MIME_NOT_ALLOWED");
   });
 
   it("rejects a profile image larger than the configured limit", async () => {
@@ -198,11 +220,12 @@ describe("WhatsApp Business Profile routes", () => {
       {
         method: "POST",
         headers: { "Content-Type": "image/png" },
-        body: Buffer.alloc(BUSINESS_PROFILE_IMAGE_MAX_BYTES + 1) as unknown as BodyInit,
+        body: new Uint8Array(BUSINESS_PROFILE_IMAGE_MAX_BYTES + 1),
       },
     );
     expect(response.status).toBe(413);
-    expect((await response.json()).code).toBe("PROFILE_IMAGE_TOO_LARGE");
+    const body = await readJsonObject(response);
+    expect(body.code).toBe("PROFILE_IMAGE_TOO_LARGE");
   });
 
   it("serves the final route under /api/whatsapp-management and passes through apiLimiter", async () => {
