@@ -15,7 +15,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:16
@@ -69,6 +69,7 @@ jobs:
 
       - name: Migrate empty database
         id: migrate_fresh
+        continue-on-error: true
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/commerce_fresh
         run: |
@@ -80,6 +81,7 @@ jobs:
 
       - name: Migrate old main database then upgrade with branch migrations
         id: migrate_old
+        continue-on-error: true
         run: |
           set +e
           {
@@ -94,36 +96,95 @@ jobs:
           cat /tmp/migrate-old.log
           exit "$status"
 
-      - name: Upload migration diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: migration-diagnostics
-          path: /tmp/migrate-*.log
-          if-no-files-found: ignore
-          retention-days: 3
-
       - name: Verify migration results
+        id: verify_migrations
+        if: steps.migrate_fresh.outcome == 'success' && steps.migrate_old.outcome == 'success'
+        continue-on-error: true
         run: |
-          for db in commerce_fresh commerce_old; do
-            psql "postgresql://postgres:postgres@localhost:5432/$db" -v ON_ERROR_STOP=1 <<'SQL'
+          set +e
+          {
+            for db in commerce_fresh commerce_old; do
+              psql "postgresql://postgres:postgres@localhost:5432/$db" -v ON_ERROR_STOP=1 <<'SQL'
           SELECT idempotency_key FROM order_state_transitions LIMIT 0;
           SELECT slug FROM permissions WHERE slug = 'payments:refund';
           SQL
-          done
+            done
+          } > /tmp/verify-migrations.log 2>&1
+          status=$?
+          cat /tmp/verify-migrations.log
+          exit "$status"
 
       - name: Typecheck
-        run: pnpm run typecheck
+        id: typecheck
+        continue-on-error: true
+        run: |
+          set +e
+          pnpm run typecheck > /tmp/typecheck.log 2>&1
+          status=$?
+          cat /tmp/typecheck.log
+          exit "$status"
 
       - name: Run unit and PostgreSQL integration tests
+        id: tests
+        if: steps.migrate_fresh.outcome == 'success'
+        continue-on-error: true
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/commerce_fresh
-        run: pnpm --filter @workspace/api-server test
+        run: |
+          set +e
+          pnpm --filter @workspace/api-server test > /tmp/tests.log 2>&1
+          status=$?
+          cat /tmp/tests.log
+          exit "$status"
 
       - name: Build API
-        run: pnpm --filter @workspace/api-server build
+        id: build_api
+        continue-on-error: true
+        run: |
+          set +e
+          pnpm --filter @workspace/api-server build > /tmp/build-api.log 2>&1
+          status=$?
+          cat /tmp/build-api.log
+          exit "$status"
 
       - name: Build web
+        id: build_web
+        continue-on-error: true
         env:
           BASE_PATH: /
-        run: pnpm --filter @workspace/web build
+        run: |
+          set +e
+          pnpm --filter @workspace/web build > /tmp/build-web.log 2>&1
+          status=$?
+          cat /tmp/build-web.log
+          exit "$status"
+
+      - name: Upload gate diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: commerce-safety-diagnostics
+          path: /tmp/*.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Evaluate Commerce Safety Gate
+        if: always()
+        run: |
+          failed=0
+          check() {
+            name="$1"
+            outcome="$2"
+            if [ "$outcome" != "success" ]; then
+              echo "::error title=$name::$name outcome was $outcome"
+              failed=1
+            fi
+          }
+          check "fresh migration" "${{ steps.migrate_fresh.outcome }}"
+          check "old database migration" "${{ steps.migrate_old.outcome }}"
+          check "migration verification" "${{ steps.verify_migrations.outcome }}"
+          check "typecheck" "${{ steps.typecheck.outcome }}"
+          check "tests" "${{ steps.tests.outcome }}"
+          check "API build" "${{ steps.build_api.outcome }}"
+          check "web build" "${{ steps.build_web.outcome }}"
+          exit "$failed"
