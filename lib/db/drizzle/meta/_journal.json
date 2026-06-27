@@ -22,6 +22,7 @@
     { "idx": 17, "version": "7", "when": 1782531000000, "tag": "0017_commerce_catalog_inventory", "breakpoints": true },
     { "idx": 18, "version": "7", "when": 1782531060000, "tag": "0018_commerce_orders_payments", "breakpoints": true },
     { "idx": 19, "version": "7", "when": 1782531120000, "tag": "0019_commerce_permissions", "breakpoints": true },
-    { "idx": 20, "version": "7", "when": 1782531180000, "tag": "0020_commerce_legacy_backfill", "breakpoints": true }
+    { "idx": 20, "version": "7", "when": 1782531180000, "tag": "0020_commerce_legacy_backfill", "breakpoints": true },
+    { "idx": 21, "version": "7", "when": 1782531240000, "tag": "0021_commerce_defaults", "breakpoints": true }
   ]
 }
