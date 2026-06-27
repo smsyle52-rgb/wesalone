@@ -1,18 +1,37 @@
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS inventory_product_id uuid REFERENCES inventory_products(id) ON DELETE SET NULL;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS product_variant_id uuid REFERENCES product_variants(id) ON DELETE SET NULL;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS location_id uuid REFERENCES stock_locations(id) ON DELETE SET NULL;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS discount numeric(14,2) NOT NULL DEFAULT 0;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS tax numeric(14,2) NOT NULL DEFAULT 0;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS snapshot jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS reservation_status text NOT NULL DEFAULT 'none';
+ALTER TABLE order_items ALTER COLUMN unit_price TYPE numeric(14,2);
+ALTER TABLE order_items ALTER COLUMN total TYPE numeric(14,2);
+
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS reserved_at timestamptz;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipped_at timestamptz;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS exchanged_at timestamptz;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_type text NOT NULL DEFAULT 'pickup';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_status text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_agent_phone text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier_name text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier_phone text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_receipt_url text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_fee numeric(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cod_enabled boolean NOT NULL DEFAULT false;
+ALTER TABLE orders ALTER COLUMN total_amount TYPE numeric(14,2);
+ALTER TABLE orders ALTER COLUMN paid_amount TYPE numeric(14,2);
+ALTER TABLE orders ALTER COLUMN discount TYPE numeric(14,2);
+
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS external_reference text;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_url text;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_by uuid REFERENCES users(id);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS recorded_by uuid REFERENCES users(id);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS correlation_id text;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS idempotency_key text;
+ALTER TABLE payments ALTER COLUMN amount TYPE numeric(14,2);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_ws_idempotency ON payments(workspace_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS inventory_reservations (
