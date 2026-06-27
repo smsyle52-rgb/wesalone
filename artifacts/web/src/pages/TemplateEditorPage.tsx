@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Send, Save, Trash2, TriangleAlert } from "lucide-react";
+import { Plus, Send, Save, Trash2, TriangleAlert, Upload, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -106,6 +106,9 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
   const [headerFormat, setHeaderFormat] = useState<HeaderFormat>("none");
   const [headerText, setHeaderText] = useState("");
   const [headerVarExample, setHeaderVarExample] = useState("");
+  const [headerHandle, setHeaderHandle] = useState(""); // Media upload handle from Meta
+  const [headerUploadState, setHeaderUploadState] = useState<"idle" | "uploading" | "done" | "error">("idle");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Body
   const [bodyText, setBodyText] = useState("");
@@ -126,14 +129,18 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
   const bodyVarsContiguous = bodyVarNums.every((n, i) => n === i + 1);
   const isAuthentication = category === "authentication";
 
+  const EDITABLE_STATUSES = ["draft", "approved", "rejected", "paused", "disabled", "failed"];
   const isDraft = status === "draft";
-  const canSaveDraft = name.trim() && bodyText.trim();
+  const isEditable = EDITABLE_STATUSES.includes(status);
+  const mediaHeaderSelected = headerFormat === "IMAGE" || headerFormat === "VIDEO" || headerFormat === "DOCUMENT";
+  const canSaveDraft = Boolean(name.trim() && bodyText.trim());
   const canSubmit =
     canSaveDraft &&
     !buttonError &&
     bodyVarsContiguous &&
     bodyVarNums.every((n) => bodyVarExamples[n]?.trim()) &&
     (!headerHasVar || headerVarExample.trim()) &&
+    (!mediaHeaderSelected || headerHandle.trim() !== "") &&
     buttons.every((b) => {
       if (b.type === "URL") return !(b.url?.includes("{{1}}")) || (b.example && b.example.trim() !== "");
       return true;
@@ -170,10 +177,15 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
       setHeaderText((header["text"] as string) ?? "");
       const ex = (header["example"] as Record<string, unknown> | undefined);
       setHeaderVarExample((ex?.["header_text"] as string[] | undefined)?.[0] ?? "");
+      const existingHandle = (ex?.["header_handle"] as string[] | undefined)?.[0] ?? "";
+      setHeaderHandle(existingHandle);
+      setHeaderUploadState(existingHandle ? "done" : "idle");
     } else {
       setHeaderFormat("none");
       setHeaderText("");
       setHeaderVarExample("");
+      setHeaderHandle("");
+      setHeaderUploadState("idle");
     }
 
     const body = comps.find((c) => c["type"] === "BODY") as Record<string, unknown> | undefined;
@@ -238,6 +250,8 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
         if (headerHasVar && headerVarExample) {
           headerComp["example"] = { header_text: [headerVarExample] };
         }
+      } else if (headerHandle) {
+        headerComp["example"] = { header_handle: [headerHandle] };
       }
       components.push(headerComp);
     }
@@ -268,6 +282,35 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
       components,
       variables: [],
     };
+  }
+
+  // ─── Media upload ─────────────────────────────────────────────────────────
+
+  async function handleMediaUpload(file: File) {
+    setHeaderUploadState("uploading");
+    try {
+      const channelId = channelAccountId || undefined;
+      const res = await fetch(`${BASE}/templates/header-media`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": file.type,
+          "x-file-name": encodeURIComponent(file.name),
+          ...(channelId ? { "x-channel-account-id": channelId } : {}),
+        },
+        body: file,
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error((json as Record<string, string>).error ?? "فشل رفع الملف");
+      }
+      const data = (await res.json()) as { header_handle: string };
+      setHeaderHandle(data.header_handle);
+      setHeaderUploadState("done");
+    } catch (err) {
+      setHeaderUploadState("error");
+      setMessage({ type: "err", text: (err as Error).message });
+    }
   }
 
   // ─── Actions ─────────────────────────────────────────────────────────────
@@ -344,7 +387,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
   // ─── Button management ────────────────────────────────────────────────────
 
   const canAddButton = useMemo(() => {
-    if (!isDraft) return false;
+    if (!isEditable) return false;
     const types = buttons.map((b) => b.type);
     const hasOTP = types.some((t) => t === "OTP");
     if (hasOTP) return false;
@@ -408,20 +451,22 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
           <div className="flex gap-2">
             <button
               onClick={handleSave}
-              disabled={saving || !canSaveDraft || !isDraft}
+              disabled={saving || !canSaveDraft || !isEditable}
               className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"
             >
               <Save className="h-4 w-4" />
-              {t("templates.editor.saveDraft")}
+              {isDraft ? t("templates.editor.saveDraft") : t("templates.editor.saveEdits")}
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={saving || !canSubmit || !isDraft}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-              {t("templates.editor.submit")}
-            </button>
+            {isDraft && (
+              <button
+                onClick={handleSubmit}
+                disabled={saving || !canSubmit}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+                {t("templates.editor.submit")}
+              </button>
+            )}
           </div>
         }
       />
@@ -445,6 +490,16 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
         </div>
       )}
 
+      {detailQuery.data?.template?.rejectionReason && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <div className="font-medium">{t("templates.editor.rejectionReason")}</div>
+            <div className="mt-0.5 text-muted-foreground">{detailQuery.data.template.rejectionReason}</div>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* ── Left: form ─────────────────────────────────────────────────── */}
         <div className="space-y-5 min-w-0">
@@ -458,7 +513,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value.replace(/ /g, "_"))}
-                  disabled={!isDraft}
+                  disabled={!isEditable}
                   maxLength={120}
                   placeholder="my_template_name"
                   className={fieldClass}
@@ -471,7 +526,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                 <select
                   value={language}
                   onChange={(e) => setLanguage(e.target.value)}
-                  disabled={!isDraft}
+                  disabled={!isEditable}
                   className={fieldClass}
                 >
                   <option value="ar">العربية (ar)</option>
@@ -495,7 +550,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                       setNewButtonType("QUICK_REPLY");
                     }
                   }}
-                  disabled={!isDraft}
+                  disabled={!isEditable}
                   className={fieldClass}
                 >
                   <option value="marketing">{t("templates.categories.marketing")}</option>
@@ -509,7 +564,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                 <select
                   value={channelAccountId}
                   onChange={(e) => setChannelAccountId(e.target.value)}
-                  disabled={!isDraft}
+                  disabled={!isEditable}
                   className={fieldClass}
                 >
                   <option value="">{t("templates.editor.fields.noChannelAccount")}</option>
@@ -533,8 +588,12 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                 <button
                   key={fmt}
                   type="button"
-                  disabled={!isDraft}
-                  onClick={() => { setHeaderFormat(fmt); if (fmt !== "TEXT") { setHeaderText(""); setHeaderVarExample(""); } }}
+                  disabled={!isEditable}
+                  onClick={() => {
+                    setHeaderFormat(fmt);
+                    if (fmt !== "TEXT") { setHeaderText(""); setHeaderVarExample(""); }
+                    if (fmt === "TEXT" || fmt === "none") { setHeaderHandle(""); setHeaderUploadState("idle"); }
+                  }}
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                     headerFormat === fmt
                       ? "border-primary bg-primary text-primary-foreground"
@@ -557,7 +616,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                   ref={headerInputRef}
                   value={headerText}
                   onChange={(e) => setHeaderText(e.target.value)}
-                  disabled={!isDraft}
+                  disabled={!isEditable}
                   maxLength={60}
                   placeholder={t("templates.editor.header.placeholder")}
                   className={fieldClass}
@@ -565,7 +624,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                 {!headerHasVar && (
                   <button
                     type="button"
-                    disabled={!isDraft}
+                    disabled={!isEditable}
                     onClick={insertHeaderVar}
                     className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50"
                   >
@@ -579,7 +638,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                     <input
                       value={headerVarExample}
                       onChange={(e) => setHeaderVarExample(e.target.value)}
-                      disabled={!isDraft}
+                      disabled={!isEditable}
                       placeholder={t("templates.editor.fields.exampleValue")}
                       className={fieldClass}
                     />
@@ -589,9 +648,46 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
             )}
 
             {headerFormat !== "none" && headerFormat !== "TEXT" && (
-              <p className="text-xs text-muted-foreground">
-                {t("templates.editor.header.mediaNote")}
-              </p>
+              <div className="space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept={
+                    headerFormat === "IMAGE" ? "image/jpeg,image/png"
+                    : headerFormat === "VIDEO" ? "video/mp4"
+                    : "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  }
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleMediaUpload(file);
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={!isEditable || headerUploadState === "uploading"}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                >
+                  {headerUploadState === "uploading" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  {t("templates.editor.header.uploadMedia")}
+                </button>
+                {headerUploadState === "done" && headerHandle && (
+                  <p className="text-xs text-green-700">
+                    ✓ {t("templates.editor.header.mediaUploaded")}
+                  </p>
+                )}
+                {headerUploadState === "error" && (
+                  <p className="text-xs text-destructive">{t("templates.editor.header.mediaError")}</p>
+                )}
+                {!headerHandle && (
+                  <p className="text-xs text-muted-foreground">{t("templates.editor.header.mediaNote")}</p>
+                )}
+              </div>
             )}
           </div>
 
@@ -607,7 +703,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                 ref={bodyRef}
                 value={bodyText}
                 onChange={(e) => setBodyText(e.target.value)}
-                disabled={!isDraft}
+                disabled={!isEditable}
                 rows={5}
                 maxLength={1024}
                 placeholder={t("templates.editor.body.placeholder")}
@@ -615,7 +711,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
               />
               <button
                 type="button"
-                disabled={!isDraft}
+                disabled={!isEditable}
                 onClick={insertBodyVar}
                 className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50"
               >
@@ -641,7 +737,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                     <input
                       value={bodyVarExamples[n] ?? ""}
                       onChange={(e) => setBodyVarExamples((prev) => ({ ...prev, [n]: e.target.value }))}
-                      disabled={!isDraft}
+                      disabled={!isEditable}
                       placeholder={t("templates.editor.fields.exampleValue")}
                       className={`${fieldClass} flex-1`}
                     />
@@ -660,7 +756,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
             <input
               value={footerText}
               onChange={(e) => setFooterText(e.target.value)}
-              disabled={!isDraft}
+              disabled={!isEditable}
               maxLength={60}
               placeholder={t("templates.editor.footer.placeholder")}
               className={fieldClass}
@@ -687,7 +783,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                     <select
                       value={btn.type}
                       onChange={(e) => changeButtonType(idx, e.target.value as ButtonDraft["type"])}
-                      disabled={!isDraft}
+                      disabled={!isEditable}
                       className="rounded-lg border border-input bg-background px-2 py-1 text-xs"
                     >
                       {!isAuthentication && <option value="QUICK_REPLY">{t("templates.editor.buttons.quickReply")}</option>}
@@ -699,7 +795,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                     <button
                       type="button"
                       onClick={() => setButtons((prev) => prev.filter((_, i) => i !== idx))}
-                      disabled={!isDraft}
+                      disabled={!isEditable}
                       className="mr-auto text-destructive hover:text-destructive/80 disabled:opacity-50"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -711,7 +807,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                     <input
                       value={btn.text}
                       onChange={(e) => updateButton(idx, { text: e.target.value } as Partial<ButtonDraft>)}
-                      disabled={!isDraft}
+                      disabled={!isEditable}
                       maxLength={25}
                       placeholder={t("templates.editor.buttons.textPlaceholder")}
                       className={fieldClass}
@@ -723,7 +819,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                       <input
                         value={btn.text}
                         onChange={(e) => updateButton(idx, { text: e.target.value } as Partial<ButtonDraft>)}
-                        disabled={!isDraft}
+                        disabled={!isEditable}
                         maxLength={25}
                         placeholder={t("templates.editor.buttons.textPlaceholder")}
                         className={fieldClass}
@@ -731,7 +827,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                       <input
                         value={btn.phone_number}
                         onChange={(e) => updateButton(idx, { phone_number: e.target.value } as Partial<ButtonDraft>)}
-                        disabled={!isDraft}
+                        disabled={!isEditable}
                         maxLength={20}
                         placeholder="+966500000000"
                         className={fieldClass}
@@ -746,7 +842,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                         <input
                           value={btn.text}
                           onChange={(e) => updateButton(idx, { text: e.target.value } as Partial<ButtonDraft>)}
-                          disabled={!isDraft}
+                          disabled={!isEditable}
                           maxLength={25}
                           placeholder={t("templates.editor.buttons.textPlaceholder")}
                           className={fieldClass}
@@ -754,7 +850,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                         <input
                           value={btn.url}
                           onChange={(e) => updateButton(idx, { url: e.target.value } as Partial<ButtonDraft>)}
-                          disabled={!isDraft}
+                          disabled={!isEditable}
                           maxLength={2000}
                           placeholder="https://example.com/{{1}}"
                           className={fieldClass}
@@ -765,7 +861,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                         <input
                           value={btn.example ?? ""}
                           onChange={(e) => updateButton(idx, { example: e.target.value } as Partial<ButtonDraft>)}
-                          disabled={!isDraft}
+                          disabled={!isEditable}
                           placeholder={t("templates.editor.buttons.urlExamplePlaceholder")}
                           className={fieldClass}
                           dir="ltr"
@@ -781,7 +877,7 @@ export default function TemplateEditorPage({ templateId }: { templateId?: string
                     <input
                       value={btn.example}
                       onChange={(e) => updateButton(idx, { example: e.target.value } as Partial<ButtonDraft>)}
-                      disabled={!isDraft}
+                      disabled={!isEditable}
                       maxLength={15}
                       placeholder={t("templates.editor.buttons.codePlaceholder")}
                       className={fieldClass}

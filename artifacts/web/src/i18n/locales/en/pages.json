@@ -122,17 +122,25 @@
     },
     "actions": {
       "submit": "Submit for review",
-      "sync": "Sync"
+      "sync": "Sync",
+      "syncAll": "Sync all"
+    },
+    "pagination": {
+      "showing": "Showing {{from}} – {{to}} of {{total}}",
+      "prev": "Previous",
+      "next": "Next"
     },
     "editor": {
       "createTitle": "Create template",
       "editTitle": "Edit template",
       "subtitle": "Prepare text and variables, then submit when ready",
       "saveDraft": "Save as draft",
+      "saveEdits": "Save edits",
       "submit": "Submit for review",
       "saved": "Template saved",
       "submitted": "Template submitted for review",
       "currentStatus": "Current status",
+      "rejectionReason": "Rejection reason",
       "addComponent": "Add component",
       "noVariables": "No variables detected",
       "previewEmpty": "Template preview appears here",
@@ -169,7 +177,10 @@
         "text": "Text",
         "placeholder": "Hello {{1}}, your special offer...",
         "varExample": "Variable example",
-        "mediaNote": "You will be asked to upload the media when actually sending via WhatsApp."
+        "uploadMedia": "Upload media file",
+        "mediaUploaded": "Media uploaded successfully",
+        "mediaError": "Upload failed",
+        "mediaNote": "Upload a media file as an example for Meta to approve the template."
       },
       "body": {
         "placeholder": "Hello {{1}}, your order {{2}} is ready for pickup.",

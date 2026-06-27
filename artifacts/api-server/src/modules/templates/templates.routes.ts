@@ -1,4 +1,4 @@
-import { Router, type Response } from "express";
+import express, { Router, type Response } from "express";
 import { auditFromRequest, createAuditLog } from "../../lib/audit";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { requirePermission } from "../../middlewares/requirePermission";
@@ -10,8 +10,10 @@ import {
   getTemplate,
   listTemplates,
   submitTemplate,
+  syncAllTemplates,
   syncTemplate,
   updateTemplate,
+  uploadHeaderMediaService,
 } from "./templates.service";
 import { createTemplateSchema, listTemplatesQuerySchema, updateTemplateSchema } from "./templates.schema";
 
@@ -113,10 +115,10 @@ router.post("/:id/submit", requirePermission("templates:submit"), async (req: Au
     entityType: "whatsapp_template",
     entityId: template.id,
     entityLabel: template.name,
-    newData: { status: template.status, metaCall: "stub" },
+    newData: { status: template.status, metaTemplateId: template.metaTemplateId, dryRun: !template.metaTemplateId },
   });
 
-  res.json({ template, submitted: true, externalCall: false });
+  res.json({ template, submitted: true, externalCall: Boolean(template.metaTemplateId) });
 });
 
 router.post("/:id/sync", requirePermission("templates:read"), async (req: AuthenticatedRequest, res: Response) => {
@@ -128,10 +130,44 @@ router.post("/:id/sync", requirePermission("templates:read"), async (req: Authen
     entityType: "whatsapp_template",
     entityId: result.template.id,
     entityLabel: result.template.name,
-    newData: { mode: "stub", synced: false },
+    newData: { mode: result.mode, synced: result.synced, status: result.template.status },
   });
 
   res.json(result);
 });
+
+router.post("/sync-all", requirePermission("templates:submit"), async (req: AuthenticatedRequest, res: Response) => {
+  const channelAccountId = req.body?.channelAccountId as string | undefined;
+  const result = await syncAllTemplates(req.sessionUser.activeWorkspaceId, channelAccountId);
+  res.json(result);
+});
+
+// Raw binary upload for IMAGE/VIDEO/DOCUMENT header examples → returns header_handle
+router.post(
+  "/header-media",
+  express.raw({ type: ["image/*", "video/*", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], limit: "20mb" }),
+  requirePermission("templates:write"),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const mimeType = ((req.headers["content-type"] as string | undefined) ?? "").split(";")[0].trim();
+    const fileName = (req.headers["x-file-name"] as string | undefined) ?? "header_media";
+    const channelAccountId = req.headers["x-channel-account-id"] as string | undefined;
+    const fileBuffer = req.body as Buffer;
+
+    if (!fileBuffer?.length) {
+      res.status(400).json({ error: "الملف فارغ أو غير مقبول" });
+      return;
+    }
+
+    const result = await uploadHeaderMediaService(
+      req.sessionUser.activeWorkspaceId,
+      channelAccountId,
+      fileBuffer,
+      mimeType,
+      fileName,
+    );
+
+    res.json(result);
+  },
+);
 
 export default router;
