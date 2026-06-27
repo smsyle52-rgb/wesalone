@@ -4,7 +4,7 @@ export type QueryResult<T> = {
 };
 
 export type PoolClient = {
-  query: <T = Record<string, unknown>>(
+  query: <T = any>(
     text: string,
     values?: unknown[],
   ) => Promise<QueryResult<T>>;
