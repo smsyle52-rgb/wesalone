@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import express, { Router, type Express, type NextFunction, type Request, type Response } from "express";
+import session from "express-session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiLimiter } from "../lib/rateLimiter";
 import { requireVerifiedEmail } from "../middlewares/requireVerifiedEmail";
@@ -33,7 +34,6 @@ const WORKSPACE_ID = "00000000-0000-4000-8000-000000000010";
 type FetchInit = Parameters<typeof fetch>[1];
 type FetchResponse = Awaited<ReturnType<typeof fetch>>;
 type JsonObject = Record<string, unknown>;
-type RequestWithSession = Request & { session: { user?: SessionUser } };
 
 async function readJsonObject(response: FetchResponse): Promise<JsonObject> {
   const value: unknown = await response.json();
@@ -68,8 +68,15 @@ function successResult() {
 function buildApp(sessionUser: SessionUser | null): Express {
   const app = express();
   app.use(express.json({ limit: "10mb" }));
+  app.use(session({
+    secret: "whatsapp-business-profile-test-secret",
+    resave: false,
+    saveUninitialized: false,
+  }));
   app.use((req: Request, _res: Response, next: NextFunction) => {
-    (req as RequestWithSession).session = sessionUser ? { user: sessionUser } : {};
+    if (sessionUser) {
+      req.session.user = sessionUser;
+    }
     next();
   });
   const protectedApi = Router();
