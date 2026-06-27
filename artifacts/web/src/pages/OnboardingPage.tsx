@@ -127,7 +127,7 @@ export default function OnboardingPage() {
       const created = await apiFetch("ai/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: agentName.trim() || "وكيل المبيعات", type: "support", defaultModel: "mock", dialect: "standard_arabic" }),
+        body: JSON.stringify({ name: agentName.trim() || "وكيل المبيعات", type: "support", defaultModel: "gemini_flash", dialect: "standard_arabic" }),
       });
       const id = created.agent.id as string;
       if (businessType || instructions.trim()) {
@@ -164,20 +164,28 @@ export default function OnboardingPage() {
     navigate("/dashboard");
   }
 
-  function sendTestMessage() {
+  async function sendTestMessage() {
     const text = testInput.trim();
     if (!text || testReplying) return;
     setTestMessages((prev) => [...prev, { from: "user", text }]);
     setTestInput("");
     setTestReplying(true);
-    setTimeout(() => {
-      const name = agentName.trim() || "وكيل المبيعات";
-      setTestMessages((prev) => [
-        ...prev,
-        { from: "agent", text: `مرحباً! أنا ${name}، استلمت رسالتك وسأرد عليك بأسرع وقت. كيف يمكنني مساعدتك؟` },
-      ]);
+    try {
+      if (agentId) {
+        const data = await apiFetch("ai/runs/draft-reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentId, message: text }),
+        });
+        setTestMessages((prev) => [...prev, { from: "agent", text: (data as { draft?: string }).draft ?? "تم استلام رسالتك." }]);
+      } else {
+        setTestMessages((prev) => [...prev, { from: "agent", text: "سيرد وكيلك على رسائل العملاء بأسلوب مهني حسب تعليماتك." }]);
+      }
+    } catch {
+      setTestMessages((prev) => [...prev, { from: "agent", text: "تعذر الاتصال بالوكيل الآن. سيكون جاهزاً عند بدء الخدمة." }]);
+    } finally {
       setTestReplying(false);
-    }, 1200);
+    }
   }
 
   async function skipOnboarding() {
