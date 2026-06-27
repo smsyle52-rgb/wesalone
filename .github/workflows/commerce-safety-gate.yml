@@ -1,0 +1,107 @@
+name: Commerce Safety Gate
+
+on:
+  push:
+    branches:
+      - feat/commerce-inventory-orders-payments
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: commerce-safety-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CI: "true"
+      NODE_ENV: test
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/commerce_fresh
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create migration databases
+        run: |
+          psql -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE DATABASE commerce_fresh;
+          CREATE DATABASE commerce_old;
+          SQL
+
+      - name: Migrate empty database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/commerce_fresh
+        run: pnpm --filter @workspace/db migrate
+
+      - name: Migrate old main database then upgrade with branch migrations
+        run: |
+          git worktree add /tmp/khadamatak-main origin/main
+          cd /tmp/khadamatak-main
+          pnpm install --frozen-lockfile
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/commerce_old pnpm --filter @workspace/db migrate
+          cd "$GITHUB_WORKSPACE"
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/commerce_old pnpm --filter @workspace/db migrate
+
+      - name: Verify migration results
+        run: |
+          for db in commerce_fresh commerce_old; do
+            psql "postgresql://postgres:postgres@localhost:5432/$db" -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT idempotency_key FROM order_state_transitions LIMIT 0;
+          SELECT slug FROM permissions WHERE slug = 'payments:refund';
+          SQL
+          done
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Run unit and PostgreSQL integration tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/commerce_fresh
+        run: pnpm --filter @workspace/api-server test
+
+      - name: Build API
+        run: pnpm --filter @workspace/api-server build
+
+      - name: Build web
+        env:
+          BASE_PATH: /
+        run: pnpm --filter @workspace/web build
