@@ -116,6 +116,12 @@ jobs:
           {
             pnpm --filter @workspace/db migrate
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrate-phase345.sql
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS plan_id uuid REFERENCES plans(id);
+          UPDATE workspaces
+          SET plan_id = (SELECT id FROM plans WHERE slug = 'free' LIMIT 1)
+          WHERE plan_id IS NULL;
+          SQL
           } > /tmp/integration-bootstrap.log 2>&1
           status=$?
           cat /tmp/integration-bootstrap.log
