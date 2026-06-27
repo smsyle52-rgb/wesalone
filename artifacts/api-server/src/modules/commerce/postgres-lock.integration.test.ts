@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const enabled = Boolean(process.env.DATABASE_URL);
 const suite = enabled ? describe : describe.skip;
 const table = `commerce_lock_test_${Date.now()}`;
-let pool: (typeof import("@workspace/db"))["pool"];
+let pool!: (typeof import("@workspace/db"))["pool"];
 
 suite("PostgreSQL inventory locking", () => {
   beforeAll(async () => {
@@ -18,7 +18,7 @@ suite("PostgreSQL inventory locking", () => {
   });
 
   afterAll(async () => {
-    if (pool) await pool.query(`DROP TABLE IF EXISTS ${table}`);
+    await pool.query(`DROP TABLE IF EXISTS ${table}`);
   });
 
   it("lets only one transaction reserve the last unit", async () => {
