@@ -8,6 +8,11 @@ import type { AuthenticatedRequest } from "../../lib/types";
 import { adjustInventory } from "./inventory-consumption.service";
 import { expireInventoryReservations } from "./inventory-reservation.service";
 import { CommerceConflictError } from "./commerce.constants";
+import {
+  optionalSingleStringParameter,
+  requestIdOrFallback,
+  singleStringParameter,
+} from "./request-values";
 
 const router = Router();
 router.use(requireSession);
@@ -26,8 +31,10 @@ const adjustmentSchema = z.object({
 });
 
 function correlationId(req: AuthenticatedRequest): string {
-  if (req.id !== undefined && req.id !== null) return String(req.id);
-  return req.header("x-correlation-id") || crypto.randomUUID();
+  return requestIdOrFallback(
+    req.id,
+    req.header("x-correlation-id") || crypto.randomUUID(),
+  );
 }
 
 function handleCommerceError(error: unknown, res: Response) {
@@ -89,8 +96,17 @@ router.post("/locations", requirePermission("inventory:manage"), async (req: Aut
 
 router.get("/levels", requirePermission("inventory:read"), async (req: AuthenticatedRequest, res: Response) => {
   const { activeWorkspaceId } = req.sessionUser;
-  const locationId = typeof req.query.locationId === "string" ? req.query.locationId : null;
-  const productId = typeof req.query.productId === "string" ? req.query.productId : null;
+  const locationIdResult = optionalSingleStringParameter(req.query.locationId);
+  const productIdResult = optionalSingleStringParameter(req.query.productId);
+  if (!locationIdResult.ok || !productIdResult.ok) {
+    res.status(400).json({
+      error: "يجب أن تكون معاملات locationId وproductId قيماً مفردة وصحيحة",
+      code: "INVALID_QUERY_PARAMETER",
+    });
+    return;
+  }
+  const locationId = locationIdResult.value;
+  const productId = productIdResult.value;
   const lowStockOnly = req.query.lowStock === "true";
   const result = await pool.query(
     `SELECT l.id, l.product_variant_id AS "productVariantId", l.location_id AS "locationId",
@@ -119,7 +135,12 @@ router.post("/levels/:id/adjust", requirePermission("inventory:adjust"), async (
     return;
   }
   const { activeWorkspaceId, userId } = req.sessionUser;
-  const levelId = String(req.params.id);
+  const levelIdResult = singleStringParameter(req.params.id);
+  if (!levelIdResult.ok) {
+    res.status(400).json({ error: "معرف سجل المخزون يجب أن يكون قيمة مفردة وصحيحة", code: "INVALID_ROUTE_PARAMETER" });
+    return;
+  }
+  const levelId = levelIdResult.value;
   const level = await pool.query<{ product_variant_id: string; location_id: string }>(
     `SELECT product_variant_id, location_id FROM inventory_stock_levels
      WHERE id = $1 AND workspace_id = $2`,

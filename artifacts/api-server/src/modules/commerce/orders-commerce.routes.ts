@@ -9,6 +9,7 @@ import type { AuthenticatedRequest } from "../../lib/types";
 import { ORDER_STATES, CommerceConflictError } from "./commerce.constants";
 import { transitionOrder } from "./order-lifecycle.service";
 import orderCreateRouter from "./order-create.routes";
+import { requestIdOrFallback, singleStringParameter } from "./request-values";
 
 const router = Router();
 router.use(requireSession);
@@ -160,12 +161,21 @@ router.patch("/:id/status", requirePermission("orders:update"), async (req: Auth
     res.status(403).json({ error: "ليس لديك صلاحية إلغاء الطلبات", code: "FORBIDDEN" });
     return;
   }
+  const orderIdResult = singleStringParameter(req.params.id);
+  if (!orderIdResult.ok) {
+    res.status(400).json({ error: "معرف الطلب يجب أن يكون قيمة مفردة وصحيحة", code: "INVALID_ROUTE_PARAMETER" });
+    return;
+  }
+  const orderId = orderIdResult.value;
   const { activeWorkspaceId, userId } = req.sessionUser;
-  const correlationId = req.id || req.header("x-correlation-id") || crypto.randomUUID();
+  const correlationId = requestIdOrFallback(
+    req.id,
+    req.header("x-correlation-id") || crypto.randomUUID(),
+  );
   try {
     const transition = await transitionOrder({
       workspaceId: activeWorkspaceId,
-      orderId: req.params.id as string,
+      orderId,
       targetState: parsed.data.status,
       userId,
       correlationId,
@@ -177,7 +187,7 @@ router.patch("/:id/status", requirePermission("orders:update"), async (req: Auth
       `SELECT id, order_number AS "orderNumber", status, payment_status AS "paymentStatus",
               total_amount AS "totalAmount", paid_amount AS "paidAmount", version, updated_at AS "updatedAt"
        FROM orders WHERE id = $1 AND workspace_id = $2`,
-      [req.params.id, activeWorkspaceId],
+      [orderId, activeWorkspaceId],
     );
     const order = orderResult.rows[0];
     await createAuditLog({
@@ -186,7 +196,7 @@ router.patch("/:id/status", requirePermission("orders:update"), async (req: Auth
       action: "update",
       severity: parsed.data.status === "Cancelled" ? "warning" : "info",
       entityType: "order",
-      entityId: req.params.id as string,
+      entityId: orderId,
       entityLabel: order?.orderNumber,
       oldData: { status: transition.fromState },
       newData: { status: transition.toState, reason: parsed.data.reason, correlationId },
@@ -194,7 +204,7 @@ router.patch("/:id/status", requirePermission("orders:update"), async (req: Auth
     await publishDomainEvent({
       eventType: "order.status_changed",
       entityType: "order",
-      entityId: req.params.id as string,
+      entityId: orderId,
       payload: { fromState: transition.fromState, toState: transition.toState, reason: parsed.data.reason, correlationId },
       sessionUser: req.sessionUser,
     });
