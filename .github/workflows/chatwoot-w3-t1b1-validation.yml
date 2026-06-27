@@ -81,22 +81,34 @@ jobs:
             src/tests/conversation-lifecycle-routes-actual.spec.ts \
             2>&1 | tee /tmp/lifecycle-unit.log
 
-      - name: Run lifecycle PostgreSQL test
+      - name: Run lifecycle PostgreSQL test (integration config)
         run: |
           set -o pipefail
           pnpm --filter @workspace/api-server exec vitest run \
+            --config vitest.chatwoot-lifecycle.integration.config.ts \
             --reporter verbose \
-            src/tests/conversation-lifecycle-postgres.spec.ts \
             2>&1 | tee /tmp/lifecycle-postgres.log
 
-      - name: Verify PostgreSQL test was NOT skipped
+      - name: Verify PostgreSQL test results
         run: |
-          if grep -qiE "^\s*(skip|SKIP|skipped)" /tmp/lifecycle-postgres.log; then
-            echo "ERROR: PostgreSQL lifecycle test was skipped — DATABASE_URL may not have reached Vitest."
+          # Must show exactly "Test Files  1 passed" and no failures or skips
+          if ! grep -qE "Test Files\s+1 passed" /tmp/lifecycle-postgres.log; then
+            echo "ERROR: Expected 'Test Files  1 passed' not found in log."
             cat /tmp/lifecycle-postgres.log
             exit 1
           fi
-          echo "PostgreSQL lifecycle test executed (no skips detected)."
+          if grep -qE "Tests\s+[0-9]+ failed" /tmp/lifecycle-postgres.log; then
+            echo "ERROR: One or more PostgreSQL tests failed."
+            cat /tmp/lifecycle-postgres.log
+            exit 1
+          fi
+          if grep -qE "Tests\s+[0-9]+ skipped" /tmp/lifecycle-postgres.log; then
+            echo "ERROR: One or more PostgreSQL tests were skipped."
+            cat /tmp/lifecycle-postgres.log
+            exit 1
+          fi
+          PASSED=$(grep -oE "Tests\s+[0-9]+ passed" /tmp/lifecycle-postgres.log | grep -oE "[0-9]+" || true)
+          echo "PostgreSQL integration: Test Files 1 passed, Tests ${PASSED} passed, 0 failed, 0 skipped."
 
       - name: Run full api-server test suite
         run: |
