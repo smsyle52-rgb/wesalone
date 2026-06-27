@@ -13,7 +13,9 @@ const activeOpen: ConversationLifecycleState = {
   aiSubstate: "ai_active",
 };
 
-function transition(state: ConversationLifecycleState, type: LifecycleEventType) {
+type SimpleLifecycleEventType = Exclude<LifecycleEventType, "set_lifecycle">;
+
+function transition(state: ConversationLifecycleState, type: SimpleLifecycleEventType) {
   return transitionConversationLifecycle(state, { type });
 }
 
@@ -93,6 +95,15 @@ describe("legal lifecycle transitions", () => {
     expect(resumed.next.aiSubstate).toBe("ai_active");
   });
 
+  it("explicitly reactivates AI from human control", () => {
+    const result = transition(
+      { lifecycleState: "open", aiSubstate: "human_controlled" },
+      "reactivate_agent",
+    );
+    expect(result.outcome).toBe("applied");
+    expect(result.next).toEqual({ lifecycleState: "open", aiSubstate: "ai_active" });
+  });
+
   it.each(["escalate", "handoff"] as const)("moves %s to human handling", (event) => {
     const result = transition(activeOpen, event);
     expect(result.outcome).toBe("applied");
@@ -108,6 +119,17 @@ describe("legal lifecycle transitions", () => {
     const reopened = transition(resolved.next, "reopen");
     expect(reopened.outcome).toBe("applied");
     expect(reopened.next).toEqual({ lifecycleState: "open", aiSubstate: "ai_paused" });
+  });
+
+  it("supports dashboard open, pending, and snoozed status transitions", () => {
+    const pending = transitionConversationLifecycle(activeOpen, { type: "set_lifecycle", target: "pending" });
+    expect(pending).toMatchObject({ outcome: "applied", next: { lifecycleState: "pending" } });
+
+    const open = transitionConversationLifecycle(pending.next, { type: "set_lifecycle", target: "open" });
+    expect(open).toMatchObject({ outcome: "applied", next: { lifecycleState: "open" } });
+
+    const snoozed = transitionConversationLifecycle(open.next, { type: "set_lifecycle", target: "snoozed" });
+    expect(snoozed).toMatchObject({ outcome: "applied", next: { lifecycleState: "snoozed" } });
   });
 
   it("reactivates a resolved paused conversation from a fresh inbound event", () => {
@@ -140,7 +162,7 @@ describe("legal lifecycle transitions", () => {
 });
 
 describe("illegal lifecycle transitions", () => {
-  it.each(["assign_human", "pause_ai", "resume_ai", "escalate", "handoff", "unassign"] as const)(
+  it.each(["assign_human", "pause_ai", "resume_ai", "reactivate_agent", "escalate", "handoff", "unassign"] as const)(
     "rejects %s while resolved",
     (event) => {
       expect(transition({ lifecycleState: "resolved", aiSubstate: "ai_active" }, event)).toMatchObject({
@@ -155,16 +177,23 @@ describe("illegal lifecycle transitions", () => {
       .toMatchObject({ outcome: "rejected", reason: "AI_CONTROLLED_BY_HUMAN" });
   });
 
-  it("rejects pause and resume while AI is blocked", () => {
+  it("rejects pause, resume, and explicit reactivation while AI is blocked", () => {
     expect(transition({ lifecycleState: "open", aiSubstate: "ai_blocked" }, "pause_ai"))
       .toMatchObject({ outcome: "rejected", reason: "AI_BLOCKED" });
     expect(transition({ lifecycleState: "open", aiSubstate: "ai_blocked" }, "resume_ai"))
+      .toMatchObject({ outcome: "rejected", reason: "AI_BLOCKED" });
+    expect(transition({ lifecycleState: "open", aiSubstate: "ai_blocked" }, "reactivate_agent"))
       .toMatchObject({ outcome: "rejected", reason: "AI_BLOCKED" });
   });
 
   it("rejects reopen unless resolved or already open", () => {
     expect(transition({ lifecycleState: "pending", aiSubstate: "ai_active" }, "reopen"))
       .toMatchObject({ outcome: "rejected", reason: "NOT_RESOLVED" });
+  });
+
+  it("rejects invalid dashboard lifecycle movement", () => {
+    expect(transitionConversationLifecycle(activeOpen, { type: "set_lifecycle", target: "new" }))
+      .toMatchObject({ outcome: "rejected", reason: "INVALID_LIFECYCLE_TRANSITION" });
   });
 
   it("rejects unassign when no human owns the conversation", () => {
@@ -177,12 +206,19 @@ describe("idempotency and feature flag safety", () => {
   it.each([
     [{ lifecycleState: "open", aiSubstate: "ai_paused" }, "pause_ai"],
     [{ lifecycleState: "open", aiSubstate: "ai_active" }, "resume_ai"],
+    [{ lifecycleState: "open", aiSubstate: "ai_active" }, "reactivate_agent"],
     [{ lifecycleState: "resolved", aiSubstate: "ai_active" }, "resolve"],
     [{ lifecycleState: "open", aiSubstate: "human_controlled" }, "handoff"],
     [{ lifecycleState: "open", aiSubstate: "ai_active" }, "inbound_reactivation"],
     [{ lifecycleState: "open", aiSubstate: "ai_paused" }, "unassign"],
   ] as const)("does not create a duplicate transition for %s", (state, event) => {
     const result = transition(state, event);
+    expect(result.outcome).toBe("noop");
+    expect(result.domainEvents).toEqual([]);
+  });
+
+  it("does not duplicate a dashboard status transition", () => {
+    const result = transitionConversationLifecycle(activeOpen, { type: "set_lifecycle", target: "open" });
     expect(result.outcome).toBe("noop");
     expect(result.domainEvents).toEqual([]);
   });

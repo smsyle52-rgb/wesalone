@@ -1,9 +1,9 @@
 /**
  * Pure conversation lifecycle foundation.
  *
- * W3-T1A deliberately has no database, HTTP, worker, or event-bus side effects.
- * Production writers continue using the legacy status/agent_status fields until
- * later rollout phases explicitly adopt this engine behind UNIFIED_LIFECYCLE.
+ * The engine has no database, HTTP, worker, or event-bus side effects. Dashboard/API
+ * writers may adopt it only behind UNIFIED_LIFECYCLE; system, worker, and AI-runtime
+ * writers remain legacy until their later rollout phase.
  */
 
 export const LIFECYCLE_STATES = ["new", "open", "pending", "resolved", "snoozed"] as const;
@@ -16,9 +16,11 @@ export const LIFECYCLE_EVENTS = [
   "assign_human",
   "pause_ai",
   "resume_ai",
+  "reactivate_agent",
   "escalate",
   "resolve",
   "reopen",
+  "set_lifecycle",
   "inbound_reactivation",
   "handoff",
   "unassign",
@@ -52,10 +54,16 @@ export type ConversationLifecycleRecord = Readonly<{
   assignedMembershipId?: string | null;
 }>;
 
-export type LifecycleEvent = Readonly<{
-  type: LifecycleEventType;
-  reason?: string;
-}>;
+export type LifecycleEvent =
+  | Readonly<{
+      type: Exclude<LifecycleEventType, "set_lifecycle">;
+      reason?: string;
+    }>
+  | Readonly<{
+      type: "set_lifecycle";
+      target: LifecycleState;
+      reason?: string;
+    }>;
 
 export type LifecycleProjection = Readonly<{
   status: LegacyConversationStatus;
@@ -70,6 +78,7 @@ export type LifecycleDomainEvent = Readonly<{
     | "conversation.needs_human"
     | "conversation.resolved"
     | "conversation.reopened"
+    | "conversation.status_changed"
     | "conversation.reactivated"
     | "conversation.unassigned";
   inboundClass: boolean;
@@ -106,7 +115,8 @@ export type LifecycleTransitionResult =
         | "AI_CONTROLLED_BY_HUMAN"
         | "AI_BLOCKED"
         | "NOT_RESOLVED"
-        | "NOT_HUMAN_CONTROLLED";
+        | "NOT_HUMAN_CONTROLLED"
+        | "INVALID_LIFECYCLE_TRANSITION";
     }>;
 
 export type NormalizedConversationLifecycle = Readonly<{
@@ -194,18 +204,21 @@ function sameState(left: ConversationLifecycleState, right: ConversationLifecycl
   return left.lifecycleState === right.lifecycleState && left.aiSubstate === right.aiSubstate;
 }
 
-function domainEventFor(event: LifecycleEventType): LifecycleDomainEvent {
-  switch (event) {
+function domainEventFor(event: LifecycleEvent): LifecycleDomainEvent {
+  switch (event.type) {
     case "assign_human":
       return { type: "conversation.assigned", inboundClass: false };
     case "pause_ai":
       return { type: "conversation.ai_paused", inboundClass: false };
     case "resume_ai":
+    case "reactivate_agent":
       return { type: "conversation.ai_resumed", inboundClass: false };
     case "resolve":
       return { type: "conversation.resolved", inboundClass: false };
     case "reopen":
       return { type: "conversation.reopened", inboundClass: false };
+    case "set_lifecycle":
+      return { type: "conversation.status_changed", inboundClass: false };
     case "inbound_reactivation":
       return { type: "conversation.reactivated", inboundClass: true };
     case "unassign":
@@ -239,7 +252,7 @@ function applied(
     previous,
     next,
     projection: projectLifecycleToLegacy(next),
-    domainEvents: [domainEventFor(event.type)],
+    domainEvents: [domainEventFor(event)],
   };
 }
 
@@ -267,6 +280,14 @@ function rejectWhenInactiveLifecycle(
   if (state.lifecycleState === "snoozed") return rejected(state, event, "CONVERSATION_SNOOZED");
   return null;
 }
+
+const DASHBOARD_LIFECYCLE_TRANSITIONS: Readonly<Record<LifecycleState, readonly LifecycleState[]>> = {
+  new: ["open"],
+  open: ["pending", "snoozed", "resolved"],
+  pending: ["open"],
+  snoozed: ["open"],
+  resolved: ["open"],
+};
 
 /**
  * Evaluate one lifecycle event. This function is deterministic and side-effect free.
@@ -298,6 +319,13 @@ export function transitionConversationLifecycle(
       return applied(state, { ...state, aiSubstate: "ai_active" }, event);
     }
 
+    case "reactivate_agent": {
+      const inactive = rejectWhenInactiveLifecycle(state, event);
+      if (inactive) return inactive;
+      if (state.aiSubstate === "ai_blocked") return rejected(state, event, "AI_BLOCKED");
+      return applied(state, { ...state, aiSubstate: "ai_active" }, event);
+    }
+
     case "escalate":
     case "handoff": {
       if (state.lifecycleState === "resolved") return rejected(state, event, "CONVERSATION_RESOLVED");
@@ -313,6 +341,15 @@ export function transitionConversationLifecycle(
       }
       if (state.lifecycleState !== "resolved") return rejected(state, event, "NOT_RESOLVED");
       return applied(state, { ...state, lifecycleState: "open" }, event);
+    }
+
+    case "set_lifecycle": {
+      if (state.lifecycleState === event.target) return applied(state, state, event);
+      const allowed = DASHBOARD_LIFECYCLE_TRANSITIONS[state.lifecycleState];
+      if (!allowed.includes(event.target)) {
+        return rejected(state, event, "INVALID_LIFECYCLE_TRANSITION");
+      }
+      return applied(state, { ...state, lifecycleState: event.target }, event);
     }
 
     case "inbound_reactivation": {

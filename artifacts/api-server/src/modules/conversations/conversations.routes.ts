@@ -4,15 +4,22 @@ import { eq, and, desc, asc, count, ilike, or, sql } from "drizzle-orm";
 import {
   db, conversationsTable, messagesTable, contactsTable,
   contactChannelsTable, contactTimelineTable, workspaceMembershipsTable, usersTable,
-  ticketsTable, outboxEventsTable,
+  ticketsTable, outboxEventsTable, domainEventsTable,
 } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import { emitWorkspaceEvent, publishDomainEvent } from "../../lib/events";
+import { env } from "../../lib/env";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
 import { fetchMetaMediaStream } from "../../services/meta-media";
+import {
+  applyConversationLifecycleEventAtomic,
+  lifecycleEventForDashboardAgentStatus,
+  lifecycleEventForDashboardStatus,
+  shouldPublishAgentReactivationEvent,
+} from "./conversation.service";
 
 const router = Router();
 router.use(requireSession);
@@ -437,9 +444,83 @@ router.patch("/:id/status", requirePermission("conversations:resolve"), async (r
   const { activeWorkspaceId, userId } = req.sessionUser;
   const newStatus = parsed.data.status;
 
+  if (!env.UNIFIED_LIFECYCLE) {
+    const [existing] = await db.select({
+      id: conversationsTable.id,
+      status: conversationsTable.status,
+      contactId: conversationsTable.contactId,
+      contactName: contactsTable.name,
+    })
+      .from(conversationsTable)
+      .leftJoin(contactsTable, eq(conversationsTable.contactId, contactsTable.id))
+      .where(and(
+        eq(conversationsTable.id, req.params.id as string),
+        eq(conversationsTable.workspaceId, activeWorkspaceId)
+      ))
+      .limit(1);
+
+    if (!existing) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
+
+    const currentStatus = existing.status as ConvStatus;
+    const allowed = ALLOWED_TRANSITIONS[currentStatus] ?? [];
+
+    if (!allowed.includes(newStatus as ConvStatus)) {
+      const isManagerOrOwner = req.sessionUser.permissions.includes("channels:manage");
+      if (currentStatus === "closed" && newStatus === "open" && isManagerOrOwner) {
+      } else {
+        res.status(422).json({
+          error: `لا يمكن تغيير الحالة من "${currentStatus}" إلى "${newStatus}"`,
+          code: "INVALID_TRANSITION",
+        });
+        return;
+      }
+    }
+
+    const now = new Date();
+    const updates: Record<string, unknown> = { status: newStatus, updatedAt: now };
+    if (newStatus === "resolved") updates.resolvedAt = now;
+    if (newStatus === "closed") { updates.closedAt = now; updates.resolvedAt = now; }
+    if (newStatus === "snoozed" && parsed.data.snoozedUntil) {
+      updates.snoozedUntil = new Date(parsed.data.snoozedUntil);
+    }
+
+    const [conv] = await db.update(conversationsTable)
+      .set(updates)
+      .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
+      .returning();
+
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "update",
+      severity: "info",
+      entityType: "conversation",
+      entityId: conv.id,
+      entityLabel: `محادثة ${existing.contactName ?? conv.id.slice(0, 8)}`,
+      newData: { previousStatus: currentStatus, newStatus },
+    });
+
+    await addContactTimeline({
+      workspaceId: activeWorkspaceId,
+      contactId: existing.contactId,
+      eventType: "conversation_status_changed",
+      entityType: "conversation",
+      entityId: conv.id,
+      title: `تغيّرت حالة المحادثة إلى "${newStatus}"`,
+      createdBy: userId,
+    });
+
+    res.json({ conversation: conv });
+    return;
+  }
+
   const [existing] = await db.select({
     id: conversationsTable.id,
     status: conversationsTable.status,
+    lifecycleState: conversationsTable.lifecycleState,
+    aiSubstate: conversationsTable.aiSubstate,
+    agentStatus: conversationsTable.agentStatus,
+    needsHuman: conversationsTable.needsHuman,
+    assignedMembershipId: conversationsTable.assignedMembershipId,
     contactId: conversationsTable.contactId,
     contactName: contactsTable.name,
   })
@@ -469,18 +550,43 @@ router.patch("/:id/status", requirePermission("conversations:resolve"), async (r
   }
 
   const now = new Date();
-  const updates: Record<string, unknown> = { status: newStatus, updatedAt: now };
-  if (newStatus === "resolved") updates.resolvedAt = now;
-  if (newStatus === "closed") { updates.closedAt = now; updates.resolvedAt = now; }
-  if (newStatus === "snoozed" && parsed.data.snoozedUntil) {
-    updates.snoozedUntil = new Date(parsed.data.snoozedUntil);
+  const lifecycleResult = await applyConversationLifecycleEventAtomic({
+    workspaceId: activeWorkspaceId,
+    conversationId: existing.id,
+    event: lifecycleEventForDashboardStatus(existing, newStatus),
+    unifiedLifecycleEnabled: true,
+    additionalUpdates: () => {
+      const updates: Record<string, unknown> = { updatedAt: now };
+      if (newStatus === "resolved") updates.resolvedAt = now;
+      if (newStatus === "closed") { updates.closedAt = now; updates.resolvedAt = now; }
+      if (newStatus === "snoozed" && parsed.data.snoozedUntil) {
+        updates.snoozedUntil = new Date(parsed.data.snoozedUntil);
+      }
+      return updates;
+    },
+    shouldWriteNoop: (current) => newStatus === "closed" && current.status !== "closed",
+  });
+
+  if (lifecycleResult.kind === "not_found") {
+    res.status(404).json({ error: "المحادثة غير موجودة" });
+    return;
+  }
+  if (lifecycleResult.kind === "rejected") {
+    res.status(422).json({
+      error: `لا يمكن تنفيذ انتقال الحالة: ${lifecycleResult.transition.reason}`,
+      code: "INVALID_TRANSITION",
+    });
+    return;
+  }
+  if (lifecycleResult.kind === "disabled") {
+    throw new Error("Unified lifecycle writer called while disabled");
+  }
+  if (lifecycleResult.kind === "noop") {
+    res.json({ conversation: lifecycleResult.conversation });
+    return;
   }
 
-  const [conv] = await db.update(conversationsTable)
-    .set(updates)
-    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
-    .returning();
-
+  const conv = lifecycleResult.conversation;
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "update",
@@ -514,8 +620,77 @@ router.patch("/:id/assign", requirePermission("conversations:assign"), async (re
   const { activeWorkspaceId, userId } = req.sessionUser;
   const { membershipId } = parsed.data;
 
+  if (!env.UNIFIED_LIFECYCLE) {
+    const [existing] = await db.select({
+      id: conversationsTable.id,
+      contactId: conversationsTable.contactId,
+      contactName: contactsTable.name,
+    })
+      .from(conversationsTable)
+      .leftJoin(contactsTable, eq(conversationsTable.contactId, contactsTable.id))
+      .where(and(
+        eq(conversationsTable.id, req.params.id as string),
+        eq(conversationsTable.workspaceId, activeWorkspaceId)
+      ))
+      .limit(1);
+
+    if (!existing) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
+
+    let assigneeName: string | null = null;
+    if (membershipId) {
+      const [member] = await db.select({
+        id: workspaceMembershipsTable.id,
+        name: usersTable.name,
+      })
+        .from(workspaceMembershipsTable)
+        .leftJoin(usersTable, eq(workspaceMembershipsTable.userId, usersTable.id))
+        .where(and(
+          eq(workspaceMembershipsTable.id, membershipId),
+          eq(workspaceMembershipsTable.workspaceId, activeWorkspaceId)
+        ))
+        .limit(1);
+
+      if (!member) { res.status(404).json({ error: "العضو غير موجود في هذا الفضاء" }); return; }
+      assigneeName = member.name ?? null;
+    }
+
+    const [conv] = await db.update(conversationsTable)
+      .set({ assignedMembershipId: membershipId, updatedAt: new Date() })
+      .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
+      .returning();
+
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "update",
+      severity: "info",
+      entityType: "conversation",
+      entityId: conv.id,
+      entityLabel: `محادثة ${existing.contactName ?? conv.id.slice(0, 8)}`,
+      newData: { assignedMembershipId: membershipId, assigneeName },
+    });
+
+    await addContactTimeline({
+      workspaceId: activeWorkspaceId,
+      contactId: existing.contactId,
+      eventType: "conversation_assigned",
+      entityType: "conversation",
+      entityId: conv.id,
+      title: membershipId ? `تم تعيين المحادثة إلى ${assigneeName ?? "موظف"}` : "تم إلغاء تعيين المحادثة",
+      createdBy: userId,
+    });
+
+    res.json({ conversation: conv, assigneeName });
+    return;
+  }
+
   const [existing] = await db.select({
     id: conversationsTable.id,
+    status: conversationsTable.status,
+    lifecycleState: conversationsTable.lifecycleState,
+    aiSubstate: conversationsTable.aiSubstate,
+    agentStatus: conversationsTable.agentStatus,
+    needsHuman: conversationsTable.needsHuman,
+    assignedMembershipId: conversationsTable.assignedMembershipId,
     contactId: conversationsTable.contactId,
     contactName: contactsTable.name,
   })
@@ -547,11 +722,41 @@ router.patch("/:id/assign", requirePermission("conversations:assign"), async (re
     assigneeName = member.name ?? null;
   }
 
-  const [conv] = await db.update(conversationsTable)
-    .set({ assignedMembershipId: membershipId, updatedAt: new Date() })
-    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
-    .returning();
+  const lifecycleResult = await applyConversationLifecycleEventAtomic({
+    workspaceId: activeWorkspaceId,
+    conversationId: existing.id,
+    event: { type: membershipId ? "assign_human" : "unassign", reason: "dashboard_assignment" },
+    unifiedLifecycleEnabled: true,
+    additionalUpdates: () => ({
+      assignedMembershipId: membershipId,
+      needsHuman: membershipId !== null,
+      agentPausedUntil: null,
+      updatedAt: new Date(),
+    }),
+    shouldWriteNoop: (current) => current.assignedMembershipId !== membershipId
+      || Boolean(current.needsHuman) !== (membershipId !== null),
+  });
 
+  if (lifecycleResult.kind === "not_found") {
+    res.status(404).json({ error: "المحادثة غير موجودة" });
+    return;
+  }
+  if (lifecycleResult.kind === "rejected") {
+    res.status(422).json({
+      error: `لا يمكن تنفيذ التعيين: ${lifecycleResult.transition.reason}`,
+      code: "INVALID_TRANSITION",
+    });
+    return;
+  }
+  if (lifecycleResult.kind === "disabled") {
+    throw new Error("Unified lifecycle writer called while disabled");
+  }
+  if (lifecycleResult.kind === "noop") {
+    res.json({ conversation: lifecycleResult.conversation, assigneeName });
+    return;
+  }
+
+  const conv = lifecycleResult.conversation;
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "update",
@@ -584,12 +789,101 @@ router.patch("/:id/agent-status", requirePermission("conversations:resolve"), as
     return;
   }
 
-  const { activeWorkspaceId, userId } = req.sessionUser;
+  const { activeWorkspaceId } = req.sessionUser;
+
+  if (!env.UNIFIED_LIFECYCLE) {
+    const [existing] = await db.select({
+      id: conversationsTable.id,
+      subject: conversationsTable.subject,
+      agentStatus: conversationsTable.agentStatus,
+      needsHuman: conversationsTable.needsHuman,
+    })
+      .from(conversationsTable)
+      .where(and(
+        eq(conversationsTable.id, req.params.id as string),
+        eq(conversationsTable.workspaceId, activeWorkspaceId)
+      ))
+      .limit(1);
+
+    if (!existing) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
+
+    const now = new Date();
+    const updates: Record<string, unknown> = {
+      agentStatus: parsed.data.status,
+      updatedAt: now,
+    };
+
+    if (parsed.data.status === "active") {
+      updates.agentPausedUntil = null;
+      updates.consecutiveAgentReplies = 0;
+      updates.needsHuman = false;
+      updates.escalationReason = null;
+    } else if (parsed.data.status === "paused") {
+      const pauseMinutes = parsed.data.pauseMinutes ?? 30;
+      updates.agentPausedUntil = new Date(now.getTime() + pauseMinutes * 60_000);
+    } else {
+      updates.agentPausedUntil = null;
+    }
+
+    const [conversation] = await db.update(conversationsTable)
+      .set(updates)
+      .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
+      .returning();
+
+    if (!conversation) { res.status(500).json({ error: "فشل تحديث حالة الوكيل" }); return; }
+
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      workspaceId: activeWorkspaceId,
+      action: "agent_status_change",
+      entityType: "conversation",
+      entityId: conversation.id,
+      entityLabel: conversation.subject ?? conversation.id.slice(0, 8),
+      newData: {
+        previousAgentStatus: existing.agentStatus,
+        agentStatus: parsed.data.status,
+        pauseMinutes: parsed.data.pauseMinutes ?? null,
+      },
+    });
+
+    if (parsed.data.status === "active" && (existing.agentStatus !== "active" || existing.needsHuman)) {
+      // لا تُوقظ الوكيل إلا إذا كانت آخر رسالة من العميل (inbound) غير مُجابة. وإلا — حين تكون آخر
+      // رسالة ردّاً من الموظف/الوكيل والعميل لم يكتب جديداً — تُرجِع الإعادة الوكيل للعمل بصمت
+      // بلا ردّ تلقائي على رسالة قديمة (تصحيح: كان يردّ دائماً عند الإعادة).
+      const [lastMsg] = await db.select({ direction: messagesTable.direction })
+        .from(messagesTable)
+        .where(and(eq(messagesTable.conversationId, conversation.id), eq(messagesTable.workspaceId, activeWorkspaceId)))
+        .orderBy(desc(messagesTable.sentAt))
+        .limit(1);
+      if (lastMsg?.direction === "inbound") {
+        await publishDomainEvent({
+          eventType: "message.received",
+          entityType: "conversation",
+          entityId: conversation.id,
+          payload: {
+            conversationId: conversation.id,
+            source: "agent_reactivated",
+          },
+          sessionUser: req.sessionUser,
+        });
+      }
+    }
+
+    res.json({ conversation });
+    return;
+  }
+
   const [existing] = await db.select({
     id: conversationsTable.id,
     subject: conversationsTable.subject,
+    status: conversationsTable.status,
+    lifecycleState: conversationsTable.lifecycleState,
+    aiSubstate: conversationsTable.aiSubstate,
     agentStatus: conversationsTable.agentStatus,
     needsHuman: conversationsTable.needsHuman,
+    assignedMembershipId: conversationsTable.assignedMembershipId,
+    agentPausedUntil: conversationsTable.agentPausedUntil,
+    consecutiveAgentReplies: conversationsTable.consecutiveAgentReplies,
   })
     .from(conversationsTable)
     .where(and(
@@ -601,30 +895,89 @@ router.patch("/:id/agent-status", requirePermission("conversations:resolve"), as
   if (!existing) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
 
   const now = new Date();
-  const updates: Record<string, unknown> = {
-    agentStatus: parsed.data.status,
-    updatedAt: now,
-  };
+  let reactivationEventCreated = false;
+  const lifecycleResult = await applyConversationLifecycleEventAtomic({
+    workspaceId: activeWorkspaceId,
+    conversationId: existing.id,
+    event: lifecycleEventForDashboardAgentStatus(parsed.data.status),
+    unifiedLifecycleEnabled: true,
+    additionalUpdates: () => {
+      const updates: Record<string, unknown> = { updatedAt: now };
+      if (parsed.data.status === "active") {
+        updates.agentPausedUntil = null;
+        updates.consecutiveAgentReplies = 0;
+        updates.needsHuman = false;
+        updates.escalationReason = null;
+      } else if (parsed.data.status === "paused") {
+        const pauseMinutes = parsed.data.pauseMinutes ?? 30;
+        updates.agentPausedUntil = new Date(now.getTime() + pauseMinutes * 60_000);
+      } else {
+        updates.agentPausedUntil = null;
+        updates.needsHuman = true;
+      }
+      return updates;
+    },
+    shouldWriteNoop: (current) => {
+      if (parsed.data.status === "paused") return true;
+      if (parsed.data.status === "active") {
+        return current.agentStatus !== "active" || Boolean(current.needsHuman) || current.agentPausedUntil !== null;
+      }
+      return current.agentStatus !== "human" || !current.needsHuman;
+    },
+    onWritten: async ({ transaction, conversation, lifecycleChanged }) => {
+      if (parsed.data.status !== "active" || !lifecycleChanged) return;
 
-  if (parsed.data.status === "active") {
-    updates.agentPausedUntil = null;
-    updates.consecutiveAgentReplies = 0;
-    updates.needsHuman = false;
-    updates.escalationReason = null;
-  } else if (parsed.data.status === "paused") {
-    const pauseMinutes = parsed.data.pauseMinutes ?? 30;
-    updates.agentPausedUntil = new Date(now.getTime() + pauseMinutes * 60_000);
-  } else {
-    updates.agentPausedUntil = null;
+      const [lastMsg] = await transaction.select({ direction: messagesTable.direction })
+        .from(messagesTable)
+        .where(and(
+          eq(messagesTable.conversationId, conversation.id),
+          eq(messagesTable.workspaceId, activeWorkspaceId),
+        ))
+        .orderBy(desc(messagesTable.sentAt))
+        .limit(1);
+      if (!shouldPublishAgentReactivationEvent({
+        requestedStatus: parsed.data.status,
+        lifecycleChanged,
+        conversation,
+        lastMessageDirection: lastMsg?.direction,
+      })) return;
+
+      await transaction.insert(domainEventsTable).values({
+        workspaceId: activeWorkspaceId,
+        eventType: "message.received",
+        entityType: "conversation",
+        entityId: conversation.id,
+        payload: {
+          conversationId: conversation.id,
+          source: "agent_reactivated",
+          actorUserId: req.sessionUser.userId,
+          actorMembershipId: req.sessionUser.activeMembershipId,
+        },
+      });
+      reactivationEventCreated = true;
+    },
+  });
+
+  if (lifecycleResult.kind === "not_found") {
+    res.status(404).json({ error: "المحادثة غير موجودة" });
+    return;
+  }
+  if (lifecycleResult.kind === "rejected") {
+    res.status(422).json({
+      error: `لا يمكن تحديث حالة الوكيل: ${lifecycleResult.transition.reason}`,
+      code: "INVALID_TRANSITION",
+    });
+    return;
+  }
+  if (lifecycleResult.kind === "disabled") {
+    throw new Error("Unified lifecycle writer called while disabled");
+  }
+  if (lifecycleResult.kind === "noop") {
+    res.json({ conversation: lifecycleResult.conversation });
+    return;
   }
 
-  const [conversation] = await db.update(conversationsTable)
-    .set(updates)
-    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
-    .returning();
-
-  if (!conversation) { res.status(500).json({ error: "فشل تحديث حالة الوكيل" }); return; }
-
+  const conversation = lifecycleResult.conversation;
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     workspaceId: activeWorkspaceId,
@@ -639,27 +992,17 @@ router.patch("/:id/agent-status", requirePermission("conversations:resolve"), as
     },
   });
 
-  if (parsed.data.status === "active" && (existing.agentStatus !== "active" || existing.needsHuman)) {
-    // لا تُوقظ الوكيل إلا إذا كانت آخر رسالة من العميل (inbound) غير مُجابة. وإلا — حين تكون آخر
-    // رسالة ردّاً من الموظف/الوكيل والعميل لم يكتب جديداً — تُرجِع الإعادة الوكيل للعمل بصمت
-    // بلا ردّ تلقائي على رسالة قديمة (تصحيح: كان يردّ دائماً عند الإعادة).
-    const [lastMsg] = await db.select({ direction: messagesTable.direction })
-      .from(messagesTable)
-      .where(and(eq(messagesTable.conversationId, conversation.id), eq(messagesTable.workspaceId, activeWorkspaceId)))
-      .orderBy(desc(messagesTable.sentAt))
-      .limit(1);
-    if (lastMsg?.direction === "inbound") {
-      await publishDomainEvent({
-        eventType: "message.received",
-        entityType: "conversation",
-        entityId: conversation.id,
-        payload: {
-          conversationId: conversation.id,
-          source: "agent_reactivated",
-        },
-        sessionUser: req.sessionUser,
-      });
-    }
+  if (reactivationEventCreated) {
+    emitWorkspaceEvent({
+      workspaceId: activeWorkspaceId,
+      type: "message.received",
+      entityType: "conversation",
+      entityId: conversation.id,
+      payload: {
+        conversationId: conversation.id,
+        source: "agent_reactivated",
+      },
+    });
   }
 
   res.json({ conversation });
