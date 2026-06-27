@@ -5,6 +5,7 @@ import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { type CommerceOrderState, CommerceConflictError } from "./commerce.constants";
+import { singleStringParameter } from "./request-values";
 
 const router = Router();
 router.use(requireSession);
@@ -40,9 +41,18 @@ router.patch("/orders/:id/items/:itemId", requirePermission("orders:update"), as
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات البند غير صحيحة" });
     return;
   }
+  const orderIdResult = singleStringParameter(req.params.id);
+  const itemIdResult = singleStringParameter(req.params.itemId);
+  if (!orderIdResult.ok || !itemIdResult.ok) {
+    res.status(400).json({
+      error: "معرف الطلب والبند يجب أن يكونا قيمتين مفردتين وصحيحتين",
+      code: "INVALID_ROUTE_PARAMETER",
+    });
+    return;
+  }
   const workspaceId = req.sessionUser.activeWorkspaceId;
-  const orderId = String(req.params.id);
-  const itemId = String(req.params.itemId);
+  const orderId = orderIdResult.value;
+  const itemId = itemIdResult.value;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -100,9 +110,18 @@ router.patch("/orders/:id/items/:itemId", requirePermission("orders:update"), as
 });
 
 router.delete("/orders/:id/items/:itemId", requirePermission("orders:update"), async (req: AuthenticatedRequest, res: Response) => {
+  const orderIdResult = singleStringParameter(req.params.id);
+  const itemIdResult = singleStringParameter(req.params.itemId);
+  if (!orderIdResult.ok || !itemIdResult.ok) {
+    res.status(400).json({
+      error: "معرف الطلب والبند يجب أن يكونا قيمتين مفردتين وصحيحتين",
+      code: "INVALID_ROUTE_PARAMETER",
+    });
+    return;
+  }
   const workspaceId = req.sessionUser.activeWorkspaceId;
-  const orderId = String(req.params.id);
-  const itemId = String(req.params.itemId);
+  const orderId = orderIdResult.value;
+  const itemId = itemIdResult.value;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -145,8 +164,16 @@ router.patch("/orders/:id/delivery-status", requirePermission("orders:update"), 
     res.status(400).json({ error: "حالة التوصيل غير صحيحة" });
     return;
   }
+  const orderIdResult = singleStringParameter(req.params.id);
+  if (!orderIdResult.ok) {
+    res.status(400).json({
+      error: "معرف الطلب يجب أن يكون قيمة مفردة وصحيحة",
+      code: "INVALID_ROUTE_PARAMETER",
+    });
+    return;
+  }
   const workspaceId = req.sessionUser.activeWorkspaceId;
-  const orderId = String(req.params.id);
+  const orderId = orderIdResult.value;
   const existing = await pool.query<{ status: CommerceOrderState; delivery_type: string }>(
     "SELECT status, delivery_type FROM orders WHERE id = $1 AND workspace_id = $2",
     [orderId, workspaceId],
