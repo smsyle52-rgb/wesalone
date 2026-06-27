@@ -322,6 +322,63 @@ suite("createOrderDraft atomic PostgreSQL integration", () => {
     });
   }, 15_000);
 
+  it("holds reference rows with FOR SHARE until the order transaction commits", async () => {
+    const fixture = await createFixture();
+    let signalValidationsComplete!: () => void;
+    const validationsComplete = new Promise<void>((resolve) => { signalValidationsComplete = resolve; });
+    let releaseInsert!: () => void;
+    const insertGate = new Promise<void>((resolve) => { releaseInsert = resolve; });
+
+    const lockingRepositories: CreateOrderDraftRepositories = {
+      ...repositories,
+      insertOrder: async (client, values) => {
+        signalValidationsComplete();
+        await insertGate;
+        return repositories.insertOrder(client, values);
+      },
+    };
+
+    const commandPromise = createOrderDraft(fixture.input, fixture.context, {
+      repositories: lockingRepositories,
+    });
+
+    await validationsComplete;
+    const concurrentClient = await pool.connect();
+    let lockError: unknown;
+
+    try {
+      await concurrentClient.query("BEGIN");
+      await concurrentClient.query("SET LOCAL lock_timeout = '250ms'");
+      try {
+        await concurrentClient.query(
+          "UPDATE conversations SET contact_id = $1 WHERE id = $2 AND workspace_id = $3",
+          [fixture.contactA2, fixture.conversationA, fixture.workspaceA],
+        );
+      } catch (error) {
+        lockError = error;
+      }
+      expect(lockError).toMatchObject({ code: "55P03" });
+    } finally {
+      try { await concurrentClient.query("ROLLBACK"); } catch { /* transaction may already be aborted */ }
+      concurrentClient.release();
+      releaseInsert();
+    }
+
+    const result = await commandPromise;
+    expect(result.order).toMatchObject({
+      contactId: fixture.contactA,
+      conversationId: fixture.conversationA,
+      assignedMembershipId: fixture.membershipA,
+    });
+    expect(await sideEffectCounts(fixture.workspaceA)).toEqual({ orders: 1, audits: 1, events: 1, timeline: 1 });
+
+    const conversation = await pool.query<{ contact_id: string }>(
+      "SELECT contact_id FROM conversations WHERE id = $1 AND workspace_id = $2",
+      [fixture.conversationA, fixture.workspaceA],
+    );
+    expect(conversation.rows[0]?.contact_id).toBe(fixture.contactA);
+  }, 15_000);
+
   it("rolls back everything when audit insertion fails", async () => {
     const fixture = await createFixture();
     await expect(createOrderDraft(fixture.input, fixture.context, { repositories: failingRepositories("insertAuditLog") }))

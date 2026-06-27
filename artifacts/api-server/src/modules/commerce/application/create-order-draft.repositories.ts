@@ -101,13 +101,13 @@ export interface InsertOrderTimelineValues {
 
 export const sqlCreateOrderDraftRepositories: CreateOrderDraftRepositories = {
   async workspaceExists(client, workspaceId) {
-    const result = await client.query("SELECT id FROM workspaces WHERE id = $1 LIMIT 1", [workspaceId]);
+    const result = await client.query("SELECT id FROM workspaces WHERE id = $1 LIMIT 1 FOR SHARE", [workspaceId]);
     return Boolean(result.rowCount);
   },
 
   async findContact(client, workspaceId, contactId) {
     const result = await client.query<{ id: string }>(
-      "SELECT id FROM contacts WHERE id = $1 AND workspace_id = $2 LIMIT 1",
+      "SELECT id FROM contacts WHERE id = $1 AND workspace_id = $2 LIMIT 1 FOR SHARE",
       [contactId, workspaceId],
     );
     return result.rows[0] ?? null;
@@ -115,7 +115,7 @@ export const sqlCreateOrderDraftRepositories: CreateOrderDraftRepositories = {
 
   async findConversation(client, workspaceId, conversationId) {
     const result = await client.query<{ id: string; contact_id: string | null }>(
-      "SELECT id, contact_id FROM conversations WHERE id = $1 AND workspace_id = $2 LIMIT 1",
+      "SELECT id, contact_id FROM conversations WHERE id = $1 AND workspace_id = $2 LIMIT 1 FOR SHARE",
       [conversationId, workspaceId],
     );
     const row = result.rows[0];
@@ -124,7 +124,7 @@ export const sqlCreateOrderDraftRepositories: CreateOrderDraftRepositories = {
 
   async findOpportunity(client, workspaceId, opportunityId) {
     const result = await client.query<{ id: string; contact_id: string | null }>(
-      "SELECT id, contact_id FROM opportunities WHERE id = $1 AND workspace_id = $2 LIMIT 1",
+      "SELECT id, contact_id FROM opportunities WHERE id = $1 AND workspace_id = $2 LIMIT 1 FOR SHARE",
       [opportunityId, workspaceId],
     );
     const row = result.rows[0];
@@ -133,7 +133,7 @@ export const sqlCreateOrderDraftRepositories: CreateOrderDraftRepositories = {
 
   async findSourceMessage(client, workspaceId, sourceMessageId) {
     const result = await client.query<{ id: string; conversation_id: string }>(
-      "SELECT id, conversation_id FROM messages WHERE id = $1 AND workspace_id = $2 LIMIT 1",
+      "SELECT id, conversation_id FROM messages WHERE id = $1 AND workspace_id = $2 LIMIT 1 FOR SHARE",
       [sourceMessageId, workspaceId],
     );
     const row = result.rows[0];
@@ -142,7 +142,7 @@ export const sqlCreateOrderDraftRepositories: CreateOrderDraftRepositories = {
 
   async findMembership(client, workspaceId, membershipId) {
     const result = await client.query<{ id: string }>(
-      "SELECT id FROM workspace_memberships WHERE id = $1 AND workspace_id = $2 LIMIT 1",
+      "SELECT id FROM workspace_memberships WHERE id = $1 AND workspace_id = $2 LIMIT 1 FOR SHARE",
       [membershipId, workspaceId],
     );
     return result.rows[0] ?? null;
