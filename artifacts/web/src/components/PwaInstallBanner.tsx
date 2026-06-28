@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Download, X } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -31,10 +32,11 @@ export function PwaInstallBanner() {
   const [showIosHint, setShowIosHint] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [installed, setInstalled] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (isInStandaloneMode()) { setInstalled(true); return; }
-    if (sessionStorage.getItem(DISMISSED_KEY)) { setDismissed(true); return; }
+    if (localStorage.getItem(DISMISSED_KEY)) { setDismissed(true); return; }
 
     const handler = (e: BeforeInstallPromptEvent) => {
       e.preventDefault();
@@ -61,13 +63,13 @@ export function PwaInstallBanner() {
   }
 
   function dismiss() {
-    sessionStorage.setItem(DISMISSED_KEY, "1");
+    localStorage.setItem(DISMISSED_KEY, "1");
     setDismissed(true);
     setShowIosHint(false);
     setInstallEvent(null);
   }
 
-  if (installed || dismissed) return null;
+  if (!user || installed || dismissed) return null;
   if (!installEvent && !showIosHint) return null;
 
   return (
