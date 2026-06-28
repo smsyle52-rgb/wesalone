@@ -6,6 +6,7 @@ import {
   aiRunsTable,
   aiUsageTable,
   messagesTable,
+  workspacesTable,
 } from "@workspace/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { searchKnowledgeForAi } from "../services/knowledge-retrieval";
@@ -172,6 +173,18 @@ export async function runAgentReply(params: {
     .limit(1);
   if (!agent) throw new Error("AI_AGENT_NOT_FOUND");
 
+  // أسلوب الوكيل: اسم النشاط يجب أن يصل للوكيل (وإلا قال «[اسم الشركة]» أو اخترع اسماً).
+  const [workspace] = await db
+    .select({ name: workspacesTable.name, settings: workspacesTable.settings })
+    .from(workspacesTable)
+    .where(eq(workspacesTable.id, params.workspaceId))
+    .limit(1);
+  const wsSettings = (workspace?.settings && typeof workspace.settings === "object" ? workspace.settings : {}) as Record<string, unknown>;
+  const businessName = (workspace?.name?.trim())
+    || (typeof wsSettings.business_name === "string" ? wsSettings.business_name.trim() : "")
+    || (typeof wsSettings.companyName === "string" ? wsSettings.companyName.trim() : "")
+    || "";
+
   const [instructions] = await db
     .select()
     .from(aiAgentInstructionsTable)
@@ -220,8 +233,12 @@ export async function runAgentReply(params: {
   const systemPrompt = [
     toolPrompt,
     `Current date/time: ${new Date().toISOString()}.`,
-    instructions?.rolePrompt ?? "أنت موظف خدمة عملاء ومبيعات محترف تردّ على عملاء النشاط التجاري. أجب بإيجاز ومهنية على آخر رسالة من العميل مباشرةً.",
+    businessName
+      ? `أنت موظف مبيعات وخدمة عملاء تعمل حصراً لدى «${businessName}». تحدّث دائماً بصفتك من «${businessName}»، ولا تذكر أي اسم شركة آخر، وممنوع منعاً باتاً أن تقول «[اسم الشركة]».`
+      : "",
+    instructions?.rolePrompt ?? "أنت موظف خدمة عملاء ومبيعات محترف. أجب بإيجاز ومهنية على آخر رسالة من العميل مباشرةً.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
+    "قواعد إلزامية للأسلوب والمحتوى: (1) لا تخترع منتجات أو خدمات أو أسعاراً أو أي معلومة عن النشاط ليست واردة في «المعرفة» أو قواعد النشاط. (2) ممنوع ذكر خدمات عامة (مالية/تقنية/سفر/استشارات) ما لم تكن فعلاً ضمن نشاط هذا التاجر. (3) إن لم تعرف معلومة عن النشاط، قل بأدب إنك ستتحقّق وتعود للعميل أو ستحوّله للفريق — لا تخمّن. (4) رد مباشر موجز ومهني بأسلوب بائع متعاون، لا روبوت يكرّر عبارات عامة.",
     `اللهجة: ${agent.dialect}.`,
     agent.tone ? `النبرة: ${agent.tone}.` : "",
     mediaGuidance,
