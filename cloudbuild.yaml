@@ -98,6 +98,14 @@ steps:
         VERIFY_COLS="$$(PAGER=cat psql -P pager=off --no-psqlrc -v ON_ERROR_STOP=1 -tA "$${_DATABASE_URL}" -c "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND ((table_name='conversations' AND column_name IN ('display_id','lifecycle_state','ai_substate','labels','waiting_since','first_reply_created_at')) OR (table_name='messages' AND column_name IN ('message_type','content_attributes')) OR (table_name='channel_accounts' AND column_name IN ('external_account_id','external_business_id','external_phone_id','health_status','last_health_at')) OR (table_name='outbox_events' AND column_name IN ('provider_account_id','channel_account_id','failed_at')));" | tr -d '[:space:]')"
         test "$${VERIFY_COLS}" = "16"
 
+        # L1: launch-critical schema guard — fail loudly AND name the gap on drift, instead of silent breakage.
+        # Only objects guaranteed present post-migrate (base tables the live app requires, or created by migrate-phase345.sql).
+        MISSING_TABLES="$$(PAGER=cat psql -P pager=off --no-psqlrc -v ON_ERROR_STOP=1 -tA "$${_DATABASE_URL}" -c "SELECT string_agg(x, ',') FROM unnest(ARRAY['workspaces','users','channel_accounts','contacts','conversations','messages','domain_events','ai_agents','orders','order_items','products','inventory_products','payment_submissions','point_wallets','point_ledger']) AS x WHERE x NOT IN (SELECT tablename FROM pg_tables WHERE schemaname='public')")"
+        if [ -n "$${MISSING_TABLES}" ]; then echo "SCHEMA DRIFT (launch-critical) — missing tables: $${MISSING_TABLES}"; exit 1; fi
+
+        MISSING_COLS2="$$(PAGER=cat psql -P pager=off --no-psqlrc -v ON_ERROR_STOP=1 -tA "$${_DATABASE_URL}" -c "SELECT string_agg(t||'.'||c, ',') FROM (VALUES ('contacts','custom_fields')) AS v(t,c) WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns col WHERE col.table_schema='public' AND col.table_name=v.t AND col.column_name=v.c)")"
+        if [ -n "$${MISSING_COLS2}" ]; then echo "SCHEMA DRIFT (launch-critical) — missing columns: $${MISSING_COLS2}"; exit 1; fi
+
   - id: deploy-staging
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
