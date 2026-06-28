@@ -7,6 +7,7 @@ const DATABASE_INTEGRATION_TESTS = [
   "src/__tests__/webhook-ingest-deferred.spec.ts",
   "src/modules/commerce/commerce-safety.integration.test.ts",
   "src/modules/commerce/postgres-lock.integration.test.ts",
+  "src/tests/payment-read-parity.integration.spec.ts",
 ];
 
 export default defineConfig({

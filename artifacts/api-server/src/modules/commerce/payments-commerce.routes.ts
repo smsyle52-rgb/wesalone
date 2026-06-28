@@ -80,27 +80,155 @@ function nullableText(value: unknown) {
   return value == null ? null : String(value);
 }
 
+const paymentReadQuerySchema = z.object({
+  contactId: z.string().uuid("contactId يجب أن يكون UUID صالحًا").optional(),
+  orderId:   z.string().uuid("orderId يجب أن يكون UUID صالحًا").optional(),
+  status:    z.string().max(50).optional(),
+  method:    z.string().max(100).optional(),
+  currency:  z.string().max(10).optional(),
+  dateFrom:  z.string().datetime({ offset: true, message: "dateFrom يجب أن يكون ISO 8601" }).optional(),
+  dateTo:    z.string().datetime({ offset: true, message: "dateTo يجب أن يكون ISO 8601" }).optional(),
+  page:  z.coerce.number().int().min(1,   "page يجب أن يكون 1 أو أكثر").default(1),
+  limit: z.coerce.number().int().min(1,   "limit يجب أن يكون بين 1 و100")
+                              .max(100, "limit يجب أن يكون بين 1 و100").default(30),
+});
+
+export type PaymentReadItem = {
+  id: string;
+  orderId: string | null;
+  contactId: string | null;
+  amount: string;
+  currency: string;
+  method: string;
+  /** Mapped canonical value: pending | confirmed | rejected | refunded | partially_refunded */
+  status: string;
+  /** Original stored value in the database */
+  canonicalStatus: string;
+  /** COALESCE(p.reference, p.external_reference) */
+  reference: string | null;
+  externalReference: string | null;
+  receiptUrl: string | null;
+  notes: string | null;
+  paidAt: Date | null;
+  confirmedAt: Date | null;
+  rejectedAt: Date | null;
+  rejectionReason: string | null;
+  createdAt: Date;
+  baseAmountYer: string | null;
+  methodSnapshot: Record<string, unknown> | null;
+  orderNumber: string | null;
+  orderTotal: string | null;
+  orderPaid: string | null;
+  orderPaymentStatus: string | null;
+  contactName: string | null;
+};
+
+export type PaymentListResponse = {
+  payments: PaymentReadItem[];
+  total: number;
+  totalConfirmed: number;
+  totalPending: number;
+  page: number;
+  limit: number;
+};
+
+const PMT_READ_COUNTS_SQL = `
+SELECT
+  COUNT(*) FILTER (WHERE $4::text IS NULL OR p.status = $4) AS total,
+  COUNT(*) FILTER (WHERE p.status IN ('Paid', 'confirmed'))  AS "totalConfirmed",
+  COUNT(*) FILTER (WHERE p.status IN ('Pending', 'pending')) AS "totalPending"
+FROM payments p
+WHERE p.workspace_id = $1
+  AND ($2::uuid IS NULL OR p.contact_id = $2)
+  AND ($3::uuid IS NULL OR p.order_id   = $3)
+  AND ($5::text IS NULL OR p.method     = $5)
+  AND ($6::text IS NULL OR p.currency   = $6)
+  AND ($7::timestamptz IS NULL OR p.created_at >= $7)
+  AND ($8::timestamptz IS NULL OR p.created_at <= $8)`;
+
+const PMT_READ_LIST_SQL = `
+SELECT
+  p.id,
+  p.order_id                                         AS "orderId",
+  p.contact_id                                       AS "contactId",
+  p.amount, p.currency, p.method,
+  CASE p.status
+    WHEN 'Pending'           THEN 'pending'
+    WHEN 'pending'           THEN 'pending'
+    WHEN 'Paid'              THEN 'confirmed'
+    WHEN 'confirmed'         THEN 'confirmed'
+    WHEN 'Failed'            THEN 'rejected'
+    WHEN 'rejected'          THEN 'rejected'
+    WHEN 'Refunded'          THEN 'refunded'
+    WHEN 'PartiallyRefunded' THEN 'partially_refunded'
+    ELSE LOWER(p.status)
+  END                                                AS status,
+  p.status                                           AS "canonicalStatus",
+  COALESCE(p.reference, p.external_reference)       AS reference,
+  p.external_reference                              AS "externalReference",
+  p.receipt_url                                      AS "receiptUrl",
+  p.notes,
+  p.paid_at                                          AS "paidAt",
+  p.confirmed_at                                     AS "confirmedAt",
+  p.rejected_at                                      AS "rejectedAt",
+  p.rejection_reason                                 AS "rejectionReason",
+  p.created_at                                       AS "createdAt",
+  p.base_amount_yer                                  AS "baseAmountYer",
+  p.method_snapshot                                  AS "methodSnapshot",
+  o.order_number                                     AS "orderNumber",
+  o.total_amount                                     AS "orderTotal",
+  o.paid_amount                                      AS "orderPaid",
+  o.payment_status                                   AS "orderPaymentStatus",
+  c.name                                             AS "contactName"
+FROM payments p
+LEFT JOIN orders   o ON o.id = p.order_id   AND o.workspace_id = p.workspace_id
+LEFT JOIN contacts c ON c.id = p.contact_id AND c.workspace_id = p.workspace_id
+WHERE p.workspace_id = $1
+  AND ($2::uuid IS NULL OR p.contact_id = $2)
+  AND ($3::uuid IS NULL OR p.order_id   = $3)
+  AND ($4::text IS NULL OR p.status     = $4)
+  AND ($5::text IS NULL OR p.method     = $5)
+  AND ($6::text IS NULL OR p.currency   = $6)
+  AND ($7::timestamptz IS NULL OR p.created_at >= $7)
+  AND ($8::timestamptz IS NULL OR p.created_at <= $8)
+ORDER BY p.created_at DESC
+LIMIT $9 OFFSET $10`;
+
 router.get("/", requirePermission("payments:read"), async (req: AuthenticatedRequest, res: Response) => {
-  const orderId = typeof req.query.orderId === "string" ? req.query.orderId : null;
-  const status = typeof req.query.status === "string" ? req.query.status : null;
-  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
-  const result = await pool.query(
-    `SELECT p.id, p.order_id AS "orderId", p.contact_id AS "contactId", p.amount, p.currency,
-            p.method, p.status, p.external_reference AS "externalReference",
-            p.receipt_url AS "receiptUrl", p.notes, p.paid_at AS "paidAt",
-            p.confirmed_at AS "confirmedAt", p.rejected_at AS "rejectedAt",
-            p.rejection_reason AS "rejectionReason", p.created_at AS "createdAt",
-            o.order_number AS "orderNumber", o.total_amount AS "orderTotal",
-            o.paid_amount AS "orderPaid", o.payment_status AS "orderPaymentStatus"
-     FROM payments p
-     LEFT JOIN orders o ON o.id = p.order_id AND o.workspace_id = p.workspace_id
-     WHERE p.workspace_id = $1
-       AND ($2::uuid IS NULL OR p.order_id = $2)
-       AND ($3::text IS NULL OR p.status = $3)
-     ORDER BY p.created_at DESC LIMIT $4`,
-    [req.sessionUser.activeWorkspaceId, orderId, status, limit],
-  );
-  res.json({ payments: result.rows });
+  const parsed = paymentReadQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "معاملات القراءة غير صحيحة" });
+    return;
+  }
+  const { contactId, orderId, status, method, currency, dateFrom, dateTo, page, limit } = parsed.data;
+  const wsId = req.sessionUser.activeWorkspaceId;
+  const offset = (page - 1) * limit;
+  const rangeParams: (string | null)[] = [
+    wsId,
+    contactId ?? null,
+    orderId ?? null,
+    status ?? null,
+    method ?? null,
+    currency ?? null,
+    dateFrom ?? null,
+    dateTo ?? null,
+  ];
+  const [countsResult, listResult] = await Promise.all([
+    pool.query<{ total: string; totalConfirmed: string; totalPending: string }>(
+      PMT_READ_COUNTS_SQL, rangeParams,
+    ),
+    pool.query<PaymentReadItem>(PMT_READ_LIST_SQL, [...rangeParams, limit, offset]),
+  ]);
+  const counts = countsResult.rows[0] ?? { total: "0", totalConfirmed: "0", totalPending: "0" };
+  const response: PaymentListResponse = {
+    payments: listResult.rows,
+    total:          Number(counts.total),
+    totalConfirmed: Number(counts.totalConfirmed),
+    totalPending:   Number(counts.totalPending),
+    page,
+    limit,
+  };
+  res.json(response);
 });
 
 router.post("/", requirePermission("payments:create"), async (req: AuthenticatedRequest, res: Response) => {
