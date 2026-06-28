@@ -52,6 +52,20 @@ const TRUST_OPTIONS = [
   { value: "auto_after_hours", title: "تلقائي بعد الدوام", desc: "اقتراح أثناء الدوام، وتلقائي خارج ساعات العمل." },
 ];
 
+// قائمة احتياطية لأنواع النشاط حين لا يرجع الـAPI قطاعات (مطابقة لشاشة الإعداد onboarding).
+const BUSINESS_TYPES: Array<{ key: string; label: string }> = [
+  { key: "retail_general", label: "تجزئة وبيع عام" },
+  { key: "food_restaurant", label: "مطعم وأغذية" },
+  { key: "services_general", label: "خدمات عامة" },
+  { key: "beauty_wellness", label: "صالونات وعناية" },
+  { key: "real_estate", label: "عقارات" },
+  { key: "healthcare", label: "صحة وعيادات" },
+  { key: "education", label: "تعليم وتدريب" },
+  { key: "technology", label: "تقنية" },
+  { key: "travel_tourism", label: "سياحة وسفر" },
+  { key: "other", label: "أخرى" },
+];
+
 function CreateAgentWizard({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -69,12 +83,15 @@ function CreateAgentWizard({ onClose, onCreated }: { onClose: () => void; onCrea
   const basesQuery = useQuery({ queryKey: ["knowledge-bases-for-agent"], queryFn: () => apiFetch("knowledge/bases") });
   const sectors: any[] = sectorsQuery.data?.sectors ?? [];
   const bases: any[] = basesQuery.data?.bases ?? [];
+  const displaySectors: Array<{ key: string; label: string }> = sectors.length > 0
+    ? sectors.map((s) => ({ key: s.sectorKey, label: s.nameAr }))
+    : BUSINESS_TYPES;
 
   useEffect(() => {
-    if (!form.sectorKey && sectors.length > 0) {
-      setForm((f) => ({ ...f, sectorKey: sectors[0].sectorKey }));
+    if (!form.sectorKey && displaySectors.length > 0) {
+      setForm((f) => ({ ...f, sectorKey: displaySectors[0].key }));
     }
-  }, [sectors, form.sectorKey]);
+  }, [displaySectors, form.sectorKey]);
 
   function toggleBase(id: string) {
     setForm((f) => ({
@@ -150,8 +167,7 @@ function CreateAgentWizard({ onClose, onCreated }: { onClose: () => void; onCrea
             <label className="block space-y-1">
               <span className="font-medium">نوع النشاط</span>
               <select value={form.sectorKey} onChange={(e) => setForm({ ...form, sectorKey: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2">
-                {sectors.length === 0 && <option value="">— عام —</option>}
-                {sectors.map((s) => <option key={s.sectorKey} value={s.sectorKey}>{s.nameAr}</option>)}
+                {displaySectors.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
               <span className="block text-xs text-muted-foreground">يضبط أسلوب الوكيل ليناسب مجال عملك. يمكنك تغييره لاحقًا.</span>
             </label>
