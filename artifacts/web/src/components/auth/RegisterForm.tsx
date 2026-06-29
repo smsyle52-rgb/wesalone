@@ -1,27 +1,110 @@
-import { Building2, Eye, EyeOff, LockKeyhole, Mail, Phone, Sparkles, UserRound } from "lucide-react";
+import { Building2, LockKeyhole, Mail, Phone, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AuthLayout, GoogleIcon } from "@/components/auth/WesalAuthLayout";
+import { AuthField, AuthLayout, GoogleButton, OrDivider } from "@/components/auth/WesalAuthLayout";
 
-export type RegisterState={workspaceName:string;ownerName:string;email:string;password:string;phone:string;countryCode:string;website:string};
-type Props={form:RegisterState;setForm:(value:RegisterState)=>void;error:string;pending:boolean;googleLoading:boolean;googleEnabled:boolean;showPassword:boolean;setShowPassword:(value:boolean)=>void;onGoogle:()=>void;onSubmit:(e:React.FormEvent)=>void;codes:{code:string;label:string}[]};
+export type RegisterState = {
+  workspaceName: string;
+  ownerName: string;
+  email: string;
+  password: string;
+  phone: string;
+  countryCode: string;
+  website: string;
+};
 
-function PasswordChecks({password}:{password:string}){if(!password)return null;const checks=[["8 أحرف",password.length>=8],["حرف إنجليزي",/[a-zA-Z]/.test(password)],["رقم",/\d/.test(password)]] as const;return <div className="mt-2 grid grid-cols-3 gap-1">{checks.map(([label,ok])=><span key={label} className={cn("rounded-lg border px-2 py-1.5 text-center text-[9px] font-bold",ok?"border-emerald-400/25 bg-emerald-500/10 text-emerald-300":"auth-mute border-[var(--auth-line)]")}>{ok?"✓":"○"} {label}</span>)}</div>}
+type Props = {
+  form: RegisterState;
+  setForm: (value: RegisterState) => void;
+  error: string;
+  pending: boolean;
+  googleLoading: boolean;
+  googleEnabled: boolean;
+  showPassword: boolean;
+  setShowPassword: (value: boolean) => void;
+  onGoogle: () => void;
+  onSubmit: (event: React.FormEvent) => void;
+  codes: { code: string; label: string }[];
+};
 
-export default function RegisterForm(p:Props){const strong=p.form.password.length>=8&&/[a-zA-Z]/.test(p.form.password)&&/\d/.test(p.form.password);const set=(key:keyof RegisterState,value:string)=>p.setForm({...p.form,[key]:value});return <AuthLayout title="ابدأ فريق خدمة عملاء ذكيًا خلال دقائق" subtitle="أنشئ مساحة عملك واربط قنواتك، ثم دع وكلاء وصال ون يردّون ويقودون المحادثات بينما يبقى فريقك مسيطرًا." bullets={["تجربة مجانية دون بطاقة دفع","إعداد بسيط لا يحتاج خبرة تقنية","عزل كامل وآمن لبيانات كل مساحة عمل"]}>
-  <div className="mb-5"><div className="mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold" style={{borderColor:"var(--auth-line)",color:"var(--auth-secondary)",background:"rgba(34,211,238,.08)"}}><Sparkles className="h-3.5 w-3.5"/>ابدأ مجانًا</div><h1 className="text-3xl font-black">أنشئ مساحة عملك</h1><p className="auth-soft mt-2 text-sm leading-6">أدخل بياناتك الأساسية وسنجهز لك وصال ون مباشرة.</p></div>
-  <div className="auth-card rounded-[24px] p-5 sm:p-7">
-    {p.error&&<div className="mb-4 rounded-xl border border-red-400/25 bg-red-500/10 p-3 text-center text-sm text-red-300">{p.error}</div>}
-    {p.googleEnabled&&<><button type="button" onClick={p.onGoogle} disabled={p.googleLoading||p.pending} className="auth-secondary-button flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold disabled:opacity-60">{p.googleLoading?<span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"/>:<GoogleIcon/>}المتابعة باستخدام Google</button><div className="auth-mute my-4 flex items-center gap-3 text-[10px]"><div className="auth-divider h-px flex-1"/>أو أدخل بياناتك<div className="auth-divider h-px flex-1"/></div></>}
-    <form onSubmit={p.onSubmit} className="space-y-3.5">
-      <input type="text" name="website" value={p.form.website} onChange={e=>set("website",e.target.value)} className="hidden" tabIndex={-1} autoComplete="off" aria-hidden="true"/>
-      <div className="grid gap-3 sm:grid-cols-2"><Field id="reg-workspace" label="اسم الشركة / المساحة" icon={<Building2/>}><input id="reg-workspace" value={p.form.workspaceName} onChange={e=>set("workspaceName",e.target.value)} className="auth-input ps-10 text-sm" placeholder="شركتي للتجارة" autoComplete="organization" required/></Field><Field id="reg-name" label="اسمك" icon={<UserRound/>}><input id="reg-name" value={p.form.ownerName} onChange={e=>set("ownerName",e.target.value)} className="auth-input ps-10 text-sm" placeholder="محمد أحمد" autoComplete="name" required/></Field></div>
-      <Field id="reg-email" label="البريد الإلكتروني" icon={<Mail/>}><input id="reg-email" type="email" value={p.form.email} onChange={e=>set("email",e.target.value)} className="auth-input ps-10 text-sm" placeholder="example@company.com" autoComplete="email" required dir="ltr"/></Field>
-      <div><label htmlFor="reg-phone" className="mb-1.5 block text-xs font-bold">رقم الجوال <span className="auth-mute font-normal">(اختياري)</span></label><div className="flex gap-2" dir="ltr"><select value={p.form.countryCode} onChange={e=>set("countryCode",e.target.value)} className="auth-select w-[112px] shrink-0 text-sm">{p.codes.map(c=><option key={c.code} value={c.code}>{c.label}</option>)}</select><div className="relative min-w-0 flex-1"><Phone className="auth-mute absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2"/><input id="reg-phone" type="tel" value={p.form.phone} onChange={e=>set("phone",e.target.value)} className="auth-input ps-10 text-sm" placeholder="5xxxxxxxx" autoComplete="tel-national"/></div></div></div>
-      <div><label htmlFor="reg-password" className="mb-1.5 block text-xs font-bold">كلمة المرور</label><div className="relative"><LockKeyhole className="auth-mute absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2"/><input id="reg-password" type={p.showPassword?"text":"password"} value={p.form.password} onChange={e=>set("password",e.target.value)} className="auth-input px-10 text-sm" placeholder="••••••••" autoComplete="new-password" required minLength={8} dir="ltr"/><button type="button" onClick={()=>p.setShowPassword(!p.showPassword)} className="auth-mute absolute end-3 top-1/2 -translate-y-1/2 p-1">{p.showPassword?<EyeOff className="h-4 w-4"/>:<Eye className="h-4 w-4"/>}</button></div><PasswordChecks password={p.form.password}/></div>
-      <button type="submit" disabled={p.pending||!strong} className={cn("auth-primary h-12 w-full rounded-xl text-sm font-black",(p.pending||!strong)&&"cursor-not-allowed opacity-60")}>{p.pending?"جار إنشاء الحساب...":"إنشاء الحساب والبدء"}</button>
-    </form>
-    <p className="auth-mute mt-4 text-center text-[10px]">بإنشاء الحساب توافق على <a href="/terms" className="auth-link font-bold">الشروط</a> و<a href="/privacy" className="auth-link font-bold">الخصوصية</a>.</p><p className="auth-soft mt-3 text-center text-sm">لديك حساب؟ <a href="/login" className="auth-link font-black">تسجيل الدخول</a></p>
-  </div>
-</AuthLayout>}
+function StrengthBar({ password }: { password: string }) {
+  const score = [
+    password.length >= 8,
+    /[A-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^A-Za-z0-9]/.test(password),
+  ].filter(Boolean).length;
+  const labels = ["ضعيفة جداً", "ضعيفة", "متوسطة", "قوية", "قوية جداً"];
+  const colors = ["#EF4444", "#F59E0B", "#F59E0B", "#22D3EE", "#10B981"];
+  if (!password) return null;
+  return (
+    <div className="mt-2">
+      <div className="flex items-center gap-1.5">
+        {[0, 1, 2, 3].map((index) => <div key={index} className="h-1 flex-1 rounded-full transition-colors" style={{ background: index < score ? colors[score] : "var(--line)" }} />)}
+      </div>
+      <div className="mt-1 text-[11px] font-bold" style={{ color: colors[score] }}>قوة كلمة المرور: {labels[score]}</div>
+    </div>
+  );
+}
 
-function Field({id,label,icon,children}:{id:string;label:string;icon:React.ReactElement;children:React.ReactNode}){return <div><label htmlFor={id} className="mb-1.5 block text-xs font-bold">{label}</label><div className="relative"><span className="auth-mute absolute start-3 top-1/2 [&>svg]:h-4 [&>svg]:w-4 -translate-y-1/2">{icon}</span>{children}</div></div>}
+export default function RegisterForm(props: Props) {
+  const strong = props.form.password.length >= 8 && /[a-zA-Z]/.test(props.form.password) && /\d/.test(props.form.password);
+  const set = (key: keyof RegisterState, value: string) => props.setForm({ ...props.form, [key]: value });
+
+  return (
+    <AuthLayout visualTitle="ابدأ بـ 14 يوم مجاناً - بدون بطاقة." visualSubtitle="أنشئ مساحة عملك واربط قنواتك في تجربة عربية موحّدة." visualBullets={["إعداد سريع بدون كود", "تكامل مع قنوات التواصل", "تحكم كامل في بيانات مساحة العمل"]}>
+      <form onSubmit={props.onSubmit} dir="rtl">
+        <input type="text" name="website" value={props.form.website} onChange={(event) => set("website", event.target.value)} className="hidden" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+        <div className="reveal in" style={{ animationDelay: ".05s" }}>
+          <span className="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: "rgba(34,211,238,0.15)", color: "var(--secondary)" }}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--secondary)" }} />
+            تجربة 14 يوم مجاناً
+          </span>
+          <h1 className="mt-3 text-3xl font-extrabold leading-tight sm:text-4xl">أنشئ حسابك في دقيقة</h1>
+          <p className="text-soft mt-2 text-[14px]">ابدأ التجربة المجانية - بدون بطاقة ائتمان، إلغاء في أي وقت.</p>
+        </div>
+        {props.error && <div className="auth-message error mt-5">{props.error}</div>}
+        {props.googleEnabled && (
+          <>
+            <div className="reveal in mt-7" style={{ animationDelay: ".15s" }}>
+              <GoogleButton label="المتابعة باستخدام Google" onClick={props.onGoogle} loading={props.googleLoading} disabled={props.googleLoading || props.pending} />
+            </div>
+            <OrDivider label="أو سجّل بالبريد" />
+          </>
+        )}
+        <div className="reveal in grid gap-4 sm:grid-cols-2" style={{ animationDelay: ".25s" }}>
+          <AuthField id="reg-name" label="الاسم الكامل" required placeholder="أحمد السعدي" value={props.form.ownerName} onChange={(event) => set("ownerName", event.target.value)} icon={<UserRound />} />
+          <AuthField id="reg-company" label="اسم الشركة" required placeholder="متجر لمسة" value={props.form.workspaceName} onChange={(event) => set("workspaceName", event.target.value)} icon={<Building2 />} />
+        </div>
+        <div className="reveal in mt-4" style={{ animationDelay: ".3s" }}>
+          <AuthField id="reg-email" label="البريد الإلكتروني للعمل" type="email" autoComplete="email" required placeholder="ahmad@company.com" value={props.form.email} onChange={(event) => set("email", event.target.value)} icon={<Mail />} />
+        </div>
+        <div className="reveal in mt-4" style={{ animationDelay: ".33s" }}>
+          <label htmlFor="reg-phone" className="mb-1.5 block text-[12.5px] font-bold">رقم الجوال <span className="text-mute font-normal">(اختياري)</span></label>
+          <div className="flex gap-2" dir="ltr">
+            <select value={props.form.countryCode} onChange={(event) => set("countryCode", event.target.value)} className="h-[46px] w-[118px] shrink-0 rounded-xl border border-line bg-[rgba(255,255,255,0.03)] px-2 text-sm outline-none" style={{ color: "var(--fg)" }}>
+              {props.codes.map((country) => <option key={country.code} value={country.code}>{country.label}</option>)}
+            </select>
+            <div className="min-w-0 flex-1">
+              <AuthField id="reg-phone" label="" type="tel" autoComplete="tel-national" placeholder="5xxxxxxxx" value={props.form.phone} onChange={(event) => set("phone", event.target.value)} icon={<Phone />} />
+            </div>
+          </div>
+        </div>
+        <div className="reveal in mt-4" style={{ animationDelay: ".35s" }}>
+          <AuthField id="reg-password" label="كلمة المرور" type={props.showPassword ? "text" : "password"} autoComplete="new-password" required placeholder="8 أحرف على الأقل" value={props.form.password} onChange={(event) => set("password", event.target.value)} icon={<LockKeyhole />} hint="استخدم حروفاً وأرقاماً لزيادة القوة" />
+          <StrengthBar password={props.form.password} />
+        </div>
+        <div className="reveal in mt-6" style={{ animationDelay: ".55s" }}>
+          <button type="submit" disabled={props.pending || !strong} className={cn("btn-primary cta-pulse flex h-12 w-full items-center justify-center rounded-xl text-[14px] font-bold", (props.pending || !strong) && "cursor-not-allowed opacity-50")}>
+            {props.pending ? "جار إنشاء الحساب..." : "إنشاء الحساب - ابدأ مجاناً"}
+          </button>
+        </div>
+        <p className="text-mute reveal in mt-5 text-center text-[12.5px]" style={{ animationDelay: ".6s" }}>
+          بإنشاء الحساب توافق على <a href="/terms" className="font-bold" style={{ color: "var(--primary-hi)" }}>الشروط والأحكام</a> و <a href="/privacy" className="font-bold" style={{ color: "var(--primary-hi)" }}>سياسة الخصوصية</a>
+        </p>
+        <p className="text-soft reveal in mt-4 text-center text-[13px]" style={{ animationDelay: ".65s" }}>
+          لديك حساب بالفعل؟ <a href="/login" className="font-bold transition hover:opacity-80" style={{ color: "var(--primary-hi)" }}>سجّل دخولك</a>
+        </p>
+      </form>
+    </AuthLayout>
+  );
+}

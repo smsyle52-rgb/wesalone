@@ -161,6 +161,7 @@ function Router() {
       <Route path="/verify-email" component={VerifyEmailPage} />
       <Route path="/about" component={() => <PublicContentPage kind="about" />} />
       <Route path="/privacy" component={() => <PublicContentPage kind="privacy" />} />
+      <Route path="/data-deletion" component={() => <PublicContentPage kind="dataDeletion" />} />
       <Route path="/terms" component={() => <PublicContentPage kind="terms" />} />
       <Route path="/contact" component={() => <PublicContentPage kind="contact" />} />
       <Route path="/products" component={() => <PublicContentPage kind="products" />} />

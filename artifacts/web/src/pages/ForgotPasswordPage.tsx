@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRight, KeyRound, Mail, ShieldCheck } from "lucide-react";
-import { AuthLayout } from "@/components/auth/WesalAuthLayout";
+import { Mail } from "lucide-react";
+import { AuthField, AuthLayout } from "@/components/auth/WesalAuthLayout";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -18,18 +18,28 @@ export default function ForgotPasswordPage() {
     onError: (err: Error) => { setMessage(""); setError(err.message); },
   });
   return (
-    <AuthLayout title="استعد حسابك بأمان وعد إلى عملك" subtitle="سنرسل رابطًا آمنًا إلى بريدك المسجل، ولن نكشف ما إذا كان البريد موجودًا حفاظًا على خصوصية حسابك." bullets={["رابط استعادة آمن ومحدود", "لا يتم تغيير أي بيانات دون تحقق", "يمكنك العودة للدعم عند الحاجة"]}>
-      <div className="mb-6"><div className="mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold" style={{ borderColor: "var(--auth-line)", color: "var(--auth-secondary)", background: "rgba(34,211,238,.08)" }}><ShieldCheck className="h-3.5 w-3.5" /> استعادة آمنة</div><h1 className="text-3xl font-black tracking-tight">نسيت كلمة المرور؟</h1><p className="auth-soft mt-2 text-sm leading-6">أدخل بريدك الإلكتروني وسنرسل لك رابطًا لتعيين كلمة مرور جديدة.</p></div>
-      <div className="auth-card rounded-[24px] p-5 sm:p-7">
-        <div className="mb-5 grid h-12 w-12 place-items-center rounded-2xl bg-blue-500/10 text-blue-400"><KeyRound className="h-5 w-5" /></div>
-        {message && <div className="mb-4 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-sm font-medium text-emerald-300">{message}</div>}
-        {error && <div className="mb-4 rounded-xl border border-red-400/25 bg-red-500/10 p-3 text-sm font-medium text-red-300">{error}</div>}
-        <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }}>
-          <div><label htmlFor="forgot-email" className="mb-1.5 block text-xs font-bold">البريد الإلكتروني</label><div className="relative"><Mail className="auth-mute absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2" /><input id="forgot-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="auth-input ps-10 text-sm" placeholder="example@company.com" dir="ltr" autoComplete="email" required /></div></div>
-          <button className="auth-primary h-12 w-full rounded-xl text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60" disabled={mutation.isPending}>{mutation.isPending ? "جار الإرسال..." : "إرسال رابط الاستعادة"}</button>
-        </form>
-        <a href="/login" className="auth-link mt-5 flex items-center justify-center gap-2 text-sm font-black"><ArrowRight className="h-4 w-4" /> العودة لتسجيل الدخول</a>
-      </div>
+    <AuthLayout visualTitle="استعد وصولك بأمان." visualSubtitle="إعادة التعيين تتم عبر رابط آمن يصل إلى بريدك المسجل." visualBullets={["طلب استعادة آمن", "لا يتم تغيير أي بيانات دون تحقق", "يمكنك العودة للدعم عند الحاجة"]}>
+      <form onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }} dir="rtl">
+        <div className="reveal in" style={{ animationDelay: ".05s" }}>
+          <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">نسيت كلمة المرور؟</h1>
+          <p className="text-soft mt-2 text-[14px] leading-relaxed">لا بأس - أدخل بريدك الإلكتروني وسنرسل لك رابطاً لإعادة تعيين كلمة المرور.</p>
+        </div>
+        {message && <div className="auth-message success mt-5">{message}</div>}
+        {error && <div className="auth-message error mt-5">{error}</div>}
+        <div className="reveal in mt-7" style={{ animationDelay: ".15s" }}>
+          <AuthField id="forgot-email" label="البريد الإلكتروني" type="email" autoComplete="email" required placeholder="you@company.com" value={email} onChange={(event) => setEmail(event.target.value)} icon={<Mail />} />
+        </div>
+        <div className="reveal in mt-6" style={{ animationDelay: ".25s" }}>
+          <button type="submit" disabled={mutation.isPending || !email} className="btn-primary cta-pulse flex h-12 w-full items-center justify-center rounded-xl text-[14px] font-bold disabled:cursor-not-allowed disabled:opacity-50">
+            {mutation.isPending ? "جار الإرسال..." : "إرسال رابط إعادة التعيين"}
+          </button>
+        </div>
+        <div className="reveal in mt-6 text-center" style={{ animationDelay: ".35s" }}>
+          <a href="/login" className="text-soft inline-flex items-center gap-1.5 text-[13px] transition hover:text-[color:var(--fg)]">
+            العودة لتسجيل الدخول
+          </a>
+        </div>
+      </form>
     </AuthLayout>
   );
 }

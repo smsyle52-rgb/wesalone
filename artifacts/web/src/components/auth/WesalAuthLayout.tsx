@@ -1,12 +1,235 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ChangeEvent, type ReactNode } from "react";
 import "@/styles/wesal-auth.css";
 
-function Mark({ size=45 }:{size?:number}){const id=`wa-${size}`;return <svg width={size} height={size} viewBox="0 0 120 120" aria-hidden="true"><defs><radialGradient id={`${id}b`} cx="38%" cy="28%" r="78%"><stop stopColor="#19417d"/><stop offset="1" stopColor="#04122c"/></radialGradient><linearGradient id={`${id}a`} x1="0" y1="0" x2="1" y2="1"><stop stopColor="#9cf8ff"/><stop offset=".55" stopColor="#29d7ee"/><stop offset="1" stopColor="#148ed0"/></linearGradient></defs><circle cx="60" cy="60" r="56" fill={`url(#${id}b)`} stroke="#4d80ff" strokeOpacity=".55" strokeWidth="2"/><g fill={`url(#${id}a)`} stroke={`url(#${id}a)`} strokeLinecap="round" strokeLinejoin="round"><path d="M29 39 47 35 47 84Z" strokeWidth="9"/><path d="M57 35 75 39 64 84Z" strokeWidth="9"/><path d="M81 39 94 43 88 65Z" strokeWidth="8"/></g></svg>}
+type AuthLayoutProps = {
+  children: ReactNode;
+  visualTitle: string;
+  visualSubtitle: string;
+  visualBullets: string[];
+};
 
-export function WesalLogo(){return <span className="inline-flex items-center gap-2.5" dir="rtl"><Mark/><span className="flex flex-col text-right leading-none"><strong className="text-[17px] font-black">وصال ون</strong><span className="mt-1 text-[9px] font-black tracking-[.18em] text-cyan-400">Wesal One</span></span></span>}
+type AuthFieldProps = {
+  id: string;
+  label: string;
+  type?: string;
+  icon?: ReactNode;
+  placeholder?: string;
+  required?: boolean;
+  autoComplete?: string;
+  hint?: string;
+  error?: string | null;
+  value: string;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+};
 
-function Visual({title,subtitle,bullets}:{title:string;subtitle:string;bullets:string[]}){const items=[["W","#25d366","top-[5%] left-1/2 -translate-x-1/2"],["I","linear-gradient(135deg,#f58529,#dd2a7b,#515bd4)","right-[3%] top-1/2 -translate-y-1/2"],["M","#168aff","bottom-[5%] left-1/2 -translate-x-1/2"],["T","#229ed9","left-[3%] top-1/2 -translate-y-1/2"]];return <aside className="auth-visual relative hidden min-h-screen overflow-hidden lg:block"><div className="auth-grid absolute inset-0 opacity-35 [mask-image:radial-gradient(ellipse_80%_70%_at_50%_45%,#000_25%,transparent_82%)]"/><div className="absolute inset-x-0 top-[7%] grid place-items-center"><div className="relative aspect-square w-[min(510px,76%)]"><div className="auth-orbit absolute inset-0 rounded-full border border-blue-300/20"><span className="absolute left-1/2 top-0 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 shadow-[0_0_16px_#22d3ee]"/></div><div className="absolute inset-[16%] rounded-full border border-dashed border-blue-300/20"/>{items.map(([text,bg,pos],i)=><span key={text} className={`auth-float absolute grid h-12 w-12 place-items-center rounded-2xl border border-white/10 text-sm font-black text-white shadow-xl ${pos}`} style={{background:bg,animationDelay:`${i*.35}s`}}>{text}</span>)}<div className="absolute inset-0 grid place-items-center"><div className="grid h-28 w-28 place-items-center rounded-full bg-[radial-gradient(circle_at_30%_25%,#4d80ff,#2563eb_45%,#0b1732)] shadow-[0_30px_70px_-22px_rgba(37,99,235,.9)]"><Mark size={67}/></div></div></div></div><div className="relative flex min-h-screen flex-col p-12"><div className="mt-auto max-w-lg pb-10"><h2 className="text-4xl font-black leading-[1.25] text-white">{title}</h2><p className="mt-4 text-sm leading-7 text-slate-300">{subtitle}</p><ul className="mt-6 space-y-3">{bullets.map(x=><li key={x} className="flex items-center gap-3 text-sm text-slate-200"><span className="grid h-5 w-5 place-items-center rounded-full bg-cyan-300/15 text-cyan-300">✓</span>{x}</li>)}</ul></div></div></aside>}
+const LOGO = "/assets/wesal/wesal-logo.png";
+const MARK = "/assets/wesal/wesal-mark.png";
 
-export function GoogleIcon(){return <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285f4" d="M22.6 12.3c0-.8-.1-1.5-.2-2.3H12v4.3h5.9a5 5 0 0 1-2.2 3.3v2.8h3.6c2.1-2 3.3-4.8 3.3-8.1"/><path fill="#34a853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.7c-1 .7-2.2 1-3.7 1a6.4 6.4 0 0 1-6.2-4.5H2.2V17A11 11 0 0 0 12 23"/><path fill="#fbbc05" d="M5.8 14.1a6.5 6.5 0 0 1 0-4.2V7.1H2.2A11 11 0 0 0 1 12c0 1.8.4 3.5 1.2 4.9z"/><path fill="#ea4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.6l3.2-3.1A10.6 10.6 0 0 0 12 1a11 11 0 0 0-9.8 6.1l3.6 2.8A6.4 6.4 0 0 1 12 5.4"/></svg>}
+export function WesalLogo() {
+  return <img src={LOGO} alt="وصال ون - Wesal One" className="h-14 w-auto object-contain" />;
+}
 
-export function AuthLayout({children,title,subtitle,bullets}:{children:ReactNode;title:string;subtitle:string;bullets:string[]}){const[dark,setDark]=useState(()=>typeof window==="undefined"||localStorage.getItem("wesal-theme")!=="light");function toggle(){setDark(v=>{localStorage.setItem("wesal-theme",v?"light":"dark");return !v})}return <div className={`wesal-auth ${dark?"dark":"light"}`} dir="rtl"><div className="grid min-h-screen lg:grid-cols-2"><Visual title={title} subtitle={subtitle} bullets={bullets}/><section className="flex min-h-screen flex-col p-5 sm:p-8 lg:p-12"><header className="flex items-center justify-between"><a href="/"><WesalLogo/></a><div className="flex gap-2"><button type="button" onClick={toggle} className="auth-secondary grid h-10 w-10 place-items-center rounded-xl">{dark?"☾":"☀"}</button><a href="/" className="auth-secondary hidden h-10 items-center rounded-xl px-3 text-xs font-bold sm:flex">← الموقع</a></div></header><div className="grid flex-1 place-items-center py-8"><div className="w-full max-w-md">{children}</div></div><footer className="auth-mute text-center text-[11px]">© 2026 وصال ون · <a className="auth-link" href="/privacy">الخصوصية</a> · <a className="auth-link" href="/terms">الشروط</a></footer></section></div></div>}
+export function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M21.6 12.2c0-.7-.1-1.3-.2-1.9H12v3.6h5.4c-.2 1.2-.9 2.2-2 2.9v2.4h3.2c1.9-1.7 3-4.3 3-7z" fill="#4285F4" />
+      <path d="M12 22c2.7 0 5-1 6.6-2.6l-3.2-2.4c-.9.6-2 1-3.4 1-2.6 0-4.8-1.7-5.6-4.1H3.1v2.5C4.7 19.5 8.1 22 12 22z" fill="#34A853" />
+      <path d="M6.4 13.9c-.2-.6-.3-1.2-.3-1.9s.1-1.3.3-1.9V7.6H3.1A10 10 0 0 0 2 12c0 1.6.4 3.1 1.1 4.4l3.3-2.5z" fill="#FBBC05" />
+      <path d="M12 6.5c1.5 0 2.8.5 3.8 1.5l2.8-2.8C16.9 3.7 14.7 2.7 12 2.7 8.1 2.7 4.7 5.2 3.1 8.7l3.3 2.5c.8-2.4 3-4.7 5.6-4.7z" fill="#EA4335" />
+    </svg>
+  );
+}
+
+export function AuthThemeToggle() {
+  const [dark, setDark] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("wesal-theme") !== "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.remove("dark", "light");
+    document.documentElement.classList.add(dark ? "dark" : "light");
+    localStorage.setItem("wesal-theme", dark ? "dark" : "light");
+  }, [dark]);
+
+  return (
+    <button
+      type="button"
+      onClick={() => setDark((value) => !value)}
+      aria-label={dark ? "الوضع النهاري" : "الوضع الليلي"}
+      className="relative grid h-10 w-10 place-items-center rounded-xl border border-line text-soft transition hover:text-[color:var(--primary-hi)]"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`absolute transition-all duration-300 ${dark ? "opacity-0 -rotate-90 scale-50" : "opacity-100"}`}>
+        <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+      </svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`absolute transition-all duration-300 ${dark ? "opacity-100" : "opacity-0 rotate-90 scale-50"}`}>
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    </button>
+  );
+}
+
+export function AuthField({ id, label, type = "text", icon, placeholder, required, autoComplete, hint, error, value, onChange }: AuthFieldProps) {
+  const [show, setShow] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const isPassword = type === "password";
+  const actualType = isPassword && show ? "text" : type;
+
+  return (
+    <div className="w-full">
+      <label htmlFor={id} className="mb-1.5 block text-[12.5px] font-bold">
+        {label}
+        {required && <span style={{ color: "var(--secondary)" }}> *</span>}
+      </label>
+      <div
+        className={`relative flex items-center rounded-xl border transition ${focused ? "ring-2" : ""}`}
+        style={{
+          background: "rgba(255,255,255,0.03)",
+          borderColor: error ? "#EF4444" : focused ? "var(--primary-hi)" : "var(--line)",
+          boxShadow: focused ? "0 0 0 4px rgba(37,99,235,0.15)" : "none",
+        }}
+      >
+        {icon && <span className="text-mute shrink-0 ps-3 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
+        <input
+          id={id}
+          type={actualType}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          required={required}
+          value={value}
+          onChange={onChange}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          className="flex-1 bg-transparent px-3 py-3 text-[14px] outline-none placeholder:text-mute"
+          dir={type === "email" || type === "password" || type === "tel" ? "ltr" : "auto"}
+          style={{ color: "var(--fg)" }}
+        />
+        {isPassword && (
+          <button type="button" onClick={() => setShow((state) => !state)} className="text-mute pe-3 transition hover:text-[color:var(--fg)]" aria-label={show ? "إخفاء" : "إظهار"}>
+            {show ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M1 1l22 22" /></svg>
+            )}
+          </button>
+        )}
+      </div>
+      {error && <div className="mt-1 text-[11px] font-bold text-red-400">{error}</div>}
+      {!error && hint && <div className="text-mute mt-1 text-[11px]">{hint}</div>}
+    </div>
+  );
+}
+
+export function OrDivider({ label = "أو" }: { label?: string }) {
+  return (
+    <div className="text-mute my-5 flex items-center gap-3 text-[11px]">
+      <div className="h-px flex-1" style={{ background: "var(--line)" }} />
+      <span>{label}</span>
+      <div className="h-px flex-1" style={{ background: "var(--line)" }} />
+    </div>
+  );
+}
+
+export function GoogleButton({ loading, disabled, onClick, label }: { loading: boolean; disabled: boolean; onClick: () => void; label: string }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-line bg-[rgba(255,255,255,0.04)] text-[13px] font-bold transition hover:bg-[rgba(255,255,255,0.08)] disabled:cursor-not-allowed disabled:opacity-60">
+      {loading ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-transparent" /> : <GoogleIcon />}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function ChannelOrb({ label, className, background, delay }: { label: string; className: string; background: string; delay: number }) {
+  return (
+    <span className={`float-y absolute grid h-12 w-12 place-items-center rounded-2xl border border-white/10 text-sm font-black text-white shadow-xl ${className}`} style={{ background, animationDelay: `${delay}s` }}>
+      {label}
+    </span>
+  );
+}
+
+function AuthVisual({ visualTitle, visualSubtitle, visualBullets }: AuthLayoutProps) {
+  return (
+    <div className="relative hidden h-full min-h-screen overflow-hidden lg:block" style={{ background: "linear-gradient(135deg, #050A18 0%, #0B1530 60%, #050A18 100%)" }}>
+      <div className="pointer-events-none absolute right-[-10%] top-[-10%] h-[520px] w-[520px] rounded-full" style={{ background: "radial-gradient(circle, rgba(37,99,235,0.55), transparent 65%)", filter: "blur(80px)" }} />
+      <div className="pointer-events-none absolute bottom-[-15%] left-[-10%] h-[440px] w-[440px] rounded-full" style={{ background: "radial-gradient(circle, rgba(34,211,238,0.45), transparent 65%)", filter: "blur(90px)" }} />
+      <div className="grid-bg absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_80%_70%_at_50%_50%,#000_30%,transparent_80%)]" />
+
+      <div className="pointer-events-none absolute inset-0 grid place-items-center">
+        <div className="relative aspect-square w-[min(560px,80%)]">
+          <div className="orbit-ring--slow absolute inset-0 rounded-full border border-[rgba(90,140,255,0.28)]">
+            <div className="absolute left-1/2 top-0 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 shadow-[0_0_14px_#22D3EE]" />
+          </div>
+          <div className="orbit-ring--rev absolute inset-[12%] rounded-full border border-dashed border-[rgba(90,140,255,0.22)]" />
+          <ChannelOrb label="W" background="#25D366" delay={0} className="left-1/2 top-[8%] -translate-x-1/2" />
+          <ChannelOrb label="I" background="linear-gradient(135deg,#F58529,#DD2A7B,#515BD4)" delay={0.4} className="right-[6%] top-1/2 -translate-y-1/2" />
+          <ChannelOrb label="M" background="#0084FF" delay={0.8} className="bottom-[8%] left-1/2 -translate-x-1/2" />
+          <ChannelOrb label="T" background="#2AABEE" delay={1.2} className="left-[6%] top-1/2 -translate-y-1/2" />
+          <div className="absolute inset-0 grid place-items-center">
+            <div className="relative">
+              <div className="orb-pulse absolute h-[140px] w-[140px] rounded-full" style={{ margin: "-70px", background: "radial-gradient(circle, rgba(37,99,235,0.7), transparent 70%)", filter: "blur(20px)" }} />
+              <div className="grid h-[112px] w-[112px] place-items-center rounded-full" style={{ background: "radial-gradient(circle at 30% 30%, #4D80FF 0%, #2563EB 45%, #0F1F3D 100%)", boxShadow: "inset 0 -8px 24px rgba(0,0,0,0.5), inset 0 8px 16px rgba(255,255,255,0.15), 0 30px 60px -20px rgba(37,99,235,0.6)" }}>
+                <img src={MARK} alt="" className="h-[76px] w-[76px] rounded-full object-cover" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative flex h-full min-h-screen flex-col p-8 lg:p-12">
+        <div className="mt-auto max-w-md">
+          <h2 className="text-2xl font-extrabold leading-[1.3] text-white lg:text-3xl">{visualTitle}</h2>
+          <p className="mt-3 text-[14px] leading-[1.9] text-slate-300">{visualSubtitle}</p>
+          <ul className="mt-5 space-y-2.5">
+            {visualBullets.map((bullet) => (
+              <li key={bullet} className="flex items-center gap-2.5 text-[13px] text-slate-200">
+                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-cyan-300/15 text-cyan-300">✓</span>
+                {bullet}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold text-slate-300" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(90,140,255,0.22)" }}>
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#22D3EE]" />
+            تجربة عربية متصلة لفريقك وقنواتك
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuthHeader() {
+  return (
+    <div className="mb-8 flex items-center justify-between">
+      <a href="/" className="shrink-0"><WesalLogo /></a>
+      <div className="flex items-center gap-2">
+        <AuthThemeToggle />
+        <a href="/" className="hidden h-10 items-center gap-1.5 rounded-xl border border-line px-3 text-[12.5px] font-bold text-soft transition hover:text-[color:var(--fg)] sm:inline-flex">
+          العودة للموقع
+        </a>
+      </div>
+    </div>
+  );
+}
+
+export function AuthLayout({ children, visualTitle, visualSubtitle, visualBullets }: AuthLayoutProps) {
+  return (
+    <div className="wesal-auth min-h-screen" dir="rtl">
+      <div className="grid min-h-screen lg:grid-cols-2">
+        <div className="hidden lg:block lg:order-2">
+          <AuthVisual visualTitle={visualTitle} visualSubtitle={visualSubtitle} visualBullets={visualBullets}>
+            {null}
+          </AuthVisual>
+        </div>
+        <div className="order-1 flex flex-col p-6 sm:p-10 lg:p-14" style={{ background: "var(--bg)" }}>
+          <AuthHeader />
+          <div className="grid flex-1 place-items-center">
+            <div className="w-full max-w-md">{children}</div>
+          </div>
+          <div className="text-mute mt-8 text-center text-[11px]">
+            © 2026 وصال ون · <a href="/privacy" className="transition hover:text-[color:var(--fg)]">الخصوصية</a> · <a href="/data-deletion" className="transition hover:text-[color:var(--fg)]">حذف البيانات</a> · <a href="/terms" className="transition hover:text-[color:var(--fg)]">الشروط</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
