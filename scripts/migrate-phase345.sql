@@ -873,19 +873,19 @@ FROM plans p WHERE p.id = ps.plan_id AND ps.plan_name_snapshot IS NULL;
 INSERT INTO plans (key, slug, name, name_ar, price_usd, price_usd_annual, price_sar, price_yer, billing_cycle, is_active, sort_order, limits, features)
 VALUES
   ('free','free','Free','مجاني', 0, 0, 0, NULL, 'monthly', true, 10,
-    '{"channels":1,"agents":1,"team_members":1,"contacts":100,"monthly_points":1000,"knowledge_bases":1,"products":20,"auto_reply":false}'::jsonb,
+    '{"channels":1,"agents":1,"team_members":1,"contacts":100,"monthly_points":1000,"knowledge_documents":1,"products":20,"auto_reply":false}'::jsonb,
     ARRAY['inbox','ai_agent','catalog']),
   ('starter','starter','Starter','البداية', 19, 182, 71.25, NULL, 'monthly', true, 20,
-    '{"channels":1,"agents":1,"team_members":2,"contacts":1000,"monthly_points":10000,"knowledge_bases":1,"products":500,"auto_reply":true}'::jsonb,
+    '{"channels":1,"agents":1,"team_members":2,"contacts":1000,"monthly_points":10000,"knowledge_documents":1,"products":500,"auto_reply":true}'::jsonb,
     ARRAY['inbox','ai_agent','catalog','basic_automation']),
-  ('growth','growth','Growth','النمو', 59, 566, 221.25, NULL, 'monthly', true, 30,
-    '{"channels":3,"agents":3,"team_members":5,"contacts":10000,"monthly_points":40000,"knowledge_bases":5,"products":5000,"auto_reply":true}'::jsonb,
+  ('growth','growth','Growth','النمو', 49, 470, 183.75, NULL, 'monthly', true, 30,
+    '{"channels":3,"agents":3,"team_members":5,"contacts":10000,"monthly_points":40000,"knowledge_documents":5,"products":5000,"auto_reply":true}'::jsonb,
     ARRAY['inbox','ai_agent','catalog','automation','campaigns','advanced_analytics','vision_voice']),
-  ('professional','professional','Professional','احترافي', 149, 1430, 558.75, NULL, 'monthly', true, 40,
-    '{"channels":10,"agents":10,"team_members":15,"contacts":50000,"monthly_points":100000,"knowledge_bases":20,"products":25000,"auto_reply":true}'::jsonb,
+  ('professional','professional','Professional','احترافي', 140, 1344, 525, NULL, 'monthly', true, 40,
+    '{"channels":10,"agents":10,"team_members":15,"contacts":50000,"monthly_points":100000,"knowledge_documents":20,"products":25000,"auto_reply":true}'::jsonb,
     ARRAY['inbox','ai_agent','catalog','automation','campaigns','advanced_analytics','vision_voice','priority_support']),
   ('business','business','Business','الأعمال', NULL, NULL, NULL, NULL, 'monthly', true, 50,
-    '{"channels":"custom","agents":"custom","team_members":"custom","contacts":"custom","monthly_points":"custom","knowledge_bases":"custom","products":"custom","auto_reply":true}'::jsonb,
+    '{"channels":"custom","agents":"custom","team_members":"custom","contacts":"custom","monthly_points":"custom","knowledge_documents":"custom","products":"custom","auto_reply":true}'::jsonb,
     ARRAY['everything','priority_support'])
 ON CONFLICT (slug) DO UPDATE SET
   key = EXCLUDED.key, name = EXCLUDED.name, name_ar = EXCLUDED.name_ar,

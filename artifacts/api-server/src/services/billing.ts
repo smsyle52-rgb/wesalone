@@ -142,7 +142,38 @@ export async function getActiveSubscription(workspaceId: string) {
     .where(eq(subscriptionsTable.workspaceId, workspaceId))
     .limit(1);
 
-  return subscription ?? null;
+  if (subscription) return subscription;
+
+  const [freePlan] = await db
+    .select({
+      planId: plansTable.id,
+      planKey: plansTable.key,
+      planSlug: plansTable.slug,
+      planName: plansTable.name,
+      planNameAr: plansTable.nameAr,
+      priceYer: plansTable.priceYer,
+      priceYerAnnual: plansTable.priceYerAnnual,
+      limits: plansTable.limits,
+      features: plansTable.features,
+    })
+    .from(plansTable)
+    .where(eq(plansTable.slug, "free"))
+    .limit(1);
+
+  if (!freePlan) return null;
+
+  return {
+    id: null,
+    workspaceId,
+    status: "trialing",
+    startedAt: null,
+    trialEndsAt: null,
+    currentPeriodEnd: null,
+    paymentMethod: null,
+    lastPaymentRef: null,
+    pointsBalance: 0,
+    ...freePlan,
+  };
 }
 
 async function usageValue(workspaceId: string, key: PlanLimitKey): Promise<number> {

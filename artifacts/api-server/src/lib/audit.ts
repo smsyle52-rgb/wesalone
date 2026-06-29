@@ -46,6 +46,7 @@ export type AuditAction =
   | "outbox_retry" | "outbox_cancel"
   | "integration_health_update"
   | "template_create" | "template_update" | "template_delete" | "template_duplicate" | "template_submit" | "template_sync"
+  | "whatsapp_business_profile_sync" | "whatsapp_business_profile_update" | "whatsapp_business_profile_photo_update"
   | "broadcast_create" | "broadcast_update" | "broadcast_start" | "broadcast_cancel"
   | "automation_create" | "automation_update" | "automation_delete" | "automation_activate" | "automation_pause" | "automation_test_run"
   | "catalog_source_create" | "catalog_source_disable" | "catalog_sync_requested"

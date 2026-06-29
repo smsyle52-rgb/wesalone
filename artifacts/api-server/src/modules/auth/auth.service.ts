@@ -127,7 +127,7 @@ export async function registerWorkspace(data: {
     const [trialPlan] = await tx
       .select()
       .from(plansTable)
-      .where(eq(plansTable.slug, "trial"))
+      .where(eq(plansTable.slug, "free"))
       .limit(1);
 
     if (trialPlan) {

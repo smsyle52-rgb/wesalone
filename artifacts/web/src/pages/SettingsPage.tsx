@@ -772,7 +772,7 @@ function BillingTabV2() {
           ) : data.paymentSubmissions.map((item: any) => (
             <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
               <div>
-                <div className="font-bold text-foreground">{item.planNameAr ?? item.planName} - {Number(item.amountYer).toLocaleString("ar-u-nu-latn")} ريال</div>
+                <div className="font-bold text-foreground">{item.planNameAr ?? item.planName} - {Number(item.amountYer).toLocaleString("ar-u-nu-latn")} {item.amountCurrency ?? "USD"}</div>
                 <div className="text-muted-foreground">{item.paymentMethod} · {item.reference || "بدون مرجع"} · {new Date(item.createdAt).toLocaleDateString("ar-u-nu-latn")}</div>
               </div>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-muted-foreground">{item.status}</span>
