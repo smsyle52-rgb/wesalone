@@ -5,7 +5,7 @@ import {
   knowledgeDocumentsTable,
   knowledgeSourcesTable,
 } from "@workspace/db";
-import { and, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, eq, ilike, inArray, ne, or } from "drizzle-orm";
 import { cosineSimilarity, embed } from "./embeddings";
 import { logger } from "../lib/logger";
 
@@ -105,6 +105,7 @@ async function searchTsvChunks(params: Required<Pick<KnowledgeSearchParams, "wor
       LEFT JOIN knowledge_sources ks ON ks.id = kd.source_id
       WHERE kc.workspace_id = $1
         ${kbClause}
+        AND kd.status <> 'archived'
         AND kc.tsv @@ plainto_tsquery('simple', $2)
       ORDER BY rank DESC
       LIMIT $3
@@ -156,6 +157,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
 
   const docFilters = [
     eq(knowledgeDocumentsTable.workspaceId, params.workspaceId),
+    ne(knowledgeDocumentsTable.status, "archived"),
     or(...words.flatMap((word) => [
       ilike(knowledgeDocumentsTable.title, `%${word}%`),
       ilike(knowledgeDocumentsTable.contentText, `%${word}%`),
@@ -165,6 +167,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
 
   const chunkFilters = [
     eq(knowledgeChunksTable.workspaceId, params.workspaceId),
+    ne(knowledgeDocumentsTable.status, "archived"),
     or(...words.map((word) => ilike(knowledgeChunksTable.chunkText, `%${word}%`)))!,
   ];
   if (knowledgeBaseIds.length > 0) chunkFilters.splice(1, 0, inArray(knowledgeChunksTable.knowledgeBaseId, knowledgeBaseIds));

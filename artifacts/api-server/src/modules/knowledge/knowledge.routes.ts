@@ -613,4 +613,57 @@ router.get("/search", requirePermission("knowledge:read"), async (req: Authentic
   });
 });
 
+// ─── Hard delete (حذف نهائي) ───────────────────────────────────────────────────
+router.delete("/documents/:documentId", requirePermission("knowledge:delete"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const docId = String(req.params.documentId);
+  const [existing] = await db.select().from(knowledgeDocumentsTable)
+    .where(and(eq(knowledgeDocumentsTable.id, docId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "الوثيقة غير موجودة", code: "NOT_FOUND" }); return; }
+  // مقاطع الوثيقة تُحذف بالتعاقب (onDelete: cascade على document_id).
+  await db.delete(knowledgeDocumentsTable)
+    .where(and(eq(knowledgeDocumentsTable.id, docId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "knowledge_document_delete",
+    entityType: "knowledge_document", entityId: docId, entityLabel: existing.title,
+  });
+  res.json({ ok: true });
+});
+
+router.delete("/faqs/:faqId", requirePermission("knowledge:delete"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const faqId = String(req.params.faqId);
+  const [existing] = await db.select().from(faqEntriesTable)
+    .where(and(eq(faqEntriesTable.id, faqId), eq(faqEntriesTable.workspaceId, activeWorkspaceId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "السؤال غير موجود", code: "NOT_FOUND" }); return; }
+  await db.delete(faqEntriesTable)
+    .where(and(eq(faqEntriesTable.id, faqId), eq(faqEntriesTable.workspaceId, activeWorkspaceId)));
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "faq_delete",
+    entityType: "faq_entry", entityId: faqId, entityLabel: existing.question,
+  });
+  res.json({ ok: true });
+});
+
+router.delete("/sources/:sourceId", requirePermission("knowledge:delete"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const sourceId = String(req.params.sourceId);
+  const [existing] = await db.select().from(knowledgeSourcesTable)
+    .where(and(eq(knowledgeSourcesTable.id, sourceId), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "المصدر غير موجود", code: "NOT_FOUND" }); return; }
+  // احذف وثائق المصدر أولاً (ومقاطعها بالتعاقب) لأن documents.source_id = set null لا cascade.
+  await db.delete(knowledgeDocumentsTable)
+    .where(and(eq(knowledgeDocumentsTable.sourceId, sourceId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
+  await db.delete(knowledgeSourcesTable)
+    .where(and(eq(knowledgeSourcesTable.id, sourceId), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)));
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "knowledge_source_delete",
+    entityType: "knowledge_source", entityId: sourceId, entityLabel: existing.title,
+  });
+  res.json({ ok: true });
+});
+
 export default router;

@@ -189,6 +189,19 @@ export default function KnowledgePage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-faqs", selectedBaseId] }),
   });
 
+  const deleteSource = useMutation({
+    mutationFn: (id: string) => apiFetch(`sources/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-sources", selectedBaseId] }),
+  });
+  const deleteDoc = useMutation({
+    mutationFn: (id: string) => apiFetch(`documents/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-docs", selectedBaseId] }),
+  });
+  const deleteFaq = useMutation({
+    mutationFn: (id: string) => apiFetch(`faqs/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-faqs", selectedBaseId] }),
+  });
+
   if (!canRead) {
     return (
       <div dir="rtl" className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
@@ -427,6 +440,12 @@ export default function KnowledgePage() {
                               أرشفة
                             </button>
                           )}
+                          {canDelete && (
+                            <button onClick={() => { if (confirm("حذف المصدر نهائياً؟ لا يمكن التراجع.")) deleteSource.mutate(s.id); }}
+                              className="text-xs text-red-500 hover:text-red-700 transition-colors shrink-0">
+                              حذف
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -485,6 +504,12 @@ export default function KnowledgePage() {
                                 <button onClick={() => { if (confirm("أرشفة الوثيقة؟")) archiveDoc.mutate(doc.id); }}
                                   className="text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1">
                                   أرشفة
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button onClick={() => { if (confirm("حذف الوثيقة نهائياً؟ لا يمكن التراجع.")) deleteDoc.mutate(doc.id); }}
+                                  className="text-xs text-red-500 hover:text-red-700 transition-colors px-2 py-1">
+                                  حذف
                                 </button>
                               )}
                             </div>
@@ -547,6 +572,12 @@ export default function KnowledgePage() {
                                 <button onClick={() => { if (confirm("أرشفة هذا السؤال؟")) archiveFaq.mutate(faq.id); }}
                                   className="text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1">
                                   أرشفة
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button onClick={() => { if (confirm("حذف السؤال نهائياً؟ لا يمكن التراجع.")) deleteFaq.mutate(faq.id); }}
+                                  className="text-xs text-red-500 hover:text-red-700 transition-colors px-2 py-1">
+                                  حذف
                                 </button>
                               )}
                             </div>
