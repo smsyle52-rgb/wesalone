@@ -289,7 +289,7 @@ describe("GET /payments — workspace isolation + DTO parity (real PostgreSQL)",
     expect(response.body.totalPending).toBe(0);
   });
 
-  it.each([
+  const invalidQueries: Array<Record<string, string>> = [
     { contactId: "not-a-uuid" },
     { orderId: "not-a-uuid" },
     { status: "unknown" },
@@ -298,7 +298,9 @@ describe("GET /payments — workspace isolation + DTO parity (real PostgreSQL)",
     { page: "0" },
     { limit: "0" },
     { limit: "101" },
-  ])("returns 400 for invalid query %#", async (query) => {
+  ];
+
+  it.each(invalidQueries)("returns 400 for invalid query %#", async (query) => {
     const response = await fetchPayments(WS_A, query);
     expect(response.status).toBe(400);
   });
