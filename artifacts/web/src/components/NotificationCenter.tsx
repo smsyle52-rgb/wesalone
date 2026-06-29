@@ -56,7 +56,7 @@ export function NotificationCenter() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition hover:border-primary/30 hover:text-primary"
+        className="app-touch-target relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition hover:border-primary/30 hover:text-primary"
         aria-label="التنبيهات"
       >
         <Bell className="h-5 w-5" />
@@ -68,8 +68,8 @@ export function NotificationCenter() {
       </button>
 
       {open && (
-        <div className="absolute end-0 top-12 z-40 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="fixed left-3 right-3 top-[calc(4.75rem+var(--app-safe-top))] z-40 flex max-h-[calc(100dvh-5.75rem-var(--app-safe-top)-var(--app-safe-bottom))] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl sm:absolute sm:end-0 sm:left-auto sm:right-auto sm:top-12 sm:w-[min(360px,calc(100vw-2rem))] sm:max-h-[min(28rem,calc(100vh-6rem))]">
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
             <div>
               <div className="text-sm font-bold text-foreground">التنبيهات</div>
               <div className="text-xs text-muted-foreground">{unreadCount} غير مقروءة</div>
@@ -77,14 +77,14 @@ export function NotificationCenter() {
             <button
               type="button"
               onClick={() => markAllRead.mutate()}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
+              className="app-touch-target inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
             >
               <CheckCheck className="h-3.5 w-3.5" />
               تعليم الكل
             </button>
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="px-4 py-10 text-center text-sm text-muted-foreground">لا توجد تنبيهات حتى الآن.</div>
             ) : notifications.map((item) => (

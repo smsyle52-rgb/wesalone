@@ -34,7 +34,7 @@ export default defineConfig({
         name: "وصال ون - Wesal One",
         short_name: "وصال ون",
         description: "منصة موحدة لإدارة المحادثات والعملاء والمبيعات من مكان واحد.",
-        start_url: "/",
+        start_url: "/app",
         scope: "/",
         display: "standalone",
         display_override: ["standalone", "minimal-ui", "browser"],

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
-import { Switch, Route, Router as WouterRouter, Redirect, Link } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect, Link, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider, useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -53,6 +53,12 @@ import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { DirectionProvider } from "@workspace/ui/direction-provider";
 import { TooltipProvider } from "@workspace/ui/tooltip";
 import { Toaster } from "@workspace/ui/sonner";
+import {
+  isMarketingRoute,
+  isRunningAsInstalledApp,
+  readLastInternalRoute,
+  writeLastInternalRoute,
+} from "@/lib/pwaRouting";
 
 const UiLabPage = import.meta.env.DEV
   ? lazy(() => import("@/pages/dev/UiLabPage"))
@@ -115,11 +121,39 @@ function OnboardingRoute() {
   return <OnboardingPage />;
 }
 
+function AppLaunchRoute() {
+  const { user, isLoading, onboardingCompleted } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (!user) return <Redirect to="/login" />;
+  if (!onboardingCompleted) return <Redirect to="/onboarding" />;
+  return <Redirect to={readLastInternalRoute() ?? "/dashboard"} />;
+}
+
 function PublicRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading, onboardingCompleted } = useAuth();
   if (isLoading) return <LoadingScreen />;
   if (user) return <Redirect to={onboardingCompleted ? "/dashboard" : "/onboarding"} />;
   return <Component />;
+}
+
+function InstalledAppRouteGuard() {
+  const [location] = useLocation();
+  if (!isRunningAsInstalledApp()) return null;
+  if (location === "/app") return null;
+  if (isMarketingRoute(location)) return <Redirect to="/app" />;
+  return null;
+}
+
+function InternalRouteMemory() {
+  const [location] = useLocation();
+  const { user, onboardingCompleted } = useAuth();
+
+  useEffect(() => {
+    if (!user || !onboardingCompleted) return;
+    writeLastInternalRoute(location);
+  }, [location, onboardingCompleted, user]);
+
+  return null;
 }
 
 function IntegrationsHubPage() {
@@ -144,6 +178,7 @@ function IntegrationsHubPage() {
 function Router() {
   return (
     <Switch>
+      <Route path="/app" component={AppLaunchRoute} />
       {UiLabPage ? (
         <Route
           path="/__ui-lab"
@@ -227,6 +262,8 @@ function App() {
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <InstalledAppRouteGuard />
+                <InternalRouteMemory />
                 <Router />
                 <Toaster />
                 <PwaInstallBanner />

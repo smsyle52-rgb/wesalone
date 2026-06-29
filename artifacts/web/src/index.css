@@ -89,6 +89,12 @@
   --space-sm: 0.75rem;
   --space-md: 1rem;
   --space-lg: 1.25rem;
+  --app-mobile-page-x: 1rem;
+  --app-mobile-section-gap: 1rem;
+  --app-mobile-card-pad: 0.875rem;
+  --app-bottom-nav-height: 5.75rem;
+  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --app-safe-top: env(safe-area-inset-top, 0px);
   --shadow-soft: var(--wo-shadow-md);
   --shadow-hover: var(--wo-shadow-lg);
 }
@@ -488,6 +494,98 @@
   .wesal-reveal-static {
     animation: wesal-reveal-static 700ms cubic-bezier(.2, .8, .2, 1) both;
     will-change: opacity, transform;
+  }
+
+  .app-viewport {
+    min-block-size: 100vh;
+    min-block-size: 100dvh;
+    block-size: 100vh;
+    block-size: 100dvh;
+  }
+
+  .app-page-scroll {
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable both-edges;
+  }
+
+  .app-page-container {
+    inline-size: 100%;
+    max-inline-size: 1440px;
+    min-block-size: 100%;
+    margin-inline: auto;
+    padding: 1.25rem var(--app-mobile-page-x) calc(var(--app-bottom-nav-height) + var(--app-safe-bottom) + 1rem);
+  }
+
+  .app-bottom-nav {
+    min-block-size: calc(var(--app-bottom-nav-height) + var(--app-safe-bottom));
+  }
+
+  .app-touch-target {
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+
+  @media (min-width: 640px) {
+    .app-page-container {
+      --app-mobile-page-x: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .app-page-container {
+      padding: 1.75rem 2rem;
+    }
+  }
+
+  @media (max-width: 767px) {
+    html {
+      font-size: 16px;
+    }
+
+    h1 {
+      font-size: clamp(1.5rem, 8vw, 2rem);
+    }
+
+    h2 {
+      font-size: clamp(1.25rem, 6vw, 1.6rem);
+    }
+
+    h3 {
+      font-size: clamp(1.05rem, 4.5vw, 1.25rem);
+    }
+
+    button,
+    input,
+    textarea,
+    select,
+    [role="button"] {
+      min-block-size: 44px;
+    }
+
+    input,
+    textarea,
+    select {
+      max-inline-size: 100%;
+    }
+
+    table {
+      min-inline-size: max-content;
+    }
+
+    .recharts-wrapper,
+    .recharts-surface {
+      max-inline-size: 100% !important;
+    }
+
+    .app-modal-body .grid-cols-2,
+    .app-modal-body .grid-cols-3,
+    .app-modal-body .grid-cols-4 {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .app-modal-body .gap-3 {
+      gap: 0.75rem;
+    }
   }
 }
 

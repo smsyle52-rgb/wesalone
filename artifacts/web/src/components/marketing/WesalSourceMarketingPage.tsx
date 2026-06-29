@@ -290,7 +290,7 @@ function MiniUIInbox() {
       </div>
 
       {/* Tabs قنوات */}
-      <div className="mini-inbox-tabs flex items-center gap-1 px-3 py-2.5 border-b overflow-x-auto" style={{ borderColor: "var(--line)" }}>
+      <div className="mini-inbox-tabs flex flex-wrap items-center gap-1 px-3 py-2.5 border-b overflow-visible sm:flex-nowrap sm:overflow-x-auto" style={{ borderColor: "var(--line)" }}>
         {tabs.map((t) => {
           const active = tab === t.id;
           return (
@@ -345,8 +345,8 @@ function MiniUIInbox() {
 
       {/* بطاقة فرز ذكي */}
       <div className="m-3 p-3 rounded-xl" style={{ background: "color-mix(in srgb, var(--secondary) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--secondary) 28%, transparent)" }}>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ background: "color-mix(in srgb, var(--secondary) 22%, transparent)", color: "var(--secondary)" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
             </span>
@@ -741,9 +741,9 @@ function MiniUIAutomation() {
           <div className="text-[12.5px] font-extrabold">مسار التشغيل التلقائي</div>
           <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-full" style={{ background: "color-mix(in srgb, var(--secondary) 18%, transparent)", color: "var(--secondary)" }}>● فعّال</span>
         </div>
-        <button className="text-[10px] font-bold px-2.5 py-1.5 rounded-md text-soft" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--line)" }}>
+        <div className="text-[10px] font-bold px-2.5 py-1.5 rounded-md text-soft" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--line)" }}>
           تعديل المسار
-        </button>
+        </div>
       </div>
 
       {/* Flow — أفقي على الديسكتوب، عمودي على الجوال */}

@@ -213,17 +213,17 @@ function AuthHeader() {
 
 export function AuthLayout({ children, visualTitle, visualSubtitle, visualBullets }: AuthLayoutProps) {
   return (
-    <div className="wesal-auth min-h-screen" dir="rtl">
-      <div className="grid min-h-screen lg:grid-cols-2">
+    <div className="wesal-auth min-h-screen w-full max-w-full" dir="rtl">
+      <div className="grid min-h-screen w-full min-w-0 max-w-full lg:grid-cols-2">
         <div className="hidden lg:block lg:order-2">
           <AuthVisual visualTitle={visualTitle} visualSubtitle={visualSubtitle} visualBullets={visualBullets}>
             {null}
           </AuthVisual>
         </div>
-        <div className="order-1 flex flex-col p-6 sm:p-10 lg:p-14" style={{ background: "var(--bg)" }}>
+        <div className="order-1 flex min-w-0 flex-col px-4 py-6 sm:p-10 lg:p-14" style={{ background: "var(--bg)" }}>
           <AuthHeader />
-          <div className="grid flex-1 place-items-center">
-            <div className="w-full max-w-md">{children}</div>
+          <div className="grid min-w-0 flex-1 place-items-center">
+            <div className="w-full min-w-0 max-w-md">{children}</div>
           </div>
           <div className="text-mute mt-8 text-center text-[11px]">
             © 2026 وصال ون · <a href="/privacy" className="transition hover:text-[color:var(--fg)]">الخصوصية</a> · <a href="/data-deletion" className="transition hover:text-[color:var(--fg)]">حذف البيانات</a> · <a href="/terms" className="transition hover:text-[color:var(--fg)]">الشروط</a>
