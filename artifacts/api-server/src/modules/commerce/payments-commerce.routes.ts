@@ -80,17 +80,32 @@ function nullableText(value: unknown) {
   return value == null ? null : String(value);
 }
 
+const paymentReadStatusSchema = z.enum([
+  "pending", "Pending",
+  "confirmed", "Paid",
+  "rejected", "Failed",
+  "refunded", "Refunded",
+  "partially_refunded", "PartiallyRefunded",
+]).transform((status) => {
+  if (status === "Pending") return "pending";
+  if (status === "Paid") return "confirmed";
+  if (status === "Failed") return "rejected";
+  if (status === "Refunded") return "refunded";
+  if (status === "PartiallyRefunded") return "partially_refunded";
+  return status;
+});
+
 const paymentReadQuerySchema = z.object({
   contactId: z.string().uuid("contactId يجب أن يكون UUID صالحًا").optional(),
-  orderId:   z.string().uuid("orderId يجب أن يكون UUID صالحًا").optional(),
-  status:    z.string().max(50).optional(),
-  method:    z.string().max(100).optional(),
-  currency:  z.string().max(10).optional(),
-  dateFrom:  z.string().datetime({ offset: true, message: "dateFrom يجب أن يكون ISO 8601" }).optional(),
-  dateTo:    z.string().datetime({ offset: true, message: "dateTo يجب أن يكون ISO 8601" }).optional(),
-  page:  z.coerce.number().int().min(1,   "page يجب أن يكون 1 أو أكثر").default(1),
-  limit: z.coerce.number().int().min(1,   "limit يجب أن يكون بين 1 و100")
-                              .max(100, "limit يجب أن يكون بين 1 و100").default(30),
+  orderId: z.string().uuid("orderId يجب أن يكون UUID صالحًا").optional(),
+  status: paymentReadStatusSchema.optional(),
+  method: z.string().max(100).optional(),
+  currency: z.string().max(10).optional(),
+  dateFrom: z.string().datetime({ offset: true, message: "dateFrom يجب أن يكون ISO 8601" }).optional(),
+  dateTo: z.string().datetime({ offset: true, message: "dateTo يجب أن يكون ISO 8601" }).optional(),
+  page: z.coerce.number().int().min(1, "page يجب أن يكون 1 أو أكثر").default(1),
+  limit: z.coerce.number().int().min(1, "limit يجب أن يكون بين 1 و100")
+    .max(100, "limit يجب أن يكون بين 1 و100").default(30),
 });
 
 export type PaymentReadItem = {
@@ -100,11 +115,8 @@ export type PaymentReadItem = {
   amount: string;
   currency: string;
   method: string;
-  /** Mapped canonical value: pending | confirmed | rejected | refunded | partially_refunded */
   status: string;
-  /** Original stored value in the database */
   canonicalStatus: string;
-  /** COALESCE(p.reference, p.external_reference) */
   reference: string | null;
   externalReference: string | null;
   receiptUrl: string | null;
@@ -116,6 +128,7 @@ export type PaymentReadItem = {
   createdAt: Date;
   baseAmountYer: string | null;
   methodSnapshot: Record<string, unknown> | null;
+  exchangeRateSnapshot: Record<string, unknown> | null;
   orderNumber: string | null;
   orderTotal: string | null;
   orderPaid: string | null;
@@ -132,63 +145,68 @@ export type PaymentListResponse = {
   limit: number;
 };
 
+const PMT_READ_STATUS_GROUP_SQL = `CASE p.status
+  WHEN 'Pending'           THEN 'pending'
+  WHEN 'pending'           THEN 'pending'
+  WHEN 'Paid'              THEN 'confirmed'
+  WHEN 'confirmed'         THEN 'confirmed'
+  WHEN 'Failed'            THEN 'rejected'
+  WHEN 'rejected'          THEN 'rejected'
+  WHEN 'Refunded'          THEN 'refunded'
+  WHEN 'PartiallyRefunded' THEN 'partially_refunded'
+  ELSE LOWER(p.status)
+END`;
+
 const PMT_READ_COUNTS_SQL = `
 SELECT
-  COUNT(*) FILTER (WHERE $4::text IS NULL OR p.status = $4) AS total,
-  COUNT(*) FILTER (WHERE p.status IN ('Paid', 'confirmed'))  AS "totalConfirmed",
-  COUNT(*) FILTER (WHERE p.status IN ('Pending', 'pending')) AS "totalPending"
+  COUNT(*) FILTER (WHERE $4::text IS NULL OR ${PMT_READ_STATUS_GROUP_SQL} = $4) AS total,
+  COALESCE(SUM(p.amount) FILTER (WHERE p.status IN ('Paid', 'confirmed')), 0)::text AS "totalConfirmed",
+  COALESCE(SUM(p.amount) FILTER (WHERE p.status IN ('Pending', 'pending')), 0)::text AS "totalPending"
 FROM payments p
 WHERE p.workspace_id = $1
   AND ($2::uuid IS NULL OR p.contact_id = $2)
-  AND ($3::uuid IS NULL OR p.order_id   = $3)
-  AND ($5::text IS NULL OR p.method     = $5)
-  AND ($6::text IS NULL OR p.currency   = $6)
+  AND ($3::uuid IS NULL OR p.order_id = $3)
+  AND ($5::text IS NULL OR p.method = $5)
+  AND ($6::text IS NULL OR p.currency = $6)
   AND ($7::timestamptz IS NULL OR p.created_at >= $7)
   AND ($8::timestamptz IS NULL OR p.created_at <= $8)`;
 
 const PMT_READ_LIST_SQL = `
 SELECT
   p.id,
-  p.order_id                                         AS "orderId",
-  p.contact_id                                       AS "contactId",
-  p.amount, p.currency, p.method,
-  CASE p.status
-    WHEN 'Pending'           THEN 'pending'
-    WHEN 'pending'           THEN 'pending'
-    WHEN 'Paid'              THEN 'confirmed'
-    WHEN 'confirmed'         THEN 'confirmed'
-    WHEN 'Failed'            THEN 'rejected'
-    WHEN 'rejected'          THEN 'rejected'
-    WHEN 'Refunded'          THEN 'refunded'
-    WHEN 'PartiallyRefunded' THEN 'partially_refunded'
-    ELSE LOWER(p.status)
-  END                                                AS status,
-  p.status                                           AS "canonicalStatus",
-  COALESCE(p.reference, p.external_reference)       AS reference,
-  p.external_reference                              AS "externalReference",
-  p.receipt_url                                      AS "receiptUrl",
+  p.order_id AS "orderId",
+  p.contact_id AS "contactId",
+  p.amount,
+  p.currency,
+  p.method,
+  ${PMT_READ_STATUS_GROUP_SQL} AS status,
+  p.status AS "canonicalStatus",
+  COALESCE(p.reference, p.external_reference) AS reference,
+  p.external_reference AS "externalReference",
+  p.receipt_url AS "receiptUrl",
   p.notes,
-  p.paid_at                                          AS "paidAt",
-  p.confirmed_at                                     AS "confirmedAt",
-  p.rejected_at                                      AS "rejectedAt",
-  p.rejection_reason                                 AS "rejectionReason",
-  p.created_at                                       AS "createdAt",
-  p.base_amount_yer                                  AS "baseAmountYer",
-  p.method_snapshot                                  AS "methodSnapshot",
-  o.order_number                                     AS "orderNumber",
-  o.total_amount                                     AS "orderTotal",
-  o.paid_amount                                      AS "orderPaid",
-  o.payment_status                                   AS "orderPaymentStatus",
-  c.name                                             AS "contactName"
+  p.paid_at AS "paidAt",
+  p.confirmed_at AS "confirmedAt",
+  p.rejected_at AS "rejectedAt",
+  p.rejection_reason AS "rejectionReason",
+  p.created_at AS "createdAt",
+  p.base_amount_yer AS "baseAmountYer",
+  p.method_snapshot AS "methodSnapshot",
+  p.exchange_rate_snapshot AS "exchangeRateSnapshot",
+  o.order_number AS "orderNumber",
+  o.total_amount AS "orderTotal",
+  o.paid_amount AS "orderPaid",
+  o.payment_status AS "orderPaymentStatus",
+  c.name AS "contactName"
 FROM payments p
-LEFT JOIN orders   o ON o.id = p.order_id   AND o.workspace_id = p.workspace_id
+LEFT JOIN orders o ON o.id = p.order_id AND o.workspace_id = p.workspace_id
 LEFT JOIN contacts c ON c.id = p.contact_id AND c.workspace_id = p.workspace_id
 WHERE p.workspace_id = $1
   AND ($2::uuid IS NULL OR p.contact_id = $2)
-  AND ($3::uuid IS NULL OR p.order_id   = $3)
-  AND ($4::text IS NULL OR p.status     = $4)
-  AND ($5::text IS NULL OR p.method     = $5)
-  AND ($6::text IS NULL OR p.currency   = $6)
+  AND ($3::uuid IS NULL OR p.order_id = $3)
+  AND ($4::text IS NULL OR ${PMT_READ_STATUS_GROUP_SQL} = $4)
+  AND ($5::text IS NULL OR p.method = $5)
+  AND ($6::text IS NULL OR p.currency = $6)
   AND ($7::timestamptz IS NULL OR p.created_at >= $7)
   AND ($8::timestamptz IS NULL OR p.created_at <= $8)
 ORDER BY p.created_at DESC
@@ -222,9 +240,9 @@ router.get("/", requirePermission("payments:read"), async (req: AuthenticatedReq
   const counts = countsResult.rows[0] ?? { total: "0", totalConfirmed: "0", totalPending: "0" };
   const response: PaymentListResponse = {
     payments: listResult.rows,
-    total:          Number(counts.total),
+    total: Number(counts.total),
     totalConfirmed: Number(counts.totalConfirmed),
-    totalPending:   Number(counts.totalPending),
+    totalPending: Number(counts.totalPending),
     page,
     limit,
   };

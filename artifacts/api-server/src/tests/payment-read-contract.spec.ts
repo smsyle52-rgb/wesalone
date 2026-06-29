@@ -40,7 +40,7 @@ vi.mock("../lib/events", () => ({ publishDomainEvent: vi.fn() }));
 
 import paymentsRouter from "../modules/commerce/payments-commerce.routes";
 
-const mockCounts = { total: "1", totalConfirmed: "0", totalPending: "1" };
+const mockCounts = { total: "1", totalConfirmed: "0", totalPending: "250.00" };
 
 const mockPayment: PaymentReadItem = {
   id: PAYMENT_ID,
@@ -62,6 +62,7 @@ const mockPayment: PaymentReadItem = {
   createdAt: new Date("2026-06-28T10:00:00.000Z"),
   baseAmountYer: "250.00",
   methodSnapshot: { source: "manual" },
+  exchangeRateSnapshot: { fromCurrency: "USD", toCurrency: "YER", rate: "535" },
   orderNumber: "ORD-2026-0001",
   orderTotal: "250.00",
   orderPaid: "0.00",
@@ -92,7 +93,6 @@ async function getPayments(query: Record<string, string> = {}) {
 
 beforeEach(() => {
   mocks.poolQuery.mockReset();
-  // GET handler fires two queries: counts first, listing second
   mocks.poolQuery
     .mockResolvedValueOnce({ rows: [mockCounts], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [mockPayment], rowCount: 1 });
@@ -101,8 +101,6 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); });
 
 describe("GET /payments — read contract", () => {
-  // ── Envelope shape ──────────────────────────────────────────────────────────
-
   it("returns 200 with full PaymentListResponse envelope", async () => {
     const res = await getPayments();
     expect(res.status).toBe(200);
@@ -118,16 +116,16 @@ describe("GET /payments — read contract", () => {
   it("response body has no extraneous keys beyond the envelope", async () => {
     const res = await getPayments();
     expect(Object.keys(res.body).sort()).toEqual(
-      ["limit", "page", "payments", "total", "totalConfirmed", "totalPending"].sort()
+      ["limit", "page", "payments", "total", "totalConfirmed", "totalPending"].sort(),
     );
   });
 
-  it("counts are taken from the counts query result", async () => {
+  it("returns payment counts and filtered amount totals from the counts query", async () => {
     const res = await getPayments();
     const body = res.body as PaymentListResponse;
     expect(body.total).toBe(1);
     expect(body.totalConfirmed).toBe(0);
-    expect(body.totalPending).toBe(1);
+    expect(body.totalPending).toBe(250);
   });
 
   it("page and limit echo the applied values (defaults 1 / 30)", async () => {
@@ -151,8 +149,6 @@ describe("GET /payments — read contract", () => {
     expect(body.totalPending).toBe(0);
   });
 
-  // ── DTO shape ───────────────────────────────────────────────────────────────
-
   it("payment DTO contains all required fields", async () => {
     const res = await getPayments();
     const p = (res.body as PaymentListResponse).payments[0]!;
@@ -166,22 +162,19 @@ describe("GET /payments — read contract", () => {
     expect(p.canonicalStatus).toBe("Pending");
     expect(p.reference).toBe("REF-001");
     expect(p.baseAmountYer).toBe("250.00");
+    expect(p.methodSnapshot).toEqual({ source: "manual" });
+    expect(p.exchangeRateSnapshot).toEqual({ fromCurrency: "USD", toCurrency: "YER", rate: "535" });
     expect(p.contactName).toBe("Alice");
     expect(p.orderNumber).toBe("ORD-2026-0001");
   });
 
-  // ── Workspace isolation ──────────────────────────────────────────────────────
-
   it("workspace isolation: $1 always comes from session, never from query string", async () => {
     await getPayments({ workspaceId: "ffffffff-ffff-4fff-8fff-ffffffffffff" });
-    // Both the counts query (calls[0]) and listing query (calls[1]) must use session WS_A
     const [, countsParams] = mocks.poolQuery.mock.calls[0] as [string, unknown[]];
     const [, listParams] = mocks.poolQuery.mock.calls[1] as [string, unknown[]];
     expect(countsParams[0]).toBe(WS_A);
     expect(listParams[0]).toBe(WS_A);
   });
-
-  // ── Filter params ────────────────────────────────────────────────────────────
 
   it("contactId is passed as $2 to both queries", async () => {
     await getPayments({ contactId: CONTACT_A_ID });
@@ -197,12 +190,22 @@ describe("GET /payments — read contract", () => {
     expect(countsParams[2]).toBe(ORDER_ID);
   });
 
-  it("status is passed as $4 to both queries", async () => {
+  it("normalizes canonical Pending to the pending compatibility group", async () => {
     await getPayments({ status: "Pending" });
+    const [countsSql, countsParams] = mocks.poolQuery.mock.calls[0] as [string, unknown[]];
+    const [listSql, listParams] = mocks.poolQuery.mock.calls[1] as [string, unknown[]];
+    expect(countsParams[3]).toBe("pending");
+    expect(listParams[3]).toBe("pending");
+    expect(countsSql).toContain("WHEN 'Pending'           THEN 'pending'");
+    expect(listSql).toContain("WHEN 'Pending'           THEN 'pending'");
+  });
+
+  it("normalizes canonical Paid to the confirmed compatibility group", async () => {
+    await getPayments({ status: "Paid" });
     const [, countsParams] = mocks.poolQuery.mock.calls[0] as [string, unknown[]];
     const [, listParams] = mocks.poolQuery.mock.calls[1] as [string, unknown[]];
-    expect(countsParams[3]).toBe("Pending");
-    expect(listParams[3]).toBe("Pending");
+    expect(countsParams[3]).toBe("confirmed");
+    expect(listParams[3]).toBe("confirmed");
   });
 
   it("method is passed as $5 to both queries", async () => {
@@ -251,10 +254,10 @@ describe("GET /payments — read contract", () => {
     expect(listParams[8]).toBe(50);
   });
 
-  it("page=2 produces offset=30 passed as $10 in listing query (with default limit 30)", async () => {
+  it("page=2 produces offset=30 passed as $10 in listing query", async () => {
     await getPayments({ page: "2" });
     const [, listParams] = mocks.poolQuery.mock.calls[1] as [string, unknown[]];
-    expect(listParams[9]).toBe(30); // offset = (2-1) * 30 = 30
+    expect(listParams[9]).toBe(30);
   });
 
   it("page and limit in response echo the applied values", async () => {
@@ -271,8 +274,6 @@ describe("GET /payments — read contract", () => {
       expect(countsParams[i], `param $${i + 1} should be null`).toBeNull();
     }
   });
-
-  // ── Validation / 400 errors ──────────────────────────────────────────────────
 
   it("returns 400 for non-UUID contactId and never calls pool.query", async () => {
     const res = await getPayments({ contactId: "not-a-uuid" });
@@ -300,6 +301,12 @@ describe("GET /payments — read contract", () => {
     expect(mocks.poolQuery).not.toHaveBeenCalled();
   });
 
+  it("returns 400 for unsupported status and never calls pool.query", async () => {
+    const res = await getPayments({ status: "unknown" });
+    expect(res.status).toBe(400);
+    expect(mocks.poolQuery).not.toHaveBeenCalled();
+  });
+
   it("returns 400 for page=0 and never calls pool.query", async () => {
     const res = await getPayments({ page: "0" });
     expect(res.status).toBe(400);
@@ -319,8 +326,6 @@ describe("GET /payments — read contract", () => {
     expect(mocks.poolQuery).not.toHaveBeenCalled();
   });
 
-  // ── Status mapping (via mock data reflecting what DB returns) ────────────────
-
   it("status mapping: DB 'Pending' → response status 'pending', canonicalStatus 'Pending'", async () => {
     mocks.poolQuery.mockReset();
     mocks.poolQuery
@@ -335,7 +340,7 @@ describe("GET /payments — read contract", () => {
   it("status mapping: DB 'Paid' → response status 'confirmed', canonicalStatus 'Paid'", async () => {
     mocks.poolQuery.mockReset();
     mocks.poolQuery
-      .mockResolvedValueOnce({ rows: [{ total: "1", totalConfirmed: "1", totalPending: "0" }] })
+      .mockResolvedValueOnce({ rows: [{ total: "1", totalConfirmed: "250.00", totalPending: "0" }] })
       .mockResolvedValueOnce({ rows: [{ ...mockPayment, status: "confirmed", canonicalStatus: "Paid" }] });
     const res = await getPayments();
     const p = (res.body as PaymentListResponse).payments[0]!;
