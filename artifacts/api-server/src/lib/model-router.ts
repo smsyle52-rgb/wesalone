@@ -13,12 +13,12 @@ const SAFE_FALLBACK_MODEL = process.env.VERTEX_MODEL ?? "gemini-2.5-flash";
 // الخريطة: (مهمة.مستوى) → معرّف الموديل. الافتراضات = قرار المالك، وكلٌّ قابل للتجاوز بـenv.
 const ROUTES: Record<string, string> = {
   "text.reply.normal": process.env.MODEL_TEXT_NORMAL ?? "gemini-3-flash-preview",
-  "text.reply.hard": process.env.MODEL_TEXT_HARD ?? "gemini-3.1-pro-preview",
+  "text.reply.hard": process.env.MODEL_TEXT_HARD ?? "gemini-3-flash-preview",
   "vision.normal": process.env.MODEL_VISION_NORMAL ?? "gemini-3-flash-preview",
-  "vision.hard": process.env.MODEL_VISION_HARD ?? "gemini-3.1-pro-preview",
+  "vision.hard": process.env.MODEL_VISION_HARD ?? "gemini-3-flash-preview",
   // فهم الملاحظات الصوتية الواردة سمعياً (قرار المالك: flash للعادي، pro للصعب).
   "voice.normal": process.env.MODEL_VOICE_NORMAL ?? "gemini-3-flash-preview",
-  "voice.hard": process.env.MODEL_VOICE_HARD ?? "gemini-3.1-pro-preview",
+  "voice.hard": process.env.MODEL_VOICE_HARD ?? "gemini-3-flash-preview",
 };
 
 export interface ModelRoute {
