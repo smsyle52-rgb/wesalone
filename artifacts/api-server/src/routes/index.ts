@@ -28,12 +28,6 @@ import productsRouter from "../modules/products/products.routes";
 import uploadsRouter from "../modules/uploads/uploads.routes";
 import pointsRouter from "../modules/points/points.routes";
 import adminRouter from "../modules/admin/admin.routes";
-import commerceOrderSafetyRouter from "../modules/commerce/commerce-order-safety.routes";
-import legacyCommerceCompatRouter from "../modules/commerce/legacy-commerce-compat.routes";
-import inventoryRouter from "../modules/commerce/commerce-inventory-entry.routes";
-import commerceProductsRouter from "../modules/commerce/products-commerce.routes";
-import commerceOrdersRouter from "../modules/commerce/orders-commerce.routes";
-import commercePaymentsRouter from "../modules/commerce/payments-commerce.routes";
 import templatesRouter from "../modules/templates/templates.routes";
 import whatsappBusinessProfileRouter from "../modules/whatsapp-management/whatsapp-business-profile.routes";
 import { apiLimiter, webhookLimiter } from "../lib/rateLimiter";
@@ -55,12 +49,12 @@ router.use("/tickets", ticketsRouter);
 router.use("/tasks", tasksRouter);
 router.use("/followups", followupsRouter);
 router.use("/opportunities", opportunitiesRouter);
-router.use(commerceOrderSafetyRouter);
-router.use(legacyCommerceCompatRouter);
-router.use("/inventory", inventoryRouter);
-router.use("/products", commerceProductsRouter);
-router.use("/orders", commerceOrdersRouter);
-router.use("/payments", commercePaymentsRouter);
+// HOTFIX: the commerce module (products/orders/payments/inventory re-architecture) is intentionally
+// UNMOUNTED. Its routes were registered before the working ones and shadowed them, while querying
+// tables (inventory_movements/stock_locations/product_variants/inventory_reservations) that are NOT
+// present in production — the schema was never merged into scripts/migrate-phase345.sql — causing
+// 500s on /products and /payments. Re-enable ONLY after that schema is applied and the system is
+// tested end-to-end. The module files remain in the repo, dormant. See launch plan §5.2.
 router.use("/orders", ordersRouter);
 router.use("/payments", paymentsRouter);
 router.use("/payment-methods", paymentMethodsRouter);
