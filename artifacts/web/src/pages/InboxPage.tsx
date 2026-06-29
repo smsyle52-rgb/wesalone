@@ -158,6 +158,71 @@ const CHANNEL_ICONS: Record<string, string> = {
   sms: "📩",
 };
 
+const AI_CATEGORY_LABELS: Record<string, string> = {
+  customer_service: "خدمة عملاء",
+  remote_work: "عمل عن بعد",
+  job_inquiry: "استفسار وظيفي",
+  job_application: "تقديم على وظيفة",
+  e_commerce: "تجارة إلكترونية",
+  "e-commerce": "تجارة إلكترونية",
+  sales: "مبيعات",
+  support: "دعم",
+  complaint: "شكوى",
+  billing: "فوترة",
+  payment: "مدفوعات",
+  order: "طلب",
+  general: "عام",
+};
+
+const AI_SENTIMENT_LABELS: Record<string, string> = {
+  positive: "إيجابي",
+  negative: "سلبي",
+  neutral: "محايد",
+  mixed: "مختلط",
+};
+
+const AI_SUGGESTION_LABELS: Record<string, string> = {
+  create_ticket: "إنشاء تذكرة",
+  create_task: "إنشاء مهمة",
+  create_followup: "إنشاء متابعة",
+  create_opportunity: "إنشاء فرصة",
+  create_order: "إنشاء طلب",
+  assign_agent: "تعيين مسؤول",
+  request_payment: "طلب دفع",
+  ask_for_details: "طلب تفاصيل إضافية",
+  escalate: "تصعيد",
+};
+
+function startCaseArabicLabel(value: string): string {
+  return value.split(/[_-]+/).filter(Boolean).join(" ").trim();
+}
+
+function formatAiCategory(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "غير مصنف";
+  return AI_CATEGORY_LABELS[value] ?? startCaseArabicLabel(value);
+}
+
+function formatAiPriority(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "غير محددة";
+  return priorityLabels[value] ?? startCaseArabicLabel(value);
+}
+
+function formatAiSentiment(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "غير واضح";
+  return AI_SENTIMENT_LABELS[value] ?? startCaseArabicLabel(value);
+}
+
+function formatAiTag(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "";
+  return AI_CATEGORY_LABELS[value] ?? AI_SENTIMENT_LABELS[value] ?? priorityLabels[value] ?? startCaseArabicLabel(value);
+}
+
+function formatAiSuggestionLabel(suggestion: any): string {
+  const raw = suggestion?.label ?? suggestion?.action_type;
+  if (typeof raw !== "string" || !raw.trim()) return "اقتراح";
+  return AI_SUGGESTION_LABELS[raw] ?? startCaseArabicLabel(raw);
+}
+
 function PriorityBadge({ priority }: { priority: string }) {
   return (
     <span className={cn("text-xs px-1.5 py-0.5 rounded border font-medium", PRIORITY_COLORS[priority] ?? PRIORITY_COLORS.normal)}>
@@ -1072,9 +1137,9 @@ export default function InboxPage() {
                   <button onClick={() => { setAiPanel(null); setAiClassify(null); }} className="ms-auto text-purple-400 hover:text-purple-600 text-sm">✕</button>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  {aiClassify.category != null && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{String(aiClassify.category)}</span>}
-                  {aiClassify.priority != null && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{String(aiClassify.priority)}</span>}
-                  {aiClassify.sentiment != null && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{String(aiClassify.sentiment)}</span>}
+                  {aiClassify.category != null && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{formatAiCategory(aiClassify.category)}</span>}
+                  {aiClassify.priority != null && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{formatAiPriority(aiClassify.priority)}</span>}
+                  {aiClassify.sentiment != null && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{formatAiSentiment(aiClassify.sentiment)}</span>}
                 </div>
               </div>
             )}
@@ -1852,11 +1917,11 @@ export default function InboxPage() {
                     <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 space-y-1">
                       <div className="text-xs font-semibold text-purple-700">تصنيف المحادثة</div>
                       <div className="flex gap-2 flex-wrap mt-1">
-                        {aiClassify.category != null && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{String(aiClassify.category)}</span>}
-                        {aiClassify.priority != null && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{String(aiClassify.priority)}</span>}
-                        {aiClassify.sentiment != null && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{String(aiClassify.sentiment)}</span>}
+                        {aiClassify.category != null && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{formatAiCategory(aiClassify.category)}</span>}
+                        {aiClassify.priority != null && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{formatAiPriority(aiClassify.priority)}</span>}
+                        {aiClassify.sentiment != null && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{formatAiSentiment(aiClassify.sentiment)}</span>}
                         {Array.isArray(aiClassify.tags) && aiClassify.tags.map((t: unknown, i: number) => (
-                          <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{String(t)}</span>
+                          <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{formatAiTag(t)}</span>
                         ))}
                       </div>
                     </div>
@@ -1868,7 +1933,7 @@ export default function InboxPage() {
                         <div key={i} className="flex items-start gap-2 text-xs text-purple-900">
                           <span className="text-purple-400 mt-0.5">•</span>
                           <div>
-                            <span className="font-medium">{s.label ?? s.action_type}</span>
+                            <span className="font-medium">{formatAiSuggestionLabel(s)}</span>
                             {s.reason && <span className="text-purple-600 ms-1">— {s.reason}</span>}
                           </div>
                         </div>

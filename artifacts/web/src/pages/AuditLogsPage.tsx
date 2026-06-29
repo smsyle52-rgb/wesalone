@@ -79,6 +79,120 @@ const SEVERITY_COLORS: Record<string, string> = {
   critical: "bg-red-100 text-red-800",
 };
 
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  status: "الحالة",
+  priority: "الأولوية",
+  channel: "القناة",
+  subject: "الموضوع",
+  message: "الرسالة",
+  notes: "ملاحظات",
+  reason: "السبب",
+  category: "التصنيف",
+  tags: "الوسوم",
+  sentiment: "الانطباع",
+  type: "النوع",
+  name: "الاسم",
+  phone: "رقم الهاتف",
+  email: "البريد الإلكتروني",
+  amount: "المبلغ",
+  currency: "العملة",
+  dueAt: "تاريخ الاستحقاق",
+  createdAt: "تاريخ الإنشاء",
+  updatedAt: "آخر تحديث",
+  assigneeId: "المسؤول",
+  contactId: "العميل",
+  conversationId: "المحادثة",
+  workspaceId: "المساحة",
+  actorId: "المنفذ",
+  entityId: "العنصر",
+};
+
+const AUDIT_VALUE_LABELS: Record<string, string> = {
+  open: "مفتوح",
+  pending: "قيد الانتظار",
+  resolved: "تم الحل",
+  closed: "مغلق",
+  new: "جديد",
+  snoozed: "مؤجل",
+  low: "منخفض",
+  normal: "عادي",
+  high: "عالي",
+  urgent: "عاجل",
+  info: "معلومات",
+  warning: "تحذير",
+  critical: "حرج",
+  whatsapp_manual: "واتساب يدوي",
+  whatsapp_api: "واتساب مباشر",
+  whatsapp: "واتساب",
+  instagram: "إنستغرام",
+  messenger: "ماسنجر",
+  website_widget: "الموقع الإلكتروني",
+  email: "بريد إلكتروني",
+  sms: "رسالة نصية",
+  voice: "صوتي",
+  manual: "يدوي",
+  customer_service: "خدمة عملاء",
+  remote_work: "عمل عن بعد",
+  job_inquiry: "استفسار وظيفي",
+  job_application: "تقديم على وظيفة",
+  e_commerce: "تجارة إلكترونية",
+  "e-commerce": "تجارة إلكترونية",
+  positive: "إيجابي",
+  negative: "سلبي",
+  neutral: "محايد",
+  mixed: "مختلط",
+  system: "النظام",
+};
+
+function toReadableLabel(value: string): string {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+function formatAuditFieldLabel(key: string): string {
+  return AUDIT_FIELD_LABELS[key] ?? toReadableLabel(key);
+}
+
+function formatAuditValue(value: unknown): string {
+  if (value == null) return "—";
+  if (typeof value === "boolean") return value ? "نعم" : "لا";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") {
+    if (!value.trim()) return "—";
+    return AUDIT_VALUE_LABELS[value] ?? value;
+  }
+  if (Array.isArray(value)) {
+    const items = value.map((item) => formatAuditValue(item)).filter(Boolean);
+    return items.length ? items.join("، ") : "—";
+  }
+  if (typeof value === "object") {
+    return "تم تحديث بيانات مرتبطة";
+  }
+  return String(value);
+}
+
+function renderAuditData(data: Record<string, unknown>) {
+  const entries = Object.entries(data).filter(([, value]) => value !== undefined);
+  if (entries.length === 0) {
+    return <div className="text-xs text-muted-foreground">لا توجد تفاصيل إضافية</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {entries.map(([key, value]) => (
+        <div key={key} className="rounded-lg border border-border/60 bg-background px-3 py-2">
+          <div className="mb-1 text-[11px] font-semibold text-muted-foreground">{formatAuditFieldLabel(key)}</div>
+          <div className="text-xs leading-relaxed text-foreground">{formatAuditValue(value)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 type AuditLog = {
   id: string;
   actorType: string;
@@ -308,7 +422,7 @@ export default function AuditLogsPage() {
                         <div className="text-xs text-muted-foreground">{formatDate(log.createdAt)}</div>
                       </div>
                       <Badge
-                        label={SEVERITY_LABELS[log.severity] ?? log.severity}
+                        label={SEVERITY_LABELS[log.severity] ?? formatAuditValue(log.severity)}
                         colorClass={SEVERITY_COLORS[log.severity] ?? "bg-gray-100 text-gray-600"}
                       />
                     </div>
@@ -316,13 +430,13 @@ export default function AuditLogsPage() {
                       <div>
                         <span className="block text-muted-foreground">الإجراء</span>
                         <Badge
-                          label={ACTION_LABELS[log.action] ?? log.action}
+                          label={ACTION_LABELS[log.action] ?? formatAuditValue(log.action)}
                           colorClass={ACTION_COLORS[log.action] ?? "bg-gray-100 text-gray-700"}
                         />
                       </div>
                       <div>
                         <span className="block text-muted-foreground">الكيان</span>
-                        <span className="font-medium text-foreground">{ENTITY_LABELS[log.entityType] ?? log.entityType}</span>
+                        <span className="font-medium text-foreground">{ENTITY_LABELS[log.entityType] ?? formatAuditValue(log.entityType)}</span>
                         {log.entityLabel && <span className="mt-0.5 block truncate text-muted-foreground">{log.entityLabel}</span>}
                       </div>
                       <div className="col-span-2">
@@ -343,17 +457,17 @@ export default function AuditLogsPage() {
                         {log.oldData && Object.keys(log.oldData).length > 0 && (
                           <div>
                             <p className="mb-1 font-semibold text-muted-foreground">قبل التعديل:</p>
-                            <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs leading-relaxed text-foreground">
-                              {JSON.stringify(log.oldData, null, 2)}
-                            </pre>
+                            <div className="rounded bg-muted p-2 text-xs leading-relaxed text-foreground">
+                              {renderAuditData(log.oldData)}
+                            </div>
                           </div>
                         )}
                         {log.newData && Object.keys(log.newData).length > 0 && (
                           <div>
                             <p className="mb-1 font-semibold text-muted-foreground">بعد التعديل:</p>
-                            <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs leading-relaxed text-foreground">
-                              {JSON.stringify(log.newData, null, 2)}
-                            </pre>
+                            <div className="rounded bg-muted p-2 text-xs leading-relaxed text-foreground">
+                              {renderAuditData(log.newData)}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -394,14 +508,14 @@ export default function AuditLogsPage() {
                           </td>
                           <td className="px-4 py-3">
                             <Badge
-                              label={ACTION_LABELS[log.action] ?? log.action}
+                              label={ACTION_LABELS[log.action] ?? formatAuditValue(log.action)}
                               colorClass={ACTION_COLORS[log.action] ?? "bg-gray-100 text-gray-700"}
                             />
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-col gap-0.5">
                               <span className="text-xs text-muted-foreground">
-                                {ENTITY_LABELS[log.entityType] ?? log.entityType}
+                                {ENTITY_LABELS[log.entityType] ?? formatAuditValue(log.entityType)}
                               </span>
                               {log.entityLabel && (
                                 <span className="text-foreground text-xs font-medium truncate max-w-[120px]">
@@ -412,7 +526,7 @@ export default function AuditLogsPage() {
                           </td>
                           <td className="px-4 py-3">
                             <Badge
-                              label={SEVERITY_LABELS[log.severity] ?? log.severity}
+                              label={SEVERITY_LABELS[log.severity] ?? formatAuditValue(log.severity)}
                               colorClass={SEVERITY_COLORS[log.severity] ?? "bg-gray-100 text-gray-600"}
                             />
                           </td>
@@ -432,17 +546,17 @@ export default function AuditLogsPage() {
                                 {log.oldData && Object.keys(log.oldData).length > 0 && (
                                   <div>
                                     <p className="font-semibold text-muted-foreground mb-1">قبل التعديل:</p>
-                                    <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground whitespace-pre-wrap break-all text-xs leading-relaxed">
-                                      {JSON.stringify(log.oldData, null, 2)}
-                                    </pre>
+                                    <div className="bg-muted rounded p-2 text-foreground text-xs leading-relaxed">
+                                      {renderAuditData(log.oldData)}
+                                    </div>
                                   </div>
                                 )}
                                 {log.newData && Object.keys(log.newData).length > 0 && (
                                   <div>
                                     <p className="font-semibold text-muted-foreground mb-1">بعد التعديل:</p>
-                                    <pre className="bg-muted rounded p-2 overflow-x-auto text-foreground whitespace-pre-wrap break-all text-xs leading-relaxed">
-                                      {JSON.stringify(log.newData, null, 2)}
-                                    </pre>
+                                    <div className="bg-muted rounded p-2 text-foreground text-xs leading-relaxed">
+                                      {renderAuditData(log.newData)}
+                                    </div>
                                   </div>
                                 )}
                               </div>
