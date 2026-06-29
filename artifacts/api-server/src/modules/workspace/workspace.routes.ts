@@ -245,6 +245,7 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
         .select({
           id: paymentSubmissionsTable.id,
           amountYer: paymentSubmissionsTable.amountYer,
+          amountCurrency: paymentSubmissionsTable.amountCurrency,
           paymentMethod: paymentSubmissionsTable.paymentMethod,
           reference: paymentSubmissionsTable.reference,
           receiptNote: paymentSubmissionsTable.receiptNote,
