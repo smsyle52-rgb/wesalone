@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
 import { extractTextFromFile, ACCEPTED_FILE_EXTENSIONS } from "@/lib/fileExtract";
+import { Library, Search, Plus, FileText, FolderOpen, HelpCircle, Settings2, Lock, Database, Paperclip, Link2, type LucideIcon } from "lucide-react";
 
 function apiFetch(path: string, opts?: RequestInit) {
   return fetch(`${import.meta.env.BASE_URL}api/knowledge/${path}`, {
@@ -229,8 +230,10 @@ export default function KnowledgePage() {
 
   if (!canRead) {
     return (
-      <div dir="rtl" className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
-        <span className="text-4xl">🔒</span>
+      <div dir="rtl" className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground">
+        <span className="grid h-14 w-14 place-items-center rounded-full bg-muted">
+          <Lock size={24} className="text-muted-foreground" />
+        </span>
         <p className="font-medium">ليس لديك صلاحية لعرض قاعدة المعرفة</p>
       </div>
     );
@@ -241,11 +244,11 @@ export default function KnowledgePage() {
   const documents: KnowledgeDocument[] = docsQuery.data?.documents ?? [];
   const faqs: FaqEntry[] = faqsQuery.data?.faqs ?? [];
 
-  const tabs: { id: KnowledgeTab; label: string; icon: string }[] = [
-    { id: "sources", label: "المصادر", icon: "📂" },
-    { id: "documents", label: "الوثائق", icon: "📄" },
-    { id: "faqs", label: "الأسئلة الشائعة", icon: "❓" },
-    { id: "settings", label: "الإعدادات", icon: "⚙️" },
+  const tabs: { id: KnowledgeTab; label: string; icon: LucideIcon }[] = [
+    { id: "sources", label: "المصادر", icon: FolderOpen },
+    { id: "documents", label: "الوثائق", icon: FileText },
+    { id: "faqs", label: "الأسئلة الشائعة", icon: HelpCircle },
+    { id: "settings", label: "الإعدادات", icon: Settings2 },
   ];
 
   return (
@@ -255,27 +258,30 @@ export default function KnowledgePage() {
         subtitle="مصدر معرفة الوكيل: منتجاتك وسياساتك وأسئلتك الشائعة."
         actions={canCreate && (
           <button onClick={() => setShowCreateBase(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-            + قاعدة معرفة جديدة
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+            <Plus size={16} /> قاعدة معرفة جديدة
           </button>
         )}
       />
 
       {/* Search bar */}
       <div className="flex gap-2">
-        <input
-          id="knowledge-search"
-          name="knowledgeSearch"
-          aria-label="بحث في قاعدة المعرفة"
-          type="text"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") setSearchQuery(searchInput); }}
-          placeholder="بحث في قاعدة المعرفة..."
-          className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-        />
+        <div className="relative flex-1">
+          <Search size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            id="knowledge-search"
+            name="knowledgeSearch"
+            aria-label="بحث في قاعدة المعرفة"
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") setSearchQuery(searchInput); }}
+            placeholder="ابحث في معرفتك بالمعنى — جرّب صياغة العميل الطبيعية…"
+            className="w-full rounded-lg border border-border bg-background py-2 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
         <button onClick={() => setSearchQuery(searchInput)}
-          className="bg-muted text-foreground px-4 py-2 rounded-lg text-sm hover:bg-muted/80 transition-colors">
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
           بحث
         </button>
         {searchQuery && (
@@ -314,7 +320,7 @@ export default function KnowledgePage() {
                   <div className="space-y-2">
                     {(searchQuery_.data.results.documents as { id: string; title: string }[]).map((d) => (
                       <div key={d.id} className="bg-muted/50 rounded p-3">
-                        <p className="text-sm font-medium">📄 {d.title}</p>
+                        <p className="flex items-center gap-1.5 text-sm font-medium"><FileText size={14} className="shrink-0 text-muted-foreground" /> {d.title}</p>
                       </div>
                     ))}
                   </div>
@@ -327,48 +333,60 @@ export default function KnowledgePage() {
 
       <div className="flex gap-4">
         {/* Bases sidebar */}
-        <div className="w-64 shrink-0 space-y-1">
-          <p className="text-xs font-semibold text-muted-foreground px-2 mb-2">قواعد المعرفة</p>
-          {basesQuery.isLoading && <p className="text-sm text-muted-foreground px-2 animate-pulse">جار التحميل...</p>}
+        <aside className="w-64 shrink-0 self-start rounded-xl border border-border bg-card p-2">
+          <p className="flex items-center gap-1.5 px-2 py-2 text-xs font-semibold text-muted-foreground">
+            <Library size={14} /> قواعد المعرفة
+          </p>
+          {basesQuery.isLoading && <p className="px-2 py-2 text-sm text-muted-foreground animate-pulse">جار التحميل...</p>}
           {basesQuery.isError && (
-            <div className="px-2">
+            <div className="px-2 py-2">
               <p className="text-sm text-red-500">{basesQuery.error?.message}</p>
-              <button onClick={() => basesQuery.refetch()} className="text-xs underline text-muted-foreground mt-1">إعادة المحاولة</button>
+              <button onClick={() => basesQuery.refetch()} className="mt-1 text-xs text-muted-foreground underline">إعادة المحاولة</button>
             </div>
           )}
           {!basesQuery.isLoading && bases.length === 0 && (
-            <p className="text-sm text-muted-foreground px-2 py-4 text-center">
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
               {canCreate ? "أضف أول قاعدة معرفة" : "لا توجد قواعد معرفة"}
             </p>
           )}
-          {bases.map((base) => (
-            <button
-              key={base.id}
-              onClick={() => { setSelectedBaseId(base.id); setActiveTab("sources"); }}
-              className={`w-full text-start px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                selectedBaseId === base.id
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted text-foreground"
-              }`}
-            >
-              <div className="font-medium truncate">📚 {base.name}</div>
-              <div className={`text-xs mt-0.5 ${selectedBaseId === base.id ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                {STATUS_LABELS[base.status] ?? base.status}
-              </div>
-            </button>
-          ))}
-        </div>
+          <div className="space-y-1">
+            {bases.map((base) => {
+              const active = selectedBaseId === base.id;
+              return (
+                <button
+                  key={base.id}
+                  onClick={() => { setSelectedBaseId(base.id); setActiveTab("sources"); }}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-start text-sm transition-colors ${
+                    active ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${active ? "bg-primary-foreground/20" : "bg-muted"}`}>
+                    <Database size={15} className={active ? "text-primary-foreground" : "text-muted-foreground"} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{base.name}</span>
+                    <span className={`block text-xs ${active ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                      {STATUS_LABELS[base.status] ?? base.status}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
 
         {/* Main content */}
         <div className="flex-1 min-w-0">
           {!selectedBaseId ? (
-            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3 bg-card border border-border rounded-lg">
-              <span className="text-4xl">📚</span>
+            <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card text-muted-foreground">
+              <span className="grid h-14 w-14 place-items-center rounded-full bg-muted">
+                <Library size={26} className="text-muted-foreground" />
+              </span>
               <p className="font-medium">اختر قاعدة معرفة أو أنشئ واحدة جديدة</p>
               {canCreate && (
                 <button onClick={() => setShowCreateBase(true)}
-                  className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
-                  + قاعدة معرفة جديدة
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+                  <Plus size={16} /> قاعدة معرفة جديدة
                 </button>
               )}
             </div>
@@ -407,7 +425,7 @@ export default function KnowledgePage() {
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    <span>{tab.icon}</span>
+                    <tab.icon size={15} />
                     <span>{tab.label}</span>
                   </button>
                 ))}
@@ -423,8 +441,8 @@ export default function KnowledgePage() {
                       <h3 className="font-semibold text-sm">مصادر المعرفة</h3>
                       {canCreate && (
                         <button onClick={() => setShowCreateSource(true)}
-                          className="bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors">
-                          + مصدر جديد
+                          className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+                          <Plus size={14} /> مصدر جديد
                         </button>
                       )}
                     </div>
@@ -440,10 +458,12 @@ export default function KnowledgePage() {
                       <span className="font-medium">ملاحظة:</span> المتاح الآن: نص عادي، ملفات (PDF / Word / نص)، وأسئلة شائعة. رفع الروابط قريباً.
                     </div>
                     {!sourcesQuery.isLoading && sources.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p className="text-2xl mb-2">📂</p>
+                      <div className="py-8 text-center text-muted-foreground">
+                        <span className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-muted">
+                          <FolderOpen size={22} className="text-muted-foreground" />
+                        </span>
                         <p className="font-medium">لا توجد مصادر</p>
-                        {canCreate && <p className="text-xs mt-1">أضف أول مصدر بالنقر على "مصدر جديد"</p>}
+                        {canCreate && <p className="mt-1 text-xs">أضف أول مصدر بالنقر على «مصدر جديد»</p>}
                       </div>
                     )}
                     <div className="space-y-2">
@@ -484,8 +504,8 @@ export default function KnowledgePage() {
                       <h3 className="font-semibold text-sm">الوثائق</h3>
                       {canCreate && (
                         <button onClick={() => setShowCreateDoc(true)}
-                          className="bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors">
-                          + وثيقة جديدة
+                          className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+                          <Plus size={14} /> وثيقة جديدة
                         </button>
                       )}
                     </div>
@@ -497,10 +517,12 @@ export default function KnowledgePage() {
                       </div>
                     )}
                     {!docsQuery.isLoading && documents.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p className="text-2xl mb-2">📄</p>
+                      <div className="py-8 text-center text-muted-foreground">
+                        <span className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-muted">
+                          <FileText size={22} className="text-muted-foreground" />
+                        </span>
                         <p className="font-medium">لا توجد وثائق</p>
-                        {canCreate && <p className="text-xs mt-1">أضف أول وثيقة نصية</p>}
+                        {canCreate && <p className="mt-1 text-xs">أضف أول وثيقة نصية</p>}
                       </div>
                     )}
                     <div className="space-y-2">
@@ -552,8 +574,8 @@ export default function KnowledgePage() {
                       <h3 className="font-semibold text-sm">الأسئلة الشائعة</h3>
                       {canCreate && (
                         <button onClick={() => setShowCreateFaq(true)}
-                          className="bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors">
-                          + سؤال جديد
+                          className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+                          <Plus size={14} /> سؤال جديد
                         </button>
                       )}
                     </div>
@@ -565,10 +587,12 @@ export default function KnowledgePage() {
                       </div>
                     )}
                     {!faqsQuery.isLoading && faqs.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p className="text-2xl mb-2">❓</p>
+                      <div className="py-8 text-center text-muted-foreground">
+                        <span className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-muted">
+                          <HelpCircle size={22} className="text-muted-foreground" />
+                        </span>
                         <p className="font-medium">لا توجد أسئلة شائعة</p>
-                        {canCreate && <p className="text-xs mt-1">أضف أول سؤال وإجابة</p>}
+                        {canCreate && <p className="mt-1 text-xs">أضف أول سؤال وإجابة</p>}
                       </div>
                     )}
                     <div className="space-y-2">
@@ -687,10 +711,10 @@ export default function KnowledgePage() {
                 <label className="text-sm font-medium">نوع المصدر</label>
                 <div className="grid grid-cols-2 gap-2 mt-1">
                   {[
-                    { id: "text", label: "نص عادي", icon: "📝", disabled: false },
-                    { id: "faq", label: "أسئلة شائعة", icon: "❓", disabled: false },
-                    { id: "file", label: "ملف", icon: "📎", disabled: false },
-                    { id: "url", label: "رابط", icon: "🔗", disabled: true },
+                    { id: "text", label: "نص عادي", icon: FileText, disabled: false },
+                    { id: "faq", label: "أسئلة شائعة", icon: HelpCircle, disabled: false },
+                    { id: "file", label: "ملف", icon: Paperclip, disabled: false },
+                    { id: "url", label: "رابط", icon: Link2, disabled: true },
                   ].map((t) => (
                     <button key={t.id}
                       onClick={() => !t.disabled && setCreateSourceForm({ ...createSourceForm, type: t.id })}
@@ -703,7 +727,7 @@ export default function KnowledgePage() {
                             ? "border-primary bg-primary/10 text-primary"
                             : "border-border hover:bg-muted"
                       }`}>
-                      <span>{t.icon}</span>
+                      <t.icon size={16} />
                       <span>{t.label}</span>
                       {t.disabled && <span className="text-xs text-muted-foreground">(قريباً)</span>}
                     </button>
