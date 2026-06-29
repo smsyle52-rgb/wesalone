@@ -206,9 +206,9 @@ export default function OnboardingPage() {
   const canAdvanceStep1 = agentName.trim().length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-gradient-to-br from-primary/5 via-background to-accent/10 overflow-hidden" dir="rtl">
+    <div className="fixed inset-0 z-50 flex min-h-[100dvh] flex-col overflow-hidden bg-gradient-to-br from-primary/5 via-background to-accent/10" dir="rtl">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/80 backdrop-blur-sm">
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-card/80 px-4 pb-3 pt-[calc(0.75rem+var(--app-safe-top))] backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white font-bold text-sm">و</div>
           <span className="text-sm font-bold text-foreground">وصال ون</span>
@@ -237,8 +237,8 @@ export default function OnboardingPage() {
       <p className="px-4 pt-1.5 text-xs text-muted-foreground">خطوة {step} من {STEP_COUNT}</p>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-lg px-4 py-6">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-lg px-4 pb-[calc(1.25rem+var(--app-safe-bottom))] pt-5 sm:py-6">
 
           {/* Step 1 — Agent Name */}
           {step === 1 && (

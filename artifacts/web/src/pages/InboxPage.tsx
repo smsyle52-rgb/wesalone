@@ -794,7 +794,7 @@ export default function InboxPage() {
   }
 
   return (
-    <div dir="rtl" className="flex flex-col h-screen overflow-hidden">
+    <div dir="rtl" className="flex h-full min-h-0 flex-col overflow-hidden">
 
       {/* ═══════════ MOBILE LAYOUT (md:hidden) ═══════════ */}
       <div className="md:hidden flex flex-col h-full overflow-hidden bg-background">
@@ -1280,7 +1280,7 @@ export default function InboxPage() {
         )}
       </div>
 
-      <div className="flex flex-1 gap-0 overflow-hidden px-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-4">
+      <div className="flex min-h-0 flex-1 gap-0 overflow-hidden px-0 pb-[calc(5.75rem+var(--app-safe-bottom))] sm:px-4 lg:pb-4">
         <div className={cn(
           "flex flex-col shrink-0 rounded-xl border border-border bg-card overflow-hidden",
           "w-full lg:w-80",

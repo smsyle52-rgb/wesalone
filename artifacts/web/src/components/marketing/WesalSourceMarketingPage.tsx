@@ -290,7 +290,7 @@ function MiniUIInbox() {
       </div>
 
       {/* Tabs قنوات */}
-      <div className="mini-inbox-tabs flex items-center gap-1 px-3 py-2.5 border-b overflow-x-auto" style={{ borderColor: "var(--line)" }}>
+      <div className="mini-inbox-tabs flex flex-wrap items-center gap-1 px-3 py-2.5 border-b overflow-visible sm:flex-nowrap sm:overflow-x-auto" style={{ borderColor: "var(--line)" }}>
         {tabs.map((t) => {
           const active = tab === t.id;
           return (
@@ -345,8 +345,8 @@ function MiniUIInbox() {
 
       {/* بطاقة فرز ذكي */}
       <div className="m-3 p-3 rounded-xl" style={{ background: "color-mix(in srgb, var(--secondary) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--secondary) 28%, transparent)" }}>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ background: "color-mix(in srgb, var(--secondary) 22%, transparent)", color: "var(--secondary)" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
             </span>
@@ -669,9 +669,7 @@ function _FlowNode({ step, title, text, chip, chipColor = "var(--primary-hi)", i
         border: "1px solid var(--line)",
         animation: `fade-up .6s cubic-bezier(.22,1,.36,1) ${delay}s both`,
       }}>
-      {/* رأس: رقم خطوة + أيقونة */}
-      <div className="flex items-center justify-between">
-        <span className="text-[8.5px] font-extrabold tracking-wider" style={{ color }}>الخطوة {step}</span>
+      <div className="flex items-center justify-end">
         <span className="w-7 h-7 rounded-lg grid place-items-center" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}>
           {icon}
         </span>
@@ -714,7 +712,7 @@ function MiniUIAutomation() {
   const steps = [
     { step: 1, title: "رسالة واردة",    text: "أحتاج تعديل عنوان التوصيل",      chip: "WhatsApp",    chipColor: "#25D366",          color: "#25D366",
       icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a8 8 0 01-11.6 7.2L4 21l1.8-5.4A8 8 0 1121 12z"/></svg> },
-    { step: 2, title: "تحليل النية",     text: "نية العميل: تعديل طلب",          chip: "AI",          chipColor: "var(--primary-hi)", color: "var(--primary-hi)",
+    { step: 2, title: "تحليل النية",     text: "نية العميل: تعديل طلب",          chip: "تحليل",      chipColor: "var(--primary-hi)", color: "var(--primary-hi)",
       icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg> },
     { step: 3, title: "وسم ذكي",        text: "توصيل · طلب نشط",                chip: "تلقائي",      chipColor: "#F59E0B",          color: "#F59E0B",
       icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12V3h9l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg> },
@@ -741,9 +739,9 @@ function MiniUIAutomation() {
           <div className="text-[12.5px] font-extrabold">مسار التشغيل التلقائي</div>
           <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-full" style={{ background: "color-mix(in srgb, var(--secondary) 18%, transparent)", color: "var(--secondary)" }}>● فعّال</span>
         </div>
-        <button className="text-[10px] font-bold px-2.5 py-1.5 rounded-md text-soft" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--line)" }}>
+        <div className="text-[10px] font-bold px-2.5 py-1.5 rounded-md text-soft" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--line)" }}>
           تعديل المسار
-        </button>
+        </div>
       </div>
 
       {/* Flow — أفقي على الديسكتوب، عمودي على الجوال */}
@@ -1068,7 +1066,7 @@ function PlatformDashboard() {
                 <_SideIcon name="spark" size={12}/>
                 ردّ ذكي مقترح
               </div>
-              <span className="text-[9px] text-mute">من Wesal AI</span>
+              <span className="text-[9px] text-mute">مقترح داخل المنصة</span>
             </div>
             <p className="text-[11px] leading-relaxed mb-2">"الطلب قيد التوصيل وسيصلك اليوم قبل المغرب. كود التتبع: <span className="font-bold" dir="ltr">WSL-2841</span>"</p>
             <div className="flex items-center gap-1.5">
@@ -1177,9 +1175,17 @@ function ThemeToggle2() {
   });
   React.useEffect(() => {
     const r = document.documentElement;
+    const hadDark = r.classList.contains("dark");
+    const hadLight = r.classList.contains("light");
     r.classList.remove("dark", "light");
     r.classList.add(dark ? "dark" : "light");
     localStorage.setItem("wesal-theme", dark ? "dark" : "light");
+
+    return () => {
+      r.classList.remove("dark", "light");
+      if (hadDark) r.classList.add("dark");
+      if (hadLight) r.classList.add("light");
+    };
   }, [dark]);
   return (
     <button
@@ -1874,11 +1880,11 @@ function StatsBar() {
   const clock  = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2" strokeLinecap="round"/></svg>;
   // ترتيب LTR: أمان (يسار) ← 98% ← +10K ← +2M ← 24/7 (يمين)
   const stats = [
-    { v: "أمان وخصوصية", l: "بمعايير عالمية متقدمة", ic: shield, lead: true },
-    { v: "98%",  l: "معدل رضا العملاء",      ic: smile },
-    { v: "+10K", l: "شركات تثق بنا",          ic: bld  },
-    { v: "+2M",  l: "محادثة مُدارة شهريًا",   ic: chat },
-    { v: "24/7", l: "أداء مستمر",             ic: clock },
+    { v: "أمان وخصوصية", l: "حماية وصلاحيات واضحة", ic: shield, lead: true },
+    { v: "تجربة مريحة", l: "تنظيم أسرع للمحادثات", ic: smile },
+    { v: "فرق وأنشطة", l: "مناسب لفرق البيع والدعم", ic: bld },
+    { v: "محادثات موحدة", l: "كل القنوات في مكان واحد", ic: chat },
+    { v: "تشغيل يومي", l: "متابعة مستمرة للعمل", ic: clock },
   ];
   return (
     <section className="relative" style={{ zIndex: 6 }}>
@@ -1911,7 +1917,7 @@ function PartnersStrip() {
   return (
     <section id="stories" className="py-12 border-y border-line overflow-hidden" style={{ background: "var(--bg)" }}>
       <div className="container-page text-center mb-6">
-        <div className="text-[12px] font-bold tracking-wider uppercase text-mute reveal">+200 علامة تجارية تعتمد على وصال ون</div>
+        <div className="text-[12px] font-bold tracking-wider uppercase text-mute reveal">أمثلة لأنشطة يمكن تنظيم عملها داخل وصال ون</div>
       </div>
       <div className="relative">
         <div className="absolute inset-y-0 start-0 w-24 z-10" style={{ background: "linear-gradient(90deg, var(--bg), transparent)" }}></div>
@@ -2092,7 +2098,7 @@ function Pricing() {
             اختر الخطة المناسبة <span className="grad-text">لفريقك</span>
           </h2>
           <p className="reveal mt-4 text-[14.5px] text-soft leading-relaxed">
-            التسعير الفعلي يظهر داخل تبويب الفوترة في مساحة العمل حسب الخطة، القنوات، الوكلاء، ونقاط الذكاء المتاحة.
+            هذه الباقات تعكس تقسيم الاشتراك الحالي داخل المنصة، ويمكنك البدء بالخطة المناسبة ثم الترقية لاحقًا.
           </p>
 
           <div className="reveal mt-6 flex justify-center">
@@ -2103,57 +2109,87 @@ function Pricing() {
         {/* Cards */}
         <div className="pricing-grid mt-10">
           <PriceCard
-            name="التجربة"
-            desc="ابدأ بتجربة المنصة، إنشاء مساحة العمل، وفهم سير المحادثات قبل اختيار الخطة."
-            priceLabel="تجربة مجانية"
-            priceNote={yearly ? "يمكن التحويل لاحقاً إلى فوترة سنوية من لوحة الفوترة." : "بدون بطاقة دفع عند إنشاء الحساب."}
+            name="مجاني"
+            desc="للتجربة الأولى وفهم طريقة العمل قبل تفعيل باقة مدفوعة."
+            priceLabel="$0 / شهر"
+            priceNote={yearly ? "1,000 نقطة ذكاء شهريًا." : "1,000 نقطة ذكاء شهريًا."}
             cta="أنشئ حساباً"
             features={[
               "صندوق وارد موحّد",
-              "إعداد مساحة العمل",
-              "تجربة ربط القنوات المتاحة",
-              "تجربة الوكيل الذكي",
-              "متابعة الخطة من تبويب الفوترة",
+              "وكيل ذكي",
+              "كتالوج المنتجات",
+              "قناة واحدة ووكيل واحد",
+              "بدء سريع بدون بطاقة",
             ]}
             delay={0}
           />
           <PriceCard
-            name="التشغيل"
-            desc="للأنشطة التي تحتاج إدارة محادثات يومية مع فريق، قنوات، ردود ذكية، وتقارير تشغيل."
-            priceLabel="حسب الخطة"
-            priceNote={yearly ? "الفوترة السنوية متاحة من داخل النظام عند تفعيلها." : "تعرض الحدود والسعر الحقيقي داخل إعدادات الفوترة."}
-            cta="ابدأ التجربة"
+            name="البداية"
+            desc="للأنشطة الصغيرة التي تريد تشغيل قناة فعلية مع نقطة انطلاق واضحة."
+            priceLabel="$19 / شهر"
+            priceNote={yearly ? "10,000 نقطة ذكاء شهريًا." : "10,000 نقطة ذكاء شهريًا."}
+            cta="ابدأ بالبداية"
             featured
             features={[
-              "حدود قنوات ووكلاء حسب الخطة",
-              "نقاط ذكاء شهرية حسب الاشتراك",
-              "توزيع ومتابعة للفريق",
-              "تقارير وتشغيل يومي",
-              "إرسال طلب دفع من تبويب الفوترة",
+              "صندوق وارد موحّد",
+              "وكيل ذكي",
+              "كتالوج المنتجات",
+              "1 قناة و1 وكيل",
+              "أتمتة أساسية",
             ]}
             delay={0.08}
           />
           <PriceCard
+            name="النمو"
+            desc="للفرق التي تدير محادثات يومية وتحتاج قنوات أكثر وتشغيلًا أوسع."
+            priceLabel="$49 / شهر"
+            priceNote={yearly ? "40,000 نقطة ذكاء شهريًا." : "40,000 نقطة ذكاء شهريًا."}
+            cta="اختر النمو"
+            features={[
+              "صندوق وارد موحّد",
+              "وكيل ذكي",
+              "كتالوج المنتجات",
+              "3 قنوات و3 وكلاء",
+              "أتمتة متقدمة",
+            ]}
+            delay={0.16}
+          />
+          <PriceCard
+            name="احترافي"
+            desc="للفرق الأكبر التي تحتاج حدود تشغيل أعلى ومتابعة أوسع للعمل."
+            priceLabel="$140 / شهر"
+            priceNote={yearly ? "100,000 نقطة ذكاء شهريًا." : "100,000 نقطة ذكاء شهريًا."}
+            cta="ابدأ بالاحترافي"
+            features={[
+              "صندوق وارد موحّد",
+              "وكيل ذكي",
+              "كتالوج المنتجات",
+              "10 قنوات و10 وكلاء",
+              "أتمتة متقدمة",
+            ]}
+            delay={0.24}
+          />
+          <PriceCard
             name="الأعمال"
-            desc="للفرق التي تحتاج إعدادات أوسع، صلاحيات، متابعة خاصة، وتخصيص حدود التشغيل."
-            priceLabel="حسب الطلب"
-            priceNote="نتفق على الحدود، الدعم، والقنوات حسب حجم الفريق والاستخدام."
+            desc="للجهات التي تحتاج تخصيصًا في الحدود والدعم وعدد القنوات والوكلاء."
+            priceLabel="سعر مخصص"
+            priceNote="الحدود النهائية تحدد حسب حجم الفريق وطريقة الاستخدام."
             cta="تواصل معنا"
             href="/contact"
             features={[
-              "حدود تشغيل مخصصة",
+              "كل مزايا المنصة",
               "قنوات ووكلاء حسب الحاجة",
-              "صلاحيات وأدوار",
-              "إعداد ومتابعة مخصصة",
-              "مراجعة متطلبات الخصوصية والتكاملات",
+              "حدود تشغيل مخصصة",
+              "دعم أولوية",
+              "تهيئة تناسب الفريق",
             ]}
-            delay={0.16}
+            delay={0.32}
           />
         </div>
 
         {/* ملاحظة */}
         <p className="reveal mt-8 text-center text-[12px] text-mute">
-          الأسعار والحدود النهائية تعتمد على بيانات الإنتاج المعروضة داخل الفوترة، ولا تُعد هذه البطاقات فاتورة أو عرضاً ملزماً.
+          قد تتحدّث الأسعار لاحقًا داخل الفوترة، لكن تقسيم الباقات هنا يطابق شكل الاشتراك الحالي داخل المنصة.
         </p>
       </div>
     </section>
@@ -2284,14 +2320,19 @@ function FinalCTABig() {
 // ===== Footer =====
 function GabsterFooter() {
   const product = ["المنصة", "صندوق الوارد", "توزيع المهام", "التحليلات", "الأتمتة"];
-  const company = ["الأسعار", "قصص العملاء", "الموارد", "تواصل معنا"];
+  const company = [
+    { label: "الأسعار", href: "#pricing" },
+    { label: "قصص العملاء", href: "#stories" },
+    { label: "الموارد", href: "#resources" },
+    { label: "تواصل معنا", href: "#contact" },
+  ];
   return (
     <footer id="contact" className="footer">
       <div className="container-page">
         <div className="footer-grid">
           {/* Brand */}
           <div>
-            <BrandLogo variant="horizontal" size={64} />
+            <img src="/brand/logo-mark.svg" alt="وصال ون" className="h-10 w-auto" />
             <p className="mt-4 text-[13px] text-soft leading-relaxed max-w-sm">
               منصة عربية لتنظيم محادثات العملاء، توزيع المهام، ومتابعة أداء الفريق من مكان واحد.
             </p>
@@ -2305,7 +2346,7 @@ function GabsterFooter() {
             <div className="footer-col-title">المنتج</div>
             <ul className="space-y-2.5">
               {product.map((l) => (
-                <li key={l}><a href="#" className="footer-link">{l}</a></li>
+                <li key={l}><a href="#preview" className="footer-link">{l}</a></li>
               ))}
             </ul>
           </div>
@@ -2314,8 +2355,8 @@ function GabsterFooter() {
           <div>
             <div className="footer-col-title">الشركة</div>
             <ul className="space-y-2.5">
-              {company.map((l) => (
-                <li key={l}><a href="#" className="footer-link">{l}</a></li>
+              {company.map((item) => (
+                <li key={item.label}><a href={item.href} className="footer-link">{item.label}</a></li>
               ))}
             </ul>
           </div>

@@ -66,7 +66,7 @@ export default function RegisterForm(props: Props) {
         {props.googleEnabled && (
           <>
             <div className="reveal in mt-7" style={{ animationDelay: ".15s" }}>
-              <GoogleButton label="المتابعة باستخدام Google" onClick={props.onGoogle} loading={props.googleLoading} disabled={props.googleLoading || props.pending} />
+              <GoogleButton label="التسجيل بحساب Google" onClick={props.onGoogle} loading={props.googleLoading} disabled={props.googleLoading || props.pending} />
             </div>
             <OrDivider label="أو سجّل بالبريد" />
           </>
@@ -81,7 +81,7 @@ export default function RegisterForm(props: Props) {
         <div className="reveal in mt-4" style={{ animationDelay: ".33s" }}>
           <label htmlFor="reg-phone" className="mb-1.5 block text-[12.5px] font-bold">رقم الجوال <span className="text-mute font-normal">(اختياري)</span></label>
           <div className="flex gap-2" dir="ltr">
-            <select value={props.form.countryCode} onChange={(event) => set("countryCode", event.target.value)} className="h-[46px] w-[118px] shrink-0 rounded-xl border border-line bg-[rgba(255,255,255,0.03)] px-2 text-sm outline-none" style={{ color: "var(--fg)" }}>
+            <select value={props.form.countryCode} onChange={(event) => set("countryCode", event.target.value)} className="h-[46px] w-[136px] shrink-0 rounded-xl border border-line bg-[rgba(255,255,255,0.03)] px-3 text-sm outline-none" style={{ color: "var(--fg)" }}>
               {props.codes.map((country) => <option key={country.code} value={country.code}>{country.label}</option>)}
             </select>
             <div className="min-w-0 flex-1">

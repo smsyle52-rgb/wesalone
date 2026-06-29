@@ -668,6 +668,19 @@ export default function IntegrationsPage() {
     ...option,
     configId: metaSignupConfig?.configIds[option.key] ?? null,
   }));
+  const hasActiveChannel = (type: ConnectedChannel["channelType"]) => connectedChannels.some((item) => item.channelType === type && item.status === "active");
+  const visibleMetaSignupButtons = metaSignupButtons.filter((option) => {
+    if (option.key === "whatsappStandard" || option.key === "whatsappCoexistence") {
+      return !hasActiveChannel("whatsapp");
+    }
+    if (option.key === "instagramMessenger") {
+      return !(hasActiveChannel("instagram") || hasActiveChannel("messenger"));
+    }
+    if (option.key === "facebookContent") {
+      return !hasActiveChannel("messenger");
+    }
+    return true;
+  });
 
   return (
     <div dir="rtl" className="space-y-6">
@@ -694,55 +707,61 @@ export default function IntegrationsPage() {
           </div>
           {/* Mobile: single trigger + Sheet */}
           <div className="md:hidden">
-            <Sheet open={linkSheetOpen} onOpenChange={setLinkSheetOpen}>
-              <button
-                type="button"
-                onClick={() => setLinkSheetOpen(true)}
-                disabled={isStartingMeta}
-                className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                {isStartingMeta ? "جار التجهيز..." : "ربط قناة"}
-              </button>
-              <SheetContent side="bottom" className="rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                <SheetHeader>
-                  <SheetTitle>اختر نوع الربط</SheetTitle>
-                </SheetHeader>
-                <div className="mt-4 grid gap-2">
-                  {metaSignupButtons.map((option) => {
-                    const disabled = isStartingMeta || (!option.configId && !isWhatsAppSignupOption(option.key));
-                    const OptionIcon = option.key === "whatsappStandard" || option.key === "whatsappCoexistence"
-                      ? FaWhatsapp
-                      : option.key === "instagramMessenger"
-                      ? FaInstagram
-                      : FaFacebookMessenger;
-                    const iconTone = option.key === "whatsappStandard" || option.key === "whatsappCoexistence"
-                      ? "text-[#128C4A]"
-                      : option.key === "instagramMessenger"
-                      ? "text-pink-600"
-                      : "text-blue-600";
-                    return (
-                      <button
-                        key={option.key}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => {
-                          setLinkSheetOpen(false);
-                          void startMetaSignup(option);
-                        }}
-                        className="flex w-full items-center gap-3 rounded-xl border border-border bg-background px-4 py-3 text-start disabled:opacity-50 hover:bg-muted/50"
-                      >
-                        <OptionIcon className={cn("h-5 w-5 shrink-0", iconTone)} />
-                        <span className="text-sm font-medium text-foreground">{option.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </SheetContent>
-            </Sheet>
+            {visibleMetaSignupButtons.length > 0 ? (
+              <Sheet open={linkSheetOpen} onOpenChange={setLinkSheetOpen}>
+                <button
+                  type="button"
+                  onClick={() => setLinkSheetOpen(true)}
+                  disabled={isStartingMeta}
+                  className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isStartingMeta ? "جار التجهيز..." : "ربط قناة"}
+                </button>
+                <SheetContent side="bottom" className="rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                  <SheetHeader>
+                    <SheetTitle>اختر نوع الربط</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-4 grid gap-2">
+                    {visibleMetaSignupButtons.map((option) => {
+                      const disabled = isStartingMeta || (!option.configId && !isWhatsAppSignupOption(option.key));
+                      const OptionIcon = option.key === "whatsappStandard" || option.key === "whatsappCoexistence"
+                        ? FaWhatsapp
+                        : option.key === "instagramMessenger"
+                        ? FaInstagram
+                        : FaFacebookMessenger;
+                      const iconTone = option.key === "whatsappStandard" || option.key === "whatsappCoexistence"
+                        ? "text-[#128C4A]"
+                        : option.key === "instagramMessenger"
+                        ? "text-pink-600"
+                        : "text-blue-600";
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => {
+                            setLinkSheetOpen(false);
+                            void startMetaSignup(option);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl border border-border bg-background px-4 py-3 text-start disabled:opacity-50 hover:bg-muted/50"
+                        >
+                          <OptionIcon className={cn("h-5 w-5 shrink-0", iconTone)} />
+                          <span className="text-sm font-medium text-foreground">{option.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </SheetContent>
+              </Sheet>
+            ) : (
+              <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700">
+                تم ربط القنوات المتاحة بالفعل.
+              </div>
+            )}
           </div>
           {/* Desktop: original buttons grid */}
           <div className="hidden w-auto grid-cols-1 gap-2 sm:grid-cols-2 md:grid">
-            {metaSignupButtons.map((option) => {
+            {visibleMetaSignupButtons.map((option) => {
               const disabled = isStartingMeta || (!option.configId && !isWhatsAppSignupOption(option.key));
               return (
                 <button
@@ -756,6 +775,11 @@ export default function IntegrationsPage() {
                 </button>
               );
             })}
+            {visibleMetaSignupButtons.length === 0 && (
+              <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-700">
+                تم ربط القنوات المتاحة بالفعل.
+              </div>
+            )}
           </div>
         </div>
 

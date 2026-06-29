@@ -42,14 +42,14 @@ export function DataTable<T>({
     <div className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="grid gap-3 p-3 md:hidden">
         {data.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             {emptyMessage}
           </div>
         ) : (
           data.map((row) => {
             const rowKey = keyExtractor(row);
             const titleColumn = columns[0];
-            const detailColumns = columns.slice(1, 4);
+            const detailColumns = columns.slice(1);
 
             return (
               <div
@@ -65,16 +65,18 @@ export function DataTable<T>({
                   }
                 }}
                 className={cn(
-                  "w-full rounded-xl border border-border bg-background p-4 text-start shadow-sm",
+                  "w-full rounded-xl border border-border bg-background p-3 text-start shadow-sm sm:p-4",
                   onRowClick && "cursor-pointer transition hover:border-primary/30 hover:bg-muted/40",
                 )}
               >
-                <div className="min-w-0 text-sm font-extrabold text-foreground">{readCell(row, titleColumn)}</div>
+                <div className="min-w-0 break-words text-sm font-extrabold text-foreground">{readCell(row, titleColumn)}</div>
                 <div className="mt-3 grid gap-2 text-xs">
                   {detailColumns.map((col) => (
-                    <div key={col.key} className="flex items-start justify-between gap-3">
-                      <span className="shrink-0 font-bold text-muted-foreground">{col.label}</span>
-                      <span className="min-w-0 text-end text-foreground">{readCell(row, col)}</span>
+                    <div key={col.key} className="grid grid-cols-[minmax(5.5rem,auto)_minmax(0,1fr)] items-start gap-3">
+                      <span className="font-bold text-muted-foreground">{col.label}</span>
+                      <span className="min-w-0 break-words text-end text-foreground [&_*]:max-w-full">
+                        {readCell(row, col)}
+                      </span>
                     </div>
                   ))}
                 </div>

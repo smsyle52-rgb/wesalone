@@ -102,7 +102,7 @@ const navGroups: NavGroup[] = [
     slug: "setup",
     key: "groupSetup",
     items: [
-      { path: "/settings?tab=billing", key: "billing", permission: "settings:read", icon: CreditCard },
+      { path: "/billing", key: "billing", permission: "settings:read", icon: CreditCard },
       { path: "/settings", key: "settings", permission: "settings:read", icon: Settings },
     ],
   },
@@ -115,6 +115,7 @@ const mobileTitles: Array<{ match: (location: string) => boolean; title: string;
   { match: (location) => location.startsWith("/automation-hub"), title: "الأتمتة والذكاء", description: "الوكلاء والمعرفة والقوالب" },
   { match: (location) => location.startsWith("/more"), title: "المزيد", description: "كل الأدوات حسب صلاحياتك" },
   { match: (location) => location.startsWith("/integrations"), title: "القنوات", description: "واتساب وإنستغرام وماسنجر" },
+  { match: (location) => location.startsWith("/billing"), title: "الفوترة", description: "الاشتراك والنقاط والفواتير" },
   { match: (location) => location.startsWith("/settings"), title: "الإعدادات", description: "النشاط والفريق والأمان" },
   { match: (location) => location.startsWith("/orders"), title: "الطلبات" },
   { match: (location) => location.startsWith("/payments"), title: "المدفوعات" },
@@ -224,7 +225,7 @@ function GuidedTour({ tourDone, onComplete }: { tourDone: boolean; onComplete: (
 
       {/* Tooltip */}
       {isMobile ? (
-        <div className="absolute bottom-24 inset-x-4 rounded-2xl border border-border bg-card shadow-2xl p-5 space-y-4">
+        <div className="absolute inset-x-3 bottom-[calc(var(--app-bottom-nav-height)+var(--app-safe-bottom)+0.75rem)] max-h-[calc(100dvh-var(--app-bottom-nav-height)-2rem)] overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-2xl sm:inset-x-4 sm:p-5">
           <div>
             <p className="text-xs font-bold text-primary">{step + 1} / {TOUR_STEPS.length}</p>
             <h3 className="mt-1 text-base font-extrabold text-foreground">{currentStep.title}</h3>
@@ -264,6 +265,7 @@ function GuidedTour({ tourDone, onComplete }: { tourDone: boolean; onComplete: (
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const cleanLocation = location.split("?")[0] ?? location;
   const { user, clearAuth, hasPermission } = useAuth();
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(readCollapsedGroups);
   const qc = useQueryClient();
@@ -344,7 +346,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     .filter((group) => group.items.length > 0);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background" dir={direction}>
+    <div className="app-viewport flex overflow-hidden bg-background" dir={direction}>
       <aside
         className={cn(
           "hidden w-72 flex-col border-s border-sidebar-border bg-sidebar lg:relative lg:flex lg:translate-x-0",
@@ -380,7 +382,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 {!collapsed && (
                   <div className="space-y-0.5">
                     {group.items.map((item) => {
-                      const active = location === item.path || location.startsWith(`${item.path}/`);
+                      const active = cleanLocation === item.path || cleanLocation.startsWith(`${item.path}/`);
                       const Icon = item.icon;
 
                       return (
@@ -434,8 +436,8 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex min-h-[4.25rem] items-center justify-between border-b border-border bg-card px-4 py-2 lg:hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex min-h-[calc(4.25rem+var(--app-safe-top))] items-center justify-between gap-2 border-b border-border bg-card px-3 pb-2 pt-[calc(0.5rem+var(--app-safe-top))] sm:px-4 lg:hidden">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-black text-primary">
@@ -450,7 +452,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               <p className="mt-0.5 truncate pe-3 text-xs text-muted-foreground">{mobileHeader.description}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <NotificationCenter />
             <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-sm font-black text-primary">
               {user?.name?.trim().slice(0, 1) ?? "م"}
@@ -458,8 +460,8 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-0">
-          <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+        <main className="app-page-scroll min-w-0 flex-1 overflow-y-auto">
+          <div className="app-page-container">
             <div className="mb-4 hidden items-center justify-end lg:flex">
               <NotificationCenter />
             </div>

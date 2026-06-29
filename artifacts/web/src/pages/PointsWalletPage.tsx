@@ -196,7 +196,7 @@ export default function PointsWalletPage() {
                 شحن النقاط متاح بعد الترقية إلى إحدى الباقات المدفوعة.
               </p>
               <a
-                href="/settings?tab=billing"
+                href="/billing"
                 className="inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
               >
                 ترقية الباقة

@@ -58,14 +58,12 @@ export default function LoginPage() {
         <p className="text-soft mt-2 text-[14px]">سجّل دخولك للوصول إلى صندوق محادثاتك.</p>
       </div>
       {error && <div className="auth-message error mt-5">{error}</div>}
-      {GOOGLE_CLIENT_ID && (
-        <>
-          <div className="reveal in mt-7" style={{ animationDelay: ".15s" }}>
-            <GoogleButton label="المتابعة باستخدام Google" onClick={triggerGoogleSignIn} loading={googleLoading} disabled={googleLoading || loginMut.isPending} />
-          </div>
-          <OrDivider label="أو سجّل دخولك بالبريد" />
-        </>
-      )}
+      <>
+        <div className="reveal in mt-7" style={{ animationDelay: ".15s" }}>
+          <GoogleButton label="الدخول بحساب Google" onClick={triggerGoogleSignIn} loading={googleLoading} disabled={googleLoading || loginMut.isPending} />
+        </div>
+        <OrDivider label="أو سجّل دخولك بالبريد" />
+      </>
       <div className="reveal in space-y-4" style={{ animationDelay: ".25s" }}>
         <AuthField id="login-email" label="البريد الإلكتروني" type="email" autoComplete="email" required placeholder="you@company.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} icon={<Mail />} />
         <div>
