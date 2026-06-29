@@ -8,6 +8,8 @@ type DomainEventType =
   | "conversation.opened"
   | "contact.tag.added"
   | "order.created"
+  | "order.item_added"
+  | "order.status_changed"
   | "payment.confirmed"
   | "catalog.sync.requested";
 

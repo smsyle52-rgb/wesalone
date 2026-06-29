@@ -2,124 +2,28 @@
   "version": "7",
   "dialect": "postgresql",
   "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1777751654365,
-      "tag": "0000_faithful_vance_astro",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1777752154102,
-      "tag": "0001_common_serpent_society",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1778179440890,
-      "tag": "0002_wandering_microchip",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1779000000000,
-      "tag": "0003_critical_indexes",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1779003600000,
-      "tag": "0004_phase2_modules",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1779007200000,
-      "tag": "0005_broadcast_outbox_idempotency",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1779010800000,
-      "tag": "0006_agent_settings",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1779014400000,
-      "tag": "0007_domain_events",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1779018000000,
-      "tag": "0008_inbox_depth",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1779021600000,
-      "tag": "0009_settings_depth",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1779025200000,
-      "tag": "0010_agent_memory",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1779028800000,
-      "tag": "0011_phase4_vectors",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1779032400000,
-      "tag": "0012_phase4_trust_mode",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1779036000000,
-      "tag": "0013_phase4_realtime_health",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1779039600000,
-      "tag": "0014_embedding_dim_fix",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "7",
-      "when": 1779126000000,
-      "tag": "0015_channel_accounts_provider_config_idx",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1779212400000,
-      "tag": "0016_catalog_layer",
-      "breakpoints": true
-    }
+    { "idx": 0, "version": "7", "when": 1777751654365, "tag": "0000_faithful_vance_astro", "breakpoints": true },
+    { "idx": 1, "version": "7", "when": 1777752154102, "tag": "0001_common_serpent_society", "breakpoints": true },
+    { "idx": 2, "version": "7", "when": 1778179440890, "tag": "0002_wandering_microchip", "breakpoints": true },
+    { "idx": 3, "version": "7", "when": 1779000000000, "tag": "0003_critical_indexes", "breakpoints": true },
+    { "idx": 4, "version": "7", "when": 1779003600000, "tag": "0004_phase2_modules", "breakpoints": true },
+    { "idx": 5, "version": "7", "when": 1779007200000, "tag": "0005_broadcast_outbox_idempotency", "breakpoints": true },
+    { "idx": 6, "version": "7", "when": 1779010800000, "tag": "0006_agent_settings", "breakpoints": true },
+    { "idx": 7, "version": "7", "when": 1779014400000, "tag": "0007_domain_events", "breakpoints": true },
+    { "idx": 8, "version": "7", "when": 1779018000000, "tag": "0008_inbox_depth", "breakpoints": true },
+    { "idx": 9, "version": "7", "when": 1779021600000, "tag": "0009_settings_depth", "breakpoints": true },
+    { "idx": 10, "version": "7", "when": 1779025200000, "tag": "0010_agent_memory", "breakpoints": true },
+    { "idx": 11, "version": "7", "when": 1779028800000, "tag": "0011_phase4_vectors", "breakpoints": true },
+    { "idx": 12, "version": "7", "when": 1779032400000, "tag": "0012_phase4_trust_mode", "breakpoints": true },
+    { "idx": 13, "version": "7", "when": 1779036000000, "tag": "0013_phase4_realtime_health", "breakpoints": true },
+    { "idx": 14, "version": "7", "when": 1779039600000, "tag": "0014_embedding_dim_fix", "breakpoints": true },
+    { "idx": 15, "version": "7", "when": 1779126000000, "tag": "0015_channel_accounts_provider_config_idx", "breakpoints": true },
+    { "idx": 16, "version": "7", "when": 1779212400000, "tag": "0016_catalog_layer", "breakpoints": true },
+    { "idx": 17, "version": "7", "when": 1782531000000, "tag": "0017_commerce_catalog_inventory", "breakpoints": true },
+    { "idx": 18, "version": "7", "when": 1782531060000, "tag": "0018_commerce_orders_payments", "breakpoints": true },
+    { "idx": 19, "version": "7", "when": 1782531120000, "tag": "0019_commerce_permissions", "breakpoints": true },
+    { "idx": 20, "version": "7", "when": 1782531180000, "tag": "0020_commerce_legacy_backfill", "breakpoints": true },
+    { "idx": 21, "version": "7", "when": 1782531240000, "tag": "0021_commerce_defaults", "breakpoints": true },
+    { "idx": 22, "version": "7", "when": 1782531300000, "tag": "0022_commerce_safety_stabilization", "breakpoints": true }
   ]
 }

@@ -32,6 +32,8 @@ if (SKIP) {
 // Fixed UUIDs for isolation test workspaces (different from display_id tests)
 const ISO_WS_A = "00000000-0000-4002-b001-000000000001";
 const ISO_WS_B = "00000000-0000-4002-b001-000000000002";
+const ISO_CONV_A = "00000000-0000-4002-c001-000000000001";
+const ISO_CONV_B = "00000000-0000-4002-c001-000000000002";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let db: any;
@@ -45,23 +47,23 @@ beforeAll(async () => {
   for (const wsId of [ISO_WS_A, ISO_WS_B]) {
     await db.execute(
       `INSERT INTO workspaces (id, name, slug, plan_id)
-       SELECT $1, 'ISO WS ' || $1, 'iso-ws-' || $1,
+       SELECT $1::uuid, 'ISO WS ' || $1::text, 'iso-ws-' || $1::text,
               (SELECT id FROM plans WHERE slug = 'free' LIMIT 1)
-       WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE id = $1)`,
+       WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE id = $1::uuid)`,
       [wsId],
     );
   }
 
-  // Seed one conversation per workspace
-  for (const wsId of [ISO_WS_A, ISO_WS_B]) {
+  // Seed one conversation per workspace using valid, stable UUIDs.
+  for (const [conversationId, workspaceId] of [
+    [ISO_CONV_A, ISO_WS_A],
+    [ISO_CONV_B, ISO_WS_B],
+  ]) {
     await db.execute(
-      `INSERT INTO conversations (id, workspace_id, channel, status, agent_status)
-       VALUES (
-         ('00000000-4002-0000-0000-' || replace($1, '-',''))::uuid,
-         $1, 'whatsapp', 'new', 'active'
-       )
+      `INSERT INTO conversations (id, workspace_id, channel, status)
+       VALUES ($1::uuid, $2::uuid, 'whatsapp', 'new')
        ON CONFLICT (id) DO NOTHING`,
-      [wsId],
+      [conversationId, workspaceId],
     );
   }
 });
@@ -104,10 +106,7 @@ describe("ISO-1: conversations list is workspace-scoped", () => {
 describe("ISO-2: messages are workspace-scoped", () => {
   IT("messages query with workspace A id never includes B rows", async () => {
     // Insert one message per workspace
-    const aConvId = `00000000-4002-0000-0000-${ISO_WS_A.replace(/-/g, "")}`;
-    const bConvId = `00000000-4002-0000-0000-${ISO_WS_B.replace(/-/g, "")}`;
-
-    for (const [convId, wsId] of [[aConvId, ISO_WS_A], [bConvId, ISO_WS_B]]) {
+    for (const [convId, wsId] of [[ISO_CONV_A, ISO_WS_A], [ISO_CONV_B, ISO_WS_B]]) {
       await db.execute(
         `INSERT INTO messages (conversation_id, workspace_id, direction, sender_type, source, content_type, content)
          VALUES ($1::uuid, $2, 'inbound', 'contact', 'webhook', 'text', 'ISO test message')
@@ -128,10 +127,9 @@ describe("ISO-2: messages are workspace-scoped", () => {
 
 describe("ISO-3: conversation fetch by id is workspace-scoped", () => {
   IT("fetching B's conversation id with A's workspace_id returns nothing", async () => {
-    const bConvId = `00000000-4002-0000-0000-${ISO_WS_B.replace(/-/g, "")}`;
     const rows = await db.execute(
       `SELECT id FROM conversations WHERE id = $1 AND workspace_id = $2`,
-      [bConvId, ISO_WS_A],
+      [ISO_CONV_B, ISO_WS_A],
     );
     // Must be empty — A cannot see B's conversation
     expect(rows.rows.length).toBe(0);

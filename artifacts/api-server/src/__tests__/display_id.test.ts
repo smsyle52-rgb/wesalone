@@ -44,9 +44,9 @@ beforeAll(async () => {
   for (const wsId of [WS_A, WS_B]) {
     await db.execute(
       `INSERT INTO workspaces (id, name, slug, plan_id)
-       SELECT $1, 'Test WS ' || $1, 'test-ws-' || $1,
+       SELECT $1::uuid, 'Test WS ' || $1::text, 'test-ws-' || $1::text,
               (SELECT id FROM plans WHERE slug = 'free' LIMIT 1)
-       WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE id = $1)`,
+       WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE id = $1::uuid)`,
       [wsId],
     );
     // Seed workspace_sequences row reset so test is deterministic
@@ -77,8 +77,8 @@ afterAll(async () => {
 
 async function insertConv(workspaceId: string): Promise<{ id: string; displayId: number | null }> {
   const rows = await db.execute(
-    `INSERT INTO conversations (workspace_id, channel, status, agent_status)
-     VALUES ($1, 'whatsapp', 'new', 'active')
+    `INSERT INTO conversations (workspace_id, channel, status)
+     VALUES ($1, 'whatsapp', 'new')
      RETURNING id, display_id`,
     [workspaceId],
   );
@@ -130,8 +130,8 @@ describe("T-DI-5: explicit display_id is preserved", () => {
   IT("passing a display_id bypasses the trigger", async () => {
     const sentinel = 999_999;
     const rows = await db.execute(
-      `INSERT INTO conversations (workspace_id, channel, status, agent_status, display_id)
-       VALUES ($1, 'whatsapp', 'new', 'active', $2)
+      `INSERT INTO conversations (workspace_id, channel, status, display_id)
+       VALUES ($1, 'whatsapp', 'new', $2)
        RETURNING id, display_id`,
       [WS_A, sentinel],
     );
@@ -145,8 +145,8 @@ describe("T-DI-6: UNIQUE constraint enforced", () => {
   IT("inserting duplicate (workspace_id, display_id) throws", async () => {
     // Use a specific display_id that we know doesn't exist yet
     const rows = await db.execute(
-      `INSERT INTO conversations (workspace_id, channel, status, agent_status, display_id)
-       VALUES ($1, 'whatsapp', 'new', 'active', $2)
+      `INSERT INTO conversations (workspace_id, channel, status, display_id)
+       VALUES ($1, 'whatsapp', 'new', $2)
        RETURNING id, display_id`,
       [WS_B, 888_888],
     );
@@ -154,8 +154,8 @@ describe("T-DI-6: UNIQUE constraint enforced", () => {
 
     await expect(
       db.execute(
-        `INSERT INTO conversations (workspace_id, channel, status, agent_status, display_id)
-         VALUES ($1, 'whatsapp', 'new', 'active', $2)`,
+        `INSERT INTO conversations (workspace_id, channel, status, display_id)
+         VALUES ($1, 'whatsapp', 'new', $2)`,
         [WS_B, 888_888],
       ),
     ).rejects.toThrow();
