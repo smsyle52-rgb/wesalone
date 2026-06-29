@@ -122,17 +122,25 @@
     },
     "actions": {
       "submit": "إرسال للمراجعة",
-      "sync": "مزامنة"
+      "sync": "مزامنة",
+      "syncAll": "مزامنة الكل"
+    },
+    "pagination": {
+      "showing": "عرض {{from}} – {{to}} من {{total}}",
+      "prev": "السابق",
+      "next": "التالي"
     },
     "editor": {
       "createTitle": "إنشاء قالب",
       "editTitle": "تعديل قالب",
       "subtitle": "جهز النص والمتغيرات ثم أرسله للمراجعة عند اكتماله",
       "saveDraft": "حفظ كمسودة",
+      "saveEdits": "حفظ التعديلات",
       "submit": "إرسال للمراجعة",
       "saved": "تم حفظ القالب",
       "submitted": "تم إرسال القالب للمراجعة",
       "currentStatus": "الحالة الحالية",
+      "rejectionReason": "سبب الرفض",
       "addComponent": "إضافة مكون",
       "noVariables": "لا توجد متغيرات مكتشفة",
       "previewEmpty": "ستظهر معاينة القالب هنا",
@@ -151,7 +159,49 @@
         "componentText": "نص المكون. يمكنك استخدام {{1}} أو {{name}}",
         "example": "مثال للمعاينة",
         "variableExample": "قيمة مثال",
-        "variableDescription": "وصف المتغير"
+        "variableDescription": "وصف المتغير",
+        "exampleValue": "مثال على القيمة"
+      },
+      "sections": {
+        "general": "معلومات القالب",
+        "header": "الرأس (اختياري)",
+        "body": "جسم الرسالة",
+        "footer": "التذييل (اختياري)",
+        "buttons": "الأزرار (اختياري)"
+      },
+      "previewTitle": "معاينة واتساب",
+      "addVariable": "إضافة متغير",
+      "addButton": "إضافة زر",
+      "header": {
+        "none": "بلا رأس",
+        "text": "نص",
+        "placeholder": "مرحباً {{1}}، عرضك الخاص...",
+        "varExample": "مثال للمتغير",
+        "uploadMedia": "رفع ملف الوسائط",
+        "mediaUploaded": "تم رفع الوسائط بنجاح",
+        "mediaError": "فشل رفع الوسائط",
+        "mediaNote": "ارفع ملف الوسائط كمثال لاعتماد القالب لدى ميتا."
+      },
+      "body": {
+        "placeholder": "مرحباً {{1}}، طلبك رقم {{2}} جاهز للاستلام.",
+        "varExamples": "أمثلة على المتغيرات",
+        "nonContiguous": "المتغيرات غير متتالية. سيتم ترقيمها تلقائياً عند الحفظ."
+      },
+      "footer": {
+        "placeholder": "ردّ بـ \"لا\" لإلغاء الاشتراك"
+      },
+      "buttons": {
+        "quickReply": "ردّ سريع",
+        "phone": "رقم هاتف",
+        "url": "رابط URL",
+        "copyCode": "نسخ الكود",
+        "otp": "OTP",
+        "textPlaceholder": "نص الزر (25 حرف كحد أقصى)",
+        "urlExamplePlaceholder": "مثال: page/123",
+        "dynamicUrlNote": "الجزء الديناميكي {{1}} يحتاج مثالاً للموافقة",
+        "codePlaceholder": "كود المصادقة",
+        "otpNote": "سيُنشئ واتساب تلقائياً زر «نسخ الكود» مع الكود المؤقت.",
+        "empty": "لا توجد أزرار. أضف أزراراً للردود السريعة أو الإجراءات."
       }
     }
   },

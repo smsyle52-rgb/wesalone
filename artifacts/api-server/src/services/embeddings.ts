@@ -23,8 +23,10 @@ type CacheEntry = {
 
 const cache = new Map<string, CacheEntry>();
 
-function cacheKey(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
+export type EmbeddingTaskType = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
+
+function cacheKey(text: string, taskType: EmbeddingTaskType): string {
+  return createHash("sha256").update(`${taskType}:${text}`).digest("hex");
 }
 
 function setCache(key: string, entry: CacheEntry): void {
@@ -71,7 +73,7 @@ async function getMetadataAccessToken(): Promise<string> {
   }
 }
 
-async function embedWithVertex(text: string): Promise<number[]> {
+async function embedWithVertex(text: string, taskType: EmbeddingTaskType): Promise<number[]> {
   if (!VERTEX_PROJECT_ID) throw new Error("Vertex project is not configured");
   const token = await getMetadataAccessToken();
   const host = VERTEX_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_LOCATION}-aiplatform.googleapis.com`;
@@ -84,7 +86,7 @@ async function embedWithVertex(text: string): Promise<number[]> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      instances: [{ content: text, task_type: "RETRIEVAL_DOCUMENT" }],
+      instances: [{ content: text, task_type: taskType }],
     }),
   });
 
@@ -101,9 +103,9 @@ async function embedWithVertex(text: string): Promise<number[]> {
   return vector;
 }
 
-export async function embedWithMetadata(text: string): Promise<CacheEntry> {
+export async function embedWithMetadata(text: string, taskType: EmbeddingTaskType = "RETRIEVAL_DOCUMENT"): Promise<CacheEntry> {
   const trimmed = text.trim();
-  const key = cacheKey(trimmed);
+  const key = cacheKey(trimmed, taskType);
   const cached = cache.get(key);
   if (cached) return cached;
 
@@ -115,7 +117,7 @@ export async function embedWithMetadata(text: string): Promise<CacheEntry> {
 
   if (!EMBEDDINGS_DRY_RUN && VERTEX_PROJECT_ID) {
     try {
-      const entry = { vector: await embedWithVertex(trimmed), model: EMBEDDING_MODEL, provider: "vertex" as const };
+      const entry = { vector: await embedWithVertex(trimmed, taskType), model: EMBEDDING_MODEL, provider: "vertex" as const };
       setCache(key, entry);
       return entry;
     } catch (err) {
@@ -128,8 +130,8 @@ export async function embedWithMetadata(text: string): Promise<CacheEntry> {
   return entry;
 }
 
-export async function embed(text: string): Promise<number[]> {
-  return (await embedWithMetadata(text)).vector;
+export async function embed(text: string, taskType: EmbeddingTaskType = "RETRIEVAL_DOCUMENT"): Promise<number[]> {
+  return (await embedWithMetadata(text, taskType)).vector;
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {

@@ -1,5 +1,5 @@
 # WESAL ONE — الحالة الحيّة
-آخر تحديث: 22 يونيو 2026 (جلسة Claude Code — قنوات ميتا PD-4/5/6، صقل الوكلاء، أسماء العملاء، التصليب، وفحص المدفوعات)
+آخر تحديث: 29 يونيو 2026 (Codex — خطوة الفوترة: توحيد أسعار الباقات 19/49/140$ بين seed والهجرة والتسويق)
 
 ---
 
@@ -11,6 +11,19 @@
 | الصوت الوارد | ✅ يعمل | الوكيل يسمع ويرد على المحتوى · اختُبر حيّاً |
 | راوتر النماذج | ✅ مُنشَر | flash للعادي · pro للصعب · text/vision/voice |
 | PD-8 جذري | ✅ محلول | لا تسرّب JSON · لا سبام · لا هلوسة |
+
+## 📌 جلسة 29 يونيو 2026 — الفوترة (Codex)
+- **الباقات:** وُحِّدت أسعار `growth` و`professional` في مصدر الحقيقة التشغيلي (`seed.ts`) و`migrate-phase345.sql`: البداية 19$، النمو 49$، الاحترافي 140$ شهرياً. بقيت الخطة المجانية و`Business` المخصصة كما هي.
+- **الاستهلاك الحقيقي:** أُصلح عرض حدود الاستهلاك للحسابات التي لا تملك صف اشتراك فعلياً: `getActiveSubscription` يرجع حدود خطة `free` كـfallback، والتسجيل الجديد يربط بخطة `free` بدل خطة `trial` المحذوفة. وُحِّد مفتاح حد المعرفة إلى `knowledge_documents` حتى لا تظهر "غير محدود" خطأً.
+- **التسويق:** قسم الأسعار في صفحة الهبوط صار يعرض الأسعار الرقمية نفسها: 19/49/140$ شهرياً.
+- **واجهة التاجر:** سجل طلبات الدفع في تبويب الفوترة صار يعرض العملة الفعلية من الخادم بدلاً من كلمة "ريال" الثابتة.
+- **التحقق:** api-server typecheck ✅ وbuild ✅. web typecheck/build محجوبان بعائق سابق غير متعلق بالفوترة: `artifacts/web/src/lib/fileExtract.ts` يستورد `pdfjs-dist` و`mammoth` غير المتوفرين، والملف غير متعقّب قبل هذه الجلسة.
+
+## 📌 جلسة 29 يونيو 2026 — L2 القنوات / واتساب Business Profile (Codex)
+- **نُقل محلياً بدون commit:** العمل النظيف من `feat/whatsapp-profile-status` الخاص بإدارة الملف التجاري لواتساب: API تحت `/api/whatsapp-management`، خدمات Meta للقراءة/التحديث/الصورة، صفحة `/integrations/whatsapp/business-profile`، واختبارات العزل/الصلاحيات/الأخطاء.
+- **تصحيح TypeScript:** أُصلح اختبار routes لاستخدام JSON typed helper بدل `unknown`، وصفحة واتساب تستخدم `PageHeader.subtitle`.
+- **التحقق:** اختبارات `whatsapp-business-profile` ✅ (237 passed، وتخطّي integration بلا `DATABASE_URL`)؛ api-server typecheck ✅؛ api-server build ✅؛ web typecheck لا يظهر أخطاء واتساب الآن، ويبقى محجوباً فقط بعائق `fileExtract.ts` السابق (`pdfjs-dist`/`mammoth`).
+- **بوابة L2 المتبقية:** الاختبار الحي مع Meta لا يزال مطلوباً قبل إعلان إغلاق القنوات: ربط/إرسال/استقبال القنوات الثلاث من حساب اختبار.
 
 ## 📌 جلسة 22 يونيو 2026 — قنوات ميتا + صقل الوكلاء (Claude Code)
 - **PD-6 ✅** إنستغرام/ماسنجر: استقبال (إصلاح صيغة `messaging[]`) + إرسال (إنستغرام عبر `{pageId}/messages` — إصلاح Meta `(#3)`) + التسجيل المضمّن موصول بالنقطة الصحيحة.
@@ -853,6 +866,25 @@ WESAL_ONE_CHAT_HANDOFF.md
 1. صورة واردة من واتساب تظهر في الوارد
 2. إرسال صورة برابط من الوارد → تصل للعميل (WA/IG/Messenger)
 3. النص العادي ما زال يعمل
+
+---
+
+## Session update — 2026-06-29 — L3 commerce/payment read
+
+- Owner decision: live Meta/channel test is deferred for now; continue to next launch-readiness step.
+- Per section 5, next step is L3 commerce. Checked `ac0b27f` (`fix: restore payment read isolation and dto parity`) and did not cherry-pick it because it depends on commerce route/test files that are not present in this working tree and the commerce branch is large.
+- Applied the same minimal read-isolation fix to the current payments route instead:
+  - `GET /payments` now validates read query params with Zod.
+  - confirmed/pending totals now reuse the same workspace + method/currency/contact/order/date scope as the list query, instead of counting across the whole workspace.
+  - response now includes `page` and `limit`.
+- Verification:
+  - `corepack pnpm -C artifacts/api-server run typecheck` ✅
+  - `corepack pnpm -C artifacts/api-server run build` ✅
+
+Changed file for this L3 step:
+- `artifacts/api-server/src/modules/payments/payments.routes.ts`
+
+Note: web typecheck/build remains blocked by pre-existing `artifacts/web/src/lib/fileExtract.ts` missing `pdfjs-dist` and `mammoth`; not touched in this step.
 
 ---
 

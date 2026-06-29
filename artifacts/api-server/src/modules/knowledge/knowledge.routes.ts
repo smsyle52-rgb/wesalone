@@ -214,6 +214,109 @@ router.post("/bases/:id/sources", requirePermission("knowledge:create"), async (
   res.status(201).json({ source });
 });
 
+// ─── رفع ملف كمصدر معرفة ──────────────────────────────────────────────────────
+// النص يُستخرج في المتصفح (PDF/Word/نص) ويصل هنا جاهزاً، فيبقى bundle الخادم بلا
+// مكتبات استخراج. ننشئ مصدراً (type=file) + وثيقة/وثائق + chunks عبر خط المعالجة
+// القائم، في طلب واحد، مع تنظيف عند الفشل حتى لا يبقى مصدر يتيم.
+const MAX_DOC_CHARS = 190000;   // أقل من سقف docCreateSchema (200000) بهامش
+const MAX_FILE_DOCUMENTS = 5;   // سقف عدد الوثائق لمنع تحميل embeddings مفرط
+
+const sourceFromFileSchema = z.object({
+  title: z.string().trim().min(1, "العنوان مطلوب").max(500),
+  text: z.string().min(1, "تعذّر استخراج نص من الملف"),
+  fileName: z.string().trim().max(500).optional(),
+  mimeType: z.string().trim().max(200).optional(),
+  byteSize: z.number().int().nonnegative().optional(),
+});
+
+router.post("/bases/:id/sources/from-file", requirePermission("knowledge:create"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId, userId } = req.sessionUser;
+  const baseId = String(req.params.id);
+  const [base] = await db.select({ id: knowledgeBasesTable.id }).from(knowledgeBasesTable)
+    .where(and(eq(knowledgeBasesTable.id, baseId), eq(knowledgeBasesTable.workspaceId, activeWorkspaceId))).limit(1);
+  if (!base) { res.status(404).json({ error: "قاعدة المعرفة غير موجودة", code: "NOT_FOUND" }); return; }
+
+  const parsed = sourceFromFileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.errors[0]?.message ?? "بيانات غير صحيحة", code: "VALIDATION_ERROR" });
+    return;
+  }
+
+  // Postgres لا يقبل NUL في حقول النص — نزيله دفاعياً (المتصفح يزيله أيضاً).
+  const cleanText = parsed.data.text.split(String.fromCharCode(0)).join("").trim();
+  if (!cleanText) {
+    res.status(400).json({ error: "الملف لا يحتوي على نص قابل للاستخراج (قد يكون صورة ممسوحة).", code: "EMPTY_TEXT" });
+    return;
+  }
+
+  // قسّم النص الطويل إلى وثائق ضمن حدّ المخطط، بسقف عدد لمنع تحميل مفرط.
+  const segments: string[] = [];
+  for (let i = 0; i < cleanText.length && segments.length < MAX_FILE_DOCUMENTS; i += MAX_DOC_CHARS) {
+    segments.push(cleanText.slice(i, i + MAX_DOC_CHARS));
+  }
+  const truncated = cleanText.length > MAX_DOC_CHARS * MAX_FILE_DOCUMENTS;
+
+  // أنشئ المصدر أولاً (حالة processing حتى تكتمل الوثائق).
+  const [source] = await db.insert(knowledgeSourcesTable).values({
+    workspaceId: activeWorkspaceId,
+    knowledgeBaseId: baseId,
+    type: "file",
+    title: parsed.data.title,
+    status: "processing",
+    metadata: {
+      fileName: parsed.data.fileName ?? null,
+      mimeType: parsed.data.mimeType ?? null,
+      byteSize: parsed.data.byteSize ?? null,
+      charCount: cleanText.length,
+      truncated,
+    },
+    createdBy: userId,
+  }).returning();
+
+  try {
+    let chunkCount = 0;
+    for (let idx = 0; idx < segments.length; idx++) {
+      const segment = segments[idx];
+      const docTitle = segments.length > 1 ? `${parsed.data.title} (${idx + 1}/${segments.length})` : parsed.data.title;
+      const [doc] = await db.insert(knowledgeDocumentsTable).values({
+        workspaceId: activeWorkspaceId,
+        knowledgeBaseId: baseId,
+        sourceId: source.id,
+        title: docTitle,
+        contentText: segment,
+        status: "ready",
+        tokenEstimate: estimateKnowledgeTokens(segment),
+        createdBy: userId,
+      }).returning();
+      const { chunkCount: produced } = await rebuildDocumentChunks({
+        documentId: doc.id, workspaceId: activeWorkspaceId, knowledgeBaseId: baseId, contentText: segment,
+      });
+      chunkCount += produced;
+    }
+
+    const [readySource] = await db.update(knowledgeSourcesTable)
+      .set({ status: "ready", updatedAt: new Date() })
+      .where(and(eq(knowledgeSourcesTable.id, source.id), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)))
+      .returning();
+
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "knowledge_source_create",
+      entityType: "knowledge_source", entityId: source.id, entityLabel: source.title,
+      newData: { type: "file", title: source.title, fileName: parsed.data.fileName ?? null, documents: segments.length, chunks: chunkCount },
+    });
+
+    res.status(201).json({ source: readySource, documentCount: segments.length, chunkCount, truncated });
+  } catch (err) {
+    // تنظيف: احذف الوثائق (ومقاطعها بالتعاقب) ثم المصدر حتى لا يبقى يتيماً، ثم مرّر الخطأ للمعالج العام.
+    await db.delete(knowledgeDocumentsTable)
+      .where(and(eq(knowledgeDocumentsTable.sourceId, source.id), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
+    await db.delete(knowledgeSourcesTable)
+      .where(and(eq(knowledgeSourcesTable.id, source.id), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)));
+    throw err;
+  }
+});
+
 router.patch("/sources/:sourceId", requirePermission("knowledge:update"), async (req: AuthenticatedRequest, res: Response) => {
   const { activeWorkspaceId } = req.sessionUser;
   const sourceId = String(req.params.sourceId);
@@ -611,6 +714,59 @@ router.get("/search", requirePermission("knowledge:read"), async (req: Authentic
     },
     total: documents.length + faqs.length + chunks.length,
   });
+});
+
+// ─── Hard delete (حذف نهائي) ───────────────────────────────────────────────────
+router.delete("/documents/:documentId", requirePermission("knowledge:delete"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const docId = String(req.params.documentId);
+  const [existing] = await db.select().from(knowledgeDocumentsTable)
+    .where(and(eq(knowledgeDocumentsTable.id, docId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "الوثيقة غير موجودة", code: "NOT_FOUND" }); return; }
+  // مقاطع الوثيقة تُحذف بالتعاقب (onDelete: cascade على document_id).
+  await db.delete(knowledgeDocumentsTable)
+    .where(and(eq(knowledgeDocumentsTable.id, docId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "knowledge_document_delete",
+    entityType: "knowledge_document", entityId: docId, entityLabel: existing.title,
+  });
+  res.json({ ok: true });
+});
+
+router.delete("/faqs/:faqId", requirePermission("knowledge:delete"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const faqId = String(req.params.faqId);
+  const [existing] = await db.select().from(faqEntriesTable)
+    .where(and(eq(faqEntriesTable.id, faqId), eq(faqEntriesTable.workspaceId, activeWorkspaceId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "السؤال غير موجود", code: "NOT_FOUND" }); return; }
+  await db.delete(faqEntriesTable)
+    .where(and(eq(faqEntriesTable.id, faqId), eq(faqEntriesTable.workspaceId, activeWorkspaceId)));
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "faq_delete",
+    entityType: "faq_entry", entityId: faqId, entityLabel: existing.question,
+  });
+  res.json({ ok: true });
+});
+
+router.delete("/sources/:sourceId", requirePermission("knowledge:delete"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const sourceId = String(req.params.sourceId);
+  const [existing] = await db.select().from(knowledgeSourcesTable)
+    .where(and(eq(knowledgeSourcesTable.id, sourceId), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "المصدر غير موجود", code: "NOT_FOUND" }); return; }
+  // احذف وثائق المصدر أولاً (ومقاطعها بالتعاقب) لأن documents.source_id = set null لا cascade.
+  await db.delete(knowledgeDocumentsTable)
+    .where(and(eq(knowledgeDocumentsTable.sourceId, sourceId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
+  await db.delete(knowledgeSourcesTable)
+    .where(and(eq(knowledgeSourcesTable.id, sourceId), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)));
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "knowledge_source_delete",
+    entityType: "knowledge_source", entityId: sourceId, entityLabel: existing.title,
+  });
+  res.json({ ok: true });
 });
 
 export default router;

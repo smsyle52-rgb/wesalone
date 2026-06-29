@@ -130,6 +130,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         channelAccountId: conversationsTable.channelAccountId,
         externalThreadId: conversationsTable.externalThreadId,
         channel: conversationsTable.channel,
+        agentStatus: conversationsTable.agentStatus,
       })
       .from(conversationsTable)
       .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)))
@@ -150,18 +151,23 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
     const replyText = agentReply.reply.trim();
     if (!replyText) {
       if (agentReply.shouldEscalate) {
+        // تصعيد للبشر. لتفادي سيل الإشعارات (مثلاً عند نفاد رصيد الذكاء فتتصعّد كل رسالة):
+        // نُشعر ونبثّ مرّة واحدة عند *تحوّل* المحادثة إلى "human" فقط، لا مع كل رسالة في محادثة متصعّدة أصلاً.
+        const wasAlreadyHuman = conversation.agentStatus === "human";
         await db
           .update(conversationsTable)
           .set({ agentStatus: "human", updatedAt: new Date() })
           .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)));
-        await notifyWorkspace({
-          workspaceId,
-          type: "conversation.needs_human",
-          titleAr: "محادثة تحتاج تدخل",
-          bodyAr: "لم يتمكن الوكيل من الرد، وتم تحويل المحادثة لمراجعة الفريق.",
-          link: `/inbox?conversation=${conversationId}`,
-        }).catch((err) => logger.warn({ err, conversationId }, "Failed to notify workspace of escalation"));
-        emitWorkspaceEvent({ workspaceId, type: "conversation.needs_human", entityType: "conversation", entityId: conversationId, payload: { conversationId } });
+        if (!wasAlreadyHuman) {
+          await notifyWorkspace({
+            workspaceId,
+            type: "conversation.needs_human",
+            titleAr: "محادثة تحتاج تدخل",
+            bodyAr: "لم يتمكن الوكيل من الرد، وتم تحويل المحادثة لمراجعة الفريق.",
+            link: `/inbox?conversation=${conversationId}`,
+          }).catch((err) => logger.warn({ err, conversationId }, "Failed to notify workspace of escalation"));
+          emitWorkspaceEvent({ workspaceId, type: "conversation.needs_human", entityType: "conversation", entityId: conversationId, payload: { conversationId } });
+        }
       }
 
       res.status(200).json({

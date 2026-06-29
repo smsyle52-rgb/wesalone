@@ -55,6 +55,8 @@ export default function TemplatesPage() {
   const [status, setStatus] = useState("");
   const [category, setCategory] = useState("");
   const [language, setLanguage] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const canRead = hasPermission("templates:read");
   const canWrite = hasPermission("templates:write");
@@ -65,9 +67,11 @@ export default function TemplatesPage() {
   if (status) params.set("status", status);
   if (category) params.set("category", category);
   if (language) params.set("language", language);
+  params.set("page", String(page));
+  params.set("limit", String(PAGE_SIZE));
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["templates", status, category, language],
+    queryKey: ["templates", status, category, language, page],
     queryFn: () => apiFetch(`templates?${params.toString()}`),
     enabled: canRead,
   });
@@ -92,7 +96,14 @@ export default function TemplatesPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["templates"] }),
   });
 
+  const syncAllMutation = useMutation({
+    mutationFn: () => apiFetch("templates/sync-all", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["templates"] }),
+  });
+
   const templates: TemplateRow[] = data?.templates ?? [];
+  const total: number = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const columns = [
     { key: "name", label: t("templates.table.name"), render: (row: TemplateRow) => <span className="font-medium">{row.name}</span> },
@@ -117,7 +128,7 @@ export default function TemplatesPage() {
                 {t("common.duplicate")}
               </button>
             )}
-            {canDelete && ["draft", "rejected"].includes(row.status) && (
+            {canDelete && (
               <button className="block w-full rounded px-3 py-2 text-start text-sm text-destructive hover:bg-destructive/10" onClick={() => deleteMutation.mutate(row.id)}>
                 {t("common.delete")}
               </button>
@@ -142,15 +153,26 @@ export default function TemplatesPage() {
         title={t("templates.title")}
         subtitle={t("templates.subtitle")}
         actions={
-          canWrite && (
-            <button
-              onClick={() => setLocation("/templates/new")}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4" />
-              {t("templates.newTemplate")}
-            </button>
-          )
+          <div className="flex gap-2">
+            {canSubmit && (
+              <button
+                onClick={() => syncAllMutation.mutate()}
+                disabled={syncAllMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+              >
+                {t("templates.actions.syncAll")}
+              </button>
+            )}
+            {canWrite && (
+              <button
+                onClick={() => setLocation("/templates/new")}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4" />
+                {t("templates.newTemplate")}
+              </button>
+            )}
+          </div>
         }
       />
 
@@ -161,7 +183,7 @@ export default function TemplatesPage() {
           <div className="mb-4 grid gap-3 rounded-xl border border-border bg-card p-4 md:grid-cols-3">
             <label className="space-y-1 text-sm">
               <span className="text-muted-foreground">{t("templates.filters.status")}</span>
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2">
+              <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className="w-full rounded-lg border border-input bg-background px-3 py-2">
                 {statusOptions.map((item) => (
                   <option key={item || "all"} value={item}>
                     {item ? t(`templates.statuses.${item}`, { defaultValue: item }) : t("templates.filters.allStatuses")}
@@ -171,7 +193,7 @@ export default function TemplatesPage() {
             </label>
             <label className="space-y-1 text-sm">
               <span className="text-muted-foreground">{t("templates.filters.category")}</span>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2">
+              <select value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }} className="w-full rounded-lg border border-input bg-background px-3 py-2">
                 {categoryOptions.map((item) => (
                   <option key={item || "all"} value={item}>
                     {item ? t(`templates.categories.${item}`, { defaultValue: item }) : t("templates.filters.allCategories")}
@@ -181,7 +203,7 @@ export default function TemplatesPage() {
             </label>
             <label className="space-y-1 text-sm">
               <span className="text-muted-foreground">{t("templates.filters.language")}</span>
-              <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2">
+              <select value={language} onChange={(e) => { setLanguage(e.target.value); setPage(1); }} className="w-full rounded-lg border border-input bg-background px-3 py-2">
                 {languageOptions.map((item) => (
                   <option key={item || "all"} value={item}>
                     {item || t("templates.filters.allLanguages")}
@@ -205,6 +227,28 @@ export default function TemplatesPage() {
             isLoading={isLoading}
             emptyMessage={t("templates.empty")}
           />
+
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+              <span>{t("templates.pagination.showing", { from: (page - 1) * PAGE_SIZE + 1, to: Math.min(page * PAGE_SIZE, total), total })}</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+                >
+                  {t("templates.pagination.prev")}
+                </button>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+                >
+                  {t("templates.pagination.next")}
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

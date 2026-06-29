@@ -1,6 +1,6 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
-import { eq, and, desc, count, sum, gte, lte } from "drizzle-orm";
+import { eq, and, desc, count, sum, gte, lte, type SQL } from "drizzle-orm";
 import {
   db, paymentsTable, contactsTable, paymentMethodsTable,
   exchangeRatesTable, ordersTable,
@@ -42,6 +42,18 @@ const rejectSchema = z.object({
   reason: z.string().min(1, "يجب إدخال سبب رفض الدفعة"),
 });
 
+const readQuerySchema = z.object({
+  status: z.string().trim().max(50).optional(),
+  method: z.string().trim().max(100).optional(),
+  currency: z.enum(["YER", "SAR", "USD"]).optional(),
+  contactId: z.string().uuid("معرف العميل غير صحيح").optional(),
+  orderId: z.string().uuid("معرف الطلب غير صحيح").optional(),
+  dateFrom: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional(),
+  page: z.coerce.number().int().min(1, "رقم الصفحة يجب أن يكون 1 أو أكثر").default(1),
+  limit: z.coerce.number().int().min(1, "الحد يجب أن يكون بين 1 و100").max(100, "الحد يجب أن يكون بين 1 و100").default(20),
+});
+
 function computePaymentStatus(
   totalAmount: string | null,
   paidAmount: string | null,
@@ -54,26 +66,26 @@ function computePaymentStatus(
 }
 
 router.get("/", requirePermission("payments:read"), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = readQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "معاملات القراءة غير صحيحة" });
+    return;
+  }
+
   const { activeWorkspaceId } = req.sessionUser;
-  const status = req.query.status as string | undefined;
-  const method = req.query.method as string | undefined;
-  const currency = req.query.currency as string | undefined;
-  const contactId = req.query.contactId as string | undefined;
-  const orderId = req.query.orderId as string | undefined;
-  const dateFrom = req.query.dateFrom as string | undefined;
-  const dateTo = req.query.dateTo as string | undefined;
-  const page = Math.max(1, parseInt(req.query.page as string) || 1);
-  const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+  const { status, method, currency, contactId, orderId, dateFrom, dateTo, page, limit } = parsed.data;
   const offset = (page - 1) * limit;
 
-  const conditions: ReturnType<typeof eq>[] = [eq(paymentsTable.workspaceId, activeWorkspaceId)];
+  const scopeConditions: SQL[] = [eq(paymentsTable.workspaceId, activeWorkspaceId)];
+  if (method) scopeConditions.push(eq(paymentsTable.method, method));
+  if (currency) scopeConditions.push(eq(paymentsTable.currency, currency));
+  if (contactId) scopeConditions.push(eq(paymentsTable.contactId, contactId));
+  if (orderId) scopeConditions.push(eq(paymentsTable.orderId, orderId));
+  if (dateFrom) scopeConditions.push(gte(paymentsTable.createdAt, dateFrom));
+  if (dateTo) scopeConditions.push(lte(paymentsTable.createdAt, dateTo));
+
+  const conditions: SQL[] = [...scopeConditions];
   if (status) conditions.push(eq(paymentsTable.status, status));
-  if (method) conditions.push(eq(paymentsTable.method, method));
-  if (currency) conditions.push(eq(paymentsTable.currency, currency));
-  if (contactId) conditions.push(eq(paymentsTable.contactId, contactId));
-  if (orderId) conditions.push(eq(paymentsTable.orderId, orderId));
-  if (dateFrom) conditions.push(gte(paymentsTable.createdAt, new Date(dateFrom)));
-  if (dateTo) conditions.push(lte(paymentsTable.createdAt, new Date(dateTo)));
 
   const [payments, [{ total }], [{ totalConfirmed }], [{ totalPending }]] = await Promise.all([
     db.select({
@@ -106,10 +118,10 @@ router.get("/", requirePermission("payments:read"), async (req: AuthenticatedReq
     db.select({ total: count() }).from(paymentsTable).where(and(...conditions)),
     db.select({ totalConfirmed: sum(paymentsTable.amount) })
       .from(paymentsTable)
-      .where(and(eq(paymentsTable.workspaceId, activeWorkspaceId), eq(paymentsTable.status, "confirmed"))),
+      .where(and(...scopeConditions, eq(paymentsTable.status, "confirmed"))),
     db.select({ totalPending: sum(paymentsTable.amount) })
       .from(paymentsTable)
-      .where(and(eq(paymentsTable.workspaceId, activeWorkspaceId), eq(paymentsTable.status, "pending"))),
+      .where(and(...scopeConditions, eq(paymentsTable.status, "pending"))),
   ]);
 
   res.json({
@@ -117,6 +129,8 @@ router.get("/", requirePermission("payments:read"), async (req: AuthenticatedReq
     total: Number(total),
     totalConfirmed: Number(totalConfirmed ?? 0),
     totalPending: Number(totalPending ?? 0),
+    page,
+    limit,
   });
 });
 

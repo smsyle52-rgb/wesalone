@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
+import { extractTextFromFile, ACCEPTED_FILE_EXTENSIONS } from "@/lib/fileExtract";
 
 function apiFetch(path: string, opts?: RequestInit) {
   return fetch(`${import.meta.env.BASE_URL}api/knowledge/${path}`, {
@@ -63,6 +64,7 @@ export default function KnowledgePage() {
   const [createBaseForm, setCreateBaseForm] = useState({ name: "", description: "" });
   const [showCreateSource, setShowCreateSource] = useState(false);
   const [createSourceForm, setCreateSourceForm] = useState({ type: "text", title: "", rawText: "" });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showCreateDoc, setShowCreateDoc] = useState(false);
   const [createDocForm, setCreateDocForm] = useState({ title: "", contentText: "" });
   const [showCreateFaq, setShowCreateFaq] = useState(false);
@@ -138,6 +140,29 @@ export default function KnowledgePage() {
     },
   });
 
+  // رفع ملف: نستخرج النص في المتصفح ثم نرسله لمسار الإدراج الذرّي (مصدر + وثيقة + chunks).
+  const uploadFileSource = useMutation({
+    mutationFn: async ({ file, title }: { file: File; title: string }) => {
+      const { text } = await extractTextFromFile(file);
+      return apiFetch(`bases/${selectedBaseId}/sources/from-file`, {
+        method: "POST",
+        body: JSON.stringify({ title, text, fileName: file.name, mimeType: file.type || undefined, byteSize: file.size }),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["knowledge-sources", selectedBaseId] });
+      qc.invalidateQueries({ queryKey: ["knowledge-docs", selectedBaseId] });
+      setShowCreateSource(false);
+      setCreateSourceForm({ type: "text", title: "", rawText: "" });
+      setSelectedFile(null);
+    },
+  });
+
+  const closeCreateSource = () => {
+    setShowCreateSource(false);
+    setSelectedFile(null);
+  };
+
   const archiveSource = useMutation({
     mutationFn: (id: string) => apiFetch(`sources/${id}/archive`, { method: "PATCH" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-sources", selectedBaseId] }),
@@ -186,6 +211,19 @@ export default function KnowledgePage() {
 
   const archiveFaq = useMutation({
     mutationFn: (id: string) => apiFetch(`faqs/${id}/archive`, { method: "PATCH" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-faqs", selectedBaseId] }),
+  });
+
+  const deleteSource = useMutation({
+    mutationFn: (id: string) => apiFetch(`sources/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-sources", selectedBaseId] }),
+  });
+  const deleteDoc = useMutation({
+    mutationFn: (id: string) => apiFetch(`documents/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-docs", selectedBaseId] }),
+  });
+  const deleteFaq = useMutation({
+    mutationFn: (id: string) => apiFetch(`faqs/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge-faqs", selectedBaseId] }),
   });
 
@@ -399,7 +437,7 @@ export default function KnowledgePage() {
                     )}
                     {/* Disabled types notice */}
                     <div className="bg-muted/50 border border-border rounded-lg p-3 text-xs text-muted-foreground">
-                      <span className="font-medium">ملاحظة:</span> سيتم تفعيل رفع الملفات والروابط في مرحلة لاحقة. المتاح الآن: نص عادي والأسئلة الشائعة.
+                      <span className="font-medium">ملاحظة:</span> المتاح الآن: نص عادي، ملفات (PDF / Word / نص)، وأسئلة شائعة. رفع الروابط قريباً.
                     </div>
                     {!sourcesQuery.isLoading && sources.length === 0 && (
                       <div className="text-center py-8 text-muted-foreground">
@@ -425,6 +463,12 @@ export default function KnowledgePage() {
                             <button onClick={() => { if (confirm("أرشفة المصدر؟")) archiveSource.mutate(s.id); }}
                               className="text-xs text-muted-foreground hover:text-red-500 transition-colors shrink-0">
                               أرشفة
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => { if (confirm("حذف المصدر نهائياً؟ لا يمكن التراجع.")) deleteSource.mutate(s.id); }}
+                              className="text-xs text-red-500 hover:text-red-700 transition-colors shrink-0">
+                              حذف
                             </button>
                           )}
                         </div>
@@ -487,6 +531,12 @@ export default function KnowledgePage() {
                                   أرشفة
                                 </button>
                               )}
+                              {canDelete && (
+                                <button onClick={() => { if (confirm("حذف الوثيقة نهائياً؟ لا يمكن التراجع.")) deleteDoc.mutate(doc.id); }}
+                                  className="text-xs text-red-500 hover:text-red-700 transition-colors px-2 py-1">
+                                  حذف
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -547,6 +597,12 @@ export default function KnowledgePage() {
                                 <button onClick={() => { if (confirm("أرشفة هذا السؤال؟")) archiveFaq.mutate(faq.id); }}
                                   className="text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1">
                                   أرشفة
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button onClick={() => { if (confirm("حذف السؤال نهائياً؟ لا يمكن التراجع.")) deleteFaq.mutate(faq.id); }}
+                                  className="text-xs text-red-500 hover:text-red-700 transition-colors px-2 py-1">
+                                  حذف
                                 </button>
                               )}
                             </div>
@@ -623,7 +679,7 @@ export default function KnowledgePage() {
 
       {/* Create Source Modal */}
       {showCreateSource && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCreateSource(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={closeCreateSource}>
           <div className="bg-card border border-border rounded-xl p-6 w-full max-w-lg mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold mb-4">مصدر جديد</h2>
             <div className="space-y-3">
@@ -633,7 +689,7 @@ export default function KnowledgePage() {
                   {[
                     { id: "text", label: "نص عادي", icon: "📝", disabled: false },
                     { id: "faq", label: "أسئلة شائعة", icon: "❓", disabled: false },
-                    { id: "file", label: "ملف", icon: "📎", disabled: true },
+                    { id: "file", label: "ملف", icon: "📎", disabled: false },
                     { id: "url", label: "رابط", icon: "🔗", disabled: true },
                   ].map((t) => (
                     <button key={t.id}
@@ -653,8 +709,8 @@ export default function KnowledgePage() {
                     </button>
                   ))}
                 </div>
-                {(createSourceForm.type === "file" || createSourceForm.type === "url") && (
-                  <p className="text-xs text-amber-600 mt-1">سيتم تفعيل رفع الملفات والروابط في مرحلة لاحقة</p>
+                {createSourceForm.type === "url" && (
+                  <p className="text-xs text-amber-600 mt-1">سيتم تفعيل رفع الروابط في مرحلة لاحقة</p>
                 )}
               </div>
               <div>
@@ -670,15 +726,49 @@ export default function KnowledgePage() {
                     placeholder="أدخل النص هنا..." />
                 </div>
               )}
+              {createSourceForm.type === "file" && (
+                <div>
+                  <label className="text-sm font-medium">الملف *</label>
+                  <input
+                    type="file"
+                    accept={ACCEPTED_FILE_EXTENSIONS}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setSelectedFile(f);
+                      if (f && !createSourceForm.title.trim()) {
+                        setCreateSourceForm((prev) => ({ ...prev, title: f.name.replace(/\.[^.]+$/, "") }));
+                      }
+                    }}
+                    className="w-full mt-1 text-sm file:me-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                  />
+                  {selectedFile && (
+                    <p className="text-xs text-muted-foreground mt-1">{selectedFile.name} — {(selectedFile.size / 1024).toFixed(0)} كيلوبايت</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">المدعوم: PDF، Word (.docx)، نص (txt/md/csv). يُستخرج النص ويُضاف لمعرفة الوكيل.</p>
+                </div>
+              )}
               {createSource.isError && <p className="text-sm text-red-500">{createSource.error?.message}</p>}
+              {uploadFileSource.isError && <p className="text-sm text-red-500">{uploadFileSource.error?.message}</p>}
             </div>
             <div className="flex gap-2 mt-4 justify-end">
-              <button onClick={() => setShowCreateSource(false)} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors">إلغاء</button>
+              <button onClick={closeCreateSource} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors">إلغاء</button>
               <button
-                onClick={() => createSource.mutate({ type: createSourceForm.type, title: createSourceForm.title, rawText: createSourceForm.rawText || null })}
-                disabled={createSource.isPending || !createSourceForm.title.trim()}
+                onClick={() => {
+                  if (createSourceForm.type === "file") {
+                    if (selectedFile) uploadFileSource.mutate({ file: selectedFile, title: createSourceForm.title });
+                  } else {
+                    createSource.mutate({ type: createSourceForm.type, title: createSourceForm.title, rawText: createSourceForm.rawText || null });
+                  }
+                }}
+                disabled={
+                  createSource.isPending || uploadFileSource.isPending ||
+                  !createSourceForm.title.trim() ||
+                  (createSourceForm.type === "file" && !selectedFile)
+                }
                 className="bg-primary text-primary-foreground px-4 py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
-                {createSource.isPending ? "جار الحفظ..." : "إضافة"}
+                {createSourceForm.type === "file"
+                  ? (uploadFileSource.isPending ? "جار الاستخراج والمعالجة..." : "رفع وإضافة")
+                  : (createSource.isPending ? "جار الحفظ..." : "إضافة")}
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect, Link } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider, useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -38,6 +38,7 @@ import MetaConnectChannelsPage from "@/pages/MetaConnectChannelsPage";
 import BusinessSetupPage from "@/pages/BusinessSetupPage";
 import TemplatesPage from "@/pages/TemplatesPage";
 import TemplateEditorPage from "@/pages/TemplateEditorPage";
+import WhatsAppBusinessProfilePage from "@/pages/WhatsAppBusinessProfilePage";
 import BroadcastsPage from "@/pages/BroadcastsPage";
 import BroadcastEditorPage from "@/pages/BroadcastEditorPage";
 import BroadcastDetailPage from "@/pages/BroadcastDetailPage";
@@ -121,6 +122,25 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
   return <Component />;
 }
 
+function IntegrationsHubPage() {
+  return (
+    <div className="space-y-4" dir="rtl">
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">الملف التجاري في واتساب</h2>
+          <p className="mt-1 text-xs text-muted-foreground">اعرض وعدّل بيانات النشاط المتزامنة مباشرة مع Meta.</p>
+        </div>
+        <Link href="/integrations/whatsapp/business-profile">
+          <span className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+            إدارة الملف التجاري
+          </span>
+        </Link>
+      </div>
+      <IntegrationsPage />
+    </div>
+  );
+}
+
 function Router() {
   return (
     <Switch>
@@ -141,6 +161,7 @@ function Router() {
       <Route path="/verify-email" component={VerifyEmailPage} />
       <Route path="/about" component={() => <PublicContentPage kind="about" />} />
       <Route path="/privacy" component={() => <PublicContentPage kind="privacy" />} />
+      <Route path="/data-deletion" component={() => <PublicContentPage kind="dataDeletion" />} />
       <Route path="/terms" component={() => <PublicContentPage kind="terms" />} />
       <Route path="/contact" component={() => <PublicContentPage kind="contact" />} />
       <Route path="/products" component={() => <PublicContentPage kind="products" />} />
@@ -171,7 +192,8 @@ function Router() {
       <Route path="/analytics" component={() => <ProtectedRoute component={AnalyticsPage} />} />
       <Route path="/reports" component={() => <ProtectedRoute component={ReportsPage} />} />
       <Route path="/integrations/meta/select-channels" component={() => <ProtectedRoute component={MetaConnectChannelsPage} />} />
-      <Route path="/integrations" component={() => <ProtectedRoute component={IntegrationsPage} />} />
+      <Route path="/integrations/whatsapp/business-profile" component={() => <ProtectedRoute component={WhatsAppBusinessProfilePage} />} />
+      <Route path="/integrations" component={() => <ProtectedRoute component={IntegrationsHubPage} />} />
       <Route path="/templates/new" component={() => <ProtectedRoute component={() => <TemplateEditorPage />} />} />
       <Route path="/templates/:id" component={({ params }) => (
         <ProtectedRoute component={() => <TemplateEditorPage templateId={params.id} />} />

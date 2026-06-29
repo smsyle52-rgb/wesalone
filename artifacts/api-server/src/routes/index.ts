@@ -34,6 +34,8 @@ import inventoryRouter from "../modules/commerce/commerce-inventory-entry.routes
 import commerceProductsRouter from "../modules/commerce/products-commerce.routes";
 import commerceOrdersRouter from "../modules/commerce/orders-commerce.routes";
 import commercePaymentsRouter from "../modules/commerce/payments-commerce.routes";
+import templatesRouter from "../modules/templates/templates.routes";
+import whatsappBusinessProfileRouter from "../modules/whatsapp-management/whatsapp-business-profile.routes";
 import { apiLimiter, webhookLimiter } from "../lib/rateLimiter";
 import { requireVerifiedEmail } from "../middlewares/requireVerifiedEmail";
 
@@ -76,5 +78,7 @@ router.use("/products", productsRouter);
 router.use("/uploads", uploadsRouter);
 router.use("/points", pointsRouter);
 router.use("/admin", adminRouter);
+router.use("/templates", templatesRouter);
+router.use("/whatsapp-management", whatsappBusinessProfileRouter);
 
 export default router;

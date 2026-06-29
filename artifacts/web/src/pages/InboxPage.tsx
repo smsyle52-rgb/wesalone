@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -520,6 +521,7 @@ export default function InboxPage() {
         body: JSON.stringify({ status }),
       }),
     onSuccess: invalidateDetail,
+    onError: (err: Error) => toast.error(err.message || "تعذّر تغيير حالة الوكيل"),
   });
 
   const importConv = useMutation({
@@ -947,6 +949,13 @@ export default function InboxPage() {
                     {needsAgentReactivation ? "إعادة للوكيل" : agentStatus === "active" ? "أوقف" : "أعد الوكيل"}
                   </button>
                 )}
+              </div>
+            )}
+            {conv && !showAgentControls && conv.channelAccountId && currentChannelAccount && !currentChannelAccount.defaultAgentId && canManageConversationAgent && (
+              <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-100 text-amber-700 text-xs">
+                <AlertTriangle size={13} className="shrink-0" />
+                <span>القناة بلا وكيل افتراضي —</span>
+                <Link to="/integrations" className="font-bold underline">اضبطه من إعدادات القنوات</Link>
               </div>
             )}
 
@@ -1686,6 +1695,13 @@ export default function InboxPage() {
                   </div>
                 </div>
               </div>
+              {conv && !showAgentControls && conv.channelAccountId && currentChannelAccount && !currentChannelAccount.defaultAgentId && canManageConversationAgent && (
+                <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-100 text-amber-700 text-xs">
+                  <AlertTriangle size={13} className="shrink-0" />
+                  <span>القناة بلا وكيل افتراضي —</span>
+                  <Link to="/integrations" className="font-bold underline">اضبطه من إعدادات القنوات</Link>
+                </div>
+              )}
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {detailTab === "customer" ? (

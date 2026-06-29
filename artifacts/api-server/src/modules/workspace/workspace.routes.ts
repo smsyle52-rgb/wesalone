@@ -53,6 +53,7 @@ const updateWorkspaceSchema = z.object({
     sector_note: z.string().trim().max(1000).optional(),
     governorate: z.string().trim().max(80).optional(),
     district: z.string().trim().max(120).optional(),
+    onboarding_completed: z.boolean().optional(),
   }).optional(),
 });
 
@@ -244,6 +245,7 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
         .select({
           id: paymentSubmissionsTable.id,
           amountYer: paymentSubmissionsTable.amountYer,
+          amountCurrency: paymentSubmissionsTable.amountCurrency,
           paymentMethod: paymentSubmissionsTable.paymentMethod,
           reference: paymentSubmissionsTable.reference,
           receiptNote: paymentSubmissionsTable.receiptNote,

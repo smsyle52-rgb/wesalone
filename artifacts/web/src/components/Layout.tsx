@@ -56,6 +56,7 @@ const navGroups: NavGroup[] = [
     key: "groupConversations",
     items: [
       { path: "/inbox", key: "inbox", permission: "conversations:read", icon: Inbox, tourId: "nav-inbox" },
+      { path: "/integrations", key: "integrations", permission: "channels:read", icon: Plug, tourId: "nav-integrations" },
     ],
   },
   {
@@ -74,6 +75,8 @@ const navGroups: NavGroup[] = [
     key: "groupStore",
     items: [
       { path: "/inventory", key: "inventory", permission: "products:read", icon: ShoppingBag },
+      { path: "/orders", key: "orders", permission: "orders:read", icon: Package },
+      { path: "/payments", key: "payments", permission: "payments:read", icon: CreditCard },
     ],
   },
   {
@@ -81,16 +84,10 @@ const navGroups: NavGroup[] = [
     key: "groupCustomers",
     items: [
       { path: "/contacts", key: "contacts", permission: "contacts:read", icon: Users, tourId: "nav-contacts" },
-      { path: "/orders", key: "orders", permission: "orders:read", icon: Package },
-      { path: "/payments", key: "payments", permission: "payments:read", icon: CreditCard },
       { path: "/opportunities", key: "opportunities", permission: "opportunities:read", icon: Target },
       { path: "/debts", key: "debts", permission: "debts:read", icon: ReceiptText },
+      { path: "/tasks", key: "tasks", permission: "tasks:read", icon: CheckSquare },
     ],
-  },
-  {
-    slug: "tasks",
-    key: "groupTasks",
-    items: [{ path: "/tasks", key: "tasks", permission: "tasks:read", icon: CheckSquare }],
   },
   {
     slug: "analytics",
@@ -105,7 +102,6 @@ const navGroups: NavGroup[] = [
     slug: "setup",
     key: "groupSetup",
     items: [
-      { path: "/integrations", key: "integrations", permission: "channels:read", icon: Plug, tourId: "nav-integrations" },
       { path: "/settings?tab=billing", key: "billing", permission: "settings:read", icon: CreditCard },
       { path: "/settings", key: "settings", permission: "settings:read", icon: Settings },
     ],

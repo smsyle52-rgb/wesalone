@@ -5,9 +5,13 @@ import {
   knowledgeDocumentsTable,
   knowledgeSourcesTable,
 } from "@workspace/db";
-import { and, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, eq, ilike, inArray, ne, or } from "drizzle-orm";
 import { cosineSimilarity, embed } from "./embeddings";
 import { logger } from "../lib/logger";
+
+// Minimum cosine similarity for a chunk to count as a semantic match in the pgvector pass.
+// Tunable in production without a redeploy via KNOWLEDGE_VECTOR_MIN.
+const VECTOR_GATHER_MIN = Number(process.env.KNOWLEDGE_VECTOR_MIN ?? "0.55");
 
 export type KnowledgeSearchItem = {
   type: "faq" | "document" | "chunk";
@@ -105,6 +109,7 @@ async function searchTsvChunks(params: Required<Pick<KnowledgeSearchParams, "wor
       LEFT JOIN knowledge_sources ks ON ks.id = kd.source_id
       WHERE kc.workspace_id = $1
         ${kbClause}
+        AND kd.status <> 'archived'
         AND kc.tsv @@ plainto_tsquery('simple', $2)
       ORDER BY rank DESC
       LIMIT $3
@@ -130,6 +135,86 @@ async function searchTsvChunks(params: Required<Pick<KnowledgeSearchParams, "wor
   }
 }
 
+// True semantic search over stored chunk embeddings (pgvector `<=>` cosine distance, accelerated
+// by the ivfflat index). This is the recall mechanism that finds the right chunk even when the
+// customer's wording shares no words with the knowledge (e.g. "ايش خدمتكم" → "خدماتنا").
+// Defensive: if the pgvector extension/column/embeddings are absent, returns [] and the caller
+// falls back to lexical+tsv — same behaviour as before this feature.
+async function searchVectorChunks(params: {
+  workspaceId: string;
+  queryVector: number[];
+  knowledgeBaseIds: string[];
+  limit: number;
+}): Promise<KnowledgeSearchItem[]> {
+  if (params.queryVector.length === 0) return [];
+  const vectorLiteral = `[${params.queryVector.join(",")}]`;
+  const queryParams: unknown[] = [vectorLiteral, params.workspaceId, params.limit * 3];
+  let kbClause = "";
+  if (params.knowledgeBaseIds.length > 0) {
+    queryParams.push(params.knowledgeBaseIds);
+    kbClause = `AND kc.knowledge_base_id = ANY($${queryParams.length}::uuid[])`;
+  }
+
+  try {
+    const result = await pool.query<{
+      id: string;
+      chunk_text: string;
+      chunk_index: number;
+      document_id: string;
+      knowledge_base_id: string;
+      document_title: string;
+      source_url: string | null;
+      score: string | number;
+    }>(
+      `
+      SELECT
+        kc.id,
+        kc.chunk_text,
+        kc.chunk_index,
+        kc.document_id,
+        kc.knowledge_base_id,
+        kd.title AS document_title,
+        ks.source_url,
+        1 - (kc.embedding <=> $1::vector) AS score
+      FROM knowledge_chunks kc
+      JOIN knowledge_documents kd ON kd.id = kc.document_id
+      LEFT JOIN knowledge_sources ks ON ks.id = kd.source_id
+      WHERE kc.workspace_id = $2
+        AND kc.embedding IS NOT NULL
+        AND kd.status <> 'archived'
+        ${kbClause}
+      ORDER BY kc.embedding <=> $1::vector
+      LIMIT $3
+      `,
+      queryParams
+    );
+
+    return result.rows
+      .map((row) => {
+        const vectorScore = Number(row.score);
+        return {
+          type: "chunk" as const,
+          id: row.id,
+          title: `${row.document_title} #${row.chunk_index + 1}`,
+          content: row.chunk_text,
+          knowledgeBaseId: row.knowledge_base_id,
+          documentId: row.document_id,
+          sourceUrl: row.source_url,
+          lexicalScore: 0,
+          vectorScore,
+          score: vectorScore,
+        };
+      })
+      .filter((row) => row.vectorScore >= VECTOR_GATHER_MIN);
+  } catch (err) {
+    logger.debug(
+      { err: err instanceof Error ? err.message : String(err) },
+      "pgvector knowledge search unavailable; using lexical+tsv fallback"
+    );
+    return [];
+  }
+}
+
 export async function searchKnowledge(params: KnowledgeSearchParams): Promise<KnowledgeSearchItem[]> {
   const query = params.query.trim();
   const limit = Math.min(Math.max(params.limit ?? 5, 1), 20);
@@ -139,9 +224,10 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
   const words = wordsForQuery(query);
   if (words.length === 0) return [];
 
-  const [queryVector, tsvChunks] = await Promise.all([
-    embed(query),
+  const queryVector = await embed(query, "RETRIEVAL_QUERY");
+  const [tsvChunks, vectorChunks] = await Promise.all([
     searchTsvChunks({ workspaceId: params.workspaceId, query, limit, knowledgeBaseIds }),
+    searchVectorChunks({ workspaceId: params.workspaceId, queryVector, limit, knowledgeBaseIds }),
   ]);
 
   const faqFilters = [
@@ -156,6 +242,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
 
   const docFilters = [
     eq(knowledgeDocumentsTable.workspaceId, params.workspaceId),
+    ne(knowledgeDocumentsTable.status, "archived"),
     or(...words.flatMap((word) => [
       ilike(knowledgeDocumentsTable.title, `%${word}%`),
       ilike(knowledgeDocumentsTable.contentText, `%${word}%`),
@@ -165,6 +252,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
 
   const chunkFilters = [
     eq(knowledgeChunksTable.workspaceId, params.workspaceId),
+    ne(knowledgeDocumentsTable.status, "archived"),
     or(...words.map((word) => ilike(knowledgeChunksTable.chunkText, `%${word}%`)))!,
   ];
   if (knowledgeBaseIds.length > 0) chunkFilters.splice(1, 0, inArray(knowledgeChunksTable.knowledgeBaseId, knowledgeBaseIds));
@@ -210,6 +298,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
   ]);
 
   const candidates: KnowledgeSearchItem[] = [
+    ...vectorChunks,
     ...tsvChunks,
     ...faqs.map((faq) => ({
       type: "faq" as const,
@@ -251,12 +340,22 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
   for (const candidate of candidates) {
     const key = `${candidate.type}:${candidate.id}`;
     const existing = seen.get(key);
-    if (!existing || candidate.lexicalScore > existing.lexicalScore) seen.set(key, candidate);
+    if (!existing) {
+      seen.set(key, { ...candidate });
+      continue;
+    }
+    // Same item surfaced by more than one pass (semantic + lexical/tsv): keep the strongest of each signal.
+    existing.lexicalScore = Math.max(existing.lexicalScore, candidate.lexicalScore);
+    existing.vectorScore = Math.max(existing.vectorScore, candidate.vectorScore);
+    if (!existing.sourceUrl && candidate.sourceUrl) existing.sourceUrl = candidate.sourceUrl;
   }
 
   const ranked = await Promise.all([...seen.values()].map(async (item) => {
-    const itemVector = await embed(`${item.title}\n${item.content.slice(0, 2000)}`);
-    const vectorScore = cosineSimilarity(queryVector, itemVector);
+    // Reuse the stored-vector similarity from the semantic pass; only re-embed live for items that
+    // arrived via lexical/tsv (faqs/documents) and have no vector score yet.
+    const vectorScore = item.vectorScore > 0
+      ? item.vectorScore
+      : cosineSimilarity(queryVector, await embed(`${item.title}\n${item.content.slice(0, 2000)}`));
     const normalizedLexical = Math.min(item.lexicalScore / 50, 1);
     return {
       ...item,

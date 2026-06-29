@@ -171,7 +171,9 @@ describe("POST /orders contract", () => {
       channel: "whatsapp",
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await vi.waitFor(() => {
+      expect(mocks.createOrderDraft).toHaveBeenCalledTimes(1);
+    });
     expect(mocks.emitWorkspaceEvent).not.toHaveBeenCalled();
     resolveCommand({ order: responseOrder, realtimeEvent });
     const response = await responsePromise;
