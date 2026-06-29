@@ -72,10 +72,22 @@ const queryClient = new QueryClient({
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-white text-2xl font-bold mb-4 animate-pulse">خ</div>
-        <p className="text-muted-foreground text-sm">جار التحميل...</p>
+    <div className="flex min-h-screen items-center justify-center bg-background px-6">
+      <div className="w-full max-w-xs text-center">
+        <img
+          src="/assets/wesal/wesal-mark.png"
+          alt="وصال ون"
+          className="mx-auto h-20 w-20 object-contain"
+        />
+        <div className="mt-5">
+          <h2 className="text-xl font-black text-foreground">وصال ون</h2>
+          <p className="mt-1 text-sm text-muted-foreground">جارٍ تحميل وصال ون</p>
+        </div>
+        <div className="mt-5 overflow-hidden rounded-full bg-primary/10">
+          <div className="relative h-1.5 rounded-full bg-white/5">
+            <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-cyan-400 via-primary to-cyan-300 animate-pulse shadow-[0_0_16px_rgba(34,211,238,0.45)]" />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -244,6 +256,21 @@ function Router() {
         <ProtectedRoute component={() => <AutomationEditorPage automationId={params.id} />} />
       )} />
       <Route path="/automations" component={() => <ProtectedRoute component={AutomationsPage} />} />
+      <Route
+        path="/billing"
+        component={() => (
+          <ProtectedRoute
+            component={() => (
+              <SettingsPage
+                forcedTab="billing"
+                standalone
+                standaloneTitle="الفوترة"
+                standaloneSubtitle="الاشتراك والنقاط والفواتير"
+              />
+            )}
+          />
+        )}
+      />
       <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
       <Route path="/admin/payments" component={() => <ProtectedRoute component={AdminPaymentsPage} />} />
       <Route path="/admin/points" component={() => <ProtectedRoute component={AdminPointsPage} />} />

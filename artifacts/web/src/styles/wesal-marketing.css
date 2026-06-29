@@ -109,25 +109,25 @@
 
     /* ===== Dark-mode overrides for the dashboard mockup (which uses bg-white) ===== */
     /* These run by default (since we're dark-first) and revert in light mode */
-    html:not(.light) .bg-white { background-color: var(--card-solid) !important; color: var(--fg) !important; }
-    html:not(.light) .bg-slate-50 { background-color: var(--bg-soft) !important; }
-    html:not(.light) .bg-slate-100 { background-color: rgba(255,255,255,0.06) !important; }
-    html:not(.light) .bg-blue-50, html:not(.light) .bg-blue-50\/60, html:not(.light) .bg-blue-50\/70 { background-color: rgba(37,99,235,0.18) !important; }
-    html:not(.light) .bg-emerald-50, html:not(.light) .bg-emerald-50\/70 { background-color: rgba(34,211,238,0.12) !important; }
-    html:not(.light) .bg-amber-50, html:not(.light) .bg-amber-50\/70 { background-color: rgba(245,158,11,0.12) !important; }
-    html:not(.light) .bg-\[\#FBFCFE\] { background-color: var(--bg-soft) !important; }
-    html:not(.light) .text-slate-900, html:not(.light) .text-\[\#1B3A5C\], html:not(.light) .text-\[\#0E2A6B\] { color: #F1F5F9 !important; }
-    html:not(.light) .text-slate-800 { color: #E2E8F0 !important; }
-    html:not(.light) .text-slate-700 { color: #CBD5E1 !important; }
-    html:not(.light) .text-slate-600, html:not(.light) .text-slate-500 { color: #94A3B8 !important; }
-    html:not(.light) .text-slate-400 { color: #64748B !important; }
-    html:not(.light) .ring-slate-100, html:not(.light) .ring-slate-200 { --tw-ring-color: rgba(255,255,255,0.08) !important; }
-    html:not(.light) .ring-blue-100 { --tw-ring-color: rgba(37,99,235,0.3) !important; }
-    html:not(.light) .border-slate-50, html:not(.light) .border-slate-100, html:not(.light) .border-slate-200 { border-color: rgba(255,255,255,0.06) !important; }
-    html:not(.light) .bg-\[\#0E1B3A\] { background-color: #030714 !important; }
-    html:not(.light) .from-blue-100\/60, html:not(.light) .from-blue-200\/30, html:not(.light) .from-blue-50 { --tw-gradient-from: rgba(37,99,235,0.08) !important; }
-    html:not(.light) .via-white { --tw-gradient-via: rgba(12,24,52,0) !important; }
-    html:not(.light) .to-teal-100\/50, html:not(.light) .to-teal-200\/25, html:not(.light) .to-teal-50 { --tw-gradient-to: rgba(34,211,238,0.08) !important; }
+    html:not(.light) .wesal-source-page .bg-white { background-color: var(--card-solid) !important; color: var(--fg) !important; }
+    html:not(.light) .wesal-source-page .bg-slate-50 { background-color: var(--bg-soft) !important; }
+    html:not(.light) .wesal-source-page .bg-slate-100 { background-color: rgba(255,255,255,0.06) !important; }
+    html:not(.light) .wesal-source-page .bg-blue-50, html:not(.light) .wesal-source-page .bg-blue-50\/60, html:not(.light) .wesal-source-page .bg-blue-50\/70 { background-color: rgba(37,99,235,0.18) !important; }
+    html:not(.light) .wesal-source-page .bg-emerald-50, html:not(.light) .wesal-source-page .bg-emerald-50\/70 { background-color: rgba(34,211,238,0.12) !important; }
+    html:not(.light) .wesal-source-page .bg-amber-50, html:not(.light) .wesal-source-page .bg-amber-50\/70 { background-color: rgba(245,158,11,0.12) !important; }
+    html:not(.light) .wesal-source-page .bg-\[\#FBFCFE\] { background-color: var(--bg-soft) !important; }
+    html:not(.light) .wesal-source-page .text-slate-900, html:not(.light) .wesal-source-page .text-\[\#1B3A5C\], html:not(.light) .wesal-source-page .text-\[\#0E2A6B\] { color: #F1F5F9 !important; }
+    html:not(.light) .wesal-source-page .text-slate-800 { color: #E2E8F0 !important; }
+    html:not(.light) .wesal-source-page .text-slate-700 { color: #CBD5E1 !important; }
+    html:not(.light) .wesal-source-page .text-slate-600, html:not(.light) .wesal-source-page .text-slate-500 { color: #94A3B8 !important; }
+    html:not(.light) .wesal-source-page .text-slate-400 { color: #64748B !important; }
+    html:not(.light) .wesal-source-page .ring-slate-100, html:not(.light) .wesal-source-page .ring-slate-200 { --tw-ring-color: rgba(255,255,255,0.08) !important; }
+    html:not(.light) .wesal-source-page .ring-blue-100 { --tw-ring-color: rgba(37,99,235,0.3) !important; }
+    html:not(.light) .wesal-source-page .border-slate-50, html:not(.light) .wesal-source-page .border-slate-100, html:not(.light) .wesal-source-page .border-slate-200 { border-color: rgba(255,255,255,0.06) !important; }
+    html:not(.light) .wesal-source-page .bg-\[\#0E1B3A\] { background-color: #030714 !important; }
+    html:not(.light) .wesal-source-page .from-blue-100\/60, html:not(.light) .wesal-source-page .from-blue-200\/30, html:not(.light) .wesal-source-page .from-blue-50 { --tw-gradient-from: rgba(37,99,235,0.08) !important; }
+    html:not(.light) .wesal-source-page .via-white { --tw-gradient-via: rgba(12,24,52,0) !important; }
+    html:not(.light) .wesal-source-page .to-teal-100\/50, html:not(.light) .wesal-source-page .to-teal-200\/25, html:not(.light) .wesal-source-page .to-teal-50 { --tw-gradient-to: rgba(34,211,238,0.08) !important; }
 
     /* ===== Hero backdrop layers ===== */
     .grid-bg {

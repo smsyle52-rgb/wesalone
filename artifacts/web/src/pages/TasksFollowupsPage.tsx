@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { cn } from "@/lib/utils";
 import TasksPage from "./TasksPage";
 import FollowupsPage from "./FollowupsPage";
@@ -7,12 +7,12 @@ import FollowupsPage from "./FollowupsPage";
 type TabKey = "tasks" | "followups";
 
 export default function TasksFollowupsPage() {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
+  const search = useSearch();
   const activeTab = useMemo<TabKey>(() => {
-    const query = location.split("?")[1] ?? "";
-    const tab = new URLSearchParams(query).get("tab");
+    const tab = new URLSearchParams(search).get("tab");
     return tab === "followups" ? "followups" : "tasks";
-  }, [location]);
+  }, [search]);
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: "tasks", label: "المهام" },

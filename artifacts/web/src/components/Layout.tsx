@@ -102,7 +102,7 @@ const navGroups: NavGroup[] = [
     slug: "setup",
     key: "groupSetup",
     items: [
-      { path: "/settings?tab=billing", key: "billing", permission: "settings:read", icon: CreditCard },
+      { path: "/billing", key: "billing", permission: "settings:read", icon: CreditCard },
       { path: "/settings", key: "settings", permission: "settings:read", icon: Settings },
     ],
   },
@@ -115,6 +115,7 @@ const mobileTitles: Array<{ match: (location: string) => boolean; title: string;
   { match: (location) => location.startsWith("/automation-hub"), title: "الأتمتة والذكاء", description: "الوكلاء والمعرفة والقوالب" },
   { match: (location) => location.startsWith("/more"), title: "المزيد", description: "كل الأدوات حسب صلاحياتك" },
   { match: (location) => location.startsWith("/integrations"), title: "القنوات", description: "واتساب وإنستغرام وماسنجر" },
+  { match: (location) => location.startsWith("/billing"), title: "الفوترة", description: "الاشتراك والنقاط والفواتير" },
   { match: (location) => location.startsWith("/settings"), title: "الإعدادات", description: "النشاط والفريق والأمان" },
   { match: (location) => location.startsWith("/orders"), title: "الطلبات" },
   { match: (location) => location.startsWith("/payments"), title: "المدفوعات" },
@@ -264,6 +265,7 @@ function GuidedTour({ tourDone, onComplete }: { tourDone: boolean; onComplete: (
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const cleanLocation = location.split("?")[0] ?? location;
   const { user, clearAuth, hasPermission } = useAuth();
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(readCollapsedGroups);
   const qc = useQueryClient();
@@ -380,7 +382,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 {!collapsed && (
                   <div className="space-y-0.5">
                     {group.items.map((item) => {
-                      const active = location === item.path || location.startsWith(`${item.path}/`);
+                      const active = cleanLocation === item.path || cleanLocation.startsWith(`${item.path}/`);
                       const Icon = item.icon;
 
                       return (

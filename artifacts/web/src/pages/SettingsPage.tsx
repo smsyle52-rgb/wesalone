@@ -41,6 +41,13 @@ type Tab =
   | "api-keys"
   | "danger";
 
+type SettingsPageProps = {
+  forcedTab?: Tab;
+  standalone?: boolean;
+  standaloneTitle?: string;
+  standaloneSubtitle?: string;
+};
+
 type ChannelAccount = {
   id: string;
   name: string;
@@ -1135,20 +1142,31 @@ function ChannelsTab() {
   );
 }
 
-export default function SettingsPage() {
+export default function SettingsPage({
+  forcedTab,
+  standalone = false,
+  standaloneTitle = "الفوترة",
+  standaloneSubtitle = "الاشتراك والنقاط والفواتير",
+}: SettingsPageProps) {
   const { hasPermission } = useAuth();
   const qc = useQueryClient();
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const search = useSearch();
-  const [tab, setTabState] = useState<Tab>(readTabFromUrl);
+  const [tab, setTabState] = useState<Tab>(() => forcedTab ?? readTabFromUrl());
   const [inviteForm, setInviteForm] = useState({ email: "", name: "", password: "", role: "agent" });
   const [inviteError, setInviteError] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
-  const [mobileSettingsHome, setMobileSettingsHome] = useState(() => !new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").has("tab"));
+  const [mobileSettingsHome, setMobileSettingsHome] = useState(() => (
+    standalone ? false : !new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").has("tab")
+  ));
 
   const setTab = (nextTab: Tab) => {
     setTabState(nextTab);
     setMobileSettingsHome(false);
+    if (standalone) {
+      navigate(nextTab === "billing" ? "/billing" : `/settings${nextTab === "workspace" ? "" : `?tab=${nextTab}`}`);
+      return;
+    }
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     if (nextTab === "workspace") {
@@ -1160,14 +1178,37 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
+    if (!forcedTab) return;
+    setTabState(forcedTab);
+    setMobileSettingsHome(false);
+  }, [forcedTab]);
+
+  useEffect(() => {
+    if (standalone) {
+      setMobileSettingsHome(false);
+    }
+  }, [standalone]);
+
+  useEffect(() => {
+    if (standalone) return;
+    if (readTabFromUrl() === "channels") {
+      navigate("/agents");
+    }
+  }, [location, search, navigate, standalone]);
+
+  useEffect(() => {
     const syncTabFromUrl = () => setTabState(readTabFromUrl());
     window.addEventListener("popstate", syncTabFromUrl);
     return () => window.removeEventListener("popstate", syncTabFromUrl);
   }, []);
 
   useEffect(() => {
+    if (forcedTab) {
+      setTabState(forcedTab);
+      return;
+    }
     setTabState(readTabFromUrl());
-  }, [location, search]);
+  }, [forcedTab, location, search]);
 
   const { data: usersData, isError: usersIsError, error: usersError } = useQuery({
     queryKey: ["workspace-users"],
@@ -1206,7 +1247,7 @@ export default function SettingsPage() {
         { kind: "tab", id: "business-hours", label: "\u0633\u0627\u0639\u0627\u062a \u0627\u0644\u0639\u0645\u0644" },
         { kind: "tab", id: "sla", label: "\u0642\u0648\u0627\u0639\u062f \u0627\u0644\u0627\u0633\u062a\u062c\u0627\u0628\u0629" },
         { kind: "tab", id: "quick-replies", label: "\u0627\u0644\u0631\u062f\u0648\u062f \u0627\u0644\u0633\u0631\u064a\u0639\u0629" },
-        { kind: "tab", id: "channels", label: "\u0627\u0644\u0642\u0646\u0648\u0627\u062a" },
+        { kind: "link", href: "/agents", label: "\u0627\u0644\u0648\u0643\u0644\u0627\u0621", permission: "ai:read" },
       ],
     },
     {
@@ -1225,7 +1266,7 @@ export default function SettingsPage() {
     },
     {
       label: "\u0627\u0644\u0641\u0648\u062a\u0631\u0629 \u0648\u0627\u0644\u0627\u0634\u062a\u0631\u0627\u0643",
-      tabs: [{ kind: "tab", id: "billing", label: "\u0627\u0644\u0641\u0648\u062a\u0631\u0629" }],
+      tabs: [{ kind: "link", href: "/billing", label: "\u0627\u0644\u0641\u0648\u062a\u0631\u0629", permission: "settings:read" }],
     },
     {
       label: "\u0627\u0644\u0623\u0645\u0627\u0646 \u0648\u0627\u0644\u062d\u0633\u0627\u0628",
@@ -1244,12 +1285,12 @@ export default function SettingsPage() {
     { tab: "business-hours", icon: Clock,        label: "ساعات العمل",       description: "أوقات الرد والجداول اليومية" },
     { tab: "sla",            icon: Timer,        label: "قواعد الاستجابة",   description: "مهل الرد وأولويات المحادثات" },
     { tab: "quick-replies",  icon: MessageSquare,label: "الردود السريعة",    description: "قوالب الردود المحفوظة" },
-    { tab: "channels",       icon: Plug,         label: "القنوات",           description: "واتساب وإنستغرام وماسنجر" },
+    { href: "/agents",       icon: Plug,         label: "الوكلاء",           description: "القنوات وربطها مع الوكلاء", permission: "ai:read" },
     { tab: "users",          icon: Users,        label: "أعضاء الفريق",      description: "إدارة الأعضاء والأدوار" },
     { tab: "invite",         icon: UserPlus,     label: "دعوة عضو",          description: "أضف موظفاً جديداً للفريق", permission: "users:invite" },
     { tab: "payment-methods",icon: CreditCard,   label: "طرق الدفع",         description: "إدارة خيارات الدفع للعملاء" },
     { tab: "exchange-rates", icon: RefreshCw,    label: "أسعار الصرف",       description: "نسب تحويل العملات" },
-    { tab: "billing",        icon: Receipt,      label: "الفوترة",           description: "الاشتراك والنقاط والفواتير" },
+    { href: "/billing",      icon: Receipt,      label: "الفوترة",           description: "الاشتراك والنقاط والفواتير", permission: "settings:read" },
     { tab: "notifications",  icon: Bell,         label: "التنبيهات",         description: "إشعارات التطبيق والبريد" },
     { tab: "security",       icon: ShieldCheck,  label: "الأمان",            description: "كلمة المرور والجلسات النشطة" },
     { tab: "api-keys",       icon: Key,          label: "مفاتيح API",        description: "توليد وإدارة مفاتيح الوصول" },
@@ -1259,9 +1300,17 @@ export default function SettingsPage() {
 
   return (
     <div dir="rtl">
+      {standalone && (
+        <div className="mb-4">
+          <Link href="/settings" className="inline-flex items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-primary/80">
+            <BackArrow size={16} />
+            <span>العودة إلى الإعدادات</span>
+          </Link>
+        </div>
+      )}
 
       {/* ═══ MOBILE: Settings Home List ═══ */}
-      {mobileSettingsHome && (
+      {!standalone && mobileSettingsHome && (
         <div className="md:hidden">
           {/* Security status card */}
           <div className="mb-4 flex items-center gap-3 rounded-2xl bg-green-50 border border-green-200 px-4 py-3">
@@ -1327,7 +1376,7 @@ export default function SettingsPage() {
       )}
 
       {/* ═══ MOBILE: Back button when in a tab ═══ */}
-      {!mobileSettingsHome && (
+      {!standalone && !mobileSettingsHome && (
         <div className="md:hidden mb-4">
           <button onClick={() => setMobileSettingsHome(true)} className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors">
             <BackArrow size={16} />
@@ -1337,11 +1386,15 @@ export default function SettingsPage() {
       )}
 
       {/* ═══ DESKTOP: PageHeader (hidden on mobile when showing home list) ═══ */}
-      <div className={mobileSettingsHome ? "hidden md:block" : "block"}>
-        <PageHeader title="الإعدادات" subtitle="إدارة مساحة العمل والفريق والمالية" />
+      <div className={!standalone && mobileSettingsHome ? "hidden md:block" : "block"}>
+        <PageHeader
+          title={standalone ? standaloneTitle : "الإعدادات"}
+          subtitle={standalone ? standaloneSubtitle : "إدارة مساحة العمل والفريق والمالية"}
+        />
       </div>
 
       {/* ═══ DESKTOP: Tab navigation grid ═══ */}
+      {!standalone && (
       <div className={`mb-6 grid gap-3 rounded-2xl border border-border bg-card p-3 lg:grid-cols-5 ${mobileSettingsHome ? "hidden md:grid" : "hidden md:grid"}`}>
         {tabGroups.map((group) => (
           <div key={group.label} className="min-w-0 rounded-xl bg-muted/30 p-2">
@@ -1380,9 +1433,10 @@ export default function SettingsPage() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Tab content — hidden on mobile when showing settings home list */}
-      <div className={mobileSettingsHome ? "hidden md:block" : "block"}>
+      <div className={!standalone && mobileSettingsHome ? "hidden md:block" : "block"}>
 
       {tab === "workspace" && <WorkspaceTab />}
 

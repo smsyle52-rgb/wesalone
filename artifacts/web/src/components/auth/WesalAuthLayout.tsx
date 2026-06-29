@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type ReactNode } from "react";
+import { FaFacebookMessenger, FaInstagram, FaTelegramPlane, FaWhatsapp } from "react-icons/fa";
 import "@/styles/wesal-auth.css";
 
 type AuthLayoutProps = {
@@ -47,9 +48,19 @@ export function AuthThemeToggle() {
   });
 
   useEffect(() => {
-    document.documentElement.classList.remove("dark", "light");
-    document.documentElement.classList.add(dark ? "dark" : "light");
+    const root = document.documentElement;
+    const hadDark = root.classList.contains("dark");
+    const hadLight = root.classList.contains("light");
+
+    root.classList.remove("dark", "light");
+    root.classList.add(dark ? "dark" : "light");
     localStorage.setItem("wesal-theme", dark ? "dark" : "light");
+
+    return () => {
+      root.classList.remove("dark", "light");
+      if (hadDark) root.classList.add("dark");
+      if (hadLight) root.classList.add("light");
+    };
   }, [dark]);
 
   return (
@@ -139,10 +150,10 @@ export function GoogleButton({ loading, disabled, onClick, label }: { loading: b
   );
 }
 
-function ChannelOrb({ label, className, background, delay }: { label: string; className: string; background: string; delay: number }) {
+function ChannelOrb({ icon, className, background, delay }: { icon: ReactNode; className: string; background: string; delay: number }) {
   return (
     <span className={`float-y absolute grid h-12 w-12 place-items-center rounded-2xl border border-white/10 text-sm font-black text-white shadow-xl ${className}`} style={{ background, animationDelay: `${delay}s` }}>
-      {label}
+      {icon}
     </span>
   );
 }
@@ -160,10 +171,10 @@ function AuthVisual({ visualTitle, visualSubtitle, visualBullets }: AuthLayoutPr
             <div className="absolute left-1/2 top-0 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 shadow-[0_0_14px_#22D3EE]" />
           </div>
           <div className="orbit-ring--rev absolute inset-[12%] rounded-full border border-dashed border-[rgba(90,140,255,0.22)]" />
-          <ChannelOrb label="W" background="#25D366" delay={0} className="left-1/2 top-[8%] -translate-x-1/2" />
-          <ChannelOrb label="I" background="linear-gradient(135deg,#F58529,#DD2A7B,#515BD4)" delay={0.4} className="right-[6%] top-1/2 -translate-y-1/2" />
-          <ChannelOrb label="M" background="#0084FF" delay={0.8} className="bottom-[8%] left-1/2 -translate-x-1/2" />
-          <ChannelOrb label="T" background="#2AABEE" delay={1.2} className="left-[6%] top-1/2 -translate-y-1/2" />
+          <ChannelOrb icon={<FaWhatsapp className="h-6 w-6" />} background="#25D366" delay={0} className="left-1/2 top-[8%] -translate-x-1/2" />
+          <ChannelOrb icon={<FaInstagram className="h-5.5 w-5.5" />} background="linear-gradient(135deg,#F58529,#DD2A7B,#515BD4)" delay={0.4} className="right-[6%] top-1/2 -translate-y-1/2" />
+          <ChannelOrb icon={<FaFacebookMessenger className="h-5.5 w-5.5" />} background="#0084FF" delay={0.8} className="bottom-[8%] left-1/2 -translate-x-1/2" />
+          <ChannelOrb icon={<FaTelegramPlane className="h-5.5 w-5.5" />} background="#2AABEE" delay={1.2} className="left-[6%] top-1/2 -translate-y-1/2" />
           <div className="absolute inset-0 grid place-items-center">
             <div className="relative">
               <div className="orb-pulse absolute h-[140px] w-[140px] rounded-full" style={{ margin: "-70px", background: "radial-gradient(circle, rgba(37,99,235,0.7), transparent 70%)", filter: "blur(20px)" }} />
