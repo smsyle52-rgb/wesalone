@@ -47,7 +47,6 @@ function StrengthBar({ password }: { password: string }) {
 }
 
 export default function RegisterForm(props: Props) {
-  const strong = props.form.password.length >= 8 && /[a-zA-Z]/.test(props.form.password) && /\d/.test(props.form.password);
   const set = (key: keyof RegisterState, value: string) => props.setForm({ ...props.form, [key]: value });
 
   return (
@@ -94,7 +93,7 @@ export default function RegisterForm(props: Props) {
           <StrengthBar password={props.form.password} />
         </div>
         <div className="reveal in mt-6" style={{ animationDelay: ".55s" }}>
-          <button type="submit" disabled={props.pending || !strong} className={cn("btn-primary cta-pulse flex h-12 w-full items-center justify-center rounded-xl text-[14px] font-bold", (props.pending || !strong) && "cursor-not-allowed opacity-50")}>
+          <button type="submit" disabled={props.pending} className={cn("btn-primary cta-pulse flex h-12 w-full items-center justify-center rounded-xl text-[14px] font-bold", props.pending && "cursor-not-allowed opacity-50")}>
             {props.pending ? "جار إنشاء الحساب..." : "إنشاء الحساب - ابدأ مجاناً"}
           </button>
         </div>
