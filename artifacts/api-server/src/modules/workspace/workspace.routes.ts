@@ -6,7 +6,6 @@ import {
   db,
   workspacesTable,
   featureFlagsTable,
-  subscriptionsTable,
   plansTable,
   paymentMethodsTable,
   paymentSubmissionsTable,
@@ -28,6 +27,10 @@ import {
 } from "../../services/subscription-payments";
 
 const router = Router();
+const paymentSubmissionColumns = paymentSubmissionsTable as typeof paymentSubmissionsTable & {
+  billingCycle: any;
+  rejectionReason: any;
+};
 
 router.use(requireSession);
 
@@ -251,7 +254,7 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
         .select({
           id: paymentSubmissionsTable.id,
           planId: paymentSubmissionsTable.planId,
-          billingCycle: paymentSubmissionsTable.billingCycle,
+          billingCycle: paymentSubmissionColumns.billingCycle,
           amountYer: paymentSubmissionsTable.amountYer,
           amountCurrency: paymentSubmissionsTable.amountCurrency,
           paidCurrency: paymentSubmissionsTable.paidCurrency,
@@ -259,7 +262,7 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
           reference: paymentSubmissionsTable.reference,
           receiptNote: paymentSubmissionsTable.receiptNote,
           receiptFileUrl: paymentSubmissionsTable.receiptFileUrl,
-          rejectionReason: paymentSubmissionsTable.rejectionReason,
+          rejectionReason: paymentSubmissionColumns.rejectionReason,
           status: paymentSubmissionsTable.status,
           reviewedAt: paymentSubmissionsTable.reviewedAt,
           createdAt: paymentSubmissionsTable.createdAt,

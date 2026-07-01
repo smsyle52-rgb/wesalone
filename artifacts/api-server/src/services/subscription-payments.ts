@@ -13,6 +13,13 @@ export type BillingCycle = "monthly" | "annual";
 export type SubscriptionPaymentStatus = "pending_payment" | "under_review" | "confirmed" | "rejected" | "cancelled" | "expired";
 
 const REVIEWABLE_STATUS = "under_review";
+const paymentSubmissionColumns = paymentSubmissionsTable as typeof paymentSubmissionsTable & {
+  billingCycle: any;
+  rejectionReason: any;
+};
+const subscriptionColumns = subscriptionsTable as typeof subscriptionsTable & {
+  billingCycle: any;
+};
 
 function numeric(value: string | number | null | undefined): number {
   const parsed = typeof value === "number" ? value : Number(value ?? 0);
@@ -65,7 +72,7 @@ export async function createSubscriptionPaymentSubmission(opts: {
     .where(and(
       eq(paymentSubmissionsTable.workspaceId, opts.workspaceId),
       eq(paymentSubmissionsTable.planId, opts.planId),
-      eq(paymentSubmissionsTable.billingCycle, opts.billingCycle),
+      eq(paymentSubmissionColumns.billingCycle, opts.billingCycle),
       eq(paymentSubmissionsTable.submissionType, "subscription"),
       eq(paymentSubmissionsTable.status, REVIEWABLE_STATUS),
     ))
@@ -97,7 +104,7 @@ export async function createSubscriptionPaymentSubmission(opts: {
     receiptNote: opts.receiptNote ?? null,
     receiptFileUrl: opts.receiptFileUrl ?? null,
     status: REVIEWABLE_STATUS,
-  }).returning();
+  } as any).returning();
 
   await db.insert(domainEventsTable).values({
     workspaceId: opts.workspaceId,
@@ -145,7 +152,7 @@ export async function confirmSubscriptionPayment(opts: { submissionId: string; r
     const [plan] = await tx.select().from(plansTable).where(eq(plansTable.id, submission.planId)).limit(1);
     if (!plan) throw Object.assign(new Error("PLAN_NOT_FOUND"), { code: "plan_not_found" });
 
-    const cycle = (submission.billingCycle === "annual" ? "annual" : "monthly") as BillingCycle;
+    const cycle = ((submission as typeof submission & { billingCycle?: string | null }).billingCycle === "annual" ? "annual" : "monthly") as BillingCycle;
     const now = new Date();
     const periodEnd = addBillingPeriod(now, cycle);
     const currentPeriodStart = dateOnly(now);
@@ -168,7 +175,7 @@ export async function confirmSubscriptionPayment(opts: { submissionId: string; r
       billingCycle: cycle,
       paymentMethod: submission.paymentMethod,
       lastPaymentRef: submission.reference ?? null,
-    }).onConflictDoUpdate({
+    } as any).onConflictDoUpdate({
       target: subscriptionsTable.workspaceId,
       set: {
         planId: plan.id,
@@ -179,7 +186,7 @@ export async function confirmSubscriptionPayment(opts: { submissionId: string; r
         paymentMethod: submission.paymentMethod,
         lastPaymentRef: submission.reference ?? null,
         updatedAt: now,
-      },
+      } as any,
     });
 
     const points = monthlyPoints(plan.limits);
@@ -226,7 +233,7 @@ export async function rejectSubscriptionPayment(opts: { submissionId: string; re
     if (submission.status !== REVIEWABLE_STATUS) throw Object.assign(new Error("NOT_REVIEWABLE"), { code: "not_reviewable", currentStatus: submission.status });
 
     const [updated] = await tx.update(paymentSubmissionsTable)
-      .set({ status: "rejected", reviewedBy: opts.reviewedByUserId, reviewedAt: new Date(), rejectionReason: opts.reason })
+      .set({ status: "rejected", reviewedBy: opts.reviewedByUserId, reviewedAt: new Date(), rejectionReason: opts.reason } as any)
       .where(and(eq(paymentSubmissionsTable.id, opts.submissionId), eq(paymentSubmissionsTable.status, REVIEWABLE_STATUS)))
       .returning();
     if (!updated) throw Object.assign(new Error("CONCURRENT_UPDATE"), { code: "concurrent_update" });

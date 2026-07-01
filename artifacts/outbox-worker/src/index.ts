@@ -9,6 +9,7 @@ const INGESTION_INTERVAL_MS = 3_000;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const CLEANUP_INTERVAL_MS = 300_000;
 const INGEST_DEFERRED = process.env.INGEST_DEFERRED === "true";
+const META_DRY_RUN = process.env.META_DRY_RUN === "true";
 const META_GRAPH_VERSION = "v22.0";
 const API_SERVER_URL = (process.env.API_SERVER_URL ?? "http://localhost:8080").replace(/\/$/, "");
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "";
@@ -124,6 +125,14 @@ function decryptTokenRef(ref: string | null | undefined): string | null {
   }
 }
 
+function shouldDryRunMetaSend(): boolean {
+  return META_DRY_RUN || !process.env.META_APP_SECRET || !process.env.META_SYSTEM_USER_TOKEN;
+}
+
+function logMetaDryRun(eventType: string, details: Record<string, unknown>): void {
+  logger.info({ eventType, ...details }, "Meta outbox send DRY_RUN");
+}
+
 async function markDone(id: string): Promise<void> {
   await pool.query(
     "UPDATE domain_events SET status='done', processed_at=NOW() WHERE id=$1",
@@ -181,11 +190,15 @@ async function markOutboxFailedOrRetry(event: OutboxEventRow): Promise<void> {
   }
 }
 
-async function sendWhatsAppText(params: {
+async function dispatchWhatsAppText(params: {
   phoneNumberId: string;
   to: string;
   text: string;
 }): Promise<void> {
+  if (shouldDryRunMetaSend()) {
+    logMetaDryRun("message.send.whatsapp.text", { phoneNumberId: params.phoneNumberId, to: params.to });
+    return;
+  }
   const token = process.env.META_SYSTEM_USER_TOKEN;
   if (!token) throw new Error("META_SYSTEM_USER_TOKEN is required");
 
@@ -219,6 +232,10 @@ async function sendWhatsAppMedia(params: {
   mediaUrl: string;
   caption?: string;
 }): Promise<void> {
+  if (shouldDryRunMetaSend()) {
+    logMetaDryRun("message.send.whatsapp.media", { phoneNumberId: params.phoneNumberId, to: params.to, mediaType: params.mediaType });
+    return;
+  }
   const token = process.env.META_SYSTEM_USER_TOKEN;
   if (!token) throw new Error("META_SYSTEM_USER_TOKEN is required");
 
@@ -260,6 +277,10 @@ async function sendWhatsAppTemplate(params: {
   language: string;
   components: unknown[];
 }): Promise<void> {
+  if (shouldDryRunMetaSend()) {
+    logMetaDryRun("message.send.whatsapp.template", { phoneNumberId: params.phoneNumberId, to: params.to, templateName: params.templateName });
+    return;
+  }
   const token = process.env.META_SYSTEM_USER_TOKEN;
   if (!token) throw new Error("META_SYSTEM_USER_TOKEN is required");
 
@@ -297,6 +318,10 @@ async function sendInstagramMedia(params: {
   mediaType: string;
   pageToken: string;
 }): Promise<void> {
+  if (shouldDryRunMetaSend()) {
+    logMetaDryRun("message.send.instagram.media", { pageId: params.pageId, recipientId: params.recipientId, mediaType: params.mediaType });
+    return;
+  }
   const attachmentType = ["image", "video", "audio"].includes(params.mediaType) ? params.mediaType : "image";
   const response = await fetch(
     `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.pageId}/messages`,
@@ -331,6 +356,10 @@ async function sendMessengerMedia(params: {
   mediaType: string;
   pageToken: string;
 }): Promise<void> {
+  if (shouldDryRunMetaSend()) {
+    logMetaDryRun("message.send.messenger.media", { pageId: params.pageId, recipientId: params.recipientId, mediaType: params.mediaType });
+    return;
+  }
   const attachmentType = ["image", "video", "audio", "file"].includes(params.mediaType)
     ? (params.mediaType === "document" ? "file" : params.mediaType)
     : "image";
@@ -366,6 +395,10 @@ async function sendInstagramMessage(params: {
   text: string;
   pageToken: string;
 }): Promise<void> {
+  if (shouldDryRunMetaSend()) {
+    logMetaDryRun("message.send.instagram.text", { pageId: params.pageId, recipientId: params.recipientId });
+    return;
+  }
   const response = await fetch(
     `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.pageId}/messages`,
     {
@@ -393,6 +426,10 @@ async function sendMessengerMessage(params: {
   text: string;
   pageToken: string;
 }): Promise<void> {
+  if (shouldDryRunMetaSend()) {
+    logMetaDryRun("message.send.messenger.text", { pageId: params.pageId, recipientId: params.recipientId });
+    return;
+  }
   const response = await fetch(
     `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.pageId}/messages`,
     {
@@ -529,7 +566,7 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
     }
   }
 
-  await sendWhatsAppText({ phoneNumberId, to, text });
+  await dispatchWhatsAppText({ phoneNumberId, to, text });
   await markOutboxDone(event.id);
 }
 

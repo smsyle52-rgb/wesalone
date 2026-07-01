@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Bot, BookOpenText, CheckCircle2, Loader2, Plug } from "lucide-react";
+import { ArrowLeft, Bot, BookOpenText, CheckCircle2, Link2, Loader2, Plug, ShieldCheck, Sparkles } from "lucide-react";
 import { FaInstagram, FaWhatsapp } from "react-icons/fa6";
 import { useAuth } from "@/context/AuthContext";
+import { normalizeOnboardingStatus, routeForOnboardingStatus } from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
@@ -55,7 +56,7 @@ type MetaSignupConfig = {
   };
 };
 
-type MetaSignupConfigKey = "whatsappStandard" | "instagramMessenger";
+type MetaSignupConfigKey = "whatsappStandard" | "whatsappCoexistence" | "instagramMessenger";
 
 type EmbeddedSignupSessionInfo = {
   waba_id?: string;
@@ -98,23 +99,83 @@ type AgentDetailResponse = {
 
 const CHANNEL_OPTIONS: Array<{
   key: MetaSignupConfigKey;
+  backendKey: "whatsapp_standard" | "whatsapp_coexistence" | "instagram_messenger";
   label: string;
+  description: string;
   tone: string;
   icon: ReactNode;
 }> = [
   {
     key: "whatsappStandard",
-    label: "واتساب للأعمال",
+    backendKey: "whatsapp_standard",
+    label: "ربط رقم واتساب جديد",
+    description: "افتح رقمًا جديدًا عبر التسجيل المضمن الرسمي من Meta.",
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    icon: <FaWhatsapp className="h-5 w-5" />,
+  },
+  {
+    key: "whatsappCoexistence",
+    backendKey: "whatsapp_coexistence",
+    label: "ربط رقم واتساب موجود على التطبيق",
+    description: "استخدم وضع التعايش لرقم يعمل الآن على تطبيق واتساب للأعمال.",
     tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
     icon: <FaWhatsapp className="h-5 w-5" />,
   },
   {
     key: "instagramMessenger",
-    label: "إنستغرام",
+    backendKey: "instagram_messenger",
+    label: "ربط إنستغرام وماسنجر",
+    description: "اربط الحساب التجاري والصفحات المصرح بها في نفس نافذة Meta.",
     tone: "border-pink-200 bg-pink-50 text-pink-700",
-    icon: <FaInstagram className="h-5 w-5" />,
+    icon: (
+      <span className="flex items-center gap-1">
+        <FaInstagram className="h-5 w-5" />
+        <span className="text-xs font-black">+</span>
+      </span>
+    ),
   },
 ];
+
+const JOURNEY_STEPS: Array<{
+  index: Step;
+  title: string;
+  text: string;
+  Icon: typeof Bot;
+}> = [
+  { index: 1, title: "أنشئ وكيلك", text: "أنشئ وكيلك الذكي وحدد دوره وأهدافه.", Icon: Bot },
+  { index: 2, title: "اربط قناة", text: "اربط القناة التي تريد أن يتواصل عبرها وكيلك.", Icon: Link2 },
+  { index: 3, title: "أضف معلومات نشاطك", text: "أضف معلومات نشاطك لتقديم إجابات دقيقة وموثوقة.", Icon: BookOpenText },
+];
+
+const STEP_GUIDANCE: Record<Step, { title: string; outcome: string; checklist: string[] }> = {
+  1: {
+    title: "عرّف وكيلك بسرعة",
+    outcome: "بعد الحفظ سننقلك مباشرة إلى ربط القناة.",
+    checklist: [
+      "اسم واضح يفهمه فريقك",
+      "تعليمات واقعية بدل النص الافتراضي",
+      "يمكن تعديل هذا لاحقاً من صفحة الوكلاء",
+    ],
+  },
+  2: {
+    title: "اربط قناة تستقبل منها الرسائل فعلاً",
+    outcome: "بمجرد نجاح الربط سنفتح لك خطوة المعرفة الأخيرة.",
+    checklist: [
+      "واتساب أو إنستغرام تجاري فقط",
+      "الحساب يجب أن يكون متصلاً في Meta",
+      "إذا كانت القناة جاهزة سنكتشفها تلقائياً",
+    ],
+  },
+  3: {
+    title: "أدخل الحد الأدنى الذي يحتاجه الوكيل للرد",
+    outcome: "بعد الحفظ ستدخل مباشرة إلى لوحة التحكم ويبدأ المسار الفعلي.",
+    checklist: [
+      "الخدمات أو المنتجات المتاحة",
+      "أوقات العمل والدفع والتوصيل",
+      "أي معلومة يجب أن يعتذر عنها الوكيل إذا لم يجدها",
+    ],
+  },
+};
 
 const BUSINESS_TYPES = [
   { key: "retail_general", label: "تجزئة وبيع عام" },
@@ -207,7 +268,19 @@ function embeddedSignupExtrasForOption(key: MetaSignupConfigKey): FacebookLoginO
       version: "v4",
     };
   }
+  if (key === "whatsappCoexistence") {
+    return {
+      setup: {},
+      featureType: "whatsapp_business_app_onboarding",
+      sessionInfoVersion: "3",
+      version: "v4",
+    };
+  }
   return undefined;
+}
+
+function isWhatsAppSignupOption(key: MetaSignupConfigKey) {
+  return key === "whatsappStandard" || key === "whatsappCoexistence";
 }
 
 function loginWithFacebook(configId: string, optionKey: MetaSignupConfigKey): Promise<string> {
@@ -293,6 +366,7 @@ function parseEmbeddedSignupMessage(data: unknown): EmbeddedSignupMessage | null
 export default function OnboardingPage() {
   const [, navigate] = useLocation();
   const { user, onboardingStatus, refreshAuth } = useAuth();
+  const stepContentRef = useRef<HTMLDivElement | null>(null);
   const [step, setStep] = useState<Step>(onboardingStatus.currentStep);
   const [agentName, setAgentName] = useState("");
   const [businessType, setBusinessType] = useState("services_general");
@@ -388,6 +462,48 @@ export default function OnboardingPage() {
   const connectedChannels = channelsQuery.data?.accounts ?? [];
   const connectedLiveChannel = connectedChannels.find((item) => (item.channelType === "whatsapp" || item.channelType === "instagram") && item.status === "active" && item.hasCredentialReference) ?? null;
   const channelReady = onboardingStatus.steps.channel.completed || Boolean(connectedLiveChannel);
+  const stepGuide = STEP_GUIDANCE[step];
+  const completedCount = [
+    onboardingStatus.steps.agent.completed,
+    onboardingStatus.steps.channel.completed,
+    onboardingStatus.steps.knowledge.completed,
+  ].filter(Boolean).length;
+  const nextButtonLabel = step === 1
+    ? "ابدأ الآن"
+    : step === 2
+    ? channelReady
+      ? "تابع للإكمال"
+      : "تابع الربط"
+    : "أكمل التهيئة";
+  const progressHeadline = completedCount === 0
+    ? "3 خطوات فقط"
+    : `${completedCount} من ${STEP_COUNT} مكتملة`;
+  const progressText = step === 1
+    ? "سنكون جاهزين للانطلاق في دقائق."
+    : step === 2
+    ? channelReady
+      ? "تم ربط القناة بنجاح. بقيت معلومات نشاطك."
+      : "تم إنشاء وكيلك بنجاح. تابع لربط قناتك."
+    : "بعد حفظ المعرفة ستنتقل مباشرة إلى لوحة التحكم.";
+  const visibleChannelOptions = CHANNEL_OPTIONS.filter((option) => {
+    if (option.key === "instagramMessenger") {
+      return !connectedChannels.some((item) => (item.channelType === "instagram" || item.channelType === "messenger") && item.status === "active");
+    }
+    return !connectedChannels.some((item) => item.channelType === "whatsapp" && item.status === "active");
+  });
+
+  function scrollToStepContent() {
+    stepContentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function handleHeroAction() {
+    if (step === 2 && channelReady) {
+      setStep(3);
+      requestAnimationFrame(() => scrollToStepContent());
+      return;
+    }
+    scrollToStepContent();
+  }
 
   function waitForCapturedSignupInfo(timeoutMs = 5000): Promise<EmbeddedSignupSessionInfo> {
     return new Promise((resolve, reject) => {
@@ -460,6 +576,8 @@ export default function OnboardingPage() {
 
   const connectChannelMutation = useMutation({
     mutationFn: async (optionKey: MetaSignupConfigKey) => {
+      const selectedOption = CHANNEL_OPTIONS.find((option) => option.key === optionKey);
+      if (!selectedOption) throw new Error("نوع الربط غير معروف.");
       const config = metaConfigQuery.data;
       if (!config?.appId) throw new Error("إعدادات Meta غير جاهزة بعد.");
       const configId = config.configIds[optionKey];
@@ -468,7 +586,7 @@ export default function OnboardingPage() {
       signupSessionErrorRef.current = null;
       await loadFacebookSdk(config.appId, config.graphVersion);
       const code = await loginWithFacebook(configId, optionKey);
-      if (optionKey === "whatsappStandard") {
+      if (isWhatsAppSignupOption(optionKey)) {
         const sessionInfo = await waitForCapturedSignupInfo();
         await apiFetch("integrations/meta/embedded-signup/complete", {
           method: "POST",
@@ -480,7 +598,7 @@ export default function OnboardingPage() {
             display_phone_number: sessionInfo.display_phone_number,
             verified_name: sessionInfo.verified_name,
             config_id: configId,
-            config_key: optionKey,
+            config_key: selectedOption.backendKey,
           }),
         });
       } else {
@@ -523,6 +641,12 @@ export default function OnboardingPage() {
         body: JSON.stringify({ title, contentText }),
       });
       await refreshAuth();
+      const authSnapshot = await apiFetch<{ onboardingStatus?: unknown; onboardingCompleted?: boolean }>("auth/me");
+      const nextStatus = normalizeOnboardingStatus(authSnapshot.onboardingStatus, authSnapshot.onboardingCompleted === true);
+      if (!nextStatus.completed) {
+        throw new Error("تم الحفظ لكن لم تكتمل التهيئة بعد. تحقق من القناة والمعرفة ثم حاول مجدداً.");
+      }
+      navigate(routeForOnboardingStatus(nextStatus));
     },
   });
 
@@ -544,55 +668,123 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-background" dir="rtl">
-      <div className="mx-auto flex min-h-[100dvh] max-w-5xl flex-col px-4 pb-10 pt-[calc(1rem+var(--app-safe-top))] sm:px-6">
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-primary">تهيئة وصال ون</p>
-            <h1 className="mt-2 text-3xl font-black text-foreground">لنشغّل متجرك على بيانات حقيقية</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
-              ثلاث خطوات فقط: تعريف الوكيل، ربط القناة، ثم إضافة معرفة أولية يعتمد عليها الرد.
+    <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(89,96,255,0.08),_transparent_35%),linear-gradient(180deg,#f7f8ff_0%,#ffffff_45%,#f8fafc_100%)]" dir="rtl">
+      <div className="mx-auto flex min-h-[100dvh] max-w-4xl flex-col px-4 pb-10 pt-[calc(1rem+var(--app-safe-top))] sm:px-6">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-[#8d92ff] text-lg font-black text-white shadow-lg shadow-primary/20">
+              W
+            </div>
+            <div>
+              <p className="text-lg font-black tracking-[0.18em] text-foreground">WESAL ONE</p>
+            </div>
+          </div>
+          <div className="flex h-11 min-w-[2.75rem] items-center justify-center rounded-full bg-primary/10 px-3 text-base font-bold text-primary">
+            {user?.name?.trim().slice(0, 1) ?? "A"}
+          </div>
+        </div>
+
+        <section className="rounded-[2rem] border border-white/80 bg-white/95 p-5 shadow-[0_24px_80px_rgba(83,96,255,0.12)] backdrop-blur sm:p-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <h1 className="text-3xl font-black text-foreground sm:text-4xl">ابدأ إعداد وكيلك</h1>
+            <p className="mt-3 text-base leading-8 text-muted-foreground sm:text-lg">
+              إعداد سريع يساعدك على إطلاق وكيلك وتوصيله بعملائك في دقائق.
             </p>
           </div>
-          <div className="rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-            {user?.name ? `أهلاً ${user.name.split(" ")[0]}` : "أهلاً بك"}
+
+          <div className="relative mx-auto mt-8 max-w-3xl px-1 sm:mt-10">
+            <svg viewBox="0 0 600 220" className="pointer-events-none absolute inset-x-0 top-0 h-[180px] w-full">
+              <circle cx="300" cy="28" r="10" fill="white" stroke="rgba(93,99,255,0.35)" strokeWidth="6" />
+              <path d="M125 126 Q300 8 475 126" fill="none" stroke="rgba(93,99,255,0.45)" strokeWidth="4" strokeLinecap="round" />
+              <path d="M300 28 L300 116" fill="none" stroke="rgba(93,99,255,0.45)" strokeWidth="4" strokeLinecap="round" />
+            </svg>
+
+            <div className="relative grid grid-cols-3 gap-3 pt-14 sm:gap-6 sm:pt-16">
+              {JOURNEY_STEPS.map((item) => {
+                const completed = item.index === 1 ? onboardingStatus.steps.agent.completed : item.index === 2 ? onboardingStatus.steps.channel.completed : onboardingStatus.steps.knowledge.completed;
+                const active = step === item.index;
+                const canOpen = item.index <= step;
+                const Icon = item.Icon;
+                return (
+                  <button
+                    key={item.index}
+                    type="button"
+                    onClick={() => canOpen && setStep(item.index)}
+                    disabled={!canOpen}
+                    className="flex flex-col items-center text-center"
+                  >
+                    <div className="relative">
+                      <div
+                        className={cn(
+                          "flex h-24 w-24 items-center justify-center rounded-full border bg-white shadow-lg transition-all sm:h-28 sm:w-28",
+                          active ? "border-primary shadow-[0_0_0_10px_rgba(93,99,255,0.10),0_18px_36px_rgba(93,99,255,0.18)]" : "border-white shadow-[0_12px_28px_rgba(15,23,42,0.10)]",
+                          completed && !active && "border-emerald-200"
+                        )}
+                      >
+                        <span className={cn(
+                          "flex h-16 w-16 items-center justify-center rounded-full",
+                          active ? "bg-primary/10 text-primary" : completed ? "bg-emerald-50 text-emerald-600" : "bg-muted text-muted-foreground",
+                        )}>
+                          <Icon className="h-8 w-8" />
+                        </span>
+                      </div>
+                      <span
+                        className={cn(
+                          "absolute -top-2 right-1 flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-black text-white shadow-md",
+                          completed ? "bg-emerald-500" : active ? "bg-primary" : "bg-slate-300"
+                        )}
+                      >
+                        {completed ? <CheckCircle2 className="h-4 w-4" /> : item.index}
+                      </span>
+                    </div>
+                    <h2 className={cn("mt-4 text-lg font-black sm:text-2xl", active || completed ? "text-primary" : "text-foreground")}>{item.title}</h2>
+                    <p className="mt-2 max-w-[11rem] text-sm leading-7 text-muted-foreground sm:max-w-[12rem]">{item.text}</p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        <div className="mb-8 flex items-center gap-3">
-          {stepBadge(1)}
-          <div className={cn("h-1 flex-1 rounded-full", onboardingStatus.steps.agent.completed ? "bg-primary" : "bg-muted")} />
-          {stepBadge(2)}
-          <div className={cn("h-1 flex-1 rounded-full", onboardingStatus.steps.channel.completed ? "bg-primary" : "bg-muted")} />
-          {stepBadge(3)}
-        </div>
+          <div className="mx-auto mt-8 max-w-xl rounded-3xl border border-primary/10 bg-primary/5 px-5 py-4 text-center">
+            <div className="flex items-center justify-center gap-2 text-primary">
+              <Sparkles className="h-4 w-4" />
+              <p className="text-lg font-black">{progressHeadline}</p>
+            </div>
+            <p className="mt-2 text-sm leading-7 text-muted-foreground">{progressText}</p>
+          </div>
 
-        <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="space-y-3">
-            {[
-              { index: 1 as Step, title: "تعريف الوكيل", text: "اسم واضح وتعليمات حقيقية بدل النص الافتراضي." },
-              { index: 2 as Step, title: "ربط القناة", text: "واتساب أو إنستغرام فقط، مع تحقق فعلي من الحساب المتصل." },
-              { index: 3 as Step, title: "معرفة النشاط", text: "معلومات حقيقية عن المنتجات أو الخدمات وسياسة التعامل." },
-            ].map((item) => {
-              const completed = item.index === 1 ? onboardingStatus.steps.agent.completed : item.index === 2 ? onboardingStatus.steps.channel.completed : onboardingStatus.steps.knowledge.completed;
-              const active = step === item.index;
-              return (
-                <div key={item.index} className={cn("rounded-2xl border p-4 transition-colors", active ? "border-primary bg-primary/5" : "border-border bg-card")}>
-                  <div className="flex items-start gap-3">
-                    <div className={cn("mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold", completed ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                      {completed ? <CheckCircle2 className="h-4 w-4" /> : item.index}
-                    </div>
-                    <div>
-                      <h2 className="text-sm font-bold text-foreground">{item.title}</h2>
-                      <p className="mt-1 text-xs leading-6 text-muted-foreground">{item.text}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </aside>
+          <div className="mt-6 flex justify-center">
+            <button
+              type="button"
+              onClick={handleHeroAction}
+              className="inline-flex min-w-[220px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-[#646bff] px-8 py-4 text-lg font-bold text-white shadow-[0_20px_40px_rgba(93,99,255,0.25)] transition hover:opacity-95"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              {nextButtonLabel}
+            </button>
+          </div>
+        </section>
 
-          <section className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <section ref={stepContentRef} className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
+          <div className="mb-6 rounded-3xl border border-primary/15 bg-primary/5 p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-bold text-primary">الخطوة الحالية</p>
+                <h2 className="mt-1 text-lg font-black text-foreground">{stepGuide.title}</h2>
+                <p className="mt-1 text-sm leading-7 text-muted-foreground">{stepGuide.outcome}</p>
+              </div>
+              <div className="rounded-2xl border border-primary/15 bg-background px-3 py-2 text-xs font-semibold text-muted-foreground">
+                خطوة {step} من {STEP_COUNT}
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {stepGuide.checklist.map((item) => (
+                <span key={item} className="rounded-full border border-primary/15 bg-background px-3 py-1.5 text-xs font-medium text-foreground">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
             {step === 1 && (
               <div className="space-y-6">
                 <div className="flex items-start gap-4">
@@ -683,35 +875,53 @@ export default function OnboardingPage() {
                     <p className="mt-1 text-xs text-emerald-700">
                       {connectedLiveChannel ? `${connectedLiveChannel.displayName} (${connectedLiveChannel.channelType === "whatsapp" ? "واتساب" : "إنستغرام"})` : "تم التحقق من الحالة من بيانات المساحة الحالية."}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => setStep(3)}
-                      className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
-                    >
-                      متابعة
-                      <ArrowLeft className="h-4 w-4" />
-                    </button>
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setStep(3)}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                      >
+                        متابعة
+                        <ArrowLeft className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStep(1)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+                      >
+                        رجوع لتعريف الوكيل
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {CHANNEL_OPTIONS.map((option) => (
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {visibleChannelOptions.map((option) => {
+                        const configId = metaConfigQuery.data?.configIds[option.key] ?? null;
+                        const disabled = connectChannelMutation.isPending || !configId;
+                        return (
                         <button
                           key={option.key}
                           type="button"
                           onClick={() => connectChannelMutation.mutate(option.key)}
-                          disabled={connectChannelMutation.isPending}
-                          className="rounded-2xl border border-border bg-background p-4 text-right transition hover:border-primary/40 hover:bg-primary/5 disabled:opacity-60"
+                          disabled={disabled}
+                          className="rounded-3xl border border-border bg-background p-4 text-right transition hover:border-primary/40 hover:bg-primary/5 disabled:opacity-60"
                         >
-                          <span className={cn("mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl border", option.tone)}>
+                          <div className="mb-3 flex items-start justify-between gap-3">
+                            <span className={cn("inline-flex h-12 w-12 items-center justify-center rounded-2xl border", option.tone)}>
                             {connectingKey === option.key ? <Loader2 className="h-4 w-4 animate-spin" /> : option.icon}
-                          </span>
+                            </span>
+                            <span className={cn(
+                              "rounded-full px-2.5 py-1 text-[11px] font-bold",
+                              configId ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                            )}>
+                              {configId ? "جاهز للربط" : "غير مهيأ"}
+                            </span>
+                          </div>
                           <p className="text-sm font-bold text-foreground">{option.label}</p>
-                          <p className="mt-1 text-xs leading-6 text-muted-foreground">
-                            {option.key === "whatsappStandard" ? "يربط رقم واتساب جديد عبر Meta Embedded Signup." : "يربط حساب إنستغرام التجاري المرتبط بصفحة Meta."}
-                          </p>
+                          <p className="mt-2 text-xs leading-6 text-muted-foreground">{option.description}</p>
                         </button>
-                      ))}
+                      )})}
                     </div>
 
                     {connectedChannels.length > 0 && (
@@ -779,15 +989,24 @@ export default function OnboardingPage() {
                   <p className="text-xs text-muted-foreground">
                     {knowledgeBasesQuery.data?.bases?.length ? `سيُستخدم أحدث قاعدة معرفة موجودة (${knowledgeBasesQuery.data.bases[0].name}).` : "إذا لم توجد قاعدة معرفة فسيتم إنشاء واحدة الآن."}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => saveKnowledgeMutation.mutate()}
-                    disabled={saveKnowledgeMutation.isPending}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-                  >
-                    {saveKnowledgeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                    حفظ وإنهاء التهيئة
-                  </button>
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted/60"
+                    >
+                      رجوع لربط القناة
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveKnowledgeMutation.mutate()}
+                      disabled={saveKnowledgeMutation.isPending}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                    >
+                      {saveKnowledgeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      حفظ وإنهاء التهيئة
+                    </button>
+                  </div>
                 </div>
 
                 {saveKnowledgeMutation.isError && (
@@ -797,7 +1016,11 @@ export default function OnboardingPage() {
                 )}
               </div>
             )}
-          </section>
+        </section>
+
+        <div className="mt-5 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <ShieldCheck className="h-4 w-4" />
+          بياناتك آمنة ومشفرة
         </div>
       </div>
     </div>

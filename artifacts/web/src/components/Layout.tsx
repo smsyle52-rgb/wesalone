@@ -31,6 +31,14 @@ import {
 import { cn } from "@/lib/utils";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type NavItem = {
   path: string;
@@ -310,6 +318,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     (typeof workspace?.settings?.companyName === "string" ? workspace.settings.companyName : "") ||
     (typeof workspace?.settings?.business_name === "string" ? workspace.settings.business_name : "") ||
     t("brand.name");
+  const userInitial = user?.name?.trim().slice(0, 1) ?? "ص";
 
   const logoutMut = useMutation({
     mutationFn: async () => {
@@ -321,6 +330,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       window.location.href = "/login";
     },
   });
+  const handleLogout = useCallback(() => logoutMut.mutate(), [logoutMut]);
 
   const resendVerificationMut = useMutation({
     mutationFn: async () => {
@@ -444,7 +454,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               {languageLabel}
             </button>
             <button
-              onClick={() => logoutMut.mutate()}
+              onClick={handleLogout}
               className="rounded-md p-2 text-sidebar-foreground/45 transition-colors hover:bg-sidebar-accent/60 hover:text-red-400"
               title={t("auth.logout")}
             >
@@ -472,9 +482,40 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <NotificationCenter />
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-sm font-black text-primary">
-              {user?.name?.trim().slice(0, 1) ?? "م"}
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-card px-2 text-foreground transition-colors hover:bg-muted/60"
+                  aria-label="الحساب"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-sm font-black text-primary">
+                    {userInitial}
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={8} className="w-64">
+                <DropdownMenuLabel className="text-start">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-foreground">{user?.name ?? "الحساب"}</p>
+                    <p className="truncate text-xs font-normal text-muted-foreground">{user?.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer text-start" onSelect={toggleLanguage}>
+                  <span className="font-semibold text-primary">{languageLabel}</span>
+                  <span>تبديل اللغة</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer text-start text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  onSelect={handleLogout}
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>{logoutMut.isPending ? "جارٍ تسجيل الخروج..." : "تسجيل الخروج"}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
@@ -511,10 +552,11 @@ export default function Layout({ children }: { children: ReactNode }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { fetch(`${import.meta.env.BASE_URL}api/auth/logout`, { method: "POST", credentials: "include" }).then(() => window.location.href = "/login"); }}
-                    className="mt-3 w-full rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm text-amber-800 hover:bg-amber-50"
+                    onClick={handleLogout}
+                    disabled={logoutMut.isPending}
+                    className="mt-3 w-full rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm text-amber-800 hover:bg-amber-50 disabled:opacity-60"
                   >
-                    تسجيل الخروج
+                    {logoutMut.isPending ? "جارٍ تسجيل الخروج..." : "تسجيل الخروج"}
                   </button>
                 </div>
               </div>
