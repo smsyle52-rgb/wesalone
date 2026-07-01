@@ -19,7 +19,13 @@ import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
+import { env } from "../../lib/env";
 import { getActiveSubscription, getDisplayPrice, getLimitWarnings, getPointsStatus, getUsageSnapshot, type BillingCurrency } from "../../services/billing";
+import {
+  cancelSubscriptionPaymentSubmission,
+  createSubscriptionPaymentSubmission,
+  type BillingCycle,
+} from "../../services/subscription-payments";
 
 const router = Router();
 
@@ -244,11 +250,16 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
       db
         .select({
           id: paymentSubmissionsTable.id,
+          planId: paymentSubmissionsTable.planId,
+          billingCycle: paymentSubmissionsTable.billingCycle,
           amountYer: paymentSubmissionsTable.amountYer,
           amountCurrency: paymentSubmissionsTable.amountCurrency,
+          paidCurrency: paymentSubmissionsTable.paidCurrency,
           paymentMethod: paymentSubmissionsTable.paymentMethod,
           reference: paymentSubmissionsTable.reference,
           receiptNote: paymentSubmissionsTable.receiptNote,
+          receiptFileUrl: paymentSubmissionsTable.receiptFileUrl,
+          rejectionReason: paymentSubmissionsTable.rejectionReason,
           status: paymentSubmissionsTable.status,
           reviewedAt: paymentSubmissionsTable.reviewedAt,
           createdAt: paymentSubmissionsTable.createdAt,
@@ -257,7 +268,10 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
         })
         .from(paymentSubmissionsTable)
         .innerJoin(plansTable, eq(paymentSubmissionsTable.planId, plansTable.id))
-        .where(eq(paymentSubmissionsTable.workspaceId, workspaceId))
+        .where(and(
+          eq(paymentSubmissionsTable.workspaceId, workspaceId),
+          eq(paymentSubmissionsTable.submissionType, "subscription"),
+        ))
         .orderBy(desc(paymentSubmissionsTable.createdAt))
         .limit(20),
     ]);
@@ -276,10 +290,11 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
       plans,
       paymentSubmissions,
       manualPayment: {
-        kuraimi: process.env.BILLING_KURAIMI_ACCOUNT ?? "يتم تزويدك برقم الحساب عند التواصل مع المبيعات",
-        jawali: process.env.BILLING_JAWALI_ACCOUNT ?? "يتم تزويدك برقم المحفظة عند التواصل مع المبيعات",
-        bank: process.env.BILLING_BANK_ACCOUNT ?? "يتم تزويدك ببيانات التحويل البنكي عند التواصل مع المبيعات",
-        cash: "يمكن تنسيق الدفع النقدي مع فريق وصال ون",
+        recipientName: env.BILLING_RECIPIENT_NAME,
+        recipientPhone: env.BILLING_RECIPIENT_PHONE,
+        kuraimiSarAccount: env.BILLING_KURAIMI_SAR_ACCOUNT,
+        kuraimiUsdAccount: env.BILLING_KURAIMI_USD_ACCOUNT,
+        transferNote: "يمكنك التحويل عبر أي محفظة أو شبكة تحويل متاحة لديك، مع التأكد من ظهور اسم المستلم قبل إتمام العملية.",
       },
     });
   } catch (err) {
@@ -290,11 +305,11 @@ router.get("/billing", requirePermission("billing:read"), async (req: Request, r
 
 const paymentSubmissionSchema = z.object({
   planId: z.string().uuid(),
-  amountYer: z.coerce.number().positive(),
-  amountCurrency: z.enum(["USD", "YER", "SAR"]).default("YER"),
-  exchangeRateSnapshot: z.record(z.unknown()).optional().nullable(),
-  paymentMethod: z.enum(["kuraimi", "jawali", "bank_transfer", "cash"]),
-  reference: z.string().trim().max(120).optional().nullable(),
+  billingCycle: z.enum(["monthly", "annual"]).default("monthly"),
+  paidCurrency: z.enum(["USD", "YER", "SAR"]).default("YER"),
+  paymentMethod: z.enum(["kuraimi", "wallet_transfer", "jawali", "bank_transfer", "cash"]),
+  paymentReference: z.string().trim().max(120).optional().nullable(),
+  receiptFileUrl: z.string().url().max(1000).optional().nullable(),
   receiptNote: z.string().trim().max(1000).optional().nullable(),
 });
 
@@ -306,34 +321,67 @@ router.post("/billing/payment-submissions", requirePermission("billing:manage"),
     return;
   }
 
-  const [plan] = await db.select({ id: plansTable.id }).from(plansTable).where(and(eq(plansTable.id, parsed.data.planId), eq(plansTable.isActive, true))).limit(1);
-  if (!plan) {
-    res.status(404).json({ error: "الباقة غير موجودة" });
-    return;
+  try {
+    const submission = await createSubscriptionPaymentSubmission({
+      workspaceId: authReq.sessionUser.activeWorkspaceId,
+      planId: parsed.data.planId,
+      billingCycle: parsed.data.billingCycle as BillingCycle,
+      paidCurrency: parsed.data.paidCurrency,
+      paymentMethod: parsed.data.paymentMethod,
+      paymentReference: parsed.data.paymentReference ?? null,
+      receiptFileUrl: parsed.data.receiptFileUrl ?? null,
+      receiptNote: parsed.data.receiptNote ?? null,
+    });
+
+    await createAuditLog({
+      ...auditFromRequest(req, authReq.sessionUser),
+      action: "create",
+      severity: "info",
+      entityType: "payment_submission",
+      entityId: submission.id,
+      newData: {
+        planId: parsed.data.planId,
+        billingCycle: parsed.data.billingCycle,
+        paymentMethod: parsed.data.paymentMethod,
+        paidCurrency: parsed.data.paidCurrency,
+        status: submission.status,
+      },
+    });
+
+    res.status(201).json({ submission });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === "plan_not_found") { res.status(404).json({ error: "الباقة غير موجودة", code }); return; }
+    if (code === "duplicate_under_review") { res.status(409).json({ error: "يوجد طلب دفع قيد المراجعة لنفس الباقة والدورة", code }); return; }
+    if (code === "sales_required") { res.status(422).json({ error: "هذه الباقة تحتاج تواصلا مع المبيعات", code }); return; }
+    if (code === "plan_not_payable") { res.status(422).json({ error: "لا يمكن إنشاء طلب دفع لهذه الباقة", code }); return; }
+    logger.error({ err }, "Failed to create payment submission");
+    res.status(500).json({ error: "حدث خطأ داخلي" });
   }
+});
 
-  const [submission] = await db.insert(paymentSubmissionsTable).values({
-    workspaceId: authReq.sessionUser.activeWorkspaceId,
-    planId: parsed.data.planId,
-    amountYer: String(parsed.data.amountYer),
-    amountCurrency: parsed.data.amountCurrency,
-    exchangeRateSnapshot: parsed.data.exchangeRateSnapshot ?? null,
-    paymentMethod: parsed.data.paymentMethod,
-    reference: parsed.data.reference ?? null,
-    receiptNote: parsed.data.receiptNote ?? null,
-    status: "pending",
-  }).returning();
-
-  await createAuditLog({
-    ...auditFromRequest(req, authReq.sessionUser),
-    action: "create",
-    severity: "info",
-    entityType: "payment_submission",
-    entityId: submission.id,
-    newData: { planId: parsed.data.planId, amountYer: parsed.data.amountYer, paymentMethod: parsed.data.paymentMethod },
-  });
-
-  res.status(201).json({ submission });
+router.post("/billing/payment-submissions/:id/cancel", requirePermission("billing:manage"), async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  try {
+    const submission = await cancelSubscriptionPaymentSubmission({
+      workspaceId: authReq.sessionUser.activeWorkspaceId,
+      submissionId: String(req.params.id),
+    });
+    await createAuditLog({
+      ...auditFromRequest(req, authReq.sessionUser),
+      action: "update",
+      severity: "warning",
+      entityType: "payment_submission",
+      entityId: submission.id,
+      newData: { status: "cancelled" },
+    });
+    res.json({ submission });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === "not_cancellable") { res.status(422).json({ error: "لا يمكن إلغاء هذا الطلب في حالته الحالية", code }); return; }
+    logger.error({ err }, "Failed to cancel payment submission");
+    res.status(500).json({ error: "حدث خطأ داخلي" });
+  }
 });
 
 router.get("/notification-preferences", requirePermission("settings:read"), async (req: Request, res: Response) => {

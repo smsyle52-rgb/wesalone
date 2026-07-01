@@ -18,6 +18,15 @@ function requireProductWrite(req: AuthenticatedRequest, res: Response, next: Nex
   res.status(403).json({ error: "ليس لديك صلاحية رفع صور المنتجات", code: "FORBIDDEN" });
 }
 
+function requireBillingManage(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  const perms = req.sessionUser?.permissions ?? [];
+  if (perms.includes("billing:manage")) {
+    next();
+    return;
+  }
+  res.status(403).json({ error: "ليس لديك صلاحية رفع إيصالات الدفع", code: "FORBIDDEN" });
+}
+
 // الجسم يصل كـbinary خام بنوع image/* — نقرأه Buffer مباشرةً (لا multer)
 const rawImage = raw({ type: Object.keys(ALLOWED_IMAGE_TYPES), limit: "10mb" });
 
@@ -54,6 +63,41 @@ router.post(
       res.status(201).json({ url });
     } catch {
       res.status(502).json({ error: "تعذّر رفع الصورة، حاول مرة أخرى", code: "UPLOAD_FAILED" });
+    }
+  },
+);
+
+router.post(
+  "/billing-receipt",
+  requireBillingManage,
+  rawImage,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!isUploadsConfigured()) {
+      res.status(503).json({ error: "رفع الإيصالات غير مفعل بعد", code: "UPLOADS_DISABLED" });
+      return;
+    }
+
+    const contentType = req.headers["content-type"]?.split(";")[0]?.trim() ?? "";
+    if (!ALLOWED_IMAGE_TYPES[contentType]) {
+      res.status(415).json({ error: "نوع الإيصال غير مدعوم (JPG أو PNG أو WebP فقط)", code: "UNSUPPORTED_TYPE" });
+      return;
+    }
+
+    const body = req.body as Buffer;
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      res.status(400).json({ error: "لم يصل ملف الإيصال", code: "EMPTY_FILE" });
+      return;
+    }
+    if (body.length > 5 * 1024 * 1024) {
+      res.status(413).json({ error: "حجم الإيصال كبير جدا (الحد 5 ميجابايت)", code: "FILE_TOO_LARGE" });
+      return;
+    }
+
+    try {
+      const url = await uploadImageBuffer(`billing-receipts/${req.sessionUser.activeWorkspaceId}`, body, contentType);
+      res.status(201).json({ url });
+    } catch {
+      res.status(502).json({ error: "تعذر رفع الإيصال، حاول مرة أخرى", code: "UPLOAD_FAILED" });
     }
   },
 );

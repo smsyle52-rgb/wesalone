@@ -25,7 +25,7 @@ export default function LoginPage() {
       return json;
     },
     onSuccess: (data) => {
-      setAuth({ id: data.user.id, name: data.user.name, email: data.user.email, emailVerified: data.user.emailVerified, permissions: data.user.permissions ?? [], roleSlugs: data.user.roleSlugs ?? [] }, data.workspaceId ?? "");
+      setAuth({ id: data.user.id, name: data.user.name, email: data.user.email, emailVerified: data.user.emailVerified, permissions: data.user.permissions ?? [], roleSlugs: data.user.roleSlugs ?? [], isPlatformAdmin: data.user.isPlatformAdmin === true }, data.workspaceId ?? "");
       navigate("/dashboard");
     },
     onError: (e: Error) => setError(e.message),
@@ -37,7 +37,7 @@ export default function LoginPage() {
       const res = await fetch(`${import.meta.env.BASE_URL}api/auth/google`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ credential }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "خطأ في تسجيل الدخول بـGoogle");
-      setAuth({ id: data.user.id, name: data.user.name, email: data.user.email, emailVerified: data.user.emailVerified ?? true, permissions: data.user.permissions ?? [], roleSlugs: data.user.roleSlugs ?? [] }, data.workspaceId ?? "", { onboardingCompleted: !data.isNewUser });
+      setAuth({ id: data.user.id, name: data.user.name, email: data.user.email, emailVerified: data.user.emailVerified ?? true, permissions: data.user.permissions ?? [], roleSlugs: data.user.roleSlugs ?? [], isPlatformAdmin: data.user.isPlatformAdmin === true }, data.workspaceId ?? "", { onboardingCompleted: !data.isNewUser });
       navigate(data.isNewUser ? "/onboarding" : "/dashboard");
     } catch (e) { setError((e as Error).message); } finally { setGoogleLoading(false); }
   }

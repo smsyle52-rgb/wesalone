@@ -24,6 +24,15 @@
     { "idx": 19, "version": "7", "when": 1782531120000, "tag": "0019_commerce_permissions", "breakpoints": true },
     { "idx": 20, "version": "7", "when": 1782531180000, "tag": "0020_commerce_legacy_backfill", "breakpoints": true },
     { "idx": 21, "version": "7", "when": 1782531240000, "tag": "0021_commerce_defaults", "breakpoints": true },
-    { "idx": 22, "version": "7", "when": 1782531300000, "tag": "0022_commerce_safety_stabilization", "breakpoints": true }
+    { "idx": 22, "version": "7", "when": 1782531300000, "tag": "0022_commerce_safety_stabilization", "breakpoints": true },
+    { "idx": 23, "version": "7", "when": 1782531360000, "tag": "0023_billing_phase3", "breakpoints": true },
+    { "idx": 24, "version": "7", "when": 1782531420000, "tag": "0024_billing_multicurrency", "breakpoints": true },
+    { "idx": 25, "version": "7", "when": 1782531480000, "tag": "0025_notifications", "breakpoints": true },
+    { "idx": 26, "version": "7", "when": 1782531540000, "tag": "0026_account_lifecycle", "breakpoints": true },
+    { "idx": 27, "version": "7", "when": 1782531600000, "tag": "0027_contacts_scope10", "breakpoints": true },
+    { "idx": 28, "version": "7", "when": 1782531660000, "tag": "0028_orders_delivery", "breakpoints": true },
+    { "idx": 29, "version": "7", "when": 1782531720000, "tag": "0029_products_inventory", "breakpoints": true },
+    { "idx": 30, "version": "7", "when": 1782531780000, "tag": "0030_parity_columns", "breakpoints": true },
+    { "idx": 31, "version": "7", "when": 1782531840000, "tag": "0031_billing_admin_manual_payment_closure", "breakpoints": true }
   ]
 }

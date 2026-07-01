@@ -48,13 +48,17 @@ const PLATFORM_ADMIN_EMAILS_RAW = optionalEnv("PLATFORM_ADMIN_EMAILS", "");
 const PLATFORM_ADMIN_EMAILS = PLATFORM_ADMIN_EMAILS_RAW
   ? PLATFORM_ADMIN_EMAILS_RAW.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)
   : [];
+const BILLING_RECIPIENT_NAME = optionalEnv("BILLING_RECIPIENT_NAME", "صادق حسين صالح العتمي")!;
+const BILLING_RECIPIENT_PHONE = optionalEnv("BILLING_RECIPIENT_PHONE", "777922385")!;
+const BILLING_KURAIMI_SAR_ACCOUNT = optionalEnv("BILLING_KURAIMI_SAR_ACCOUNT", "3103403056")!;
+const BILLING_KURAIMI_USD_ACCOUNT = optionalEnv("BILLING_KURAIMI_USD_ACCOUNT", "3106111331")!;
 
 // Startup warning — logs مستوى warn في production إذا لم يُضبط المتغير
 // لا تُسجَّل قيم الإيميلات (no secrets in logs)
 if (isProduction && PLATFORM_ADMIN_EMAILS.length === 0) {
   console.warn(
     "[env] WARNING: PLATFORM_ADMIN_EMAILS is not set. " +
-    "/admin/points/* routes will return 503 until this is configured in Cloud Run.",
+    "/admin/* billing and points review routes will return 503 until this is configured in Cloud Run.",
   );
 }
 
@@ -75,5 +79,9 @@ export const env = {
   INGEST_DEFERRED: INGEST_DEFERRED === "true",
   INTERNAL_SECRET,
   PLATFORM_ADMIN_EMAILS,
+  BILLING_RECIPIENT_NAME,
+  BILLING_RECIPIENT_PHONE,
+  BILLING_KURAIMI_SAR_ACCOUNT,
+  BILLING_KURAIMI_USD_ACCOUNT,
   isProduction,
 } as const;

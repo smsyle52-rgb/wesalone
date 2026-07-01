@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
 import { PaymentMethodsTab } from "@/components/settings/PaymentMethodsTab";
@@ -513,31 +514,70 @@ function BillingTabV2() {
   // العرض بالدولار (أساسي، من السعر الخام) + الريال السعودي (محوّل من الخادم) — لا ريال يمني في الباقات.
   const [currency] = useState<"USD" | "YER" | "SAR">("SAR");
   const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("kuraimi");
-  const [amountYer, setAmountYer] = useState("");
+  const [paidCurrency, setPaidCurrency] = useState<"USD" | "SAR" | "YER">("SAR");
   const [reference, setReference] = useState("");
   const [receiptNote, setReceiptNote] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptError, setReceiptError] = useState("");
   const { data, isLoading } = useQuery({ queryKey: ["billing", currency], queryFn: () => apiFetch(`workspace/billing?currency=${currency}`) });
   const submitPayment = useMutation({
-    mutationFn: () => apiFetch("workspace/billing/payment-submissions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        planId: selectedPlanId || selectedPlan?.id,
-        amountYer,
-        amountCurrency: "USD",
-        exchangeRateSnapshot: selectedPlan ? (billingCycle === "annual" ? selectedPlan.displayPriceAnnual : selectedPlan.displayPriceMonthly) : null,
-        paymentMethod,
-        reference: reference || null,
-        receiptNote: receiptNote || null,
-      }),
-    }),
+    mutationFn: async () => {
+      if (!selectedPlanId && !selectedPlan?.id) throw new Error("اختر الباقة أولا");
+      if (!receiptFile) throw new Error("ارفع صورة الإيصال أولا");
+      if (!["image/jpeg", "image/png", "image/webp"].includes(receiptFile.type)) throw new Error("نوع الإيصال غير مدعوم");
+      if (receiptFile.size > 5 * 1024 * 1024) throw new Error("حجم الإيصال أكبر من 5 ميجابايت");
+
+      const upload = await fetch(`${BASE}/uploads/billing-receipt`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": receiptFile.type },
+        body: receiptFile,
+      });
+      if (!upload.ok) {
+        const text = await upload.text();
+        let message = text || "تعذر رفع الإيصال";
+        try {
+          const json = JSON.parse(text);
+          if (json.error) message = json.error;
+        } catch {}
+        throw new Error(message);
+      }
+      const uploaded = await upload.json();
+
+      return apiFetch("workspace/billing/payment-submissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: selectedPlanId || selectedPlan?.id,
+          billingCycle,
+          paidCurrency,
+          paymentMethod,
+          paymentReference: reference || null,
+          receiptFileUrl: uploaded.url,
+          receiptNote: receiptNote || null,
+        }),
+      });
+    },
     onSuccess: () => {
       setReference("");
       setReceiptNote("");
+      setReceiptFile(null);
+      setReceiptError("");
+      setPaymentOpen(false);
       qc.invalidateQueries({ queryKey: ["billing"] });
     },
   });
+  const cancelPayment = useMutation({
+    mutationFn: (submissionId: string) => apiFetch(`workspace/billing/payment-submissions/${submissionId}/cancel`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["billing"] }),
+  });
+
+  const copyPayment = async (value: string) => {
+    await navigator.clipboard.writeText(value);
+    toast.success("تم النسخ");
+  };
 
   const plans = data?.plans ?? [];
   const current = data?.subscription;
@@ -546,6 +586,16 @@ function BillingTabV2() {
   const points = data?.points ?? null;
   const selectedPlan = plans.find((plan: any) => plan.id === selectedPlanId) ?? plans.find((plan: any) => (plan.key ?? plan.slug) !== "trial") ?? plans[0];
   const selectedDisplay = selectedPlan ? (billingCycle === "annual" ? selectedPlan.displayPriceAnnual : selectedPlan.displayPriceMonthly) : null;
+  const reviewSubmissions = data?.paymentSubmissions ?? [];
+  const hasReviewFor = (planId: string) => reviewSubmissions.some((item: any) => item.planId === planId && item.billingCycle === billingCycle && item.status === "under_review");
+  const activeReview = reviewSubmissions.find((item: any) => item.status === "under_review");
+  const paymentStatusLabels: Record<string, string> = {
+    under_review: "قيد المراجعة",
+    confirmed: "تم التأكيد",
+    rejected: "مرفوض",
+    cancelled: "ملغي",
+    expired: "منتهي",
+  };
   const featureLabels: Record<string, string> = {
     inbox: "صندوق وارد موحد",
     ai_agent: "وكيل ذكي",
@@ -685,6 +735,37 @@ function BillingTabV2() {
         </section>
       </div>
 
+      {activeReview && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-[var(--shadow-soft)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-black">قيد مراجعة الدفع</p>
+              <h3 className="mt-1 text-xl font-black">{activeReview.planNameAr ?? activeReview.planName}</h3>
+              <p className="mt-2 text-sm">
+                {Number(activeReview.amountYer ?? 0).toLocaleString("ar-u-nu-latn")} {activeReview.amountCurrency ?? activeReview.paidCurrency ?? "USD"}
+                {" · "}
+                {activeReview.reference || "بدون مرجع"}
+                {" · "}
+                {new Date(activeReview.createdAt).toLocaleDateString("ar-u-nu-latn")}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {activeReview.receiptFileUrl && (
+                <a href={activeReview.receiptFileUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-amber-300 px-3 py-2 text-sm font-black">عرض الإيصال</a>
+              )}
+              <button
+                type="button"
+                disabled={cancelPayment.isPending}
+                onClick={() => cancelPayment.mutate(activeReview.id)}
+                className="rounded-lg bg-amber-900 px-3 py-2 text-sm font-black text-white disabled:opacity-50"
+              >
+                إلغاء الطلب
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -703,8 +784,9 @@ function BillingTabV2() {
             const sar = display?.currency === "SAR" ? Number(display.amount ?? 0) : null;
             const active = current?.planId === plan.id;
             const isSelected = selectedPlanId === plan.id;
+            const underReview = hasReviewFor(plan.id);
             return (
-              <button key={plan.id} type="button" onClick={() => { setSelectedPlanId(plan.id); setAmountYer(String(usd || "")); }} className={`rounded-xl border p-4 text-start transition hover:-translate-y-1 hover:shadow-lg ${isSelected ? "border-accent ring-2 ring-accent/20" : active ? "border-primary" : "border-border"}`}>
+              <button key={plan.id} type="button" onClick={() => { setSelectedPlanId(plan.id); if (!active && !underReview && usd > 0) setPaymentOpen(true); }} className={`rounded-xl border p-4 text-start transition hover:-translate-y-1 hover:shadow-lg ${isSelected ? "border-accent ring-2 ring-accent/20" : active ? "border-primary" : underReview ? "border-amber-300" : "border-border"}`}>
                 <div className="flex items-center justify-between gap-2">
                   <h4 className="text-base font-black text-foreground">{plan.nameAr ?? plan.name}</h4>
                   {active && <span className="rounded-full bg-primary/10 px-2 py-1 text-[11px] font-bold text-primary">حالية</span>}
@@ -730,46 +812,98 @@ function BillingTabV2() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[.9fr_1.1fr]">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
-          <h3 className="text-lg font-extrabold text-foreground">تعليمات الدفع اليدوي</h3>
-          <div className="mt-4 space-y-3 text-sm text-muted-foreground">
-            <p><b>كريمي:</b> {data?.manualPayment?.kuraimi}</p>
-            <p><b>جوالي:</b> {data?.manualPayment?.jawali}</p>
-            <p><b>تحويل بنكي:</b> {data?.manualPayment?.bank}</p>
-            <p><b>نقداً:</b> {data?.manualPayment?.cash}</p>
+      {paymentOpen && selectedPlan && selectedDisplay && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-card p-5 shadow-2xl sm:max-w-3xl sm:rounded-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-primary">طلب ترقية الباقة</p>
+                <h3 className="mt-1 text-2xl font-black text-foreground">{selectedPlan.nameAr ?? selectedPlan.name}</h3>
+              </div>
+              <button type="button" className="rounded-lg border border-border px-3 py-2 text-sm font-bold" onClick={() => setPaymentOpen(false)}>إغلاق</button>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-border bg-secondary/40 p-4">
+                <p className="text-xs font-bold text-muted-foreground">الدورة</p>
+                <p className="mt-1 font-black">{billingCycle === "annual" ? "سنوي" : "شهري"}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/40 p-4">
+                <p className="text-xs font-bold text-muted-foreground">السعر المطلوب</p>
+                <p className="mt-1 font-black">{Number(selectedDisplay.amount ?? 0).toLocaleString("ar-u-nu-latn")} {selectedDisplay.currency}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/40 p-4">
+                <p className="text-xs font-bold text-muted-foreground">نقاط الذكاء الشهرية</p>
+                <p className="mt-1 font-black">{prettyLimit(selectedPlan.limits?.monthly_points)}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/40 p-4">
+                <p className="text-xs font-bold text-muted-foreground">الانتهاء المتوقع بعد التفعيل</p>
+                <p className="mt-1 font-black">{new Date(Date.now() + (billingCycle === "annual" ? 365 : 30) * 24 * 60 * 60 * 1000).toLocaleDateString("ar-u-nu-latn")}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-border p-4">
+              <h4 className="font-black text-foreground">بيانات التحويل</h4>
+              <p className="mt-2 text-sm leading-7 text-muted-foreground">{data?.manualPayment?.transferNote}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {[
+                  ["اسم المستلم", data?.manualPayment?.recipientName],
+                  ["رقم الهاتف", data?.manualPayment?.recipientPhone],
+                  ["حساب الكريمي بالريال السعودي", data?.manualPayment?.kuraimiSarAccount],
+                  ["حساب الكريمي بالدولار الأمريكي", data?.manualPayment?.kuraimiUsdAccount],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-border bg-background p-3">
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <b className="text-sm">{value}</b>
+                      <button type="button" className="rounded-md bg-primary px-3 py-1.5 text-xs font-black text-primary-foreground" onClick={() => copyPayment(String(value ?? ""))}>نسخ</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <form className="mt-5 space-y-4" onSubmit={(event) => { event.preventDefault(); submitPayment.mutate(); }}>
+              {submitPayment.isError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-800">{(submitPayment.error as Error).message}</div>}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-semibold">طريقة التحويل
+                  <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
+                    <option value="kuraimi">كريمي</option>
+                    <option value="wallet_transfer">محفظة أو شبكة تحويل</option>
+                    <option value="jawali">جوالي</option>
+                    <option value="bank_transfer">تحويل بنكي</option>
+                    <option value="cash">نقدا</option>
+                  </select>
+                </label>
+                <label className="text-sm font-semibold">العملة
+                  <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={paidCurrency} onChange={(event) => setPaidCurrency(event.target.value as "USD" | "SAR" | "YER")}>
+                    <option value="SAR">SAR</option>
+                    <option value="USD">USD</option>
+                    <option value="YER">YER</option>
+                  </select>
+                </label>
+                <label className="text-sm font-semibold">رقم الحوالة أو المرجع
+                  <input className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={reference} onChange={(event) => setReference(event.target.value)} />
+                </label>
+                <label className="text-sm font-semibold">صورة الإيصال
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setReceiptFile(file);
+                    setReceiptError(file && file.size > 5 * 1024 * 1024 ? "حجم الإيصال أكبر من 5 ميجابايت" : "");
+                  }} />
+                  {receiptError && <span className="mt-1 block text-xs text-rose-600">{receiptError}</span>}
+                </label>
+              </div>
+              <label className="block text-sm font-semibold">ملاحظة اختيارية
+                <textarea className="mt-1 min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2" value={receiptNote} onChange={(event) => setReceiptNote(event.target.value)} />
+              </label>
+              <button disabled={submitPayment.isPending || !receiptFile || !!receiptError} className="w-full rounded-lg bg-primary px-5 py-3 text-sm font-black text-primary-foreground disabled:opacity-50">
+                {submitPayment.isPending ? "جار الإرسال..." : "إرسال للمراجعة"}
+              </button>
+            </form>
           </div>
         </div>
-        <form className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]" onSubmit={(event) => { event.preventDefault(); submitPayment.mutate(); }}>
-          <h3 className="text-lg font-extrabold text-foreground">رفع طلب ترقية الباقة</h3>
-          {submitPayment.isSuccess && <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">تم استلام طلبك، سيتم تفعيل باقتك بعد مراجعة الدفع.</div>}
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-semibold">الباقة
-              <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={selectedPlanId || selectedPlan?.id || ""} onChange={(event) => { setSelectedPlanId(event.target.value); const plan = plans.find((item: any) => item.id === event.target.value); const usd = billingCycle === "annual" ? plan?.priceUsdAnnual : plan?.priceUsd; setAmountYer(String(usd ?? "")); }}>
-                {plans.map((plan: any) => <option key={plan.id} value={plan.id}>{plan.nameAr ?? plan.name}</option>)}
-              </select>
-            </label>
-            <label className="text-sm font-semibold">المبلغ (دولار أمريكي)
-              <input className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={amountYer} onChange={(event) => setAmountYer(event.target.value)} />
-            </label>
-            <label className="text-sm font-semibold">طريقة الدفع
-              <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
-                <option value="kuraimi">كريمي</option>
-                <option value="jawali">جوالي</option>
-                <option value="bank_transfer">تحويل بنكي</option>
-                <option value="cash">نقداً</option>
-              </select>
-            </label>
-            <label className="text-sm font-semibold">رقم المرجع
-              <input className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={reference} onChange={(event) => setReference(event.target.value)} />
-            </label>
-          </div>
-          <label className="mt-3 block text-sm font-semibold">ملاحظة أو تفاصيل الإيصال
-            <textarea className="mt-1 min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2" value={receiptNote} onChange={(event) => setReceiptNote(event.target.value)} />
-          </label>
-          <button disabled={submitPayment.isPending || !(selectedPlanId || selectedPlan?.id) || !amountYer} className="mt-4 rounded-lg bg-primary px-5 py-2.5 text-sm font-black text-primary-foreground disabled:opacity-50">إرسال طلب المراجعة</button>
-        </form>
-      </section>
+      )}
 
       <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
         <h3 className="text-lg font-extrabold text-foreground">سجل طلبات الدفع</h3>
@@ -781,8 +915,25 @@ function BillingTabV2() {
               <div>
                 <div className="font-bold text-foreground">{item.planNameAr ?? item.planName} - {Number(item.amountYer).toLocaleString("ar-u-nu-latn")} {item.amountCurrency ?? "USD"}</div>
                 <div className="text-muted-foreground">{item.paymentMethod} · {item.reference || "بدون مرجع"} · {new Date(item.createdAt).toLocaleDateString("ar-u-nu-latn")}</div>
+                {item.rejectionReason && <div className="mt-1 text-xs font-bold text-rose-700">سبب الرفض: {item.rejectionReason}</div>}
               </div>
-              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-muted-foreground">{item.status}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {item.receiptFileUrl && <a href={item.receiptFileUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-primary">عرض الإيصال</a>}
+                {item.status === "rejected" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPlanId(item.planId);
+                      setBillingCycle(item.billingCycle === "annual" ? "annual" : "monthly");
+                      setPaymentOpen(true);
+                    }}
+                    className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700"
+                  >
+                    إرسال إثبات جديد
+                  </button>
+                )}
+                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-muted-foreground">{paymentStatusLabels[item.status] ?? item.status}</span>
+              </div>
             </div>
           ))}
         </div>

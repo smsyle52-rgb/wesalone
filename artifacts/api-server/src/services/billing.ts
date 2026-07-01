@@ -13,6 +13,7 @@ import {
   usageCountersTable,
   workspaceMembershipsTable,
 } from "@workspace/db";
+import { getWalletBalance } from "./point-wallet";
 
 export type PlanLimitKey =
   | "channels"
@@ -277,6 +278,8 @@ export type PointsStatus = {
   used: number;
   included: number | null;
   balance: number;
+  monthlyBalance: number;
+  purchasedBalance: number;
   remaining: number | null;
   percentUsed: number | null;
   exhausted: boolean;
@@ -290,19 +293,46 @@ export type PointsStatus = {
  */
 export async function getPointsStatus(workspaceId: string): Promise<PointsStatus> {
   const subscription = await getActiveSubscription(workspaceId);
-  const used = await usageValue(workspaceId, "monthly_points");
+  const [used, wallet] = await Promise.all([
+    usageValue(workspaceId, "monthly_points"),
+    getWalletBalance(workspaceId),
+  ]);
   const included = numericLimit(subscription?.limits, "monthly_points");
-  const balance = subscription?.pointsBalance ?? 0;
+  const balance = wallet.purchasedPoints;
+  const remaining = wallet.totalAvailablePoints;
   const planKey = subscription?.planKey ?? subscription?.planSlug ?? null;
   const status = subscription?.status ?? null;
 
   if (included === null) {
-    return { periodMonth: currentPeriodMonth(), used, included: null, balance, remaining: null, percentUsed: null, exhausted: false, planKey, status };
+    return {
+      periodMonth: currentPeriodMonth(),
+      used,
+      included: null,
+      balance,
+      monthlyBalance: wallet.monthlyPoints,
+      purchasedBalance: wallet.purchasedPoints,
+      remaining,
+      percentUsed: null,
+      exhausted: remaining <= 0,
+      planKey,
+      status,
+    };
   }
 
-  const remaining = Math.max(0, included + balance - used);
   const percentUsed = included > 0 ? Math.min(100, Math.round((used / included) * 100)) : 100;
-  return { periodMonth: currentPeriodMonth(), used, included, balance, remaining, percentUsed, exhausted: remaining <= 0, planKey, status };
+  return {
+    periodMonth: currentPeriodMonth(),
+    used,
+    included,
+    balance,
+    monthlyBalance: wallet.monthlyPoints,
+    purchasedBalance: wallet.purchasedPoints,
+    remaining,
+    percentUsed,
+    exhausted: remaining <= 0,
+    planKey,
+    status,
+  };
 }
 
 export async function getUsageSnapshot(workspaceId: string) {

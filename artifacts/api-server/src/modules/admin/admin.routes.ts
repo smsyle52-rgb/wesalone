@@ -1,13 +1,8 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   db,
-  domainEventsTable,
-  paymentSubmissionsTable,
-  plansTable,
-  subscriptionsTable,
-  workspacesTable,
   pointTopupProductsTable,
 } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
@@ -28,184 +23,106 @@ import {
   adminAdjustPoints,
   getLedgerEntries,
 } from "../../services/point-wallet";
+import {
+  confirmSubscriptionPayment,
+  getSubscriptionPaymentStats,
+  listSubscriptionPaymentsAdmin,
+  rejectSubscriptionPayment,
+} from "../../services/subscription-payments";
 import { randomUUID } from "node:crypto";
 import { logger } from "../../lib/logger";
 
 const router = Router();
 router.use(requireSession);
 
-function requireOwner(req: AuthenticatedRequest, res: Response): boolean {
-  if (req.sessionUser.roleSlugs.includes("owner")) return true;
-  res.status(403).json({ error: "هذه الصفحة متاحة للمالك فقط" });
-  return false;
-}
+const paymentStatusSchema = z.enum(["under_review", "confirmed", "rejected", "cancelled", "expired", "all"]);
+const rejectSchema = z.object({ reason: z.string().trim().min(2).max(500) });
 
 router.get("/payments", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!requireOwner(req, res)) return;
-  const status = typeof req.query.status === "string" ? req.query.status : undefined;
-  const where = status && status !== "all"
-    ? and(eq(paymentSubmissionsTable.status, status), eq(paymentSubmissionsTable.workspaceId, req.sessionUser.activeWorkspaceId))
-    : eq(paymentSubmissionsTable.workspaceId, req.sessionUser.activeWorkspaceId);
-
-  const submissions = await db
-    .select({
-      id: paymentSubmissionsTable.id,
-      amountYer: paymentSubmissionsTable.amountYer,
-      paymentMethod: paymentSubmissionsTable.paymentMethod,
-      reference: paymentSubmissionsTable.reference,
-      receiptNote: paymentSubmissionsTable.receiptNote,
-      status: paymentSubmissionsTable.status,
-      reviewedAt: paymentSubmissionsTable.reviewedAt,
-      createdAt: paymentSubmissionsTable.createdAt,
-      workspaceId: paymentSubmissionsTable.workspaceId,
-      workspaceName: workspacesTable.name,
-      planId: paymentSubmissionsTable.planId,
-      planName: plansTable.name,
-      planNameAr: plansTable.nameAr,
-    })
-    .from(paymentSubmissionsTable)
-    .innerJoin(workspacesTable, eq(paymentSubmissionsTable.workspaceId, workspacesTable.id))
-    .leftJoin(plansTable, eq(paymentSubmissionsTable.planId, plansTable.id))
-    .where(where)
-    .orderBy(desc(paymentSubmissionsTable.createdAt))
-    .limit(100);
-
-  res.json({ submissions });
+  if (!requirePlatformAdmin(req, res)) return;
+  try {
+    const parsedStatus = paymentStatusSchema.safeParse(typeof req.query.status === "string" ? req.query.status : "under_review");
+    const status = parsedStatus.success ? parsedStatus.data : "under_review";
+    const [submissions, stats] = await Promise.all([
+      listSubscriptionPaymentsAdmin(status),
+      getSubscriptionPaymentStats(),
+    ]);
+    res.json({ submissions, stats });
+  } catch (err) {
+    logger.error({ err }, "admin/payments GET: failed");
+    res.status(500).json({ error: "حدث خطأ داخلي" });
+  }
 });
 
-const rejectSchema = z.object({ reason: z.string().trim().min(2).max(500).optional() });
-
 router.post("/payments/:id/confirm", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!requireOwner(req, res)) return;
+  if (!requirePlatformAdmin(req, res)) return;
   const submissionId = String(req.params.id);
-  const [submission] = await db
-    .select()
-    .from(paymentSubmissionsTable)
-    .where(and(
-      eq(paymentSubmissionsTable.id, submissionId),
-      eq(paymentSubmissionsTable.workspaceId, req.sessionUser.activeWorkspaceId),
-    ))
-    .limit(1);
-  if (!submission) {
-    res.status(404).json({ error: "طلب الدفع غير موجود" });
-    return;
-  }
-  // هذا المسار للاشتراكات فقط — طلبات شحن النقاط تُعتمد عبر /admin/points/purchase-orders
-  if (submission.submissionType !== "subscription" || !submission.planId) {
-    res.status(422).json({ error: "هذا الطلب ليس طلب اشتراك" });
-    return;
-  }
-  const verifiedPlanId = submission.planId; // narrowed to string by guard above
-
-  const periodEnd = new Date();
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
-  const periodEndDate = periodEnd.toISOString().slice(0, 10);
-
-  await db.transaction(async (tx) => {
-    await tx.update(paymentSubmissionsTable)
-      .set({ status: "confirmed", reviewedBy: req.sessionUser.userId, reviewedAt: new Date() })
-      .where(and(
-        eq(paymentSubmissionsTable.id, submission.id),
-        eq(paymentSubmissionsTable.workspaceId, req.sessionUser.activeWorkspaceId)
-      ));
-
-    await tx.insert(subscriptionsTable).values({
-      workspaceId: submission.workspaceId,
-      planId: verifiedPlanId,
-      status: "active",
-      startedAt: new Date(),
-      currentPeriodStart: new Date().toISOString().slice(0, 10),
-      currentPeriodEnd: periodEndDate,
-      paymentMethod: submission.paymentMethod,
-      lastPaymentRef: submission.reference ?? null,
-    }).onConflictDoUpdate({
-      target: subscriptionsTable.workspaceId,
-      set: {
-        planId: verifiedPlanId,
-        status: "active",
-        currentPeriodStart: new Date().toISOString().slice(0, 10),
-        currentPeriodEnd: periodEndDate,
-        paymentMethod: submission.paymentMethod,
-        lastPaymentRef: submission.reference ?? null,
-        updatedAt: new Date(),
-      },
-    });
-
-    await tx.insert(domainEventsTable).values({
-      workspaceId: submission.workspaceId,
-      eventType: "billing.payment.confirmed",
+  try {
+    const result = await confirmSubscriptionPayment({ submissionId, reviewedByUserId: req.sessionUser.userId });
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "update",
+      severity: "critical",
       entityType: "payment_submission",
-      entityId: submission.id,
-      payload: { planId: submission.planId, amountYer: submission.amountYer, currentPeriodEnd: periodEndDate },
+      entityId: submissionId,
+      newData: { status: "confirmed", currentPeriodStart: result.currentPeriodStart, currentPeriodEnd: result.currentPeriodEnd, points: result.points },
     });
-  });
-
-  await createAuditLog({
-    ...auditFromRequest(req, req.sessionUser),
-    action: "update",
-    severity: "info",
-    entityType: "payment_submission",
-    entityId: submission.id,
-    newData: { status: "confirmed", currentPeriodEnd: periodEndDate },
-  });
-
-  await notifyWorkspace({
-    workspaceId: submission.workspaceId,
-    type: "billing.payment.confirmed",
-    titleAr: "تم تأكيد الدفع",
-    bodyAr: "تمت مراجعة دفعتك وتفعيل الباقة بنجاح.",
-    link: "/settings?tab=billing",
-  });
-
-  res.json({ ok: true, currentPeriodEnd: periodEndDate });
+    await notifyWorkspace({
+      workspaceId: result.submission.workspaceId,
+      type: "billing.payment.confirmed",
+      titleAr: "تم تأكيد الدفع",
+      bodyAr: "تمت مراجعة دفعتك وتفعيل الباقة وإضافة نقاط الذكاء بنجاح.",
+      link: "/settings?tab=billing",
+    });
+    res.json({ ok: true, currentPeriodStart: result.currentPeriodStart, currentPeriodEnd: result.currentPeriodEnd, points: result.points });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === "not_found") { res.status(404).json({ error: "طلب الدفع غير موجود", code }); return; }
+    if (code === "not_subscription") { res.status(422).json({ error: "هذا الطلب ليس طلب اشتراك", code }); return; }
+    if (code === "not_under_review") { res.status(422).json({ error: "لا يمكن تأكيد طلب ليس قيد المراجعة", code }); return; }
+    if (code === "concurrent_update") { res.status(409).json({ error: "تمت معالجة الطلب مسبقا", code }); return; }
+    if (code === "plan_not_found") { res.status(422).json({ error: "الباقة غير موجودة", code }); return; }
+    logger.error({ err, submissionId }, "admin/payments confirm: failed");
+    res.status(500).json({ error: "حدث خطأ داخلي" });
+  }
 });
 
 router.post("/payments/:id/reject", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!requireOwner(req, res)) return;
+  if (!requirePlatformAdmin(req, res)) return;
   const submissionId = String(req.params.id);
   const parsed = rejectSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "سبب الرفض غير صالح", details: parsed.error.flatten() });
+    res.status(400).json({ error: "سبب الرفض إلزامي ويجب أن يكون واضحا", details: parsed.error.flatten() });
     return;
   }
-
-  const [submission] = await db.update(paymentSubmissionsTable)
-    .set({ status: "rejected", reviewedBy: req.sessionUser.userId, reviewedAt: new Date(), receiptNote: parsed.data.reason ?? null })
-    .where(and(eq(paymentSubmissionsTable.id, submissionId), eq(paymentSubmissionsTable.workspaceId, req.sessionUser.activeWorkspaceId)))
-    .returning();
-  if (!submission) {
-    res.status(404).json({ error: "طلب الدفع غير موجود" });
-    return;
+  try {
+    const submission = await rejectSubscriptionPayment({ submissionId, reviewedByUserId: req.sessionUser.userId, reason: parsed.data.reason });
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "update",
+      severity: "warning",
+      entityType: "payment_submission",
+      entityId: submission.id,
+      newData: { status: "rejected", reason: parsed.data.reason },
+    });
+    await notifyWorkspace({
+      workspaceId: submission.workspaceId,
+      type: "billing.payment.rejected",
+      titleAr: "تم رفض طلب الدفع",
+      bodyAr: `تم رفض طلب الدفع. السبب: ${parsed.data.reason}`,
+      link: "/settings?tab=billing",
+    });
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === "not_found") { res.status(404).json({ error: "طلب الدفع غير موجود", code }); return; }
+    if (code === "not_subscription") { res.status(422).json({ error: "هذا الطلب ليس طلب اشتراك", code }); return; }
+    if (code === "confirmed_not_rejectable") { res.status(422).json({ error: "لا يمكن رفض طلب مؤكد", code }); return; }
+    if (code === "not_reviewable") { res.status(422).json({ error: "لا يمكن رفض الطلب في حالته الحالية", code }); return; }
+    if (code === "concurrent_update") { res.status(409).json({ error: "تمت معالجة الطلب مسبقا", code }); return; }
+    logger.error({ err, submissionId }, "admin/payments reject: failed");
+    res.status(500).json({ error: "حدث خطأ داخلي" });
   }
-
-  await db.insert(domainEventsTable).values({
-    workspaceId: submission.workspaceId,
-    eventType: "billing.payment.rejected",
-    entityType: "payment_submission",
-    entityId: submission.id,
-    payload: { reason: parsed.data.reason ?? null },
-  });
-
-  await createAuditLog({
-    ...auditFromRequest(req, req.sessionUser),
-    action: "update",
-    severity: "warning",
-    entityType: "payment_submission",
-    entityId: submission.id,
-    newData: { status: "rejected", reason: parsed.data.reason ?? null },
-  });
-
-  await notifyWorkspace({
-    workspaceId: submission.workspaceId,
-    type: "billing.payment.rejected",
-    titleAr: "تم رفض طلب الدفع",
-    bodyAr: parsed.data.reason
-      ? `تم رفض طلب الدفع. السبب: ${parsed.data.reason}`
-      : "تم رفض طلب الدفع. راجع تفاصيل الفوترة أو تواصل مع الدعم.",
-    link: "/settings?tab=billing",
-  });
-
-  res.json({ ok: true });
 });
 
 // ── إدارة طلبات شحن النقاط ───────────────────────────────────────────────────
