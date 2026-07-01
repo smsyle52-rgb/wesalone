@@ -71,17 +71,18 @@ function BrandLogo({ variant = "horizontal", size = 44, mono = false, tone = "au
   // الأصل الرسمي للشعار — الصورة المرجعية نفسها
   const FULL = "/assets/wesal/wesal-logo.png";   // الشارة الدائرية الكاملة (بداخلها الاسم)
   const MARK = "/assets/wesal/wesal-mark.png";    // حرف W فقط (للأيقونات والـ favicon)
+  const NAV_MARK = "/assets/wesal/wesal-w.png";
 
   // أيقونة دائرية (حرف W فقط)
   if (variant === "icon") {
     return (
       <img
-        src={MARK}
+        src={NAV_MARK}
         alt="وصال ون"
         width={size}
         height={size}
         className={className}
-        style={{ width: size, height: size, objectFit: "cover", borderRadius: "50%", display: "block" }}
+        style={{ width: size, height: size, objectFit: "contain", display: "block" }}
       />
     );
   }
@@ -1266,7 +1267,7 @@ function GabsterNav() {
             <LangPill />
             <ThemeToggle2 />
           </div>
-          <a href="#pricing" className="hidden sm:inline-flex items-center h-10 px-5 rounded-xl btn-primary font-bold text-sm">ابدأ الآن</a>
+          <a href="/register" className="hidden sm:inline-flex items-center h-10 px-5 rounded-xl btn-primary font-bold text-sm">ابدأ الآن</a>
 
           <button className="lg:hidden w-10 h-10 grid place-items-center rounded-xl border border-line text-soft" onClick={() => setOpen((o)=>!o)} aria-label="القائمة">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1285,7 +1286,7 @@ function GabsterNav() {
             <div className="flex items-center gap-2 mt-3">
               <LangPill />
               <ThemeToggle2 />
-              <a href="#pricing" onClick={()=>setOpen(false)} className="ms-auto inline-flex items-center h-10 px-5 rounded-xl btn-primary font-bold text-sm">ابدأ الآن</a>
+              <a href="/register" onClick={()=>setOpen(false)} className="ms-auto inline-flex items-center h-10 px-5 rounded-xl btn-primary font-bold text-sm">ابدأ الآن</a>
             </div>
           </div>
         </div>
@@ -1483,11 +1484,11 @@ function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
         وصال ون، منصة سهلة الاستخدام توحّد تواصل العملاء، وتدير الردود وتُسرّع المبيعات وخدمة العملاء من مكان واحد. ابدأ الربط والتشغيل خلال دقائق، واترك للوكلاء الأذكياء إدارة المهام المتكررة ومساعدة فريقك بكفاءة أعلى.
       </p>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginTop:24, flexWrap:"wrap", justifyContent: centered ? "center" : "flex-start" }}>
-        <a href="#pricing" className="btn-primary" style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 28px", borderRadius:14, fontWeight:800, fontSize:16, color:"#fff", textDecoration:"none" }}>
+        <a href="/register" className="btn-primary" style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 28px", borderRadius:14, fontWeight:800, fontSize:16, color:"#fff", textDecoration:"none" }}>
           ابدأ الآن
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
         </a>
-        <a href="#contact" className="btn-ghost" style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 26px", borderRadius:14, fontWeight:800, fontSize:16, textDecoration:"none", color:"var(--fg)" }}>
+        <a href="mailto:support@wesal.one?subject=%D8%B7%D9%84%D8%A8%20%D8%B9%D8%B1%D8%B6%20%D8%AA%D8%AC%D8%B1%D9%8A%D8%A8%D9%8A" className="btn-ghost" style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"14px 26px", borderRadius:14, fontWeight:800, fontSize:16, textDecoration:"none", color:"var(--fg)" }}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
           اطلب عرضًا تجريبيًا
         </a>
@@ -1664,9 +1665,13 @@ function PlatformPreview() {
               {tabs.map((t) => {
                 const active = tab === t.id;
                 return (
-                  <button key={t.id} onClick={() => setTab(t.id)}
-                    className={`px-4 py-2 rounded-lg text-[13px] font-bold transition whitespace-nowrap ${active ? "text-white" : "text-soft"}`}
-                    style={active ? { background: "var(--primary)" } : {}}>
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTab(t.id)}
+                    className={`px-4 py-2 rounded-lg text-[13px] font-bold transition whitespace-nowrap ${active ? "text-white shadow-[0_12px_28px_-16px_rgba(59,123,255,0.9)]" : "text-soft hover:text-[color:var(--fg)]"}`}
+                    style={active ? { background: "var(--primary)" } : {}}
+                  >
                     {t.l}
                   </button>
                 );
@@ -1912,26 +1917,7 @@ function StatsBar() {
 
 // ============ Partners strip — شعارات متحركة ============
 function PartnersStrip() {
-  const partners = ["متجر الخليج","متجر الهدى","فريق الشحن","منصة تجارة","مركز دعم","متجر العناية","شركة الأفق","حلول","أركان","ProSpace","TechWave","LineMart","Souqly","BlueWave","Marina","النخبة"];
-  const items = [...partners, ...partners];
-  return (
-    <section id="stories" className="py-12 border-y border-line overflow-hidden" style={{ background: "var(--bg)" }}>
-      <div className="container-page text-center mb-6">
-        <div className="text-[12px] font-bold tracking-wider uppercase text-mute reveal">أمثلة لأنشطة يمكن تنظيم عملها داخل وصال ون</div>
-      </div>
-      <div className="relative">
-        <div className="absolute inset-y-0 start-0 w-24 z-10" style={{ background: "linear-gradient(90deg, var(--bg), transparent)" }}></div>
-        <div className="absolute inset-y-0 end-0 w-24 z-10" style={{ background: "linear-gradient(-90deg, var(--bg), transparent)" }}></div>
-        <div className="flex gap-10 partner-track w-max" dir="ltr">
-          {items.map((p, i) => (
-            <div key={i} className="shrink-0 h-10 px-4 grid place-items-center surface rounded-xl text-[13px] font-bold text-mute opacity-70 hover:opacity-100 transition" style={{ fontFamily: "'Tajawal', sans-serif" }}>
-              {p}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+  return null;
 }
 
 // ============ Testimonials — شهادات الفرق والمتاجر ============
@@ -1960,7 +1946,7 @@ function GabsterTestimonials() {
   ];
 
   return (
-    <section id="testimonials" className="testimonials-section">
+    <section id="stories" className="testimonials-section">
       <div className="container-page">
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-10">
@@ -2111,8 +2097,8 @@ function Pricing() {
           <PriceCard
             name="مجاني"
             desc="للتجربة الأولى وفهم طريقة العمل قبل تفعيل باقة مدفوعة."
-            priceLabel="$0 / شهر"
-            priceNote={yearly ? "1,000 نقطة ذكاء شهريًا." : "1,000 نقطة ذكاء شهريًا."}
+            priceLabel={yearly ? "$0 / سنة" : "$0 / شهر"}
+            priceNote={yearly ? "1,000 نقطة ذكاء شهريًا مع فوترة سنوية." : "1,000 نقطة ذكاء شهريًا."}
             cta="أنشئ حساباً"
             features={[
               "صندوق وارد موحّد",
@@ -2126,8 +2112,8 @@ function Pricing() {
           <PriceCard
             name="البداية"
             desc="للأنشطة الصغيرة التي تريد تشغيل قناة فعلية مع نقطة انطلاق واضحة."
-            priceLabel="$19 / شهر"
-            priceNote={yearly ? "10,000 نقطة ذكاء شهريًا." : "10,000 نقطة ذكاء شهريًا."}
+            priceLabel={yearly ? "$182 / سنة" : "$19 / شهر"}
+            priceNote={yearly ? "10,000 نقطة ذكاء شهريًا مع توفير شهرين." : "10,000 نقطة ذكاء شهريًا."}
             cta="ابدأ بالبداية"
             featured
             features={[
@@ -2142,8 +2128,8 @@ function Pricing() {
           <PriceCard
             name="النمو"
             desc="للفرق التي تدير محادثات يومية وتحتاج قنوات أكثر وتشغيلًا أوسع."
-            priceLabel="$49 / شهر"
-            priceNote={yearly ? "40,000 نقطة ذكاء شهريًا." : "40,000 نقطة ذكاء شهريًا."}
+            priceLabel={yearly ? "$470 / سنة" : "$49 / شهر"}
+            priceNote={yearly ? "40,000 نقطة ذكاء شهريًا مع توفير شهرين." : "40,000 نقطة ذكاء شهريًا."}
             cta="اختر النمو"
             features={[
               "صندوق وارد موحّد",
@@ -2157,8 +2143,8 @@ function Pricing() {
           <PriceCard
             name="احترافي"
             desc="للفرق الأكبر التي تحتاج حدود تشغيل أعلى ومتابعة أوسع للعمل."
-            priceLabel="$140 / شهر"
-            priceNote={yearly ? "100,000 نقطة ذكاء شهريًا." : "100,000 نقطة ذكاء شهريًا."}
+            priceLabel={yearly ? "$1344 / سنة" : "$140 / شهر"}
+            priceNote={yearly ? "100,000 نقطة ذكاء شهريًا مع توفير شهرين." : "100,000 نقطة ذكاء شهريًا."}
             cta="ابدأ بالاحترافي"
             features={[
               "صندوق وارد موحّد",
@@ -2332,7 +2318,7 @@ function GabsterFooter() {
         <div className="footer-grid">
           {/* Brand */}
           <div>
-            <img src="/brand/logo-mark.svg" alt="وصال ون" className="h-10 w-auto" />
+            <img src="/assets/wesal/wesal-w.png" alt="وصال ون" className="h-10 w-auto object-contain" />
             <p className="mt-4 text-[13px] text-soft leading-relaxed max-w-sm">
               منصة عربية لتنظيم محادثات العملاء، توزيع المهام، ومتابعة أداء الفريق من مكان واحد.
             </p>

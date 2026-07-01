@@ -562,4 +562,12 @@ router.post("/switch-workspace", requireSession, async (req: Request, res: Respo
   }
 });
 
+router.get("/google/config", (_req: Request, res: Response) => {
+  const clientId = (process.env.GOOGLE_CLIENT_ID ?? "").trim();
+  res.json({
+    enabled: clientId.length > 0,
+    clientId: clientId || null,
+  });
+});
+
 export default router;
