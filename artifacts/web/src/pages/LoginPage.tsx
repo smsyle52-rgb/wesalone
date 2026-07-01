@@ -6,7 +6,23 @@ import { useAuth } from "@/context/AuthContext";
 import { normalizeOnboardingStatus, routeForOnboardingStatus } from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
 import { startGoogleIdentitySignIn } from "@/lib/googleAuth";
+import { readAuthResponse } from "@/lib/authResponse";
 import { AuthField, AuthLayout, GoogleButton, OrDivider } from "@/components/auth/WesalAuthLayout";
+
+type AuthPayload = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    emailVerified?: boolean;
+    permissions?: string[];
+    roleSlugs?: string[];
+    isPlatformAdmin?: boolean;
+  };
+  workspaceId?: string;
+  onboardingStatus?: unknown;
+  onboardingCompleted?: boolean;
+};
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
@@ -24,9 +40,7 @@ export default function LoginPage() {
         credentials: "include",
         body: JSON.stringify(data),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "خطأ في تسجيل الدخول");
-      return json;
+      return readAuthResponse<AuthPayload>(res, "تعذر تسجيل الدخول. تحقق من البيانات أو حاول لاحقًا.");
     },
     onSuccess: (data) => {
       const onboardingStatus = normalizeOnboardingStatus(data.onboardingStatus, data.onboardingCompleted === true);
@@ -58,8 +72,7 @@ export default function LoginPage() {
         credentials: "include",
         body: JSON.stringify({ credential }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "خطأ في تسجيل الدخول بـGoogle");
+      const data = await readAuthResponse<any>(res, "تعذر تسجيل الدخول بحساب Google. حاول مرة أخرى.");
       const onboardingStatus = normalizeOnboardingStatus(data.onboardingStatus, data.onboardingCompleted === true);
       setAuth(
         {

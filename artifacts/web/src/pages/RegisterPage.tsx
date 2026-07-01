@@ -5,6 +5,23 @@ import { useAuth } from "@/context/AuthContext";
 import { normalizeOnboardingStatus, routeForOnboardingStatus } from "@/lib/onboarding";
 import RegisterForm, { type RegisterState } from "@/components/auth/RegisterForm";
 import { startGoogleIdentitySignIn } from "@/lib/googleAuth";
+import { readAuthResponse } from "@/lib/authResponse";
+
+type AuthPayload = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    emailVerified?: boolean;
+    permissions?: string[];
+    roleSlugs?: string[];
+    isPlatformAdmin?: boolean;
+  };
+  workspaceId?: string;
+  workspace?: { id?: string };
+  onboardingStatus?: unknown;
+  onboardingCompleted?: boolean;
+};
 
 const CODES = [
   { code: "+967", label: "اليمن +967" },
@@ -58,9 +75,7 @@ export default function RegisterPage() {
           website: data.website,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "خطأ في إنشاء الحساب");
-      return json;
+      return readAuthResponse<AuthPayload>(res, "تعذر إنشاء الحساب. تحقق من البيانات أو حاول لاحقًا.");
     },
     onSuccess: (data) => {
       const onboardingStatus = normalizeOnboardingStatus(data.onboardingStatus, data.onboardingCompleted === true);
@@ -92,8 +107,7 @@ export default function RegisterPage() {
         credentials: "include",
         body: JSON.stringify({ credential }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "خطأ في تسجيل الدخول بـGoogle");
+      const data = await readAuthResponse<any>(res, "تعذر تسجيل الدخول بحساب Google. حاول مرة أخرى.");
       const onboardingStatus = normalizeOnboardingStatus(data.onboardingStatus, data.onboardingCompleted === true);
       setAuth(
         {
