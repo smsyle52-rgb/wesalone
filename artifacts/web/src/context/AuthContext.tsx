@@ -8,6 +8,7 @@ interface AuthUser {
   emailVerified?: boolean;
   permissions: string[];
   roleSlugs: string[];
+  isPlatformAdmin?: boolean;
 }
 
 interface AuthCtx {
@@ -46,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       emailVerified: data.user.emailVerified,
       permissions: data.user.permissions ?? [],
       roleSlugs: data.user.roleSlugs ?? [],
+      isPlatformAdmin: data.user.isPlatformAdmin === true,
     });
     setWorkspaceId(data.workspaceId ?? data.workspace?.id ?? null);
     setOnboardingStatus(normalizeOnboardingStatus(data.onboardingStatus, data.onboardingCompleted === true));

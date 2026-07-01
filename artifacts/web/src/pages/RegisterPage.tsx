@@ -4,19 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeOnboardingStatus, routeForOnboardingStatus } from "@/lib/onboarding";
 import RegisterForm, { type RegisterState } from "@/components/auth/RegisterForm";
-
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (cfg: object) => void;
-          prompt: () => void;
-        };
-      };
-    };
-  }
-}
+import { startGoogleIdentitySignIn } from "@/lib/googleAuth";
 
 const CODES = [
   { code: "+967", label: "اليمن +967" },
@@ -54,7 +42,6 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
-  const clientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? "";
 
   const mutation = useMutation({
     mutationFn: async (data: RegisterState) => {
@@ -85,6 +72,7 @@ export default function RegisterPage() {
           emailVerified: data.user.emailVerified,
           permissions: data.user.permissions ?? [],
           roleSlugs: data.user.roleSlugs ?? [],
+          isPlatformAdmin: data.user.isPlatformAdmin === true,
         },
         data.workspaceId ?? data.workspace?.id ?? "",
         { onboardingStatus, onboardingCompleted: data.onboardingCompleted === true },
@@ -94,7 +82,7 @@ export default function RegisterPage() {
     onError: (e: Error) => setError(e.message),
   });
 
-  async function google(credential: string) {
+  async function handleGoogleCredential(credential: string) {
     setGoogleLoading(true);
     setError("");
     try {
@@ -115,6 +103,7 @@ export default function RegisterPage() {
           emailVerified: data.user.emailVerified,
           permissions: data.user.permissions ?? [],
           roleSlugs: data.user.roleSlugs ?? [],
+          isPlatformAdmin: data.user.isPlatformAdmin === true,
         },
         data.workspaceId ?? "",
         { onboardingStatus, onboardingCompleted: data.onboardingCompleted === true },
@@ -128,27 +117,9 @@ export default function RegisterPage() {
   }
 
   function startGoogle() {
-    if (!clientId) {
-      setError("تسجيل الدخول بـGoogle غير مهيأ بعد.");
-      return;
-    }
-    const init = () => {
-      window.google?.accounts.id.initialize({
-        client_id: clientId,
-        callback: (r: { credential: string }) => google(r.credential),
-      });
-      window.google?.accounts.id.prompt();
-    };
-    if (window.google) {
-      init();
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = init;
-    document.head.appendChild(script);
+    setError("");
+    void startGoogleIdentitySignIn(handleGoogleCredential, (message) => setError(message))
+      .catch((err) => setError((err as Error).message));
   }
 
   return (

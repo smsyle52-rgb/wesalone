@@ -17,3 +17,8 @@ export function requirePlatformAdmin(req: AuthenticatedRequest, res: Response): 
   res.status(403).json({ error: "هذه العملية مقتصرة على مديري المنصة" });
   return false;
 }
+
+export function isPlatformAdminEmail(email: string | null | undefined): boolean {
+  if (env.PLATFORM_ADMIN_EMAILS.length === 0) return false;
+  return env.PLATFORM_ADMIN_EMAILS.includes(email?.toLowerCase() ?? "");
+}

@@ -279,6 +279,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       modelId: route.modelId,
       // فوترة النقاط: يُحتسب استهلاك توكنات هذا الردّ (بما فيه الرؤية/الصوت) نقاطاً مركزياً في runAI.
       workspaceId: params.workspaceId,
+      aiRunId: run.id,
       taskType: "draft_reply",
       maxTokens: agent.maxOutputTokens,
       responseFormat: executableTools.length > 0 ? "json" : "text",
@@ -369,6 +370,14 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound));
     return { reply: finalReply, shouldEscalate, runId: run.id, toolResults };
   } catch (err) {
+    if ((err as { code?: string }).code === "ai_points_exhausted") {
+      await db.update(aiRunsTable).set({
+        status: "failed",
+        errorMessage: "AI points exhausted",
+        completedAt: new Date(),
+      }).where(and(eq(aiRunsTable.id, run.id), eq(aiRunsTable.workspaceId, params.workspaceId)));
+      return { reply: "", shouldEscalate: true, runId: run.id, toolResults: [] };
+    }
     await db.update(aiRunsTable).set({
       status: "failed",
       errorMessage: err instanceof Error ? err.message : "Unknown AI error",

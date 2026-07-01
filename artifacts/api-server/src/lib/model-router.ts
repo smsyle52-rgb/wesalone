@@ -16,7 +16,7 @@ const ROUTES: Record<string, string> = {
   "text.reply.hard": process.env.MODEL_TEXT_HARD ?? "gemini-3-flash-preview",
   "vision.normal": process.env.MODEL_VISION_NORMAL ?? "gemini-3-flash-preview",
   "vision.hard": process.env.MODEL_VISION_HARD ?? "gemini-3-flash-preview",
-  // فهم الملاحظات الصوتية الواردة سمعياً (قرار المالك: flash للعادي، pro للصعب).
+  // Voice notes use the same Flash model family; tier only records routing context.
   "voice.normal": process.env.MODEL_VOICE_NORMAL ?? "gemini-3-flash-preview",
   "voice.hard": process.env.MODEL_VOICE_HARD ?? "gemini-3-flash-preview",
 };
@@ -44,13 +44,13 @@ export function resolveModel(task: ModelTask, tier: ModelTier): ModelRoute {
 // كل القيم قابلة للضبط بالـenv دون لمس الكود.
 
 // كم توكن (إدخال+إخراج) تساوي نقطة واحدة — وحدة التجريد الموحّدة للتاجر.
-export const TOKENS_PER_POINT = Number(process.env.TOKENS_PER_POINT ?? "100");
+export const TOKENS_PER_POINT = Number(process.env.TOKENS_PER_POINT ?? "1000");
 
-// تكلفتنا القصوى لكل مليون توكن (USD) — تُسعّر على أغلى نموذج (pro) كأسوأ حالة لضمان الهامش.
+// Server-configured conservative cost per million tokens; all active routes default to Flash.
 const WORST_COST_PER_M_TOKENS = Number(process.env.WORST_COST_PER_M_TOKENS ?? "5.00");
 
 // تكلفتنا الفعلية القصوى مقابل نقطة (USD). سعر الباقة = نقاط × هذه × 2 (هامش 100% مضمون).
-// بالقيم الافتراضية: نقطة = 100 توكن، تكلفتها ≤ 0.0005$ → سعر الباقة = نقاط × 0.001$.
+// Defaults: one point = 1000 tokens, cost = TOKENS_PER_POINT / 1M * configured worst-case cost.
 export const POINT_COST_USD = (TOKENS_PER_POINT / 1_000_000) * WORST_COST_PER_M_TOKENS;
 
 /** النقاط المستهلَكة من إجمالي توكنات أي استدعاء ذكاء (1 على الأقل لأي استهلاك فعلي). */
@@ -61,7 +61,7 @@ export function pointsForTokens(totalTokens: number): number {
 }
 
 // ─── مصنّف الصعوبة (heuristic شفّاف، بلا استدعاء AI إضافي) ──────────────────────
-// "صعب" → يُرقّى إلى موديل pro: حالات التصعيد والتعارض والقرارات الدقيقة.
+// "hard" keeps the tier label for policy/analytics; it no longer routes to a different model by default.
 
 const HARD_SIGNALS = [
   "شكوى", "مشكلة", "خطأ", "غلط", "تعارض", "اعتراض", "مدير", "مسؤول",
@@ -94,7 +94,7 @@ export function classifyComplexity(input: {
   // محادثة طويلة متشعّبة → صعب
   if (input.turnCount >= 10) return "hard";
 
-  // سؤال حقيقي بلا أي تطابق في المعرفة → احذر وارفعه إلى pro
+  // A real question with no knowledge match is marked hard for caution and analytics.
   if (input.knowledgeMatchCount === 0 && questionMarks >= 1 && text.length > 40) return "hard";
 
   return "normal";

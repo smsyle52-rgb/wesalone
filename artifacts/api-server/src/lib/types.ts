@@ -9,6 +9,7 @@ export interface SessionUser {
   name: string;
   email: string;
   emailVerified?: boolean;
+  isPlatformAdmin?: boolean;
 }
 
 declare module "express-session" {

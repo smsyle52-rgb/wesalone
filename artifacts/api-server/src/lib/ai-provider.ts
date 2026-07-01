@@ -1,6 +1,7 @@
 import { logger } from "./logger";
 import { pointsForTokens } from "./model-router";
 import { recordPoints } from "../services/billing";
+import { debitPointsFromWallet, getWalletBalance } from "../services/point-wallet";
 
 // ─── Model Mapping (single source of truth) ───────────────────────────────────
 
@@ -103,6 +104,7 @@ export interface AiRunInput {
   modelId?: string;
   // فوترة النقاط: عند تمريره يُحتسب استهلاك توكنات هذا الاستدعاء نقاطاً على مساحة العمل (مركزياً في runAI).
   workspaceId?: string;
+  aiRunId?: string;
 }
 
 export interface AiRunOutput {
@@ -521,15 +523,31 @@ async function runProvider(input: AiRunInput): Promise<AiRunOutput> {
 }
 
 export async function runAI(input: AiRunInput): Promise<AiRunOutput> {
+  if (input.workspaceId && ACTIVE_PROVIDER !== "mock") {
+    const balance = await getWalletBalance(input.workspaceId);
+    if (balance.totalAvailablePoints <= 0) {
+      throw Object.assign(new Error("AI_POINTS_EXHAUSTED"), { code: "ai_points_exhausted" });
+    }
+  }
+
   const output = await runProvider(input);
   // فوترة النقاط مركزياً: أي استدعاء ذكاء حقيقي يحمل workspaceId يُحتسب استهلاك توكناته نقاطاً.
   // يشمل تلقائياً كل المسارات (ردّ، تلخيص، بحث، رؤية، صوت، قراءة إيصالات) دون تكرار أو نسيان.
   // الوضع التجريبي/السقوط لا يُفوتَر (لا استهلاك حقيقي). لا يكسر الاستدعاء لو فشل التسجيل (تدهور رشيق).
   if (input.workspaceId && !output.fallbackUsed && output.provider !== "mock") {
+    const points = pointsForTokens(output.totalTokens);
     try {
-      await recordPoints(input.workspaceId, pointsForTokens(output.totalTokens));
+      await debitPointsFromWallet({
+        workspaceId: input.workspaceId,
+        points,
+        idempotencyKey: input.aiRunId ?? `${input.taskType}:${output.model}:${output.totalTokens}:${Date.now()}`,
+        sourceType: "ai_run",
+        sourceId: input.aiRunId ?? null,
+        reason: "ai_usage",
+      });
+      await recordPoints(input.workspaceId, points);
     } catch (err) {
-      logger.warn({ err, workspaceId: input.workspaceId }, "recordPoints failed — AI call unaffected");
+      logger.warn({ err, workspaceId: input.workspaceId }, "AI point ledger update failed after provider success");
     }
   }
   return output;

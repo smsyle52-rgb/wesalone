@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Play, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAuth } from "@/context/AuthContext";
@@ -361,6 +362,33 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
 
         {activeTab === "channels" && (
           <div className="space-y-3">
+            <div className="rounded-xl border border-border bg-muted/30 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">ربط القنوات لهذا الوكيل</h3>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    أبقينا ربط القنوات داخل مساحة الوكلاء. من هنا يمكنك فتح إدارة القنوات وربط واتساب أو إنستغرام أو ماسنجر ثم متابعة القنوات المرتبطة بهذا الوكيل.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link href="/integrations">
+                    <span className="inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                      ربط القنوات
+                    </span>
+                  </Link>
+                  <Link href="/integrations">
+                    <span className="inline-flex rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted">
+                      واتساب وإنستغرام وماسنجر
+                    </span>
+                  </Link>
+                  <Link href="/inbox">
+                    <span className="inline-flex rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted">
+                      فتح الصندوق
+                    </span>
+                  </Link>
+                </div>
+              </div>
+            </div>
             {channels.length === 0 && <p className="text-sm text-muted-foreground">{t("agents.detail.noChannels")}</p>}
             {channels.map((channel: any) => (
               <div key={channel.id} className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">

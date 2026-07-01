@@ -21,6 +21,7 @@ import {
   ReceiptText,
   ScrollText,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   Target,
   Users,
@@ -104,6 +105,14 @@ const navGroups: NavGroup[] = [
     items: [
       { path: "/billing", key: "billing", permission: "settings:read", icon: CreditCard },
       { path: "/settings", key: "settings", permission: "settings:read", icon: Settings },
+    ],
+  },
+  {
+    slug: "wesal-admin",
+    key: "groupWesalAdmin",
+    items: [
+      { path: "/admin/payments", key: "adminPayments", icon: ShieldCheck },
+      { path: "/admin/points", key: "adminPoints", icon: CreditCard },
     ],
   },
 ];
@@ -339,11 +348,20 @@ export default function Layout({ children }: { children: ReactNode }) {
   };
 
   const visibleGroups = navGroups
+    .filter((group) => group.slug !== "wesal-admin" || user?.isPlatformAdmin === true)
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => !item.permission || hasPermission(item.permission)),
     }))
     .filter((group) => group.items.length > 0);
+  const navLabel = (key: string) => {
+    const fallback: Record<string, string> = {
+      groupWesalAdmin: "إدارة وصال ون",
+      adminPayments: "طلبات دفع الاشتراكات",
+      adminPoints: "طلبات شحن النقاط",
+    };
+    return fallback[key] ?? t(`nav.${key}`);
+  };
 
   return (
     <div className="app-viewport flex overflow-hidden bg-background" dir={direction}>
@@ -373,7 +391,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                   onClick={() => toggleGroup(group.slug)}
                   className="mb-1 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-bold uppercase tracking-wider text-sidebar-foreground/55 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground/80"
                 >
-                  <span>{t(`nav.${group.key}`)}</span>
+                  <span>{navLabel(group.key)}</span>
                   <ChevronDown
                     className={cn("h-3.5 w-3.5 transition-transform", collapsed && "rotate-90 rtl:-rotate-90")}
                   />
@@ -398,7 +416,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                           )}
                         >
                           <Icon className="h-4 w-4 shrink-0" />
-                          <span>{t(`nav.${item.key}`)}</span>
+                          <span>{navLabel(item.key)}</span>
                         </Link>
                       );
                     })}

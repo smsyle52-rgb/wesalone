@@ -17,6 +17,7 @@ import { logger } from "../../lib/logger";
 import { authLimiter, changePasswordLimiter, signupLimiter, verificationEmailLimiter } from "../../lib/rateLimiter";
 import { consumeAuthToken, markEmailVerified, sendPasswordResetEmail, sendVerificationEmail } from "../../services/account-lifecycle";
 import { getWorkspaceOnboardingStatus } from "../../services/onboarding-status";
+import { isPlatformAdminEmail } from "../../middlewares/requirePlatformAdmin";
 
 const router = Router();
 
@@ -106,6 +107,7 @@ router.post("/register", signupLimiter, async (req: Request, res: Response) => {
       name: user.name,
       email: user.email,
       emailVerified: user.emailVerified,
+      isPlatformAdmin: isPlatformAdminEmail(user.email),
     };
 
     await establishSession(req, sessionUser);
@@ -129,7 +131,7 @@ router.post("/register", signupLimiter, async (req: Request, res: Response) => {
     const onboardingStatus = await getWorkspaceOnboardingStatus(workspace.id);
     res.status(201).json({
       message: "تم إنشاء الحساب بنجاح",
-      user: { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified, permissions, roleSlugs },
+      user: { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified, permissions, roleSlugs, isPlatformAdmin: isPlatformAdminEmail(user.email) },
       workspaceId: workspace.id,
       workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
       onboardingStatus,
@@ -186,6 +188,7 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
         emailVerified: sessionData.emailVerified,
         permissions: sessionData.permissions,
         roleSlugs: sessionData.roleSlugs,
+        isPlatformAdmin: isPlatformAdminEmail(sessionData.email),
       },
       workspaceId: sessionData.activeWorkspaceId,
       onboardingStatus,
@@ -308,7 +311,8 @@ router.get("/me", requireSession, async (req: Request, res: Response) => {
 
     const { permissions, roleSlugs } = await loadUserPermissions(activeMembershipId);
 
-    req.session.user = { ...authReq.sessionUser, permissions, roleSlugs };
+    const isPlatformAdmin = isPlatformAdminEmail(authReq.sessionUser.email);
+    req.session.user = { ...authReq.sessionUser, permissions, roleSlugs, isPlatformAdmin };
 
     const onboardingStatus = await getWorkspaceOnboardingStatus(activeWorkspaceId);
     res.json({
@@ -319,6 +323,7 @@ router.get("/me", requireSession, async (req: Request, res: Response) => {
         emailVerified: user?.emailVerified ?? false,
         permissions,
         roleSlugs,
+        isPlatformAdmin,
       },
       workspace: workspace ? { id: workspace.id, name: workspace.name, slug: workspace.slug, status: workspace.status, plan: workspace.plan } : null,
       workspaceId: activeWorkspaceId,
@@ -383,13 +388,13 @@ router.post("/google", authLimiter, async (req: Request, res: Response) => {
       }
 
       const { permissions, roleSlugs } = await loadUserPermissions(membership.id);
-      await establishSession(req, { userId: existingUser.id, activeWorkspaceId: membership.workspaceId, activeMembershipId: membership.id, permissions, roleSlugs, name: existingUser.name, email: existingUser.email, emailVerified: true });
+      await establishSession(req, { userId: existingUser.id, activeWorkspaceId: membership.workspaceId, activeMembershipId: membership.id, permissions, roleSlugs, name: existingUser.name, email: existingUser.email, emailVerified: true, isPlatformAdmin: isPlatformAdminEmail(existingUser.email) });
       const onboardingStatus = await getWorkspaceOnboardingStatus(membership.workspaceId);
 
       res.json({
         message: "تم تسجيل الدخول بنجاح",
         isNewUser: false,
-        user: { id: existingUser.id, name: existingUser.name, email: existingUser.email, emailVerified: true, permissions, roleSlugs },
+        user: { id: existingUser.id, name: existingUser.name, email: existingUser.email, emailVerified: true, permissions, roleSlugs, isPlatformAdmin: isPlatformAdminEmail(existingUser.email) },
         workspaceId: membership.workspaceId,
         onboardingStatus,
         onboardingCompleted: onboardingStatus.completed,
@@ -406,14 +411,14 @@ router.post("/google", authLimiter, async (req: Request, res: Response) => {
 
     await db.update(usersTable).set({ emailVerified: true, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
     const { permissions, roleSlugs } = await loadUserPermissions(membership.id);
-    await establishSession(req, { userId: user.id, activeWorkspaceId: workspace.id, activeMembershipId: membership.id, permissions, roleSlugs, name: user.name, email: user.email, emailVerified: true });
+    await establishSession(req, { userId: user.id, activeWorkspaceId: workspace.id, activeMembershipId: membership.id, permissions, roleSlugs, name: user.name, email: user.email, emailVerified: true, isPlatformAdmin: isPlatformAdminEmail(user.email) });
     await sendVerificationEmail({ id: user.id, email: user.email, name: user.name }).catch(() => {});
     const onboardingStatus = await getWorkspaceOnboardingStatus(workspace.id);
 
     res.status(201).json({
       message: "تم إنشاء الحساب بنجاح",
       isNewUser: true,
-      user: { id: user.id, name: user.name, email: user.email, emailVerified: true, permissions, roleSlugs },
+      user: { id: user.id, name: user.name, email: user.email, emailVerified: true, permissions, roleSlugs, isPlatformAdmin: isPlatformAdminEmail(user.email) },
       workspaceId: workspace.id,
       onboardingStatus,
       onboardingCompleted: onboardingStatus.completed,
@@ -580,6 +585,14 @@ router.post("/switch-workspace", requireSession, async (req: Request, res: Respo
     logger.error({ err }, "Switch workspace failed");
     res.status(500).json({ error: "حدث خطأ داخلي" });
   }
+});
+
+router.get("/google/config", (_req: Request, res: Response) => {
+  const clientId = (process.env.GOOGLE_CLIENT_ID ?? "").trim();
+  res.json({
+    enabled: clientId.length > 0,
+    clientId: clientId || null,
+  });
 });
 
 export default router;

@@ -203,6 +203,98 @@ export async function createGrant(
   return db.transaction(run);
 }
 
+export type DebitPointsOptions = {
+  workspaceId: string;
+  points: number;
+  idempotencyKey: string;
+  sourceType?: string;
+  sourceId?: string | null;
+  reason?: string;
+  actorType?: string;
+  actorId?: string | null;
+};
+
+export async function debitPointsFromWallet(opts: DebitPointsOptions): Promise<{ debited: boolean; points: number }> {
+  if (!Number.isFinite(opts.points) || opts.points <= 0) return { debited: false, points: 0 };
+  const points = Math.ceil(opts.points);
+  const debitMicro = toMicroPoints(points);
+  const now = new Date();
+  const markerKey = `debit:${opts.idempotencyKey}`;
+  const wallet = await getOrCreateWallet(opts.workspaceId);
+
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: pointLedgerTable.id })
+      .from(pointLedgerTable)
+      .where(eq(pointLedgerTable.idempotencyKey, markerKey))
+      .limit(1);
+    if (existing) return { debited: false, points };
+
+    const grants = await tx
+      .select()
+      .from(pointGrantsTable)
+      .where(and(
+        eq(pointGrantsTable.workspaceId, opts.workspaceId),
+        eq(pointGrantsTable.status, "active"),
+        gt(pointGrantsTable.remainingMicroPoints, 0n),
+        or(isNull(pointGrantsTable.expiresAt), gt(pointGrantsTable.expiresAt, now)),
+      ))
+      .orderBy(
+        sql`case when ${pointGrantsTable.grantType} = 'monthly_subscription' then 0 else 1 end`,
+        sql`${pointGrantsTable.expiresAt} asc nulls last`,
+        pointGrantsTable.createdAt,
+      )
+      .for("update");
+
+    const available = grants.reduce((sum, grant) => sum + grant.remainingMicroPoints, 0n);
+    if (available < debitMicro) {
+      throw Object.assign(new Error("INSUFFICIENT_POINTS"), { code: "insufficient_points", available: toVisiblePoints(available), required: points });
+    }
+
+    let remaining = debitMicro;
+    for (const grant of grants) {
+      if (remaining <= 0n) break;
+      const taken = grant.remainingMicroPoints >= remaining ? remaining : grant.remainingMicroPoints;
+      const nextRemaining = grant.remainingMicroPoints - taken;
+      await tx
+        .update(pointGrantsTable)
+        .set({ remainingMicroPoints: nextRemaining, status: nextRemaining === 0n ? "exhausted" : "active", updatedAt: now })
+        .where(eq(pointGrantsTable.id, grant.id));
+      await tx.insert(pointLedgerTable).values({
+        workspaceId: opts.workspaceId,
+        walletId: wallet.id,
+        grantId: grant.id,
+        transactionType: "debit",
+        microPoints: -taken,
+        sourceType: opts.sourceType ?? "ai_run",
+        sourceId: opts.sourceId ?? null,
+        idempotencyKey: `${markerKey}:${grant.id}`,
+        reason: opts.reason ?? "ai_usage",
+        actorType: opts.actorType ?? "system",
+        actorId: opts.actorId ?? null,
+      });
+      remaining -= taken;
+    }
+
+    await tx.insert(pointLedgerTable).values({
+      workspaceId: opts.workspaceId,
+      walletId: wallet.id,
+      grantId: null,
+      transactionType: "debit",
+      microPoints: 0n,
+      sourceType: opts.sourceType ?? "ai_run",
+      sourceId: opts.sourceId ?? null,
+      idempotencyKey: markerKey,
+      reason: opts.reason ?? "ai_usage",
+      actorType: opts.actorType ?? "system",
+      actorId: opts.actorId ?? null,
+      metadata: { points, marker: true },
+    });
+
+    return { debited: true, points };
+  });
+}
+
 // ── Freeze / Unfreeze (عند التخفيض لمجاني / الترقية لمدفوع) ─────────────────
 
 export async function freezePurchasedGrants(workspaceId: string, actorId?: string): Promise<number> {

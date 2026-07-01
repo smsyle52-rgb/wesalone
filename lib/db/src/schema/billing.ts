@@ -30,6 +30,7 @@ export const subscriptionsTable = pgTable("subscriptions", {
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
   currentPeriodStart: date("current_period_start"),
   currentPeriodEnd: date("current_period_end"),
+  billingCycle: text("billing_cycle").notNull().default("monthly"),
   paymentMethod: text("payment_method"),
   lastPaymentRef: text("last_payment_ref"),
   // رصيد نقاط مُشترى (top-up) فوق نقاط الباقة الشهرية — يُستهلك بعد نفاد نقاط الباقة
@@ -68,6 +69,7 @@ export const paymentSubmissionsTable = pgTable(
     submissionType: text("submission_type").notNull().default("subscription"),
     // planId مطلوب فقط عند submission_type='subscription'
     planId: uuid("plan_id").references(() => plansTable.id),
+    billingCycle: text("billing_cycle").notNull().default("monthly"),
     // pointPurchaseOrderId مطلوب فقط عند submission_type='point_topup'
     pointPurchaseOrderId: uuid("point_purchase_order_id"),
     // Legacy Phase-1 subscription payments — YER amount (nullable for new point_topup rows)
@@ -80,6 +82,7 @@ export const paymentSubmissionsTable = pgTable(
     paymentMethod: text("payment_method").notNull(),
     reference: text("reference"),
     receiptNote: text("receipt_note"),
+    rejectionReason: text("rejection_reason"),
     receiptFileUrl: text("receipt_file_url"),
     status: text("status").notNull().default("pending"),
     reviewedBy: uuid("reviewed_by").references(() => usersTable.id),

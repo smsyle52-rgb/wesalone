@@ -5,20 +5,8 @@ import { LockKeyhole, Mail } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeOnboardingStatus, routeForOnboardingStatus } from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
+import { startGoogleIdentitySignIn } from "@/lib/googleAuth";
 import { AuthField, AuthLayout, GoogleButton, OrDivider } from "@/components/auth/WesalAuthLayout";
-
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (cfg: object) => void;
-          prompt: () => void;
-        };
-      };
-    };
-  }
-}
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
@@ -27,7 +15,6 @@ export default function LoginPage() {
   const [showPassword] = useState(false);
   const [error, setError] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
-  const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? "";
 
   const loginMut = useMutation({
     mutationFn: async (data: typeof form) => {
@@ -51,6 +38,7 @@ export default function LoginPage() {
           emailVerified: data.user.emailVerified,
           permissions: data.user.permissions ?? [],
           roleSlugs: data.user.roleSlugs ?? [],
+          isPlatformAdmin: data.user.isPlatformAdmin === true,
         },
         data.workspaceId ?? "",
         { onboardingStatus, onboardingCompleted: data.onboardingCompleted === true },
@@ -81,6 +69,7 @@ export default function LoginPage() {
           emailVerified: data.user.emailVerified ?? true,
           permissions: data.user.permissions ?? [],
           roleSlugs: data.user.roleSlugs ?? [],
+          isPlatformAdmin: data.user.isPlatformAdmin === true,
         },
         data.workspaceId ?? "",
         { onboardingStatus, onboardingCompleted: data.onboardingCompleted === true },
@@ -94,27 +83,9 @@ export default function LoginPage() {
   }
 
   function triggerGoogleSignIn() {
-    if (!GOOGLE_CLIENT_ID) {
-      setError("تسجيل الدخول بـGoogle غير مهيأ.");
-      return;
-    }
-    const init = () => {
-      window.google?.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: (r: { credential: string }) => handleGoogleResponse(r.credential),
-      });
-      window.google?.accounts.id.prompt();
-    };
-    if (window.google) {
-      init();
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = init;
-    document.head.appendChild(script);
+    setError("");
+    void startGoogleIdentitySignIn(handleGoogleResponse, (message) => setError(message))
+      .catch((err) => setError((err as Error).message));
   }
 
   function submit(e: React.FormEvent) {
@@ -135,12 +106,10 @@ export default function LoginPage() {
           <p className="text-soft mt-2 text-[14px]">سجّل دخولك للوصول إلى صندوق محادثاتك.</p>
         </div>
         {error && <div className="auth-message error mt-5">{error}</div>}
-        <>
-          <div className="reveal in mt-7" style={{ animationDelay: ".15s" }}>
-            <GoogleButton label="الدخول بحساب Google" onClick={triggerGoogleSignIn} loading={googleLoading} disabled={googleLoading || loginMut.isPending} />
-          </div>
-          <OrDivider label="أو سجّل دخولك بالبريد" />
-        </>
+        <div className="reveal in mt-7" style={{ animationDelay: ".15s" }}>
+          <GoogleButton label="الدخول بحساب Google" onClick={triggerGoogleSignIn} loading={googleLoading} disabled={googleLoading || loginMut.isPending} />
+        </div>
+        <OrDivider label="أو سجّل دخولك بالبريد" />
         <div className="reveal in space-y-4" style={{ animationDelay: ".25s" }}>
           <AuthField id="login-email" label="البريد الإلكتروني" type="email" autoComplete="email" required placeholder="you@company.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} icon={<Mail />} />
           <div>
