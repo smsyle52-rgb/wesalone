@@ -16,6 +16,7 @@ import type { AuthenticatedRequest, SessionUser } from "../../lib/types";
 import { logger } from "../../lib/logger";
 import { authLimiter, changePasswordLimiter, signupLimiter, verificationEmailLimiter } from "../../lib/rateLimiter";
 import { consumeAuthToken, markEmailVerified, sendPasswordResetEmail, sendVerificationEmail } from "../../services/account-lifecycle";
+import { getWorkspaceOnboardingStatus } from "../../services/onboarding-status";
 
 const router = Router();
 
@@ -125,11 +126,14 @@ router.post("/register", signupLimiter, async (req: Request, res: Response) => {
       userAgent: req.headers["user-agent"],
     });
 
+    const onboardingStatus = await getWorkspaceOnboardingStatus(workspace.id);
     res.status(201).json({
       message: "تم إنشاء الحساب بنجاح",
-      user: { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified, permissions: [], roleSlugs: [] },
+      user: { id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified, permissions, roleSlugs },
       workspaceId: workspace.id,
       workspace: { id: workspace.id, name: workspace.name, slug: workspace.slug },
+      onboardingStatus,
+      onboardingCompleted: onboardingStatus.completed,
     });
   } catch (err) {
     logger.error({ err }, "Registration failed");
@@ -172,6 +176,7 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
       userAgent: req.headers["user-agent"],
     });
 
+    const onboardingStatus = await getWorkspaceOnboardingStatus(sessionData.activeWorkspaceId);
     res.json({
       message: "تم تسجيل الدخول بنجاح",
       user: {
@@ -183,6 +188,8 @@ router.post("/login", authLimiter, async (req: Request, res: Response) => {
         roleSlugs: sessionData.roleSlugs,
       },
       workspaceId: sessionData.activeWorkspaceId,
+      onboardingStatus,
+      onboardingCompleted: onboardingStatus.completed,
     });
   } catch (err) {
     logger.error({ err }, "Login failed");
@@ -303,7 +310,7 @@ router.get("/me", requireSession, async (req: Request, res: Response) => {
 
     req.session.user = { ...authReq.sessionUser, permissions, roleSlugs };
 
-    const wsSettings = (workspace?.settings ?? {}) as Record<string, unknown>;
+    const onboardingStatus = await getWorkspaceOnboardingStatus(activeWorkspaceId);
     res.json({
       user: {
         id: userId,
@@ -314,7 +321,9 @@ router.get("/me", requireSession, async (req: Request, res: Response) => {
         roleSlugs,
       },
       workspace: workspace ? { id: workspace.id, name: workspace.name, slug: workspace.slug, status: workspace.status, plan: workspace.plan } : null,
-      onboardingCompleted: wsSettings.onboarding_completed === true,
+      workspaceId: activeWorkspaceId,
+      onboardingStatus,
+      onboardingCompleted: onboardingStatus.completed,
     });
   } catch (err) {
     logger.error({ err }, "Failed to load /me");
@@ -375,8 +384,16 @@ router.post("/google", authLimiter, async (req: Request, res: Response) => {
 
       const { permissions, roleSlugs } = await loadUserPermissions(membership.id);
       await establishSession(req, { userId: existingUser.id, activeWorkspaceId: membership.workspaceId, activeMembershipId: membership.id, permissions, roleSlugs, name: existingUser.name, email: existingUser.email, emailVerified: true });
+      const onboardingStatus = await getWorkspaceOnboardingStatus(membership.workspaceId);
 
-      res.json({ message: "تم تسجيل الدخول بنجاح", isNewUser: false, user: { id: existingUser.id, name: existingUser.name, email: existingUser.email, emailVerified: true, permissions, roleSlugs }, workspaceId: membership.workspaceId });
+      res.json({
+        message: "تم تسجيل الدخول بنجاح",
+        isNewUser: false,
+        user: { id: existingUser.id, name: existingUser.name, email: existingUser.email, emailVerified: true, permissions, roleSlugs },
+        workspaceId: membership.workspaceId,
+        onboardingStatus,
+        onboardingCompleted: onboardingStatus.completed,
+      });
       return;
     }
 
@@ -391,8 +408,16 @@ router.post("/google", authLimiter, async (req: Request, res: Response) => {
     const { permissions, roleSlugs } = await loadUserPermissions(membership.id);
     await establishSession(req, { userId: user.id, activeWorkspaceId: workspace.id, activeMembershipId: membership.id, permissions, roleSlugs, name: user.name, email: user.email, emailVerified: true });
     await sendVerificationEmail({ id: user.id, email: user.email, name: user.name }).catch(() => {});
+    const onboardingStatus = await getWorkspaceOnboardingStatus(workspace.id);
 
-    res.status(201).json({ message: "تم إنشاء الحساب بنجاح", isNewUser: true, user: { id: user.id, name: user.name, email: user.email, emailVerified: true, permissions, roleSlugs }, workspaceId: workspace.id });
+    res.status(201).json({
+      message: "تم إنشاء الحساب بنجاح",
+      isNewUser: true,
+      user: { id: user.id, name: user.name, email: user.email, emailVerified: true, permissions, roleSlugs },
+      workspaceId: workspace.id,
+      onboardingStatus,
+      onboardingCompleted: onboardingStatus.completed,
+    });
   } catch (err) {
     logger.error({ err }, "Google auth failed");
     if (err instanceof AuthError) { res.status(409).json({ error: err.message }); return; }

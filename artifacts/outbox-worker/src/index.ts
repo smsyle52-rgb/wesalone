@@ -140,7 +140,7 @@ async function markFailed(id: string): Promise<void> {
 
 async function markOutboxDone(id: string): Promise<void> {
   await pool.query(
-    "UPDATE outbox_events SET status='done', published_at=NOW() WHERE id=$1",
+    "UPDATE outbox_events SET status='done', published_at=NOW() WHERE id=$1 AND status='processing'",
     [id],
   );
 }
@@ -154,7 +154,7 @@ async function markOutboxFailedOrRetry(event: OutboxEventRow): Promise<void> {
         SET attempts=$2,
             status='pending',
             next_attempt_at=NOW() + ($3 * INTERVAL '1 second')
-        WHERE id=$1
+        WHERE id=$1 AND status='processing'
       `,
       [event.id, attempts, attempts * 60],
     );
@@ -162,7 +162,7 @@ async function markOutboxFailedOrRetry(event: OutboxEventRow): Promise<void> {
   }
 
   await pool.query(
-    "UPDATE outbox_events SET attempts=$2, status='failed' WHERE id=$1",
+    "UPDATE outbox_events SET attempts=$2, status='failed' WHERE id=$1 AND status='processing'",
     [event.id, attempts],
   );
 
@@ -516,7 +516,10 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
     );
     const lastInboundAt = msgRows[0]?.sent_at;
     if (lastInboundAt && Date.now() - new Date(lastInboundAt).getTime() > 86_400_000) {
-      await pool.query("UPDATE outbox_events SET status='failed', attempts=3 WHERE id=$1", [event.id]);
+      await pool.query(
+        "UPDATE outbox_events SET status='failed', attempts=3 WHERE id=$1 AND status='processing'",
+        [event.id],
+      );
       await pool.query(
         "UPDATE conversations SET agent_status='human', updated_at=NOW() WHERE id=$1",
         [conversationId],
@@ -530,22 +533,32 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
   await markOutboxDone(event.id);
 }
 
+async function claimOutboxEvents(): Promise<OutboxEventRow[]> {
+  const { rows } = await pool.query<OutboxEventRow>(
+    `
+      UPDATE outbox_events
+      SET status='processing'
+      WHERE id IN (
+        SELECT id FROM outbox_events
+        WHERE status='pending'
+          AND event_type LIKE 'message.send.%'
+          AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
+        ORDER BY created_at ASC
+        LIMIT 10
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING id, workspace_id, event_type, entity_type, entity_id, payload, status, attempts
+    `,
+  );
+  return rows;
+}
+
 export async function runOutboxSender(): Promise<void> {
   console.log("outbox-sender: polling...", new Date().toISOString());
 
-  const { rows } = await pool.query<OutboxEventRow>(
-    `
-      SELECT id, workspace_id, event_type, entity_type, entity_id, payload, status, attempts
-      FROM outbox_events
-      WHERE status='pending'
-        AND event_type LIKE 'message.send.%'
-        AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
-      ORDER BY created_at ASC
-      LIMIT 10
-    `,
-  );
+  const events = await claimOutboxEvents();
 
-  for (const event of rows) {
+  for (const event of events) {
     try {
       await handleOutboxEvent(event);
     } catch (err) {

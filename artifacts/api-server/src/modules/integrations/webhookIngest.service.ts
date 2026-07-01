@@ -83,14 +83,6 @@ export async function ingestWebhookEvent(params: {
   const provider = params.provider;
   const { externalEventId, idempotencyKey } = computeWebhookIdempotencyKey(provider, params.payload);
 
-  const [existing] = await db
-    .select()
-    .from(webhookEventsTable)
-    .where(and(eq(webhookEventsTable.provider, provider), eq(webhookEventsTable.idempotencyKey, idempotencyKey)))
-    .limit(1);
-
-  if (existing) return { accepted: true, duplicate: true, event: existing };
-
   const [event] = await db
     .insert(webhookEventsTable)
     .values({
@@ -105,7 +97,18 @@ export async function ingestWebhookEvent(params: {
       payload: typeof params.payload === "undefined" ? {} : JSON.parse(stableStringify(params.payload)),
       status: "received",
     })
+    .onConflictDoNothing()
     .returning();
 
-  return { accepted: true, duplicate: false, event };
+  if (event) return { accepted: true, duplicate: false, event };
+
+  const [existing] = await db
+    .select()
+    .from(webhookEventsTable)
+    .where(and(eq(webhookEventsTable.provider, provider), eq(webhookEventsTable.idempotencyKey, idempotencyKey)))
+    .limit(1);
+
+  if (existing) return { accepted: true, duplicate: true, event: existing };
+
+  throw new Error("webhook_events insert conflicted but existing row was not found");
 }

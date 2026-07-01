@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { DEFAULT_ONBOARDING_STATUS, normalizeOnboardingStatus, type OnboardingStatus } from "@/lib/onboarding";
 
 interface AuthUser {
   id: string;
@@ -13,11 +14,13 @@ interface AuthCtx {
   user: AuthUser | null;
   workspaceId: string | null;
   isLoading: boolean;
+  onboardingStatus: OnboardingStatus;
   onboardingCompleted: boolean;
-  setAuth: (user: AuthUser, wsId: string, opts?: { onboardingCompleted?: boolean }) => void;
+  setAuth: (user: AuthUser, wsId: string, opts?: { onboardingCompleted?: boolean; onboardingStatus?: unknown }) => void;
   clearAuth: () => void;
   hasPermission: (perm: string) => boolean;
   setOnboardingCompleted: (v: boolean) => void;
+  refreshAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthCtx | null>(null);
@@ -26,39 +29,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus>(DEFAULT_ONBOARDING_STATUS);
+
+  const applyAuthPayload = (data: {
+    user?: AuthUser;
+    workspaceId?: string | null;
+    workspace?: { id?: string | null } | null;
+    onboardingCompleted?: boolean;
+    onboardingStatus?: unknown;
+  }) => {
+    if (!data?.user) return;
+    setUser({
+      id: data.user.id,
+      name: data.user.name,
+      email: data.user.email,
+      emailVerified: data.user.emailVerified,
+      permissions: data.user.permissions ?? [],
+      roleSlugs: data.user.roleSlugs ?? [],
+    });
+    setWorkspaceId(data.workspaceId ?? data.workspace?.id ?? null);
+    setOnboardingStatus(normalizeOnboardingStatus(data.onboardingStatus, data.onboardingCompleted === true));
+  };
+
+  const refreshAuth = async () => {
+    const response = await fetch(`${import.meta.env.BASE_URL}api/auth/me`, { credentials: "include" }).catch(() => null);
+    if (!response?.ok) return;
+    const data = await response.json().catch(() => null);
+    if (data?.user) applyAuthPayload(data);
+  };
 
   useEffect(() => {
     fetch(`${import.meta.env.BASE_URL}api/auth/me`, { credentials: "include" })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
-        if (data?.user) {
-          setUser({
-            id: data.user.id,
-            name: data.user.name,
-            email: data.user.email,
-            emailVerified: data.user.emailVerified,
-            permissions: data.user.permissions ?? [],
-            roleSlugs: data.user.roleSlugs ?? [],
-          });
-          setWorkspaceId(data.workspaceId ?? data.workspace?.id ?? null);
-          setOnboardingCompleted(data.onboardingCompleted === true);
-        }
+        if (data?.user) applyAuthPayload(data);
       })
       .catch(() => {})
       .finally(() => setIsLoading(false));
   }, []);
 
-  const setAuth = (u: AuthUser, wsId: string, opts?: { onboardingCompleted?: boolean }) => {
+  const setAuth = (u: AuthUser, wsId: string, opts?: { onboardingCompleted?: boolean; onboardingStatus?: unknown }) => {
     setUser(u);
     setWorkspaceId(wsId);
-    if (opts?.onboardingCompleted !== undefined) setOnboardingCompleted(opts.onboardingCompleted);
+    setOnboardingStatus(normalizeOnboardingStatus(opts?.onboardingStatus, opts?.onboardingCompleted === true));
   };
-  const clearAuth = () => { setUser(null); setWorkspaceId(null); setOnboardingCompleted(false); };
+  const clearAuth = () => { setUser(null); setWorkspaceId(null); setOnboardingStatus(DEFAULT_ONBOARDING_STATUS); };
   const hasPermission = (perm: string) => user?.permissions.includes(perm) ?? false;
+  const setOnboardingCompleted = (value: boolean) => {
+    setOnboardingStatus((current) => value ? { ...current, completed: true, currentStep: 3 } : DEFAULT_ONBOARDING_STATUS);
+  };
+  const onboardingCompleted = onboardingStatus.completed;
 
   return (
-    <AuthContext.Provider value={{ user, workspaceId, isLoading, onboardingCompleted, setAuth, clearAuth, hasPermission, setOnboardingCompleted }}>
+    <AuthContext.Provider value={{ user, workspaceId, isLoading, onboardingStatus, onboardingCompleted, setAuth, clearAuth, hasPermission, setOnboardingCompleted, refreshAuth }}>
       {children}
     </AuthContext.Provider>
   );

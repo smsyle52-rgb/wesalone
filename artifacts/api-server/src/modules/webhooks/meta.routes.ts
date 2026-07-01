@@ -557,8 +557,18 @@ router.post("/meta", express.raw({ type: "*/*", limit: "2mb" }), async (req: Req
   // W2-T1: fast-ack path — persist raw event, skip inline processing
   if (env.INGEST_DEFERRED) {
     const correlationId = randomUUID();
-    ingestWebhookEvent({ provider: "meta", headers: req.headers, payload, correlationId })
-      .catch((err) => logger.error({ err, correlationId }, "Failed to persist deferred webhook_events row"));
+    try {
+      const result = await ingestWebhookEvent({ provider: "meta", headers: req.headers, payload, correlationId });
+      const webhookEventId = "event" in result ? result.event?.id : undefined;
+      logger.info(
+        { correlationId, webhookEventId, duplicate: result.duplicate },
+        "Persisted deferred Meta webhook event",
+      );
+    } catch (err) {
+      logger.error({ err, correlationId }, "Failed to persist deferred webhook_events row");
+      res.status(500).send("INGEST_FAILED");
+      return;
+    }
     res.status(200).send("EVENT_RECEIVED");
     return;
   }
