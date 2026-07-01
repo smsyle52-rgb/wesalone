@@ -5,6 +5,8 @@ export const workspacesTable = pgTable("workspaces", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   slug: text("slug").unique().notNull(),
+  // Legacy compatibility: the active subscription source of truth is subscriptions.plan_id.
+  planId: uuid("plan_id"),
   plan: text("plan").notNull().default("trial"),
   status: text("status").notNull().default("active"),
   settings: jsonb("settings").notNull().default({}),
