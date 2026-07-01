@@ -26,6 +26,23 @@ interface AuthCtx {
 
 const AuthContext = createContext<AuthCtx | null>(null);
 
+async function readSessionPayload(response: Response) {
+  const text = await response.text().catch(() => "");
+  if (!response.ok || !text.trim()) return null;
+
+  try {
+    return JSON.parse(text) as {
+      user?: AuthUser;
+      workspaceId?: string | null;
+      workspace?: { id?: string | null } | null;
+      onboardingCompleted?: boolean;
+      onboardingStatus?: unknown;
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -56,13 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshAuth = async () => {
     const response = await fetch(`${import.meta.env.BASE_URL}api/auth/me`, { credentials: "include" }).catch(() => null);
     if (!response?.ok) return;
-    const data = await response.json().catch(() => null);
+    const data = await readSessionPayload(response);
     if (data?.user) applyAuthPayload(data);
   };
 
   useEffect(() => {
     fetch(`${import.meta.env.BASE_URL}api/auth/me`, { credentials: "include" })
-      .then((r) => r.ok ? r.json() : null)
+      .then((r) => readSessionPayload(r))
       .then((data) => {
         if (data?.user) applyAuthPayload(data);
       })

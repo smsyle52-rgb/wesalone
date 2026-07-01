@@ -16,17 +16,28 @@ const GOOGLE_SCRIPT_ID = "wesal-google-identity";
 let googleClientIdPromise: Promise<string | null> | null = null;
 let googleScriptPromise: Promise<void> | null = null;
 
+async function readGoogleClientConfig(response: Response): Promise<string | null> {
+  const text = await response.text();
+  if (!response.ok || !text.trim()) return null;
+
+  try {
+    const data = JSON.parse(text) as { clientId?: string | null };
+    return typeof data.clientId === "string" && data.clientId.trim() ? data.clientId.trim() : null;
+  } catch {
+    if (/the deploy/i.test(text)) {
+      throw new Error("الخدمة لم تجهز بعد أو أن توجيه الخادم غير مكتمل. يرجى المحاولة بعد لحظات.");
+    }
+    return null;
+  }
+}
+
 async function fetchGoogleClientId() {
   const envClientId = ((import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? "").trim();
   if (envClientId) return envClientId;
 
   if (!googleClientIdPromise) {
     googleClientIdPromise = fetch(`${import.meta.env.BASE_URL}api/auth/google/config`, { credentials: "include" })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        const data = await response.json() as { clientId?: string | null };
-        return typeof data.clientId === "string" && data.clientId.trim() ? data.clientId.trim() : null;
-      })
+      .then((response) => readGoogleClientConfig(response))
       .catch(() => null);
   }
 
