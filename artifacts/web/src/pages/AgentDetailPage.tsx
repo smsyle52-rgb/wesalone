@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Play, Save } from "lucide-react";
+import { Bot, Check, Link2, Play, Save, Unlink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -50,6 +50,7 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
   const canRead = hasPermission("ai:read");
   const canUse = hasPermission("ai:use");
   const canConfigure = hasPermission("ai:configure");
+  const canManageChannels = hasPermission("channels:manage");
 
   const detailQuery = useQuery({
     queryKey: ["ai-agent", agentId],
@@ -72,6 +73,12 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
   const learnedQuery = useQuery({
     queryKey: ["agent-learned-answers", agentId],
     queryFn: () => apiFetch(`ai/agents/${agentId}/learned-answers`),
+    enabled: canRead,
+  });
+
+  const channelAccountsQuery = useQuery({
+    queryKey: ["agent-channel-accounts"],
+    queryFn: () => apiFetch("channels/accounts"),
     enabled: canRead,
   });
 
@@ -182,6 +189,19 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
     onError: (err) => setMessage((err as Error).message),
   });
 
+  const saveChannelBinding = useMutation({
+    mutationFn: ({ accountId, defaultAgentId }: { accountId: string; defaultAgentId: string | null }) => apiFetch(`channels/accounts/${accountId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ defaultAgentId }),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agent-channel-accounts"] });
+      qc.invalidateQueries({ queryKey: ["ai-agent", agentId] });
+    },
+    onError: (err) => setMessage((err as Error).message),
+  });
+
   function toggleKnowledgeBase(id: string) {
     setSettings((current) => ({
       ...current,
@@ -212,6 +232,7 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
   const bases = basesQuery.data?.bases ?? [];
   const sectors = sectorsQuery.data?.sectors ?? [];
   const channels = detailQuery.data?.channels ?? [];
+  const channelAccounts = channelAccountsQuery.data?.accounts ?? [];
   const runs = detailQuery.data?.runs ?? [];
 
   return (
@@ -361,13 +382,13 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
         )}
 
         {activeTab === "channels" && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="rounded-xl border border-border bg-muted/30 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">ربط القنوات لهذا الوكيل</h3>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    أبقينا ربط القنوات داخل مساحة الوكلاء. من هنا يمكنك فتح إدارة القنوات وربط واتساب أو إنستغرام أو ماسنجر ثم متابعة القنوات المرتبطة بهذا الوكيل.
+                    اختر القنوات التي يرد عليها هذا الوكيل. علامة الصح تعني أن القناة مربوطة بهذا الوكيل، ويمكن فصلها بدون تعطيل القناة نفسها.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -389,16 +410,53 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
                 </div>
               </div>
             </div>
-            {channels.length === 0 && <p className="text-sm text-muted-foreground">{t("agents.detail.noChannels")}</p>}
-            {channels.map((channel: any) => (
-              <div key={channel.id} className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
-                <div>
-                  <div className="font-medium">{channel.displayName ?? channel.channelType ?? t("agents.detail.channel")}</div>
-                  <div className="text-muted-foreground">{channel.channelType ?? ""}</div>
-                </div>
-                <StatusBadge status={channel.mode ?? "disabled"} />
+
+            {channelAccountsQuery.isLoading && (
+              <div className="rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground">جاري تحميل القنوات...</div>
+            )}
+
+            {!channelAccountsQuery.isLoading && channelAccounts.length === 0 && (
+              <div className="rounded-xl border border-dashed border-border bg-background p-5 text-sm leading-7 text-muted-foreground">
+                لا توجد قنوات متاحة في مساحة العمل حتى الآن. اربط واتساب أو إنستغرام أو ماسنجر أولًا من التكاملات، ثم ارجع هنا لاختيار الوكيل.
               </div>
-            ))}
+            )}
+
+            {channelAccounts.length > 0 && (
+              <div className="grid gap-3">
+                {channelAccounts.map((account: any) => {
+                  const isLinked = account.defaultAgentId === agentId;
+                  const isLinkedToAnother = account.defaultAgentId && account.defaultAgentId !== agentId;
+                  const linkedRecord = channels.find((channel: any) => channel.channelAccountId === account.id);
+                  return (
+                    <div key={account.id} className="flex flex-col gap-3 rounded-xl border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-sm font-black ${isLinked ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground"}`}>
+                          {isLinked ? <Check className="h-5 w-5" /> : account.channelType?.slice(0, 1)?.toUpperCase()}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="truncate font-bold text-foreground">{account.displayName ?? account.name ?? account.channelType}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span>{account.channelType}</span>
+                            <StatusBadge status={account.status ?? "active"} />
+                            {linkedRecord?.mode && <StatusBadge status={linkedRecord.mode} />}
+                            {isLinkedToAnother && <span className="rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-700">مربوطة بوكيل آخر</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!canManageChannels || saveChannelBinding.isPending}
+                        onClick={() => saveChannelBinding.mutate({ accountId: account.id, defaultAgentId: isLinked ? null : agentId })}
+                        className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${isLinked ? "border border-border bg-card text-foreground hover:bg-muted" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}
+                      >
+                        {isLinked ? <Unlink className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+                        {isLinked ? "فصل القناة" : "ربط بهذا الوكيل"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

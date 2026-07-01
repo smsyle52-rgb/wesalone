@@ -328,6 +328,7 @@ export default function InboxPage() {
   const canReadQuickReplies = hasPermission("quick_replies:read");
   const canWriteSavedViews = hasPermission("saved_views:write");
   const canReadSavedViews = hasPermission("saved_views:read");
+  const canReadUsage = hasPermission("settings:read");
 
   const [statusFilter, setStatusFilter] = useState("");
   const [viewFilter, setViewFilter] = useState("");
@@ -369,6 +370,13 @@ export default function InboxPage() {
     staleTime: 300000,
   });
   const workspaceName: string = (workspaceData as { workspace?: { name?: string } } | undefined)?.workspace?.name ?? "وصال ون";
+
+  const { data: usageData } = useQuery({
+    queryKey: ["workspace-usage-inbox"],
+    queryFn: () => apiFetch("workspace/usage"),
+    enabled: canRead && canReadUsage,
+    staleTime: 30000,
+  });
 
   const params = new URLSearchParams();
   if (viewFilter) params.set("view", viewFilter);
@@ -448,6 +456,33 @@ export default function InboxPage() {
   });
 
   const hasConnectedMetaChannels = (metaChannelsData?.accounts ?? []).some((channel: any) => channel.status === "active");
+  const pointsStatus = (usageData as { points?: { exhausted?: boolean; remaining?: number | null; balance?: number | null } } | undefined)?.points;
+  const pointsExhausted = Boolean(pointsStatus?.exhausted);
+  const pointsRemaining = Number(pointsStatus?.remaining ?? 0);
+  const extraPointsBalance = Number(pointsStatus?.balance ?? 0);
+  const pointsAlert = pointsExhausted ? (
+    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950 shadow-sm">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="leading-6">
+          <p className="font-black">نفدت نقاط الذكاء لهذا الشهر</p>
+          <p className="text-rose-800">
+            الردود التلقائية متوقفة الآن، والرسائل ستبقى في الوارد للفريق البشري حتى ترقية الباقة أو شحن نقاط جديدة.
+          </p>
+          <p className="text-xs font-semibold text-rose-700">
+            المتبقي: {pointsRemaining.toLocaleString("ar-u-nu-latn")} · الرصيد الإضافي: {extraPointsBalance.toLocaleString("ar-u-nu-latn")}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/billing">
+            <span className="inline-flex rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white hover:bg-rose-800">ترقية الباقة</span>
+          </Link>
+          <Link href="/points">
+            <span className="inline-flex rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100">شحن نقاط</span>
+          </Link>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const createSavedView = useMutation({
     mutationFn: () => apiFetch("saved-views", {
@@ -810,6 +845,8 @@ export default function InboxPage() {
               <h1 className="text-base font-black text-foreground tracking-tight">{workspaceName}</h1>
               <ContactInitials name={user?.name} size={36} />
             </header>
+
+            {pointsAlert && <div className="shrink-0 px-3 py-2">{pointsAlert}</div>}
 
             {/* Channel Filter Chips */}
             <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 overflow-x-auto border-b border-border/40" style={{ scrollbarWidth: "none" }}>
@@ -1272,6 +1309,8 @@ export default function InboxPage() {
           </div>
         )}
 
+        {pointsAlert && <div className="mb-3">{pointsAlert}</div>}
+
         {isError && (
           <div className="mb-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-center justify-between">
             <span>تعذّر تحميل المحادثات</span>
@@ -1280,10 +1319,10 @@ export default function InboxPage() {
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-0 overflow-hidden px-0 pb-[calc(5.75rem+var(--app-safe-bottom))] sm:px-4 lg:pb-4">
+      <div className="flex min-h-0 flex-1 justify-center gap-3 overflow-hidden px-0 pb-[calc(5.75rem+var(--app-safe-bottom))] sm:px-4 lg:pb-4">
         <div className={cn(
           "flex flex-col shrink-0 rounded-xl border border-border bg-card overflow-hidden",
-          "w-full lg:w-80",
+          "w-full lg:w-[340px] xl:w-[360px]",
           mobileView === "detail" ? "hidden lg:flex" : "flex"
         )}>
           <div className="border-b border-border p-2">
@@ -1529,7 +1568,7 @@ export default function InboxPage() {
         </div>
 
         <div className={cn(
-          "flex min-w-0 flex-col flex-1 overflow-hidden rounded-xl border border-border bg-card me-0 lg:me-3",
+          "flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card me-0 lg:flex-[1_1_720px] lg:max-w-[920px]",
           mobileView === "list" && !selectedConvId ? "hidden lg:flex" : "flex",
           mobileView === "list" && selectedConvId ? "hidden lg:flex" : ""
         )}>

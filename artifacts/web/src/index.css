@@ -150,6 +150,15 @@
   select {
     font: inherit;
   }
+  select option {
+    background: #ffffff;
+    color: #0f172a;
+  }
+  .dark select option,
+  html:not(.light) select option {
+    background: #0f172a;
+    color: #f8fafc;
+  }
   .font-mono {
     font-family: 'Tajawal', 'Segoe UI', Tahoma, Arial, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   }
