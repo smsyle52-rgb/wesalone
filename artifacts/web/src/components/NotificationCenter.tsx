@@ -56,7 +56,7 @@ export function NotificationCenter() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="app-touch-target relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition hover:border-primary/30 hover:text-primary"
+        className="app-touch-target relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition hover:border-primary/30 hover:text-primary lg:h-11 lg:w-11"
         aria-label="التنبيهات"
       >
         <Bell className="h-5 w-5" />
@@ -68,7 +68,7 @@ export function NotificationCenter() {
       </button>
 
       {open && (
-        <div className="fixed left-3 right-3 top-[calc(4.75rem+var(--app-safe-top))] z-40 flex max-h-[calc(100dvh-5.75rem-var(--app-safe-top)-var(--app-safe-bottom))] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl sm:absolute sm:end-0 sm:left-auto sm:right-auto sm:top-12 sm:w-[min(360px,calc(100vw-2rem))] sm:max-h-[min(28rem,calc(100vh-6rem))]">
+        <div className="fixed left-3 right-3 top-[calc(4.75rem+var(--app-safe-top))] z-40 flex max-h-[calc(100dvh-5.75rem-var(--app-safe-top)-var(--app-safe-bottom))] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl sm:absolute sm:end-0 sm:left-auto sm:right-auto sm:top-12 sm:w-[min(26rem,calc(100vw-2rem))] sm:max-h-[min(32rem,calc(100vh-6rem))] lg:top-14 lg:w-[28rem] lg:max-h-[min(36rem,calc(100vh-7rem))]">
           <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
             <div>
               <div className="text-sm font-bold text-foreground">التنبيهات</div>
@@ -96,15 +96,15 @@ export function NotificationCenter() {
                   setOpen(false);
                 }}
                 className={cn(
-                  "block border-b border-border px-4 py-3 transition last:border-b-0 hover:bg-muted/50",
+                  "block border-b border-border px-4 py-3.5 transition last:border-b-0 hover:bg-muted/50 lg:px-5",
                   !item.isRead && "bg-primary/5",
                 )}
               >
                 <div className="flex items-start gap-3">
                   <span className={cn("mt-1 h-2 w-2 rounded-full", item.isRead ? "bg-muted" : "bg-accent")} />
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-bold text-foreground">{item.titleAr}</div>
-                    <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.bodyAr}</div>
+                    <div className="text-sm font-bold leading-6 text-foreground">{item.titleAr}</div>
+                    <div className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground lg:text-[0.8125rem]">{item.bodyAr}</div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       {new Date(item.createdAt).toLocaleString("ar-u-nu-latn")}
                     </div>

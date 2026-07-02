@@ -1083,7 +1083,7 @@ export default function InboxPage() {
             )}
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 space-y-3">
               {detailLoading ? (
                 <div className="flex items-center justify-center h-20 text-muted-foreground text-sm animate-pulse">جار التحميل...</div>
               ) : !conv ? (
@@ -1098,7 +1098,7 @@ export default function InboxPage() {
                   return (
                     <div key={msg.id} className={cn("flex items-end gap-2", isInternal ? "justify-center" : isOutbound ? "justify-start" : "justify-end")}>
                       {isInternal ? (
-                        <div className="max-w-[90%] rounded-2xl px-4 py-2.5 text-sm bg-amber-50 border border-amber-200 text-amber-800 italic">
+                        <div className="max-w-[90%] break-words rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm italic text-amber-800 [overflow-wrap:anywhere]">
                           <div className="flex items-center gap-1 mb-1 not-italic font-bold text-amber-700 text-xs">
                             🔒 ملاحظة داخلية {msg.senderName && <span>— {msg.senderName}</span>}
                           </div>
@@ -1107,7 +1107,7 @@ export default function InboxPage() {
                         </div>
                       ) : isOutbound ? (
                         <>
-                          <div className="max-w-[78%] px-3.5 py-2.5 rounded-2xl rounded-bl-sm text-sm bg-primary text-primary-foreground">
+                          <div className="max-w-[78%] break-words rounded-2xl rounded-bl-sm bg-primary px-3.5 py-2.5 text-sm text-primary-foreground [overflow-wrap:anywhere]">
                             {msg.content && <div className="whitespace-pre-wrap">{msg.content}</div>}
                             {selectedConvId && <MessageAttachments conversationId={selectedConvId} messageId={msg.id} attachments={msg.attachments} />}
                             <div className="text-[0.65rem] mt-1 opacity-60 flex items-center gap-1 justify-end">
@@ -1120,7 +1120,7 @@ export default function InboxPage() {
                       ) : (
                         <>
                           <ContactInitials name={conv.contactName} size={28} />
-                          <div className="max-w-[78%] px-3.5 py-2.5 rounded-2xl rounded-br-sm text-sm bg-muted text-foreground">
+                          <div className="max-w-[78%] break-words rounded-2xl rounded-br-sm bg-muted px-3.5 py-2.5 text-sm text-foreground [overflow-wrap:anywhere]">
                             {msg.content && <div className="whitespace-pre-wrap">{msg.content}</div>}
                             {selectedConvId && <MessageAttachments conversationId={selectedConvId} messageId={msg.id} attachments={msg.attachments} />}
                             <div className="text-[0.65rem] mt-1 opacity-60">{formatDateTime(msg.sentAt)}</div>
@@ -1319,9 +1319,9 @@ export default function InboxPage() {
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 justify-center gap-3 overflow-hidden px-0 pb-[calc(5.75rem+var(--app-safe-bottom))] sm:px-4 lg:pb-4">
+      <div className="flex min-h-0 flex-1 justify-center gap-3 overflow-hidden px-0 pb-[calc(5.75rem+var(--app-safe-bottom))] sm:px-4 lg:h-[calc(100dvh-11.75rem)] lg:pb-4">
         <div className={cn(
-          "flex flex-col shrink-0 rounded-xl border border-border bg-card overflow-hidden",
+          "flex min-h-0 shrink-0 self-stretch flex-col overflow-hidden rounded-xl border border-border bg-card",
           "w-full lg:w-[340px] xl:w-[360px]",
           mobileView === "detail" ? "hidden lg:flex" : "flex"
         )}>
@@ -1568,7 +1568,7 @@ export default function InboxPage() {
         </div>
 
         <div className={cn(
-          "flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card me-0 lg:flex-[1_1_720px] lg:max-w-[920px]",
+          "me-0 flex min-h-0 min-w-0 self-stretch flex-col overflow-hidden rounded-xl border border-border bg-card lg:h-full lg:flex-[1_1_720px] lg:max-w-[920px]",
           mobileView === "list" && !selectedConvId ? "hidden lg:flex" : "flex",
           mobileView === "list" && selectedConvId ? "hidden lg:flex" : ""
         )}>
@@ -1807,7 +1807,7 @@ export default function InboxPage() {
                 </div>
               )}
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4 space-y-3">
                 {detailTab === "customer" ? (
                   <div className="grid md:grid-cols-2 gap-3 text-sm">
                     <div className="rounded-xl border border-border bg-background p-4 space-y-2">
@@ -1850,7 +1850,7 @@ export default function InboxPage() {
                   return (
                     <div key={msg.id} className={cn("flex", isInternal ? "justify-center" : isOutbound ? "justify-start" : "justify-end")}>
                       {isInternal ? (
-                        <div className="max-w-[85%] px-3 py-2 rounded-xl text-sm bg-yellow-50 border border-yellow-200 text-yellow-800 italic">
+                        <div className="max-w-[85%] break-words rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm italic text-yellow-800 [overflow-wrap:anywhere]">
                           <div className="flex items-center gap-1 mb-1 not-italic font-medium text-yellow-700">
                             <span>🔒</span><span>ملاحظة داخلية</span>
                             {msg.senderName && <span className="text-yellow-600">— {msg.senderName}</span>}
@@ -1859,7 +1859,7 @@ export default function InboxPage() {
                           <div className="text-xs mt-1 opacity-60">{formatDateTime(msg.sentAt)}</div>
                         </div>
                       ) : (
-                        <div className={cn("max-w-[80%] px-3 py-2 rounded-xl text-base",
+                        <div className={cn("max-w-[80%] break-words rounded-xl px-3 py-2 text-base [overflow-wrap:anywhere]",
                           isOutbound
                             ? "bg-primary text-primary-foreground rounded-br-sm"
                             : "bg-muted text-foreground rounded-bl-sm")}>

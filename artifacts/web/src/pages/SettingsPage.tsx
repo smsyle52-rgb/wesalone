@@ -786,10 +786,10 @@ function BillingTabV2() {
             const isSelected = selectedPlanId === plan.id;
             const underReview = hasReviewFor(plan.id);
             return (
-              <button key={plan.id} type="button" onClick={() => { setSelectedPlanId(plan.id); if (!active && !underReview && usd > 0) setPaymentOpen(true); }} className={`rounded-xl border p-4 text-start transition hover:-translate-y-1 hover:shadow-lg ${isSelected ? "border-accent ring-2 ring-accent/20" : active ? "border-primary" : underReview ? "border-amber-300" : "border-border"}`}>
+              <article key={plan.id} className={`flex h-full flex-col rounded-xl border p-4 text-start transition hover:-translate-y-1 hover:shadow-lg ${isSelected ? "border-accent ring-2 ring-accent/20" : active ? "border-primary" : underReview ? "border-amber-300" : "border-border"}`}>
                 <div className="flex items-center justify-between gap-2">
                   <h4 className="text-base font-black text-foreground">{plan.nameAr ?? plan.name}</h4>
-                  {active && <span className="rounded-full bg-primary/10 px-2 py-1 text-[11px] font-bold text-primary">حالية</span>}
+                  {active && <span className="rounded-full bg-primary/10 px-2 py-1 text-[11px] font-bold text-primary">الحالية</span>}
                 </div>
                 <div className="mt-2 text-2xl font-black text-primary">
                   ${usd.toLocaleString("ar-u-nu-latn")}
@@ -806,7 +806,28 @@ function BillingTabV2() {
                     <li key={feature}>✓ {featureLabels[feature] ?? feature}</li>
                   ))}
                 </ul>
-              </button>
+                <div className="mt-auto pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPlanId(plan.id);
+                      if (!active && !underReview && usd > 0) setPaymentOpen(true);
+                    }}
+                    disabled={active || underReview || usd <= 0}
+                    className={`w-full rounded-lg px-4 py-2.5 text-sm font-black transition-colors ${
+                      active
+                        ? "cursor-default bg-secondary text-muted-foreground"
+                        : underReview
+                          ? "cursor-default bg-amber-50 text-amber-700"
+                          : usd <= 0
+                            ? "cursor-not-allowed bg-muted text-muted-foreground"
+                            : "bg-primary text-primary-foreground hover:bg-primary/90"
+                    }`}
+                  >
+                    {active ? "الباقة الحالية" : underReview ? "قيد المراجعة" : usd > 0 ? "ادفع الآن" : "تواصل معنا"}
+                  </button>
+                </div>
+              </article>
             );
           })}
         </div>
@@ -814,29 +835,29 @@ function BillingTabV2() {
 
       {paymentOpen && selectedPlan && selectedDisplay && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
-          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-card p-5 shadow-2xl sm:max-w-3xl sm:rounded-2xl">
+          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-card p-5 text-foreground shadow-2xl sm:max-w-3xl sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-bold text-primary">طلب ترقية الباقة</p>
                 <h3 className="mt-1 text-2xl font-black text-foreground">{selectedPlan.nameAr ?? selectedPlan.name}</h3>
               </div>
-              <button type="button" className="rounded-lg border border-border px-3 py-2 text-sm font-bold" onClick={() => setPaymentOpen(false)}>إغلاق</button>
+              <button type="button" className="rounded-lg border border-border px-3 py-2 text-sm font-bold text-foreground" onClick={() => setPaymentOpen(false)}>إغلاق</button>
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-border bg-secondary/40 p-4">
+              <div className="rounded-xl border border-border bg-secondary/40 p-4 text-foreground">
                 <p className="text-xs font-bold text-muted-foreground">الدورة</p>
                 <p className="mt-1 font-black">{billingCycle === "annual" ? "سنوي" : "شهري"}</p>
               </div>
-              <div className="rounded-xl border border-border bg-secondary/40 p-4">
+              <div className="rounded-xl border border-border bg-secondary/40 p-4 text-foreground">
                 <p className="text-xs font-bold text-muted-foreground">السعر المطلوب</p>
                 <p className="mt-1 font-black">{Number(selectedDisplay.amount ?? 0).toLocaleString("ar-u-nu-latn")} {selectedDisplay.currency}</p>
               </div>
-              <div className="rounded-xl border border-border bg-secondary/40 p-4">
+              <div className="rounded-xl border border-border bg-secondary/40 p-4 text-foreground">
                 <p className="text-xs font-bold text-muted-foreground">نقاط الذكاء الشهرية</p>
                 <p className="mt-1 font-black">{prettyLimit(selectedPlan.limits?.monthly_points)}</p>
               </div>
-              <div className="rounded-xl border border-border bg-secondary/40 p-4">
+              <div className="rounded-xl border border-border bg-secondary/40 p-4 text-foreground">
                 <p className="text-xs font-bold text-muted-foreground">الانتهاء المتوقع بعد التفعيل</p>
                 <p className="mt-1 font-black">{new Date(Date.now() + (billingCycle === "annual" ? 365 : 30) * 24 * 60 * 60 * 1000).toLocaleDateString("ar-u-nu-latn")}</p>
               </div>
@@ -844,7 +865,7 @@ function BillingTabV2() {
 
             <div className="mt-5 rounded-xl border border-border p-4">
               <h4 className="font-black text-foreground">بيانات التحويل</h4>
-              <p className="mt-2 text-sm leading-7 text-muted-foreground">{data?.manualPayment?.transferNote}</p>
+              <p className="mt-2 text-sm leading-7 text-slate-600">{data?.manualPayment?.transferNote}</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {[
                   ["اسم المستلم", data?.manualPayment?.recipientName],
@@ -852,10 +873,10 @@ function BillingTabV2() {
                   ["حساب الكريمي بالريال السعودي", data?.manualPayment?.kuraimiSarAccount],
                   ["حساب الكريمي بالدولار الأمريكي", data?.manualPayment?.kuraimiUsdAccount],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-lg border border-border bg-background p-3">
-                    <p className="text-xs text-muted-foreground">{label}</p>
+                  <div key={label} className="rounded-lg border border-border bg-background p-3 text-foreground">
+                    <p className="text-xs text-slate-500">{label}</p>
                     <div className="mt-1 flex items-center justify-between gap-2">
-                      <b className="text-sm">{value}</b>
+                      <b className="text-sm text-foreground">{value}</b>
                       <button type="button" className="rounded-md bg-primary px-3 py-1.5 text-xs font-black text-primary-foreground" onClick={() => copyPayment(String(value ?? ""))}>نسخ</button>
                     </div>
                   </div>
@@ -863,11 +884,11 @@ function BillingTabV2() {
               </div>
             </div>
 
-            <form className="mt-5 space-y-4" onSubmit={(event) => { event.preventDefault(); submitPayment.mutate(); }}>
+            <form className="mt-5 space-y-4 text-foreground" onSubmit={(event) => { event.preventDefault(); submitPayment.mutate(); }}>
               {submitPayment.isError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-800">{(submitPayment.error as Error).message}</div>}
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm font-semibold">طريقة التحويل
-                  <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
+                <label className="text-sm font-semibold text-foreground">طريقة التحويل
+                  <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-slate-400" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
                     <option value="kuraimi">كريمي</option>
                     <option value="wallet_transfer">محفظة أو شبكة تحويل</option>
                     <option value="jawali">جوالي</option>
@@ -875,18 +896,18 @@ function BillingTabV2() {
                     <option value="cash">نقدا</option>
                   </select>
                 </label>
-                <label className="text-sm font-semibold">العملة
-                  <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={paidCurrency} onChange={(event) => setPaidCurrency(event.target.value as "USD" | "SAR" | "YER")}>
+                <label className="text-sm font-semibold text-foreground">العملة
+                  <select className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-slate-400" value={paidCurrency} onChange={(event) => setPaidCurrency(event.target.value as "USD" | "SAR" | "YER")}>
                     <option value="SAR">SAR</option>
                     <option value="USD">USD</option>
                     <option value="YER">YER</option>
                   </select>
                 </label>
-                <label className="text-sm font-semibold">رقم الحوالة أو المرجع
-                  <input className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" value={reference} onChange={(event) => setReference(event.target.value)} />
+                <label className="text-sm font-semibold text-foreground">رقم الحوالة أو المرجع
+                  <input className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-slate-400" value={reference} onChange={(event) => setReference(event.target.value)} />
                 </label>
-                <label className="text-sm font-semibold">صورة الإيصال
-                  <input type="file" accept="image/jpeg,image/png,image/webp" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" onChange={(event) => {
+                <label className="text-sm font-semibold text-foreground">صورة الإيصال
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground file:me-3 file:rounded-md file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:font-bold file:text-primary" onChange={(event) => {
                     const file = event.target.files?.[0] ?? null;
                     setReceiptFile(file);
                     setReceiptError(file && file.size > 5 * 1024 * 1024 ? "حجم الإيصال أكبر من 5 ميجابايت" : "");
@@ -894,8 +915,8 @@ function BillingTabV2() {
                   {receiptError && <span className="mt-1 block text-xs text-rose-600">{receiptError}</span>}
                 </label>
               </div>
-              <label className="block text-sm font-semibold">ملاحظة اختيارية
-                <textarea className="mt-1 min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2" value={receiptNote} onChange={(event) => setReceiptNote(event.target.value)} />
+              <label className="block text-sm font-semibold text-foreground">ملاحظة اختيارية
+                <textarea className="mt-1 min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-slate-400" value={receiptNote} onChange={(event) => setReceiptNote(event.target.value)} />
               </label>
               <button disabled={submitPayment.isPending || !receiptFile || !!receiptError} className="w-full rounded-lg bg-primary px-5 py-3 text-sm font-black text-primary-foreground disabled:opacity-50">
                 {submitPayment.isPending ? "جار الإرسال..." : "إرسال للمراجعة"}
