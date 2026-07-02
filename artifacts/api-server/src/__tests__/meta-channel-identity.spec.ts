@@ -23,6 +23,23 @@ describe("meta channel identity helpers", () => {
     expect(channelsShareMetaIdentity(legacy, newer)).toBe(true);
   });
 
+  it("treats whatsapp and whatsapp_api rows for the same phone as the same owner", () => {
+    const direct = {
+      id: "direct",
+      channelType: "whatsapp",
+      providerConfig: { phone_number_id: "phone-123" },
+      externalPhoneId: null,
+    };
+    const api = {
+      id: "api",
+      channelType: "whatsapp_api",
+      providerConfig: { phoneNumberId: "phone-123" },
+      externalPhoneId: null,
+    };
+
+    expect(channelsShareMetaIdentity(direct, api)).toBe(true);
+  });
+
   it("does not merge unrelated WhatsApp numbers", () => {
     const first = {
       id: "first",

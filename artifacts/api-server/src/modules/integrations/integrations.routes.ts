@@ -425,6 +425,31 @@ async function upsertMetaChannelAccount(params: {
     )).returning()
     : await db.insert(channelAccountsTable).values(values).returning();
 
+  const claimedAccountIds: string[] = [];
+  if (params.channelType === "whatsapp") {
+    const duplicatedAccounts = await db
+      .update(channelAccountsTable)
+      .set({
+        status: "disabled",
+        providerConfig: null,
+        credentialsSecretRef: null,
+        externalAccountId: null,
+        externalBusinessId: null,
+        externalPhoneId: null,
+        healthStatus: null,
+        lastHealthAt: null,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        sql`${channelAccountsTable.id} <> ${account.id}`,
+        inArray(channelAccountsTable.channelType, ["whatsapp", "whatsapp_api"]),
+        lookupCondition,
+      ))
+      .returning({ id: channelAccountsTable.id });
+
+    claimedAccountIds.push(...duplicatedAccounts.map((item) => item.id));
+  }
+
   await createAuditLog({
     ...auditFromRequest(params.req, params.req.sessionUser),
     action: "meta_channel_connected",
@@ -438,6 +463,8 @@ async function upsertMetaChannelAccount(params: {
       lookupKey: params.lookupKey,
       lookupValue: params.lookupValue,
       tokenStoredAsReference: Boolean(params.credentialsSecretRef),
+      claimedAccountIds,
+      claimedCount: claimedAccountIds.length,
     },
   });
 

@@ -11,6 +11,10 @@ type MetaChannelIdentity = {
   pageId: string | null;
 };
 
+function isWhatsAppChannelType(channelType: string): boolean {
+  return channelType === "whatsapp" || channelType === "whatsapp_api";
+}
+
 function providerConfigRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -57,15 +61,18 @@ export function channelsShareMetaIdentity(
   left: Pick<ChannelAccountLike, "channelType" | "providerConfig" | "externalPhoneId">,
   right: Pick<ChannelAccountLike, "channelType" | "providerConfig" | "externalPhoneId">,
 ): boolean {
-  if (left.channelType !== right.channelType) return false;
+  if (left.channelType !== right.channelType && !(isWhatsAppChannelType(left.channelType) && isWhatsAppChannelType(right.channelType))) {
+    return false;
+  }
 
   const a = extractMetaChannelIdentity(left);
   const b = extractMetaChannelIdentity(right);
 
+  if (isWhatsAppChannelType(left.channelType) && isWhatsAppChannelType(right.channelType)) {
+    return Boolean(a.phoneNumberId && b.phoneNumberId && a.phoneNumberId === b.phoneNumberId);
+  }
+
   switch (left.channelType) {
-    case "whatsapp":
-    case "whatsapp_api":
-      return Boolean(a.phoneNumberId && b.phoneNumberId && a.phoneNumberId === b.phoneNumberId);
     case "instagram":
       return Boolean(
         (a.igAccountId && b.igAccountId && a.igAccountId === b.igAccountId)

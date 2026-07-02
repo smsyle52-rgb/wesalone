@@ -98,16 +98,31 @@ function messageContent(message: any): { contentType: string; content: string; p
 }
 
 async function findChannelAccount(phoneNumberId: string) {
-  const [account] = await db
+  const accounts = await db
     .select()
     .from(channelAccountsTable)
     .where(and(
-      eq(channelAccountsTable.channelType, "whatsapp"),
+      sql`${channelAccountsTable.channelType} in ('whatsapp', 'whatsapp_api')`,
       eq(channelAccountsTable.status, "active"),
       sql`(${channelAccountsTable.providerConfig}->>'phone_number_id' = ${phoneNumberId} OR ${channelAccountsTable.providerConfig}->>'phoneNumberId' = ${phoneNumberId})`,
     ))
-    .limit(1);
-  return account ?? null;
+    .limit(2);
+
+  if (accounts.length > 1) {
+    logger.error(
+      {
+        severity: "CRITICAL",
+        alert: "channel.identifier_conflict",
+        phoneNumberId,
+        channelAccountIds: accounts.map((account) => account.id),
+        workspaceIds: accounts.map((account) => account.workspaceId),
+      },
+      "Multiple active WhatsApp channel accounts share one phone_number_id - refusing to route",
+    );
+    return null;
+  }
+
+  return accounts[0] ?? null;
 }
 
 export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaWebhookResult> {
