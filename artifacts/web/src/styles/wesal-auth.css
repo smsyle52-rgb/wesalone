@@ -1,20 +1,22 @@
 
-    :root {
+    /* Launch fix (2 Jul): scoped to .wesal-auth — this stylesheet is bundled globally
+       by Vite, and the previous :root/html,body rules painted the whole dashboard
+       with the auth dark palette (near-white text on light pages). */
+    .wesal-auth {
       --bg:#050A18; --bg-soft:#081127; --bg-muted:#0B1530;
       --fg:#F8FAFC; --fg-soft:#CBD5E1; --fg-mute:#94A3B8;
       --card:rgba(12,24,52,0.72); --card-solid:#0C1834;
       --line:rgba(90,140,255,0.18); --line-strong:rgba(90,140,255,0.32);
       --primary:#2563EB; --primary-hi:#4D80FF; --secondary:#22D3EE;
     }
-    html.light {
+    html.light .wesal-auth {
       --bg:#F8FAFC; --bg-soft:#EEF2FA; --bg-muted:#E5ECF7;
       --fg:#0F172A; --fg-soft:#475569; --fg-mute:#64748B;
       --card:#FFFFFF; --card-solid:#FFFFFF;
       --line:rgba(15,23,42,0.10); --line-strong:rgba(15,23,42,0.18);
       --primary:#1B5CE8; --primary-hi:#1B5CE8; --secondary:#14B8A6;
     }
-    html,body { font-family:"Tajawal","Cairo",system-ui,sans-serif; background:var(--bg); color:var(--fg); transition:background-color .35s ease, color .35s ease; overflow-x:hidden; }
-    body { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+    .wesal-auth { font-family:"Tajawal","Cairo",system-ui,sans-serif; background:var(--bg); color:var(--fg); transition:background-color .35s ease, color .35s ease; overflow-x:hidden; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
 
     .text-soft{color:var(--fg-soft)} .text-mute{color:var(--fg-mute)} .border-line{border-color:var(--line)}
 

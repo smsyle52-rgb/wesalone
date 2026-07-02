@@ -1,6 +1,9 @@
 
-    /* ===== Dark-first palette ===== */
-    :root {
+    /* ===== Dark-first palette =====
+       Launch fix (2 Jul): scoped to .wesal-source-page — this stylesheet is bundled
+       globally by Vite, and the previous :root/html,body rules painted the whole
+       dashboard with the marketing dark palette (near-white text on light pages). */
+    .wesal-source-page {
       --bg:           #050A18;
       --bg-soft:      #081127;
       --bg-muted:     #0B1530;
@@ -19,7 +22,7 @@
       --halo:         radial-gradient(60% 60% at 50% 50%, rgba(37,99,235,0.32), rgba(34,211,238,0.16) 55%, transparent 80%);
     }
     /* Light mode — only when user explicitly toggles */
-    html.light {
+    html.light .wesal-source-page {
       --bg:           #F8FAFC;
       --bg-soft:      #EEF2FA;
       --bg-muted:     #E5ECF7;
@@ -38,25 +41,27 @@
       --halo:         radial-gradient(60% 60% at 50% 50%, rgba(27,92,232,0.18), rgba(20,184,166,0.10) 55%, transparent 80%);
     }
 
-    html, body {
+    .wesal-source-page {
       font-family: "Tajawal", "Cairo", system-ui, sans-serif;
       background: var(--bg);
       color: var(--fg);
       transition: background-color .35s ease, color .35s ease;
       overflow-x: hidden;
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
-    body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
     .page-wrap { overflow-x: clip; }
-    section { max-width: 100vw; }
+    .wesal-source-page section { max-width: 100vw; }
 
     /* ===== Accessibility — keyboard focus ===== */
-    :focus { outline: none; }
-    :focus-visible {
+    .wesal-source-page :focus { outline: none; }
+    .wesal-source-page :focus-visible {
       outline: 2px solid color-mix(in srgb, var(--secondary) 70%, transparent);
       outline-offset: 2px;
       border-radius: 8px;
     }
-    a:focus-visible, button:focus-visible {
+    .wesal-source-page a:focus-visible, .wesal-source-page button:focus-visible {
       outline: 2px solid color-mix(in srgb, var(--secondary) 80%, transparent);
       outline-offset: 3px;
     }

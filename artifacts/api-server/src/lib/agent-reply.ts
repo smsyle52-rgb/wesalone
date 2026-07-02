@@ -22,7 +22,59 @@ import {
   type AgentToolResult,
 } from "./agent-tools";
 
-const ESCALATION_KEYWORDS = ["أكلم إنسان", "مدير", "شكوى", "إلغاء"];
+// Launch fix (2 Jul): keywords are matched against hamza/ta-marbuta-normalized text
+// (see normalizeArabic), so store them in normalized form. Bare "تحويل" is excluded
+// on purpose — it would false-positive on payment transfers ("تحويل بنكي").
+const ESCALATION_KEYWORDS = [
+  "اكلم انسان",
+  "كلمني انسان",
+  "اريد انسان",
+  "ابغي انسان",
+  "ابي انسان",
+  "عايز انسان",
+  "انسان حقيقي",
+  "تحويل بشري",
+  "موظف بشري",
+  "بشري",
+  "اكلم احد",
+  "اكلم موظف",
+  "كلمني موظف",
+  "اريد موظف",
+  "موظف",
+  "مسؤول",
+  "مدير",
+  "خدمه العملاء",
+  "الدعم الفني",
+  "دعم فني",
+  "شكوي",
+  "الغاء",
+];
+
+// The model is single-pass (reply + tool calls in one shot): it can WRITE a transfer
+// promise without actually calling handoff_to_human — and most agents have tools
+// disabled entirely. If the outgoing reply promises a handoff, the server makes the
+// promise true by escalating; over-escalation is acceptable, a broken promise is not.
+const HANDOFF_PROMISE_PATTERNS = [
+  "ساحول",
+  "احولك",
+  "احول طلبك",
+  "احول حضرتك",
+  "ساحيل",
+  "احيل طلبك",
+  "سيتم تحويل",
+  "تم تحويل",
+  "تم التحويل",
+  "حولت طلبك",
+  "انقل طلبك",
+  "سيتم نقل طلبك",
+  "اوصلك بالفريق",
+  "للفريق المختص",
+  "سيتواصل معك",
+  "سيتواصل معكم",
+  "الفريق سيتواصل",
+  "سيرد عليك احد",
+  "زملائي",
+];
 
 async function upsertUsage(params: {
   workspaceId: string;
@@ -116,8 +168,27 @@ function sanitizeReply(text: string): string {
   return "";
 }
 
+// Arabic-normalize before matching: strip tashkeel, unify hamza forms/ta-marbuta/alef-maqsura —
+// otherwise "اكلم انسان" (no hamza, how customers actually type) misses "أكلم إنسان".
+function normalizeArabic(value: string): string {
+  return value
+    .replace(/[ً-ْٰـ]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .toLowerCase();
+}
+
 function includesEscalationKeyword(value: string): boolean {
-  return ESCALATION_KEYWORDS.some((keyword) => value.includes(keyword));
+  const normalized = normalizeArabic(value);
+  return ESCALATION_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
+function replyPromisesHandoff(reply: string): boolean {
+  const normalized = normalizeArabic(reply);
+  return HANDOFF_PROMISE_PATTERNS.some((pattern) => normalized.includes(pattern));
 }
 
 function isPlaceholderContent(text: string): boolean {
@@ -190,7 +261,20 @@ export async function runAgentReply(params: {
   if (lastInbound && !(lastInbound.content ?? "").trim() && !hasInboundMedia(lastInbound)) {
     return { reply: "", shouldEscalate: false, runId: "", toolResults: [] };
   }
-  const searchQuery = inboundSearchQuery(lastInbound) || lastInbound?.content || messages[messages.length - 1]?.content || "";
+  const primaryQuery = inboundSearchQuery(lastInbound) || lastInbound?.content || messages[messages.length - 1]?.content || "";
+  // Launch fix (2 Jul): short follow-ups ("وكم سعره؟") carry no searchable keywords on
+  // their own, so retrieval used to come back empty and the agent answered blind.
+  // For short queries only, enrich with the previous customer turns — longer queries
+  // stay untouched so tsv AND-matching keeps its precision.
+  const priorInboundContext = messages
+    .filter((message) => message.direction === "inbound")
+    .slice(-3, -1)
+    .map((message) => (message.content ?? "").trim())
+    .filter((text) => text && !isPlaceholderContent(text))
+    .join("\n");
+  const searchQuery = primaryQuery.trim().length >= 15
+    ? primaryQuery
+    : [primaryQuery, priorInboundContext].filter(Boolean).join("\n").slice(0, 600);
   const knowledgeSources = await searchKnowledgeForAi({ workspaceId: params.workspaceId, query: searchQuery });
   const mediaContext = await loadMediaContext(messages);
   // get_order_status (الدفعة 3): احقن حالة طلبات العميل في السياق ليردّ الوكيل على «وين طلبي؟» بدقّة (بنية أحادية التمرير).
@@ -367,6 +451,9 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       hasToolProblem ||
       hasHandoff ||
       includesEscalationKeyword(finalReply) ||
+      // Promise-without-handoff net: the reply says "I'll transfer you" but no
+      // handoff tool ran → escalate server-side so the promise is actually kept.
+      replyPromisesHandoff(finalReply) ||
       (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound));
     return { reply: finalReply, shouldEscalate, runId: run.id, toolResults };
   } catch (err) {

@@ -5,7 +5,7 @@ import {
   knowledgeBasesTable, knowledgeSourcesTable, knowledgeDocumentsTable,
   knowledgeChunksTable, faqEntriesTable,
 } from "@workspace/db";
-import { eq, and, desc, or, ilike, asc, type SQL } from "drizzle-orm";
+import { eq, and, desc, ne, or, ilike, asc, type SQL } from "drizzle-orm";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
@@ -503,6 +503,49 @@ router.post("/documents/:documentId/rechunk", requirePermission("knowledge:updat
     newData: { chunkCount: chunks.length },
   });
   res.json({ chunks, chunkCount: chunks.length });
+});
+
+// Launch fix (2 Jul): re-embed the whole workspace's knowledge in one action. Needed
+// once after enabling real Vertex embeddings — documents indexed under dry-run carry
+// pseudo-vectors that semantic search can never match until they are rebuilt.
+router.post("/reindex", requirePermission("knowledge:update"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const docs = await db
+    .select({
+      id: knowledgeDocumentsTable.id,
+      knowledgeBaseId: knowledgeDocumentsTable.knowledgeBaseId,
+      contentText: knowledgeDocumentsTable.contentText,
+    })
+    .from(knowledgeDocumentsTable)
+    .where(and(
+      eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId),
+      ne(knowledgeDocumentsTable.status, "archived"),
+    ));
+
+  let reindexed = 0;
+  const failedIds: string[] = [];
+  for (const doc of docs) {
+    try {
+      await rebuildDocumentChunks({
+        documentId: doc.id,
+        workspaceId: activeWorkspaceId,
+        knowledgeBaseId: doc.knowledgeBaseId,
+        contentText: doc.contentText,
+      });
+      reindexed += 1;
+    } catch {
+      failedIds.push(doc.id);
+    }
+  }
+
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    action: "knowledge_document_rechunk",
+    entityType: "workspace", entityId: activeWorkspaceId, entityLabel: "إعادة فهرسة شاملة",
+    newData: { total: docs.length, reindexed, failed: failedIds.length },
+  });
+
+  res.json({ total: docs.length, reindexed, failed: failedIds.length });
 });
 
 // ─── FAQ Entries ─────────────────────────────────────────────────────────────
