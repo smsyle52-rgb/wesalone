@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { defaultAgentRolePrompt, hasMeaningfulAgentSetup, resolveCurrentOnboardingStep } from "../services/onboarding-status";
+import {
+  defaultAgentRolePrompt,
+  hasMeaningfulAgentSetup,
+  resolveCurrentOnboardingStep,
+  resolveOnboardingCompletion,
+} from "../services/onboarding-status";
 
 describe("onboarding-status", () => {
   it("treats the auto-generated agent prompt as incomplete", () => {
@@ -56,5 +61,40 @@ describe("onboarding-status", () => {
         knowledge: { completed: false, knowledgeBaseId: null, documentId: null, updatedAt: null },
       },
     })).toBe(3);
+  });
+
+  it("keeps onboarding complete after launch when the workspace has a persisted completion flag", () => {
+    expect(resolveOnboardingCompletion({
+      persistedCompleted: true,
+      steps: {
+        agent: { completed: true, agentId: "a1", updatedAt: null },
+        channel: { completed: false, channelAccountId: "c1", channelType: "whatsapp", updatedAt: null },
+        knowledge: { completed: true, knowledgeBaseId: "kb1", documentId: "doc1", updatedAt: null },
+      },
+      channelRows: [],
+    })).toBe(true);
+  });
+
+  it("treats a previously connected workspace as already onboarded even after channel disconnect", () => {
+    expect(resolveOnboardingCompletion({
+      persistedCompleted: false,
+      steps: {
+        agent: { completed: true, agentId: "a1", updatedAt: null },
+        channel: { completed: false, channelAccountId: "c1", channelType: "whatsapp", updatedAt: null },
+        knowledge: { completed: true, knowledgeBaseId: "kb1", documentId: "doc1", updatedAt: null },
+      },
+      channelRows: [
+        {
+          id: "c1",
+          channelType: "whatsapp",
+          status: "disabled",
+          credentialsSecretRef: "sm://meta-token",
+          externalAccountId: null,
+          externalBusinessId: null,
+          externalPhoneId: null,
+          updatedAt: new Date("2026-07-02T00:00:00.000Z"),
+        },
+      ],
+    })).toBe(true);
   });
 });

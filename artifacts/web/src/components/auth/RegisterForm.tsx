@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { Building2, LockKeyhole, Mail, Phone, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AuthField, AuthLayout, GoogleButton, OrDivider } from "@/components/auth/WesalAuthLayout";
+import { AuthField, AuthLayout, OrDivider } from "@/components/auth/WesalAuthLayout";
 
 export type RegisterState = {
   workspaceName: string;
@@ -18,10 +19,9 @@ type Props = {
   error: string;
   pending: boolean;
   googleLoading: boolean;
-  googleEnabled: boolean;
+  googleSlot?: ReactNode;
   showPassword: boolean;
   setShowPassword: (value: boolean) => void;
-  onGoogle: () => void;
   onSubmit: (event: React.FormEvent) => void;
   codes: { code: string; label: string }[];
 };
@@ -62,10 +62,10 @@ export default function RegisterForm(props: Props) {
           <p className="text-soft mt-2 text-[14px]">ابدأ التجربة المجانية - بدون بطاقة ائتمان، إلغاء في أي وقت.</p>
         </div>
         {props.error && <div className="auth-message error mt-5">{props.error}</div>}
-        {props.googleEnabled && (
+        {props.googleSlot && (
           <>
             <div className="reveal in mt-7" style={{ animationDelay: ".15s" }}>
-              <GoogleButton label="التسجيل بحساب Google" onClick={props.onGoogle} loading={props.googleLoading} disabled={props.googleLoading || props.pending} />
+              {props.googleSlot}
             </div>
             <OrDivider label="أو سجّل بالبريد" />
           </>

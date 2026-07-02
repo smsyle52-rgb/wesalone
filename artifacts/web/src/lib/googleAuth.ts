@@ -4,7 +4,18 @@ declare global {
       accounts: {
         id: {
           initialize: (config: { client_id: string; callback: (response: { credential?: string }) => void }) => void;
-          prompt: () => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: {
+              theme?: "outline" | "filled_blue" | "filled_black";
+              size?: "large" | "medium" | "small";
+              text?: "signin_with" | "signup_with" | "continue_with";
+              shape?: "rectangular" | "pill" | "circle" | "square";
+              logo_alignment?: "left" | "center";
+              width?: number;
+              locale?: string;
+            },
+          ) => void;
         };
       };
     };
@@ -31,7 +42,7 @@ async function readGoogleClientConfig(response: Response): Promise<string | null
   }
 }
 
-async function fetchGoogleClientId() {
+export async function fetchGoogleClientId() {
   const envClientId = ((import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? "").trim();
   if (envClientId) return envClientId;
 
@@ -44,15 +55,25 @@ async function fetchGoogleClientId() {
   return googleClientIdPromise;
 }
 
-async function loadGoogleScript() {
+export async function loadGoogleScript() {
   if (window.google?.accounts?.id) return;
 
   if (!googleScriptPromise) {
     googleScriptPromise = new Promise<void>((resolve, reject) => {
       const existing = document.getElementById(GOOGLE_SCRIPT_ID) as HTMLScriptElement | null;
       if (existing) {
-        existing.addEventListener("load", () => resolve(), { once: true });
-        existing.addEventListener("error", () => reject(new Error("تعذر تحميل مكتبة Google.")), { once: true });
+        if (window.google?.accounts?.id || existing.dataset.loaded === "true") {
+          resolve();
+          return;
+        }
+
+        const handleLoad = () => {
+          existing.dataset.loaded = "true";
+          resolve();
+        };
+        const handleError = () => reject(new Error("تعذر تحميل مكتبة Google."));
+        existing.addEventListener("load", handleLoad, { once: true });
+        existing.addEventListener("error", handleError, { once: true });
         return;
       }
 
@@ -61,19 +82,32 @@ async function loadGoogleScript() {
       script.src = "https://accounts.google.com/gsi/client";
       script.async = true;
       script.defer = true;
-      script.onload = () => resolve();
+      script.onload = () => {
+        script.dataset.loaded = "true";
+        resolve();
+      };
       script.onerror = () => reject(new Error("تعذر تحميل مكتبة Google."));
       document.head.appendChild(script);
+    }).catch((error) => {
+      googleScriptPromise = null;
+      throw error;
     });
   }
 
-  return googleScriptPromise;
+  await googleScriptPromise;
+
+  if (!window.google?.accounts?.id) {
+    googleScriptPromise = null;
+    throw new Error("تعذر تهيئة تسجيل الدخول بحساب Google.");
+  }
 }
 
-export async function startGoogleIdentitySignIn(
-  onCredential: (credential: string) => void,
-  onError?: (message: string) => void,
-) {
+export async function renderGoogleIdentityButton(params: {
+  container: HTMLElement;
+  text: "signin_with" | "signup_with" | "continue_with";
+  onCredential: (credential: string) => void;
+  onError?: (message: string) => void;
+}) {
   const clientId = await fetchGoogleClientId();
   if (!clientId) {
     throw new Error("تسجيل الدخول بحساب Google غير مهيأ حالياً.");
@@ -90,11 +124,21 @@ export async function startGoogleIdentitySignIn(
     client_id: clientId,
     callback: (response) => {
       if (!response.credential) {
-        onError?.("لم يتم استلام رمز Google.");
+        params.onError?.("لم يتم استلام رمز Google.");
         return;
       }
-      onCredential(response.credential);
+      params.onCredential(response.credential);
     },
   });
-  googleAccounts.prompt();
+
+  params.container.innerHTML = "";
+  googleAccounts.renderButton(params.container, {
+    theme: "outline",
+    size: "large",
+    text: params.text,
+    shape: "rectangular",
+    logo_alignment: "left",
+    width: Math.max(260, Math.floor(params.container.getBoundingClientRect().width || params.container.clientWidth || 320)),
+    locale: "ar",
+  });
 }

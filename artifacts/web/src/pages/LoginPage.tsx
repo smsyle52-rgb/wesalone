@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { LockKeyhole, Mail } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeOnboardingStatus, routeForOnboardingStatus } from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
-import { startGoogleIdentitySignIn } from "@/lib/googleAuth";
 import { readAuthResponse } from "@/lib/authResponse";
-import { AuthField, AuthLayout, GoogleButton, OrDivider } from "@/components/auth/WesalAuthLayout";
+import { AuthField, AuthLayout, OrDivider } from "@/components/auth/WesalAuthLayout";
+import GoogleIdentityButton from "@/components/auth/GoogleIdentityButton";
 
 type AuthPayload = {
   user: {
@@ -31,6 +31,7 @@ export default function LoginPage() {
   const [showPassword] = useState(false);
   const [error, setError] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
+  const handleGoogleError = useCallback((message: string) => setError(message), []);
 
   const loginMut = useMutation({
     mutationFn: async (data: typeof form) => {
@@ -62,7 +63,7 @@ export default function LoginPage() {
     onError: (e: Error) => setError(e.message),
   });
 
-  async function handleGoogleResponse(credential: string) {
+  const handleGoogleResponse = useCallback(async (credential: string) => {
     setGoogleLoading(true);
     setError("");
     try {
@@ -93,16 +94,11 @@ export default function LoginPage() {
     } finally {
       setGoogleLoading(false);
     }
-  }
-
-  function triggerGoogleSignIn() {
-    setError("");
-    void startGoogleIdentitySignIn(handleGoogleResponse, (message) => setError(message))
-      .catch((err) => setError((err as Error).message));
-  }
+  }, [navigate, setAuth]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (loginMut.isPending || googleLoading) return;
     setError("");
     loginMut.mutate(form);
   }
@@ -120,7 +116,14 @@ export default function LoginPage() {
         </div>
         {error && <div className="auth-message error mt-5">{error}</div>}
         <div className="reveal in mt-7" style={{ animationDelay: ".15s" }}>
-          <GoogleButton label="الدخول بحساب Google" onClick={triggerGoogleSignIn} loading={googleLoading} disabled={googleLoading || loginMut.isPending} />
+          <GoogleIdentityButton
+            label="الدخول بحساب Google"
+            text="signin_with"
+            busy={googleLoading}
+            disabled={loginMut.isPending}
+            onCredential={handleGoogleResponse}
+            onError={handleGoogleError}
+          />
         </div>
         <OrDivider label="أو سجّل دخولك بالبريد" />
         <div className="reveal in space-y-4" style={{ animationDelay: ".25s" }}>

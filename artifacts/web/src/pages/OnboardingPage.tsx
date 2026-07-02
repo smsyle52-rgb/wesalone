@@ -640,6 +640,11 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, contentText }),
       });
+      await apiFetch("workspace", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: { onboarding_completed: true } }),
+      });
       await refreshAuth();
       const authSnapshot = await apiFetch<{ onboardingStatus?: unknown; onboardingCompleted?: boolean }>("auth/me");
       const nextStatus = normalizeOnboardingStatus(authSnapshot.onboardingStatus, authSnapshot.onboardingCompleted === true);

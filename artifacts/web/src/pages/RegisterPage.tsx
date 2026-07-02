@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeOnboardingStatus, routeForOnboardingStatus } from "@/lib/onboarding";
 import RegisterForm, { type RegisterState } from "@/components/auth/RegisterForm";
-import { startGoogleIdentitySignIn } from "@/lib/googleAuth";
 import { readAuthResponse } from "@/lib/authResponse";
+import GoogleIdentityButton from "@/components/auth/GoogleIdentityButton";
 
 type AuthPayload = {
   user: {
@@ -59,6 +59,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
+  const handleGoogleError = useCallback((message: string) => setError(message), []);
 
   const mutation = useMutation({
     mutationFn: async (data: RegisterState) => {
@@ -97,7 +98,7 @@ export default function RegisterPage() {
     onError: (e: Error) => setError(e.message),
   });
 
-  async function handleGoogleCredential(credential: string) {
+  const handleGoogleCredential = useCallback(async (credential: string) => {
     setGoogleLoading(true);
     setError("");
     try {
@@ -128,13 +129,7 @@ export default function RegisterPage() {
     } finally {
       setGoogleLoading(false);
     }
-  }
-
-  function startGoogle() {
-    setError("");
-    void startGoogleIdentitySignIn(handleGoogleCredential, (message) => setError(message))
-      .catch((err) => setError((err as Error).message));
-  }
+  }, [navigate, setAuth]);
 
   return (
     <RegisterForm
@@ -143,12 +138,21 @@ export default function RegisterPage() {
       error={error}
       pending={mutation.isPending}
       googleLoading={googleLoading}
-      googleEnabled
       showPassword={showPassword}
       setShowPassword={setShowPassword}
-      onGoogle={startGoogle}
+      googleSlot={(
+        <GoogleIdentityButton
+          label="التسجيل بحساب Google"
+          text="signup_with"
+          busy={googleLoading}
+          disabled={mutation.isPending}
+          onCredential={handleGoogleCredential}
+          onError={handleGoogleError}
+        />
+      )}
       onSubmit={(e) => {
         e.preventDefault();
+        if (mutation.isPending || googleLoading) return;
         setError("");
         mutation.mutate(form);
       }}

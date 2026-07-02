@@ -2,7 +2,7 @@ import { Router, type Response } from "express";
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
-import { catalogSourcesTable, channelAccountsTable, db } from "@workspace/db";
+import { catalogSourcesTable, channelAccountsTable, db, workspacesTable } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
@@ -24,6 +24,7 @@ import {
   providerAccountStatuses,
 } from "./integrationTypes";
 import { checkLimit } from "../../services/billing";
+import { getWorkspaceOnboardingStatus } from "../../services/onboarding-status";
 
 const router = Router();
 router.use(requireSession);
@@ -1146,9 +1147,42 @@ router.delete("/channels/:id", requirePermission("integrations:manage"), async (
     return;
   }
 
+  const onboardingStatusBeforeDisconnect = await getWorkspaceOnboardingStatus(req.sessionUser.activeWorkspaceId);
+  if (onboardingStatusBeforeDisconnect.completed) {
+    const [workspace] = await db
+      .select({ id: workspacesTable.id, settings: workspacesTable.settings })
+      .from(workspacesTable)
+      .where(eq(workspacesTable.id, req.sessionUser.activeWorkspaceId))
+      .limit(1);
+
+    if (workspace) {
+      const currentSettings =
+        workspace.settings && typeof workspace.settings === "object" && !Array.isArray(workspace.settings)
+          ? workspace.settings as Record<string, unknown>
+          : {};
+
+      if (currentSettings.onboarding_completed !== true) {
+        await db
+          .update(workspacesTable)
+          .set({ settings: { ...currentSettings, onboarding_completed: true } })
+          .where(eq(workspacesTable.id, workspace.id));
+      }
+    }
+  }
+
   const [account] = await db
     .update(channelAccountsTable)
-    .set({ status: "disabled", updatedAt: new Date() })
+    .set({
+      status: "disabled",
+      providerConfig: null,
+      credentialsSecretRef: null,
+      externalAccountId: null,
+      externalBusinessId: null,
+      externalPhoneId: null,
+      healthStatus: null,
+      lastHealthAt: null,
+      updatedAt: new Date(),
+    })
     .where(and(
       eq(channelAccountsTable.workspaceId, req.sessionUser.activeWorkspaceId),
       eq(channelAccountsTable.id, existing.id),

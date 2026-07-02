@@ -7,6 +7,7 @@ import {
   knowledgeBasesTable,
   knowledgeChunksTable,
   knowledgeDocumentsTable,
+  workspacesTable,
 } from "@workspace/db";
 
 export type OnboardingStatus = {
@@ -45,6 +46,19 @@ type AgentSnapshot = {
   escalationRules: string | null;
   instructionsCreatedAt: Date | null;
   instructionsUpdatedAt: Date | null;
+};
+
+type WorkspaceSettingsRecord = Record<string, unknown>;
+
+type ChannelSnapshot = {
+  id: string;
+  channelType: string;
+  status: string;
+  credentialsSecretRef: string | null;
+  externalAccountId: string | null;
+  externalBusinessId: string | null;
+  externalPhoneId: string | null;
+  updatedAt: Date;
 };
 
 function toIso(value: Date | null | undefined): string | null {
@@ -87,8 +101,41 @@ export function resolveCurrentOnboardingStep(status: Pick<OnboardingStatus, "ste
   return 3;
 }
 
+function readWorkspaceSettings(value: unknown): WorkspaceSettingsRecord {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as WorkspaceSettingsRecord;
+}
+
+function hasHistoricalChannelEvidence(channel: Pick<ChannelSnapshot, "credentialsSecretRef" | "externalAccountId" | "externalBusinessId" | "externalPhoneId">): boolean {
+  return hasMeaningfulText(channel.credentialsSecretRef)
+    || hasMeaningfulText(channel.externalAccountId)
+    || hasMeaningfulText(channel.externalBusinessId)
+    || hasMeaningfulText(channel.externalPhoneId);
+}
+
+export function resolveOnboardingCompletion(params: {
+  persistedCompleted: boolean;
+  steps: OnboardingStatus["steps"];
+  channelRows: ChannelSnapshot[];
+}): boolean {
+  const dynamicallyCompleted = params.steps.agent.completed && params.steps.channel.completed && params.steps.knowledge.completed;
+  if (params.persistedCompleted || dynamicallyCompleted) return true;
+
+  const hadConnectedChannelBefore = params.channelRows.some((row) =>
+    (row.channelType === "whatsapp" || row.channelType === "instagram")
+    && hasHistoricalChannelEvidence(row),
+  );
+
+  return params.steps.agent.completed && params.steps.knowledge.completed && hadConnectedChannelBefore;
+}
+
 export async function getWorkspaceOnboardingStatus(workspaceId: string): Promise<OnboardingStatus> {
-  const [agentRows, channelRows, latestBaseRows, readyKnowledgeRows] = await Promise.all([
+  const [workspaceRows, agentRows, channelRows, latestBaseRows, readyKnowledgeRows] = await Promise.all([
+    db
+      .select({ settings: workspacesTable.settings })
+      .from(workspacesTable)
+      .where(eq(workspacesTable.id, workspaceId))
+      .limit(1),
     db
       .select({
         agentId: aiAgentsTable.id,
@@ -119,6 +166,9 @@ export async function getWorkspaceOnboardingStatus(workspaceId: string): Promise
         channelType: channelAccountsTable.channelType,
         status: channelAccountsTable.status,
         credentialsSecretRef: channelAccountsTable.credentialsSecretRef,
+        externalAccountId: channelAccountsTable.externalAccountId,
+        externalBusinessId: channelAccountsTable.externalBusinessId,
+        externalPhoneId: channelAccountsTable.externalPhoneId,
         updatedAt: channelAccountsTable.updatedAt,
       })
       .from(channelAccountsTable)
@@ -172,6 +222,9 @@ export async function getWorkspaceOnboardingStatus(workspaceId: string): Promise
       .limit(10),
   ]);
 
+  const workspaceSettings = readWorkspaceSettings(workspaceRows[0]?.settings);
+  const persistedCompleted = workspaceSettings.onboarding_completed === true;
+
   const latestAgent = agentRows[0] ?? null;
   const completedAgent = agentRows.find(hasMeaningfulAgentSetup) ?? null;
   const agentSource = completedAgent ?? latestAgent;
@@ -210,10 +263,14 @@ export async function getWorkspaceOnboardingStatus(workspaceId: string): Promise
     },
   };
 
-  const completed = steps.agent.completed && steps.channel.completed && steps.knowledge.completed;
+  const completed = resolveOnboardingCompletion({
+    persistedCompleted,
+    steps,
+    channelRows,
+  });
   return {
     completed,
-    currentStep: resolveCurrentOnboardingStep({ steps }),
+    currentStep: completed ? 3 : resolveCurrentOnboardingStep({ steps }),
     completedAt: completed
       ? latestIso(steps.agent.updatedAt, steps.channel.updatedAt, steps.knowledge.updatedAt)
       : null,
