@@ -1579,4 +1579,180 @@ BEGIN
   END IF;
 END $$;
 
+-- =============================================================
+-- inventory_products: columns added by the commerce merge to the Drizzle schema
+-- (lib/db/src/schema/products.ts). The MOUNTED legacy products routes select all
+-- mapped columns, so these MUST exist in prod even while the commerce module
+-- itself stays unmounted — otherwise /products 500s ("column does not exist").
+-- =============================================================
+
+DO $$
+BEGIN
+  ALTER TABLE inventory_products ADD COLUMN barcode text;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE inventory_products ADD COLUMN cost numeric(14,2);
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE inventory_products ADD COLUMN images jsonb NOT NULL DEFAULT '[]'::jsonb;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE inventory_products ADD COLUMN low_stock_threshold integer NOT NULL DEFAULT 0;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_inv_products_barcode ON inventory_products(workspace_id, barcode);
+
+-- =============================================================
+-- Commerce-merge drift closure (orders / order_items / payments / feature_flags).
+-- The merge extended these MOUNTED Drizzle schemas; Drizzle selects every mapped
+-- column, so each one must exist in prod or the routes (and the agent's
+-- create_order / log_payment_claim tools) 500. FKs to still-dormant commerce
+-- tables (product_variants / stock_locations) are intentionally NOT created —
+-- plain uuid columns now, constraints later when the commerce module ships.
+-- =============================================================
+
+DO $$
+BEGIN
+  ALTER TABLE orders ADD COLUMN reserved_at timestamptz;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE orders ADD COLUMN shipped_at timestamptz;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE orders ADD COLUMN exchanged_at timestamptz;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE orders ADD COLUMN version integer NOT NULL DEFAULT 0;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_orders_ws_status ON orders(workspace_id, status);
+
+DO $$
+BEGIN
+  ALTER TABLE order_items ADD COLUMN product_variant_id uuid;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE order_items ADD COLUMN location_id uuid;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE order_items ADD COLUMN tax numeric(14,2) NOT NULL DEFAULT 0;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE order_items ADD COLUMN snapshot jsonb NOT NULL DEFAULT '{}'::jsonb;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE order_items ADD COLUMN reservation_status text NOT NULL DEFAULT 'none';
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE payments ADD COLUMN external_reference text;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE payments ADD COLUMN receipt_url text;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE payments ADD COLUMN recorded_by uuid;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE payments ADD COLUMN verified_by uuid;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE payments ADD COLUMN correlation_id text;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE payments ADD COLUMN idempotency_key text;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_payments_ws_status ON payments(workspace_id, status);
+-- Unique per-workspace idempotency key; legacy rows are all NULL which never collides.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_ws_idempotency ON payments(workspace_id, idempotency_key);
+
+-- workspaces.plan_id: legacy-compat column added by the billing-closure work; the
+-- workspaces table is read on every authenticated request, so this must exist.
+DO $$
+BEGIN
+  ALTER TABLE workspaces ADD COLUMN plan_id uuid;
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
+-- feature_flags: read by auth bootstrap (auth.service.ts / workspace.routes.ts).
+CREATE TABLE IF NOT EXISTS feature_flags (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE,
+  flag_key text NOT NULL,
+  is_enabled boolean NOT NULL DEFAULT false,
+  config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  CONSTRAINT feature_flags_workspace_key_unique UNIQUE (workspace_id, flag_key)
+);
+
 SELECT 'MIGRATION_BUNDLE_APPLIED_SUCCESSFULLY' AS status;
