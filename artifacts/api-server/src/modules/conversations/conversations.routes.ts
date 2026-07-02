@@ -699,6 +699,33 @@ function asAttachmentList(value: unknown): Array<Record<string, unknown>> {
   return value.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
 }
 
+// Only public https URLs may be proxied. Attachment URLs can be user-influenced
+// (manual replies / imports), so private ranges, loopback, and the cloud metadata
+// endpoint must never be reachable through the attachment proxy (SSRF).
+function isSafePublicHttpsUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal")) return false;
+  if (host === "metadata.google.internal" || host === "169.254.169.254") return false;
+  // IPv6 loopback/link-local/unique-local
+  if (host === "::1" || host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd")) return false;
+  // IPv4 literal in private/reserved ranges
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    if (a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 router.get("/:id/messages/:messageId/attachments/:index", requirePermission("conversations:read"), async (req: AuthenticatedRequest, res: Response) => {
   const { activeWorkspaceId } = req.sessionUser;
   const attachmentIndex = Number.parseInt(String(req.params.index), 10);
@@ -733,7 +760,20 @@ router.get("/:id/messages/:messageId/attachments/:index", requirePermission("con
 
   const directUrl = typeof attachment.url === "string" ? attachment.url : null;
   if (directUrl) {
-    const response = await fetch(directUrl);
+    // SSRF guard: attachment URLs can originate from manual replies, so never proxy
+    // anything but public https hosts — block loopback/private ranges and the GCP
+    // metadata server, and refuse redirects (a public URL could 302 to an internal IP).
+    if (!isSafePublicHttpsUrl(directUrl)) {
+      res.status(400).json({ error: "رابط المرفق غير مسموح" });
+      return;
+    }
+    let response: Awaited<ReturnType<typeof fetch>>;
+    try {
+      response = await fetch(directUrl, { redirect: "error", signal: AbortSignal.timeout(10_000) });
+    } catch {
+      res.status(502).json({ error: "تعذّر جلب الوسائط" });
+      return;
+    }
     if (!response.ok || !response.body) {
       res.status(502).json({ error: "تعذّر جلب الوسائط" });
       return;

@@ -543,8 +543,12 @@ router.post("/meta", express.raw({ type: "*/*", limit: "2mb" }), async (req: Req
   const rawBody = getRawBody(req);
 
   if (!verifyMetaSignature(req, rawBody)) {
+    // 401, not 200: a bad signature is either a forged request or OUR secret is
+    // misconfigured. Returning 200 makes Meta count the event as delivered and
+    // never retry — a silent total message loss if the secret ever drifts.
+    // With 401 Meta retries and surfaces delivery errors in the app dashboard.
     logger.warn({ path: req.path }, "Meta webhook signature verification failed");
-    res.status(200).send("EVENT_RECEIVED");
+    res.sendStatus(401);
     return;
   }
 

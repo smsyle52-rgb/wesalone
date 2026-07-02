@@ -75,8 +75,9 @@ const navGroups: NavGroup[] = [
       { path: "/agents", key: "agents", permission: "ai:read", icon: Bot, tourId: "nav-agents" },
       { path: "/knowledge", key: "knowledge", permission: "knowledge:read", icon: BookOpen },
       { path: "/templates", key: "templates", permission: "templates:read", icon: FileText },
-      { path: "/broadcasts", key: "broadcasts", permission: "broadcasts:read", icon: Megaphone },
-      { path: "/automations", key: "automations", permission: "automations:read", icon: Workflow },
+      // Broadcasts/Automations hidden for launch: their API routers were never mounted in
+      // routes/index.ts, so the pages 404 against the backend. Re-add these two entries
+      // only after mounting + testing the routers (deferred feature, launch plan §5.8).
     ],
   },
   {
