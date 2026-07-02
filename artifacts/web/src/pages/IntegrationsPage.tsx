@@ -650,8 +650,13 @@ export default function IntegrationsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "تعذر فصل القناة");
+      const disabledIds = Array.isArray(data.disabledAccountIds)
+        ? data.disabledAccountIds.filter((value: unknown): value is string => typeof value === "string")
+        : [id];
       setConnectedChannels((current) => current.map((channel) => (
-        channel.id === id ? { ...channel, status: "disabled", updatedAt: data.account?.updatedAt ?? channel.updatedAt } : channel
+        disabledIds.includes(channel.id)
+          ? { ...channel, status: "disabled", updatedAt: data.account?.updatedAt ?? channel.updatedAt }
+          : channel
       )));
     } catch (err) {
       setMetaError((err as Error).message);

@@ -159,12 +159,14 @@ async function findWhatsappChannel(phoneNumberId: string): Promise<ChannelAccoun
     .select()
     .from(channelAccountsTable)
     .where(and(
+      eq(channelAccountsTable.status, "active"),
       sql`${channelAccountsTable.channelType} in ('whatsapp', 'whatsapp_api')`,
       sql`(
         ${channelAccountsTable.providerConfig}->>'phone_number_id' = ${phoneNumberId}
         OR ${channelAccountsTable.providerConfig}->>'phoneNumberId' = ${phoneNumberId}
       )`,
     ))
+    .orderBy(desc(channelAccountsTable.updatedAt))
     .limit(1);
 
   return channel;

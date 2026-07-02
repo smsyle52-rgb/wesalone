@@ -1,7 +1,7 @@
 import { Router, type Response } from "express";
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { catalogSourcesTable, channelAccountsTable, db, workspacesTable } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
@@ -23,6 +23,7 @@ import {
   integrationProviders,
   providerAccountStatuses,
 } from "./integrationTypes";
+import { collectEquivalentMetaChannelIds, lookupAliasesForMetaKey } from "./meta-channel-identity";
 import { checkLimit } from "../../services/billing";
 import { getWorkspaceOnboardingStatus } from "../../services/onboarding-status";
 
@@ -47,6 +48,26 @@ function limitFromQuery(value: unknown, fallback = 50) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.min(100, Math.floor(parsed));
+}
+
+function providerLookupCondition(lookupKey: string, lookupValue: string) {
+  const aliases = lookupAliasesForMetaKey(lookupKey);
+  if (aliases.length === 1) {
+    return sql`${channelAccountsTable.providerConfig}->>${lookupKey} = ${lookupValue}`;
+  }
+  if (aliases[0] === "phone_number_id") {
+    return sql`(${channelAccountsTable.providerConfig}->>'phone_number_id' = ${lookupValue} OR ${channelAccountsTable.providerConfig}->>'phoneNumberId' = ${lookupValue})`;
+  }
+  if (aliases[0] === "ig_account_id") {
+    return sql`(${channelAccountsTable.providerConfig}->>'ig_account_id' = ${lookupValue} OR ${channelAccountsTable.providerConfig}->>'igAccountId' = ${lookupValue})`;
+  }
+  if (aliases[0] === "page_id") {
+    return sql`(${channelAccountsTable.providerConfig}->>'page_id' = ${lookupValue} OR ${channelAccountsTable.providerConfig}->>'pageId' = ${lookupValue})`;
+  }
+  if (aliases[0] === "waba_id") {
+    return sql`(${channelAccountsTable.providerConfig}->>'waba_id' = ${lookupValue} OR ${channelAccountsTable.providerConfig}->>'wabaId' = ${lookupValue})`;
+  }
+  return sql`${channelAccountsTable.providerConfig}->>${lookupKey} = ${lookupValue}`;
 }
 
 function appBaseUrl(req: AuthenticatedRequest) {
@@ -373,9 +394,7 @@ async function upsertMetaChannelAccount(params: {
   lookupValue: string;
   credentialsSecretRef: string | null;
 }) {
-  const lookupCondition = params.lookupKey === "phone_number_id"
-    ? sql`(${channelAccountsTable.providerConfig}->>'phone_number_id' = ${params.lookupValue} OR ${channelAccountsTable.providerConfig}->>'phoneNumberId' = ${params.lookupValue})`
-    : sql`${channelAccountsTable.providerConfig}->>${params.lookupKey} = ${params.lookupValue}`;
+  const lookupCondition = providerLookupCondition(params.lookupKey, params.lookupValue);
 
   const [existing] = await db
     .select()
@@ -1170,6 +1189,17 @@ router.delete("/channels/:id", requirePermission("integrations:manage"), async (
     }
   }
 
+  const siblingAccounts = await db
+    .select()
+    .from(channelAccountsTable)
+    .where(and(
+      eq(channelAccountsTable.workspaceId, req.sessionUser.activeWorkspaceId),
+      eq(channelAccountsTable.channelType, existing.channelType),
+    ));
+
+  const linkedAccountIds = collectEquivalentMetaChannelIds(existing, siblingAccounts);
+  const idsToDisable = linkedAccountIds.length > 0 ? linkedAccountIds : [existing.id];
+
   const [account] = await db
     .update(channelAccountsTable)
     .set({
@@ -1185,7 +1215,7 @@ router.delete("/channels/:id", requirePermission("integrations:manage"), async (
     })
     .where(and(
       eq(channelAccountsTable.workspaceId, req.sessionUser.activeWorkspaceId),
-      eq(channelAccountsTable.id, existing.id),
+      inArray(channelAccountsTable.id, idsToDisable),
     ))
     .returning();
 
@@ -1197,10 +1227,10 @@ router.delete("/channels/:id", requirePermission("integrations:manage"), async (
     entityId: existing.id,
     entityLabel: existing.displayName,
     oldData: { status: existing.status },
-    newData: { status: "disabled", channelType: existing.channelType },
+    newData: { status: "disabled", channelType: existing.channelType, disabledAccountIds: idsToDisable, disabledCount: idsToDisable.length },
   });
 
-  res.json({ account });
+  res.json({ account, disabledAccountIds: idsToDisable });
 });
 
 router.post("/meta/channels", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
