@@ -1755,4 +1755,88 @@ CREATE TABLE IF NOT EXISTS feature_flags (
   CONSTRAINT feature_flags_workspace_key_unique UNIQUE (workspace_id, flag_key)
 );
 
+-- =============================================================
+-- P0 launch-audit fixes (2 Jul 2026): tenant isolation + inbound idempotency
+-- Ref: .claude/skills/wesal-one-agents/references/launch-audit-gaps.md
+-- =============================================================
+
+-- (A) messages: atomic inbound dedup on (workspace_id, provider_message_id).
+-- Pre-existing duplicate rows are NOT deleted (ai_messages/broadcast FKs point at
+-- them); instead the LATER duplicates get a ':dup:<id>' suffix so the earliest row
+-- stays canonical and the unique index below can be created. Idempotent: after the
+-- first run no bare duplicates remain, so the UPDATE matches zero rows.
+UPDATE messages m
+SET provider_message_id = m.provider_message_id || ':dup:' || m.id
+WHERE m.provider_message_id IS NOT NULL
+  AND m.provider_message_id NOT LIKE '%:dup:%'
+  AND EXISTS (
+    SELECT 1 FROM messages k
+    WHERE k.workspace_id = m.workspace_id
+      AND k.provider_message_id = m.provider_message_id
+      AND (k.created_at, k.id) < (m.created_at, m.id)
+  );
+
+-- Partial unique index: outbound rows keep provider_message_id NULL and are unaffected.
+-- The webhook ingest paths rely on this for INSERT ... ON CONFLICT DO NOTHING.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_ws_provider_message
+  ON messages(workspace_id, provider_message_id)
+  WHERE provider_message_id IS NOT NULL;
+
+-- (B) channel_accounts: a provider identifier (WhatsApp phone_number_id, Instagram
+-- igAccountId, Messenger pageId) must map to at most ONE active account globally —
+-- otherwise inbound routing could deliver a customer's message to the wrong
+-- workspace. We NEVER auto-modify channel rows here (owner decision required):
+-- if active duplicates exist the migration fails loudly with the offending ids.
+DO $$
+DECLARE
+  wa_dups text;
+  ig_dups text;
+  pg_dups text;
+BEGIN
+  SELECT string_agg(ext_id || ' -> [' || ids || ']', '; ') INTO wa_dups FROM (
+    SELECT COALESCE(provider_config->>'phone_number_id', provider_config->>'phoneNumberId') AS ext_id,
+           string_agg(id::text, ', ') AS ids
+    FROM channel_accounts
+    WHERE channel_type IN ('whatsapp', 'whatsapp_api') AND status = 'active'
+      AND COALESCE(provider_config->>'phone_number_id', provider_config->>'phoneNumberId') IS NOT NULL
+    GROUP BY 1 HAVING count(*) > 1
+  ) d;
+
+  SELECT string_agg(ext_id || ' -> [' || ids || ']', '; ') INTO ig_dups FROM (
+    SELECT provider_config->>'igAccountId' AS ext_id, string_agg(id::text, ', ') AS ids
+    FROM channel_accounts
+    WHERE channel_type = 'instagram' AND status = 'active'
+      AND provider_config->>'igAccountId' IS NOT NULL
+    GROUP BY 1 HAVING count(*) > 1
+  ) d;
+
+  SELECT string_agg(ext_id || ' -> [' || ids || ']', '; ') INTO pg_dups FROM (
+    SELECT provider_config->>'pageId' AS ext_id, string_agg(id::text, ', ') AS ids
+    FROM channel_accounts
+    WHERE channel_type = 'messenger' AND status = 'active'
+      AND provider_config->>'pageId' IS NOT NULL
+    GROUP BY 1 HAVING count(*) > 1
+  ) d;
+
+  IF wa_dups IS NOT NULL OR ig_dups IS NOT NULL OR pg_dups IS NOT NULL THEN
+    RAISE EXCEPTION 'ISOLATION GUARD: duplicate ACTIVE channel identifiers found. Deactivate the wrong rows (status=disabled) then redeploy. whatsapp: % | instagram: % | messenger: %',
+      COALESCE(wa_dups, '-'), COALESCE(ig_dups, '-'), COALESCE(pg_dups, '-');
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_channel_accounts_wa_phone_active
+  ON channel_accounts ((COALESCE(provider_config->>'phone_number_id', provider_config->>'phoneNumberId')))
+  WHERE channel_type IN ('whatsapp', 'whatsapp_api') AND status = 'active'
+    AND COALESCE(provider_config->>'phone_number_id', provider_config->>'phoneNumberId') IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_channel_accounts_ig_account_active
+  ON channel_accounts ((provider_config->>'igAccountId'))
+  WHERE channel_type = 'instagram' AND status = 'active'
+    AND provider_config->>'igAccountId' IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_channel_accounts_page_active
+  ON channel_accounts ((provider_config->>'pageId'))
+  WHERE channel_type = 'messenger' AND status = 'active'
+    AND provider_config->>'pageId' IS NOT NULL;
+
 SELECT 'MIGRATION_BUNDLE_APPLIED_SUCCESSFULLY' AS status;

@@ -829,7 +829,7 @@ export default function InboxPage() {
   }
 
   return (
-    <div dir="rtl" className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div dir="rtl" className="flex flex-1 h-full min-h-0 flex-col overflow-hidden">
 
       {/* ═══════════ MOBILE LAYOUT (md:hidden) ═══════════ */}
       <div className="md:hidden flex flex-col h-full overflow-hidden bg-background">

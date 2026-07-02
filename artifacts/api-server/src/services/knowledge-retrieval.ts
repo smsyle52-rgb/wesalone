@@ -221,8 +221,11 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
   const knowledgeBaseIds = [...new Set(params.knowledgeBaseIds?.filter(Boolean) ?? [])];
   if (query.length < 2) return [];
 
+  // Launch fix (2 Jul): a query with no 3+-char words (short follow-ups like "كم؟")
+  // used to abort retrieval entirely. The ilike lanes below do need words, but the
+  // tsv and vector lanes work fine on the raw query — keep them running.
   const words = wordsForQuery(query);
-  if (words.length === 0) return [];
+  const hasWords = words.length > 0;
 
   const queryVector = await embed(query, "RETRIEVAL_QUERY");
   const [tsvChunks, vectorChunks] = await Promise.all([
@@ -257,7 +260,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
   ];
   if (knowledgeBaseIds.length > 0) chunkFilters.splice(1, 0, inArray(knowledgeChunksTable.knowledgeBaseId, knowledgeBaseIds));
 
-  const [faqs, docs, chunks] = await Promise.all([
+  const [faqs, docs, chunks] = hasWords ? await Promise.all([
     db
       .select({
         id: faqEntriesTable.id,
@@ -295,7 +298,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
       .leftJoin(knowledgeSourcesTable, eq(knowledgeSourcesTable.id, knowledgeDocumentsTable.sourceId))
       .where(and(...chunkFilters))
       .limit(limit * 2),
-  ]);
+  ]) : [[], [], []];
 
   const candidates: KnowledgeSearchItem[] = [
     ...vectorChunks,

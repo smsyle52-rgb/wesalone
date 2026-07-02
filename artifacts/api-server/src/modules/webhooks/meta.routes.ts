@@ -155,21 +155,43 @@ function verifyMetaSignature(req: Request, rawBody: Buffer): boolean {
 }
 
 async function findWhatsappChannel(phoneNumberId: string): Promise<ChannelAccount | undefined> {
-  const [channel] = await db
+  // P0 isolation fix: only ACTIVE accounts may route inbound traffic, and an
+  // identifier shared by more than one active account is refused outright —
+  // picking an arbitrary row here could deliver a customer's message to the
+  // wrong workspace. A partial unique index (migrate-phase345.sql) makes this
+  // state impossible going forward; this guard is defense-in-depth.
+  const channels = await db
     .select()
     .from(channelAccountsTable)
     .where(and(
-      eq(channelAccountsTable.status, "active"),
       sql`${channelAccountsTable.channelType} in ('whatsapp', 'whatsapp_api')`,
+      eq(channelAccountsTable.status, "active"),
       sql`(
         ${channelAccountsTable.providerConfig}->>'phone_number_id' = ${phoneNumberId}
         OR ${channelAccountsTable.providerConfig}->>'phoneNumberId' = ${phoneNumberId}
       )`,
     ))
-    .orderBy(desc(channelAccountsTable.updatedAt))
-    .limit(1);
+    // Merge note (2 Jul): main's hotfix picked the newest row on duplicates
+    // (orderBy updatedAt, limit 1) — that silently routes to an arbitrary
+    // tenant. The fail-closed guard below wins: refuse + CRITICAL alert, and
+    // the partial unique index makes the duplicate state impossible anyway.
+    .limit(2);
 
-  return channel;
+  if (channels.length > 1) {
+    logger.error(
+      {
+        severity: "CRITICAL",
+        alert: "channel.identifier_conflict",
+        phoneNumberId,
+        channelAccountIds: channels.map((c) => c.id),
+        workspaceIds: channels.map((c) => c.workspaceId),
+      },
+      "Multiple active WhatsApp channel accounts share one phone_number_id — refusing to route (tenant-isolation guard)",
+    );
+    return undefined;
+  }
+
+  return channels[0];
 }
 
 async function upsertContact(workspaceId: string, phone: string): Promise<Contact> {
@@ -280,30 +302,13 @@ async function findConversation(
   return conversation;
 }
 
-async function upsertConversation(
+async function getOrCreateConversation(
   channel: ChannelAccount,
   contactId: string,
   externalThreadId: string,
-  lastMessage: string,
 ): Promise<Conversation> {
   const existing = await findConversation(channel.workspaceId, channel.id, externalThreadId);
-  const now = new Date();
-
-  if (existing) {
-    const [conversation] = await db
-      .update(conversationsTable)
-      .set({
-        contactId,
-        lastMessage,
-        lastMessageAt: now,
-        unreadCount: sql`${conversationsTable.unreadCount} + 1`,
-        consecutiveAgentReplies: 0,
-        updatedAt: now,
-      })
-      .where(eq(conversationsTable.id, existing.id))
-      .returning();
-    return conversation ?? existing;
-  }
+  if (existing) return existing;
 
   const [conversation] = await db
     .insert(conversationsTable)
@@ -315,9 +320,7 @@ async function upsertConversation(
       channel: "whatsapp_api",
       status: "open",
       priority: "normal",
-      lastMessage,
-      lastMessageAt: now,
-      unreadCount: 1,
+      unreadCount: 0,
     })
     .returning();
 
@@ -326,6 +329,32 @@ async function upsertConversation(
   }
 
   return conversation;
+}
+
+// P0 idempotency fix: counters and last-message move AFTER a successful
+// non-duplicate message insert, so a Meta webhook retry can no longer inflate
+// unread_count, bump lastMessage, or reset the agent anti-loop counter for a
+// message that was deduplicated away.
+async function bumpConversationOnInbound(
+  conversation: Conversation,
+  contactId: string,
+  lastMessage: string,
+): Promise<void> {
+  const now = new Date();
+  await db
+    .update(conversationsTable)
+    .set({
+      contactId,
+      lastMessage,
+      lastMessageAt: now,
+      unreadCount: sql`${conversationsTable.unreadCount} + 1`,
+      consecutiveAgentReplies: 0,
+      updatedAt: now,
+    })
+    .where(and(
+      eq(conversationsTable.id, conversation.id),
+      eq(conversationsTable.workspaceId, conversation.workspaceId),
+    ));
 }
 
 async function insertInboundMessage(
@@ -350,6 +379,11 @@ async function insertInboundMessage(
     ? new Date(Number(message.timestamp) * 1000)
     : new Date();
 
+  // P0 idempotency fix: the select above is only a fast path — two concurrent
+  // deliveries of the same webhook can both pass it. The partial unique index
+  // uq_messages_ws_provider_message (migrate-phase345.sql) plus ON CONFLICT DO
+  // NOTHING makes the duplicate insert a no-op; the caller sees `undefined`
+  // and skips counters + domain event (no duplicate agent reply).
   const [created] = await db
     .insert(messagesTable)
     .values({
@@ -365,6 +399,7 @@ async function insertInboundMessage(
       providerPayload: message,
       sentAt,
     })
+    .onConflictDoNothing()
     .returning({ id: messagesTable.id });
 
   return created?.id;
@@ -401,12 +436,14 @@ async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage
   }
 
   const contact = await upsertContact(channel.workspaceId, from);
-  const conversation = await upsertConversation(channel, contact.id, from, content);
+  const conversation = await getOrCreateConversation(channel, contact.id, from);
   const messageId = await insertInboundMessage(conversation, message, content, attachments);
   if (!messageId) {
     logger.info({ providerMessageId: message.id, conversationId: conversation.id }, "Skipping duplicate Meta message");
     return;
   }
+
+  await bumpConversationOnInbound(conversation, contact.id, content);
 
   await createDomainEvent({
     workspaceId: channel.workspaceId,
@@ -462,13 +499,15 @@ async function handleInboundCall(value: MetaChangeValue, call: MetaCall): Promis
 
   const contact = await upsertContact(channel.workspaceId, from);
   const content = "📞 مكالمة واتساب واردة";
-  const conversation = await upsertConversation(channel, contact.id, from, content);
+  const conversation = await getOrCreateConversation(channel, contact.id, from);
 
   // Log the call (dedup by call id). We intentionally do NOT emit message.received: the AI must not
   // "answer" a voice call — we escalate to a human and send a fixed text instead.
   const timestamp = call?.timestamp != null ? String(call.timestamp) : undefined;
   const messageId = await insertInboundMessage(conversation, { id: callId, timestamp }, content);
   if (!messageId) return; // duplicate call event
+
+  await bumpConversationOnInbound(conversation, contact.id, content);
 
   await db.update(conversationsTable)
     .set({ agentStatus: "human", needsHuman: true, escalationReason: "whatsapp_call", updatedAt: new Date() })

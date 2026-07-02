@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
 import { extractTextFromFile, ACCEPTED_FILE_EXTENSIONS } from "@/lib/fileExtract";
-import { Library, Search, Plus, FileText, FolderOpen, HelpCircle, Settings2, Lock, Database, Paperclip, Link2, type LucideIcon } from "lucide-react";
+import { Library, Search, Plus, FileText, FolderOpen, HelpCircle, Settings2, Lock, Database, Paperclip, Link2, RefreshCw, type LucideIcon } from "lucide-react";
 
 function apiFetch(path: string, opts?: RequestInit) {
   return fetch(`${import.meta.env.BASE_URL}api/knowledge/${path}`, {
@@ -132,6 +132,18 @@ export default function KnowledgePage() {
     },
   });
 
+  // إعادة الفهرسة الشاملة: تعيد توليد chunks/embeddings لكل الوثائق — تلزم مرة واحدة
+  // بعد تفعيل التضمينات الحقيقية حتى يجد البحث الدلالي الوثائق المفهرسة قديماً.
+  const reindexAll = useMutation({
+    mutationFn: () => apiFetch("reindex", { method: "POST" }),
+    onSuccess: (data: { total: number; reindexed: number; failed: number }) => {
+      qc.invalidateQueries({ queryKey: ["knowledge-docs"] });
+      window.alert(data.failed > 0
+        ? `أُعيدت فهرسة ${data.reindexed} من ${data.total} وثيقة — تعذّرت ${data.failed}. أعد المحاولة أو راجع الوثائق المتعثرة.`
+        : `تمت إعادة فهرسة ${data.reindexed} وثيقة بنجاح. البحث الدلالي محدّث الآن.`);
+    },
+  });
+
   const createSource = useMutation({
     mutationFn: (data: object) => apiFetch(`bases/${selectedBaseId}/sources`, { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
@@ -256,11 +268,23 @@ export default function KnowledgePage() {
       <PageHeader
         title="قاعدة المعرفة"
         subtitle="مصدر معرفة الوكيل: منتجاتك وسياساتك وأسئلتك الشائعة."
-        actions={canCreate && (
-          <button onClick={() => setShowCreateBase(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-            <Plus size={16} /> قاعدة معرفة جديدة
-          </button>
+        actions={(canCreate || canUpdate) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {canUpdate && (
+              <button onClick={() => reindexAll.mutate()} disabled={reindexAll.isPending}
+                title="أعد بناء فهرس البحث الدلالي لكل الوثائق (تلزم مرة واحدة بعد ترقية التضمينات)"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted disabled:opacity-50">
+                <RefreshCw size={16} className={reindexAll.isPending ? "animate-spin" : undefined} />
+                {reindexAll.isPending ? "جارٍ إعادة الفهرسة..." : "إعادة فهرسة شاملة"}
+              </button>
+            )}
+            {canCreate && (
+              <button onClick={() => setShowCreateBase(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                <Plus size={16} /> قاعدة معرفة جديدة
+              </button>
+            )}
+          </div>
         )}
       />
 

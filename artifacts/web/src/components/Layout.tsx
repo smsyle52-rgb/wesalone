@@ -520,8 +520,19 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="app-page-scroll min-w-0 flex-1 overflow-y-auto">
-          <div className="app-page-container">
+        {/* Launch fix (2 Jul): the inbox is a fixed-height pane with INTERNAL scrolling —
+            its h-full/flex-1/min-h-0 chain needs a definite-height flex parent, which
+            app-page-container (min-height only) never provided, so the page grew with
+            the conversation on both mobile and desktop. Inbox-only; other pages keep
+            the normal scrolling document behaviour. */}
+        <main className={cn(
+          "app-page-scroll min-w-0 flex-1",
+          location.startsWith("/inbox") ? "overflow-hidden" : "overflow-y-auto",
+        )}>
+          <div className={cn(
+            "app-page-container",
+            location.startsWith("/inbox") && "flex h-full min-h-0 flex-col overflow-hidden",
+          )}>
             <div className="mb-4 hidden items-center justify-end lg:flex">
               <NotificationCenter />
             </div>

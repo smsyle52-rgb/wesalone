@@ -23,12 +23,13 @@
 
 ### مفتوحة ⏳ — إلزامية قبل التسجيل العام
 **القنوات/الوارد/العزل:**
-- ⏳ لا **Unique constraint ذري** على `(workspace_id, provider_message_id)` (فهرس عادي فقط) → Select-ثم-Insert يسمح بنسختين → أحداث/ردود وكيل مكررة.
-- ⏳ `unread_count` يزيد **قبل** فحص التكرار → تكرار webhook يضخّم العدّاد.
-- ⏳ **Lookup القناة عالمي** بأول صف بلا فرض تفرد `phone_number_id`/`ig`/`page` → عدة workspaces بنفس المعرّف = **توجيه رسالة لعميل خاطئ** (خرق عزل).
-- ⏳ **Messenger echo** لا يُستبعد بوضوح → رسالة صادرة تدخل كوارد → **حلقة رد**.
+> 🔧 **دفعة إصلاح جاهزة (2 يوليو، Claude/Fable — على `release/launch-candidate-1`، غير مدفوعة):** البنود الخمسة المعلَّمة 🔧 أدناه أُصلحت كوداً + هجرة idempotent (فُحصت على PostgreSQL 16 حقيقي: حارس الازدواج يُفشل النشر بصوت عالٍ، dedup غير مدمّر، re-run آمن). تتحوّل ✅ بعد دفع المالك + البوابة الحيّة (رسالة واتساب حقيقية → رد واحد). **قبل الدفع:** شغّل `scripts/check-channel-duplicates-prod.sql` على الإنتاج (تفاصيل في `WESAL_ONE_CHAT_HANDOFF.md`).
+- 🔧 لا **Unique constraint ذري** على `(workspace_id, provider_message_id)` → أُضيف `uq_messages_ws_provider_message` (جزئي) في `migrate-phase345.sql` + `onConflictDoNothing` في `meta.routes.ts`/`meta-channel-ingest.ts`؛ المكررات القديمة تُلحَق بـ`:dup:<id>` (لا حذف — FKs محفوظة).
+- 🔧 `unread_count` يزيد **قبل** فحص التكرار → العدّادات/lastMessage/تصفير anti-loop انتقلت **بعد** نجاح إدراج غير مكرر (`bumpConversationOnInbound`).
+- 🔧 **Lookup القناة عالمي** بلا فرض تفرد `phone_number_id`/`ig`/`page` → 3 فهارس فريدة جزئية على الحسابات النشطة (COALESCE يلتقط التهجئتين) + حارس هجرة يفشل النشر برسالة تشخيصية إن وُجد ازدواج قائم + حارس كود fail-closed (رفض التوجيه + تنبيه CRITICAL بدل اختيار عشوائي).
+- 🔧 **Messenger echo** لا يُستبعد → أُضيف `is_echo` skip في `messenger.handler.ts` (مطابق لإنستغرام).
 - ⏳ قناة واتساب تصير `active` **قبل** نجاح `subscribed_apps` + تسجيل الرقم؛ التسجيل يستخدم **PIN ثابت `000000`** والفشل يرجع 201.
-- ⏳ Lookup الوارد لا يشترط `status=active` للقناة.
+- 🔧 Lookup الوارد لا يشترط `status=active` للقناة → أُضيف الشرط في `findWhatsappChannel` + `findChannelAccount` (ingest).
 
 **العزل المعماري (DB):**
 - ⏳ لا Composite FK/RLS يثبت أن `conversation.contact_id` / `channel_account_id` / `message.workspace_id` من نفس الـworkspace؛ ولا على `contact_channels` / membership roles / team members.
