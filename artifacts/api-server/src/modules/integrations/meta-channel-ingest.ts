@@ -84,15 +84,38 @@ async function findChannelAccount(
   configKey: "igAccountId" | "pageId",
   configValue: string,
 ) {
-  const [account] = await db
+  // P0 isolation fix: only ACTIVE accounts may route inbound traffic, and an
+  // identifier shared by more than one active account is refused outright —
+  // picking an arbitrary row could deliver a customer's message to the wrong
+  // workspace. Partial unique indexes (migrate-phase345.sql) make this state
+  // impossible going forward; this guard is defense-in-depth.
+  const accounts = await db
     .select()
     .from(channelAccountsTable)
     .where(and(
       eq(channelAccountsTable.channelType, channelType),
+      eq(channelAccountsTable.status, "active"),
       sql`${channelAccountsTable.providerConfig}->>${configKey} = ${configValue}`,
     ))
-    .limit(1);
-  return account ?? null;
+    .limit(2);
+
+  if (accounts.length > 1) {
+    logger.error(
+      {
+        severity: "CRITICAL",
+        alert: "channel.identifier_conflict",
+        channelType,
+        accountConfigKey: configKey,
+        accountConfigValue: configValue,
+        channelAccountIds: accounts.map((a) => a.id),
+        workspaceIds: accounts.map((a) => a.workspaceId),
+      },
+      "Multiple active channel accounts share one provider identifier — refusing to route (tenant-isolation guard)",
+    );
+    return null;
+  }
+
+  return accounts[0] ?? null;
 }
 
 export async function ingestMetaChannelMessage(params: IngestMetaChannelMessageParams): Promise<boolean> {
@@ -200,6 +223,11 @@ export async function ingestMetaChannelMessage(params: IngestMetaChannelMessageP
     .returning())[0];
 
   const sentAt = params.timestamp ? new Date(params.timestamp * 1000) : new Date();
+  // P0 idempotency fix: the duplicate check above is only a fast path — two
+  // concurrent deliveries of the same webhook can both pass it. The partial
+  // unique index uq_messages_ws_provider_message (migrate-phase345.sql) plus
+  // ON CONFLICT DO NOTHING makes the duplicate insert a no-op, and we bail out
+  // before touching counters or emitting events (no duplicate agent reply).
   const [message] = await db
     .insert(messagesTable)
     .values({
@@ -215,7 +243,10 @@ export async function ingestMetaChannelMessage(params: IngestMetaChannelMessageP
       deliveryStatus: "received",
       sentAt,
     })
+    .onConflictDoNothing()
     .returning();
+
+  if (!message) return false;
 
   await db.update(conversationsTable)
     .set({

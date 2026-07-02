@@ -8,6 +8,7 @@ export async function handleMessengerWebhook(payload: unknown): Promise<number> 
   for (const entry of entries) {
     const events = Array.isArray(entry?.messaging) ? entry.messaging : [];
     for (const event of events) {
+      if (event?.message?.is_echo) continue; // skip our own outbound echoes
       const text = event?.message?.text;
       if (typeof text !== "string" || !text.trim()) continue;
 

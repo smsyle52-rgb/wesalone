@@ -101,6 +101,10 @@ export const messagesTable = pgTable(
   (table) => [
     index("idx_msg_conv_created").on(table.conversationId, table.createdAt),
     index("idx_msg_ws_provider").on(table.workspaceId, table.providerMessageId),
+    // P0 idempotency: atomic inbound dedup — canonical DDL lives in scripts/migrate-phase345.sql
+    uniqueIndex("uq_messages_ws_provider_message")
+      .on(table.workspaceId, table.providerMessageId)
+      .where(sql`provider_message_id is not null`),
   ],
 );
 
