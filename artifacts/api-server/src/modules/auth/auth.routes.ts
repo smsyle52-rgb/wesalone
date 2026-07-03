@@ -312,7 +312,7 @@ router.get("/me", requireSession, async (req: Request, res: Response) => {
     const { permissions, roleSlugs } = await loadUserPermissions(activeMembershipId);
 
     const isPlatformAdmin = isPlatformAdminEmail(authReq.sessionUser.email);
-    req.session.user = { ...authReq.sessionUser, permissions, roleSlugs, isPlatformAdmin };
+    req.session.user = { ...authReq.sessionUser, permissions, roleSlugs, isPlatformAdmin, emailVerified: user?.emailVerified ?? false };
 
     const onboardingStatus = await getWorkspaceOnboardingStatus(activeWorkspaceId);
     res.json({

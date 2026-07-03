@@ -1393,6 +1393,16 @@ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+-- channel_accounts.default_agent_id: في سكيمة Drizzle (lib/db/src/schema/conversations.ts) لكنه لم يُنقل
+-- لهذا الملف قط — اكتُشف 4 يوليو عبر 500 حيّ على GET /integrations/meta/channels (خطوة ربط القناة
+-- في onboarding) تسبّبه "column default_agent_id does not exist". غير مذكور في استعلام VERIFY_COLS
+-- بـ cloudbuild.yaml رغم أنه مُدرج كعمود حرج في launch-readiness-plan.md §5.6.
+DO $$
+BEGIN
+  ALTER TABLE channel_accounts ADD COLUMN default_agent_id uuid;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
 -- conversations: lifecycle axes + display_id
 DO $$
 BEGIN

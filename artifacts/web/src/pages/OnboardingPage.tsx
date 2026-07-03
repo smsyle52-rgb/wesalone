@@ -619,6 +619,10 @@ export default function OnboardingPage() {
     onError: (error) => setChannelError((error as Error).message),
   });
 
+  const resendVerificationMutation = useMutation({
+    mutationFn: () => apiFetch("auth/resend-verification", { method: "POST" }),
+  });
+
   const saveKnowledgeMutation = useMutation({
     mutationFn: async () => {
       const title = knowledgeTitle.trim() || "معلومات النشاط";
@@ -689,6 +693,41 @@ export default function OnboardingPage() {
           </div>
         </div>
 
+        {user && user.emailVerified === false ? (
+        <section className="rounded-[2rem] border border-amber-200 bg-amber-50/90 p-6 shadow-[0_24px_80px_rgba(217,119,6,0.12)] backdrop-blur sm:p-10">
+          <div className="mx-auto max-w-md text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-3xl">
+              ✉️
+            </div>
+            <h1 className="text-2xl font-black text-amber-900 sm:text-3xl">تأكيد البريد الإلكتروني مطلوب</h1>
+            <p className="mt-3 text-sm text-amber-800">أرسلنا رابط تأكيد إلى</p>
+            <p className="mt-1 font-semibold text-amber-900">{user.email}</p>
+            <p className="mt-4 text-sm leading-7 text-amber-700">
+              لا يمكن إنشاء الوكيل أو ربط القناة أو حفظ أي خطوة قبل تأكيد بريدك. تحقق من صندوق الوارد (وربما الرسائل غير المرغوبة) وابحث عن رسالة من <strong>support@wesal.one</strong>.
+            </p>
+            <button
+              type="button"
+              onClick={() => resendVerificationMutation.mutate()}
+              disabled={resendVerificationMutation.isPending || resendVerificationMutation.isSuccess}
+              className="mt-6 w-full rounded-2xl bg-amber-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-amber-700 disabled:opacity-60"
+            >
+              {resendVerificationMutation.isPending
+                ? "جارٍ الإرسال..."
+                : resendVerificationMutation.isSuccess
+                ? "تم إرسال الرابط — تحقق من بريدك"
+                : "إعادة إرسال رابط التأكيد"}
+            </button>
+            <button
+              type="button"
+              onClick={() => refreshAuth()}
+              className="mt-3 w-full rounded-2xl border border-amber-300 bg-white px-5 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-100"
+            >
+              تحققت من بريدي، تابع الآن
+            </button>
+          </div>
+        </section>
+        ) : (
+        <>
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-5 shadow-[0_24px_80px_rgba(83,96,255,0.12)] backdrop-blur sm:p-8">
           <div className="mx-auto max-w-2xl text-center">
             <h1 className="text-3xl font-black text-foreground sm:text-4xl">ابدأ إعداد وكيلك</h1>
@@ -839,13 +878,13 @@ export default function OnboardingPage() {
                   />
                 </label>
 
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-muted-foreground">سيُعاد استخدام الوكيل الحالي إن وُجد بدلاً من إنشاء نسخة جديدة كل مرة.</p>
                   <button
                     type="button"
                     onClick={() => saveAgentMutation.mutate()}
                     disabled={saveAgentMutation.isPending}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
                   >
                     {saveAgentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowLeft className="h-4 w-4" />}
                     حفظ ومتابعة
@@ -880,11 +919,11 @@ export default function OnboardingPage() {
                     <p className="mt-1 text-xs text-emerald-700">
                       {connectedLiveChannel ? `${connectedLiveChannel.displayName} (${connectedLiveChannel.channelType === "whatsapp" ? "واتساب" : "إنستغرام"})` : "تم التحقق من الحالة من بيانات المساحة الحالية."}
                     </p>
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                       <button
                         type="button"
                         onClick={() => setStep(3)}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 sm:w-auto"
                       >
                         متابعة
                         <ArrowLeft className="h-4 w-4" />
@@ -892,7 +931,7 @@ export default function OnboardingPage() {
                       <button
                         type="button"
                         onClick={() => setStep(1)}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 sm:w-auto"
                       >
                         رجوع لتعريف الوكيل
                       </button>
@@ -990,15 +1029,15 @@ export default function OnboardingPage() {
                   />
                 </label>
 
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-muted-foreground">
                     {knowledgeBasesQuery.data?.bases?.length ? `سيُستخدم أحدث قاعدة معرفة موجودة (${knowledgeBasesQuery.data.bases[0].name}).` : "إذا لم توجد قاعدة معرفة فسيتم إنشاء واحدة الآن."}
                   </p>
-                  <div className="flex flex-wrap items-center justify-end gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                     <button
                       type="button"
                       onClick={() => setStep(2)}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted/60"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted/60 sm:w-auto"
                     >
                       رجوع لربط القناة
                     </button>
@@ -1006,7 +1045,7 @@ export default function OnboardingPage() {
                       type="button"
                       onClick={() => saveKnowledgeMutation.mutate()}
                       disabled={saveKnowledgeMutation.isPending}
-                      className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
                     >
                       {saveKnowledgeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       حفظ وإنهاء التهيئة
@@ -1022,6 +1061,8 @@ export default function OnboardingPage() {
               </div>
             )}
         </section>
+        </>
+        )}
 
         <div className="mt-5 flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <ShieldCheck className="h-4 w-4" />
