@@ -243,6 +243,12 @@ export async function runAgentReply(params: {
   const knowledgeContext = knowledgeSources.length > 0
     ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, 800)}`).join("\n")}`
     : "";
+  // مرونة الأسلوب (3 يوليو): النموذج كان يفتتح كل ردّ بـ«أهلاً بك!» وكأن المحادثة
+  // تبدأ من الصفر (3 ترحيبات في محادثة واحدة). الشرط حتمي من الكود لا من ذاكرة النموذج.
+  const hasPriorAgentReply = messages.some((message) => message.direction === "outbound");
+  const styleGuidance = hasPriorAgentReply
+    ? "\nمهم: هذه ليست بداية المحادثة — لا تبدأ ردّك بأي تحية أو ترحيب («أهلاً»، «مرحباً»، «يا هلا»، «حياك»...). ادخل في صلب الإجابة مباشرةً، ونوّع افتتاحياتك وصياغتك عن ردودك السابقة في المحادثة."
+    : "";
   const systemPrompt = [
     toolPrompt,
     `Current date/time: ${new Date().toISOString()}.`,
@@ -258,7 +264,7 @@ export async function runAgentReply(params: {
 المحادثة:
 ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogContext}` : ""}${orderStatusContext ? `\n\n${orderStatusContext}` : ""}
 
-المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. لا تكرّر ردّاً سابقاً حرفياً، ولا تكتفِ بعبارة ختامية عامة إلا إذا أنهى العميل المحادثة فعلاً. رد موجز ومهني بالعربية.`;
+المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. لا تكرّر ردّاً سابقاً حرفياً، ولا تكتفِ بعبارة ختامية عامة إلا إذا أنهى العميل المحادثة فعلاً. رد موجز ومهني بالعربية.${styleGuidance}`;
   const model = agent.defaultModel && agent.defaultModel !== "mock" ? agent.defaultModel : getDefaultModel();
 
   // راوتر الموديلات (المرحلة 1): اختر flash للعادي / pro للصعب، ووجّه الصور لمسار الرؤية.
@@ -390,12 +396,14 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       estimatedCost: aiOutput.estimatedCost,
     });
 
+    // حادثة 3 يوليو (b044a0d5): قائمة كلمات «طلب العميل» كانت تُفحص أيضاً على ردّ
+    // الوكيل نفسه — فوصفُ المنتج («...وخدمة العملاء من لوحة واحدة») طابق «خدمه
+    // العملاء» وحوّل المحادثة بشرياً بصمت، وبقي العميل بلا ردّ 3.5 ساعات.
+    // القاعدة النهائية: كلام العميل يُفحص بقائمة طلبات الإنسان؛ كلام الوكيل يُفحص
+    // حصراً بأنماط ادّعاء التحويل الصريحة (الادّعاء يُنفَّذ) — لا تخلط الاتجاهين.
     const shouldEscalate =
       hasToolProblem ||
       hasHandoff ||
-      includesEscalationKeyword(finalReply) ||
-      // Promise-without-handoff net: the reply says "I'll transfer you" but no
-      // handoff tool ran → escalate server-side so the promise is actually kept.
       replyPromisesHandoff(finalReply) ||
       (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound));
     return { reply: finalReply, shouldEscalate, runId: run.id, toolResults };
