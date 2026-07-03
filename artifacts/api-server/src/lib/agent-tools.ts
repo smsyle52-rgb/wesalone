@@ -408,6 +408,43 @@ export async function loadOrderStatusContext(
   ].join("\n");
 }
 
+// تأريض الأسعار (3 يوليو 2026): حادثة «299 ريال» أثبتت أن قاعدة «لا تخترع أسعاراً»
+// النصية وحدها لا تكفي — النموذج اخترع سعراً رغمها. الحل الجذري: حقن كتالوج المخزون
+// الحقيقي في السياق كقائمة حصرية، فيصير المنع قابلاً للتحقق بدل أن يكون وصية مجردة.
+export async function loadProductCatalogContext(workspaceId: string, limit = 40): Promise<string> {
+  const products = await db
+    .select({
+      name: inventoryProductsTable.name,
+      price: inventoryProductsTable.price,
+      currency: inventoryProductsTable.currency,
+      unit: inventoryProductsTable.unit,
+      quantityAvailable: inventoryProductsTable.quantityAvailable,
+    })
+    .from(inventoryProductsTable)
+    .where(and(
+      eq(inventoryProductsTable.workspaceId, workspaceId),
+      eq(inventoryProductsTable.isArchived, false),
+      eq(inventoryProductsTable.status, "active"),
+    ))
+    .orderBy(desc(inventoryProductsTable.updatedAt))
+    .limit(limit);
+  if (products.length === 0) return "";
+
+  const lines = products.map((product) => {
+    const availability = product.quantityAvailable == null
+      ? ""
+      : product.quantityAvailable > 0
+        ? ` | المتوفر: ${product.quantityAvailable}${product.unit ? ` ${product.unit}` : ""}`
+        : " | غير متوفر حالياً";
+    return `- ${product.name}: ${product.price} ${product.currency}${availability}`;
+  });
+
+  return [
+    "كتالوج المنتجات والأسعار (القائمة الحصرية للأسعار والتوفر — أي منتج أو سعر غير مذكور هنا وغير موجود في معرفة قاعدة البيانات يُعامل كغير متوفر لديك ولا يُذكر له رقم):",
+    ...lines,
+  ].join("\n");
+}
+
 async function appendToolNote(params: {
   workspaceId: string;
   conversationId: string;

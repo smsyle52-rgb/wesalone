@@ -18,63 +18,19 @@ import {
   executeAgentToolCalls,
   loadExecutableAgentTools,
   loadOrderStatusContext,
+  loadProductCatalogContext,
   parseAgentToolResponse,
   type AgentToolResult,
 } from "./agent-tools";
+import { includesEscalationKeyword, replyPromisesHandoff } from "./agent-escalation";
 
-// Launch fix (2 Jul): keywords are matched against hamza/ta-marbuta-normalized text
-// (see normalizeArabic), so store them in normalized form. Bare "تحويل" is excluded
-// on purpose — it would false-positive on payment transfers ("تحويل بنكي").
-const ESCALATION_KEYWORDS = [
-  "اكلم انسان",
-  "كلمني انسان",
-  "اريد انسان",
-  "ابغي انسان",
-  "ابي انسان",
-  "عايز انسان",
-  "انسان حقيقي",
-  "تحويل بشري",
-  "موظف بشري",
-  "بشري",
-  "اكلم احد",
-  "اكلم موظف",
-  "كلمني موظف",
-  "اريد موظف",
-  "موظف",
-  "مسؤول",
-  "مدير",
-  "خدمه العملاء",
-  "الدعم الفني",
-  "دعم فني",
-  "شكوي",
-  "الغاء",
-];
-
-// The model is single-pass (reply + tool calls in one shot): it can WRITE a transfer
-// promise without actually calling handoff_to_human — and most agents have tools
-// disabled entirely. If the outgoing reply promises a handoff, the server makes the
-// promise true by escalating; over-escalation is acceptable, a broken promise is not.
-const HANDOFF_PROMISE_PATTERNS = [
-  "ساحول",
-  "احولك",
-  "احول طلبك",
-  "احول حضرتك",
-  "ساحيل",
-  "احيل طلبك",
-  "سيتم تحويل",
-  "تم تحويل",
-  "تم التحويل",
-  "حولت طلبك",
-  "انقل طلبك",
-  "سيتم نقل طلبك",
-  "اوصلك بالفريق",
-  "للفريق المختص",
-  "سيتواصل معك",
-  "سيتواصل معكم",
-  "الفريق سيتواصل",
-  "سيرد عليك احد",
-  "زملائي",
-];
+// تأريض صارم (3 يوليو 2026): حادثة «299 ريال» — النموذج اخترع سعراً رغم قاعدة المنع في
+// SAFETY_SYSTEM_PROMPT، ثم ادّعى «قمت بتحويل طلبك» تهرّباً. هاتان القاعدتان تربطان
+// السلوك بسياق قابل للتحقق (الكتالوج المحقون) وبعواقب حقيقية (الادّعاء = تنفيذ).
+const GROUNDING_RULES = [
+  "قاعدة الأسعار الحصرية: الأرقام المسموح ذكرها للأسعار أو التوفر أو الخصومات هي حصراً الواردة في «كتالوج المنتجات والأسعار» أو «معرفة قاعدة البيانات» أو «حالة طلبات هذا العميل». إن سُئلت عن سعر غير موجود فيها: قل بصدق إن السعر غير متوفر لديك الآن وستتأكد من الفريق، واسأل العميل إن كان يرغب بالتحويل لموظف — ولا تذكر أي رقم تقديري أو مثال.",
+  "قاعدة التحويل الصادق: لا تكتب أنك حوّلت أو ستحوّل المحادثة لموظف إلا إذا كان التحويل هو الإجراء الصحيح فعلاً (طلب صريح من العميل، شكوى، أو مسألة لا تستطيع حلّها من السياق) — كتابة عبارة التحويل تعني تنفيذه فعلياً على النظام فوراً، فلا تستخدمها كمجاملة أو تهرّب.",
+].join("\n");
 
 async function upsertUsage(params: {
   workspaceId: string;
@@ -168,28 +124,7 @@ function sanitizeReply(text: string): string {
   return "";
 }
 
-// Arabic-normalize before matching: strip tashkeel, unify hamza forms/ta-marbuta/alef-maqsura —
-// otherwise "اكلم انسان" (no hamza, how customers actually type) misses "أكلم إنسان".
-function normalizeArabic(value: string): string {
-  return value
-    .replace(/[ً-ْٰـ]/g, "")
-    .replace(/[أإآٱ]/g, "ا")
-    .replace(/ة/g, "ه")
-    .replace(/ى/g, "ي")
-    .replace(/ؤ/g, "و")
-    .replace(/ئ/g, "ي")
-    .toLowerCase();
-}
-
-function includesEscalationKeyword(value: string): boolean {
-  const normalized = normalizeArabic(value);
-  return ESCALATION_KEYWORDS.some((keyword) => normalized.includes(keyword));
-}
-
-function replyPromisesHandoff(reply: string): boolean {
-  const normalized = normalizeArabic(reply);
-  return HANDOFF_PROMISE_PATTERNS.some((pattern) => normalized.includes(pattern));
-}
+// مطابقات التصعيد انتقلت إلى ./agent-escalation (وحدة نقية قابلة للاختبار).
 
 function isPlaceholderContent(text: string): boolean {
   const trimmed = text.trim();
@@ -285,6 +220,13 @@ export async function runAgentReply(params: {
   } catch (err) {
     logger.warn({ err, conversationId: params.conversationId }, "loadOrderStatusContext failed — continuing without order context");
   }
+  // تأريض الأسعار: كتالوج المخزون الحقيقي يُحقن كقائمة حصرية — فشله لا يكسر الردّ.
+  let productCatalogContext = "";
+  try {
+    productCatalogContext = await loadProductCatalogContext(params.workspaceId);
+  } catch (err) {
+    logger.warn({ err, workspaceId: params.workspaceId }, "loadProductCatalogContext failed — continuing without catalog context");
+  }
   const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
   const toolPrompt = buildAgentToolPrompt(executableTools);
   const mediaGuidance = mediaContext.sources.length > 0
@@ -306,6 +248,7 @@ export async function runAgentReply(params: {
     `Current date/time: ${new Date().toISOString()}.`,
     instructions?.rolePrompt ?? "أنت موظف خدمة عملاء ومبيعات محترف تردّ على عملاء النشاط التجاري. أجب بإيجاز ومهنية على آخر رسالة من العميل مباشرةً.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
+    GROUNDING_RULES,
     `اللهجة: ${agent.dialect}.`,
     agent.tone ? `النبرة: ${agent.tone}.` : "",
     mediaGuidance,
@@ -313,7 +256,7 @@ export async function runAgentReply(params: {
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.
 
 المحادثة:
-${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}${orderStatusContext ? `\n\n${orderStatusContext}` : ""}
+${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogContext}` : ""}${orderStatusContext ? `\n\n${orderStatusContext}` : ""}
 
 المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. لا تكرّر ردّاً سابقاً حرفياً، ولا تكتفِ بعبارة ختامية عامة إلا إذا أنهى العميل المحادثة فعلاً. رد موجز ومهني بالعربية.`;
   const model = agent.defaultModel && agent.defaultModel !== "mock" ? agent.defaultModel : getDefaultModel();
