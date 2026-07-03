@@ -505,7 +505,7 @@ export default function OnboardingPage() {
     scrollToStepContent();
   }
 
-  function waitForCapturedSignupInfo(timeoutMs = 5000): Promise<EmbeddedSignupSessionInfo> {
+  function waitForCapturedSignupInfo(timeoutMs = 20000): Promise<EmbeddedSignupSessionInfo> {
     return new Promise((resolve, reject) => {
       if (signupSessionErrorRef.current) {
         reject(new Error(signupSessionErrorRef.current));
