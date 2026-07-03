@@ -57,3 +57,5 @@ Thumbs.db
 
 # Local experimental Next.js landing app
 artifacts/landing-next/
+.localdev/
+.claude/launch.json

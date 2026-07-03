@@ -30,6 +30,7 @@ import pointsRouter from "../modules/points/points.routes";
 import adminRouter from "../modules/admin/admin.routes";
 import templatesRouter from "../modules/templates/templates.routes";
 import whatsappBusinessProfileRouter from "../modules/whatsapp-management/whatsapp-business-profile.routes";
+import inboxSupportRouter from "../modules/inbox/inbox-support.routes";
 import { apiLimiter, webhookLimiter } from "../lib/rateLimiter";
 import { requireVerifiedEmail } from "../middlewares/requireVerifiedEmail";
 
@@ -45,6 +46,12 @@ router.use("/users", usersRouter);
 router.use("/audit-logs", auditRouter);
 router.use("/contacts", contactsRouter);
 router.use("/conversations", conversationsRouter);
+// اكتُشف بالاختبار الحيّ (3 يوليو): هذه الوحدة (بث SSE اللحظي /inbox/stream + الردود
+// السريعة + العروض المحفوظة + قواعد SLA + ساعات العمل) مبنية بالكامل وجداولها موجودة
+// في migrate-phase345.sql، لكنها لم تُسجَّل هنا قط — 404 دائم على أربعة endpoints،
+// والتحديث اللحظي كان يعتمد على polling فقط بصمت (لا خطأ ظاهر للتاجر). خلافاً لوحدة
+// commerce (غير مسجَّلة عمداً بسبب انجراف سكيمة)، هذه الجداول مؤكَّدة موجودة — التسجيل آمن.
+router.use(inboxSupportRouter);
 router.use("/tickets", ticketsRouter);
 router.use("/tasks", tasksRouter);
 router.use("/followups", followupsRouter);

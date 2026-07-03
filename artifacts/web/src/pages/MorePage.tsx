@@ -1,13 +1,15 @@
 import { Link } from "wouter";
 import {
   BarChart3,
+  ClipboardList,
   CreditCard,
-  Megaphone,
   Package,
   Plug,
+  ReceiptText,
+  ScrollText,
   Settings,
-  ShieldCheck,
   ShoppingBag,
+  Target,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -21,21 +23,65 @@ type MoreItem = {
   icon: LucideIcon;
 };
 
-const moreItems: MoreItem[] = [
-  { title: "الطلبات", description: "متابعة الطلبات وحالاتها", href: "/orders", permission: "orders:read", icon: Package },
-  { title: "المخزون", description: "المنتجات والكميات والأسعار", href: "/inventory", permission: "products:read", icon: ShoppingBag },
-  { title: "الحملات", description: "البث والرسائل الجماعية", href: "/broadcasts", permission: "broadcasts:read", icon: Megaphone },
-  { title: "التقارير والتحليلات", description: "مؤشرات الأداء والتقارير", href: "/analytics", permission: "analytics:read", icon: BarChart3 },
-  { title: "الفريق والصلاحيات", description: "الأعضاء والأدوار والدعوات", href: "/settings?tab=users", permission: "users:read", icon: Users },
-  { title: "المهام", description: "المهام والمتابعات اليومية", href: "/tasks", permission: "tasks:read", icon: ShieldCheck },
-  { title: "المدفوعات", description: "التأكيدات وطرق الدفع", href: "/payments", permission: "payments:read", icon: CreditCard },
-  { title: "التكاملات والقنوات", description: "واتساب وإنستغرام وماسنجر", href: "/integrations", permission: "channels:read", icon: Plug },
-  { title: "الإعدادات", description: "النشاط التجاري والأمان والفوترة", href: "/settings", permission: "settings:read", icon: Settings },
+type MoreGroup = {
+  label: string;
+  items: MoreItem[];
+};
+
+// مجموعات مطابقة لتصنيف القائمة الجانبية في الديسكتوب (navGroups في Layout.tsx) —
+// نفس الترتيب المنطقي: قنوات → متجر → عملاء (ما تبقّى بعد تبويب «العملاء» السفلي) →
+// تحليلات → إعداد. الرئيسية/الوارد/العملاء/الأتمتة موجودة في الشريط السفلي فلا تتكرر هنا.
+// أُزيل رابط «الحملات» (/broadcasts): الباك-إند غير مُركَّب فعلياً (يطابق استثناء
+// الديسكتوب الصريح في Layout.tsx) — لا نعرض رابطاً سيفشل بـ404.
+const moreGroups: MoreGroup[] = [
+  {
+    label: "القنوات",
+    items: [
+      { title: "التكاملات والقنوات", description: "واتساب وإنستغرام وماسنجر", href: "/integrations", permission: "channels:read", icon: Plug },
+    ],
+  },
+  {
+    label: "المتجر",
+    items: [
+      { title: "المخزون", description: "المنتجات والكميات والأسعار", href: "/inventory", permission: "products:read", icon: ShoppingBag },
+      { title: "الطلبات", description: "متابعة الطلبات وحالاتها", href: "/orders", permission: "orders:read", icon: Package },
+      { title: "المدفوعات", description: "التأكيدات وطرق الدفع", href: "/payments", permission: "payments:read", icon: CreditCard },
+    ],
+  },
+  {
+    label: "العملاء",
+    items: [
+      { title: "الفرص", description: "فرص البيع الجارية والمتوقعة", href: "/opportunities", permission: "opportunities:read", icon: Target },
+      { title: "الديون", description: "المستحقات المالية على العملاء", href: "/debts", permission: "debts:read", icon: ReceiptText },
+      { title: "المهام", description: "المهام والمتابعات اليومية", href: "/tasks", permission: "tasks:read", icon: ClipboardList },
+    ],
+  },
+  {
+    label: "التحليلات",
+    items: [
+      { title: "التحليلات", description: "مؤشرات الأداء العامة", href: "/analytics", permission: "analytics:read", icon: BarChart3 },
+      { title: "التقارير", description: "تقارير مفصّلة وقابلة للتصدير", href: "/reports", permission: "reports:read", icon: ClipboardList },
+      { title: "سجل النشاط", description: "سجل تدقيق كل الإجراءات الحساسة", href: "/audit-logs", permission: "audit_logs:read", icon: ScrollText },
+    ],
+  },
+  {
+    label: "الإعداد",
+    items: [
+      { title: "الفوترة والاشتراك", description: "الباقة والنقاط والفواتير", href: "/billing", permission: "settings:read", icon: CreditCard },
+      // إصلاح (3 يوليو): كانت تستخدم صلاحية "users:read" غير الممنوحة لأي دور —
+      // حتى المالك لا يراها. صفحة الإعدادات نفسها تعرض تبويب الفريق بلا قيد إضافي
+      // عن settings:read، فوُحِّدت الصلاحية هنا لتطابقها.
+      { title: "الفريق والصلاحيات", description: "الأعضاء والأدوار والدعوات", href: "/settings?tab=users", permission: "settings:read", icon: Users },
+      { title: "الإعدادات", description: "النشاط التجاري والأمان والفوترة", href: "/settings", permission: "settings:read", icon: Settings },
+    ],
+  },
 ];
 
 export default function MorePage() {
   const { hasPermission } = useAuth();
-  const visibleItems = moreItems.filter((item) => hasPermission(item.permission));
+  const visibleGroups = moreGroups
+    .map((group) => ({ ...group, items: group.items.filter((item) => hasPermission(item.permission)) }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <div dir="rtl" className="space-y-4 lg:hidden">
@@ -47,24 +93,29 @@ export default function MorePage() {
         </p>
       </section>
 
-      <section className="grid grid-cols-1 gap-3">
-        {visibleItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link key={item.href} href={item.href}>
-              <span className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/30 hover:bg-muted/30">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-extrabold text-foreground">{item.title}</span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.description}</span>
-                </span>
-              </span>
-            </Link>
-          );
-        })}
-      </section>
+      {visibleGroups.map((group) => (
+        <section key={group.label} className="space-y-2">
+          <h3 className="px-1 text-xs font-bold text-muted-foreground">{group.label}</h3>
+          <div className="grid grid-cols-1 gap-3">
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link key={item.href} href={item.href}>
+                  <span className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/30 hover:bg-muted/30">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-extrabold text-foreground">{item.title}</span>
+                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.description}</span>
+                    </span>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

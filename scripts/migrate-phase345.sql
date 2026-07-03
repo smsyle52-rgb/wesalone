@@ -736,6 +736,14 @@ ALTER TABLE conversations ADD COLUMN IF NOT EXISTS needs_human boolean NOT NULL 
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS escalation_reason text;
 CREATE INDEX IF NOT EXISTS idx_conv_ws_needs_human ON conversations(workspace_id, needs_human);
 
+-- Drift fix (3 Jul 2026): these three columns are load-bearing (worker gating on
+-- agent_status, anti-loop counter, PD-11 pause) and exist on production, but were
+-- never in this canonical bundle — a fresh database from official migrations would
+-- boot a worker that crashes on its first conversations query.
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS agent_status text NOT NULL DEFAULT 'active';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS agent_paused_until timestamptz;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS consecutive_agent_replies integer NOT NULL DEFAULT 0;
+
 -- =============================================================
 -- Closure Phase 2D: learned answers for safe context injection
 -- =============================================================

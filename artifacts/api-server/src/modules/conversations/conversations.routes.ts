@@ -1,6 +1,6 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
-import { eq, and, desc, asc, count, ilike, or, sql } from "drizzle-orm";
+import { eq, and, desc, asc, count, ilike, inArray, or, sql } from "drizzle-orm";
 import {
   db, conversationsTable, messagesTable, contactsTable,
   contactChannelsTable, contactTimelineTable, workspaceMembershipsTable, usersTable,
@@ -138,7 +138,14 @@ router.get("/", requirePermission("conversations:read"), async (req: Authenticat
     conditions.push(sql`${conversationsTable.unreadCount} > 0 AND ${conversationsTable.lastMessageAt} < now() - interval '30 minutes'`);
   }
   if (status) conditions.push(eq(conversationsTable.status, status));
-  if (channel) conditions.push(eq(conversationsTable.channel, channel));
+  // فلتر القناة: واتساب مخزّن تاريخياً بقيمتين (whatsapp من الإنشاء اليدوي،
+  // whatsapp_api من الـwebhook الحي) — فلتر «واتساب» يجب أن يلتقط كليهما،
+  // وإلا يعرض صفر محادثات رغم امتلاء الوارد (عطل مكتشف بالاختبار الحي 3 يوليو).
+  if (channel === "whatsapp" || channel === "whatsapp_api") {
+    conditions.push(inArray(conversationsTable.channel, ["whatsapp", "whatsapp_api"]));
+  } else if (channel) {
+    conditions.push(eq(conversationsTable.channel, channel));
+  }
   if (assignee === "unassigned") {
     conditions.push(sql`${conversationsTable.assignedMembershipId} IS NULL`);
   } else if (assignee) {
