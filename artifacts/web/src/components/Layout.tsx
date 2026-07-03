@@ -531,11 +531,14 @@ export default function Layout({ children }: { children: ReactNode }) {
         )}>
           <div className={cn(
             "app-page-container",
-            location.startsWith("/inbox") && "flex h-full min-h-0 flex-col overflow-hidden",
+            location.startsWith("/inbox") && "flex h-full min-h-0 flex-col overflow-hidden pt-3 pb-3 lg:pb-3",
           )}>
-            <div className="mb-4 hidden items-center justify-end lg:flex">
-              <NotificationCenter />
-            </div>
+            {/* في الوارد: الجرس ينتقل لشريط أدوات الصفحة نفسها — كل صف علوي هنا يسرق ارتفاعاً من المحادثات */}
+            {!location.startsWith("/inbox") && (
+              <div className="mb-4 hidden items-center justify-end lg:flex">
+                <NotificationCenter />
+              </div>
+            )}
             {user && user.emailVerified === false ? (
               <div className="flex min-h-[70vh] items-center justify-center" dir="rtl">
                 <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center shadow-sm">

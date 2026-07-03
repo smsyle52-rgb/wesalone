@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { NotificationCenter } from "@/components/NotificationCenter";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -461,23 +462,23 @@ export default function InboxPage() {
   const pointsRemaining = Number(pointsStatus?.remaining ?? 0);
   const extraPointsBalance = Number(pointsStatus?.balance ?? 0);
   const pointsAlert = pointsExhausted ? (
-    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="leading-6">
-          <p className="font-black">نفدت نقاط الذكاء لهذا الشهر</p>
-          <p className="text-rose-800">
-            الردود التلقائية متوقفة الآن، والرسائل ستبقى في الوارد للفريق البشري حتى ترقية الباقة أو شحن نقاط جديدة.
-          </p>
-          <p className="text-xs font-semibold text-rose-700">
-            المتبقي: {pointsRemaining.toLocaleString("ar-u-nu-latn")} · الرصيد الإضافي: {extraPointsBalance.toLocaleString("ar-u-nu-latn")}
-          </p>
+    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-950">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 font-black">نفدت نقاط الذكاء</span>
+          <span className="hidden truncate text-rose-800 sm:inline" title="الردود التلقائية متوقفة، والرسائل تبقى في الوارد للفريق البشري حتى الترقية أو الشحن.">
+            — الردود التلقائية متوقفة، الرسائل تصل الوارد للفريق البشري
+          </span>
+          <span className="hidden shrink-0 text-[0.7rem] font-semibold text-rose-700 lg:inline">
+            (المتبقي: {pointsRemaining.toLocaleString("ar-u-nu-latn")} · الإضافي: {extraPointsBalance.toLocaleString("ar-u-nu-latn")})
+          </span>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 gap-1.5">
           <Link href="/billing">
-            <span className="inline-flex rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white hover:bg-rose-800">ترقية الباقة</span>
+            <span className="inline-flex rounded-md bg-rose-700 px-2.5 py-1 text-[0.7rem] font-bold text-white hover:bg-rose-800">ترقية الباقة</span>
           </Link>
           <Link href="/points">
-            <span className="inline-flex rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100">شحن نقاط</span>
+            <span className="inline-flex rounded-md border border-rose-300 bg-white px-2.5 py-1 text-[0.7rem] font-bold text-rose-800 hover:bg-rose-100">شحن نقاط</span>
           </Link>
         </div>
       </div>
@@ -674,6 +675,7 @@ export default function InboxPage() {
     return new Date(b.lastMessageAt ?? b.createdAt).getTime() - new Date(a.lastMessageAt ?? a.createdAt).getTime();
   });
   const defaultSlaMinutes = Math.max(1, Number(slaRules.find((rule) => rule.active)?.firstResponseMinutes ?? 30));
+  const totalUnread = list.reduce((sum, c) => sum + (Number(c.unreadCount) || 0), 0);
   const activeFilterCount = [
     viewFilter,
     statusFilter,
@@ -977,9 +979,13 @@ export default function InboxPage() {
           </>
         )}
 
-        {/* ── MOBILE: CONVERSATION DETAIL ── */}
+        {/* ── MOBILE: CONVERSATION DETAIL ──
+            طبقة ملء-شاشة (fixed inset-0) — نفس نمط واتساب/تيليجرام: فتح محادثة يُخفي
+            رأس التطبيق العام وشريط التنقل السفلي تلقائياً بدل تكديسهما فوق رأس
+            المحادثة. قِسنا الهدر فعلياً: 71px رأس مكرر + 92px تنقّل سفلي بلا فائدة
+            أثناء الدردشة = 183px من 812px (22%) كانت تُسرق من مساحة الرسائل. */}
         {mobileView === "detail" && (
-          <>
+          <div className="fixed inset-0 z-30 flex flex-col bg-background md:hidden">
             {/* Conversation Header */}
             <header className="shrink-0 flex items-center gap-2 px-3 pt-[calc(0.6rem+env(safe-area-inset-top))] pb-3 bg-background border-b border-border">
               <button onClick={() => setMobileView("list")} className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted hover:bg-muted/80 text-foreground">
@@ -1180,6 +1186,34 @@ export default function InboxPage() {
                 </div>
               </div>
             )}
+            {/* عطل مكتشف بالاختبار الحي (3 يوليو): «اقترح الخطوة التالية» ينجح فعلياً
+                (runAISuggest يُرجع النتيجة بنجاح) لكن الجوال لا يملك كتلة عرض لها —
+                النتيجة تضيع بصمت. نُسخت بطاقة الديسكتوب المطابقة (aiPanel==="suggest") حرفياً. */}
+            {canUseAI && aiPanel === "suggest" && (
+              <div className="shrink-0 mx-3 mb-2 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Sparkles size={14} className="text-purple-600" />
+                  <span className="text-xs font-bold text-purple-700">اقتراح الخطوة التالية</span>
+                  <button onClick={() => { setAiPanel(null); setAiSuggestions([]); }} className="ms-auto text-purple-400 hover:text-purple-600 text-sm">✕</button>
+                </div>
+                {aiSuggestions.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {aiSuggestions.map((s: any, i: number) => (
+                      <div key={i} className="flex items-start gap-2 text-xs text-purple-900">
+                        <span className="text-purple-400 mt-0.5">•</span>
+                        <div>
+                          <span className="font-medium">{formatAiSuggestionLabel(s)}</span>
+                          {s.reason && <span className="text-purple-600 ms-1">— {s.reason}</span>}
+                        </div>
+                      </div>
+                    ))}
+                    <p className="text-xs text-purple-500 pt-1">راجع طلبات الاعتماد في صفحة وكلاء الذكاء الاصطناعي</p>
+                  </div>
+                ) : !aiLoading && !aiError ? (
+                  <p className="text-xs text-purple-900">لا توجد اقتراحات لهذه المحادثة</p>
+                ) : null}
+              </div>
+            )}
             {canUseAI && aiLoading && (
               <div className="shrink-0 mx-3 mb-2 text-center text-xs text-purple-600 animate-pulse">الذكاء الاصطناعي يعمل...</div>
             )}
@@ -1272,69 +1306,72 @@ export default function InboxPage() {
                 )}
               </DrawerContent>
             </Drawer>
-          </>
+          </div>
         )}
       </div>
       {/* ═══════════ END MOBILE LAYOUT ═══════════ */}
 
       {/* ═══════════ DESKTOP LAYOUT (hidden md:flex) ═══════════ */}
       <div className="hidden md:flex md:flex-col md:flex-1 md:overflow-hidden">
-      <div className="shrink-0 px-4 pt-4 pb-0">
-        <PageHeader
-          title="صندوق الوارد"
-          subtitle="إدارة جميع المحادثات مع العملاء"
-          actions={
-            canCreate ? (
+      {/* رأس مضغوط بسطر واحد — كل بكسل عمودي هنا يُسرق من المحادثات نفسها */}
+      <div className="shrink-0 px-3 pb-2">
+        <div className="flex h-11 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <h1 className="text-base font-bold text-foreground">صندوق الوارد</h1>
+            {totalUnread > 0 && (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[0.7rem] font-bold text-primary-foreground">
+                {totalUnread}
+              </span>
+            )}
+            <span className="hidden items-center gap-1.5 text-[0.7rem] text-muted-foreground lg:inline-flex">
+              <span className={cn("h-1.5 w-1.5 rounded-full", realtimeStatus === "live" ? "bg-emerald-500" : "bg-muted-foreground")} />
+              {realtimeStatus === "live" ? "مباشر" : "إعادة اتصال"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden lg:block"><NotificationCenter /></span>
+            {canCreate ? (
               <button onClick={() => setShowNewConv(true)}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
-                + محادثة جديدة
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
+                <Plus size={16} /> محادثة جديدة
               </button>
             ) : (
               <button disabled title="ليس لديك صلاحية إنشاء المحادثات"
-                className="px-4 py-2 rounded-lg bg-primary/40 text-primary-foreground text-sm font-semibold cursor-not-allowed opacity-50">
-                + محادثة جديدة
+                className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-lg bg-primary/40 px-3.5 text-sm font-semibold text-primary-foreground opacity-50">
+                <Plus size={16} /> محادثة جديدة
               </button>
-            )
-          }
-        />
+            )}
+          </div>
+        </div>
 
+        {/* تنبيهات بسطر واحد نحيف — لا كتل متكدسة */}
         {!hasConnectedMetaChannels && (
-          <div className="mb-3 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 md:flex-row md:items-center md:justify-between">
-            <span>لا توجد قنوات متصلة بعد. اذهب إلى التكاملات لربط واتساب.</span>
+          <div className="mb-1.5 flex h-9 items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs text-amber-900">
+            <span className="truncate">لا توجد قنوات متصلة بعد — اربط واتساب من التكاملات.</span>
             <Link href="/integrations">
-              <span className="inline-flex w-fit rounded-lg bg-amber-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800">
-                التكاملات
-              </span>
+              <span className="shrink-0 rounded-md bg-amber-900 px-2.5 py-1 text-[0.7rem] font-semibold text-white hover:bg-amber-800">التكاملات</span>
             </Link>
           </div>
         )}
-
-        {pointsAlert && <div className="mb-3">{pointsAlert}</div>}
-
+        {pointsAlert && <div className="mb-1.5">{pointsAlert}</div>}
         {isError && (
-          <div className="mb-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-center justify-between">
-            <span>تعذّر تحميل المحادثات</span>
-            <button onClick={() => refetch()} className="text-xs underline font-medium">إعادة المحاولة</button>
+          <div className="mb-1.5 flex h-9 items-center justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-3 text-xs text-destructive">
+            <span className="truncate">تعذّر تحميل المحادثات</span>
+            <button onClick={() => refetch()} className="shrink-0 text-[0.7rem] font-semibold underline">إعادة المحاولة</button>
           </div>
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 justify-center gap-3 overflow-hidden px-0 pb-[calc(5.75rem+var(--app-safe-bottom))] sm:px-4 lg:h-[calc(100dvh-11.75rem)] lg:pb-4">
+      <div className="flex w-full min-h-0 flex-1 gap-3 overflow-hidden px-0 pb-[calc(5.75rem+var(--app-safe-bottom))] sm:px-3 lg:pb-0">
         <div className={cn(
           "flex min-h-0 shrink-0 self-stretch flex-col overflow-hidden rounded-xl border border-border bg-card",
-          "w-full lg:w-[340px] xl:w-[360px]",
+          "w-full lg:w-[360px] xl:w-[380px]",
           mobileView === "detail" ? "hidden lg:flex" : "flex"
         )}>
-          <div className="border-b border-border p-2">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-[0.7rem] text-muted-foreground lg:text-xs">
-                <span>التحديث اللحظي</span>
-                <span className="inline-flex items-center gap-1">
-                  <span className={cn("h-2 w-2 rounded-full", realtimeStatus === "live" ? "bg-emerald-500" : "bg-muted-foreground")} />
-                  {realtimeStatus === "live" ? "مباشر" : "إعادة اتصال"}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
+          <div className="shrink-0 border-b border-border p-2.5">
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search size={15} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input
                   id="inbox-search"
                   name="inboxSearch"
@@ -1342,24 +1379,24 @@ export default function InboxPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="بحث في المحادثات..."
-                  className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 lg:py-1.5"
+                  className="h-9 w-full rounded-lg border border-input bg-background pe-9 ps-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowMobileFilters(true)}
-                  className={cn(
-                    "relative inline-flex shrink-0 items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold transition-colors lg:py-1.5",
-                    activeFilterCount > 0 ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground hover:bg-muted",
-                  )}
-                >
-                  تصفية
-                  {activeFilterCount > 0 && (
-                    <span className="ms-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[0.65rem] font-bold text-primary-foreground">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(true)}
+                className={cn(
+                  "relative inline-flex h-9 shrink-0 items-center justify-center rounded-lg border px-3 text-sm font-semibold transition-colors",
+                  activeFilterCount > 0 ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground hover:bg-muted",
+                )}
+              >
+                تصفية
+                {activeFilterCount > 0 && (
+                  <span className="ms-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[0.65rem] font-bold text-primary-foreground">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
             </div>
 
             <Drawer open={showMobileFilters} onOpenChange={setShowMobileFilters}>
@@ -1507,58 +1544,69 @@ export default function InboxPage() {
             ) : (
               sortedList.map((c: any) => (
                 <button key={c.id} onClick={() => bulkMode ? toggleBulk(c.id) : selectConv(c)} className={cn(
-                  "w-full flex flex-col gap-1 px-3 py-3 border-b border-border/50 transition-colors text-start",
-                  selectedConvId === c.id ? "bg-primary/10 border-e-2 border-e-primary" : "hover:bg-muted/40",
+                  "group relative w-full flex items-start gap-3 px-3 py-3 border-b border-border/40 transition-colors text-start",
+                  selectedConvId === c.id ? "bg-primary/[.07]" : "hover:bg-muted/40",
                   selectedBulk.includes(c.id) && "bg-primary/10"
                 )}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex min-w-0 items-center gap-2 font-medium text-sm text-foreground">
-                      {bulkMode && (
-                        <span
-                          aria-hidden="true"
-                          className={cn(
-                            "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-sm font-black shadow-sm",
-                            selectedBulk.includes(c.id)
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-primary/70 bg-background text-transparent",
-                          )}
-                        >
-                          ✓
+                  {selectedConvId === c.id && <span className="absolute inset-y-1.5 start-0 w-[3px] rounded-e bg-primary" />}
+                  {bulkMode ? (
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "mt-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-sm font-black shadow-sm",
+                        selectedBulk.includes(c.id)
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-primary/70 bg-background text-transparent",
+                      )}
+                    >
+                      ✓
+                    </span>
+                  ) : (
+                    <span className="relative mt-0.5 shrink-0">
+                      <ContactInitials name={c.contactName} size={40} />
+                      <span className="absolute -bottom-0.5 -start-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-card ring-2 ring-card">
+                        {c.channel?.includes("whatsapp") ? <FaWhatsapp size={13} className="text-[#25D366]" />
+                          : c.channel === "instagram" ? <FaInstagram size={13} className="text-[#E1306C]" />
+                          : c.channel === "messenger" ? <FaFacebookMessenger size={13} className="text-[#0084FF]" />
+                          : <ChannelBadge channel={c.channel} />}
+                      </span>
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className={cn("truncate text-[0.9rem]", c.unreadCount > 0 ? "font-bold text-foreground" : "font-semibold text-foreground/90")}>
+                        {c.contactName ?? "عميل غير معروف"}
+                      </span>
+                      <span className={cn("shrink-0 text-[0.7rem]", c.unreadCount > 0 ? "font-semibold text-primary" : "text-muted-foreground")}>
+                        {timeAgo(c.lastMessageAt ?? c.createdAt)}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex items-center justify-between gap-2">
+                      <span className={cn("truncate text-[0.8rem] leading-5", c.unreadCount > 0 ? "text-foreground/80" : "text-muted-foreground")}>
+                        {c.lastMessage ?? c.subject ?? "—"}
+                      </span>
+                      {c.unreadCount > 0 && (
+                        <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[0.7rem] font-bold text-primary-foreground">
+                          {c.unreadCount}
                         </span>
                       )}
-                      <span className="truncate">{c.contactName ?? "عميل غير معروف"}</span>
-                    </span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {c.unreadCount > 0 && (
-                        <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 font-bold">{c.unreadCount}</span>
-                      )}
-                      {c.needsHuman && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">يحتاج تدخل</span>
-                      )}
-                      <StatusBadge status={c.status} />
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground truncate max-w-[60%]">
-                      {c.lastMessage ?? c.subject ?? "—"}
-                    </span>
-                    <span className="text-xs text-muted-foreground shrink-0">{timeAgo(c.lastMessageAt ?? c.createdAt)}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <ChannelBadge channel={c.channel} />
-                    {c.priority && c.priority !== "normal" && <PriorityBadge priority={c.priority} />}
-                    {c.ticketNumber && (
-                      <span className="text-xs px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 font-medium">
-                        تذكرة #{c.ticketNumber}
-                      </span>
-                    )}
-                    {c.unreadCount > 0 && c.lastMessageAt && (
-                      <span className="text-xs px-1.5 py-0.5 rounded border border-red-200 bg-red-50 text-red-700">
-                        {new Date(c.lastMessageAt).getTime() < Date.now() - defaultSlaMinutes * 60 * 1000 ? "SLA متجاوز" : "مهلة الرد"}
-                      </span>
-                    )}
-                    {c.contactCompany && (
-                      <span className="text-xs text-muted-foreground truncate">{c.contactCompany}</span>
+                    {(c.needsHuman || (c.priority && c.priority !== "normal") || c.ticketNumber || (c.unreadCount > 0 && c.lastMessageAt) || c.status === "closed") && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {c.needsHuman && (
+                          <span className="rounded-full bg-amber-100 px-2 py-px text-[0.68rem] font-bold text-amber-800">يحتاج تدخل</span>
+                        )}
+                        {c.priority && c.priority !== "normal" && <PriorityBadge priority={c.priority} />}
+                        {c.status === "closed" && <StatusBadge status={c.status} />}
+                        {c.ticketNumber && (
+                          <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-px text-[0.68rem] font-medium text-amber-700">
+                            تذكرة #{c.ticketNumber}
+                          </span>
+                        )}
+                        {c.unreadCount > 0 && c.lastMessageAt && new Date(c.lastMessageAt).getTime() < Date.now() - defaultSlaMinutes * 60 * 1000 && (
+                          <span className="rounded border border-red-200 bg-red-50 px-1.5 py-px text-[0.68rem] text-red-700">SLA متجاوز</span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </button>
@@ -1834,7 +1882,7 @@ export default function InboxPage() {
                       <div className="flex items-center justify-center h-20 text-muted-foreground text-sm">لا يوجد سجل بعد</div>
                     ) : timelineMessages.map((msg: any) => (
                       <div key={msg.id} className="rounded-lg border border-border bg-background p-3 text-sm">
-                        <div className="text-xs text-muted-foreground mb-1">{formatDateTime(msg.sentAt)} · {msg.senderName ?? msg.senderType}</div>
+                        <div className="text-xs text-muted-foreground mb-1">{formatDateTime(msg.sentAt)} · {msg.senderName ?? (msg.senderType === "customer" ? conv.contactName ?? "العميل" : msg.senderType === "agent" ? "الوكيل الذكي" : msg.senderType)}</div>
                         <div className="line-clamp-2">{msg.isPrivateNote ? "ملاحظة داخلية" : msg.content}</div>
                       </div>
                     ))}
@@ -2073,11 +2121,12 @@ export default function InboxPage() {
                       })}
                       disabled={(!messageText.trim() && !mediaUrl.trim()) || sendMessage.isPending}
                       className={cn(
-                        "px-4 rounded-lg text-sm font-medium transition-colors disabled:opacity-50",
+                        "inline-flex items-center gap-1.5 self-end rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50",
                         messageMode === "note"
                           ? "bg-yellow-500 text-white hover:bg-yellow-600"
                           : "bg-primary text-primary-foreground hover:bg-primary/90"
                       )}>
+                      <Send size={15} />
                       {sendMessage.isPending ? "..." : "إرسال"}
                     </button>
                   </div>
