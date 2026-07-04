@@ -17,6 +17,7 @@ import {
 } from "@workspace/db";
 import { and, count, desc, eq, ilike, sum } from "drizzle-orm";
 import { z } from "zod";
+import type { AiFunctionDeclaration } from "./ai-provider";
 import { createAuditLog } from "./audit";
 import { addContactTimeline } from "./contactTimeline";
 import { emitWorkspaceEvent } from "./events";
@@ -224,6 +225,126 @@ export function buildAgentToolPrompt(tools: ToolPolicy[]): string {
     "For payments, only log a pending claim. Never confirm or reject payments.",
     "If no tool is needed, return tool_calls as an empty array.",
   ].join("\n");
+}
+
+// استدعاء الأدوات الأصلي (native function calling): يحوّل كل ToolPolicy مفعّلة إلى AiFunctionDeclaration
+// (اسم + وصف + JSON Schema) يفهمه Gemini/Vertex مباشرة — يُغني تدريجياً عن buildAgentToolPrompt النصّي الهشّ.
+// هذه الدالة بناء فقط (لا تُستدعى بعد من أي مسار تنفيذي) — الأساس لتبديل مسار الوكيل لاحقاً.
+function buildOrderItemParametersSchema(): Record<string, unknown> {
+  return {
+    type: "object",
+    properties: {
+      name: { type: "string", description: "Item name." },
+      description: { type: "string", description: "Optional item description." },
+      quantity: { type: "integer", description: "Quantity ordered (whole number)." },
+      unitPrice: { type: "number", description: "Price per unit." },
+      currency: {
+        type: "string",
+        description: "ISO code: YER for ريال يمني, SAR for ريال سعودي, USD for دولار.",
+        enum: [...CURRENCY_VALUES],
+      },
+    },
+    required: ["name", "quantity", "unitPrice"],
+  };
+}
+
+function buildToolParametersSchema(key: AgentToolKey): Record<string, unknown> {
+  if (key === "create_order") {
+    return {
+      type: "object",
+      properties: {
+        currency: {
+          type: "string",
+          description: "ISO code: YER for ريال يمني, SAR for ريال سعودي, USD for دولار.",
+          enum: [...CURRENCY_VALUES],
+        },
+        channel: {
+          type: "string",
+          description: "Order origin channel.",
+          enum: [...ORDER_CHANNEL_VALUES],
+        },
+        discount: { type: "number", description: "Flat discount amount to subtract from the order total." },
+        notes: { type: "string", description: "Free-text notes about the order." },
+        items: {
+          type: "array",
+          description: "Order line items.",
+          items: buildOrderItemParametersSchema(),
+        },
+      },
+      required: ["items"],
+    };
+  }
+
+  if (key === "log_payment_claim") {
+    return {
+      type: "object",
+      properties: {
+        amount: { type: "number", description: "Claimed payment amount." },
+        currency: {
+          type: "string",
+          description: "ISO code: YER for ريال يمني, SAR for ريال سعودي, USD for دولار.",
+          enum: [...CURRENCY_VALUES],
+        },
+        method: {
+          type: "string",
+          description: "Payment method used by the customer.",
+          enum: [...PAYMENT_METHOD_VALUES],
+        },
+        paymentMethodId: { type: "string", description: "UUID of a configured payment method, if known." },
+        orderId: { type: "string", description: "UUID of the related order, if known." },
+        reference: { type: "string", description: "Payment reference/transaction number, if provided." },
+        notes: { type: "string", description: "Free-text notes about the claim." },
+        paidAt: { type: "string", description: "ISO datetime the payment was made, if known." },
+      },
+      required: ["amount"],
+    };
+  }
+
+  if (key === "schedule_followup") {
+    return {
+      type: "object",
+      properties: {
+        dueAt: { type: "string", description: "dueAt as ISO datetime." },
+        type: {
+          type: "string",
+          description: "Follow-up category.",
+          enum: [...FOLLOWUP_TYPE_VALUES],
+        },
+        notes: { type: "string", description: "Free-text notes about the follow-up." },
+        assignedMembershipId: { type: "string", description: "UUID of the team member to assign, if known." },
+      },
+      required: ["dueAt"],
+    };
+  }
+
+  if (key === "send_product_media") {
+    return {
+      type: "object",
+      properties: {
+        productId: { type: "string", description: "Inventory product UUID. Provide one of productId, externalProductId, or productName." },
+        externalProductId: { type: "string", description: "Inventory product SKU. Provide one of productId, externalProductId, or productName." },
+        productName: { type: "string", description: "Inventory product name to fuzzy-match. Provide one of productId, externalProductId, or productName." },
+        caption: { type: "string", description: "Optional caption to send with the product image." },
+      },
+      required: [],
+    };
+  }
+
+  return {
+    type: "object",
+    properties: {
+      reason: { type: "string", description: "Reason the conversation is being handed off to a human." },
+    },
+    required: [],
+  };
+}
+
+export function buildAgentToolDeclarations(tools: ToolPolicy[]): AiFunctionDeclaration[] {
+  return tools.map((tool) => ({
+    name: tool.key,
+    description: publicToolSpec(tool),
+    parameters: buildToolParametersSchema(tool.key),
+  }));
 }
 
 // النماذج كثيراً ما تُخرج JSON بأسطر/أحرف تحكّم حقيقية داخل قيمة النص، فيكسر JSON.parse.
