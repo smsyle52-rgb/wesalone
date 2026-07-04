@@ -37,7 +37,7 @@ describe("onboarding-status", () => {
     })).toBe(true);
   });
 
-  it("moves through the three canonical onboarding steps", () => {
+  it("moves through the two canonical onboarding steps (agent, then channel)", () => {
     expect(resolveCurrentOnboardingStep({
       steps: {
         agent: { completed: false, agentId: null, updatedAt: null },
@@ -54,13 +54,27 @@ describe("onboarding-status", () => {
       },
     })).toBe(2);
 
+    // بعد اكتمال الوكيل والقناة onboarding نفسه مكتمل فعلياً (انظر resolveOnboardingCompletion) —
+    // knowledge لم تعد بوابة، فلا توجد "خطوة 3" حقيقية بعد الآن.
     expect(resolveCurrentOnboardingStep({
       steps: {
         agent: { completed: true, agentId: "a1", updatedAt: null },
         channel: { completed: true, channelAccountId: "c1", channelType: "whatsapp", updatedAt: null },
         knowledge: { completed: false, knowledgeBaseId: null, documentId: null, updatedAt: null },
       },
-    })).toBe(3);
+    })).toBe(2);
+  });
+
+  it("completes onboarding once agent and channel are done, regardless of knowledge", () => {
+    expect(resolveOnboardingCompletion({
+      persistedCompleted: false,
+      steps: {
+        agent: { completed: true, agentId: "a1", updatedAt: null },
+        channel: { completed: true, channelAccountId: "c1", channelType: "whatsapp", updatedAt: null },
+        knowledge: { completed: false, knowledgeBaseId: null, documentId: null, updatedAt: null },
+      },
+      channelRows: [],
+    })).toBe(true);
   });
 
   it("keeps onboarding complete after launch when the workspace has a persisted completion flag", () => {

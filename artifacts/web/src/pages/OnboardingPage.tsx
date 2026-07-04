@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Bot, BookOpenText, CheckCircle2, Link2, Loader2, Plug, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Bot, CheckCircle2, Link2, Loader2, Plug, ShieldCheck, Sparkles } from "lucide-react";
 import { FaInstagram, FaWhatsapp } from "react-icons/fa6";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeOnboardingStatus, routeForOnboardingStatus } from "@/lib/onboarding";
 import { cn } from "@/lib/utils";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
-const STEP_COUNT = 3;
+const STEP_COUNT = 2;
 const FACEBOOK_SDK_SCRIPT_ID = "facebook-jssdk";
 const FACEBOOK_SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2;
 
 type FacebookLoginResponse = {
   authResponse?: {
@@ -79,11 +79,6 @@ type ConnectedChannel = {
   hasCredentialReference: boolean;
 };
 
-type KnowledgeBase = {
-  id: string;
-  name: string;
-};
-
 type AgentDetailResponse = {
   agent?: {
     id: string;
@@ -144,7 +139,6 @@ const JOURNEY_STEPS: Array<{
 }> = [
   { index: 1, title: "أنشئ وكيلك", text: "أنشئ وكيلك الذكي وحدد دوره وأهدافه.", Icon: Bot },
   { index: 2, title: "اربط قناة", text: "اربط القناة التي تريد أن يتواصل عبرها وكيلك.", Icon: Link2 },
-  { index: 3, title: "أضف معلومات نشاطك", text: "أضف معلومات نشاطك لتقديم إجابات دقيقة وموثوقة.", Icon: BookOpenText },
 ];
 
 const STEP_GUIDANCE: Record<Step, { title: string; outcome: string; checklist: string[] }> = {
@@ -159,20 +153,11 @@ const STEP_GUIDANCE: Record<Step, { title: string; outcome: string; checklist: s
   },
   2: {
     title: "اربط قناة تستقبل منها الرسائل فعلاً",
-    outcome: "بمجرد نجاح الربط سنفتح لك خطوة المعرفة الأخيرة.",
+    outcome: "بمجرد نجاح الربط تكتمل التهيئة وتدخل لوحة التحكم مباشرة.",
     checklist: [
       "واتساب أو إنستغرام تجاري فقط",
       "الحساب يجب أن يكون متصلاً في Meta",
       "إذا كانت القناة جاهزة سنكتشفها تلقائياً",
-    ],
-  },
-  3: {
-    title: "أدخل الحد الأدنى الذي يحتاجه الوكيل للرد",
-    outcome: "بعد الحفظ ستدخل مباشرة إلى لوحة التحكم ويبدأ المسار الفعلي.",
-    checklist: [
-      "الخدمات أو المنتجات المتاحة",
-      "أوقات العمل والدفع والتوصيل",
-      "أي معلومة يجب أن يعتذر عنها الوكيل إذا لم يجدها",
     ],
   },
 };
@@ -363,17 +348,21 @@ function parseEmbeddedSignupMessage(data: unknown): EmbeddedSignupMessage | null
   };
 }
 
+function toWizardStep(value: 1 | 2 | 3): Step {
+  return value >= 2 ? 2 : 1;
+}
+
 export default function OnboardingPage() {
   const [, navigate] = useLocation();
   const { user, onboardingStatus, refreshAuth } = useAuth();
   const stepContentRef = useRef<HTMLDivElement | null>(null);
-  const [step, setStep] = useState<Step>(onboardingStatus.currentStep);
+  const [step, setStep] = useState<Step>(toWizardStep(onboardingStatus.currentStep));
   const [agentName, setAgentName] = useState("");
   const [businessType, setBusinessType] = useState("services_general");
   const [instructions, setInstructions] = useState("");
-  const [knowledgeTitle, setKnowledgeTitle] = useState("معلومات النشاط");
-  const [knowledgeBody, setKnowledgeBody] = useState("");
   const [channelError, setChannelError] = useState<string | null>(null);
+  const [finishError, setFinishError] = useState<string | null>(null);
+  const [isFinishing, setIsFinishing] = useState(false);
   const signupSessionInfoRef = useRef<EmbeddedSignupSessionInfo | null>(null);
   const signupSessionErrorRef = useRef<string | null>(null);
   const agentPrefilledRef = useRef(false);
@@ -385,7 +374,7 @@ export default function OnboardingPage() {
       navigate("/dashboard");
       return;
     }
-    setStep(onboardingStatus.currentStep);
+    setStep(toWizardStep(onboardingStatus.currentStep));
   }, [navigate, onboardingStatus.completed, onboardingStatus.currentStep]);
 
   const sectorsQuery = useQuery({
@@ -409,12 +398,6 @@ export default function OnboardingPage() {
     queryKey: ["onboarding-meta-channels"],
     queryFn: () => apiFetch<{ accounts?: ConnectedChannel[] }>("integrations/meta/channels"),
     enabled: step === 2,
-  });
-
-  const knowledgeBasesQuery = useQuery({
-    queryKey: ["onboarding-knowledge-bases"],
-    queryFn: () => apiFetch<{ bases?: KnowledgeBase[] }>("knowledge/bases"),
-    enabled: step === 3,
   });
 
   useEffect(() => {
@@ -466,25 +449,20 @@ export default function OnboardingPage() {
   const completedCount = [
     onboardingStatus.steps.agent.completed,
     onboardingStatus.steps.channel.completed,
-    onboardingStatus.steps.knowledge.completed,
   ].filter(Boolean).length;
   const nextButtonLabel = step === 1
     ? "ابدأ الآن"
-    : step === 2
-    ? channelReady
-      ? "تابع للإكمال"
-      : "تابع الربط"
-    : "أكمل التهيئة";
+    : channelReady
+    ? "أكمل التهيئة"
+    : "تابع الربط";
   const progressHeadline = completedCount === 0
-    ? "3 خطوات فقط"
+    ? "خطوتان فقط"
     : `${completedCount} من ${STEP_COUNT} مكتملة`;
   const progressText = step === 1
     ? "سنكون جاهزين للانطلاق في دقائق."
-    : step === 2
-    ? channelReady
-      ? "تم ربط القناة بنجاح. بقيت معلومات نشاطك."
-      : "تم إنشاء وكيلك بنجاح. تابع لربط قناتك."
-    : "بعد حفظ المعرفة ستنتقل مباشرة إلى لوحة التحكم.";
+    : channelReady
+    ? "تم ربط القناة بنجاح. أكمل التهيئة للدخول إلى لوحة التحكم."
+    : "تم إنشاء وكيلك بنجاح. تابع لربط قناتك.";
   const visibleChannelOptions = CHANNEL_OPTIONS.filter((option) => {
     if (option.key === "instagramMessenger") {
       return !connectedChannels.some((item) => (item.channelType === "instagram" || item.channelType === "messenger") && item.status === "active");
@@ -498,11 +476,33 @@ export default function OnboardingPage() {
 
   function handleHeroAction() {
     if (step === 2 && channelReady) {
-      setStep(3);
-      requestAnimationFrame(() => scrollToStepContent());
+      void finishOnboarding();
       return;
     }
     scrollToStepContent();
+  }
+
+  async function finishOnboarding() {
+    setFinishError(null);
+    setIsFinishing(true);
+    try {
+      await apiFetch("workspace", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: { onboarding_completed: true } }),
+      });
+      await refreshAuth();
+      const authSnapshot = await apiFetch<{ onboardingStatus?: unknown; onboardingCompleted?: boolean }>("auth/me");
+      const nextStatus = normalizeOnboardingStatus(authSnapshot.onboardingStatus, authSnapshot.onboardingCompleted === true);
+      if (!nextStatus.completed) {
+        throw new Error("تم الحفظ لكن لم تكتمل التهيئة بعد. تحقق من الوكيل والقناة ثم حاول مجدداً.");
+      }
+      navigate(routeForOnboardingStatus(nextStatus));
+    } catch (err) {
+      setFinishError((err as Error).message);
+    } finally {
+      setIsFinishing(false);
+    }
   }
 
   function waitForCapturedSignupInfo(timeoutMs = 20000): Promise<EmbeddedSignupSessionInfo> {
@@ -615,7 +615,7 @@ export default function OnboardingPage() {
       setConnectingKey(optionKey);
     },
     onSettled: () => setConnectingKey(null),
-    onSuccess: () => setStep(3),
+    onSuccess: () => void finishOnboarding(),
     onError: (error) => setChannelError((error as Error).message),
   });
 
@@ -623,44 +623,8 @@ export default function OnboardingPage() {
     mutationFn: () => apiFetch("auth/resend-verification", { method: "POST" }),
   });
 
-  const saveKnowledgeMutation = useMutation({
-    mutationFn: async () => {
-      const title = knowledgeTitle.trim() || "معلومات النشاط";
-      const contentText = knowledgeBody.trim();
-      if (contentText.length < 30) {
-        throw new Error("أضف معلومات حقيقية عن النشاط قبل الإكمال.");
-      }
-      let baseId = onboardingStatus.steps.knowledge.knowledgeBaseId ?? knowledgeBasesQuery.data?.bases?.[0]?.id ?? null;
-      if (!baseId) {
-        const createdBase = await apiFetch<{ base: { id: string } }>("knowledge/bases", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: title, description: "قاعدة معرفة التهيئة الأولى" }),
-        });
-        baseId = createdBase.base.id;
-      }
-      await apiFetch(`knowledge/bases/${baseId}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, contentText }),
-      });
-      await apiFetch("workspace", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings: { onboarding_completed: true } }),
-      });
-      await refreshAuth();
-      const authSnapshot = await apiFetch<{ onboardingStatus?: unknown; onboardingCompleted?: boolean }>("auth/me");
-      const nextStatus = normalizeOnboardingStatus(authSnapshot.onboardingStatus, authSnapshot.onboardingCompleted === true);
-      if (!nextStatus.completed) {
-        throw new Error("تم الحفظ لكن لم تكتمل التهيئة بعد. تحقق من القناة والمعرفة ثم حاول مجدداً.");
-      }
-      navigate(routeForOnboardingStatus(nextStatus));
-    },
-  });
-
   function stepBadge(index: Step) {
-    const completed = index === 1 ? onboardingStatus.steps.agent.completed : index === 2 ? onboardingStatus.steps.channel.completed : onboardingStatus.steps.knowledge.completed;
+    const completed = index === 1 ? onboardingStatus.steps.agent.completed : onboardingStatus.steps.channel.completed;
     return (
       <div
         key={index}
@@ -736,16 +700,14 @@ export default function OnboardingPage() {
             </p>
           </div>
 
-          <div className="relative mx-auto mt-8 max-w-3xl px-1 sm:mt-10">
-            <svg viewBox="0 0 600 220" className="pointer-events-none absolute inset-x-0 top-0 h-[180px] w-full">
-              <circle cx="300" cy="28" r="10" fill="white" stroke="rgba(93,99,255,0.35)" strokeWidth="6" />
-              <path d="M125 126 Q300 8 475 126" fill="none" stroke="rgba(93,99,255,0.45)" strokeWidth="4" strokeLinecap="round" />
-              <path d="M300 28 L300 116" fill="none" stroke="rgba(93,99,255,0.45)" strokeWidth="4" strokeLinecap="round" />
+          <div className="relative mx-auto mt-8 max-w-2xl px-1 sm:mt-10">
+            <svg viewBox="0 0 600 160" className="pointer-events-none absolute inset-x-0 top-0 h-[140px] w-full">
+              <path d="M150 126 Q300 70 450 126" fill="none" stroke="rgba(93,99,255,0.45)" strokeWidth="4" strokeLinecap="round" />
             </svg>
 
-            <div className="relative grid grid-cols-3 gap-3 pt-14 sm:gap-6 sm:pt-16">
+            <div className="relative grid grid-cols-2 gap-3 pt-14 sm:gap-6 sm:pt-16">
               {JOURNEY_STEPS.map((item) => {
-                const completed = item.index === 1 ? onboardingStatus.steps.agent.completed : item.index === 2 ? onboardingStatus.steps.channel.completed : onboardingStatus.steps.knowledge.completed;
+                const completed = item.index === 1 ? onboardingStatus.steps.agent.completed : onboardingStatus.steps.channel.completed;
                 const active = step === item.index;
                 const canOpen = item.index <= step;
                 const Icon = item.Icon;
@@ -922,11 +884,12 @@ export default function OnboardingPage() {
                     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                       <button
                         type="button"
-                        onClick={() => setStep(3)}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 sm:w-auto"
+                        onClick={() => void finishOnboarding()}
+                        disabled={isFinishing}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 sm:w-auto"
                       >
-                        متابعة
-                        <ArrowLeft className="h-4 w-4" />
+                        {isFinishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowLeft className="h-4 w-4" />}
+                        أكمل التهيئة
                       </button>
                       <button
                         type="button"
@@ -936,6 +899,11 @@ export default function OnboardingPage() {
                         رجوع لتعريف الوكيل
                       </button>
                     </div>
+                    {finishError && (
+                      <div className="mt-3 rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                        {finishError}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -994,72 +962,6 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            {step === 3 && (
-              <div className="space-y-6">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <BookOpenText className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-foreground">أضف معرفة أولية</h2>
-                    <p className="mt-1 text-sm leading-7 text-muted-foreground">
-                      هذه الخطوة تنشئ أو تستخدم قاعدة معرفة حقيقية ثم تحفظ مستنداً جاهزاً مع chunks قابلة للبحث.
-                    </p>
-                  </div>
-                </div>
-
-                <label className="block space-y-2">
-                  <span className="text-sm font-semibold text-foreground">عنوان المعرفة</span>
-                  <input
-                    value={knowledgeTitle}
-                    onChange={(e) => setKnowledgeTitle(e.target.value)}
-                    className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder="مثال: معلومات النشاط"
-                  />
-                </label>
-
-                <label className="block space-y-2">
-                  <span className="text-sm font-semibold text-foreground">محتوى المعرفة</span>
-                  <textarea
-                    value={knowledgeBody}
-                    onChange={(e) => setKnowledgeBody(e.target.value)}
-                    rows={10}
-                    className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm leading-7 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder={"اكتب هنا معلومات حقيقية مثل:\n- الخدمات أو المنتجات المتاحة\n- أوقات العمل\n- سياسة التوصيل والدفع\n- ما الذي يجب أن يعتذر عنه الوكيل عند غياب المعلومة"}
-                  />
-                </label>
-
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    {knowledgeBasesQuery.data?.bases?.length ? `سيُستخدم أحدث قاعدة معرفة موجودة (${knowledgeBasesQuery.data.bases[0].name}).` : "إذا لم توجد قاعدة معرفة فسيتم إنشاء واحدة الآن."}
-                  </p>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setStep(2)}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted/60 sm:w-auto"
-                    >
-                      رجوع لربط القناة
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => saveKnowledgeMutation.mutate()}
-                      disabled={saveKnowledgeMutation.isPending}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
-                    >
-                      {saveKnowledgeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                      حفظ وإنهاء التهيئة
-                    </button>
-                  </div>
-                </div>
-
-                {saveKnowledgeMutation.isError && (
-                  <div className="rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                    {(saveKnowledgeMutation.error as Error).message}
-                  </div>
-                )}
-              </div>
-            )}
         </section>
         </>
         )}

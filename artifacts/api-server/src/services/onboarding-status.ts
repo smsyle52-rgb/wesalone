@@ -97,8 +97,7 @@ function latestIso(...values: Array<string | null>): string | null {
 export function resolveCurrentOnboardingStep(status: Pick<OnboardingStatus, "steps">): 1 | 2 | 3 {
   if (!status.steps.agent.completed) return 1;
   if (!status.steps.channel.completed) return 2;
-  if (!status.steps.knowledge.completed) return 3;
-  return 3;
+  return 2;
 }
 
 function readWorkspaceSettings(value: unknown): WorkspaceSettingsRecord {
@@ -118,7 +117,7 @@ export function resolveOnboardingCompletion(params: {
   steps: OnboardingStatus["steps"];
   channelRows: ChannelSnapshot[];
 }): boolean {
-  const dynamicallyCompleted = params.steps.agent.completed && params.steps.channel.completed && params.steps.knowledge.completed;
+  const dynamicallyCompleted = params.steps.agent.completed && params.steps.channel.completed;
   if (params.persistedCompleted || dynamicallyCompleted) return true;
 
   const hadConnectedChannelBefore = params.channelRows.some((row) =>
@@ -126,7 +125,7 @@ export function resolveOnboardingCompletion(params: {
     && hasHistoricalChannelEvidence(row),
   );
 
-  return params.steps.agent.completed && params.steps.knowledge.completed && hadConnectedChannelBefore;
+  return params.steps.agent.completed && hadConnectedChannelBefore;
 }
 
 export async function getWorkspaceOnboardingStatus(workspaceId: string): Promise<OnboardingStatus> {
@@ -272,7 +271,7 @@ export async function getWorkspaceOnboardingStatus(workspaceId: string): Promise
     completed,
     currentStep: completed ? 3 : resolveCurrentOnboardingStep({ steps }),
     completedAt: completed
-      ? latestIso(steps.agent.updatedAt, steps.channel.updatedAt, steps.knowledge.updatedAt)
+      ? latestIso(steps.agent.updatedAt, steps.channel.updatedAt)
       : null,
     steps,
   };
