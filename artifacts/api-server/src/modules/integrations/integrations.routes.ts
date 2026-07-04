@@ -26,6 +26,8 @@ import {
 import { collectEquivalentMetaChannelIds, lookupAliasesForMetaKey } from "./meta-channel-identity";
 import { checkLimit } from "../../services/billing";
 import { getWorkspaceOnboardingStatus } from "../../services/onboarding-status";
+import { syncCatalogSource } from "../../services/meta-catalog-sync";
+import { autoSyncCreatedCatalogSources, resolveCatalogsForSelectedWabas } from "./catalog-auto-sync";
 
 const router = Router();
 router.use(requireSession);
@@ -125,6 +127,7 @@ type MetaPhoneNumber = {
 type MetaChannelOptions = {
   whatsapp_accounts: Array<{
     waba_id: string;
+    business_id?: string;
     name: string;
     phone_numbers: MetaPhoneNumber[];
   }>;
@@ -305,6 +308,7 @@ async function fetchMetaChannelOptions(userToken: string): Promise<{ options: Me
     for (const waba of business?.owned_whatsapp_business_accounts?.data ?? []) {
       whatsappAccounts.push({
         waba_id: String(waba.id),
+        business_id: businessId,
         name: String(waba.name ?? business.name ?? "WhatsApp Business"),
         phone_numbers: (waba.phone_numbers?.data ?? []).map((phone: any) => ({
           phone_number_id: String(phone.id),
@@ -390,6 +394,66 @@ const metaEmbeddedSignupMessengerSchema = z.object({
 const metaEmbeddedSignupInstagramMessengerSchema = z.object({
   code: z.string().trim().min(1),
 });
+
+async function upsertMetaCatalogSources(params: {
+  req: AuthenticatedRequest;
+  catalogs: Array<{
+    catalog_id: string;
+    name: string;
+    business_id?: string;
+    linked_waba_id: string | null;
+  }>;
+  channelAccountIdByWabaId: Map<string, string>;
+  connectedAt: string;
+}): Promise<Array<typeof catalogSourcesTable.$inferSelect>> {
+  const createdSources: Array<typeof catalogSourcesTable.$inferSelect> = [];
+
+  for (const catalog of params.catalogs) {
+    const channelAccountId = catalog.linked_waba_id
+      ? params.channelAccountIdByWabaId.get(catalog.linked_waba_id) ?? null
+      : null;
+    const [source] = await db.insert(catalogSourcesTable).values({
+      workspaceId: params.req.sessionUser.activeWorkspaceId,
+      channelAccountId,
+      sourceType: "commerce_catalog",
+      externalId: catalog.catalog_id,
+      name: catalog.name || catalog.catalog_id,
+      status: "active",
+      config: {
+        provider: "meta",
+        business_id: catalog.business_id ?? null,
+        waba_id: catalog.linked_waba_id,
+        connectedAt: params.connectedAt,
+      },
+    }).onConflictDoUpdate({
+      target: [catalogSourcesTable.workspaceId, catalogSourcesTable.sourceType, catalogSourcesTable.externalId],
+      set: {
+        name: catalog.name || catalog.catalog_id,
+        channelAccountId,
+        config: {
+          provider: "meta",
+          business_id: catalog.business_id ?? null,
+          waba_id: catalog.linked_waba_id,
+          connectedAt: params.connectedAt,
+        },
+        status: "active",
+        updatedAt: new Date(),
+      },
+    }).returning();
+    createdSources.push(source);
+    await createAuditLog({
+      ...auditFromRequest(params.req, params.req.sessionUser),
+      action: "catalog_source_create",
+      severity: "info",
+      entityType: "catalog_source",
+      entityId: source.id,
+      entityLabel: source.name,
+      newData: { sourceType: source.sourceType, externalId: source.externalId, provider: "meta" },
+    });
+  }
+
+  return createdSources;
+}
 
 function currentMetaSession(req: AuthenticatedRequest): { options: MetaChannelOptions; tokenRefs: MetaTokenRefs } {
   const stored = (req.session as any).metaChannelOptions;
@@ -624,7 +688,12 @@ async function listPersistedMetaChannelOptions(workspaceId: string): Promise<Met
       const wabaId = String(config.waba_id ?? config.wabaId ?? "");
       const key = wabaId || account.id;
       if (!whatsappByWaba.has(key)) {
-        whatsappByWaba.set(key, { waba_id: wabaId, name: account.displayName, phone_numbers: [] });
+        whatsappByWaba.set(key, {
+          waba_id: wabaId,
+          business_id: typeof config.business_id === "string" ? config.business_id : undefined,
+          name: account.displayName,
+          phone_numbers: [],
+        });
       }
       whatsappByWaba.get(key)!.phone_numbers.push({
         phone_number_id: phoneNumberId,
@@ -939,6 +1008,31 @@ router.post("/meta/embedded-signup/complete", requirePermission("integrations:up
     req.log?.warn({ err, channelAccountId: account.id, phoneNumberId }, "Meta phone number registration failed; continuing");
   }
 
+  let discoveredMetaOptions: MetaChannelOptions;
+  try {
+    discoveredMetaOptions = (await fetchMetaChannelOptions(userToken)).options;
+  } catch (err) {
+    req.log?.warn({ err, channelAccountId: account.id, wabaId }, "Meta catalog discovery failed after embedded signup; using fallback options");
+    discoveredMetaOptions = fallbackMetaOptions().options;
+  }
+
+  const createdSources = await upsertMetaCatalogSources({
+    req,
+    catalogs: resolveCatalogsForSelectedWabas({
+      whatsappAccounts: discoveredMetaOptions.whatsapp_accounts,
+      commerceCatalogs: discoveredMetaOptions.commerce_catalogs,
+      selectedWabaIds: [wabaId],
+      selectedCatalogIds: [],
+    }),
+    channelAccountIdByWabaId: new Map([[wabaId, account.id]]),
+    connectedAt,
+  });
+  const autoSyncResults = await autoSyncCreatedCatalogSources(
+    createdSources,
+    syncCatalogSource,
+    (source, err) => req.log?.warn({ err, sourceId: source.id, channelAccountId: account.id }, "Auto sync failed for embedded signup catalog source"),
+  );
+
   res.status(201).json({
     account: {
       id: account.id,
@@ -952,6 +1046,15 @@ router.post("/meta/embedded-signup/complete", requirePermission("integrations:up
       createdAt: account.createdAt,
       updatedAt: account.updatedAt,
     },
+    sources: createdSources.map((source) => ({
+      id: source.id,
+      source_type: source.sourceType,
+      sourceType: source.sourceType,
+      name: source.name,
+      status: source.status,
+      syncStatus: autoSyncResults.get(source.id)?.status ?? source.syncStatus,
+      syncResult: autoSyncResults.get(source.id) ?? null,
+    })),
   });
 });
 
@@ -1313,6 +1416,7 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
         displayName: phone.display_number ? `WhatsApp ${phone.display_number}` : `WhatsApp ${phone.phone_number_id}`,
         providerConfig: {
           provider: "meta",
+          business_id: account.business_id ?? null,
           meta_app_id: metaAppId,
           waba_id: account.waba_id,
           phone_number_id: phone.phone_number_id,
@@ -1407,59 +1511,25 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
   }
 
   const selectedWhatsappChannels = created.filter((account) => account.channelType === "whatsapp");
-  const selectedWhatsappWabaIds = [...new Set(
-    selectedWhatsappChannels
-      .map((account) => providerConfigString(account.providerConfig, "waba_id", "wabaId"))
-      .filter((value): value is string => Boolean(value)),
-  )];
-  const linkedCatalogChannelId = selectedWhatsappWabaIds.length === 1 && selectedWhatsappChannels.length > 0
-    ? selectedWhatsappChannels[0]!.id
-    : null;
-  const linkedCatalogWabaId = selectedWhatsappWabaIds.length === 1
-    ? selectedWhatsappWabaIds[0]!
-    : null;
-
-  for (const catalog of options.commerce_catalogs) {
-    if (!parsed.data.catalog_ids.includes(catalog.catalog_id)) continue;
-    const [source] = await db.insert(catalogSourcesTable).values({
-      workspaceId: req.sessionUser.activeWorkspaceId,
-      channelAccountId: linkedCatalogChannelId,
-      sourceType: "commerce_catalog",
-      externalId: catalog.catalog_id,
-      name: catalog.name || catalog.catalog_id,
-      status: "active",
-      config: {
-        provider: "meta",
-        business_id: catalog.business_id ?? null,
-        waba_id: linkedCatalogWabaId,
-        connectedAt,
-      },
-    }).onConflictDoUpdate({
-      target: [catalogSourcesTable.workspaceId, catalogSourcesTable.sourceType, catalogSourcesTable.externalId],
-      set: {
-        name: catalog.name || catalog.catalog_id,
-        channelAccountId: linkedCatalogChannelId,
-        config: {
-          provider: "meta",
-          business_id: catalog.business_id ?? null,
-          waba_id: linkedCatalogWabaId,
-          connectedAt,
-        },
-        status: "active",
-        updatedAt: new Date(),
-      },
-    }).returning();
-    createdSources.push(source);
-    await createAuditLog({
-      ...auditFromRequest(req, req.sessionUser),
-      action: "catalog_source_create",
-      severity: "info",
-      entityType: "catalog_source",
-      entityId: source.id,
-      entityLabel: source.name,
-      newData: { sourceType: source.sourceType, externalId: source.externalId, provider: "meta" },
-    });
+  const selectedWhatsappChannelIdByWabaId = new Map<string, string>();
+  for (const account of selectedWhatsappChannels) {
+    const wabaId = providerConfigString(account.providerConfig, "waba_id", "wabaId");
+    if (!wabaId || selectedWhatsappChannelIdByWabaId.has(wabaId)) continue;
+    selectedWhatsappChannelIdByWabaId.set(wabaId, account.id);
   }
+
+  const linkedCatalogs = resolveCatalogsForSelectedWabas({
+    whatsappAccounts: options.whatsapp_accounts,
+    commerceCatalogs: options.commerce_catalogs,
+    selectedWabaIds: [...selectedWhatsappChannelIdByWabaId.keys()],
+    selectedCatalogIds: parsed.data.catalog_ids,
+  });
+  createdSources.push(...await upsertMetaCatalogSources({
+    req,
+    catalogs: linkedCatalogs,
+    channelAccountIdByWabaId: selectedWhatsappChannelIdByWabaId,
+    connectedAt,
+  }));
 
   for (const account of options.ad_accounts) {
     if (!parsed.data.ad_account_ids.includes(account.ad_account_id)) continue;
@@ -1486,6 +1556,12 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
     });
   }
 
+  const autoSyncResults = await autoSyncCreatedCatalogSources(
+    createdSources,
+    syncCatalogSource,
+    (source, err) => req.log?.warn({ err, sourceId: source.id }, "Auto sync failed for newly connected catalog source"),
+  );
+
   res.status(201).json({
     accounts: created.map((account) => ({
       id: account.id,
@@ -1501,7 +1577,8 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       sourceType: source.sourceType,
       name: source.name,
       status: source.status,
-      syncStatus: source.syncStatus,
+      syncStatus: autoSyncResults.get(source.id)?.status ?? source.syncStatus,
+      syncResult: autoSyncResults.get(source.id) ?? null,
     })),
   });
 });
