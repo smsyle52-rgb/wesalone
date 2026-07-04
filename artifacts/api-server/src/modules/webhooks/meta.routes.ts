@@ -14,6 +14,7 @@ import {
 import { env } from "../../lib/env";
 import { logger } from "../../lib/logger";
 import { verifyMetaHmac } from "../../lib/meta-signature";
+import { extractMetaCommerceMessage } from "../integrations/meta-commerce-message";
 import { handleMetaWebhook } from "../integrations/meta-webhook.handler";
 import { ingestWebhookEvent } from "../integrations/webhookIngest.service";
 import { notifyWorkspace } from "../../services/notifications";
@@ -420,9 +421,10 @@ async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage
 
   // PD-3 fix: استخرج محتوى الوسائط (صورة/صوت/فيديو/مستند) لا تتجاهل الرسالة
   const textContent = message.text?.body?.trim();
-  const media = textContent ? null : extractMedia(message);
-  const content = textContent ?? media?.content;
-  const attachments = media?.attachments ?? [];
+  const structured = textContent ? null : extractMetaCommerceMessage(message, "whatsapp");
+  const media = textContent || structured ? null : extractMedia(message);
+  const content = textContent ?? structured?.content ?? media?.content;
+  const attachments = structured?.attachments ?? media?.attachments ?? [];
 
   if (!phoneNumberId || !from || !content) {
     logger.warn({ phoneNumberId, from, messageId: message.id, type: message.type }, "Skipping incomplete Meta inbound message");

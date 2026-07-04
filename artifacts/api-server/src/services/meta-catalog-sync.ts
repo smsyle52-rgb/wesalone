@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, notInArray } from "drizzle-orm";
+import { and, desc, eq, notInArray, or, sql } from "drizzle-orm";
 import {
   adCampaignsTable,
   catalogSourcesTable,
@@ -16,6 +16,7 @@ import {
   type Product,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { resolveCredentialsSecretRef } from "./meta-whatsapp-business-profile";
 import { rebuildDocumentChunks } from "./kb-chunker";
 
 function requireMetaGraphVersion(): string {
@@ -79,28 +80,76 @@ type MetaAd = {
   end_time?: string | null;
 };
 
-function isDryRun(): boolean {
-  return process.env.META_DRY_RUN === "true" || !process.env.META_APP_SECRET;
+function stringConfig(config: Record<string, unknown>, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const value = config[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
 }
 
-function accessToken(source: CatalogSource, channelAccount?: { credentialsSecretRef: string | null } | null): string | null {
-  if (isDryRun()) return null;
+function sourceConfig(source: CatalogSource): Record<string, unknown> {
+  return source.config && typeof source.config === "object" && !Array.isArray(source.config)
+    ? source.config as Record<string, unknown>
+    : {};
+}
+
+function isDryRun(channelAccount?: { id: string; credentialsSecretRef: string | null } | null): boolean {
+  if (process.env.META_DRY_RUN === "true") return true;
+  if (process.env.META_SYSTEM_USER_TOKEN) return false;
+  if (process.env.META_ACCESS_TOKEN) return false;
+  if (channelAccount?.credentialsSecretRef) return false;
+  return !process.env.META_APP_SECRET;
+}
+
+function accessToken(source: CatalogSource, channelAccount?: { id: string; credentialsSecretRef: string | null } | null): string | null {
+  if (isDryRun(channelAccount)) return null;
   if (process.env.META_SYSTEM_USER_TOKEN) return process.env.META_SYSTEM_USER_TOKEN;
   if (process.env.META_ACCESS_TOKEN) return process.env.META_ACCESS_TOKEN;
   if (channelAccount?.credentialsSecretRef) {
-    logger.warn({ sourceId: source.id }, "Meta catalog token secret reference is configured but runtime resolver is not enabled");
+    try {
+      return resolveCredentialsSecretRef(channelAccount.credentialsSecretRef);
+    } catch (err) {
+      logger.warn({ err, sourceId: source.id, channelAccountId: channelAccount.id }, "Meta catalog access token could not be resolved from the linked channel");
+    }
   }
   throw new Error("Meta catalog access token is not configured");
 }
 
 async function loadChannelAccount(source: CatalogSource) {
-  if (!source.channelAccountId) return null;
-  const [account] = await db
-    .select({ id: channelAccountsTable.id, credentialsSecretRef: channelAccountsTable.credentialsSecretRef })
+  if (source.channelAccountId) {
+    const [account] = await db
+      .select({ id: channelAccountsTable.id, credentialsSecretRef: channelAccountsTable.credentialsSecretRef })
+      .from(channelAccountsTable)
+      .where(eq(channelAccountsTable.id, source.channelAccountId))
+      .limit(1);
+    if (account) return account;
+  }
+
+  const config = sourceConfig(source);
+  const sourceWabaId = stringConfig(config, "waba_id", "wabaId");
+  const accounts = await db
+    .select({
+      id: channelAccountsTable.id,
+      credentialsSecretRef: channelAccountsTable.credentialsSecretRef,
+      providerConfig: channelAccountsTable.providerConfig,
+    })
     .from(channelAccountsTable)
-    .where(eq(channelAccountsTable.id, source.channelAccountId))
-    .limit(1);
-  return account ?? null;
+    .where(and(
+      eq(channelAccountsTable.workspaceId, source.workspaceId),
+      eq(channelAccountsTable.channelType, "whatsapp"),
+      eq(channelAccountsTable.status, "active"),
+      sourceWabaId
+        ? or(
+          sql`${channelAccountsTable.providerConfig}->>'waba_id' = ${sourceWabaId}`,
+          sql`${channelAccountsTable.providerConfig}->>'wabaId' = ${sourceWabaId}`,
+        )
+        : undefined,
+    ))
+    .limit(sourceWabaId ? 5 : 2);
+
+  if (accounts.length === 1) return accounts[0];
+  return null;
 }
 
 async function metaGet<T>(path: string, token: string): Promise<T> {
@@ -296,7 +345,10 @@ async function upsertProductKnowledgeDocument(
   base: typeof knowledgeBasesTable.$inferSelect,
   ownerId: string,
 ): Promise<boolean> {
-  const content = `\u0645\u0646\u062a\u062c: ${product.name}. \u0627\u0644\u0633\u0639\u0631: ${product.price ?? "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f"} ${product.currency ?? "YER"}. \u0627\u0644\u062a\u0648\u0641\u0631: ${product.availability ?? "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f"}. ${product.description ?? ""}`.trim();
+  const content = [
+    `Product ID: ${product.externalProductId}.`,
+    `\u0645\u0646\u062a\u062c: ${product.name}. \u0627\u0644\u0633\u0639\u0631: ${product.price ?? "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f"} ${product.currency ?? "YER"}. \u0627\u0644\u062a\u0648\u0641\u0631: ${product.availability ?? "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f"}. ${product.description ?? ""}`,
+  ].join(" ").trim();
   if (!content) {
     logger.warn(
       { workspaceId: product.workspaceId, productId: product.id, reason: "empty_content" },

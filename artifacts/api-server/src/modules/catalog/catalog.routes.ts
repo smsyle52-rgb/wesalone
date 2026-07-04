@@ -11,12 +11,11 @@ import {
   socialPostsTable,
 } from "@workspace/db";
 import { auditFromRequest, createAuditLog } from "../../lib/audit";
-import { publishDomainEvent } from "../../lib/events";
 import { logger } from "../../lib/logger";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { requireSession } from "../../middlewares/requireSession";
-import { upsertSingleProductKnowledge } from "../../services/meta-catalog-sync";
+import { syncCatalogSource, upsertSingleProductKnowledge } from "../../services/meta-catalog-sync";
 
 const router = Router();
 router.use(requireSession);
@@ -198,13 +197,7 @@ router.post("/sources/:id/sync", requirePermission("catalog:sync"), async (req: 
     return;
   }
 
-  await publishDomainEvent({
-    eventType: "catalog.sync.requested",
-    entityType: "catalog_source",
-    entityId: source.id,
-    payload: { catalogSourceId: source.id, sourceType: source.sourceType },
-    sessionUser: req.sessionUser,
-  });
+  const result = await syncCatalogSource(source);
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
@@ -213,10 +206,15 @@ router.post("/sources/:id/sync", requirePermission("catalog:sync"), async (req: 
     entityType: "catalog_source",
     entityId: source.id,
     entityLabel: source.name,
-    newData: { sourceType: source.sourceType },
+    newData: { sourceType: source.sourceType, status: result.status, itemsSynced: result.itemsSynced, itemsFailed: result.itemsFailed },
   });
 
-  res.status(202).json({ queued: true, sourceId: source.id });
+  if (result.status === "failed") {
+    res.status(502).json({ sourceId: source.id, queued: false, result, error: result.error ?? "Catalog sync failed" });
+    return;
+  }
+
+  res.json({ sourceId: source.id, queued: false, result });
 });
 
 router.delete("/sources/:id", requirePermission("catalog:manage"), async (req: AuthenticatedRequest, res: Response) => {

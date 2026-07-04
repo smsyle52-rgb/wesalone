@@ -12,6 +12,7 @@ import { logger } from "../../lib/logger";
 import { emitWorkspaceEvent } from "../../lib/events";
 import { handleInstagramWebhook } from "./instagram.handler";
 import { handleMessengerWebhook } from "./messenger.handler";
+import { extractMetaCommerceMessage } from "./meta-commerce-message";
 import { notifyWorkspace } from "../../services/notifications";
 
 export type MetaWebhookResult = {
@@ -67,6 +68,9 @@ function mediaAttachment(message: any): Record<string, unknown> | null {
 }
 
 function messageContent(message: any): { contentType: string; content: string; providerPayload: Record<string, unknown>; attachments: Record<string, unknown>[] } {
+  const commerceContent = extractMetaCommerceMessage(message, "meta");
+  if (commerceContent) return { ...commerceContent, providerPayload: message };
+
   if (message.type === "text") {
     return { contentType: "text", content: message.text?.body ?? "", providerPayload: message, attachments: [] };
   }

@@ -70,6 +70,21 @@ function providerLookupCondition(lookupKey: string, lookupValue: string) {
   return sql`${channelAccountsTable.providerConfig}->>${lookupKey} = ${lookupValue}`;
 }
 
+function providerConfigRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function providerConfigString(value: unknown, ...keys: string[]): string | null {
+  const config = providerConfigRecord(value);
+  for (const key of keys) {
+    const current = config[key];
+    if (typeof current === "string" && current.trim()) return current.trim();
+  }
+  return null;
+}
+
 function appBaseUrl(req: AuthenticatedRequest) {
   if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
   const proto = req.header("x-forwarded-proto") ?? req.protocol;
@@ -1388,21 +1403,51 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       lookupValue: page.page_id,
       credentialsSecretRef: tokenRefs.pageTokenRefs[page.page_id] ?? process.env.META_PAGE_ACCESS_TOKEN_SECRET_REF ?? null,
     });
-    created.push(channel);
+      created.push(channel);
   }
+
+  const selectedWhatsappChannels = created.filter((account) => account.channelType === "whatsapp");
+  const selectedWhatsappWabaIds = [...new Set(
+    selectedWhatsappChannels
+      .map((account) => providerConfigString(account.providerConfig, "waba_id", "wabaId"))
+      .filter((value): value is string => Boolean(value)),
+  )];
+  const linkedCatalogChannelId = selectedWhatsappWabaIds.length === 1 && selectedWhatsappChannels.length > 0
+    ? selectedWhatsappChannels[0]!.id
+    : null;
+  const linkedCatalogWabaId = selectedWhatsappWabaIds.length === 1
+    ? selectedWhatsappWabaIds[0]!
+    : null;
 
   for (const catalog of options.commerce_catalogs) {
     if (!parsed.data.catalog_ids.includes(catalog.catalog_id)) continue;
     const [source] = await db.insert(catalogSourcesTable).values({
       workspaceId: req.sessionUser.activeWorkspaceId,
+      channelAccountId: linkedCatalogChannelId,
       sourceType: "commerce_catalog",
       externalId: catalog.catalog_id,
       name: catalog.name || catalog.catalog_id,
       status: "active",
-      config: { provider: "meta", business_id: catalog.business_id ?? null, connectedAt },
+      config: {
+        provider: "meta",
+        business_id: catalog.business_id ?? null,
+        waba_id: linkedCatalogWabaId,
+        connectedAt,
+      },
     }).onConflictDoUpdate({
       target: [catalogSourcesTable.workspaceId, catalogSourcesTable.sourceType, catalogSourcesTable.externalId],
-      set: { name: catalog.name || catalog.catalog_id, status: "active", updatedAt: new Date() },
+      set: {
+        name: catalog.name || catalog.catalog_id,
+        channelAccountId: linkedCatalogChannelId,
+        config: {
+          provider: "meta",
+          business_id: catalog.business_id ?? null,
+          waba_id: linkedCatalogWabaId,
+          connectedAt,
+        },
+        status: "active",
+        updatedAt: new Date(),
+      },
     }).returning();
     createdSources.push(source);
     await createAuditLog({
