@@ -122,6 +122,7 @@ const navGroups: NavGroup[] = [
     items: [
       { path: "/admin/payments", key: "adminPayments", icon: ShieldCheck },
       { path: "/admin/points", key: "adminPoints", icon: CreditCard },
+      { path: "/admin/signups", key: "adminSignups", icon: Users },
     ],
   },
 ];
@@ -370,6 +371,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       groupWesalAdmin: "إدارة وصال ون",
       adminPayments: "طلبات دفع الاشتراكات",
       adminPoints: "طلبات شحن النقاط",
+      adminSignups: "متابعة التسجيلات الجديدة",
     };
     return fallback[key] ?? t(`nav.${key}`);
   };

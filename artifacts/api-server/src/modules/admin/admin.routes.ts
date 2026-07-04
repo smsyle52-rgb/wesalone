@@ -1,15 +1,19 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { desc, eq, gt } from "drizzle-orm";
 import {
   db,
   pointTopupProductsTable,
+  usersTable,
+  workspaceMembershipsTable,
+  workspacesTable,
 } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePlatformAdmin } from "../../middlewares/requirePlatformAdmin";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { auditFromRequest, createAuditLog } from "../../lib/audit";
 import { notifyWorkspace } from "../../services/notifications";
+import { getWorkspaceOnboardingStatus } from "../../services/onboarding-status";
 import {
   approvePurchaseOrder,
   rejectPurchaseOrder,
@@ -37,6 +41,58 @@ router.use(requireSession);
 
 const paymentStatusSchema = z.enum(["under_review", "confirmed", "rejected", "cancelled", "expired", "all"]);
 const rejectSchema = z.object({ reason: z.string().trim().min(2).max(500) });
+
+// GET /admin/signups — رؤية سريعة لكل تسجيل جديد وأين توقّف فعلياً (وكيل/قناة/تحقّق بريد)
+// بدل تكرار فحص SQL يدوي لكل عميل جديد.
+router.get("/signups", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!requirePlatformAdmin(req, res)) return;
+  try {
+    const days = Math.min(60, Math.max(1, parseInt(req.query.days as string, 10) || 14));
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const rows = await db
+      .select({
+        workspaceId: workspacesTable.id,
+        workspaceName: workspacesTable.name,
+        registeredAt: workspacesTable.createdAt,
+        userId: usersTable.id,
+        email: usersTable.email,
+        emailVerified: usersTable.emailVerified,
+      })
+      .from(workspacesTable)
+      .innerJoin(workspaceMembershipsTable, eq(workspaceMembershipsTable.workspaceId, workspacesTable.id))
+      .innerJoin(usersTable, eq(usersTable.id, workspaceMembershipsTable.userId))
+      .where(gt(workspacesTable.createdAt, since))
+      .orderBy(desc(workspacesTable.createdAt))
+      .limit(200);
+
+    const signups = await Promise.all(rows.map(async (row) => {
+      const status = await getWorkspaceOnboardingStatus(row.workspaceId);
+      return {
+        workspaceId: row.workspaceId,
+        workspaceName: row.workspaceName,
+        email: row.email,
+        emailVerified: row.emailVerified,
+        registeredAt: row.registeredAt,
+        onboardingCompleted: status.completed,
+        agentDone: status.steps.agent.completed,
+        channelDone: status.steps.channel.completed,
+        stuckAt: status.completed
+          ? null
+          : !row.emailVerified
+          ? "email_verification"
+          : !status.steps.agent.completed
+          ? "agent"
+          : "channel",
+      };
+    }));
+
+    res.json({ signups, days });
+  } catch (err) {
+    logger.error({ err }, "admin/signups GET: failed");
+    res.status(500).json({ error: "حدث خطأ داخلي" });
+  }
+});
 
 router.get("/payments", async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (!requirePlatformAdmin(req, res)) return;
