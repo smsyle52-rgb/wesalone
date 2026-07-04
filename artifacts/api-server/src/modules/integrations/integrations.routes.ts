@@ -1,8 +1,8 @@
 import { Router, type Response } from "express";
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
-import { and, eq, inArray, sql } from "drizzle-orm";
-import { catalogSourcesTable, channelAccountsTable, db, workspacesTable } from "@workspace/db";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { aiAgentsTable, catalogSourcesTable, channelAccountsTable, db, workspacesTable } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
@@ -497,12 +497,31 @@ async function upsertMetaChannelAccount(params: {
     updatedAt: new Date(),
   };
 
-  const [account] = existing
+  let [account] = existing
     ? await db.update(channelAccountsTable).set(values).where(and(
       eq(channelAccountsTable.id, existing.id),
       eq(channelAccountsTable.workspaceId, params.req.sessionUser.activeWorkspaceId)
     )).returning()
     : await db.insert(channelAccountsTable).values(values).returning();
+
+  // اربط القناة تلقائياً بوكيل الـworkspace عند أول ربط — بلا هذا، القناة تعمل (استقبال/إرسال)
+  // لكن لا رد آلي أبداً حتى يذهب التاجر يدوياً للإعدادات ويختار وكيلاً؛ خطوة onboarding
+  // تنشئ الوكيل قبل ربط القناة دائماً، فمن المتوقع وجوده هنا. لا نتجاوز اختياراً سابقاً للتاجر.
+  if (!account.defaultAgentId) {
+    const [workspaceAgent] = await db
+      .select({ id: aiAgentsTable.id })
+      .from(aiAgentsTable)
+      .where(and(eq(aiAgentsTable.workspaceId, params.req.sessionUser.activeWorkspaceId), eq(aiAgentsTable.status, "active")))
+      .orderBy(desc(aiAgentsTable.updatedAt), desc(aiAgentsTable.createdAt))
+      .limit(1);
+    if (workspaceAgent) {
+      [account] = await db
+        .update(channelAccountsTable)
+        .set({ defaultAgentId: workspaceAgent.id, updatedAt: new Date() })
+        .where(and(eq(channelAccountsTable.id, account.id), eq(channelAccountsTable.workspaceId, params.req.sessionUser.activeWorkspaceId)))
+        .returning();
+    }
+  }
 
   const claimedAccountIds: string[] = [];
   if (params.channelType === "whatsapp") {

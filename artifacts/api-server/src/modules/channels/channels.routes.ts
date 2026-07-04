@@ -1,7 +1,7 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
-import { db, channelAccountsTable } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
+import { db, channelAccountsTable, aiAgentsTable } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
@@ -70,7 +70,7 @@ router.post("/accounts", requirePermission("channels:manage"), async (req: Authe
   const status = parsed.data.status ?? (catalogEntry?.globalStatus as string) ?? "active";
 
   try {
-    const [account] = await db.insert(channelAccountsTable).values({
+    let [account] = await db.insert(channelAccountsTable).values({
       workspaceId: activeWorkspaceId,
       channelType,
       name,
@@ -79,6 +79,24 @@ router.post("/accounts", requirePermission("channels:manage"), async (req: Authe
       providerConfig: providerConfig ?? null,
       createdBy: userId,
     }).returning();
+
+    // اربط تلقائياً بوكيل الـworkspace إن وُجد — نفس منطق integrations.routes.ts
+    // (upsertMetaChannelAccount) حتى لا تحتاج قناة جديدة إعداداً يدوياً بعد الآن.
+    if (!account.defaultAgentId) {
+      const [workspaceAgent] = await db
+        .select({ id: aiAgentsTable.id })
+        .from(aiAgentsTable)
+        .where(and(eq(aiAgentsTable.workspaceId, activeWorkspaceId), eq(aiAgentsTable.status, "active")))
+        .orderBy(desc(aiAgentsTable.updatedAt), desc(aiAgentsTable.createdAt))
+        .limit(1);
+      if (workspaceAgent) {
+        [account] = await db
+          .update(channelAccountsTable)
+          .set({ defaultAgentId: workspaceAgent.id, updatedAt: new Date() })
+          .where(and(eq(channelAccountsTable.id, account.id), eq(channelAccountsTable.workspaceId, activeWorkspaceId)))
+          .returning();
+      }
+    }
 
     await createAuditLog({
       ...auditFromRequest(req, req.sessionUser),
