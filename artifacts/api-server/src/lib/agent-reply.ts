@@ -14,15 +14,14 @@ import { ACTIVE_PROVIDER, getDefaultModel, runAI } from "./ai-provider";
 import { classifyComplexity, resolveModel } from "./model-router";
 import { logger } from "./logger";
 import {
-  buildAgentToolPrompt,
+  buildAgentToolDeclarations,
   executeAgentToolCalls,
   loadExecutableAgentTools,
   loadOrderStatusContext,
   loadProductCatalogContext,
-  parseAgentToolResponse,
   type AgentToolResult,
 } from "./agent-tools";
-import { includesEscalationKeyword, replyPromisesHandoff } from "./agent-escalation";
+import { includesEscalationKeyword } from "./agent-escalation";
 
 // تأريض صارم (3 يوليو 2026): حادثة «299 ريال» — النموذج اخترع سعراً رغم قاعدة المنع في
 // SAFETY_SYSTEM_PROMPT، ثم ادّعى «قمت بتحويل طلبك» تهرّباً. هاتان القاعدتان تربطان
@@ -30,6 +29,16 @@ import { includesEscalationKeyword, replyPromisesHandoff } from "./agent-escalat
 const GROUNDING_RULES = [
   "قاعدة الأسعار الحصرية: الأرقام المسموح ذكرها للأسعار أو التوفر أو الخصومات هي حصراً الواردة في «كتالوج المنتجات والأسعار» أو «معرفة قاعدة البيانات» أو «حالة طلبات هذا العميل». إن سُئلت عن سعر غير موجود فيها: قل بصدق إن السعر غير متوفر لديك الآن وستتأكد من الفريق، واسأل العميل إن كان يرغب بالتحويل لموظف — ولا تذكر أي رقم تقديري أو مثال.",
   "قاعدة التحويل الصادق: لا تكتب أنك حوّلت أو ستحوّل المحادثة لموظف إلا إذا كان التحويل هو الإجراء الصحيح فعلاً (طلب صريح من العميل، شكوى، أو مسألة لا تستطيع حلّها من السياق) — كتابة عبارة التحويل تعني تنفيذه فعلياً على النظام فوراً، فلا تستخدمها كمجاملة أو تهرّب.",
+].join("\n");
+
+// قواعد استخدام الأدوات (استدعاء أصلي): تُحقن عند تفعيل أي أداة. البنية تأتي من function calling
+// لا من نص JSON — فلا نطلب صيغة بل سلوكاً. الأهم: التحويل للبشر = استدعاء handoff_to_human فعلياً،
+// لا مجرّد جملة نصّية (يقتل عطل «يعد بالتحويل ولا يحوّل» — جلسة 17).
+const TOOL_USE_RULES = [
+  "استخدم الأدوات فقط عندما يطلب العميل الإجراء بوضوح وتتوفّر الحقائق اللازمة.",
+  "لا تدّعِ أبداً أنك نفّذت إجراءً (طلب، تحويل، متابعة، دفع) إلا إذا استدعيت الأداة المطابقة فعلاً.",
+  "للمدفوعات: سجّل ادّعاء دفع معلّقاً فقط (log_payment_claim) — لا تؤكّد ولا ترفض أي دفعة.",
+  "للتحويل لموظف بشري: استدعِ أداة handoff_to_human فعلياً — لا تكتفِ بقول إنك ستحوّل. إن لم تستدعِ الأداة فلن يحدث تحويل.",
 ].join("\n");
 
 async function upsertUsage(params: {
@@ -121,6 +130,18 @@ function sanitizeReply(text: string): string {
     if (decoded) return decoded;
   }
   // تعذّر استخراج أي نص صالح — لا تُسرّب JSON خاماً؛ أرجِع فارغاً ليُصعَّد للبشر.
+  return "";
+}
+
+// استدعاء الأدوات الأصلي قد يعيد استدعاء أداة بلا نصّ مصاحب. لتفادي ردّ فارغ، نولّد تأكيداً
+// حتمياً موجزاً حسب نتيجة الأداة الناجحة — بلا استدعاء ذكاء ثانٍ (أوفر للرصيد وأأمن من الهلوسة).
+function confirmationFromToolResults(results: AgentToolResult[]): string {
+  const succeeded = (tool: string) => results.some((r) => r.tool === tool && r.status === "success");
+  if (succeeded("handoff_to_human")) return "لحظة من فضلك، بحوّلك لأحد أعضاء الفريق ليكمل معك.";
+  if (succeeded("create_order")) return "تمام، سجّلت طلبك ✅ وبنراجع التفاصيل ونؤكّدها لك قريباً.";
+  if (succeeded("schedule_followup")) return "تمام، سجّلت الموعد وبنتابع معك في وقته.";
+  if (succeeded("log_payment_claim")) return "شكراً، سجّلت بيانات الدفع وبيتأكّد منها الفريق ونرجع لك.";
+  if (succeeded("send_product_media")) return "تفضّل، هذا هو المنتج الذي طلبته 👆 حابب أساعدك بشيء آخر؟";
   return "";
 }
 
@@ -228,7 +249,8 @@ export async function runAgentReply(params: {
     logger.warn({ err, workspaceId: params.workspaceId }, "loadProductCatalogContext failed — continuing without catalog context");
   }
   const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
-  const toolPrompt = buildAgentToolPrompt(executableTools);
+  // استدعاء الأدوات الأصلي: تعريفات منظّمة تُمرَّر للنموذج (Gemini/Vertex) بدل وصفها نصّاً وطلب JSON.
+  const toolDeclarations = executableTools.length > 0 ? buildAgentToolDeclarations(executableTools) : undefined;
   const mediaGuidance = mediaContext.sources.length > 0
     ? [
         "تعليمات الوسائط: عند وصول صورة أو صوت أو فيديو بلا نص واضح، رحّب بالعميل واسأل سؤالاً توضيحياً واحداً فقط عن كيف يمكن المساعدة.",
@@ -250,7 +272,7 @@ export async function runAgentReply(params: {
     ? "\nمهم: هذه ليست بداية المحادثة — لا تبدأ ردّك بأي تحية أو ترحيب («أهلاً»، «مرحباً»، «يا هلا»، «حياك»...). ادخل في صلب الإجابة مباشرةً، ونوّع افتتاحياتك وصياغتك عن ردودك السابقة في المحادثة."
     : "";
   const systemPrompt = [
-    toolPrompt,
+    executableTools.length > 0 ? TOOL_USE_RULES : "",
     `Current date/time: ${new Date().toISOString()}.`,
     instructions?.rolePrompt ?? "أنت موظف خدمة عملاء ومبيعات محترف تردّ على عملاء النشاط التجاري. أجب بإيجاز ومهنية على آخر رسالة من العميل مباشرةً.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
@@ -315,7 +337,9 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       aiRunId: run.id,
       taskType: "draft_reply",
       maxTokens: agent.maxOutputTokens,
-      responseFormat: executableTools.length > 0 ? "json" : "text",
+      responseFormat: "text",
+      // استدعاء الأدوات الأصلي: تعريفات منظّمة؛ النموذج يعيد toolCalls منظّمة لا JSON نصّياً هشّاً (يقتل PD-8/PD-10).
+      tools: toolDeclarations,
       // vision: مرّر الصور الواردة (base64) ليحلّلها النموذج بصرياً ويرد بناءً عليها.
       images: mediaContext.images,
       // voice: مرّر الملاحظات الصوتية الواردة (base64) ليفهمها النموذج سمعياً ويرد على محتواها.
@@ -332,22 +356,23 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       return { reply: "", shouldEscalate: true, runId: run.id, toolResults: [] };
     }
 
-    const parsedOutput = executableTools.length > 0
-      ? parseAgentToolResponse(aiOutput.content)
-      : { reply: aiOutput.content, toolCalls: [] };
+    // استدعاء الأدوات الأصلي: النموذج يعيد toolCalls منظّمة مباشرةً — لا تحليل نصّ هشّ (يقتل PD-8/PD-10).
+    const structuredCalls = (aiOutput.toolCalls ?? []).map((call) => ({ name: call.name, arguments: call.args }));
     const toolResults = await executeAgentToolCalls({
       workspaceId: params.workspaceId,
       conversationId: params.conversationId,
       agentId: params.agentId,
       aiRunId: run.id,
       systemUserId: params.systemUserId,
-      calls: parsedOutput.toolCalls,
+      calls: structuredCalls,
     });
     const hasToolProblem = toolResults.some((result) => result.status !== "success");
     const hasHandoff = toolResults.some((result) => result.tool === "handoff_to_human" && result.status === "success");
+    const modelText = sanitizeReply(aiOutput.content);
+    // نصّ النموذج إن وُجد؛ وإلا تأكيد حتمي حسب نتيجة الأداة (يتفادى الردّ الفارغ عند استدعاء أداة بلا نص).
     const finalReply = hasToolProblem
       ? "أحتاج أن أحوّل طلبك للفريق لمراجعته والتأكد من تنفيذه بشكل صحيح."
-      : sanitizeReply(parsedOutput.reply);
+      : (modelText || confirmationFromToolResults(toolResults));
 
     if (!finalReply) {
       await db.update(aiRunsTable).set({
@@ -369,7 +394,8 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
         metadata: {
           knowledgeSources,
           toolResults,
-          rawOutput: parsedOutput.reply !== aiOutput.content ? aiOutput.content : undefined,
+          toolCalls: structuredCalls.length > 0 ? structuredCalls : undefined,
+          rawOutput: modelText !== aiOutput.content ? aiOutput.content : undefined,
         },
       },
     ]);
@@ -396,15 +422,14 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       estimatedCost: aiOutput.estimatedCost,
     });
 
-    // حادثة 3 يوليو (b044a0d5): قائمة كلمات «طلب العميل» كانت تُفحص أيضاً على ردّ
-    // الوكيل نفسه — فوصفُ المنتج («...وخدمة العملاء من لوحة واحدة») طابق «خدمه
-    // العملاء» وحوّل المحادثة بشرياً بصمت، وبقي العميل بلا ردّ 3.5 ساعات.
-    // القاعدة النهائية: كلام العميل يُفحص بقائمة طلبات الإنسان؛ كلام الوكيل يُفحص
-    // حصراً بأنماط ادّعاء التحويل الصريحة (الادّعاء يُنفَّذ) — لا تخلط الاتجاهين.
+    // التصعيد صار حتمياً بالبنية (استدعاء الأدوات الأصلي): (1) فشل أداة، أو (2) استدعاء النموذج
+    // لأداة handoff_to_human فعلياً — بنية لا نصّ، فلا يعتمد على صياغة عربية بعينها، و(3) طلب صريح
+    // من العميل (تُفحص رسالة العميل فقط بقائمة طلبات الإنسان). أُزيل نهائياً تخمين نصّ ردّ الوكيل
+    // بـregex (replyPromisesHandoff) — كان مصدر عطلَي جلسة 17 («صعّد» لم تُطابق) وحادثة 3 يوليو
+    // (وصف المنتج «خدمة العملاء» طابق كلمة طلب فحوّل بصمت). الوكيل يطلب التحويل بأداة، لا بجملة.
     const shouldEscalate =
       hasToolProblem ||
       hasHandoff ||
-      replyPromisesHandoff(finalReply) ||
       (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound));
     return { reply: finalReply, shouldEscalate, runId: run.id, toolResults };
   } catch (err) {

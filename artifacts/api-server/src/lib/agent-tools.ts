@@ -203,13 +203,20 @@ export async function loadExecutableAgentTools(workspaceId: string, agentId: str
     .from(aiAgentToolsTable)
     .where(and(eq(aiAgentToolsTable.workspaceId, workspaceId), eq(aiAgentToolsTable.agentId, agentId)));
 
-  return rows
+  const policies = rows
     .filter((row) => row.isEnabled && !row.requiresApproval && isAgentToolKey(row.toolKey))
     .map((row) => ({
       key: row.toolKey as AgentToolKey,
       requiresApproval: row.requiresApproval,
       config: asRecord(row.config),
     }));
+
+  // التصعيد للبشر أداة أمان أساسية لا خياراً للتاجر — تُتاح دائماً للنموذج ليطلبها صراحةً
+  // (استدعاء منظّم لا ادّعاء نصّي هشّ)، وتُنفَّذ دائماً. يقتل عطل «يعد بالتحويل ولا يحوّل» (جلسة 17).
+  if (!policies.some((tool) => tool.key === "handoff_to_human")) {
+    policies.push({ key: "handoff_to_human", requiresApproval: false, config: {} });
+  }
+  return policies;
 }
 
 export function buildAgentToolPrompt(tools: ToolPolicy[]): string {
