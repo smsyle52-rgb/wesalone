@@ -18,6 +18,7 @@ import {
   exchangeRatesTable,
 } from "@workspace/db";
 import { logger } from "../../lib/logger";
+import { createGrant } from "../../services/point-wallet";
 
 const SALT_ROUNDS = 12;
 
@@ -88,8 +89,9 @@ export async function registerWorkspace(data: {
 
   const passwordHash = await hashPassword(password);
   const slug = generateSlug(workspaceName);
+  let trialGrantExpiresAt: Date | null = null;
 
-  return await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [workspace] = await tx
       .insert(workspacesTable)
       .values({ name: workspaceName, slug })
@@ -141,6 +143,8 @@ export async function registerWorkspace(data: {
         startedAt: new Date(),
         trialEndsAt,
       });
+
+      trialGrantExpiresAt = trialEndsAt;
     }
 
     const SECURITY_FLAGS = [
@@ -181,6 +185,29 @@ export async function registerWorkspace(data: {
 
     return { user, workspace, membership };
   });
+
+  // منح نقاط التجربة بعد الالتزام النهائي للتسجيل (خارج transaction لأن getOrCreateWallet
+  // يحتاج صف مساحة العمل ملتزَماً). مغلَّف بـ try/catch عمداً: التسجيل نجح فعلاً والتزم؛
+  // لو فشل المنح لسبب عابر يجب ألا نُرجع 500 ونترك مساحة عمل يتيمة — نتدهور بأمان إلى
+  // السلوك السابق (٠ نقاط، قابل للإصلاح يدوياً عبر admin/points/adjustment) بدل فشل التسجيل.
+  if (trialGrantExpiresAt) {
+    try {
+      await createGrant({
+        workspaceId: result.workspace.id,
+        grantType: "monthly_subscription",
+        points: 1000,
+        expiresAt: trialGrantExpiresAt,
+        sourceType: "trial_signup",
+        sourceId: result.workspace.id,
+        idempotencyKey: `trial_grant:${result.workspace.id}`,
+        reason: "منحة تجربة مجانية تلقائية عند التسجيل",
+      });
+    } catch (err) {
+      logger.error({ err, workspaceId: result.workspace.id }, "Trial points grant failed after registration (workspace created, points pending manual grant)");
+    }
+  }
+
+  return result;
 }
 
 export async function loginUser(data: {
