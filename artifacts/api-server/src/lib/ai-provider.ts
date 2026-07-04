@@ -1,3 +1,4 @@
+import type { GenerateContentRequest } from "@google/generative-ai";
 import { logger } from "./logger";
 import { pointsForTokens } from "./model-router";
 import { recordPoints } from "../services/billing";
@@ -89,6 +90,20 @@ export interface AiAudio {
   data: string;
 }
 
+// استدعاء الأدوات الأصلي (native function calling): تعريف أداة منظّم يُمرَّر للنموذج (Vertex/Gemini)
+// بدل وصفها نصّاً. parameters = JSON Schema لوسائط الأداة. النموذج يعيد functionCall منظّماً لا نصّاً هشّاً.
+export interface AiFunctionDeclaration {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+// استدعاء أداة يعيده النموذج بشكل منظّم (اسم + وسائط) — بديل التحليل النصّي الهشّ (يقتل فئة PD-8/PD-10).
+export interface AiToolCall {
+  name: string;
+  args: Record<string, unknown>;
+}
+
 export interface AiRunInput {
   messages: AiMessage[];
   model: string;
@@ -96,6 +111,8 @@ export interface AiRunInput {
   maxTokens?: number;
   // PD-10: عند تفعيل الأدوات يجب أن يلتزم النموذج بـJSON صارم؛ "json" يفرض responseMimeType ويخفض الحرارة.
   responseFormat?: "json" | "text";
+  // استدعاء الأدوات الأصلي: عند تمرير تعريفات أدوات يُفعَّل function calling ويعيد النموذج toolCalls منظّمة.
+  tools?: AiFunctionDeclaration[];
   // vision: صور واردة تُمرَّر للنموذج ليحلّل محتواها (اختياري؛ تُتجاهَل في mock).
   images?: AiImage[];
   // voice: ملاحظات صوتية واردة تُمرَّر للنموذج ليفهم محتواها سمعياً (اختياري؛ تُتجاهَل في mock).
@@ -115,6 +132,8 @@ export interface AiRunOutput {
   completionTokens: number;
   totalTokens: number;
   estimatedCost: number;
+  // استدعاء الأدوات الأصلي: ما استدعاه النموذج بشكل منظّم (فارغ عند عدم تمرير أدوات أو عدم استدعاء أي أداة).
+  toolCalls?: AiToolCall[];
   fallbackUsed?: boolean;
 }
 
@@ -129,10 +148,15 @@ function wantsJson(input: AiRunInput): boolean {
   return input.responseFormat === "json" || JSON_TASK_TYPES.has(input.taskType);
 }
 
+// استدعاء الأدوات الأصلي مفعّل عند تمرير تعريفات أدوات (يحلّ محلّ فرض JSON النصّي).
+function usesFunctionCalling(input: AiRunInput): boolean {
+  return (input.tools?.length ?? 0) > 0;
+}
+
 function getTemperature(input?: AiRunInput): number {
   const base = Number.isFinite(DEFAULT_TEMPERATURE) ? Math.min(Math.max(DEFAULT_TEMPERATURE, 0), 1) : 0.3;
-  // مخرجات JSON المنظّمة تحتاج حرارة منخفضة لالتزام أعلى بالبنية.
-  if (input && wantsJson(input)) return Math.min(base, 0.1);
+  // المخرجات المنظّمة (JSON أو استدعاء أدوات) تحتاج حرارة منخفضة لالتزام أعلى بالبنية.
+  if (input && (wantsJson(input) || usesFunctionCalling(input))) return Math.min(base, 0.1);
   return base;
 }
 
@@ -299,22 +323,44 @@ async function runGemini(input: AiRunInput): Promise<AiRunOutput> {
       inlineData: { mimeType: clip.mimeType, data: clip.data },
     }));
 
-    const result = await model.generateContent({
+    // استدعاء الأدوات الأصلي: عند تمرير أدوات نُمرّرها للنموذج ونقرأ functionCall منظّماً بدل تحليل نصّ.
+    const useTools = usesFunctionCalling(input);
+    // JSON Schema لدينا (Record) صالح وقت التشغيل لكن أوسع من أنواع الـSDK المتشدّدة — نبنيه ثم نمرّره.
+    const geminiRequest = {
       systemInstruction,
       contents: [{ role: "user", parts: [{ text: combined }, ...imageParts, ...audioParts] }],
+      ...(useTools
+        ? {
+            tools: [{ functionDeclarations: input.tools }],
+            toolConfig: { functionCallingConfig: { mode: "AUTO" } },
+          }
+        : {}),
       generationConfig: {
         maxOutputTokens: getMaxOutputTokens(input),
         temperature: getTemperature(input),
-        ...(wantsJson(input) ? { responseMimeType: "application/json" } : {}),
+        // مع استدعاء الأدوات الأصلي لا نفرض responseMimeType (يتعارض معه)؛ البنية تأتي من functionCall.
+        ...(wantsJson(input) && !useTools ? { responseMimeType: "application/json" } : {}),
       },
-    });
+    } as unknown as GenerateContentRequest;
+    const result = await model.generateContent(geminiRequest);
 
-    const content = result.response.text();
+    let content = "";
+    try {
+      content = result.response.text();
+    } catch {
+      // ردّ يحوي functionCall فقط بلا نص → .text() قد يرمي؛ نتركه فارغاً والأدوات تحمل البنية.
+      content = "";
+    }
+    const toolCalls: AiToolCall[] = (result.response.functionCalls?.() ?? []).map((fc) => ({
+      name: fc.name,
+      args: (fc.args ?? {}) as Record<string, unknown>,
+    }));
     const usage = result.response.usageMetadata;
     const promptTokens = usage?.promptTokenCount ?? Math.ceil(combined.length / 4);
     const completionTokens = usage?.candidatesTokenCount ?? Math.ceil(content.length / 4);
 
-    if (wantsJson(input)) {
+    // مع استدعاء الأدوات قد يكون النص فارغاً شرعياً (functionCall فقط) — لا تُسقِط للوضع التجريبي.
+    if (wantsJson(input) && !useTools) {
       const hasJson = /[\[{]/.test(content);
       if (!hasJson) {
         logger.warn({ taskType: input.taskType }, "Gemini returned non-JSON for structured task, falling back to mock");
@@ -333,6 +379,7 @@ async function runGemini(input: AiRunInput): Promise<AiRunOutput> {
       completionTokens,
       totalTokens: promptTokens + completionTokens,
       estimatedCost: (promptTokens * 0.000001 + completionTokens * 0.000003),
+      toolCalls,
       fallbackUsed: false,
     };
   } catch (err) {
@@ -347,7 +394,7 @@ async function runGemini(input: AiRunInput): Promise<AiRunOutput> {
 type VertexGenerateContentResponse = {
   candidates?: Array<{
     content?: {
-      parts?: Array<{ text?: string }>;
+      parts?: Array<{ text?: string; functionCall?: { name?: string; args?: Record<string, unknown> } }>;
     };
   }>;
   usageMetadata?: {
@@ -386,6 +433,7 @@ type VertexCallResult = {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  toolCalls: AiToolCall[];
 };
 
 // استدعاء Vertex لموديل محدّد. يرمي خطأً عند الفشل أو الردّ الفارغ ليتولّاه المتصل (سقوط للبديل).
@@ -415,12 +463,20 @@ async function callVertexModel(modelId: string, input: AiRunInput, token: string
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: "user", parts: [{ text: combined }, ...imageParts, ...audioParts] }],
+      // استدعاء الأدوات الأصلي: نمرّر تعريفات الأدوات ووضع AUTO ليقرّر النموذج متى يستدعي أداة.
+      ...(usesFunctionCalling(input)
+        ? {
+            tools: [{ functionDeclarations: input.tools }],
+            toolConfig: { functionCallingConfig: { mode: "AUTO" } },
+          }
+        : {}),
       generationConfig: {
         maxOutputTokens: getMaxOutputTokens(input),
         temperature: getTemperature(input),
         // PD-8 جذري: تعطيل "التفكير" يمنع التهام توكنات الإخراج وقطع JSON منتصف الردّ.
         thinkingConfig: { thinkingBudget: THINKING_BUDGET },
-        ...(wantsJson(input) ? { responseMimeType: "application/json" } : {}),
+        // مع استدعاء الأدوات الأصلي لا نفرض responseMimeType (يتعارض معه)؛ البنية تأتي من functionCall.
+        ...(wantsJson(input) && !usesFunctionCalling(input) ? { responseMimeType: "application/json" } : {}),
       },
     }),
   });
@@ -431,12 +487,15 @@ async function callVertexModel(modelId: string, input: AiRunInput, token: string
   }
 
   const data = await res.json() as VertexGenerateContentResponse;
-  const content = data.candidates
-    ?.flatMap((candidate) => candidate.content?.parts?.map((part) => part.text ?? "") ?? [])
-    .join("\n")
-    .trim();
+  const parts = data.candidates?.flatMap((candidate) => candidate.content?.parts ?? []) ?? [];
+  const content = parts.map((part) => part.text ?? "").filter(Boolean).join("\n").trim();
+  // استدعاء الأدوات الأصلي: استخرج أي functionCall منظّم من أجزاء الردّ (بديل التحليل النصّي الهشّ).
+  const toolCalls: AiToolCall[] = parts
+    .filter((part) => part.functionCall?.name)
+    .map((part) => ({ name: part.functionCall!.name as string, args: (part.functionCall!.args ?? {}) as Record<string, unknown> }));
 
-  if (!content) {
+  // ردّ فارغ فعلاً فقط إن لم يوجد نص ولا استدعاء أداة؛ ردّ functionCall-فقط شرعيّ.
+  if (!content && toolCalls.length === 0) {
     throw new Error("Vertex AI returned an empty response");
   }
 
@@ -447,6 +506,7 @@ async function callVertexModel(modelId: string, input: AiRunInput, token: string
     promptTokens,
     completionTokens,
     totalTokens: data.usageMetadata?.totalTokenCount ?? promptTokens + completionTokens,
+    toolCalls,
   };
 }
 
@@ -482,7 +542,8 @@ async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
       result = await callVertexModel(fallback, input, token);
     }
 
-    if (wantsJson(input)) {
+    // مع استدعاء الأدوات قد يكون النص فارغاً شرعياً (functionCall فقط) — لا تُسقِط للوضع التجريبي.
+    if (wantsJson(input) && !usesFunctionCalling(input)) {
       const hasJson = /[\[{]/.test(result.content);
       if (!hasJson) {
         logger.warn({ taskType: input.taskType }, "Vertex AI returned non-JSON for structured task, falling back to mock");
@@ -501,6 +562,7 @@ async function runVertex(input: AiRunInput): Promise<AiRunOutput> {
       completionTokens: result.completionTokens,
       totalTokens: result.totalTokens,
       estimatedCost: 0,
+      toolCalls: result.toolCalls,
       fallbackUsed: false,
     };
   } catch (err) {
