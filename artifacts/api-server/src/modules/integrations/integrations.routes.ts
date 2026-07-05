@@ -250,7 +250,14 @@ async function exchangeCodeForToken(
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Meta OAuth exchange returned ${response.status}`);
   const payload: any = await response.json();
-  return typeof payload.access_token === "string" ? payload.access_token : null;
+  // 6 يوليو 2026: عميل حقيقي أخذ 409 (meta_token_exchange_unavailable) ثلاث مرات متتالية —
+  // هذا الفرع كان يُسقط رسالة خطأ Meta الفعلية (غالباً code إعادة استخدام أو رفض صلاحية)
+  // بصمت، فتعذّر معرفة السبب الحقيقي. نُسجّل حقول الخطأ فقط (لا access_token أبداً).
+  if (typeof payload.access_token !== "string") {
+    req.log?.warn({ metaError: payload?.error ?? payload }, "Meta OAuth exchange returned 200 without access_token");
+    return null;
+  }
+  return payload.access_token;
 }
 
 function fallbackMetaOptions(): { options: MetaChannelOptions; tokenRefs: MetaTokenRefs } {
