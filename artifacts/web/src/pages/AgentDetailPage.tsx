@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Check, Link2, Play, Save, Unlink } from "lucide-react";
+import { AlertTriangle, Bot, Check, Link2, Play, Save, Unlink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -10,6 +10,15 @@ import { formatDateTime } from "@/lib/utils";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
 const tabs = ["settings", "instructions", "knowledge", "serviceStyle", "learned", "channels", "runs", "trust", "playground"] as const;
+
+interface AgentSimulationResult {
+  reply: string;
+  knowledgeSources: string[];
+  toolCalls: { name: string; args: Record<string, unknown> }[];
+  wouldEscalate: boolean;
+  provider: string;
+  aiUnavailable: boolean;
+}
 
 async function apiFetch(path: string, opts?: RequestInit) {
   const res = await fetch(`${BASE}/${path}`, { credentials: "include", ...opts });
@@ -46,7 +55,7 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
   const [topicInput, setTopicInput] = useState("");
   const [blockInput, setBlockInput] = useState("");
   const [playgroundQuestion, setPlaygroundQuestion] = useState("");
-  const [playgroundResult, setPlaygroundResult] = useState<any>(null);
+  const [playgroundResult, setPlaygroundResult] = useState<AgentSimulationResult | null>(null);
   const canRead = hasPermission("ai:read");
   const canUse = hasPermission("ai:use");
   const canConfigure = hasPermission("ai:configure");
@@ -170,10 +179,10 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
   });
 
   const runPlayground = useMutation({
-    mutationFn: () => apiFetch("ai/runs/draft-reply", {
+    mutationFn: (): Promise<AgentSimulationResult> => apiFetch(`ai/agents/${agentId}/simulate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agentId, message: playgroundQuestion, model: settings.defaultModel }),
+      body: JSON.stringify({ message: playgroundQuestion }),
     }),
     onSuccess: (data) => setPlaygroundResult(data),
     onError: (err) => setMessage((err as Error).message),
@@ -554,16 +563,56 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
             </button>
             {playgroundResult && (
               <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm">
-                <div className="mb-2 font-semibold">{t("agents.detail.suggestedReply")}</div>
-                <p className="whitespace-pre-wrap leading-relaxed">{playgroundResult.draft}</p>
-                {playgroundResult.sources?.length > 0 && (
-                  <div className="mt-4 border-t border-border pt-3">
-                    <div className="mb-2 text-xs font-semibold text-muted-foreground">{t("agents.detail.sources")}</div>
-                    <div className="space-y-1">
-                      {playgroundResult.sources.map((source: any) => <div key={`${source.type}:${source.id}`} className="text-xs text-muted-foreground">{source.title}</div>)}
-                    </div>
+                {playgroundResult.aiUnavailable && (
+                  <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    {t("agents.detail.aiUnavailableNotice")}
                   </div>
                 )}
+
+                <div className="mb-2 font-semibold">{t("agents.detail.suggestedReply")}</div>
+                <p className="whitespace-pre-wrap leading-relaxed">{playgroundResult.reply}</p>
+
+                <div className="mt-4 border-t border-border pt-3">
+                  <div className="mb-2 text-xs font-semibold text-muted-foreground">{t("agents.detail.willEscalateLabel")}</div>
+                  {playgroundResult.wouldEscalate ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {t("agents.detail.willEscalate")}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">
+                      <Check className="h-3.5 w-3.5" />
+                      {t("agents.detail.willAutoReply")}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-4 border-t border-border pt-3">
+                  <div className="mb-2 text-xs font-semibold text-muted-foreground">{t("agents.detail.toolsToUse")}</div>
+                  {playgroundResult.toolCalls.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {playgroundResult.toolCalls.map((call, index) => (
+                        <span key={`${call.name}:${index}`} className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs text-primary">{call.name}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">{t("agents.detail.noTools")}</div>
+                  )}
+                </div>
+
+                <div className="mt-4 border-t border-border pt-3">
+                  <div className="mb-2 text-xs font-semibold text-muted-foreground">{t("agents.detail.knowledgeSourcesUsed")}</div>
+                  {playgroundResult.knowledgeSources.length > 0 ? (
+                    <div className="space-y-1">
+                      {playgroundResult.knowledgeSources.map((title, index) => (
+                        <div key={`${title}:${index}`} className="text-xs text-muted-foreground">{title}</div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">{t("agents.detail.noKnowledgeSourcesUsed")}</div>
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -451,3 +451,106 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     throw err;
   }
 }
+
+// نتيجة محاكاة الوكيل (بوابة «اختبر قبل التفعيل» بنمط Fin). تعكس ما **سيفعله** الوكيل الحيّ بالضبط
+// (نفس القواعد + التأريض + الأدوات المنظّمة + توجيه الموديل) لكن **بلا أي أثر جانبي**.
+export interface AgentSimulationResult {
+  reply: string;
+  knowledgeSources: string[];   // عناوين مصادر المعرفة التي استُخدمت فعلاً
+  toolCalls: { name: string; args: Record<string, unknown> }[];   // ما سيُستدعى — لا يُنفَّذ في المحاكاة
+  wouldEscalate: boolean;       // هل ستتحوّل المحادثة لبشري
+  provider: string;
+  aiUnavailable: boolean;       // النموذج غير متاح/تجريبي → ليست إجابة حقيقية
+}
+
+// محاكاة آمنة وأمينة لردّ الوكيل: تبني نفس السياق (معرفة + كتالوج + أدوات + قواعد) وتستدعي النموذج
+// فعلياً، لكنها **لا تُنفّذ أي أداة، ولا تصعّد محادثة، ولا تُرسل، ولا تكتب أي سجلّ حيّ**. تعيد ما
+// «سيحدث» فقط. تعيد استخدام نفس اللبنات النقية لحلقة الإنتاج (fidelity) دون لمس runAgentReply.
+export async function simulateAgentReply(params: {
+  workspaceId: string;
+  agentId: string;
+  message: string;
+}): Promise<AgentSimulationResult> {
+  const [agent] = await db
+    .select()
+    .from(aiAgentsTable)
+    .where(and(eq(aiAgentsTable.id, params.agentId), eq(aiAgentsTable.workspaceId, params.workspaceId)))
+    .limit(1);
+  if (!agent) throw new Error("AI_AGENT_NOT_FOUND");
+
+  const [instructions] = await db
+    .select()
+    .from(aiAgentInstructionsTable)
+    .where(and(eq(aiAgentInstructionsTable.agentId, params.agentId), eq(aiAgentInstructionsTable.workspaceId, params.workspaceId)))
+    .limit(1);
+
+  const message = params.message.trim();
+  const knowledgeSources = await searchKnowledgeForAi({ workspaceId: params.workspaceId, query: message });
+  let productCatalogContext = "";
+  try {
+    productCatalogContext = await loadProductCatalogContext(params.workspaceId);
+  } catch (err) {
+    logger.warn({ err, workspaceId: params.workspaceId }, "simulate: loadProductCatalogContext failed — continuing without catalog context");
+  }
+  const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
+  const toolDeclarations = executableTools.length > 0 ? buildAgentToolDeclarations(executableTools) : undefined;
+
+  const knowledgeContext = knowledgeSources.length > 0
+    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, 800)}`).join("\n")}`
+    : "";
+  const systemPrompt = [
+    executableTools.length > 0 ? TOOL_USE_RULES : "",
+    `Current date/time: ${new Date().toISOString()}.`,
+    instructions?.rolePrompt ?? "أنت موظف خدمة عملاء ومبيعات محترف تردّ على عملاء النشاط التجاري. أجب بإيجاز ومهنية على آخر رسالة من العميل مباشرةً.",
+    instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
+    GROUNDING_RULES,
+    `اللهجة: ${agent.dialect}.`,
+    agent.tone ? `النبرة: ${agent.tone}.` : "",
+  ].filter(Boolean).join("\n");
+  const transcript = `[العميل]: ${message}`;
+  const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.
+
+المحادثة:
+${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogContext}` : ""}
+
+المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. رد موجز ومهني بالعربية.`;
+
+  const model = agent.defaultModel && agent.defaultModel !== "mock" ? agent.defaultModel : getDefaultModel();
+  const tier = classifyComplexity({ inboundText: message, knowledgeMatchCount: knowledgeSources.length, turnCount: 1, imageCount: 0 });
+  const route = resolveModel("text.reply", tier);
+
+  // استدعاء حقيقي للنموذج (يُفوتَر كاستخدام فعلي عبر workspaceId) بنفس أدوات الإنتاج — لكن لا تنفيذ.
+  const aiOutput = await runAIWithTimeout({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    model,
+    modelId: route.modelId,
+    workspaceId: params.workspaceId,
+    taskType: "draft_reply",
+    maxTokens: agent.maxOutputTokens,
+    responseFormat: "text",
+    tools: toolDeclarations,
+  });
+
+  const intendedCalls = (aiOutput.toolCalls ?? []).map((call) => ({ name: call.name, args: call.args }));
+  const modelText = sanitizeReply(aiOutput.content);
+  // نصّ المعاينة: نصّ النموذج، وإلا نفس التأكيد الحتمي الذي سيرسله المسار الحيّ عند استدعاء أداة بلا نص.
+  const previewReply = modelText || confirmationFromToolResults(
+    intendedCalls.map((call) => ({ tool: call.name as AgentToolResult["tool"], status: "success" as const, summary: "" })),
+  );
+  const wouldEscalate =
+    intendedCalls.some((call) => call.name === "handoff_to_human") ||
+    replyPromisesHandoff(previewReply) ||
+    includesEscalationKeyword(message);
+
+  return {
+    reply: previewReply,
+    knowledgeSources: knowledgeSources.map((item) => item.title),
+    toolCalls: intendedCalls,
+    wouldEscalate,
+    provider: aiOutput.provider,
+    aiUnavailable: aiOutput.fallbackUsed === true || aiOutput.provider === "mock",
+  };
+}

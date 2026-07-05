@@ -19,7 +19,8 @@ import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import { runAI, getProviderStatus, ACTIVE_PROVIDER, getDefaultModel, type AiMessage } from "../../lib/ai-provider";
 import { checkActionSafety, recordSafetyBlock, isSuggestionSafe } from "../../lib/ai-safety";
 import { aiRunLimiter } from "../../lib/rateLimiter";
-import { runAgentReply } from "../../lib/agent-reply";
+import { runAgentReply, simulateAgentReply } from "../../lib/agent-reply";
+import { logger } from "../../lib/logger";
 import { appendTurn, clear as clearAgentMemory, loadContext, rotate, shouldRotate } from "../../services/agent-memory";
 import { searchKnowledgeForAi } from "../../services/knowledge-retrieval";
 import { shouldAutoSend, type TrustDecision } from "../../services/trust-gate";
@@ -981,6 +982,49 @@ router.patch("/agents/:id/tools", requirePermission("ai:configure"), async (req:
   }
 
   res.json({ tool });
+});
+
+// ─── Agent Simulation (Playground) ────────────────────────────────────────────
+// محاكاة آمنة وأمينة لردّ الوكيل الحيّ: نفس القواعد والأدوات والتوجيه، بلا أي أثر جانبي.
+// "اختبر قبل التفعيل" — بوابة Fin-style قبل تفعيل الوكيل على محادثات حقيقية.
+
+const agentSimulateSchema = z.object({
+  message: z.string().trim().min(1).max(5000),
+});
+
+router.post("/agents/:id/simulate", aiRunLimiter, requirePermission("ai:use"), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const agentId = String(req.params.id);
+  if (!z.string().uuid().safeParse(agentId).success) {
+    res.status(400).json({ error: "معرف وكيل غير صالح" });
+    return;
+  }
+
+  const parse = agentSimulateSchema.safeParse(req.body);
+  if (!parse.success) {
+    res.status(400).json({ error: "بيانات غير صالحة", details: parse.error.flatten() });
+    return;
+  }
+
+  try {
+    const result = await simulateAgentReply({
+      workspaceId: activeWorkspaceId,
+      agentId,
+      message: parse.data.message,
+    });
+    res.status(200).json(result);
+  } catch (err) {
+    if (err instanceof Error && err.message === "AI_AGENT_NOT_FOUND") {
+      res.status(404).json({ error: "الوكيل غير موجود" });
+      return;
+    }
+    if ((err as { code?: string }).code === "ai_points_exhausted") {
+      res.status(402).json({ error: "نفدت نقاط الذكاء — اشحن رصيدك لتجربة الوكيل" });
+      return;
+    }
+    logger.error({ err, agentId, workspaceId: activeWorkspaceId }, "simulateAgentReply failed");
+    res.status(500).json({ error: "تعذّر تشغيل المحاكاة" });
+  }
 });
 
 // ─── AI Runs — List & Get ─────────────────────────────────────────────────────
