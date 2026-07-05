@@ -1,7 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   channelAccountsTable,
-  contactChannelsTable,
   contactsTable,
   conversationsTable,
   db,
@@ -14,18 +13,13 @@ import { handleInstagramWebhook } from "./instagram.handler";
 import { handleMessengerWebhook } from "./messenger.handler";
 import { extractMetaCommerceMessage } from "./meta-commerce-message";
 import { notifyWorkspace } from "../../services/notifications";
+import { businessScopeFromProviderConfig, resolveWhatsAppInboundContact } from "./whatsapp-contact-identity";
 
 export type MetaWebhookResult = {
   handled: boolean;
   messagesCreated: number;
   statusesUpdated: number;
 };
-
-function normalizePhone(raw: string): string {
-  const cleaned = raw.replace(/[^\d+]/g, "");
-  if (cleaned.startsWith("+")) return cleaned;
-  return `+${cleaned}`;
-}
 
 function findMessages(payload: any): any[] {
   const entries = Array.isArray(payload?.entry) ? payload.entry : [];
@@ -50,6 +44,19 @@ function findPhoneNumberId(payload: any): string | null {
     }
   }
   return null;
+}
+
+function findChangeValueForMessage(payload: any, targetMessage: any): Record<string, unknown> {
+  const entries = Array.isArray(payload?.entry) ? payload.entry : [];
+  for (const entry of entries) {
+    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+    for (const change of changes) {
+      const value = change?.value;
+      const messages = Array.isArray(value?.messages) ? value.messages : [];
+      if (messages.includes(targetMessage)) return value;
+    }
+  }
+  return {};
 }
 
 function mediaAttachment(message: any): Record<string, unknown> | null {
@@ -155,61 +162,25 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
       .limit(1);
     if (existing) continue;
 
-    const normalized = normalizePhone(String(inbound.from ?? ""));
-    if (!normalized || normalized === "+") continue;
+    const contactResolution = await resolveWhatsAppInboundContact({
+      workspaceId,
+      channelAccountId: channelAccount.id,
+      phoneNumberId,
+      businessScopeId: businessScopeFromProviderConfig(channelAccount.providerConfig as Record<string, unknown>),
+      value: findChangeValueForMessage(body, inbound),
+      message: inbound,
+    });
 
-    const [existingChannel] = await db
-      .select()
-      .from(contactChannelsTable)
-      .where(and(
-        eq(contactChannelsTable.workspaceId, workspaceId),
-        sql`${contactChannelsTable.channelType} in ('phone', 'whatsapp', 'whatsapp_api')`,
-        eq(contactChannelsTable.normalizedIdentifier, normalized),
-      ))
-      .limit(1);
-
-    let contactId = existingChannel?.contactId;
-    let contactChannelId = existingChannel?.id;
-
-    if (contactId) {
-      const [whatsappChannel] = await db
-        .insert(contactChannelsTable)
-        .values({
-          workspaceId,
-          contactId,
-          channelType: "whatsapp",
-          identifier: normalized,
-          normalizedIdentifier: normalized,
-          isPrimary: true,
-          isVerified: true,
-          optedIn: true,
-          providerData: { phoneNumberId },
-        })
-        .onConflictDoNothing()
-        .returning();
-      contactChannelId = whatsappChannel?.id ?? contactChannelId;
-    } else {
-      const [contact] = await db
-        .insert(contactsTable)
-        .values({ workspaceId, name: normalized, phone: normalized, createdAt: new Date(), updatedAt: new Date() })
-        .returning();
-      contactId = contact.id;
-      const [channel] = await db
-        .insert(contactChannelsTable)
-        .values({
-          workspaceId,
-          contactId,
-          channelType: "whatsapp",
-          identifier: normalized,
-          normalizedIdentifier: normalized,
-          isPrimary: true,
-          isVerified: true,
-          optedIn: true,
-          providerData: { phoneNumberId },
-        })
-        .returning();
-      contactChannelId = channel.id;
+    if (!contactResolution) {
+      logger.warn({
+        phoneNumberId,
+        messageId: providerMessageId,
+        messageKeys: Object.keys(inbound ?? {}),
+      }, "Skipping WhatsApp message without a resolvable customer identity");
+      continue;
     }
+
+    const { contactId, contactChannelId, externalThreadId, recipientIdentityType } = contactResolution;
 
     if (inbound.type === "location" && contactId) {
       const location = inbound.location ?? {};
@@ -230,6 +201,7 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
         eq(conversationsTable.workspaceId, workspaceId),
         eq(conversationsTable.contactId, contactId),
         eq(conversationsTable.channelAccountId, channelAccount.id),
+        eq(conversationsTable.externalThreadId, externalThreadId),
         sql`${conversationsTable.status} <> 'closed'`,
         sql`${conversationsTable.createdAt} > now() - interval '24 hours'`,
       ))
@@ -246,7 +218,7 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
         channel: "whatsapp",
         status: "open",
         priority: "normal",
-        externalThreadId: normalized,
+        externalThreadId,
       })
       .returning())[0];
 
@@ -284,14 +256,14 @@ export async function handleMetaWhatsAppWebhook(payload: unknown): Promise<MetaW
       eventType: "message.received",
       entityType: "conversation",
       entityId: conversation.id,
-      payload: { conversationId: conversation.id, contactId, channelAccountId: channelAccount.id, providerMessageId, messageId: message.id },
+      payload: { conversationId: conversation.id, contactId, channelAccountId: channelAccount.id, providerMessageId, messageId: message.id, recipientIdentityType },
     });
     emitWorkspaceEvent({
       workspaceId,
       type: "message.received",
       entityType: "message",
       entityId: message.id,
-      payload: { conversationId: conversation.id, contactId, channelAccountId: channelAccount.id, providerMessageId },
+      payload: { conversationId: conversation.id, contactId, channelAccountId: channelAccount.id, providerMessageId, recipientIdentityType },
     });
 
     await notifyWorkspace({

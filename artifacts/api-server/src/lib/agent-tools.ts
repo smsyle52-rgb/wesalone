@@ -21,6 +21,7 @@ import type { AiFunctionDeclaration } from "./ai-provider";
 import { createAuditLog } from "./audit";
 import { addContactTimeline } from "./contactTimeline";
 import { emitWorkspaceEvent } from "./events";
+import { resolveWhatsAppConversationRecipient } from "../modules/integrations/whatsapp-contact-identity";
 
 export const AGENT_TOOL_KEYS = [
   "create_order",
@@ -58,6 +59,7 @@ type ConversationContext = {
   contactId: string | null;
   channel: string;
   channelAccountId: string | null;
+  contactChannelId: string | null;
   externalThreadId: string | null;
 };
 
@@ -457,6 +459,7 @@ async function loadConversation(workspaceId: string, conversationId: string): Pr
       contactId: conversationsTable.contactId,
       channel: conversationsTable.channel,
       channelAccountId: conversationsTable.channelAccountId,
+      contactChannelId: conversationsTable.contactChannelId,
       externalThreadId: conversationsTable.externalThreadId,
     })
     .from(conversationsTable)
@@ -961,6 +964,19 @@ async function executeSendProductMedia(params: ExecuteParams, conversation: Conv
     : conversation.channel === "messenger"
       ? "message.send.messenger.media"
       : "message.send.whatsapp.media";
+  const isWhatsAppMedia = mediaEventType === "message.send.whatsapp.media";
+  let whatsappRecipient: Awaited<ReturnType<typeof resolveWhatsAppConversationRecipient>> | null = null;
+
+  if (isWhatsAppMedia) {
+    whatsappRecipient = await resolveWhatsAppConversationRecipient({
+      workspaceId: params.workspaceId,
+      channelAccountId: conversation.channelAccountId,
+      contactId: conversation.contactId,
+      contactChannelId: conversation.contactChannelId,
+      externalThreadId: conversation.externalThreadId,
+    });
+    if (!whatsappRecipient.ok) throw new Error(whatsappRecipient.code);
+  }
 
   const [event] = await db.insert(outboxEventsTable).values({
     workspaceId: params.workspaceId,
@@ -971,7 +987,8 @@ async function executeSendProductMedia(params: ExecuteParams, conversation: Conv
     payload: {
       channelAccountId: conversation.channelAccountId,
       conversationId: conversation.id,
-      to: conversation.externalThreadId,
+      to: whatsappRecipient?.ok ? whatsappRecipient.to : conversation.externalThreadId,
+      ...(whatsappRecipient?.ok ? { recipientIdentityType: whatsappRecipient.identityType } : {}),
       mediaType: "image",
       mediaUrl: product.imageUrl,
       caption,

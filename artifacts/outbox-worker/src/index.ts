@@ -10,6 +10,7 @@ const HEARTBEAT_INTERVAL_MS = 10_000;
 const CLEANUP_INTERVAL_MS = 300_000;
 const INGEST_DEFERRED = process.env.INGEST_DEFERRED === "true";
 const META_DRY_RUN = process.env.META_DRY_RUN === "true";
+const WHATSAPP_BSUID_ENABLED = process.env.WHATSAPP_BSUID_ENABLED === "true";
 const META_GRAPH_VERSION = "v22.0";
 const API_SERVER_URL = (process.env.API_SERVER_URL ?? "http://localhost:8080").replace(/\/$/, "");
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "";
@@ -94,6 +95,12 @@ function asRecord(value: unknown): JsonRecord {
 function stringField(record: JsonRecord, key: string): string | undefined {
   const value = record[key];
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function maskExternalId(value: string | undefined): string | null {
+  if (!value) return null;
+  if (value.length <= 6) return "***";
+  return `${value.slice(0, 3)}…${value.slice(-3)}`;
 }
 
 function phoneNumberIdFromConfig(providerConfig: unknown): string | undefined {
@@ -196,7 +203,7 @@ async function dispatchWhatsAppText(params: {
   text: string;
 }): Promise<void> {
   if (shouldDryRunMetaSend()) {
-    logMetaDryRun("message.send.whatsapp.text", { phoneNumberId: params.phoneNumberId, to: params.to });
+    logMetaDryRun("message.send.whatsapp.text", { phoneNumberId: params.phoneNumberId, to: maskExternalId(params.to) });
     return;
   }
   const token = process.env.META_SYSTEM_USER_TOKEN;
@@ -233,7 +240,7 @@ async function sendWhatsAppMedia(params: {
   caption?: string;
 }): Promise<void> {
   if (shouldDryRunMetaSend()) {
-    logMetaDryRun("message.send.whatsapp.media", { phoneNumberId: params.phoneNumberId, to: params.to, mediaType: params.mediaType });
+    logMetaDryRun("message.send.whatsapp.media", { phoneNumberId: params.phoneNumberId, to: maskExternalId(params.to), mediaType: params.mediaType });
     return;
   }
   const token = process.env.META_SYSTEM_USER_TOKEN;
@@ -278,7 +285,7 @@ async function sendWhatsAppTemplate(params: {
   components: unknown[];
 }): Promise<void> {
   if (shouldDryRunMetaSend()) {
-    logMetaDryRun("message.send.whatsapp.template", { phoneNumberId: params.phoneNumberId, to: params.to, templateName: params.templateName });
+    logMetaDryRun("message.send.whatsapp.template", { phoneNumberId: params.phoneNumberId, to: maskExternalId(params.to), templateName: params.templateName });
     return;
   }
   const token = process.env.META_SYSTEM_USER_TOKEN;
@@ -459,6 +466,7 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
   const mediaUrl = stringField(payload, "mediaUrl");
   const mediaType = stringField(payload, "mediaType") ?? "image";
   const caption = stringField(payload, "caption");
+  const recipientIdentityType = stringField(payload, "recipientIdentityType") ?? stringField(payload, "toIdentityType");
 
   if (!to || !channelAccountId) {
     throw new Error("Outbox payload must include to and channelAccountId");
@@ -520,8 +528,14 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
   // WhatsApp path (default)
   const phoneNumberId = phoneNumberIdFromConfig(channel.provider_config);
   if (!phoneNumberId) throw new Error(`Channel account ${channelAccountId} has no phone_number_id`);
+  if (recipientIdentityType === "whatsapp_bsuid" && !WHATSAPP_BSUID_ENABLED) {
+    throw new Error("WHATSAPP_BSUID_RECIPIENT_DISABLED");
+  }
 
   if (event.event_type === "message.send.whatsapp.template") {
+    if (recipientIdentityType === "whatsapp_bsuid") {
+      throw new Error("WHATSAPP_TEMPLATE_REQUIRES_PHONE_RECIPIENT");
+    }
     const templateName = stringField(payload, "templateName");
     const language = stringField(payload, "language") ?? "ar";
     const components = Array.isArray((payload as Record<string, unknown>).components)

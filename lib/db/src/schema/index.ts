@@ -17,6 +17,7 @@ export * from "./agent_memory";
 export * from "./service_health";
 export * from "./contacts";
 export * from "./conversations";
+export * from "./channel_identities";
 export * from "./tickets";
 export * from "./tasks";
 export * from "./followups";
