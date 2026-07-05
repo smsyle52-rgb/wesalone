@@ -21,7 +21,7 @@ import {
   loadProductCatalogContext,
   type AgentToolResult,
 } from "./agent-tools";
-import { includesEscalationKeyword } from "./agent-escalation";
+import { includesEscalationKeyword, replyPromisesHandoff } from "./agent-escalation";
 
 // تأريض صارم (3 يوليو 2026): حادثة «299 ريال» — النموذج اخترع سعراً رغم قاعدة المنع في
 // SAFETY_SYSTEM_PROMPT، ثم ادّعى «قمت بتحويل طلبك» تهرّباً. هاتان القاعدتان تربطان
@@ -422,14 +422,16 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       estimatedCost: aiOutput.estimatedCost,
     });
 
-    // التصعيد صار حتمياً بالبنية (استدعاء الأدوات الأصلي): (1) فشل أداة، أو (2) استدعاء النموذج
-    // لأداة handoff_to_human فعلياً — بنية لا نصّ، فلا يعتمد على صياغة عربية بعينها، و(3) طلب صريح
-    // من العميل (تُفحص رسالة العميل فقط بقائمة طلبات الإنسان). أُزيل نهائياً تخمين نصّ ردّ الوكيل
-    // بـregex (replyPromisesHandoff) — كان مصدر عطلَي جلسة 17 («صعّد» لم تُطابق) وحادثة 3 يوليو
-    // (وصف المنتج «خدمة العملاء» طابق كلمة طلب فحوّل بصمت). الوكيل يطلب التحويل بأداة، لا بجملة.
+    // التصعيد أربع طبقات — الأساس الجديد بنيوي، والباقي شبكات أمان مكمّلة:
+    // (1) فشل أداة → مراجعة بشرية. (2) استدعاء handoff_to_human فعلياً = المسار الأساسي الموثوق
+    //     (بنية لا صياغة، فلا يُفوّت مثل «صعّد» في جلسة 17). (3) شبكة أمان: لو وعد الوكيل بالتحويل
+    //     نصّاً دون استدعاء الأداة، ننفّذ الوعد بدل تركه مكسوراً (مشكلة #3) — لم نعد نعتمد عليها
+    //     كمصدر وحيد فلا تعود دوامة «أضف كل صياغة». (4) طلب صريح من العميل: تُفحص رسالة العميل
+    //     وحدها لا ردّ الوكيل (تفادي حادثة 3 يوليو: وصف المنتج «خدمة العملاء» حوّل بصمت).
     const shouldEscalate =
       hasToolProblem ||
       hasHandoff ||
+      replyPromisesHandoff(finalReply) ||
       (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound));
     return { reply: finalReply, shouldEscalate, runId: run.id, toolResults };
   } catch (err) {
