@@ -2,6 +2,8 @@
 
 Phase 5-Prep keeps one Meta App and one OAuth flow for three channels: WhatsApp, Instagram, and Messenger. Development remains safe by default through `META_DRY_RUN` and by requiring operator-managed secrets before any live provider behavior.
 
+For staged WhatsApp Business-Scoped User ID support, see `docs/architecture/WHATSAPP_BSUID_SAFE_SUPPORT.md`.
+
 ## Environment
 
 Required for live mode:

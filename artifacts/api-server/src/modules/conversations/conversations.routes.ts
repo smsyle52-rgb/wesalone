@@ -13,6 +13,7 @@ import { emitWorkspaceEvent, publishDomainEvent } from "../../lib/events";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
 import { fetchMetaMediaStream } from "../../services/meta-media";
+import { resolveWhatsAppConversationRecipient } from "../integrations/whatsapp-contact-identity";
 
 const router = Router();
 router.use(requireSession);
@@ -859,6 +860,21 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
     const hasMedia = Boolean(mediaUrl && mediaType);
     const isOutboundToChannel = effectiveDirection === "outbound" && !isPrivateNote
       && !!conv.channelAccountId && !!conv.externalThreadId;
+    const isWhatsAppOutbound = isOutboundToChannel && ["whatsapp_api", "whatsapp"].includes(conv.channel);
+    let whatsappRecipient: Awaited<ReturnType<typeof resolveWhatsAppConversationRecipient>> | null = null;
+
+    if (isWhatsAppOutbound && conv.channelAccountId) {
+      whatsappRecipient = await resolveWhatsAppConversationRecipient({
+        workspaceId: activeWorkspaceId,
+        channelAccountId: conv.channelAccountId,
+        contactId: conv.contactId,
+        externalThreadId: conv.externalThreadId,
+      });
+      if (!whatsappRecipient.ok) {
+        res.status(409).json({ error: whatsappRecipient.message, code: whatsappRecipient.code });
+        return;
+      }
+    }
 
     if (hasMedia && isOutboundToChannel && !["whatsapp_api", "whatsapp", "instagram", "messenger"].includes(conv.channel)) {
       res.status(400).json({ error: "إرسال الوسائط من الوارد غير مدعوم لهذه القناة" });
@@ -905,7 +921,8 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
           payload: {
             channelAccountId: conv.channelAccountId,
             conversationId: conv.id,
-            to: conv.externalThreadId,
+            to: whatsappRecipient?.ok ? whatsappRecipient.to : conv.externalThreadId,
+            ...(whatsappRecipient?.ok ? { recipientIdentityType: whatsappRecipient.identityType } : {}),
             mediaType,
             mediaUrl,
             body: trimmedContent || undefined,
@@ -931,7 +948,8 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
         payload: {
           channelAccountId: conv.channelAccountId,
           conversationId: conv.id,
-          to: conv.externalThreadId,
+          to: whatsappRecipient?.ok ? whatsappRecipient.to : conv.externalThreadId,
+          ...(whatsappRecipient?.ok ? { recipientIdentityType: whatsappRecipient.identityType } : {}),
           body: effectiveContent,
           manualReply: true,
           messageId: message.id,

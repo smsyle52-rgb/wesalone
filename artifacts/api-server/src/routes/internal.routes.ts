@@ -19,6 +19,7 @@ import { runAgentReply } from "../lib/agent-reply";
 import { runExpireGrantsJob } from "../jobs/expire-grants";
 import { emitWorkspaceEvent } from "../lib/events";
 import { notifyWorkspace } from "../services/notifications";
+import { resolveWhatsAppConversationRecipient } from "../modules/integrations/whatsapp-contact-identity";
 
 const router = Router();
 
@@ -127,6 +128,8 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
     const [conversation] = await db
       .select({
         id: conversationsTable.id,
+        contactId: conversationsTable.contactId,
+        contactChannelId: conversationsTable.contactChannelId,
         channelAccountId: conversationsTable.channelAccountId,
         externalThreadId: conversationsTable.externalThreadId,
         channel: conversationsTable.channel,
@@ -194,6 +197,29 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
     // PD-2 fix: أدرج رسالة الوكيل في messages وأبثّها عبر SSE قبل الإضافة لـoutbox
     // PD-7 fix: senderId لرسائل الوكيل = null دائماً — العمود مرتبط بمفتاح أجنبي على users،
     // ومعرّف الوكيل من ai_agents يكسر القيد ويُسقط الرد كاملاً. هوية الوكيل في senderType+senderName+source.
+    const isWhatsAppConversation = conversation.channel === "whatsapp" || conversation.channel === "whatsapp_api";
+    let whatsappRecipient: Awaited<ReturnType<typeof resolveWhatsAppConversationRecipient>> | null = null;
+    if (isWhatsAppConversation) {
+      whatsappRecipient = await resolveWhatsAppConversationRecipient({
+        workspaceId,
+        channelAccountId: conversation.channelAccountId,
+        contactId: conversation.contactId,
+        contactChannelId: conversation.contactChannelId,
+        externalThreadId: conversation.externalThreadId,
+      });
+      if (!whatsappRecipient.ok) {
+        logger.warn({ workspaceId, conversationId, code: whatsappRecipient.code }, "Agent reply has no sendable WhatsApp recipient");
+        res.status(200).json({
+          success: true,
+          runId: agentReply.runId,
+          shouldEscalate: false,
+          toolResults: agentReply.toolResults,
+          outboxEventId: null,
+        });
+        return;
+      }
+    }
+
     let outboxEventId: string | null = null;
     try {
       const [agentMessage] = await db
@@ -242,7 +268,8 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
           payload: {
             channelAccountId: conversation.channelAccountId,
             conversationId,
-            to: conversation.externalThreadId,
+            to: whatsappRecipient?.ok ? whatsappRecipient.to : conversation.externalThreadId,
+            ...(whatsappRecipient?.ok ? { recipientIdentityType: whatsappRecipient.identityType } : {}),
             body: replyText,
             aiRunId: agentReply.runId,
             autoReply: true,

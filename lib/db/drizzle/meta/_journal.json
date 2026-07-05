@@ -33,6 +33,7 @@
     { "idx": 28, "version": "7", "when": 1782531660000, "tag": "0028_orders_delivery", "breakpoints": true },
     { "idx": 29, "version": "7", "when": 1782531720000, "tag": "0029_products_inventory", "breakpoints": true },
     { "idx": 30, "version": "7", "when": 1782531780000, "tag": "0030_parity_columns", "breakpoints": true },
-    { "idx": 31, "version": "7", "when": 1782531840000, "tag": "0031_billing_admin_manual_payment_closure", "breakpoints": true }
+    { "idx": 31, "version": "7", "when": 1782531840000, "tag": "0031_billing_admin_manual_payment_closure", "breakpoints": true },
+    { "idx": 32, "version": "7", "when": 1782531900000, "tag": "0032_whatsapp_bsuid_identities", "breakpoints": true }
   ]
 }

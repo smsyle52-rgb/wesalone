@@ -28,6 +28,7 @@ import { loadLearnedContext } from "../../services/agent-learning";
 import { loadMediaContext } from "../../services/agent-media";
 import { checkLimit } from "../../services/billing";
 import { notifyWorkspace } from "../../services/notifications";
+import { resolveWhatsAppConversationRecipient } from "../integrations/whatsapp-contact-identity";
 
 const router = Router();
 router.use(requireSession);
@@ -337,7 +338,7 @@ async function searchKnowledgeDetailed(workspaceId: string, query: string, baseI
 async function resolveAutoReplyDestination(
   workspaceId: string,
   conversation: typeof conversationsTable.$inferSelect
-): Promise<{ channelAccountId: string | null; to: string | null }> {
+): Promise<{ channelAccountId: string | null; to: string | null; recipientIdentityType?: string }> {
   let channelAccountId = conversation.channelAccountId;
   if (!channelAccountId) {
     const [account] = await db
@@ -346,6 +347,18 @@ async function resolveAutoReplyDestination(
       .where(and(eq(channelAccountsTable.workspaceId, workspaceId), eq(channelAccountsTable.channelType, "whatsapp")))
       .limit(1);
     channelAccountId = account?.id ?? null;
+  }
+
+  if (channelAccountId) {
+    const recipient = await resolveWhatsAppConversationRecipient({
+      workspaceId,
+      channelAccountId,
+      contactId: conversation.contactId,
+      contactChannelId: conversation.contactChannelId,
+      externalThreadId: conversation.externalThreadId,
+    });
+    if (recipient.ok) return { channelAccountId, to: recipient.to, recipientIdentityType: recipient.identityType };
+    return { channelAccountId, to: null };
   }
 
   if (conversation.contactChannelId) {
@@ -1676,6 +1689,7 @@ ${locationContext}
             channelAccountId: destination.channelAccountId,
             conversationId,
             to: destination.to,
+            ...(destination.recipientIdentityType ? { recipientIdentityType: destination.recipientIdentityType } : {}),
             body: finalDraft,
             aiRunId: result.run.id,
             autoReply: true,
