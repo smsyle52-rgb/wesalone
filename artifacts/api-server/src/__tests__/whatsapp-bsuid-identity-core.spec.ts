@@ -75,9 +75,20 @@ describe("WhatsApp BSUID identity core", () => {
     if (!recipient.ok) expect(recipient.code).toBe("WHATSAPP_BSUID_DISABLED");
   });
 
-  it("returns BSUID recipients when enabled and the conversation is linked to BSUID", () => {
+  it("prefers phone recipients when phone and BSUID are both available", () => {
     const recipient = resolveWhatsAppRecipientAddress({
       phone: "+967777111222",
+      bsuid: "bsuid_abc",
+      conversationThreadId: "bsuid_abc",
+      bsuidEnabled: true,
+    });
+
+    expect(recipient).toEqual({ ok: true, to: "+967777111222", identityType: "whatsapp_phone" });
+  });
+
+  it("uses BSUID only when no phone recipient exists and the feature is enabled", () => {
+    const recipient = resolveWhatsAppRecipientAddress({
+      phone: null,
       bsuid: "bsuid_abc",
       conversationThreadId: "bsuid_abc",
       bsuidEnabled: true,

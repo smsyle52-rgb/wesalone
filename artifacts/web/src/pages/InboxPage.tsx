@@ -934,8 +934,11 @@ export default function InboxPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <span className={cn("text-sm truncate", (c.unreadCount ?? 0) > 0 ? "font-black text-foreground" : "font-semibold text-foreground/80")}>
-                          {c.contactName ?? "عميل غير معروف"}
+                        <span className="min-w-0 flex-1">
+                          <span className={cn("block truncate text-sm", (c.unreadCount ?? 0) > 0 ? "font-black text-foreground" : "font-semibold text-foreground/80")}>
+                            {c.contactName ?? "عميل غير معروف"}
+                          </span>
+                          {c.contactPhone && <span dir="ltr" className="block truncate text-[0.72rem] text-muted-foreground">{c.contactPhone}</span>}
                         </span>
                         <span className="text-[0.68rem] text-muted-foreground shrink-0">{timeAgo(c.lastMessageAt ?? c.createdAt)}</span>
                       </div>
@@ -1574,8 +1577,11 @@ export default function InboxPage() {
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className={cn("truncate text-[0.9rem]", c.unreadCount > 0 ? "font-bold text-foreground" : "font-semibold text-foreground/90")}>
-                        {c.contactName ?? "عميل غير معروف"}
+                      <span className="min-w-0 flex-1">
+                        <span className={cn("block truncate text-[0.9rem]", c.unreadCount > 0 ? "font-bold text-foreground" : "font-semibold text-foreground/90")}>
+                          {c.contactName ?? "عميل غير معروف"}
+                        </span>
+                        {c.contactPhone && <span dir="ltr" className="block truncate text-[0.72rem] text-muted-foreground">{c.contactPhone}</span>}
                       </span>
                       <span className={cn("shrink-0 text-[0.7rem]", c.unreadCount > 0 ? "font-semibold text-primary" : "text-muted-foreground")}>
                         {timeAgo(c.lastMessageAt ?? c.createdAt)}
