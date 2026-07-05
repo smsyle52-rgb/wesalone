@@ -117,17 +117,8 @@ export function resolveWhatsAppRecipientAddress(params: {
   const threadId = nonEmptyString(params.conversationThreadId);
   const bsuidEnabled = params.bsuidEnabled ?? isWhatsAppBsuidEnabled();
 
-  if (bsuid && threadId === bsuid) {
-    if (!bsuidEnabled) {
-      return {
-        ok: false,
-        code: "WHATSAPP_BSUID_DISABLED",
-        message: `${WHATSAPP_BSUID_FLAG} is disabled for WhatsApp BSUID recipients`,
-      };
-    }
-    return { ok: true, to: bsuid, identityType: "whatsapp_bsuid" };
-  }
-
+  // WhatsApp Cloud API sends ordinary customer-service messages most reliably to wa_id/phone.
+  // Keep BSUID for identity linking and BSUID-only customers, but do not prefer it over a known phone.
   if (phone) return { ok: true, to: phone, identityType: "whatsapp_phone" };
 
   if (bsuid) {
