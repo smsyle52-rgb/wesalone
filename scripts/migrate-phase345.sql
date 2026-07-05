@@ -1634,7 +1634,17 @@ EXCEPTION WHEN duplicate_column THEN
   NULL;
 END $$;
 
+-- 5 يوليو 2026: عمود status وحده فات هذه الكتلة (رغم وجوده في الـDrizzle schema منذ نفس
+-- الدمج) — يسبب 500 على /products وفشل صامت في loadProductCatalogContext (تأريض أسعار الوكيل).
+DO $$
+BEGIN
+  ALTER TABLE inventory_products ADD COLUMN status text NOT NULL DEFAULT 'active';
+EXCEPTION WHEN duplicate_column THEN
+  NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_inv_products_barcode ON inventory_products(workspace_id, barcode);
+CREATE INDEX IF NOT EXISTS idx_inv_products_status ON inventory_products(workspace_id, status);
 
 -- =============================================================
 -- Commerce-merge drift closure (orders / order_items / payments / feature_flags).
