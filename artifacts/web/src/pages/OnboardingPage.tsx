@@ -367,6 +367,9 @@ export default function OnboardingPage() {
   const signupSessionErrorRef = useRef<string | null>(null);
   const agentPrefilledRef = useRef(false);
   const [connectingKey, setConnectingKey] = useState<MetaSignupConfigKey | null>(null);
+  // مهلة انتظار بيانات واتساب من Meta صارت طويلة (حتى 90 ثانية) — بلا رسالة توضيحية، يبدو
+  // الزر معلّقاً لتاجر ينتظر بعد أن أغلق نافذة Meta بالفعل. تُعرض فقط في هذه النافذة الزمنية.
+  const [isAwaitingMetaData, setIsAwaitingMetaData] = useState(false);
 
   useEffect(() => {
     if (onboardingStatus.completed) {
@@ -505,7 +508,13 @@ export default function OnboardingPage() {
     }
   }
 
-  function waitForCapturedSignupInfo(timeoutMs = 20000): Promise<EmbeddedSignupSessionInfo> {
+  // 6 يوليو 2026: عميل حقيقي (شركة صرافة أولى الاستخدام) حاول الربط لـ44 دقيقة متتالية —
+  // صفر استدعاء /complete رغم عشرات محاولاته. السبب الأرجح: أول مرة يعبر تاجر خطوات إعداد
+  // واتساب للأعمال داخل نافذة ميتا نفسها (اختيار/إنشاء حساب، تسجيل رقم، تحقّق OTP) — هذه
+  // خطوات تستغرق حقيقةً دقائق لا ثوانٍ لمستخدم جديد، بخلاف حساب مُهيّأ مسبقاً (حالة الإصلاح
+  // الأصلي 5 يوليو الذي رفع المهلة من 5 إلى 20 ثانية فقط). رفعناها الآن لتغطي فعلياً رحلة
+  // أول مرة، لا مجرد تأخر شبكة قصير.
+  function waitForCapturedSignupInfo(timeoutMs = 90000): Promise<EmbeddedSignupSessionInfo> {
     return new Promise((resolve, reject) => {
       if (signupSessionErrorRef.current) {
         reject(new Error(signupSessionErrorRef.current));
@@ -531,7 +540,7 @@ export default function OnboardingPage() {
         }
         if (Date.now() - startedAt >= timeoutMs) {
           window.clearInterval(timer);
-          reject(new Error("لم تعد Meta بيانات واتساب المطلوبة بعد."));
+          reject(new Error("لم نستلم بيانات واتساب من نافذة Meta بعد. تأكد أنك أكملت كل خطوات الربط داخل نافذة Meta (اختيار الحساب، رقم الهاتف، والتحقق منه) ثم أعد المحاولة."));
         }
       }, 100);
     });
@@ -587,7 +596,13 @@ export default function OnboardingPage() {
       await loadFacebookSdk(config.appId, config.graphVersion);
       const code = await loginWithFacebook(configId, optionKey);
       if (isWhatsAppSignupOption(optionKey)) {
-        const sessionInfo = await waitForCapturedSignupInfo();
+        setIsAwaitingMetaData(true);
+        let sessionInfo: EmbeddedSignupSessionInfo;
+        try {
+          sessionInfo = await waitForCapturedSignupInfo();
+        } finally {
+          setIsAwaitingMetaData(false);
+        }
         await apiFetch("integrations/meta/embedded-signup/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -612,6 +627,7 @@ export default function OnboardingPage() {
     },
     onMutate: (optionKey) => {
       setChannelError(null);
+      setIsAwaitingMetaData(false);
       setConnectingKey(optionKey);
     },
     onSettled: () => setConnectingKey(null),
@@ -953,6 +969,13 @@ export default function OnboardingPage() {
                         </button>
                       )})}
                     </div>
+
+                    {isAwaitingMetaData && (
+                      <div className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+                        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                        <span>جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط (اختيار الحساب أو رقم الهاتف أو التحقق منه)، أكملها؛ قد يستغرق هذا حتى دقيقة.</span>
+                      </div>
+                    )}
 
                     {connectedChannels.length > 0 && (
                       <div className="rounded-2xl border border-border bg-background p-4">
