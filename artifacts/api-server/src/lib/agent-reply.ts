@@ -51,6 +51,10 @@ const AGENT_REPLY_TEMPERATURE = Number(process.env.AGENT_REPLY_TEMPERATURE ?? "0
 // التاجر حسب قطاعه — فالشخصية تظهر بدل نبرة آلية موحّدة.
 const HUMAN_STYLE = "أسلوبك إنساني ودافئ وطبيعي — تتكلّم كموظف حقيقي متفهّم لا كروبوت. تجنّب العبارات الجاهزة الجافة والمتكرّرة (مثل «كيف يمكنني مساعدتك اليوم؟»)، ونوّع صياغتك وتفاعل مع محتوى رسالة العميل تحديداً. اجعل طول الردّ مناسباً للسياق لا مقتضباً جافاً، والتزم نبرة الوكيل ولهجته المحدّدتين.";
 
+// حدّ حقن المعرفة في البرومبت. كان 800 حرفاً بينما المقطع 2000 — فكان يُقتطع جزء الإجابة الفعلي
+// من مقطع مسترجَع صحيح («وجدها لكن ما قرأها»). رُفع ليرى النموذج المقطع كاملاً. قابل للضبط عبر env.
+const KNOWLEDGE_INJECT_CHARS = Number(process.env.KNOWLEDGE_INJECT_CHARS ?? "2000");
+
 async function upsertUsage(params: {
   workspaceId: string;
   model: string;
@@ -273,7 +277,7 @@ export async function runAgentReply(params: {
     .map((message) => `[${message.direction === "inbound" ? "العميل" : "الموظف"}]: ${message.content}`)
     .join("\n");
   const knowledgeContext = knowledgeSources.length > 0
-    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, 800)}`).join("\n")}`
+    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, KNOWLEDGE_INJECT_CHARS)}`).join("\n")}`
     : "";
   // مرونة الأسلوب (3 يوليو): النموذج كان يفتتح كل ردّ بـ«أهلاً بك!» وكأن المحادثة
   // تبدأ من الصفر (3 ترحيبات في محادثة واحدة). الشرط حتمي من الكود لا من ذاكرة النموذج.
@@ -509,7 +513,7 @@ export async function simulateAgentReply(params: {
   const toolDeclarations = executableTools.length > 0 ? buildAgentToolDeclarations(executableTools) : undefined;
 
   const knowledgeContext = knowledgeSources.length > 0
-    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, 800)}`).join("\n")}`
+    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, KNOWLEDGE_INJECT_CHARS)}`).join("\n")}`
     : "";
   const systemPrompt = [
     executableTools.length > 0 ? TOOL_USE_RULES : "",

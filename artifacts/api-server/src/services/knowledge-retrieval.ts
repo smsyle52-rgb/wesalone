@@ -11,7 +11,9 @@ import { logger } from "../lib/logger";
 
 // Minimum cosine similarity for a chunk to count as a semantic match in the pgvector pass.
 // Tunable in production without a redeploy via KNOWLEDGE_VECTOR_MIN.
-const VECTOR_GATHER_MIN = Number(process.env.KNOWLEDGE_VECTOR_MIN ?? "0.55");
+// خفض من 0.55 إلى 0.40 (5 يوليو): text-embedding-005 بوضع الاسترجاع اللامتماثل يعطي تطابقات
+// عربية مُعاد صياغتها صحيحة في المدى 0.4–0.6، فكانت 0.55 تُسقطها صامتةً (سبب «يتجاهل المعرفة»).
+const VECTOR_GATHER_MIN = Number(process.env.KNOWLEDGE_VECTOR_MIN ?? "0.4");
 
 export type KnowledgeSearchItem = {
   type: "faq" | "document" | "chunk";
