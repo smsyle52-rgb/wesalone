@@ -218,6 +218,14 @@ export async function loadExecutableAgentTools(workspaceId: string, agentId: str
   if (!policies.some((tool) => tool.key === "handoff_to_human")) {
     policies.push({ key: "handoff_to_human", requiresApproval: false, config: {} });
   }
+  // 5 يوليو 2026: لا يوجد أي واجهة في المنتج لتفعيل أي أداة من AGENT_TOOL_KEYS — أي وكيل
+  // جديد يُنشأ بصفر صفوف في ai_agent_tools، فتبقى send_product_media معطّلة دائماً رغم أنها
+  // مبنية ومربوطة بالكامل (executeSendProductMedia). النتيجة: لا وكيل على المنصة أرسل صورة
+  // منتج واحدة قط. تُعامَل كقدرة أساسية متاحة افتراضياً (نفس معاملة handoff_to_human) بدل
+  // انتظار واجهة إعدادات لا وجود لها — إلا إذا عطّلها التاجر صراحةً بصفّ isEnabled=false.
+  if (!rows.some((row) => row.toolKey === "send_product_media")) {
+    policies.push({ key: "send_product_media", requiresApproval: false, config: {} });
+  }
   return policies;
 }
 
