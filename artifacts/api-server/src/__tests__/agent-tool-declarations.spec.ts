@@ -9,11 +9,12 @@ const asSchema = (v: unknown): Schema => v as Schema;
 const requiredOf = (params: unknown): string[] => (asSchema(params).required as string[]) ?? [];
 const propsOf = (params: unknown): Schema => asSchema(asSchema(params).properties);
 
-const policy = (key: string) => ({ key, requiresApproval: false, config: {} });
+type ToolDeclarationInput = Parameters<typeof buildAgentToolDeclarations>[0][number];
+const policy = (key: ToolDeclarationInput["key"]): ToolDeclarationInput => ({ key, requiresApproval: false, config: {} });
 
 describe("buildAgentToolDeclarations — عقد الأدوات المنظّم", () => {
   it("ينتج تعريفاً واحداً لكل أداة ممرَّرة باسمها الصحيح ووصف غير فارغ", () => {
-    const keys = ["create_order", "log_payment_claim", "schedule_followup", "send_product_media", "handoff_to_human"];
+    const keys: Array<ToolDeclarationInput["key"]> = ["create_order", "log_payment_claim", "schedule_followup", "send_product_media", "handoff_to_human"];
     const decls = buildAgentToolDeclarations(keys.map(policy));
     expect(decls.map((d) => d.name)).toEqual(keys);
     for (const d of decls) {

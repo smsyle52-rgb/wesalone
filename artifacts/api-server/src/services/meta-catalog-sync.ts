@@ -6,6 +6,7 @@ import {
   catalogSyncRunsTable,
   channelAccountsTable,
   db,
+  inventoryProductsTable,
   knowledgeBasesTable,
   knowledgeDocumentsTable,
   knowledgeSourcesTable,
@@ -220,6 +221,57 @@ function parsePrice(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const match = value.replace(/,/g, "").match(/\d+(\.\d+)?/);
   return match ? Number(match[0]).toFixed(2) : null;
+}
+
+async function upsertInventoryMirror(params: {
+  source: CatalogSource;
+  externalProductId: string;
+  row: {
+    name: string;
+    description: string | null;
+    price: string | null;
+    currency: string;
+    availability: string | null;
+    inventoryCount: number | null;
+    imageUrl: string | null;
+  };
+}) {
+  const sku = `meta:${params.source.externalId}:${params.externalProductId}`;
+  const [existing] = await db.select({ id: inventoryProductsTable.id })
+    .from(inventoryProductsTable)
+    .where(and(
+      eq(inventoryProductsTable.workspaceId, params.source.workspaceId),
+      eq(inventoryProductsTable.sku, sku),
+    ))
+    .limit(1);
+
+  const values = {
+    name: params.row.name,
+    description: params.row.description,
+    sku,
+    price: params.row.price ?? "0",
+    currency: params.row.currency,
+    imageUrl: params.row.imageUrl,
+    quantityAvailable: params.row.inventoryCount,
+    status: params.row.availability === "out of stock" ? "inactive" : "active",
+    isArchived: false,
+    updatedAt: new Date(),
+  };
+
+  if (existing) {
+    await db.update(inventoryProductsTable)
+      .set(values)
+      .where(and(
+        eq(inventoryProductsTable.id, existing.id),
+        eq(inventoryProductsTable.workspaceId, params.source.workspaceId),
+      ));
+    return;
+  }
+
+  await db.insert(inventoryProductsTable).values({
+    workspaceId: params.source.workspaceId,
+    ...values,
+  });
 }
 
 async function markSource(source: CatalogSource, values: Partial<typeof catalogSourcesTable.$inferInsert>) {
@@ -451,6 +503,8 @@ export async function syncCommerceCatalog(source: CatalogSource): Promise<SyncRe
         target: [productsTable.workspaceId, productsTable.catalogSourceId, productsTable.externalProductId],
         set: row,
       });
+
+      await upsertInventoryMirror({ source, externalProductId, row });
     }
 
     if (seenIds.length > 0) {
@@ -460,6 +514,14 @@ export async function syncCommerceCatalog(source: CatalogSource): Promise<SyncRe
           eq(productsTable.workspaceId, source.workspaceId),
           eq(productsTable.catalogSourceId, source.id),
           notInArray(productsTable.externalProductId, seenIds),
+        ));
+
+      await db.update(inventoryProductsTable)
+        .set({ isArchived: true, status: "inactive", updatedAt: new Date() })
+        .where(and(
+          eq(inventoryProductsTable.workspaceId, source.workspaceId),
+          sql`${inventoryProductsTable.sku} like ${`meta:${source.externalId}:%`}`,
+          notInArray(inventoryProductsTable.sku, seenIds.map((id) => `meta:${source.externalId}:${id}`)),
         ));
     }
 

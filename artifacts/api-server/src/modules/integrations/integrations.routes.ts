@@ -191,6 +191,33 @@ async function callMetaGraph(path: string, token: string): Promise<any> {
   return response.json();
 }
 
+function pushUniqueMetaCatalog(
+  catalogs: MetaChannelOptions["commerce_catalogs"],
+  catalog: MetaChannelOptions["commerce_catalogs"][number],
+) {
+  if (catalogs.some((item) => item.catalog_id === catalog.catalog_id)) return;
+  catalogs.push(catalog);
+}
+
+async function fetchWabaProductCatalogs(
+  wabaId: string,
+  userToken: string,
+  businessId?: string,
+): Promise<MetaChannelOptions["commerce_catalogs"]> {
+  try {
+    const payload = await callMetaGraph(`${wabaId}/product_catalogs?fields=id,name`, userToken);
+    return (payload?.data ?? [])
+      .filter((catalog: any) => catalog?.id)
+      .map((catalog: any) => ({
+        catalog_id: String(catalog.id),
+        name: String(catalog.name ?? "WhatsApp Catalog"),
+        business_id: businessId,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 async function postMetaGraph(path: string, token: string, body?: Record<string, unknown>): Promise<any> {
   const response = await fetch(`https://graph.facebook.com/${requireMetaGraphVersion()}/${path.replace(/^\//, "")}`, {
     method: "POST",
@@ -295,10 +322,14 @@ async function fetchMetaPageOptions(userToken: string): Promise<{
 }
 
 async function fetchMetaChannelOptions(userToken: string): Promise<{ options: MetaChannelOptions; tokenRefs: MetaTokenRefs }> {
-  const [businesses, pageOptions] = await Promise.all([
+  const [businessesResult, pageOptionsResult] = await Promise.allSettled([
     callMetaGraph("me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name}},owned_product_catalogs{id,name},owned_ad_accounts{id,name,account_id}", userToken),
     fetchMetaPageOptions(userToken),
   ]);
+  const businesses = businessesResult.status === "fulfilled" ? businessesResult.value : { data: [] };
+  const pageOptions = pageOptionsResult.status === "fulfilled"
+    ? pageOptionsResult.value
+    : { facebookPages: [], instagramAccounts: [], pageTokenRefs: {} };
 
   const whatsappAccounts: MetaChannelOptions["whatsapp_accounts"] = [];
   const commerceCatalogs: MetaChannelOptions["commerce_catalogs"] = [];
@@ -316,9 +347,12 @@ async function fetchMetaChannelOptions(userToken: string): Promise<{ options: Me
           verified_name: phone.verified_name ? String(phone.verified_name) : undefined,
         })),
       });
+      for (const catalog of await fetchWabaProductCatalogs(String(waba.id), userToken, businessId)) {
+        pushUniqueMetaCatalog(commerceCatalogs, catalog);
+      }
     }
     for (const catalog of business?.owned_product_catalogs?.data ?? []) {
-      commerceCatalogs.push({
+      pushUniqueMetaCatalog(commerceCatalogs, {
         catalog_id: String(catalog.id),
         name: String(catalog.name ?? "Meta Catalog"),
         business_id: businessId,
@@ -1027,19 +1061,13 @@ router.post("/meta/embedded-signup/complete", requirePermission("integrations:up
     req.log?.warn({ err, channelAccountId: account.id, phoneNumberId }, "Meta phone number registration failed; continuing");
   }
 
-  let discoveredMetaOptions: MetaChannelOptions;
-  try {
-    discoveredMetaOptions = (await fetchMetaChannelOptions(userToken)).options;
-  } catch (err) {
-    req.log?.warn({ err, channelAccountId: account.id, wabaId }, "Meta catalog discovery failed after embedded signup; using fallback options");
-    discoveredMetaOptions = fallbackMetaOptions().options;
-  }
+  const wabaCatalogs = await fetchWabaProductCatalogs(wabaId, userToken);
 
   const createdSources = await upsertMetaCatalogSources({
     req,
     catalogs: resolveCatalogsForSelectedWabas({
-      whatsappAccounts: discoveredMetaOptions.whatsapp_accounts,
-      commerceCatalogs: discoveredMetaOptions.commerce_catalogs,
+      whatsappAccounts: [{ waba_id: wabaId }],
+      commerceCatalogs: wabaCatalogs,
       selectedWabaIds: [wabaId],
       selectedCatalogIds: [],
     }),
