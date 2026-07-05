@@ -46,6 +46,11 @@ const TOOL_USE_RULES = [
 // موثوقية الأدوات إطلاقاً. الأسلوب حسب القطاع يأتي من rolePrompt/tone/dialect التي يضبطها التاجر.
 const AGENT_REPLY_TEMPERATURE = Number(process.env.AGENT_REPLY_TEMPERATURE ?? "0.6");
 
+// أسلوب بشري (مضاد للبرود): كثرة القواعد الدفاعية (SAFETY + GROUNDING) تجعل النموذج يتقوقع في
+// عبارات جاهزة جافة. هذه القاعدة توازنها بأسلوب إنساني طبيعي، تقوده نبرة/لهجة الوكيل التي يضبطها
+// التاجر حسب قطاعه — فالشخصية تظهر بدل نبرة آلية موحّدة.
+const HUMAN_STYLE = "أسلوبك إنساني ودافئ وطبيعي — تتكلّم كموظف حقيقي متفهّم لا كروبوت. تجنّب العبارات الجاهزة الجافة والمتكرّرة (مثل «كيف يمكنني مساعدتك اليوم؟»)، ونوّع صياغتك وتفاعل مع محتوى رسالة العميل تحديداً. اجعل طول الردّ مناسباً للسياق لا مقتضباً جافاً، والتزم نبرة الوكيل ولهجته المحدّدتين.";
+
 async function upsertUsage(params: {
   workspaceId: string;
   model: string;
@@ -279,9 +284,10 @@ export async function runAgentReply(params: {
   const systemPrompt = [
     executableTools.length > 0 ? TOOL_USE_RULES : "",
     `Current date/time: ${new Date().toISOString()}.`,
-    instructions?.rolePrompt ?? "أنت موظف خدمة عملاء ومبيعات محترف تردّ على عملاء النشاط التجاري. أجب بإيجاز ومهنية على آخر رسالة من العميل مباشرةً.",
+    instructions?.rolePrompt ?? "أنت موظف مبيعات وخدمة عملاء حقيقي، ودود ومحترف، تردّ على عملاء النشاط التجاري بأسلوب إنساني طبيعي. تفاعل مع آخر رسالة من العميل مباشرةً.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
     GROUNDING_RULES,
+    HUMAN_STYLE,
     `اللهجة: ${agent.dialect}.`,
     agent.tone ? `النبرة: ${agent.tone}.` : "",
     mediaGuidance,
@@ -291,7 +297,7 @@ export async function runAgentReply(params: {
 المحادثة:
 ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogContext}` : ""}${orderStatusContext ? `\n\n${orderStatusContext}` : ""}
 
-المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. لا تكرّر ردّاً سابقاً حرفياً، ولا تكتفِ بعبارة ختامية عامة إلا إذا أنهى العميل المحادثة فعلاً. رد موجز ومهني بالعربية.${styleGuidance}`;
+المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. لا تكرّر ردّاً سابقاً حرفياً، ولا تكتفِ بعبارة ختامية عامة إلا إذا أنهى العميل المحادثة فعلاً. ردّ بالعربية بأسلوب إنساني ودافئ طبيعي مناسب للسياق.${styleGuidance}`;
   const model = agent.defaultModel && agent.defaultModel !== "mock" ? agent.defaultModel : getDefaultModel();
 
   // راوتر الموديلات (المرحلة 1): اختر flash للعادي / pro للصعب، ووجّه الصور لمسار الرؤية.
@@ -508,9 +514,10 @@ export async function simulateAgentReply(params: {
   const systemPrompt = [
     executableTools.length > 0 ? TOOL_USE_RULES : "",
     `Current date/time: ${new Date().toISOString()}.`,
-    instructions?.rolePrompt ?? "أنت موظف خدمة عملاء ومبيعات محترف تردّ على عملاء النشاط التجاري. أجب بإيجاز ومهنية على آخر رسالة من العميل مباشرةً.",
+    instructions?.rolePrompt ?? "أنت موظف مبيعات وخدمة عملاء حقيقي، ودود ومحترف، تردّ على عملاء النشاط التجاري بأسلوب إنساني طبيعي. تفاعل مع آخر رسالة من العميل مباشرةً.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
     GROUNDING_RULES,
+    HUMAN_STYLE,
     `اللهجة: ${agent.dialect}.`,
     agent.tone ? `النبرة: ${agent.tone}.` : "",
   ].filter(Boolean).join("\n");
@@ -520,7 +527,7 @@ export async function simulateAgentReply(params: {
 المحادثة:
 ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogContext}` : ""}
 
-المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. رد موجز ومهني بالعربية.`;
+المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. ردّ بالعربية بأسلوب إنساني ودافئ طبيعي مناسب للسياق.`;
 
   const model = agent.defaultModel && agent.defaultModel !== "mock" ? agent.defaultModel : getDefaultModel();
   const tier = classifyComplexity({ inboundText: message, knowledgeMatchCount: knowledgeSources.length, turnCount: 1, imageCount: 0 });
