@@ -220,7 +220,10 @@ const SYSTEM_PLANS = [
     name: "Free", slug: "free", key: "free", nameAr: "مجاني",
     priceUsd: "0", priceUsdAnnual: "0", priceSar: "0", priceYer: null,
     billingCycle: "monthly", sortOrder: 10,
-    limits: { channels: 1, agents: 1, team_members: 1, contacts: 100, monthly_points: 1000, knowledge_documents: 1, products: 20, auto_reply: false },
+    // channels=2 (لا 1): توصيل إنستغرام+ماسنجر معاً (instagram_messenger) يُنشئ دائماً قناتين
+    // في استدعاء واحد (صفحة فيسبوك + حساب إنستغرام) — بحد 1 كان الإكمال مستحيلاً فعلياً
+    // على الخطة المجانية. النقاط الشهرية بقيت 1000 بلا تغيير.
+    limits: { channels: 2, agents: 1, team_members: 1, contacts: 100, monthly_points: 1000, knowledge_documents: 1, products: 20, auto_reply: false },
     features: ["inbox", "ai_agent", "catalog"],
   },
   {

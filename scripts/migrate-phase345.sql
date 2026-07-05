@@ -880,8 +880,10 @@ FROM plans p WHERE p.id = ps.plan_id AND ps.plan_name_snapshot IS NULL;
 -- (3) أنشئ/حدّث الخطط الخمس المعتمدة (نفس تعريف seed.ts — مصدر واحد).
 INSERT INTO plans (key, slug, name, name_ar, price_usd, price_usd_annual, price_sar, price_yer, billing_cycle, is_active, sort_order, limits, features)
 VALUES
+  -- channels=2 (4 يوليو 2026): توصيل إنستغرام+ماسنجر معاً ينشئ قناتين دائماً؛ بحد 1 كان
+  -- إكماله مستحيلاً فعلياً على المجاني. monthly_points بقيت 1000 بلا تغيير.
   ('free','free','Free','مجاني', 0, 0, 0, NULL, 'monthly', true, 10,
-    '{"channels":1,"agents":1,"team_members":1,"contacts":100,"monthly_points":1000,"knowledge_documents":1,"products":20,"auto_reply":false}'::jsonb,
+    '{"channels":2,"agents":1,"team_members":1,"contacts":100,"monthly_points":1000,"knowledge_documents":1,"products":20,"auto_reply":false}'::jsonb,
     ARRAY['inbox','ai_agent','catalog']),
   ('starter','starter','Starter','البداية', 19, 182, 71.25, NULL, 'monthly', true, 20,
     '{"channels":1,"agents":1,"team_members":2,"contacts":1000,"monthly_points":10000,"knowledge_documents":1,"products":500,"auto_reply":true}'::jsonb,
