@@ -113,6 +113,9 @@ export interface AiRunInput {
   responseFormat?: "json" | "text";
   // استدعاء الأدوات الأصلي: عند تمرير تعريفات أدوات يُفعَّل function calling ويعيد النموذج toolCalls منظّمة.
   tools?: AiFunctionDeclaration[];
+  // حرارة التوليد لهذا الاستدعاء (0-1). ردود المحادثة تمرّر حرارة دافئة لتكون بشرية ومرنة؛ مهام
+  // الاستخراج (classify/extract) تبقى منخفضة للحتمية بصرف النظر عن هذه القيمة. عند غيابها = الافتراضي.
+  temperature?: number;
   // vision: صور واردة تُمرَّر للنموذج ليحلّل محتواها (اختياري؛ تُتجاهَل في mock).
   images?: AiImage[];
   // voice: ملاحظات صوتية واردة تُمرَّر للنموذج ليفهم محتواها سمعياً (اختياري؛ تُتجاهَل في mock).
@@ -155,8 +158,14 @@ function usesFunctionCalling(input: AiRunInput): boolean {
 
 function getTemperature(input?: AiRunInput): number {
   const base = Number.isFinite(DEFAULT_TEMPERATURE) ? Math.min(Math.max(DEFAULT_TEMPERATURE, 0), 1) : 0.3;
-  // المخرجات المنظّمة (JSON أو استدعاء أدوات) تحتاج حرارة منخفضة لالتزام أعلى بالبنية.
-  if (input && (wantsJson(input) || usesFunctionCalling(input))) return Math.min(base, 0.1);
+  if (!input) return base;
+  // مهام JSON المنظّمة (تصنيف/استخراج) تحتاج حرارة منخفضة للحتمية.
+  if (wantsJson(input)) return Math.min(base, 0.1);
+  // ملاحظة حاكمة: استدعاء الأدوات الأصلي **لم يعد** يفرض حرارة منخفضة — البنية مضمونة من الـAPI،
+  // فكان فرضُ 0.1 يجعل ردّ المحادثة بارداً/متكرّراً بلا فائدة. نحترم الحرارة الممرَّرة (دافئة للردّ).
+  if (typeof input.temperature === "number" && Number.isFinite(input.temperature)) {
+    return Math.min(Math.max(input.temperature, 0), 1);
+  }
   return base;
 }
 

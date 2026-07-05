@@ -41,6 +41,11 @@ const TOOL_USE_RULES = [
   "للتحويل لموظف بشري: استدعِ أداة handoff_to_human فعلياً — لا تكتفِ بقول إنك ستحوّل. إن لم تستدعِ الأداة فلن يحدث تحويل.",
 ].join("\n");
 
+// حرارة ردّ المحادثة: دافئة (0.6) لتكون بشرية ومرنة ومتنوّعة، لا 0.1 الباردة المتكرّرة. قابلة للضبط
+// عبر env دون نشر. مع استدعاء الأدوات الأصلي البنية مضمونة من الـAPI، فالحرارة الدافئة لا تُضعف
+// موثوقية الأدوات إطلاقاً. الأسلوب حسب القطاع يأتي من rolePrompt/tone/dialect التي يضبطها التاجر.
+const AGENT_REPLY_TEMPERATURE = Number(process.env.AGENT_REPLY_TEMPERATURE ?? "0.6");
+
 async function upsertUsage(params: {
   workspaceId: string;
   model: string;
@@ -338,6 +343,8 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       taskType: "draft_reply",
       maxTokens: agent.maxOutputTokens,
       responseFormat: "text",
+      // حرارة دافئة ليكون الردّ بشرياً مرناً (لا 0.1 الباردة). الأدوات الأصلية لا تحتاج حرارة منخفضة.
+      temperature: AGENT_REPLY_TEMPERATURE,
       // استدعاء الأدوات الأصلي: تعريفات منظّمة؛ النموذج يعيد toolCalls منظّمة لا JSON نصّياً هشّاً (يقتل PD-8/PD-10).
       tools: toolDeclarations,
       // vision: مرّر الصور الواردة (base64) ليحلّلها النموذج بصرياً ويرد بناءً عليها.
@@ -531,6 +538,7 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
     taskType: "draft_reply",
     maxTokens: agent.maxOutputTokens,
     responseFormat: "text",
+    temperature: AGENT_REPLY_TEMPERATURE,
     tools: toolDeclarations,
   });
 
