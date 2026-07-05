@@ -1,5 +1,6 @@
 // @ts-nocheck
 import * as React from "react";
+import { FaMeta } from "react-icons/fa6";
 import "@/styles/wesal-marketing.css";
 
 // BrandMark — شارة دائرية زجاجية بحرف W ذي ثلاث شرائح مصمتة (مطابق لشعار وصال ون)
@@ -2373,6 +2374,13 @@ function GabsterFooter() {
               </li>
             </ul>
           </div>
+        </div>
+
+        <div className="flex justify-center py-4">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-1.5 text-xs font-semibold text-muted-foreground">
+            <FaMeta className="h-4 w-4" aria-hidden="true" />
+            مزوّد تقني معتمد من Meta
+          </span>
         </div>
 
         <div className="footer-bottom">
