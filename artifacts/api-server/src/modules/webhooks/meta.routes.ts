@@ -91,9 +91,20 @@ const MEDIA_LABELS: Record<string, string> = {
   sticker: "ملصق",
 };
 
+// 6 يوليو 2026: تفاعل واتساب (👍 على رسالة سابقة) كان يمرّ في المسار العام أدناه فيُخزَّن
+// كأنه مرفق وسائط قابل للتحميل (attachments:[{type:"reaction", mime_type:null, ...}]) رغم
+// عدم وجود أي ملف حقيقي وراءه — الواجهة تحاول جلبه فتفشل بحلقة 401/404 متكررة (شكوى "الوارد
+// يعلّق"). لا مرفق إطلاقاً لتفاعل — نص فقط، وسلسلة فارغة تعني إزالة التفاعل.
+function extractReactionText(message: MetaMessage): string {
+  const reaction = message.reaction as { emoji?: string } | undefined;
+  const emoji = typeof reaction?.emoji === "string" ? reaction.emoji.trim() : "";
+  return emoji ? `[تفاعل: ${emoji}]` : "[أزال تفاعله عن رسالة سابقة]";
+}
+
 function extractMedia(message: MetaMessage): { content: string; attachments: object[] } | null {
   const type = message.type;
   if (!type || type === "text") return null;
+  if (type === "reaction") return { content: extractReactionText(message), attachments: [] };
   const raw = message[type];
   const field: MetaMediaField = raw && typeof raw === "object" && !Array.isArray(raw)
     ? (raw as MetaMediaField)

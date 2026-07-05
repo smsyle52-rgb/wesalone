@@ -100,6 +100,28 @@ const WA_IMAGE_PAYLOAD = {
   }],
 };
 
+/** WhatsApp reaction (👍 on a prior message) — no downloadable file, unlike other message.<type> fields */
+const WA_REACTION_PAYLOAD = {
+  object: "whatsapp_business_account",
+  entry: [{
+    id: "123456789",
+    changes: [{
+      value: {
+        messaging_product: "whatsapp",
+        metadata: { phone_number_id: "phone_num_id_001" },
+        messages: [{
+          id: "wamid.reaction001",
+          from: "966501111111",
+          timestamp: "1719446403",
+          type: "reaction",
+          reaction: { message_id: "wamid.original001", emoji: "👍" },
+        }],
+      },
+      field: "messages",
+    }],
+  }],
+};
+
 /** Instagram new format: entry[].messaging[] with millisecond timestamps */
 const IG_MESSAGING_PAYLOAD = {
   object: "instagram",
@@ -258,6 +280,16 @@ describe("C-WA: WhatsApp payload shape (entry[].changes[])", () => {
     const msg = WA_IMAGE_PAYLOAD.entry[0].changes[0].value.messages[0] as any;
     expect(msg.type).toBe("image");
     expect(typeof msg.image?.id).toBe("string");
+  });
+
+  // 6 يوليو 2026: تفاعل واتساب كان يُعامَل كوسائط قابلة للتحميل (attachments مع mime_type:null)
+  // فتفشل الواجهة بحلقة 401/404 عند محاولة جلب ملف غير موجود. reaction.emoji لا id/mime_type/caption.
+  it("C-WA-7: reaction message has reaction.emoji (no media id/mime_type — not a downloadable attachment)", () => {
+    const msg = WA_REACTION_PAYLOAD.entry[0].changes[0].value.messages[0] as any;
+    expect(msg.type).toBe("reaction");
+    expect(typeof msg.reaction?.emoji).toBe("string");
+    expect(msg.reaction?.id).toBeUndefined();
+    expect(msg.reaction?.mime_type).toBeUndefined();
   });
 });
 
