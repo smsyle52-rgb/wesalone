@@ -11,14 +11,17 @@ export type ModelTier = "normal" | "hard";
 const SAFE_FALLBACK_MODEL = process.env.VERTEX_MODEL ?? "gemini-2.5-flash";
 
 // الخريطة: (مهمة.مستوى) → معرّف الموديل. الافتراضات = قرار المالك، وكلٌّ قابل للتجاوز بـenv.
+// تصحيح 5 يوليو 2026 (تحقّق مباشر من الإنتاج): "gemini-3-flash-preview" يرجع 404 على هذا المشروع —
+// كان يفشل في *كل* استدعاء ويسقط صامتاً لـSAFE_FALLBACK_MODEL (يتجاوز فرق normal/hard كلياً، فـ"الصعب"
+// لا يحصل فعلياً على موديل أقوى). فحص مباشر (curl حيّ ضد Vertex) أثبت أن 2.5-flash و2.5-pro فقط
+// يعملان على هذا المشروع (2.0/1.5 متقاعدة: 404). الخريطة الآن تستعيد تمايز normal/hard فعلياً.
 const ROUTES: Record<string, string> = {
-  "text.reply.normal": process.env.MODEL_TEXT_NORMAL ?? "gemini-3-flash-preview",
-  "text.reply.hard": process.env.MODEL_TEXT_HARD ?? "gemini-3-flash-preview",
-  "vision.normal": process.env.MODEL_VISION_NORMAL ?? "gemini-3-flash-preview",
-  "vision.hard": process.env.MODEL_VISION_HARD ?? "gemini-3-flash-preview",
-  // Voice notes use the same Flash model family; tier only records routing context.
-  "voice.normal": process.env.MODEL_VOICE_NORMAL ?? "gemini-3-flash-preview",
-  "voice.hard": process.env.MODEL_VOICE_HARD ?? "gemini-3-flash-preview",
+  "text.reply.normal": process.env.MODEL_TEXT_NORMAL ?? "gemini-2.5-flash",
+  "text.reply.hard": process.env.MODEL_TEXT_HARD ?? "gemini-2.5-pro",
+  "vision.normal": process.env.MODEL_VISION_NORMAL ?? "gemini-2.5-flash",
+  "vision.hard": process.env.MODEL_VISION_HARD ?? "gemini-2.5-pro",
+  "voice.normal": process.env.MODEL_VOICE_NORMAL ?? "gemini-2.5-flash",
+  "voice.hard": process.env.MODEL_VOICE_HARD ?? "gemini-2.5-pro",
 };
 
 export interface ModelRoute {
