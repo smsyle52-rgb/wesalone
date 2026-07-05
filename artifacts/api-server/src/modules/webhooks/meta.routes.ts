@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   channelAccountsTable,
-  contactChannelsTable,
   contactsTable,
   conversationsTable,
   db,
@@ -18,6 +17,7 @@ import { extractMetaCommerceMessage } from "../integrations/meta-commerce-messag
 import { handleMetaWebhook } from "../integrations/meta-webhook.handler";
 import { ingestWebhookEvent } from "../integrations/webhookIngest.service";
 import { notifyWorkspace } from "../../services/notifications";
+import { businessScopeFromProviderConfig, resolveWhatsAppInboundContact } from "../integrations/whatsapp-contact-identity";
 
 type RequestWithRawBody = Request & { rawBody?: Buffer };
 
@@ -72,7 +72,6 @@ type MetaPayload = {
 };
 
 type ChannelAccount = typeof channelAccountsTable.$inferSelect;
-type Contact = typeof contactsTable.$inferSelect;
 type Conversation = typeof conversationsTable.$inferSelect;
 
 const router = Router();
@@ -81,10 +80,6 @@ function queryString(value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return queryString(value[0]);
   return undefined;
-}
-
-function normalizePhone(phone: string): string {
-  return phone.trim().replace(/[^\d+]/g, "");
 }
 
 const MEDIA_LABELS: Record<string, string> = {
@@ -195,95 +190,6 @@ async function findWhatsappChannel(phoneNumberId: string): Promise<ChannelAccoun
   return channels[0];
 }
 
-async function upsertContact(workspaceId: string, phone: string): Promise<Contact> {
-  const normalizedPhone = normalizePhone(phone);
-
-  const [existingChannel] = await db
-    .select({ contactId: contactChannelsTable.contactId })
-    .from(contactChannelsTable)
-    .where(and(
-      eq(contactChannelsTable.workspaceId, workspaceId),
-      sql`${contactChannelsTable.channelType} in ('phone', 'whatsapp', 'whatsapp_api')`,
-      eq(contactChannelsTable.normalizedIdentifier, normalizedPhone),
-    ))
-    .limit(1);
-
-  if (existingChannel) {
-    const [contact] = await db
-      .update(contactsTable)
-      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
-      .where(and(
-        eq(contactsTable.id, existingChannel.contactId),
-        eq(contactsTable.workspaceId, workspaceId),
-      ))
-      .returning();
-    if (contact) {
-      await db
-        .insert(contactChannelsTable)
-        .values({
-          workspaceId,
-          contactId: contact.id,
-          channelType: "whatsapp",
-          identifier: normalizedPhone,
-          normalizedIdentifier: normalizedPhone,
-          isPrimary: true,
-          isVerified: true,
-          optedIn: true,
-          providerData: { externalId: phone },
-        })
-        .onConflictDoNothing();
-      return contact;
-    }
-  }
-
-  const [existingContact] = await db
-    .select()
-    .from(contactsTable)
-    .where(and(
-      eq(contactsTable.workspaceId, workspaceId),
-      eq(contactsTable.phone, normalizedPhone),
-    ))
-    .limit(1);
-
-  const contact = existingContact ?? (await db
-    .insert(contactsTable)
-    .values({
-      workspaceId,
-      name: normalizedPhone,
-      phone: normalizedPhone,
-      lastContactedAt: new Date(),
-    })
-    .returning())[0];
-
-  if (!contact) {
-    throw new Error("Failed to upsert Meta webhook contact");
-  }
-
-  if (existingContact) {
-    await db
-      .update(contactsTable)
-      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
-      .where(eq(contactsTable.id, existingContact.id));
-  }
-
-  await db
-    .insert(contactChannelsTable)
-    .values({
-      workspaceId,
-      contactId: contact.id,
-      channelType: "whatsapp",
-      identifier: normalizedPhone,
-      normalizedIdentifier: normalizedPhone,
-      isPrimary: true,
-      isVerified: true,
-      optedIn: true,
-      providerData: { externalId: phone },
-    })
-    .onConflictDoNothing();
-
-  return contact;
-}
-
 async function findConversation(
   workspaceId: string,
   channelAccountId: string,
@@ -307,6 +213,7 @@ async function getOrCreateConversation(
   channel: ChannelAccount,
   contactId: string,
   externalThreadId: string,
+  contactChannelId: string | null = null,
 ): Promise<Conversation> {
   const existing = await findConversation(channel.workspaceId, channel.id, externalThreadId);
   if (existing) return existing;
@@ -316,6 +223,7 @@ async function getOrCreateConversation(
     .values({
       workspaceId: channel.workspaceId,
       contactId,
+      contactChannelId,
       channelAccountId: channel.id,
       externalThreadId,
       channel: "whatsapp_api",
@@ -417,7 +325,6 @@ async function createDomainEvent(params: {
 
 async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage): Promise<void> {
   const phoneNumberId = value.metadata?.phone_number_id;
-  const from = message.from;
 
   // PD-3 fix: استخرج محتوى الوسائط (صورة/صوت/فيديو/مستند) لا تتجاهل الرسالة
   const textContent = message.text?.body?.trim();
@@ -426,8 +333,8 @@ async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage
   const content = textContent ?? structured?.content ?? media?.content;
   const attachments = structured?.attachments ?? media?.attachments ?? [];
 
-  if (!phoneNumberId || !from || !content) {
-    logger.warn({ phoneNumberId, from, messageId: message.id, type: message.type }, "Skipping incomplete Meta inbound message");
+  if (!phoneNumberId || !content) {
+    logger.warn({ phoneNumberId, hasFrom: Boolean(message.from), messageId: message.id, type: message.type }, "Skipping incomplete Meta inbound message");
     return;
   }
 
@@ -437,21 +344,49 @@ async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage
     return;
   }
 
-  const contact = await upsertContact(channel.workspaceId, from);
-  const conversation = await getOrCreateConversation(channel, contact.id, from);
+  const contactResolution = await resolveWhatsAppInboundContact({
+    workspaceId: channel.workspaceId,
+    channelAccountId: channel.id,
+    phoneNumberId,
+    businessScopeId: businessScopeFromProviderConfig(channel.providerConfig as Record<string, unknown>),
+    value,
+    message,
+  });
+  if (!contactResolution) {
+    logger.warn({
+      phoneNumberId,
+      messageId: message.id,
+      messageKeys: Object.keys(message),
+      hasContacts: Array.isArray(value.contacts),
+    }, "Skipping WhatsApp inbound message without a resolvable customer identity");
+    return;
+  }
+
+  const conversation = await getOrCreateConversation(
+    channel,
+    contactResolution.contactId,
+    contactResolution.externalThreadId,
+    contactResolution.contactChannelId,
+  );
   const messageId = await insertInboundMessage(conversation, message, content, attachments);
   if (!messageId) {
     logger.info({ providerMessageId: message.id, conversationId: conversation.id }, "Skipping duplicate Meta message");
     return;
   }
 
-  await bumpConversationOnInbound(conversation, contact.id, content);
+  await bumpConversationOnInbound(conversation, contactResolution.contactId, content);
 
   await createDomainEvent({
     workspaceId: channel.workspaceId,
     eventType: "message.received",
     entityId: conversation.id,
-    payload: { channelAccountId: channel.id, messageId },
+    payload: {
+      channelAccountId: channel.id,
+      conversationId: conversation.id,
+      contactId: contactResolution.contactId,
+      messageId,
+      recipientIdentityType: contactResolution.recipientIdentityType,
+    },
   });
 }
 
@@ -481,14 +416,14 @@ async function handleEchoEvent(value: MetaChangeValue, externalThreadId: string 
 // Dormant until the WhatsApp number has Calling enabled and the `calls` webhook field is subscribed.
 async function handleInboundCall(value: MetaChangeValue, call: MetaCall): Promise<void> {
   const phoneNumberId = value.metadata?.phone_number_id;
-  const from = typeof call?.from === "string" ? call.from : undefined;
+  const from = typeof call?.from === "string" ? call.from : "WhatsApp customer";
   const callId = typeof call?.id === "string" ? call.id : undefined;
   const event = typeof call?.event === "string" ? call.event : undefined;
 
   // Structure-only diagnostic (no PII) — the WhatsApp Calling payload shape can vary by rollout.
   logger.info({ phoneNumberId, callId, event, callKeys: call ? Object.keys(call) : [] }, "WhatsApp call webhook received");
 
-  if (!phoneNumberId || !from || !callId) {
+  if (!phoneNumberId || !callId) {
     logger.warn({ phoneNumberId, callId }, "Skipping incomplete WhatsApp call event");
     return;
   }
@@ -499,9 +434,25 @@ async function handleInboundCall(value: MetaChangeValue, call: MetaCall): Promis
     return;
   }
 
-  const contact = await upsertContact(channel.workspaceId, from);
+  const contactResolution = await resolveWhatsAppInboundContact({
+    workspaceId: channel.workspaceId,
+    channelAccountId: channel.id,
+    phoneNumberId,
+    businessScopeId: businessScopeFromProviderConfig(channel.providerConfig as Record<string, unknown>),
+    value,
+    message: call,
+  });
+  if (!contactResolution) {
+    logger.warn({ phoneNumberId, callId }, "Skipping WhatsApp call without a resolvable customer identity");
+    return;
+  }
   const content = "📞 مكالمة واتساب واردة";
-  const conversation = await getOrCreateConversation(channel, contact.id, from);
+  const conversation = await getOrCreateConversation(
+    channel,
+    contactResolution.contactId,
+    contactResolution.externalThreadId,
+    contactResolution.contactChannelId,
+  );
 
   // Log the call (dedup by call id). We intentionally do NOT emit message.received: the AI must not
   // "answer" a voice call — we escalate to a human and send a fixed text instead.
@@ -509,7 +460,7 @@ async function handleInboundCall(value: MetaChangeValue, call: MetaCall): Promis
   const messageId = await insertInboundMessage(conversation, { id: callId, timestamp }, content);
   if (!messageId) return; // duplicate call event
 
-  await bumpConversationOnInbound(conversation, contact.id, content);
+  await bumpConversationOnInbound(conversation, contactResolution.contactId, content);
 
   await db.update(conversationsTable)
     .set({ agentStatus: "human", needsHuman: true, escalationReason: "whatsapp_call", updatedAt: new Date() })
@@ -525,7 +476,8 @@ async function handleInboundCall(value: MetaChangeValue, call: MetaCall): Promis
     payload: {
       channelAccountId: channel.id,
       conversationId: conversation.id,
-      to: from,
+      to: contactResolution.externalThreadId,
+      recipientIdentityType: contactResolution.recipientIdentityType,
       text: "شكراً لتواصلك! لا نستقبل المكالمات حالياً، لكن اكتب رسالتك هنا وسنردّ عليك فوراً. 🌟",
     },
     status: "pending",
