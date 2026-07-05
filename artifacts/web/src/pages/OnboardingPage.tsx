@@ -354,7 +354,7 @@ function toWizardStep(value: 1 | 2 | 3): Step {
 
 export default function OnboardingPage() {
   const [, navigate] = useLocation();
-  const { user, onboardingStatus, refreshAuth } = useAuth();
+  const { user, onboardingStatus, refreshAuth, clearAuth } = useAuth();
   const stepContentRef = useRef<HTMLDivElement | null>(null);
   const [step, setStep] = useState<Step>(toWizardStep(onboardingStatus.currentStep));
   const [agentName, setAgentName] = useState("");
@@ -623,6 +623,16 @@ export default function OnboardingPage() {
     mutationFn: () => apiFetch("auth/resend-verification", { method: "POST" }),
   });
 
+  // بلا هذا الزر، عميل سجّل بإيميل وهمي ليجرّب الواجهة يبقى محاصراً هنا للأبد (لا يقدر يتحقّق،
+  // ولا يقدر يخرج ليبدأ من جديد بإيميل حقيقي) — سبب انسحاب حقيقي مؤكَّد. نفس مسار Layout.tsx بالضبط.
+  const logoutMutation = useMutation({
+    mutationFn: () => apiFetch("auth/logout", { method: "POST" }),
+    onSuccess: () => {
+      clearAuth();
+      window.location.href = "/login";
+    },
+  });
+
   function stepBadge(index: Step) {
     const completed = index === 1 ? onboardingStatus.steps.agent.completed : onboardingStatus.steps.channel.completed;
     return (
@@ -687,6 +697,14 @@ export default function OnboardingPage() {
               className="mt-3 w-full rounded-2xl border border-amber-300 bg-white px-5 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-100"
             >
               تحققت من بريدي، تابع الآن
+            </button>
+            <button
+              type="button"
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+              className="mt-3 w-full rounded-2xl px-5 py-3 text-sm font-semibold text-amber-700 underline-offset-2 transition hover:underline disabled:opacity-60"
+            >
+              {logoutMutation.isPending ? "جارٍ تسجيل الخروج..." : "تسجيل الخروج والبدء بإيميل آخر"}
             </button>
           </div>
         </section>
