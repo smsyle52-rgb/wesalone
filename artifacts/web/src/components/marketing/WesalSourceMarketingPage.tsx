@@ -2379,7 +2379,7 @@ function GabsterFooter() {
         <div className="flex justify-center py-4">
           <span className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-1.5 text-xs font-semibold text-muted-foreground">
             <FaMeta className="h-4 w-4" aria-hidden="true" />
-            مزوّد تقني معتمد من Meta
+معتمد من Meta
           </span>
         </div>
 
