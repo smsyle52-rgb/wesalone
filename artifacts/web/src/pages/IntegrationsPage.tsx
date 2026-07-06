@@ -365,6 +365,10 @@ function ConnectedChannelCard({ channel }: { channel: ConnectedChannel }) {
 export default function IntegrationsPage() {
   const [isStartingMeta, setIsStartingMeta] = useState(false);
   const [startingMetaConfigKey, setStartingMetaConfigKey] = useState<MetaSignupConfigKey | null>(null);
+  // 6 يوليو 2026: هذه الصفحة (إعدادات → تكاملات) لها نسخة منفصلة من نفس منطق onboarding —
+  // مهلة 5 ثوانٍ هنا لم تُصلَح مع OnboardingPage (جلسة 21)، فأي عميل يربط من هنا تحديداً
+  // (أو يعيد الربط لاحقاً) كان لا يزال يفشل بسرعة قبل عودة بيانات Meta.
+  const [isAwaitingMetaData, setIsAwaitingMetaData] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [connectedChannels, setConnectedChannels] = useState<ConnectedChannel[]>([]);
   const [isLoadingChannels, setIsLoadingChannels] = useState(true);
@@ -458,7 +462,7 @@ export default function IntegrationsPage() {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  function waitForCapturedSignupInfo(timeoutMs = 5000): Promise<EmbeddedSignupSessionInfo> {
+  function waitForCapturedSignupInfo(timeoutMs = 90000): Promise<EmbeddedSignupSessionInfo> {
     return new Promise((resolve, reject) => {
       if (signupSessionErrorRef.current) {
         reject(new Error(signupSessionErrorRef.current));
@@ -615,7 +619,13 @@ export default function IntegrationsPage() {
       if (option.key === "instagramMessenger") {
         await completeInstagramMessengerSignup(code);
       } else {
-        const sessionInfo = await waitForCapturedSignupInfo();
+        setIsAwaitingMetaData(true);
+        let sessionInfo: EmbeddedSignupSessionInfo;
+        try {
+          sessionInfo = await waitForCapturedSignupInfo();
+        } finally {
+          setIsAwaitingMetaData(false);
+        }
         logMetaSignupDiagnostic("embedded_signup_identifiers", {
           optionKey: option.key,
           codeReceived: Boolean(code),
@@ -709,6 +719,11 @@ export default function IntegrationsPage() {
               يدعم المسار الموحد اختيار واتساب وإنستقرام وماسنجر بعد إكمال الربط. في وضع التطوير لا يتم أي إرسال خارجي.
             </p>
             {metaError && <p className="mt-2 text-sm text-destructive">{metaError}</p>}
+            {isAwaitingMetaData && (
+              <p className="mt-2 animate-pulse text-sm text-primary">
+                جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط، أكملها؛ قد يستغرق هذا حتى دقيقة.
+              </p>
+            )}
           </div>
           {/* Mobile: single trigger + Sheet */}
           <div className="md:hidden">
@@ -728,7 +743,10 @@ export default function IntegrationsPage() {
                   </SheetHeader>
                   <div className="mt-4 grid gap-2">
                     {visibleMetaSignupButtons.map((option) => {
-                      const disabled = isStartingMeta || (!option.configId && !isWhatsAppSignupOption(option.key));
+                      // 6 يوليو 2026: كانت لا تُعطَّل قنوات واتساب (قياسي/تعايش) حتى لو
+                      // configId فارغاً — الزر يظهر قابلاً للضغط ثم يفشل بعده مباشرة برسالة
+                      // "إعداد ناقص". التعطيل الآن موحّد لكل الخيارات بلا استثناء.
+                      const disabled = isStartingMeta || !option.configId;
                       const OptionIcon = option.key === "whatsappStandard" || option.key === "whatsappCoexistence"
                         ? FaWhatsapp
                         : option.key === "instagramMessenger"
@@ -767,7 +785,7 @@ export default function IntegrationsPage() {
           {/* Desktop: original buttons grid */}
           <div className="hidden w-auto grid-cols-1 gap-2 sm:grid-cols-2 md:grid">
             {visibleMetaSignupButtons.map((option) => {
-              const disabled = isStartingMeta || (!option.configId && !isWhatsAppSignupOption(option.key));
+              const disabled = isStartingMeta || !option.configId;
               return (
                 <button
                   key={option.key}

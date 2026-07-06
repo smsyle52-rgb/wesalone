@@ -918,17 +918,23 @@ router.get("/meta/embedded-signup/config", requirePermission("integrations:updat
   const appId = process.env.META_APP_ID ?? null;
   const graphVersion = metaGraphVersion() ?? "v22.0";
   const configIds = metaEmbeddedSignupConfigIds();
+  // ready يبقى مبنياً على الحد الأدنى (واتساب القياسي) كما كان — لا نغيّر دلالته القائمة.
+  // missing الآن يُبلّغ شفافيةً عن أي config فرعي غائب (تعايش/إنستغرام+ماسنجر) بدل أن يختفي
+  // صامتاً خلف ready=true عاماً؛ الحماية الفعلية للعميل هي تعطيل الزر لكل خيار configId فارغ
+  // (Onboarding/IntegrationsPage) بصرف النظر عن هذا الحقل.
   const missing = [
     !appId ? "META_APP_ID" : null,
     !graphVersion ? "META_GRAPH_VERSION" : null,
     !configIds.whatsappStandard ? "META_WHATSAPP_STANDARD_CONFIG_ID" : null,
+    !configIds.whatsappCoexistence ? "META_WHATSAPP_COEXISTENCE_CONFIG_ID (تعايش)" : null,
+    !configIds.instagramMessenger ? "META_INSTAGRAM_MESSENGER_CONFIG_ID" : null,
   ].filter(Boolean);
 
   res.json({
     appId,
     graphVersion,
     configIds,
-    ready: missing.length === 0,
+    ready: Boolean(appId) && Boolean(graphVersion) && Boolean(configIds.whatsappStandard),
     missing,
   });
 });
@@ -1059,13 +1065,18 @@ router.post("/meta/embedded-signup/complete", requirePermission("integrations:up
     return;
   }
 
-  try {
-    await postMetaGraph(`${phoneNumberId}/register`, userToken, {
-      messaging_product: "whatsapp",
-      pin: "000000",
-    });
-  } catch (err) {
-    req.log?.warn({ err, channelAccountId: account.id, phoneNumberId }, "Meta phone number registration failed; continuing");
+  // رقم وضع التعايش (تطبيق واتساب للأعمال + Cloud API معاً) ليس رقماً جديداً على Cloud API —
+  // ميتا ترفض /register له صراحة ("Register endpoint is not available for SMB businesses"،
+  // مؤكَّد من فحص سابق). الاستدعاء غير ضار (يُمسَك ويُكمَّل) لكن تخطّيه أوضح وأقل ضجيجاً بالسجلات.
+  if (configKey !== "whatsapp_coexistence") {
+    try {
+      await postMetaGraph(`${phoneNumberId}/register`, userToken, {
+        messaging_product: "whatsapp",
+        pin: "000000",
+      });
+    } catch (err) {
+      req.log?.warn({ err, channelAccountId: account.id, phoneNumberId }, "Meta phone number registration failed; continuing");
+    }
   }
 
   const wabaCatalogs = await fetchWabaProductCatalogs(wabaId, userToken);
