@@ -941,6 +941,18 @@ export default function OnboardingPage() {
                   </div>
                 ) : (
                   <>
+                    {/* 6 يوليو 2026: 32 من 39 تاجراً أنشأوا وكيلاً لم يربطوا قناة أبداً — الفشل
+                        يحدث داخل نافذة Meta نفسها (تعقيدها على جمهور غير معتاد على أدوات فيسبوك
+                        التجارية)، خارج قدرتنا على الإصلاح. مخرج مساعدة بشرية فورية بدل اختفاء صامت. */}
+                    <a
+                      href="https://wa.me/967775324950"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                    >
+                      <span>تحتاج مساعدة في الربط؟ تواصل معنا مباشرة على واتساب</span>
+                      <FaWhatsapp className="h-5 w-5 shrink-0" />
+                    </a>
                     <div className="grid gap-3 md:grid-cols-3">
                       {visibleChannelOptions.map((option) => {
                         const configId = metaConfigQuery.data?.configIds[option.key] ?? null;
