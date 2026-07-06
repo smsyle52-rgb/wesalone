@@ -25,9 +25,53 @@ type IngestMetaChannelMessageParams = {
   text: string;
   timestamp?: number | null;
   providerPayload: Record<string, unknown>;
+  // 6 يوليو 2026: رسائل بلا نص (صورة/ملصق/ملف/صوت بلا كابشن) كانت تُسقَط بصمت في طبقة الاستدعاء
+  // قبل الوصول هنا حتى (فحص !text.trim() في الأعلى) — العميل يرسل ولا يظهر شيء إطلاقاً بالوارد.
+  // المرفقات تسمح بإدراج الرسالة حتى بلا نص، مطابقةً لما هو مُثبَت فعلاً لواتساب في meta.routes.ts.
+  attachments?: object[];
 };
 
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION ?? "v22.0";
+
+// 6 يوليو 2026: رسائل ماسنجر/إنستغرام بلا نص عادي (صورة/ملصق/فيديو/صوت/ملف بلا كابشن) كانت
+// تُسقَط بصمت تامة عند المصدر (فحص !text.trim() فقط) — العميل يرسل ولا يظهر شيء إطلاقاً بالوارد
+// ("رسائل الماسنجر أحياناً لا تدخل منصتنا"). مشتركة بين الحالبين لأن شكل attachments[] من Meta
+// (type + payload.url) واحد للقناتين — مطابقة لنمط واتساب المُثبَت (meta.routes.ts: extractMedia).
+// المفتاح = نوع Meta الخام (attachment.type من webhook ماسنجر/إنستغرام). القيمة = [نوعنا الموحّد
+// (مطابق لما تتوقّعه agent-reply.ts/agent-media.ts عبر القنوات كلها)، تسمية عربية للنص البديل].
+const META_MESSAGING_MEDIA_TYPES: Record<string, [type: string, label: string]> = {
+  image: ["image", "صورة"],
+  video: ["video", "فيديو"],
+  audio: ["audio", "رسالة صوتية"],
+  file: ["document", "ملف"], // Meta يسمّيه "file"؛ نوحّده لـ"document" كواتساب.
+};
+
+export function extractMetaMessagingContent(
+  message: unknown,
+  provider: "messenger" | "instagram",
+): { text: string; attachments: object[] } {
+  const msg = (message ?? {}) as { text?: unknown; attachments?: unknown };
+  const rawText = typeof msg.text === "string" ? msg.text.trim() : "";
+  const rawAttachments = Array.isArray(msg.attachments) ? msg.attachments : [];
+
+  const mediaAttachments = rawAttachments
+    .filter((att): att is { type: string; payload?: { url?: unknown } } =>
+      !!att && typeof att === "object" && typeof (att as { type?: unknown }).type === "string"
+      && META_MESSAGING_MEDIA_TYPES[(att as { type: string }).type] !== undefined)
+    .map((att) => ({
+      type: META_MESSAGING_MEDIA_TYPES[att.type][0],
+      provider,
+      url: typeof att.payload?.url === "string" ? att.payload.url : undefined,
+    }));
+
+  if (rawText) return { text: rawText, attachments: mediaAttachments };
+  if (mediaAttachments.length > 0) {
+    const rawType = String((rawAttachments[0] as { type?: string })?.type ?? "");
+    const label = META_MESSAGING_MEDIA_TYPES[rawType]?.[1] ?? "وسائط";
+    return { text: `[${label}]`, attachments: mediaAttachments };
+  }
+  return { text: "", attachments: [] };
+}
 
 // Decrypt the per-channel page token (enc:v1:) so we can read the sender's public profile.
 function decryptTokenRef(ref: string | null | undefined): string | null {
@@ -119,7 +163,8 @@ async function findChannelAccount(
 }
 
 export async function ingestMetaChannelMessage(params: IngestMetaChannelMessageParams): Promise<boolean> {
-  if (!params.providerMessageId || !params.senderId || !params.text.trim()) return false;
+  const hasAttachments = Array.isArray(params.attachments) && params.attachments.length > 0;
+  if (!params.providerMessageId || !params.senderId || (!params.text.trim() && !hasAttachments)) return false;
 
   const channelAccount = await findChannelAccount(
     params.channelType,
@@ -237,8 +282,9 @@ export async function ingestMetaChannelMessage(params: IngestMetaChannelMessageP
       direction: "inbound",
       senderType: "contact",
       source: params.source,
-      contentType: "text",
+      contentType: hasAttachments ? "media" : "text",
       content: params.text,
+      attachments: params.attachments ?? [],
       providerPayload: params.providerPayload,
       deliveryStatus: "received",
       sentAt,
@@ -248,9 +294,10 @@ export async function ingestMetaChannelMessage(params: IngestMetaChannelMessageP
 
   if (!message) return false;
 
+  const lastMessagePreview = params.text.trim() || (hasAttachments ? params.text : "");
   await db.update(conversationsTable)
     .set({
-      lastMessage: params.text.slice(0, 120),
+      lastMessage: lastMessagePreview.slice(0, 120),
       lastMessageAt: sentAt,
       unreadCount: sql`${conversationsTable.unreadCount} + 1`,
       updatedAt: new Date(),

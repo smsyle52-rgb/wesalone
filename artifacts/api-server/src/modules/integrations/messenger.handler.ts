@@ -1,4 +1,5 @@
-import { ingestMetaChannelMessage } from "./meta-channel-ingest";
+import { logger } from "../../lib/logger";
+import { extractMetaMessagingContent, ingestMetaChannelMessage } from "./meta-channel-ingest";
 
 export async function handleMessengerWebhook(payload: unknown): Promise<number> {
   const body = payload as any;
@@ -9,8 +10,13 @@ export async function handleMessengerWebhook(payload: unknown): Promise<number> 
     const events = Array.isArray(entry?.messaging) ? entry.messaging : [];
     for (const event of events) {
       if (event?.message?.is_echo) continue; // skip our own outbound echoes
-      const text = event?.message?.text;
-      if (typeof text !== "string" || !text.trim()) continue;
+      const { text, attachments } = extractMetaMessagingContent(event?.message, "messenger");
+      if (!text) {
+        // لا نص ولا مرفق مدعوم (مثلاً: مشاركة قالب/رابط معاينة) — لا شيء نعرضه بالوارد فعلاً،
+        // لكن سجّل بدل الإسقاط الصامت التام حتى يمكن تتبّع أي فئة أحداث غير مغطّاة لاحقاً.
+        logger.debug({ messageKeys: Object.keys(event?.message ?? {}) }, "Messenger event has no displayable content — skipped");
+        continue;
+      }
 
       const senderId = event?.sender?.id;
       const pageId = event?.recipient?.id ?? entry.id;
@@ -25,6 +31,7 @@ export async function handleMessengerWebhook(payload: unknown): Promise<number> 
         senderId: String(senderId ?? ""),
         providerMessageId: String(providerMessageId ?? ""),
         text,
+        attachments,
         timestamp: Number.isFinite(timestamp) ? Math.floor(timestamp / 1000) : null,
         providerPayload: event.message,
       });
