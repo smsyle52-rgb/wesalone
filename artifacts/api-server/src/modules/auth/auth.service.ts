@@ -195,7 +195,7 @@ export async function registerWorkspace(data: {
       await createGrant({
         workspaceId: result.workspace.id,
         grantType: "monthly_subscription",
-        points: 1000,
+        points: 500,
         expiresAt: trialGrantExpiresAt,
         sourceType: "trial_signup",
         sourceId: result.workspace.id,

@@ -222,8 +222,9 @@ const SYSTEM_PLANS = [
     billingCycle: "monthly", sortOrder: 10,
     // channels=2 (لا 1): توصيل إنستغرام+ماسنجر معاً (instagram_messenger) يُنشئ دائماً قناتين
     // في استدعاء واحد (صفحة فيسبوك + حساب إنستغرام) — بحد 1 كان الإكمال مستحيلاً فعلياً
-    // على الخطة المجانية. النقاط الشهرية بقيت 1000 بلا تغيير.
-    limits: { channels: 2, agents: 1, team_members: 1, contacts: 100, monthly_points: 1000, knowledge_documents: 1, products: 20, auto_reply: false },
+    // على الخطة المجانية. monthly_points خُفِّضت 1000→500 (6 يوليو) لتسجيلات جديدة فقط —
+    // من سجّل قبل هذا التغيير يحتفظ بمنحته الأصلية 1000 (سجل point_grants ثابت لا يتغيّر رجعياً).
+    limits: { channels: 2, agents: 1, team_members: 1, contacts: 100, monthly_points: 500, knowledge_documents: 1, products: 20, auto_reply: false },
     features: ["inbox", "ai_agent", "catalog"],
   },
   {
