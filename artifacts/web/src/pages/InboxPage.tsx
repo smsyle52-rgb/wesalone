@@ -336,6 +336,11 @@ export default function InboxPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
+  // 6 يوليو 2026: الوارد كان يجلب أول 50 محادثة فقط بلا أي ترقيم — أي محادثة تتجاوز الأحدث
+  // 50 (شكوى المالك: "الوارد ناقص لا يحمل جميع المحادثات") غير قابلة للوصول إطلاقاً رغم أن
+  // الخادم يُرجع total/page أصلاً. صفحة 1 عند أي تغيير فلتر لتفادي عرض صفحة فارغة/خاطئة.
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [viewFilter, statusFilter, searchQuery, channelFilter, assigneeFilter]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [messageText, setMessageText] = useState("");
@@ -386,9 +391,10 @@ export default function InboxPage() {
   if (channelFilter) params.set("channel", channelFilter);
   if (assigneeFilter) params.set("assignee", assigneeFilter);
   params.set("limit", "50");
+  params.set("page", String(page));
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["conversations", viewFilter, statusFilter, searchQuery, channelFilter, assigneeFilter],
+    queryKey: ["conversations", viewFilter, statusFilter, searchQuery, channelFilter, assigneeFilter, page],
     queryFn: () => apiFetch(`conversations?${params.toString()}`),
     enabled: canRead,
     refetchInterval: 10000,
@@ -656,6 +662,9 @@ export default function InboxPage() {
   });
 
   const list: any[] = data?.conversations ?? [];
+  const totalConversations: number = data?.total ?? 0;
+  const pageSize = 50;
+  const totalPages = Math.max(1, Math.ceil(totalConversations / pageSize));
   const counts: Record<string, number> = data?.counts ?? {};
   const members: any[] = membersData?.members ?? membersData?.users ?? [];
   const quickReplies: any[] = quickRepliesData?.quickReplies ?? [];
@@ -966,6 +975,27 @@ export default function InboxPage() {
                     </div>
                   </button>
                 ))
+              )}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-3 px-4 py-3 border-t border-border/40 text-xs text-muted-foreground">
+                  <button
+                    type="button"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="rounded-lg border border-border px-3 py-1.5 font-semibold disabled:opacity-40"
+                  >
+                    السابق
+                  </button>
+                  <span>صفحة {page} من {totalPages} ({totalConversations} محادثة)</span>
+                  <button
+                    type="button"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="rounded-lg border border-border px-3 py-1.5 font-semibold disabled:opacity-40"
+                  >
+                    التالي
+                  </button>
+                </div>
               )}
               <div className="h-[calc(1rem+env(safe-area-inset-bottom))]" />
             </div>
@@ -1617,6 +1647,27 @@ export default function InboxPage() {
                   </div>
                 </button>
               ))
+            )}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 border-t border-border/40 px-4 py-3 text-xs text-muted-foreground">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="rounded-lg border border-border px-3 py-1.5 font-semibold disabled:opacity-40"
+                >
+                  السابق
+                </button>
+                <span>صفحة {page} من {totalPages} ({totalConversations} محادثة)</span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="rounded-lg border border-border px-3 py-1.5 font-semibold disabled:opacity-40"
+                >
+                  التالي
+                </button>
+              </div>
             )}
           </div>
         </div>
