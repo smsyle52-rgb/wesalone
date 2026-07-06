@@ -513,6 +513,8 @@ async function upsertMetaChannelAccount(params: {
   lookupKey: string;
   lookupValue: string;
   credentialsSecretRef: string | null;
+  externalBusinessId?: string | null;
+  externalPhoneId?: string | null;
 }) {
   const lookupCondition = providerLookupCondition(params.lookupKey, params.lookupValue);
 
@@ -536,6 +538,10 @@ async function upsertMetaChannelAccount(params: {
     credentialsSecretRef: params.credentialsSecretRef,
     createdBy: params.req.sessionUser.userId,
     updatedAt: new Date(),
+    // 7 يوليو 2026: تُملأ فقط حين يمررها الاستدعاء (واتساب) — بلا هذا، فحص اكتمال onboarding
+    // الاحتياطي (حين لا credentialsSecretRef، أي مسار توكن النظام) لا يجد أي دليل إطلاقاً.
+    ...(params.externalBusinessId !== undefined ? { externalBusinessId: params.externalBusinessId } : {}),
+    ...(params.externalPhoneId !== undefined ? { externalPhoneId: params.externalPhoneId } : {}),
   };
 
   let [account] = existing
@@ -1007,13 +1013,20 @@ router.post("/meta/embedded-signup/complete", requirePermission("integrations:up
     return;
   }
 
+  // 7 يوليو 2026: لا نستبدل هذا بتوكن النظام العام تلقائياً حين يفشل code — ذلك التوكن واسع
+  // الصلاحية عبر كل حسابات واتساب تحت أعمالنا في Meta، ودون تبديل code (المُثبَت مسبقاً عبر
+  // Meta نفسها) لا يوجد أي إثبات أن مساحة العمل الطالبة تملك فعلاً هذا الـwaba_id تحديداً —
+  // فتح هذا كثغرة اختطاف بين المستأجرين. الاسترجاع اليدوي المُستخدم للعملاء الحقيقيين هذه
+  // الجلسة سليم لأنه بإذن صريح لكل حالة وباتصال مباشر بقاعدة البيانات، لا عبر واجهة عامة.
   let userToken: string | null = null;
-  try {
-    userToken = await exchangeCodeForToken(req, parsed.data.code, { redirectUri: null });
-  } catch (err) {
-    req.log?.warn({ err }, "Meta embedded signup token exchange failed");
-    res.status(502).json({ error: "تعذر تبديل كود Meta إلى رمز وصول", code: "meta_token_exchange_failed" });
-    return;
+  if (parsed.data.code) {
+    try {
+      userToken = await exchangeCodeForToken(req, parsed.data.code, { redirectUri: null });
+    } catch (err) {
+      req.log?.warn({ err }, "Meta embedded signup token exchange failed");
+      res.status(502).json({ error: "تعذر تبديل كود Meta إلى رمز وصول", code: "meta_token_exchange_failed" });
+      return;
+    }
   }
 
   if (!userToken) {
@@ -1055,6 +1068,8 @@ router.post("/meta/embedded-signup/complete", requirePermission("integrations:up
     lookupKey: "phone_number_id",
     lookupValue: phoneNumberId,
     credentialsSecretRef: tokenRef,
+    externalBusinessId: wabaId,
+    externalPhoneId: phoneNumberId,
   });
 
   try {

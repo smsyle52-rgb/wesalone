@@ -111,4 +111,53 @@ describe("onboarding-status", () => {
       ],
     })).toBe(true);
   });
+
+  // 7 يوليو 2026: قناة رُبطت عبر مسار توكن النظام العام (code فشل تبديله من Meta، لا
+  // credentialsSecretRef خاص بالعميل) — الدليل الوحيد المتاح هو external_business_id/
+  // external_phone_id. يجب أن تُحتسب onboarding مكتملة تماماً كأي ربط عادي.
+  it("treats a system-token-fallback channel (no credentialsSecretRef) as valid onboarding evidence", () => {
+    expect(resolveOnboardingCompletion({
+      persistedCompleted: false,
+      steps: {
+        agent: { completed: true, agentId: "a1", updatedAt: null },
+        channel: { completed: false, channelAccountId: "c1", channelType: "whatsapp", updatedAt: null },
+        knowledge: { completed: false, knowledgeBaseId: null, documentId: null, updatedAt: null },
+      },
+      channelRows: [
+        {
+          id: "c1",
+          channelType: "whatsapp",
+          status: "active",
+          credentialsSecretRef: null,
+          externalAccountId: null,
+          externalBusinessId: "24824675660547264",
+          externalPhoneId: "910237322166482",
+          updatedAt: new Date("2026-07-07T00:00:00.000Z"),
+        },
+      ],
+    })).toBe(true);
+  });
+
+  it("does not treat a channel row with no evidence at all as connected", () => {
+    expect(resolveOnboardingCompletion({
+      persistedCompleted: false,
+      steps: {
+        agent: { completed: true, agentId: "a1", updatedAt: null },
+        channel: { completed: false, channelAccountId: null, channelType: null, updatedAt: null },
+        knowledge: { completed: false, knowledgeBaseId: null, documentId: null, updatedAt: null },
+      },
+      channelRows: [
+        {
+          id: "c1",
+          channelType: "whatsapp",
+          status: "disabled",
+          credentialsSecretRef: null,
+          externalAccountId: null,
+          externalBusinessId: null,
+          externalPhoneId: null,
+          updatedAt: new Date("2026-07-07T00:00:00.000Z"),
+        },
+      ],
+    })).toBe(false);
+  });
 });

@@ -252,7 +252,10 @@ function loginWithFacebook(configId: string, optionKey: MetaSignupConfigKey): Pr
         resolve(code);
         return;
       }
-      reject(new Error(response.status ? `Meta signup did not complete: ${response.status}` : "Meta signup did not return a code"));
+      // 7 يوليو 2026: كانت هذه رسالة تقنية خام بالإنجليزية تظهر مباشرة للتاجر (شكوى مالك
+      // موثّقة) — رد نداء FB.login() الكلاسيكي قد لا يعطي code حتى بعد إتمام خطوات نافذة
+      // Meta فعلياً، فلا نجزم بالفشل الكامل.
+      reject(new Error("لم يكتمل تسجيل الدخول من نافذة Meta. إن كنت أكملت كل خطواتها هناك، انتظر لحظة وأعد المحاولة؛ وإن تكرر ذلك تواصل معنا مباشرة."));
     }, loginOptions);
   });
 }

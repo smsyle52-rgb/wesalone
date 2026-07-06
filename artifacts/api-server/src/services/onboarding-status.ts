@@ -229,11 +229,15 @@ export async function getWorkspaceOnboardingStatus(workspaceId: string): Promise
   const agentSource = completedAgent ?? latestAgent;
 
   const latestChannel = channelRows[0] ?? null;
+  // 7 يوليو 2026: كان هذا الشرط يتطلب credentialsSecretRef حصراً — فيبقى steps.channel.completed
+  // خاطئاً (false) لقنوات مربوطة فعلياً عبر مسار توكن النظام (لا توكن خاص بالعميل)، رغم أن
+  // hadConnectedChannelBefore أدناه يتقبّل هذه الحالة أصلاً عبر hasHistoricalChannelEvidence.
+  // وحّدنا المعيار لنفس الدالة، بلا تناقض بين الفحصين.
   const completedChannel = channelRows.find(
     (row) =>
       (row.channelType === "whatsapp" || row.channelType === "instagram")
       && row.status === "active"
-      && hasMeaningfulText(row.credentialsSecretRef),
+      && hasHistoricalChannelEvidence(row),
   ) ?? null;
   const channelSource = completedChannel ?? latestChannel;
 
