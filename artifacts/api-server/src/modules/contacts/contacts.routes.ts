@@ -650,6 +650,74 @@ router.delete(
   }
 );
 
+// W6-T2: right-to-erasure. Redacts PII in place (name/phone/email/city/location/
+// company/customFields on the contact, identifier/normalizedIdentifier on every
+// linked contact_channels row) rather than deleting the row — conversations,
+// messages, orders, and audit history that reference this contactId stay intact.
+router.post(
+  "/:id/erase",
+  requirePermission("contacts:delete"),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { activeWorkspaceId, userId } = req.sessionUser;
+    const contactId = req.params.id as string;
+
+    const existing = await assertContactOwned(contactId, activeWorkspaceId, res);
+    if (!existing) return;
+
+    const REDACTED_NAME = "جهة اتصال محذوفة";
+    const REDACTED_IDENTIFIER = "[erased]";
+
+    await db
+      .update(contactChannelsTable)
+      .set({ identifier: REDACTED_IDENTIFIER, normalizedIdentifier: REDACTED_IDENTIFIER })
+      .where(and(
+        eq(contactChannelsTable.contactId, contactId),
+        eq(contactChannelsTable.workspaceId, activeWorkspaceId),
+      ));
+
+    const [contact] = await db
+      .update(contactsTable)
+      .set({
+        name: REDACTED_NAME,
+        phone: null,
+        email: null,
+        city: null,
+        locationNote: null,
+        company: null,
+        customFields: {},
+        archivedAt: existing.archivedAt ?? new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(contactsTable.id, contactId),
+        eq(contactsTable.workspaceId, activeWorkspaceId),
+      ))
+      .returning();
+
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "update",
+      severity: "critical",
+      entityType: "contact",
+      entityId: contactId,
+      entityLabel: REDACTED_NAME,
+      newData: { operation: "erasure" },
+    });
+
+    await addTimeline({
+      workspaceId: activeWorkspaceId,
+      contactId,
+      eventType: "contact_erased",
+      title: "تم محو بيانات جهة الاتصال الشخصية (طلب حذف)",
+      entityType: "contact",
+      entityId: contactId,
+      createdBy: userId,
+    });
+
+    res.json({ message: "تم محو البيانات الشخصية بنجاح", contact });
+  }
+);
+
 router.post(
   "/:id/merge",
   requirePermission("contacts:update"),

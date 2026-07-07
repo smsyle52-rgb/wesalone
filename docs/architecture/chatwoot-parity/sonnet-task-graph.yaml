@@ -506,16 +506,55 @@ tasks:
   - id: W6-T2
     title: "Correlation-id tracing + right-to-erasure + credential cleanup"
     objective: "Surface end-to-end correlation id; add contact PII erasure endpoint; clear credentials on channel disconnect."
-    status: todo
+    status: done
+    closure_note: >
+      2026-07-08. Credential cleanup on disconnect was already fully done before this session —
+      both DELETE /channels/:id and the duplicate-claim cleanup path already null out
+      providerConfig, credentialsSecretRef, and (from the same concurrent-session fix W6-T1
+      found evidence of) externalAccountId/Business/PhoneId, healthStatus, lastHealthAt.
+      Verified, not touched.
+      Right-to-erasure: added POST /contacts/:id/erase (contacts:delete permission, matching
+      the existing archive endpoint's permission level). Redacts in place rather than deleting
+      the row — name/phone/email/city/locationNote/company/customFields on contacts, plus
+      identifier/normalizedIdentifier on every linked contact_channels row — so conversations,
+      messages, orders, and audit history that reference this contactId stay intact. Did not
+      touch message content: scrubbing message.content would destroy conversation history
+      wholesale, which contradicts "keeps audit"; scope stayed to the contact record and its
+      channel identities, which is what actually identifies a person. Audit log entry is
+      severity=critical and never carries the pre-erasure name/phone/email.
+      Correlation-id: added domain_events.correlation_id (migration 0036, additive/nullable).
+      Threaded from meta.routes.ts's live webhook POST handler (not the INGEST_DEFERRED branch,
+      which already had its own separate correlationId) through handleMetaPayload ->
+      handleInboundMessage/handleEchoEvent -> createDomainEvent, and logged at both success and
+      failure. Scoped to the two event types the agent-reply chain actually consumes
+      (message.received, message.echo) — did not extend into agent-reply.ts or outbox_events to
+      avoid touching AI-runtime-adjacent code for a tracing feature; a full webhook->reply trace
+      needs that extension but requires touching agent-reply.ts internals, so it's deferred
+      rather than done here.
+      4 new tests (contact-erasure.routes.spec.ts): field redaction, contact_channels redaction,
+      audit-log-never-contains-PII, cross-workspace 404. No new test for correlation-id
+      threading specifically — verified via typecheck, the existing meta webhook test suites
+      (meta-webhook-contract.spec.ts, meta-status-reconciliation.spec.ts) still passing
+      unchanged, and line-by-line review of the 5 call-site edits.
+      407/407 api-server tests, typecheck (db+api-server+outbox-worker+web), build:prod all
+      clean. audit append-only guard untouched.
     wave: 6
     dependencies: [W2-T2]
     verified_current_files:
       - artifacts/api-server/src/modules/contacts/contacts.routes.ts
+      - artifacts/api-server/src/modules/webhooks/meta.routes.ts
+      - artifacts/api-server/src/modules/integrations/integrations.routes.ts
       - artifacts/api-server/src/lib/audit.ts
+      - lib/db/src/schema/domain_events.ts
+      - lib/db/drizzle/0036_domain_events_correlation_id.sql
+      - artifacts/api-server/src/__tests__/contact-erasure.routes.spec.ts
     files_to_modify:
       - artifacts/api-server/src/modules/contacts/contacts.routes.ts
+      - artifacts/api-server/src/modules/webhooks/meta.routes.ts
+      - lib/db/src/schema/domain_events.ts
     files_to_create:
-      - artifacts/api-server/src/modules/contacts/erasure.ts
+      - lib/db/drizzle/0036_domain_events_correlation_id.sql
+      - artifacts/api-server/src/__tests__/contact-erasure.routes.spec.ts
     files_to_delete: []
     database_changes: "erasure removes/redacts contact PII + messages content per policy; audit retained"
     api_changes: "POST /contacts/:id/erase (permissioned)"

@@ -15,10 +15,15 @@ export const domainEventsTable = pgTable(
     attempts: integer("attempts").notNull().default(0),
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // W6-T2: end-to-end tracing — set on domain_events created from a live
+    // webhook POST so the full webhook -> domain_event chain is grep-able by
+    // one id. Null for events created outside that path (unthreaded).
+    correlationId: uuid("correlation_id"),
   },
   (table) => [
     index("idx_domain_events_pending").on(table.status, table.createdAt),
     index("idx_domain_events_ws_type").on(table.workspaceId, table.eventType, table.createdAt),
+    index("idx_domain_events_correlation").on(table.correlationId),
   ],
 );
 

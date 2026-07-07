@@ -1966,4 +1966,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_event_subscriber_progress_event_subscriber
 CREATE INDEX IF NOT EXISTS idx_event_subscriber_progress_status
   ON event_subscriber_progress(status);
 
+-- ── 0036_domain_events_correlation_id (W6-T2) ─────────────────────────────────
+-- End-to-end correlation id on domain_events, threaded from the live Meta
+-- webhook POST handler. Additive, nullable.
+
+DO $$
+BEGIN
+  ALTER TABLE domain_events ADD COLUMN correlation_id uuid;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_domain_events_correlation
+  ON domain_events(correlation_id);
+
 SELECT 'MIGRATION_BUNDLE_APPLIED_SUCCESSFULLY' AS status;

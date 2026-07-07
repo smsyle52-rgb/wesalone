@@ -333,11 +333,12 @@ async function createDomainEvent(params: {
   eventType: string;
   entityId: string;
   payload: Record<string, unknown>;
+  correlationId?: string;
 }): Promise<void> {
   await db.insert(domainEventsTable).values({ ...params, entityType: "conversation" });
 }
 
-async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage): Promise<void> {
+async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage, correlationId: string): Promise<void> {
   const phoneNumberId = value.metadata?.phone_number_id;
 
   // PD-3 fix: استخرج محتوى الوسائط (صورة/صوت/فيديو/مستند) لا تتجاهل الرسالة
@@ -401,10 +402,11 @@ async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage
       messageId,
       recipientIdentityType: contactResolution.recipientIdentityType,
     },
+    correlationId,
   });
 }
 
-async function handleEchoEvent(value: MetaChangeValue, externalThreadId: string | undefined): Promise<void> {
+async function handleEchoEvent(value: MetaChangeValue, externalThreadId: string | undefined, correlationId: string): Promise<void> {
   const phoneNumberId = value.metadata?.phone_number_id;
   if (!phoneNumberId || !externalThreadId) return;
 
@@ -422,6 +424,7 @@ async function handleEchoEvent(value: MetaChangeValue, externalThreadId: string 
     eventType: "message.echo",
     entityId: conversation.id,
     payload: { channelAccountId: channel.id },
+    correlationId,
   });
 }
 
@@ -537,7 +540,7 @@ async function handleInboundCall(value: MetaChangeValue, call: MetaCall): Promis
   });
 }
 
-async function handleMetaPayload(payload: MetaPayload): Promise<void> {
+async function handleMetaPayload(payload: MetaPayload, correlationId: string): Promise<void> {
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value;
@@ -545,11 +548,11 @@ async function handleMetaPayload(payload: MetaPayload): Promise<void> {
 
       for (const message of value.messages ?? []) {
         if (message.senderType === "business") {
-          await handleEchoEvent(value, message.from);
+          await handleEchoEvent(value, message.from, correlationId);
           continue;
         }
 
-        await handleInboundMessage(value, message);
+        await handleInboundMessage(value, message, correlationId);
       }
 
       for (const call of value.calls ?? []) {
@@ -620,19 +623,20 @@ router.post("/meta", express.raw({ type: "*/*", limit: "2mb" }), async (req: Req
     return;
   }
 
+  const correlationId = randomUUID();
   try {
     // PD-6 fix: route instagram/page (Messenger) webhooks to the shared dispatcher
     const objectType = (payload as any)?.object;
     if (objectType === "instagram" || objectType === "page") {
       const result = await handleMetaWebhook(payload);
       if (result.messagesCreated === 0) {
-        logger.warn({ webhook: describeMetaPayload(payload) }, "Meta IG/Messenger webhook stored no messages");
+        logger.warn({ webhook: describeMetaPayload(payload), correlationId }, "Meta IG/Messenger webhook stored no messages");
       }
     } else {
-      await handleMetaPayload(payload);
+      await handleMetaPayload(payload, correlationId);
     }
   } catch (err) {
-    logger.error({ err }, "Failed to process Meta webhook");
+    logger.error({ err, correlationId }, "Failed to process Meta webhook");
   }
 
   res.status(200).send("EVENT_RECEIVED");
