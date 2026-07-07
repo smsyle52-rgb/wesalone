@@ -364,6 +364,11 @@ tasks:
       explicitly turned on. Deferred: wiring "notify"/"realtime" as dispatcher subscribers (the
       objective mentions them) — only "agent" is registered; notify/realtime remain on their
       existing direct call paths (notifyWorkspace, emitWorkspaceEvent) unchanged.
+      Amendment (W5-T2, same day): claimEventsForDispatch's type filter described above was
+      widened from message.received/message.echo-only to every type except
+      catalog.sync.requested, once wiring the automation subscriber showed the narrow scope
+      would have silently excluded every automation-relevant event type. The "agent" subscriber
+      now self-guards to its original two types at the registration site in index.ts instead.
     wave: 4
     dependencies: [W2-T2]
     verified_current_files:
@@ -423,15 +428,49 @@ tasks:
   - id: W5-T2
     title: "Re-home automation-engine as a dispatcher subscriber"
     objective: "Wire automation-engine.ts behind the event-dispatcher (no competing poll), with loop guards + audit."
-    status: todo
+    status: done
+    closure_note: >
+      2026-07-08. automation-engine.ts turned out to be a fully-featured, production-quality
+      automation execution engine (condition evaluation, 5 action types: send.template, add.tag,
+      assign.conversation, create.task, create.followup) — substantial, not a stub. Its own
+      claimDomainEvents() has a much wider event-type scope than the agent path (everything
+      except catalog.sync.requested) and writes domain_events.status/attempts itself — starting
+      pollAutomationEngine() as its own loop, even alongside the new dispatcher, would race two
+      independent FOR UPDATE SKIP LOCKED claimers over the same rows and silently steal events
+      the agent subscriber needs (whichever query wins the row, the other never sees it).
+      Fixed the real prerequisite this exposed in W4-T3's own dispatcher: claimEventsForDispatch
+      was hardcoded to message.received/message.echo only, so it never would have surfaced
+      automation-relevant types (order.created, payment.confirmed, etc.) at all. Widened it to
+      claim every type except catalog.sync.requested (matching automation-engine's own prior
+      exclusion), and added a defensive type-guard on the "agent" subscriber so it only calls
+      handleDomainEvent for the two types it was ever designed to understand — handleDomainEvent
+      itself is still untouched.
+      Added runAutomationsForEvent() (automation-engine.ts) as the actual subscriber entry point
+      — same loadAutomations+processAutomation logic as the standalone poller, but does not call
+      markProcessed/markEventFailure itself; throws on failure instead, so the dispatcher (not
+      automation-engine) owns domain_events.status and per-subscriber retry via
+      event_subscriber_progress. pollAutomationEngine (the standalone-loop entry point) is left
+      in place but commented as unsafe to start alongside the dispatcher or the legacy
+      agent-runner loop.
+      Double flag-gated: EVENT_DISPATCHER (from W4-T3) must be on for the dispatcher to run at
+      all, and the new AUTOMATIONS_WIRED additionally gates whether "automation" is registered
+      as a subscriber — matches the task's own rollback ("AUTOMATIONS_WIRED=false stays
+      dormant"). Both off by default; zero behavior change in production today.
+      typecheck (outbox-worker + full workspace), 407/407 api-server tests (unaffected — this
+      is outbox-worker only), build:prod all clean. No new automated tests: same rationale as
+      W4-T3 (outbox-worker has no test infrastructure, and both gates are off by default).
+      agent-runner contention guarantees preserved — the legacy loop is untouched, and the new
+      dispatcher path never runs both claimers at once.
     wave: 5
     dependencies: [W4-T3]
     verified_current_files:
       - artifacts/outbox-worker/src/automation-engine.ts
       - artifacts/outbox-worker/src/index.ts
+      - artifacts/outbox-worker/src/event-dispatcher.ts
     files_to_modify:
       - artifacts/outbox-worker/src/automation-engine.ts
       - artifacts/outbox-worker/src/event-dispatcher.ts
+      - artifacts/outbox-worker/src/index.ts
     files_to_create: []
     files_to_delete: []
     database_changes: "none (uses existing automations schema)"

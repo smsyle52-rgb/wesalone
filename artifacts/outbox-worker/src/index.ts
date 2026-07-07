@@ -2,7 +2,8 @@ import { createDecipheriv, createHash } from "node:crypto";
 import { createServer } from "node:http";
 import pg from "pg";
 import { runIngestionDispatcher } from "./ingestion-dispatcher";
-import { runEventDispatcher } from "./event-dispatcher";
+import { runEventDispatcher, type EventSubscriber } from "./event-dispatcher";
+import { runAutomationsForEvent } from "./automation-engine";
 
 const OUTBOX_INTERVAL_MS = 3_000;
 const AGENT_INTERVAL_MS = 5_000;
@@ -11,6 +12,8 @@ const HEARTBEAT_INTERVAL_MS = 10_000;
 const CLEANUP_INTERVAL_MS = 300_000;
 const INGEST_DEFERRED = process.env.INGEST_DEFERRED === "true";
 const EVENT_DISPATCHER = process.env.EVENT_DISPATCHER === "true";
+const AUTOMATIONS_WIRED = process.env.AUTOMATIONS_WIRED === "true";
+const AGENT_SUBSCRIBER_EVENT_TYPES = new Set(["message.received", "message.echo"]);
 const META_DRY_RUN = process.env.META_DRY_RUN === "true";
 const WHATSAPP_BSUID_ENABLED = process.env.WHATSAPP_BSUID_ENABLED === "true";
 const META_GRAPH_VERSION = "v22.0";
@@ -1014,11 +1017,31 @@ startLoop("outbox sender", OUTBOX_INTERVAL_MS, runOutboxSender);
 if (EVENT_DISPATCHER) {
   // W4-T3: one claimer fans domain_events to subscribers, tracked idempotently
   // per (event, subscriber). handleDomainEvent itself is unchanged — only the
-  // claiming mechanism differs from the legacy loop below.
+  // claiming mechanism differs from the legacy loop below. The dispatcher
+  // claims every event type (W5-T2 widened this for the automation
+  // subscriber), so "agent" guards itself back down to its original scope
+  // rather than handleDomainEvent needing to understand unrelated event types.
+  const subscribers: EventSubscriber[] = [
+    {
+      name: "agent",
+      handler: (event) =>
+        AGENT_SUBSCRIBER_EVENT_TYPES.has(event.event_type) ? handleDomainEvent(event as DomainEventRow) : Promise.resolve(),
+    },
+  ];
+  if (AUTOMATIONS_WIRED) {
+    // W5-T2: automation-engine re-homed as a subscriber — no competing poll.
+    // runAutomationsForEvent throws on failure instead of writing
+    // domain_events itself; the dispatcher records per-subscriber progress
+    // and retries independently of the agent subscriber.
+    subscribers.push({
+      name: "automation",
+      handler: (event) => runAutomationsForEvent({ ...event, payload: (event.payload ?? {}) as Record<string, unknown> }, logger),
+    });
+  }
   startLoop("event dispatcher", AGENT_INTERVAL_MS, () =>
     runEventDispatcher({
       pool,
-      subscribers: [{ name: "agent", handler: (event) => handleDomainEvent(event) }],
+      subscribers,
       onEventDone: markDone,
       onEventFailed: markFailed,
       logError: (err, context) => {

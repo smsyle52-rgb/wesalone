@@ -26,10 +26,13 @@ export type EventSubscriber = {
   handler: (event: DispatchEventRow) => Promise<void>;
 };
 
-// Same scope as the legacy agent-runner claim query — the dispatcher does not
-// widen which event types get claimed; it only generalizes *how* they're claimed.
-const DISPATCHED_EVENT_TYPES = ["message.received", "message.echo"];
-
+// Unlike the legacy agent-runner claim query (message.received/message.echo
+// only), the dispatcher claims every pending event type except
+// catalog.sync.requested (excluded here to match automation-engine's own
+// prior standalone claim query — it has a separate delivery path). Each
+// subscriber is responsible for ignoring event types it doesn't care about;
+// the dispatcher itself does not gate on type, since different subscribers
+// (agent vs. automation) care about different, only partially-overlapping sets.
 async function claimEventsForDispatch(pool: pg.Pool, limit: number): Promise<DispatchEventRow[]> {
   const { rows } = await pool.query<DispatchEventRow>(
     `
@@ -37,14 +40,14 @@ async function claimEventsForDispatch(pool: pg.Pool, limit: number): Promise<Dis
       SET status='processing'
       WHERE id IN (
         SELECT id FROM domain_events
-        WHERE status='pending' AND event_type = ANY($1)
+        WHERE status='pending' AND event_type <> 'catalog.sync.requested'
         ORDER BY created_at ASC
-        LIMIT $2
+        LIMIT $1
         FOR UPDATE SKIP LOCKED
       )
       RETURNING id, workspace_id, event_type, entity_type, entity_id, payload, attempts
     `,
-    [DISPATCHED_EVENT_TYPES, limit],
+    [limit],
   );
   return rows;
 }

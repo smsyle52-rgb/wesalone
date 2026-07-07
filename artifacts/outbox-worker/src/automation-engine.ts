@@ -1,5 +1,8 @@
 import { pool } from "@workspace/db";
-import pino from "pino";
+
+type MinimalLogger = {
+  warn: (obj: unknown, msg?: string) => void;
+};
 
 type DomainEventRow = {
   id: string;
@@ -305,7 +308,7 @@ async function markEventFailure(event: DomainEventRow, err: unknown): Promise<vo
   }
 }
 
-async function processDomainEvent(event: DomainEventRow, logger: pino.Logger): Promise<void> {
+async function processDomainEvent(event: DomainEventRow, logger: MinimalLogger): Promise<void> {
   try {
     const automations = await loadAutomations(event);
     for (const automation of automations) {
@@ -318,10 +321,34 @@ async function processDomainEvent(event: DomainEventRow, logger: pino.Logger): P
   }
 }
 
-export async function pollAutomationEngine(logger: pino.Logger): Promise<number> {
+// Standalone-loop entry point. Not currently started anywhere — kept for the
+// pre-W5-T2 standalone-poller shape. claimDomainEvents() here has its own
+// competing FOR UPDATE SKIP LOCKED query; do not start this loop *and* the
+// event-dispatcher subscriber below at the same time, or run this loop
+// alongside the legacy agent-runner loop — either combination races two
+// independent claimers over the same domain_events rows.
+export async function pollAutomationEngine(logger: MinimalLogger): Promise<number> {
   const events = await claimDomainEvents();
   for (const event of events) {
     await processDomainEvent(event, logger);
   }
   return events.length;
+}
+
+// W5-T2: event-dispatcher subscriber entry point. The dispatcher has already
+// claimed `event` via its own single claim query — this must not write
+// domain_events.status/attempts itself (that's the dispatcher's job via
+// onEventDone/onEventFailed + event_subscriber_progress). Throwing signals
+// failure to the dispatcher, which records it and retries independently of
+// other subscribers.
+export async function runAutomationsForEvent(event: DomainEventRow, logger: MinimalLogger): Promise<void> {
+  try {
+    const automations = await loadAutomations(event);
+    for (const automation of automations) {
+      await processAutomation(automation, event);
+    }
+  } catch (err) {
+    logger.warn({ err, eventId: event.id, eventType: event.event_type }, "Automation subscriber failed");
+    throw err;
+  }
 }
