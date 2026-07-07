@@ -70,7 +70,7 @@ router.get("/inbox/stream", requirePermission("conversations:read"), (req: Authe
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
 
-  send({ type: "connected", workspaceId, createdAt: new Date().toISOString() });
+  send({ v: 1, type: "connected", workspaceId, createdAt: new Date().toISOString() });
   const unsubscribe = subscribeWorkspaceEvents(workspaceId, send);
   const heartbeat = setInterval(() => {
     res.write("event: heartbeat\n");

@@ -126,7 +126,7 @@ describe("W3-T3: conversation labels CRUD", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as { labels: string[] };
     expect(body.labels).toEqual(["vip"]);
   });
 
@@ -142,7 +142,7 @@ describe("W3-T3: conversation labels CRUD", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as { labels: string[] };
     expect(body.labels).toEqual(["vip"]);
   });
 
@@ -155,7 +155,7 @@ describe("W3-T3: conversation labels CRUD", () => {
     const res = await fetch(`${baseUrl}/api/conversations/${CONVERSATION_ID}/labels/vip`, { method: "DELETE" });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as { labels: string[] };
     expect(body.labels).toEqual(["urgent"]);
   });
 

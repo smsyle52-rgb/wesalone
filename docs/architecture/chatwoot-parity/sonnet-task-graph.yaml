@@ -290,15 +290,39 @@ tasks:
   - id: W4-T2
     title: "Realtime via Postgres LISTEN/NOTIFY (multi-instance safe)"
     objective: "Back emitWorkspaceEvent/SSE with LISTEN/NOTIFY so events survive >1 instance; keep EventEmitter as local fast-path."
-    status: todo
+    status: done
+    closure_note: >
+      2026-07-08. Flag-gated (REALTIME_PUBSUB, unset/off by default) — zero behavior change in
+      production unless explicitly enabled, since maxScale is currently pinned at 1 anyway (the
+      deliberate safety limit noted 2026-07-06), so there's no live multi-instance bug being
+      fixed, only groundwork for if/when that changes. New lib/realtime.ts: publishRealtimeNotify
+      (pg_notify, guarded against Postgres's 8000-byte NOTIFY payload limit — oversized events
+      just skip cross-instance fan-out and log a warning, never throw) and
+      startRealtimeListener (dedicated pool.connect() client, LISTEN workspace_events,
+      auto-reconnect on error/drop with a 5s backoff). Dedup via a random instanceId tagged on
+      each NOTIFY payload — the publishing instance's own local EventEmitter.emit already
+      delivered the event synchronously, so it skips re-emitting when its own notification
+      round-trips back. events.ts: emitWorkspaceEvent still does the unconditional local emit
+      first (the local fast-path is never conditional on the flag), then additionally
+      fire-and-forgets publishRealtimeNotify when the flag is on. Added the v:1 envelope field
+      to WorkspaceRealtimeEvent (updated the one other call site, inbox-support.routes.ts's
+      "connected" event). Tests cover the publish-side guards (flag off = no-op, size limit,
+      pg_notify failure never throws) with a mocked pool; the LISTEN connection lifecycle itself
+      needs a real Postgres connection and is only exercised operationally, not in unit tests.
+      SSE auth/session scoping in inbox-support.routes.ts untouched, as required.
     wave: 4
     dependencies: [W2-T2]
     verified_current_files:
       - artifacts/api-server/src/lib/events.ts
+      - artifacts/api-server/src/lib/realtime.ts
+      - artifacts/api-server/src/modules/inbox/inbox-support.routes.ts
+      - artifacts/api-server/src/__tests__/realtime-pubsub.spec.ts
     files_to_modify:
       - artifacts/api-server/src/lib/events.ts
+      - artifacts/api-server/src/modules/inbox/inbox-support.routes.ts
     files_to_create:
       - artifacts/api-server/src/lib/realtime.ts
+      - artifacts/api-server/src/__tests__/realtime-pubsub.spec.ts
     files_to_delete: []
     database_changes: "none (LISTEN/NOTIFY only)"
     api_changes: "SSE envelope versioned (v:1)"

@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { db, domainEventsTable } from "@workspace/db";
 import { logger } from "./logger";
+import { isRealtimePubSubEnabled, publishRealtimeNotify, startRealtimeListener } from "./realtime";
 import type { SessionUser } from "./types";
 
 type DomainEventType =
@@ -14,6 +15,7 @@ type DomainEventType =
   | "catalog.sync.requested";
 
 export type WorkspaceRealtimeEvent = {
+  v: 1;
   type: string;
   workspaceId: string;
   entityType?: string;
@@ -25,11 +27,22 @@ export type WorkspaceRealtimeEvent = {
 const workspaceEvents = new EventEmitter();
 workspaceEvents.setMaxListeners(1000);
 
-export function emitWorkspaceEvent(event: Omit<WorkspaceRealtimeEvent, "createdAt"> & { createdAt?: string }): void {
-  workspaceEvents.emit(event.workspaceId, {
+// W4-T2: cross-instance fan-out (flag-gated, off by default). The local emit
+// below is always synchronous and unconditional — this only supplements it.
+startRealtimeListener((workspaceId, event) => {
+  workspaceEvents.emit(workspaceId, event as WorkspaceRealtimeEvent);
+});
+
+export function emitWorkspaceEvent(event: Omit<WorkspaceRealtimeEvent, "createdAt" | "v"> & { createdAt?: string }): void {
+  const fullEvent: WorkspaceRealtimeEvent = {
     ...event,
+    v: 1,
     createdAt: event.createdAt ?? new Date().toISOString(),
-  });
+  };
+  workspaceEvents.emit(event.workspaceId, fullEvent);
+  if (isRealtimePubSubEnabled()) {
+    void publishRealtimeNotify(event.workspaceId, fullEvent);
+  }
 }
 
 export function subscribeWorkspaceEvents(workspaceId: string, listener: (event: WorkspaceRealtimeEvent) => void): () => void {
