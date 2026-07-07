@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { NotificationCenter } from "@/components/NotificationCenter";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -264,9 +263,113 @@ function PriorityDot({ priority }: { priority: string }) {
 }
 
 function CompactStatusChip({ status }: { status: string }) {
+  const normalizedStatus = status;
   return (
-    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[0.68rem] font-bold", COMPACT_STATUS_COLORS[status] ?? "bg-gray-100 text-gray-600")}>
-      {statusLabels[status] ?? status}
+    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[0.68rem] font-bold", COMPACT_STATUS_COLORS[normalizedStatus] ?? "bg-gray-100 text-gray-600")}>
+      {statusLabels[normalizedStatus] ?? normalizedStatus}
+    </span>
+  );
+}
+
+function normalizeConversationStatus(status: unknown, lifecycleState?: unknown): string {
+  if (typeof lifecycleState === "string" && lifecycleState.trim()) return lifecycleState;
+  if (typeof status === "string" && status.trim()) return status;
+  return "new";
+}
+
+function normalizeConversationLabels(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function formatDisplayId(value: unknown): string | null {
+  return typeof value === "number" && Number.isFinite(value) ? `#${value}` : null;
+}
+
+const PRESENCE_DOT_COLORS: Record<"online" | "away" | "offline", string> = {
+  online: "bg-emerald-500",
+  away: "bg-amber-500",
+  offline: "bg-slate-300",
+};
+
+function resolvePresence(member: any): { tone: "online" | "away" | "offline"; label: string } {
+  const availability = typeof member?.availability === "string" ? member.availability.toLowerCase() : null;
+  if (availability === "online") return { tone: "online", label: "متصل" };
+  if (availability === "busy" || availability === "away") return { tone: "away", label: "بعيد" };
+
+  const rawLastSeenAt = member?.lastSeenAt;
+  const lastSeenAt = typeof rawLastSeenAt === "string" || rawLastSeenAt instanceof Date
+    ? new Date(rawLastSeenAt)
+    : null;
+
+  if (lastSeenAt && !Number.isNaN(lastSeenAt.getTime())) {
+    const diffMinutes = Math.max(0, (Date.now() - lastSeenAt.getTime()) / 60000);
+    if (diffMinutes <= 10) return { tone: "online", label: "نشط الآن" };
+    if (diffMinutes <= 180) return { tone: "away", label: "بعيد الآن" };
+  }
+
+  return { tone: "offline", label: "غير متصل" };
+}
+
+function DisplayIdBadge({ value }: { value: unknown }) {
+  const displayId = formatDisplayId(value);
+  if (!displayId) return null;
+
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full border border-border bg-muted px-1.5 py-0.5 text-[0.68rem] font-bold text-muted-foreground">
+      {displayId}
+    </span>
+  );
+}
+
+function LabelsRow({ labels, compact = false }: { labels: string[]; compact?: boolean }) {
+  if (labels.length === 0) return null;
+  const visible = labels.slice(0, compact ? 2 : 3);
+  const overflow = labels.length - visible.length;
+
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-1">
+      {visible.map((label) => (
+        <span
+          key={label}
+          className={cn(
+            "inline-flex max-w-full items-center truncate rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 font-medium text-sky-700",
+            compact ? "text-[0.62rem]" : "text-xs",
+          )}
+          title={label}
+        >
+          {label}
+        </span>
+      ))}
+      {overflow > 0 && (
+        <span className={cn("inline-flex rounded-full border border-border bg-muted px-2 py-0.5 font-medium text-muted-foreground", compact ? "text-[0.62rem]" : "text-xs")}>
+          +{overflow}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function AssignmentChip({ member, membershipId, compact = false }: { member?: any; membershipId?: string | null; compact?: boolean }) {
+  if (!membershipId) {
+    return (
+      <span className={cn("inline-flex shrink-0 items-center rounded-full border border-dashed border-border bg-background px-2 py-0.5 font-medium text-muted-foreground", compact ? "text-[0.62rem]" : "text-xs")}>
+        بدون مسؤول
+      </span>
+    );
+  }
+
+  const presence = resolvePresence(member);
+  const name = typeof member?.name === "string" && member.name.trim() ? member.name.trim() : "مسؤول";
+  const text = compact ? name : `${name} · ${presence.label}`;
+
+  return (
+    <span
+      className={cn("inline-flex min-w-0 items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 font-medium text-foreground/80", compact ? "text-[0.62rem]" : "text-xs")}
+      title={`المسؤول: ${name}`}
+    >
+      <span className={cn("h-2 w-2 shrink-0 rounded-full", PRESENCE_DOT_COLORS[presence.tone])} />
+      <span className="truncate">{text}</span>
     </span>
   );
 }
@@ -667,6 +770,9 @@ export default function InboxPage() {
   const totalPages = Math.max(1, Math.ceil(totalConversations / pageSize));
   const counts: Record<string, number> = data?.counts ?? {};
   const members: any[] = membersData?.members ?? membersData?.users ?? [];
+  const memberByMembershipId = new Map(
+    members.map((member) => [String(member.membershipId ?? member.id ?? ""), member] as const).filter(([membershipId]) => membershipId),
+  );
   const quickReplies: any[] = quickRepliesData?.quickReplies ?? [];
   const savedViews: any[] = savedViewsData?.savedViews ?? [];
   const slaRules: any[] = slaRulesData?.slaRules ?? [];
@@ -799,6 +905,14 @@ export default function InboxPage() {
   const contactChannels: any[] = detail?.contactChannels ?? [];
   const waLink: string | null = detail?.waLink ?? null;
   const assignedMember = detail?.assignedMember;
+  const conversationLabels = normalizeConversationLabels(conv?.labels);
+  const conversationUnifiedStatus = normalizeConversationStatus(conv?.status, conv?.lifecycleState);
+  const assignedPresenceMember = conv?.assignedMembershipId
+    ? memberByMembershipId.get(String(conv.assignedMembershipId))
+    : null;
+  const assignedConversationMember = assignedPresenceMember
+    ? { ...assignedPresenceMember, name: assignedMember?.name ?? assignedPresenceMember.name }
+    : assignedMember;
   const filteredQuickReplies = messageText.trim().startsWith("/")
     ? quickReplies.filter((reply) => reply.shortcut?.startsWith(messageText.trim()) || reply.title?.includes(messageText.trim().slice(1))).slice(0, 6)
     : [];
@@ -930,8 +1044,15 @@ export default function InboxPage() {
                   <span>لا توجد محادثات</span>
                 </div>
               ) : (
-                sortedList.map((c: any) => (
-                  <button key={c.id} onClick={() => selectConv(c)} className={cn(
+                sortedList.map((c: any) => {
+                  const conversationLabels = normalizeConversationLabels(c.labels);
+                  const unifiedStatus = normalizeConversationStatus(c.status, c.lifecycleState);
+                  const assignedListMember = c.assignedMembershipId
+                    ? memberByMembershipId.get(String(c.assignedMembershipId))
+                    : null;
+
+                  return (
+                    <button key={c.id} onClick={() => selectConv(c)} className={cn(
                     "w-full flex items-center gap-3 px-4 py-3.5 border-b border-border/40 transition-colors text-start",
                     selectedConvId === c.id ? "bg-primary/8" : "hover:bg-muted/30"
                   )}>
@@ -949,6 +1070,7 @@ export default function InboxPage() {
                           </span>
                           {c.contactPhone && <span dir="ltr" className="block truncate text-[0.72rem] text-muted-foreground">{c.contactPhone}</span>}
                         </span>
+                        <DisplayIdBadge value={c.displayId} />
                         <span className="text-[0.68rem] text-muted-foreground shrink-0">{timeAgo(c.lastMessageAt ?? c.createdAt)}</span>
                       </div>
                       <div className="flex items-center justify-between gap-1">
@@ -959,6 +1081,15 @@ export default function InboxPage() {
                           </span>
                         )}
                       </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        <CompactStatusChip status={unifiedStatus} />
+                        <AssignmentChip member={assignedListMember} membershipId={c.assignedMembershipId} compact />
+                      </div>
+                      {conversationLabels.length > 0 && (
+                        <div className="mt-1">
+                          <LabelsRow labels={conversationLabels} compact />
+                        </div>
+                      )}
                       {(c.priority === "high" || c.priority === "urgent" || c.agentStatus === "active" || c.needsHuman) && (
                         <div className="flex items-center gap-1 mt-1.5 flex-wrap">
                           {(c.priority === "high" || c.priority === "urgent") && (
@@ -973,8 +1104,9 @@ export default function InboxPage() {
                         </div>
                       )}
                     </div>
-                  </button>
-                ))
+                    </button>
+                  );
+                })
               )}
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-3 px-4 py-3 border-t border-border/40 text-xs text-muted-foreground">
@@ -1608,8 +1740,11 @@ export default function InboxPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="min-w-0 flex-1">
-                        <span className={cn("block truncate text-[0.9rem]", c.unreadCount > 0 ? "font-bold text-foreground" : "font-semibold text-foreground/90")}>
-                          {c.contactName ?? "عميل غير معروف"}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className={cn("truncate text-[0.9rem]", c.unreadCount > 0 ? "font-bold text-foreground" : "font-semibold text-foreground/90")}>
+                            {c.contactName ?? "عميل غير معروف"}
+                          </span>
+                          <DisplayIdBadge value={c.displayId} />
                         </span>
                         {c.contactPhone && <span dir="ltr" className="block truncate text-[0.72rem] text-muted-foreground">{c.contactPhone}</span>}
                       </span>
@@ -1627,21 +1762,29 @@ export default function InboxPage() {
                         </span>
                       )}
                     </div>
-                    {(c.needsHuman || (c.priority && c.priority !== "normal") || c.ticketNumber || (c.unreadCount > 0 && c.lastMessageAt) || c.status === "closed") && (
-                      <div className="mt-1 flex flex-wrap items-center gap-1">
-                        {c.needsHuman && (
-                          <span className="rounded-full bg-amber-100 px-2 py-px text-[0.68rem] font-bold text-amber-800">يحتاج تدخل</span>
-                        )}
-                        {c.priority && c.priority !== "normal" && <PriorityBadge priority={c.priority} />}
-                        {c.status === "closed" && <StatusBadge status={c.status} />}
-                        {c.ticketNumber && (
-                          <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-px text-[0.68rem] font-medium text-amber-700">
-                            تذكرة #{c.ticketNumber}
-                          </span>
-                        )}
-                        {c.unreadCount > 0 && c.lastMessageAt && new Date(c.lastMessageAt).getTime() < Date.now() - defaultSlaMinutes * 60 * 1000 && (
-                          <span className="rounded border border-red-200 bg-red-50 px-1.5 py-px text-[0.68rem] text-red-700">SLA متجاوز</span>
-                        )}
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      <CompactStatusChip status={normalizeConversationStatus(c.status, c.lifecycleState)} />
+                      <AssignmentChip
+                        member={c.assignedMembershipId ? memberByMembershipId.get(String(c.assignedMembershipId)) : null}
+                        membershipId={c.assignedMembershipId}
+                        compact
+                      />
+                      {c.needsHuman && (
+                        <span className="rounded-full bg-amber-100 px-2 py-px text-[0.68rem] font-bold text-amber-800">يحتاج تدخل</span>
+                      )}
+                      {c.priority && c.priority !== "normal" && <PriorityBadge priority={c.priority} />}
+                      {c.ticketNumber && (
+                        <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-px text-[0.68rem] font-medium text-amber-700">
+                          تذكرة #{c.ticketNumber}
+                        </span>
+                      )}
+                      {c.unreadCount > 0 && c.lastMessageAt && new Date(c.lastMessageAt).getTime() < Date.now() - defaultSlaMinutes * 60 * 1000 && (
+                        <span className="rounded border border-red-200 bg-red-50 px-1.5 py-px text-[0.68rem] text-red-700">SLA متجاوز</span>
+                      )}
+                    </div>
+                    {normalizeConversationLabels(c.labels).length > 0 && (
+                      <div className="mt-1">
+                        <LabelsRow labels={normalizeConversationLabels(c.labels)} />
                       </div>
                     )}
                   </div>
@@ -1705,11 +1848,22 @@ export default function InboxPage() {
                         <span className="font-medium">الموضوع: </span>{conv.subject}
                       </div>
                     )}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <DisplayIdBadge value={conv.displayId} />
+                      <ChannelBadge channel={conv.channel} />
+                      <CompactStatusChip status={conversationUnifiedStatus} />
+                      <AssignmentChip member={assignedConversationMember} membershipId={conv.assignedMembershipId} />
+                    </div>
+                    {conversationLabels.length > 0 && (
+                      <div className="mt-1">
+                        <LabelsRow labels={conversationLabels} />
+                      </div>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <CompactChannelBadge channel={conv.channel} />
                     <PriorityDot priority={conv.priority} />
-                    <CompactStatusChip status={conv.status} />
+                    <CompactStatusChip status={conversationUnifiedStatus} />
                     {showAgentControls && agentBadge && (
                       <div className="flex items-center gap-1">
                         <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap", agentBadge.className)}>
@@ -1784,7 +1938,9 @@ export default function InboxPage() {
                               className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none">
                               <option value="">غير مُعيَّن</option>
                               {members.map((m: any) => (
-                                <option key={m.membershipId ?? m.id} value={m.membershipId ?? m.id}>{m.name}</option>
+                                <option key={m.membershipId ?? m.id} value={m.membershipId ?? m.id}>
+                                  {`${m.name} · ${resolvePresence(m).label}`}
+                                </option>
                               ))}
                             </select>
                           </div>
@@ -1900,9 +2056,9 @@ export default function InboxPage() {
                           {label}
                         </button>
                       ))}
-                    </div>
                   </div>
                 </div>
+              </div>
               </div>
               {conv && !showAgentControls && conv.channelAccountId && currentChannelAccount && !currentChannelAccount.defaultAgentId && canManageConversationAgent && (
                 <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-100 text-amber-700 text-xs">

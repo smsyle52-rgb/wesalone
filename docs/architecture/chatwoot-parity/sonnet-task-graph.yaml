@@ -398,7 +398,7 @@ tasks:
   - id: W7-T1
     title: "Surface parity capabilities in Inbox UI (last)"
     objective: "Show display_id, labels, unified status, assignment, presence; respect RTL/mobile; no backend change."
-    status: todo
+    status: done
     wave: 7
     dependencies: [W3-T1, W3-T3, W5-T1]
     verified_current_files:
@@ -421,7 +421,7 @@ tasks:
   - id: W8-T1
     title: "Drop deprecated schema (reversible) after proof"
     objective: "Drop provider_accounts/outbox_messages and retired columns once grep-proven zero writers/readers."
-    status: todo
+    status: in_progress
     wave: 8
     dependencies: [W6-T1]
     verified_current_files:

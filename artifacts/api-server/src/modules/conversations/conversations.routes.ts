@@ -163,8 +163,10 @@ router.get("/", requirePermission("conversations:read"), async (req: Authenticat
   const baseQuery = db
     .select({
       id: conversationsTable.id,
+      displayId: conversationsTable.displayId,
       channel: conversationsTable.channel,
       status: conversationsTable.status,
+      lifecycleState: conversationsTable.lifecycleState,
       priority: conversationsTable.priority,
       subject: conversationsTable.subject,
       lastMessage: conversationsTable.lastMessage,
@@ -172,6 +174,9 @@ router.get("/", requirePermission("conversations:read"), async (req: Authenticat
       unreadCount: conversationsTable.unreadCount,
       needsHuman: conversationsTable.needsHuman,
       escalationReason: conversationsTable.escalationReason,
+      labels: conversationsTable.labels,
+      waitingSince: conversationsTable.waitingSince,
+      agentStatus: conversationsTable.agentStatus,
       assignedMembershipId: conversationsTable.assignedMembershipId,
       createdAt: conversationsTable.createdAt,
       contactId: conversationsTable.contactId,
@@ -305,9 +310,12 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
 
   const [conv] = await db.select({
     id: conversationsTable.id,
+    displayId: conversationsTable.displayId,
     channel: conversationsTable.channel,
     status: conversationsTable.status,
+    lifecycleState: conversationsTable.lifecycleState,
     priority: conversationsTable.priority,
+    labels: conversationsTable.labels,
     subject: conversationsTable.subject,
     lastMessage: conversationsTable.lastMessage,
     lastMessageAt: conversationsTable.lastMessageAt,
@@ -326,6 +334,8 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
     agentStatus: conversationsTable.agentStatus,
     agentPausedUntil: conversationsTable.agentPausedUntil,
     consecutiveAgentReplies: conversationsTable.consecutiveAgentReplies,
+    waitingSince: conversationsTable.waitingSince,
+    firstReplyCreatedAt: conversationsTable.firstReplyCreatedAt,
     createdAt: conversationsTable.createdAt,
     updatedAt: conversationsTable.updatedAt,
     contactId: contactsTable.id,
