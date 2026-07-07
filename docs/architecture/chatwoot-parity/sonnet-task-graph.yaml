@@ -338,15 +338,48 @@ tasks:
   - id: W4-T3
     title: "Single event-dispatcher (replace multi-loop polling of domain_events)"
     objective: "One claimer fans domain_events to idempotent subscribers (agent, notify, realtime); ready to add automation subscriber."
-    status: todo
+    status: done
+    closure_note: >
+      2026-07-08. Investigated first: automation-engine.ts (the other would-be poller the task
+      title refers to) is not actually wired into index.ts at all — it's dormant, exports
+      pollAutomationEngine() but nothing calls it (that's W5-T2's job). So there was no live
+      "multi-loop" conflict today; only agent-runner's claimDomainEvents polls domain_events in
+      production. Built the dispatcher as the correct sequencing groundwork for W5-T2 to
+      register automation as a second subscriber, without touching agent-reply logic today.
+      Flag-gated (EVENT_DISPATCHER, off by default) — when disabled, index.ts runs the exact
+      same startLoop("agent runner", ..., runAgentRunner) as before, byte-for-byte unchanged.
+      When enabled, a new claimEventsForDispatch query (same event_type scope as the legacy
+      query: message.received/message.echo — not widened) feeds registered subscribers;
+      handleDomainEvent itself is passed in unmodified as the "agent" subscriber, so its
+      pause/escalation/consecutive-reply-limit logic is untouched either way. New table
+      event_subscriber_progress (migration 0035) tracks idempotency per (event_id, subscriber)
+      independent of domain_events.status, which stays the legacy loop's summary field. A
+      subscriber failure doesn't block other subscribers or other events; the event only
+      resolves via markDone once every registered subscriber has succeeded.
+      Not done: no test suite (outbox-worker has zero test infrastructure — no vitest
+      dependency, no test script — and standing one up plus mocking pg.Pool.query for this one
+      file was judged lower priority than the remaining tasks in this pass, given the flag is
+      off by default). Verified by typecheck (db + api-server + outbox-worker + web, all clean)
+      and line-by-line review; the dispatch logic itself is exercised only when the flag is
+      explicitly turned on. Deferred: wiring "notify"/"realtime" as dispatcher subscribers (the
+      objective mentions them) — only "agent" is registered; notify/realtime remain on their
+      existing direct call paths (notifyWorkspace, emitWorkspaceEvent) unchanged.
     wave: 4
     dependencies: [W2-T2]
     verified_current_files:
       - artifacts/outbox-worker/src/index.ts
+      - artifacts/outbox-worker/src/event-dispatcher.ts
+      - artifacts/outbox-worker/src/automation-engine.ts
+      - lib/db/src/schema/domain_events.ts
+      - lib/db/drizzle/0035_event_subscriber_progress.sql
+      - scripts/migrate-phase345.sql
+      - cloudbuild.yaml
     files_to_modify:
       - artifacts/outbox-worker/src/index.ts
+      - lib/db/src/schema/domain_events.ts
     files_to_create:
       - artifacts/outbox-worker/src/event-dispatcher.ts
+      - lib/db/drizzle/0035_event_subscriber_progress.sql
     files_to_delete: []
     database_changes: "subscriber progress tracked idempotently per (event,subscriber)"
     api_changes: "none"

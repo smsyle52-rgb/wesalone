@@ -2,6 +2,7 @@ import { createDecipheriv, createHash } from "node:crypto";
 import { createServer } from "node:http";
 import pg from "pg";
 import { runIngestionDispatcher } from "./ingestion-dispatcher";
+import { runEventDispatcher } from "./event-dispatcher";
 
 const OUTBOX_INTERVAL_MS = 3_000;
 const AGENT_INTERVAL_MS = 5_000;
@@ -9,6 +10,7 @@ const INGESTION_INTERVAL_MS = 3_000;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const CLEANUP_INTERVAL_MS = 300_000;
 const INGEST_DEFERRED = process.env.INGEST_DEFERRED === "true";
+const EVENT_DISPATCHER = process.env.EVENT_DISPATCHER === "true";
 const META_DRY_RUN = process.env.META_DRY_RUN === "true";
 const WHATSAPP_BSUID_ENABLED = process.env.WHATSAPP_BSUID_ENABLED === "true";
 const META_GRAPH_VERSION = "v22.0";
@@ -1009,7 +1011,25 @@ createServer((_req, res) => {
 });
 
 startLoop("outbox sender", OUTBOX_INTERVAL_MS, runOutboxSender);
-startLoop("agent runner", AGENT_INTERVAL_MS, runAgentRunner);
+if (EVENT_DISPATCHER) {
+  // W4-T3: one claimer fans domain_events to subscribers, tracked idempotently
+  // per (event, subscriber). handleDomainEvent itself is unchanged — only the
+  // claiming mechanism differs from the legacy loop below.
+  startLoop("event dispatcher", AGENT_INTERVAL_MS, () =>
+    runEventDispatcher({
+      pool,
+      subscribers: [{ name: "agent", handler: (event) => handleDomainEvent(event) }],
+      onEventDone: markDone,
+      onEventFailed: markFailed,
+      logError: (err, context) => {
+        console.error("event-dispatcher: subscriber error", errorDetails(err), context);
+        logger.error({ err, ...context }, "Event subscriber failed");
+      },
+    }),
+  );
+} else {
+  startLoop("agent runner", AGENT_INTERVAL_MS, runAgentRunner);
+}
 startLoop("heartbeat", HEARTBEAT_INTERVAL_MS, writeHeartbeat);
 startLoop("cleanup", CLEANUP_INTERVAL_MS, runCleanup);
 if (INGEST_DEFERRED) {

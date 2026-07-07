@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { workspacesTable } from "./workspaces";
 
 export const domainEventsTable = pgTable(
@@ -24,3 +24,26 @@ export const domainEventsTable = pgTable(
 
 export type DomainEvent = typeof domainEventsTable.$inferSelect;
 export type InsertDomainEvent = typeof domainEventsTable.$inferInsert;
+
+// W4-T3: per-subscriber idempotent progress tracking for the event-dispatcher
+// (EVENT_DISPATCHER flag). Independent of domain_events.status, which stays a
+// single-consumer summary field for the legacy direct-loop path.
+export const eventSubscriberProgressTable = pgTable(
+  "event_subscriber_progress",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id").notNull().references(() => domainEventsTable.id, { onDelete: "cascade" }),
+    subscriber: text("subscriber").notNull(),
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_event_subscriber_progress_event_subscriber").on(table.eventId, table.subscriber),
+    index("idx_event_subscriber_progress_status").on(table.status),
+  ],
+);
+
+export type EventSubscriberProgress = typeof eventSubscriberProgressTable.$inferSelect;
