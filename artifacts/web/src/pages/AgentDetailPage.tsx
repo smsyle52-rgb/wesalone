@@ -14,8 +14,10 @@ const tabs = ["settings", "instructions", "knowledge", "serviceStyle", "learned"
 interface AgentSimulationResult {
   reply: string;
   knowledgeSources: string[];
+  sourcesDetailed?: { title: string; score: number | null }[];
   toolCalls: { name: string; args: Record<string, unknown> }[];
   wouldEscalate: boolean;
+  escalationReasons?: string[];
   provider: string;
   aiUnavailable: boolean;
 }
@@ -586,6 +588,18 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
                       {t("agents.detail.willAutoReply")}
                     </span>
                   )}
+                  {(playgroundResult.escalationReasons ?? []).length > 0 && (
+                    <div className="mt-2 space-y-0.5">
+                      {(playgroundResult.escalationReasons ?? []).map((reason) => {
+                        const key = reason.startsWith("unbacked_claim") ? "unbacked_claim" : reason;
+                        return (
+                          <div key={reason} className="text-xs text-muted-foreground">
+                            • {t(`agents.detail.escalationReason.${key}`, reason)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 border-t border-border pt-3">
@@ -605,8 +619,13 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
                   <div className="mb-2 text-xs font-semibold text-muted-foreground">{t("agents.detail.knowledgeSourcesUsed")}</div>
                   {playgroundResult.knowledgeSources.length > 0 ? (
                     <div className="space-y-1">
-                      {playgroundResult.knowledgeSources.map((title, index) => (
-                        <div key={`${title}:${index}`} className="text-xs text-muted-foreground">{title}</div>
+                      {(playgroundResult.sourcesDetailed ?? playgroundResult.knowledgeSources.map((title) => ({ title, score: null }))).map((source, index) => (
+                        <div key={`${source.title}:${index}`} className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          <span className="truncate">{source.title}</span>
+                          {typeof source.score === "number" && (
+                            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 tabular-nums">{Math.round(source.score * 100)}%</span>
+                          )}
+                        </div>
                       ))}
                     </div>
                   ) : (

@@ -8,7 +8,7 @@ import {
   autoReplyDecisionsTable, outboxEventsTable, messagesTable, contactsTable, contactChannelsTable,
   conversationsTable, knowledgeChunksTable, faqEntriesTable, knowledgeDocumentsTable,
   channelAccountsTable, adCampaignsTable, socialPostsTable, productsTable,
-  sectorProfilesTable, workspacesTable,
+  workspacesTable,
   tasksTable, learnedAnswersTable,
 } from "@workspace/db";
 import { eq, and, desc, gte, ilike, lte, or, sql } from "drizzle-orm";
@@ -20,6 +20,7 @@ import { runAI, getProviderStatus, ACTIVE_PROVIDER, getDefaultModel, type AiMess
 import { checkActionSafety, recordSafetyBlock, isSuggestionSafe } from "../../lib/ai-safety";
 import { aiRunLimiter } from "../../lib/rateLimiter";
 import { runAgentReply, simulateAgentReply } from "../../lib/agent-reply";
+import { loadSectorAgentContext } from "../../lib/agent-sector";
 import { logger } from "../../lib/logger";
 import { appendTurn, clear as clearAgentMemory, loadContext, rotate, shouldRotate } from "../../services/agent-memory";
 import { searchKnowledgeForAi } from "../../services/knowledge-retrieval";
@@ -412,36 +413,7 @@ function channelGuidance(channel?: string | null, channelTone?: unknown): string
   return `أنت ترد عبر قناة ${normalized}. ${guidance}`;
 }
 
-function compactJson(value: unknown): string {
-  if (!value || typeof value !== "object") return "";
-  return JSON.stringify(value);
-}
-
-async function loadSectorAgentContext(
-  workspaceId: string,
-  agent: (typeof aiAgentsTable.$inferSelect) | null,
-): Promise<string> {
-  const sectorKey = agent?.sectorKey || "services_general";
-  const [profile] = await db.select().from(sectorProfilesTable).where(eq(sectorProfilesTable.sectorKey, sectorKey)).limit(1);
-  const [workspace] = await db.select({ settings: workspacesTable.settings }).from(workspacesTable).where(eq(workspacesTable.id, workspaceId)).limit(1);
-  const workspaceSettings = workspace?.settings && typeof workspace.settings === "object" ? workspace.settings as Record<string, unknown> : {};
-  const workspaceSectorNote = typeof workspaceSettings.sector_note === "string" ? workspaceSettings.sector_note : "";
-  if (!profile) return "";
-  return [
-    "هوية القطاع وأسلوب الخدمة:",
-    `القطاع: ${profile.nameAr}`,
-    `الوصف: ${profile.descriptionAr}`,
-    `المعرفة العامة للقطاع: ${compactJson(profile.baseKnowledge)}`,
-    `أسلوب الخدمة المطلوب: ${compactJson(profile.behaviorProfile)}`,
-    `هدف التفاعل الناجح: ${compactJson(profile.serviceGoals)}`,
-    `النبرة الافتراضية: ${profile.defaultTone}`,
-    `حدود القطاع: ${compactJson(profile.guardrails)}`,
-    agent?.sectorBehaviorOverrides && Object.keys(agent.sectorBehaviorOverrides).length > 0
-      ? `تخصيصات التاجر لأسلوب الخدمة: ${compactJson(agent.sectorBehaviorOverrides)}`
-      : "",
-    workspaceSectorNote ? `ملاحظة التاجر عن نشاطه: ${workspaceSectorNote}` : "",
-  ].filter(Boolean).join("\n");
-}
+// loadSectorAgentContext انتقلت إلى ../../lib/agent-sector ليستهلكها المسار الحي أيضاً.
 
 function hasStrongKnowledgeHit(sources: KnowledgeAiSource[]): boolean {
   if (sources.length === 0) return false;
@@ -560,10 +532,13 @@ router.post("/agents", requirePermission("ai:configure"), async (req: Authentica
     createdBy: userId,
   }).returning();
 
+  // الافتراضي المزروع يطابق افتراضي وقت التشغيل في agent-reply — الصيغة القديمة («وكيل ذكاء
+  // اصطناعي لنظام CRM») كانت تتغلّب على الافتراضي القوي لمجرّد وجود الصف، وتكسر محمية إخفاء
+  // التقنية وتثبّت هوية غير بشرية لكل وكيل جديد لم يكتب التاجر له دوراً مخصّصاً.
   await db.insert(aiAgentInstructionsTable).values({
     workspaceId: activeWorkspaceId,
     agentId: agent.id,
-    rolePrompt: `أنت وكيل ذكاء اصطناعي مساعد لنظام إدارة علاقات العملاء. نوعك: ${data.type}. لهجتك: ${data.dialect}.`,
+    rolePrompt: "أنت موظف مبيعات وخدمة عملاء حقيقي، ودود ومحترف، تردّ على عملاء النشاط التجاري بأسلوب إنساني طبيعي. تفاعل مع آخر رسالة من العميل مباشرةً.",
   });
 
   await createAuditLog({

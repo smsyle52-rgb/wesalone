@@ -52,18 +52,16 @@ const TRUST_OPTIONS = [
   { value: "auto_after_hours", title: "تلقائي بعد الدوام", desc: "اقتراح أثناء الدوام، وتلقائي خارج ساعات العمل." },
 ];
 
-// قائمة احتياطية لأنواع النشاط حين لا يرجع الـAPI قطاعات (مطابقة لشاشة الإعداد onboarding).
+// قائمة احتياطية حين لا يرجع GET /sectors قطاعات — مفاتيحها يجب أن تطابق حرفياً
+// sector_profiles المبذورة في migrate-phase345.sql، وإلا يُحفظ للوكيل sectorKey بلا
+// ملفّ قطاع مقابل فيرجع سياق القطاع فارغاً بصمت (القائمة السابقة كانت بمفاتيح مختلفة).
 const BUSINESS_TYPES: Array<{ key: string; label: string }> = [
-  { key: "retail_general", label: "تجزئة وبيع عام" },
-  { key: "food_restaurant", label: "مطعم وأغذية" },
+  { key: "retail_sales", label: "متجر بيع" },
+  { key: "restaurant_food", label: "مطاعم وأغذية" },
+  { key: "appointments_clinic", label: "عيادات ومواعيد" },
+  { key: "perfumes_gifts", label: "عطور وهدايا" },
+  { key: "clothing", label: "ملابس وأقمشة" },
   { key: "services_general", label: "خدمات عامة" },
-  { key: "beauty_wellness", label: "صالونات وعناية" },
-  { key: "real_estate", label: "عقارات" },
-  { key: "healthcare", label: "صحة وعيادات" },
-  { key: "education", label: "تعليم وتدريب" },
-  { key: "technology", label: "تقنية" },
-  { key: "travel_tourism", label: "سياحة وسفر" },
-  { key: "other", label: "أخرى" },
 ];
 
 function CreateAgentWizard({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {

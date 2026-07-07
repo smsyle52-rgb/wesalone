@@ -21,7 +21,14 @@ import {
   loadProductCatalogContext,
   type AgentToolResult,
 } from "./agent-tools";
-import { includesEscalationKeyword, replyPromisesHandoff } from "./agent-escalation";
+import {
+  findUnbackedActionClaim,
+  includesEscalationKeyword,
+  replyConfirmsPayment,
+  replyPromisesHandoff,
+  replyPromisesVerification,
+} from "./agent-escalation";
+import { loadSectorAgentContext } from "./agent-sector";
 
 // تأريض صارم (3 يوليو 2026): حادثة «299 ريال» — النموذج اخترع سعراً رغم قاعدة المنع في
 // SAFETY_SYSTEM_PROMPT، ثم ادّعى «قمت بتحويل طلبك» تهرّباً. هاتان القاعدتان تربطان
@@ -56,6 +63,10 @@ const HUMAN_STYLE = "أسلوبك إنساني ودافئ وطبيعي — تت�
 // حدّ حقن المعرفة في البرومبت. كان 800 حرفاً بينما المقطع 2000 — فكان يُقتطع جزء الإجابة الفعلي
 // من مقطع مسترجَع صحيح («وجدها لكن ما قرأها»). رُفع ليرى النموذج المقطع كاملاً. قابل للضبط عبر env.
 const KNOWLEDGE_INJECT_CHARS = Number(process.env.KNOWLEDGE_INJECT_CHARS ?? "2000");
+
+// الردّ الآمن الموحّد عند فشل أداة أو ادّعاء تنفيذ غير مسنود — يَعِد بالمراجعة فقط (وعدٌ يصدُق
+// لأن المحادثة تُصعَّد فعلاً معه دائماً)، ولا يكشف أي تفصيل تقني (محمية #10).
+const SAFE_REVIEW_REPLY = "أحتاج أن أحوّل طلبك للفريق لمراجعته والتأكد من تنفيذه بشكل صحيح.";
 
 async function upsertUsage(params: {
   workspaceId: string;
@@ -264,6 +275,15 @@ export async function runAgentReply(params: {
   } catch (err) {
     logger.warn({ err, workspaceId: params.workspaceId }, "loadProductCatalogContext failed — continuing without catalog context");
   }
+  // هوية القطاع (7 يوليو): sector_profiles مبذورة والوكيل يحمل sectorKey منذ البداية، لكن
+  // المسار الحي كان يتجاهلهما (كانت حبيسة مسار الاقتراح اليدوي). حواجز القطاع («لا تقدم
+  // تشخيصاً طبياً»، «لا تخترع خصومات») تُقوّي التأريض لا تبدّله. فشله لا يكسر الردّ.
+  let sectorContext = "";
+  try {
+    sectorContext = await loadSectorAgentContext(params.workspaceId, agent);
+  } catch (err) {
+    logger.warn({ err, workspaceId: params.workspaceId }, "loadSectorAgentContext failed — continuing without sector context");
+  }
   const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
   // استدعاء الأدوات الأصلي: تعريفات منظّمة تُمرَّر للنموذج (Gemini/Vertex) بدل وصفها نصّاً وطلب JSON.
   const toolDeclarations = executableTools.length > 0 ? buildAgentToolDeclarations(executableTools) : undefined;
@@ -292,6 +312,7 @@ export async function runAgentReply(params: {
     `Current date/time: ${new Date().toISOString()}.`,
     instructions?.rolePrompt ?? "أنت موظف مبيعات وخدمة عملاء حقيقي، ودود ومحترف، تردّ على عملاء النشاط التجاري بأسلوب إنساني طبيعي. تفاعل مع آخر رسالة من العميل مباشرةً.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
+    sectorContext,
     GROUNDING_RULES,
     HUMAN_STYLE,
     `اللهجة: ${agent.dialect}.`,
@@ -389,9 +410,18 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     const hasHandoff = toolResults.some((result) => result.tool === "handoff_to_human" && result.status === "success");
     const modelText = sanitizeReply(aiOutput.content);
     // نصّ النموذج إن وُجد؛ وإلا تأكيد حتمي حسب نتيجة الأداة (يتفادى الردّ الفارغ عند استدعاء أداة بلا نص).
-    const finalReply = hasToolProblem
-      ? "أحتاج أن أحوّل طلبك للفريق لمراجعته والتأكد من تنفيذه بشكل صحيح."
+    const candidateReply = hasToolProblem
+      ? SAFE_REVIEW_REPLY
       : (modelText || confirmationFromToolResults(toolResults));
+    // بوابة ادّعاء التنفيذ (7 يوليو): «تم تسجيل طلبك/تأكيد الدفع» بلا نتيجة أداة ناجحة مطابقة
+    // = كذب على العميل — يُستبدل الردّ بالإحالة الآمنة ويُصعَّد. تأكيد الدفع محظور حتى مع نجاح
+    // log_payment_claim (الأداة تسجّل ادّعاءً معلّقاً فقط). القاعدة النصية وحدها ثبت اختراقها
+    // (حادثة «299 ريال» ادّعى بعدها «قمت بتحويل طلبك») — هذه ترجمتها البنيوية.
+    const successfulTools = toolResults.filter((result) => result.status === "success").map((result) => result.tool);
+    const unbackedClaim = hasToolProblem ? null : findUnbackedActionClaim(candidateReply, successfulTools);
+    const paymentClaim = !hasToolProblem && replyConfirmsPayment(candidateReply);
+    const claimGuardTripped = unbackedClaim !== null || paymentClaim;
+    const finalReply = claimGuardTripped ? SAFE_REVIEW_REPLY : candidateReply;
 
     if (!finalReply) {
       await db.update(aiRunsTable).set({
@@ -401,6 +431,21 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       }).where(and(eq(aiRunsTable.id, run.id), eq(aiRunsTable.workspaceId, params.workspaceId)));
       return { reply: "", shouldEscalate: true, runId: run.id, toolResults };
     }
+
+    // أسباب التصعيد مجمّعة باسمها الصريح — تُخزَّن في metadata.decision لتشخيص «لماذا تصرّف
+    // الوكيل هكذا» لكل ردّ (بديل التخمين من السجلات). التصعيد بنيوي أولاً (أداة/بوابة)،
+    // وشبكات الوعود ثانياً (الخادم يجعل كلام النموذج صادقاً)، وطلب العميل الصريح أخيراً.
+    const escalationReasons: string[] = [];
+    if (hasToolProblem) escalationReasons.push("tool_failure");
+    if (unbackedClaim) escalationReasons.push(`unbacked_claim:${unbackedClaim}`);
+    if (paymentClaim) escalationReasons.push("payment_confirmation_claim");
+    if (hasHandoff) escalationReasons.push("handoff_tool");
+    if (replyPromisesHandoff(finalReply)) escalationReasons.push("handoff_promise");
+    if (replyPromisesVerification(finalReply)) escalationReasons.push("verification_promise");
+    if (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound)) {
+      escalationReasons.push("customer_request");
+    }
+    const shouldEscalate = escalationReasons.length > 0;
 
     await db.insert(aiMessagesTable).values([
       { workspaceId: params.workspaceId, aiRunId: run.id, role: "system", content: systemPrompt, metadata: {} },
@@ -415,6 +460,16 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
           toolResults,
           toolCalls: structuredCalls.length > 0 ? structuredCalls : undefined,
           rawOutput: modelText !== aiOutput.content ? aiOutput.content : undefined,
+          decision: {
+            escalated: shouldEscalate,
+            reasons: escalationReasons,
+            replyReplacedByGuard: claimGuardTripped,
+            knowledgeCount: knowledgeSources.length,
+            knowledgeTopScore: knowledgeSources.reduce((max, source) => Math.max(max, source.score ?? 0), 0) || null,
+            catalogInjected: productCatalogContext.length > 0,
+            orderContextInjected: orderStatusContext.length > 0,
+            sectorInjected: sectorContext.length > 0,
+          },
         },
       },
     ]);
@@ -441,17 +496,13 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       estimatedCost: aiOutput.estimatedCost,
     });
 
-    // التصعيد أربع طبقات — الأساس الجديد بنيوي، والباقي شبكات أمان مكمّلة:
-    // (1) فشل أداة → مراجعة بشرية. (2) استدعاء handoff_to_human فعلياً = المسار الأساسي الموثوق
-    //     (بنية لا صياغة، فلا يُفوّت مثل «صعّد» في جلسة 17). (3) شبكة أمان: لو وعد الوكيل بالتحويل
-    //     نصّاً دون استدعاء الأداة، ننفّذ الوعد بدل تركه مكسوراً (مشكلة #3) — لم نعد نعتمد عليها
-    //     كمصدر وحيد فلا تعود دوامة «أضف كل صياغة». (4) طلب صريح من العميل: تُفحص رسالة العميل
-    //     وحدها لا ردّ الوكيل (تفادي حادثة 3 يوليو: وصف المنتج «خدمة العملاء» حوّل بصمت).
-    const shouldEscalate =
-      hasToolProblem ||
-      hasHandoff ||
-      replyPromisesHandoff(finalReply) ||
-      (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound));
+    // التصعيد ستّ طبقات (محسوبة أعلاه في escalationReasons قبل تخزين metadata):
+    // (1) فشل أداة → مراجعة بشرية. (2) بوابة ادّعاء التنفيذ: ادّعاء «تم» بلا أداة ناجحة أو
+    //     تأكيد دفع بأي صيغة → استُبدل الردّ وصُعِّد. (3) استدعاء handoff_to_human فعلياً =
+    //     المسار الأساسي الموثوق (بنية لا صياغة). (4) وعد التحويل نصّاً → ننفّذ الوعد بدل
+    //     تركه مكسوراً. (5) وعد «أتأكد من الفريق وأرجع لك» (العبارة التي تأمر بها قواعد
+    //     التأريض نفسها عند غياب المعرفة) → يُبلَّغ الفريق فعلاً بدل ترك العميل ينتظر للأبد.
+    //     (6) طلب صريح من العميل: تُفحص رسالته وحدها لا ردّ الوكيل (حادثة 3 يوليو).
     return { reply: finalReply, shouldEscalate, runId: run.id, toolResults };
   } catch (err) {
     if ((err as { code?: string }).code === "ai_points_exhausted") {
@@ -472,12 +523,15 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
 }
 
 // نتيجة محاكاة الوكيل (بوابة «اختبر قبل التفعيل» بنمط Fin). تعكس ما **سيفعله** الوكيل الحيّ بالضبط
-// (نفس القواعد + التأريض + الأدوات المنظّمة + توجيه الموديل) لكن **بلا أي أثر جانبي**.
+// (نفس القواعد + التأريض + الأدوات المنظّمة + بوابة الادّعاء + توجيه الموديل) لكن **بلا أي أثر جانبي**.
 export interface AgentSimulationResult {
   reply: string;
   knowledgeSources: string[];   // عناوين مصادر المعرفة التي استُخدمت فعلاً
+  // نفس المصادر مع درجة الثقة (0-1) — تُعرض للتاجر ليعرف قوة استناد الردّ للمعرفة.
+  sourcesDetailed: { title: string; score: number | null }[];
   toolCalls: { name: string; args: Record<string, unknown> }[];   // ما سيُستدعى — لا يُنفَّذ في المحاكاة
   wouldEscalate: boolean;       // هل ستتحوّل المحادثة لبشري
+  escalationReasons: string[];  // أسباب التصعيد بأسمائها الصريحة (نفس أسماء المسار الحي)
   provider: string;
   aiUnavailable: boolean;       // النموذج غير متاح/تجريبي → ليست إجابة حقيقية
 }
@@ -511,6 +565,13 @@ export async function simulateAgentReply(params: {
   } catch (err) {
     logger.warn({ err, workspaceId: params.workspaceId }, "simulate: loadProductCatalogContext failed — continuing without catalog context");
   }
+  // أمانة المحاكاة: نفس سياق القطاع المحقون في المسار الحي.
+  let sectorContext = "";
+  try {
+    sectorContext = await loadSectorAgentContext(params.workspaceId, agent);
+  } catch (err) {
+    logger.warn({ err, workspaceId: params.workspaceId }, "simulate: loadSectorAgentContext failed — continuing without sector context");
+  }
   const executableTools = await loadExecutableAgentTools(params.workspaceId, params.agentId);
   const toolDeclarations = executableTools.length > 0 ? buildAgentToolDeclarations(executableTools) : undefined;
 
@@ -522,6 +583,7 @@ export async function simulateAgentReply(params: {
     `Current date/time: ${new Date().toISOString()}.`,
     instructions?.rolePrompt ?? "أنت موظف مبيعات وخدمة عملاء حقيقي، ودود ومحترف، تردّ على عملاء النشاط التجاري بأسلوب إنساني طبيعي. تفاعل مع آخر رسالة من العميل مباشرةً.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
+    sectorContext,
     GROUNDING_RULES,
     HUMAN_STYLE,
     `اللهجة: ${agent.dialect}.`,
@@ -558,19 +620,32 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   const intendedCalls = (aiOutput.toolCalls ?? []).map((call) => ({ name: call.name, args: call.args }));
   const modelText = sanitizeReply(aiOutput.content);
   // نصّ المعاينة: نصّ النموذج، وإلا نفس التأكيد الحتمي الذي سيرسله المسار الحيّ عند استدعاء أداة بلا نص.
-  const previewReply = modelText || confirmationFromToolResults(
+  const candidateReply = modelText || confirmationFromToolResults(
     intendedCalls.map((call) => ({ tool: call.name as AgentToolResult["tool"], status: "success" as const, summary: "" })),
   );
-  const wouldEscalate =
-    intendedCalls.some((call) => call.name === "handoff_to_human") ||
-    replyPromisesHandoff(previewReply) ||
-    includesEscalationKeyword(message);
+  // نفس بوابة الادّعاء الحيّة: في المحاكاة نفترض نجاح الاستدعاءات المنوية (تفاؤلياً)، فالادّعاء
+  // المسنود باستدعاء منويّ يمرّ، والادّعاء بلا استدعاء أصلاً يُستبدل ويُعلَّم — كما سيحدث حياً.
+  const intendedToolNames = intendedCalls.map((call) => call.name);
+  const unbackedClaim = findUnbackedActionClaim(candidateReply, intendedToolNames);
+  const paymentClaim = replyConfirmsPayment(candidateReply);
+  const claimGuardTripped = unbackedClaim !== null || paymentClaim;
+  const previewReply = claimGuardTripped ? SAFE_REVIEW_REPLY : candidateReply;
+
+  const escalationReasons: string[] = [];
+  if (unbackedClaim) escalationReasons.push(`unbacked_claim:${unbackedClaim}`);
+  if (paymentClaim) escalationReasons.push("payment_confirmation_claim");
+  if (intendedCalls.some((call) => call.name === "handoff_to_human")) escalationReasons.push("handoff_tool");
+  if (replyPromisesHandoff(previewReply)) escalationReasons.push("handoff_promise");
+  if (replyPromisesVerification(previewReply)) escalationReasons.push("verification_promise");
+  if (includesEscalationKeyword(message)) escalationReasons.push("customer_request");
 
   return {
     reply: previewReply,
     knowledgeSources: knowledgeSources.map((item) => item.title),
+    sourcesDetailed: knowledgeSources.map((item) => ({ title: item.title, score: item.score ?? null })),
     toolCalls: intendedCalls,
-    wouldEscalate,
+    wouldEscalate: escalationReasons.length > 0,
+    escalationReasons,
     provider: aiOutput.provider,
     aiUnavailable: aiOutput.fallbackUsed === true || aiOutput.provider === "mock",
   };

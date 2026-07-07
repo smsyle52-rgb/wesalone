@@ -413,6 +413,14 @@
       "knowledgeSourcesUsed": "مصادر المعرفة المستخدمة",
       "noKnowledgeSourcesUsed": "لم يستخدم أي مصدر معرفة",
       "aiUnavailableNotice": "النموذج غير متاح حالياً — هذه ليست إجابة حقيقية",
+      "escalationReason": {
+        "handoff_tool": "الوكيل طلب التحويل بنفسه",
+        "handoff_promise": "الرد وعد بالتحويل لموظف — الوعد يُنفَّذ",
+        "verification_promise": "الرد وعد بالتأكد من الفريق والرجوع للعميل — يُبلَّغ الفريق فعلاً",
+        "customer_request": "العميل طلب موظفاً بشرياً",
+        "payment_confirmation_claim": "الرد ادّعى تأكيد دفع — استُبدل بردٍّ آمن",
+        "unbacked_claim": "الرد ادّعى تنفيذ إجراء بلا أداة فعلية — استُبدل بردٍّ آمن"
+      },
       "tabs": {
         "settings": "الإعدادات",
         "instructions": "التعليمات",

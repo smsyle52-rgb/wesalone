@@ -108,3 +108,115 @@ export function replyPromisesHandoff(reply: string): boolean {
   const normalized = normalizeArabic(reply);
   return HANDOFF_PROMISE_PATTERNS.some((pattern) => normalized.includes(pattern));
 }
+
+// ─── بوابة ادّعاء التنفيذ (7 يوليو 2026) ─────────────────────────────────────
+// GROUNDING_RULES تمنع ادّعاء تنفيذ إجراء بلا أداة — لكنها وصية نصّية للنموذج فقط.
+// هذه البوابة تجعل المنع بنيوياً: ردٌّ يدّعي «سجّلت طلبك/حجزت موعدك» بلا نتيجة أداة
+// ناجحة مطابقة = ادّعاء كاذب يُستبدل ويُصعَّد (نفس عقيدة «الوعد = تنفيذ» المثبتة أعلاه).
+// الأنماط أفعال إنجاز صريحة بصيغة الماضي/تم — لا تلتقط عرض حالة طلب موجود
+// («طلبك مسجل لدينا») ولا اقتراح موعد («أقترح موعد غداً، يناسبك؟»).
+
+export type ActionClaimTool = "create_order" | "schedule_followup";
+
+const ACTION_CLAIM_PATTERNS: Record<ActionClaimTool, string[]> = {
+  create_order: [
+    "سجلت طلبك",
+    "سجلنا طلبك",
+    "تم تسجيل طلبك",
+    "تم تسجيل الطلب",
+    "تم انشاء طلبك",
+    "تم انشاء الطلب",
+    "انشات طلبك",
+    "انشانا طلبك",
+    "انشات لك طلب",
+    "اضفت طلبك",
+    "تم اضافه طلبك",
+    "تم رفع طلبك",
+    "اكدت طلبك",
+    "تم تاكيد طلبك",
+    "تم تاكيد الطلب",
+  ],
+  schedule_followup: [
+    "حجزت لك موعد",
+    "حجزنا لك موعد",
+    "تم حجز موعدك",
+    "تم حجز الموعد",
+    "سجلت موعدك",
+    "سجلت لك موعد",
+    "تم تحديد موعدك",
+    "تم تثبيت موعدك",
+    "ثبت موعدك",
+  ],
+};
+
+// تأكيد الدفع محظور مطلقاً على الوكيل (SAFETY_SYSTEM_PROMPT + محمية المدفوعات):
+// حتى log_payment_claim الناجحة تسجّل ادّعاءً معلّقاً فقط — أي ردّ يؤكّد استلام
+// المال أو قبوله كذبٌ مالي يُستبدل ويُصعَّد بصرف النظر عن نتائج الأدوات.
+const PAYMENT_CONFIRMATION_CLAIMS = [
+  "تم تاكيد الدفع",
+  "تم تاكيد دفعتك",
+  "تاكدنا من الدفع",
+  "تم استلام المبلغ",
+  "استلمنا المبلغ",
+  "وصلنا المبلغ",
+  "وصل المبلغ",
+  "تم استلام الدفعه",
+  "استلمنا الدفعه",
+  "وصلت الدفعه",
+  "تم استلام دفعتك",
+  "تم قبول الدفع",
+  "الدفع موكد",
+  "دفعتك موكده",
+  "تم التحقق من الدفع",
+];
+
+export function replyConfirmsPayment(reply: string): boolean {
+  const normalized = normalizeArabic(reply);
+  return PAYMENT_CONFIRMATION_CLAIMS.some((pattern) => normalized.includes(pattern));
+}
+
+// يعيد أول أداة ادّعى الردُّ تنفيذَها دون نتيجة ناجحة مطابقة لها — أو null إن كان الردّ صادقاً.
+// successfulTools = أسماء الأدوات التي أعادت status="success" في هذا التشغيل تحديداً.
+export function findUnbackedActionClaim(
+  reply: string,
+  successfulTools: readonly string[],
+): ActionClaimTool | null {
+  const normalized = normalizeArabic(reply);
+  for (const [tool, patterns] of Object.entries(ACTION_CLAIM_PATTERNS) as [ActionClaimTool, string[]][]) {
+    if (successfulTools.includes(tool)) continue;
+    if (patterns.some((pattern) => normalized.includes(pattern))) return tool;
+  }
+  return null;
+}
+
+// ─── وعد التحقّق «سأتأكد من الفريق» (7 يوليو 2026) ───────────────────────────
+// GROUNDING_RULES وSAFETY_SYSTEM_PROMPT يأمران النموذج حرفياً بقول «سأتأكد من الفريق»
+// عند غياب المعلومة — لكن لا شيء في المسار الحي كان يُبلغ الفريق فعلاً، فالعبارة
+// المأمور بها كانت وعداً مكسوراً دائماً (العميل ينتظر والتاجر أعمى). هذه الشبكة
+// تجعل الوعد صادقاً: أي ردّ يعد بالتأكد-والرجوع يُصعَّد للبشر (الردّ نفسه يبقى كما هو).
+// المطابقة مقيّدة بعائلة «تأكّد» + (الفريق/الإدارة أو الرجوع للعميل) داخل نفس الجملة —
+// «تأكّد من طلبك قبل الدفع» (توجيه للعميل) و«للتأكيد، طلبك يشمل…» لا تطابقان.
+const VERIFY_TEAM_PATTERNS = [
+  "اتاكد من الفريق",
+  "ساتاكد من الفريق",
+  "بتاكد من الفريق",
+  "نتاكد من الفريق",
+  "اتاكد لك من الفريق",
+  "بتاكد لك من الفريق",
+  "اتاكد من الاداره",
+  "ساتاكد من الاداره",
+  "اراجع الفريق",
+  "نراجع الفريق",
+  "اسال الفريق",
+  "ساسال الفريق",
+];
+
+// «تأكّد … وأرجع/أرد لك» في جملة واحدة (حتى 40 حرفاً بينهما) — يلتقط الصيغ الحرّة
+// مثل «أحتاج أتأكد من هذه المعلومة وأرجع لك» دون فتح الباب لكل جملة فيها «أرجع».
+const VERIFY_THEN_RETURN = /(?:سا|س|ا|ب|ن)تاكد[^.،!؟\n]{0,40}(?:وارجع|ونرجع|وارد عليك|ونرد عليك|وبرد عليك|وارد لك|ونوافيك)/;
+
+export function replyPromisesVerification(reply: string): boolean {
+  const normalized = normalizeArabic(reply);
+  if (VERIFY_TEAM_PATTERNS.some((pattern) => normalized.includes(pattern))) return true;
+  return VERIFY_THEN_RETURN.test(normalized);
+}

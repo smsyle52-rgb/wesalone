@@ -28,6 +28,7 @@ import productsRouter from "../modules/products/products.routes";
 import uploadsRouter from "../modules/uploads/uploads.routes";
 import pointsRouter from "../modules/points/points.routes";
 import adminRouter from "../modules/admin/admin.routes";
+import sectorsRouter from "../modules/sectors/sectors.routes";
 import templatesRouter from "../modules/templates/templates.routes";
 import whatsappBusinessProfileRouter from "../modules/whatsapp-management/whatsapp-business-profile.routes";
 import inboxSupportRouter from "../modules/inbox/inbox-support.routes";
@@ -79,6 +80,11 @@ router.use("/products", productsRouter);
 router.use("/uploads", uploadsRouter);
 router.use("/points", pointsRouter);
 router.use("/admin", adminRouter);
+// كانت الوحدة موجودة وغير مسجَّلة قط (فحص 7 يوليو): معالج إنشاء الوكيل وتبويب «أسلوب الخدمة»
+// يستدعيان GET /sectors فيتلقّيان 404 صامتاً ويسقطان لقائمة ثابتة مفاتيحها لا تطابق
+// sector_profiles المبذورة — فيُحفظ sectorKey بلا ملفّ قطاع مقابل. جدول sector_profiles
+// مؤكَّد في migrate-phase345.sql، فالتسجيل آمن (نفس حالة inboxSupportRouter أعلاه).
+router.use("/sectors", sectorsRouter);
 router.use("/templates", templatesRouter);
 router.use("/whatsapp-management", whatsappBusinessProfileRouter);
 

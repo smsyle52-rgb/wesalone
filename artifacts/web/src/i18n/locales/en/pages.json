@@ -413,6 +413,14 @@
       "knowledgeSourcesUsed": "Knowledge sources used",
       "noKnowledgeSourcesUsed": "No knowledge source was used",
       "aiUnavailableNotice": "The AI model is currently unavailable — this is not a real answer",
+      "escalationReason": {
+        "handoff_tool": "The agent requested the handoff itself",
+        "handoff_promise": "The reply promised a handoff — the promise is honored",
+        "verification_promise": "The reply promised to check with the team and get back — the team is actually notified",
+        "customer_request": "The customer asked for a human",
+        "payment_confirmation_claim": "The reply claimed a payment was confirmed — replaced with a safe reply",
+        "unbacked_claim": "The reply claimed an action without a real tool call — replaced with a safe reply"
+      },
       "tabs": {
         "settings": "Settings",
         "instructions": "Instructions",
