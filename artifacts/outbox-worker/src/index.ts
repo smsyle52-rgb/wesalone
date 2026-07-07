@@ -161,6 +161,40 @@ async function markOutboxDone(id: string): Promise<void> {
   );
 }
 
+// W4-T1: per-attempt delivery ledger, keyed off the live outbox_events model.
+// Best-effort only — a logging failure must never break the send/retry path itself.
+async function recordDeliveryAttempt(params: {
+  workspaceId: string | null;
+  outboxEventId: string;
+  provider: string;
+  attemptNumber: number;
+  status: "success" | "failed";
+  errorMessage?: string;
+  requestPayload?: JsonRecord;
+}): Promise<void> {
+  if (!params.workspaceId) return;
+  try {
+    await pool.query(
+      `
+        INSERT INTO provider_delivery_attempts
+          (workspace_id, outbox_event_id, provider, attempt_number, request_payload, status, error_message)
+        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+      `,
+      [
+        params.workspaceId,
+        params.outboxEventId,
+        params.provider,
+        params.attemptNumber,
+        JSON.stringify(params.requestPayload ?? {}),
+        params.status,
+        params.errorMessage ? params.errorMessage.slice(0, 500) : null,
+      ],
+    );
+  } catch (err) {
+    console.error("outbox-sender: failed to record delivery attempt", errorDetails(err));
+  }
+}
+
 async function markOutboxFailedOrRetry(event: OutboxEventRow): Promise<void> {
   const attempts = event.attempts + 1;
   if (attempts < 3) {
@@ -484,6 +518,18 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
   const channel = rows[0];
   if (!channel) throw new Error(`Channel account not found: ${channelAccountId}`);
 
+  const attemptNumber = event.attempts + 1;
+  const recordAttempt = (status: "success" | "failed", errorMessage?: string) =>
+    recordDeliveryAttempt({
+      workspaceId: channel.workspace_id,
+      outboxEventId: event.id,
+      provider: channel.channel_type,
+      attemptNumber,
+      status,
+      errorMessage,
+      requestPayload: { eventType: event.event_type, to: maskExternalId(to) },
+    });
+
   // PD-6 fix: route outbound message by channel type
   if (channel.channel_type === "instagram") {
     // IG (Facebook-login model) sends through the LINKED PAGE with a page token + IGSID recipient.
@@ -503,6 +549,7 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
       await sendInstagramMessage({ pageId, recipientId: to, text, pageToken });
     }
     await markOutboxDone(event.id);
+    await recordAttempt("success");
     return;
   }
 
@@ -522,6 +569,7 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
       await sendMessengerMessage({ pageId, recipientId: to, text, pageToken });
     }
     await markOutboxDone(event.id);
+    await recordAttempt("success");
     return;
   }
 
@@ -544,6 +592,7 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
     if (!templateName) throw new Error("Template outbox payload must include templateName");
     await sendWhatsAppTemplate({ phoneNumberId, to, templateName, language, components });
     await markOutboxDone(event.id);
+    await recordAttempt("success");
     return;
   }
 
@@ -551,6 +600,7 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
     if (!mediaUrl) throw new Error("Media outbox payload must include mediaUrl");
     await sendWhatsAppMedia({ phoneNumberId, to, mediaType, mediaUrl, caption });
     await markOutboxDone(event.id);
+    await recordAttempt("success");
     return;
   }
 
@@ -576,12 +626,14 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
         [conversationId],
       ).catch(() => {});
       logger.warn({ outboxEventId: event.id, conversationId }, "WhatsApp 24h window expired — escalating to human");
+      await recordAttempt("failed", "WhatsApp 24h customer service window expired");
       return;
     }
   }
 
   await dispatchWhatsAppText({ phoneNumberId, to, text });
   await markOutboxDone(event.id);
+  await recordAttempt("success");
 }
 
 async function claimOutboxEvents(): Promise<OutboxEventRow[]> {
@@ -615,6 +667,15 @@ export async function runOutboxSender(): Promise<void> {
     } catch (err) {
       console.error("outbox-sender: error", errorDetails(err));
       logger.error({ err, outboxEventId: event.id }, "Failed to publish outbox event");
+      await recordDeliveryAttempt({
+        workspaceId: event.workspace_id,
+        outboxEventId: event.id,
+        provider: event.event_type.split(".")[2] ?? "unknown",
+        attemptNumber: event.attempts + 1,
+        status: "failed",
+        errorMessage: errorDetails(err),
+        requestPayload: { eventType: event.event_type },
+      });
       await markOutboxFailedOrRetry(event);
     }
   }

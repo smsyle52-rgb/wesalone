@@ -40,7 +40,10 @@ type MetaMediaField = {
 };
 
 type MetaStatus = {
+  id?: string;
+  status?: string;
   recipient_id?: string;
+  errors?: Array<{ code?: number; title?: string; message?: string }>;
   [key: string]: unknown;
 };
 
@@ -422,6 +425,36 @@ async function handleEchoEvent(value: MetaChangeValue, externalThreadId: string 
   });
 }
 
+// W4-T1: reconcile Meta's outbound delivery receipts (sent/delivered/read/failed)
+// onto messages.delivery_status. Workspace-scoped via the same channel lookup as inbound.
+async function handleStatusUpdate(value: MetaChangeValue, status: MetaStatus): Promise<void> {
+  const phoneNumberId = value.metadata?.phone_number_id;
+  const providerMessageId = status.id;
+  const deliveryStatus = status.status;
+  if (!phoneNumberId || !providerMessageId || !deliveryStatus) return;
+
+  const channel = await findWhatsappChannel(phoneNumberId);
+  if (!channel) {
+    logger.warn({ phoneNumberId }, "No WhatsApp channel account found for Meta status webhook");
+    return;
+  }
+
+  const updated = await db
+    .update(messagesTable)
+    .set({ deliveryStatus })
+    .where(and(
+      eq(messagesTable.workspaceId, channel.workspaceId),
+      eq(messagesTable.providerMessageId, providerMessageId),
+    ))
+    .returning({ id: messagesTable.id });
+
+  if (updated.length === 0) return;
+
+  if (deliveryStatus === "failed" && status.errors?.length) {
+    logger.warn({ providerMessageId, workspaceId: channel.workspaceId, errors: status.errors }, "WhatsApp delivery failed");
+  }
+}
+
 // PD-5 (نطاق 25): WhatsApp Calling MVP. We do not answer voice (no WebRTC/STT/TTS); instead we log
 // the incoming call, escalate to a human, and send a fixed text inviting the customer to message.
 // Dormant until the WhatsApp number has Calling enabled and the `calls` webhook field is subscribed.
@@ -521,6 +554,10 @@ async function handleMetaPayload(payload: MetaPayload): Promise<void> {
 
       for (const call of value.calls ?? []) {
         await handleInboundCall(value, call);
+      }
+
+      for (const status of value.statuses ?? []) {
+        await handleStatusUpdate(value, status);
       }
     }
   }

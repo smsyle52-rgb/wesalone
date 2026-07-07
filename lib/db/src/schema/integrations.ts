@@ -11,6 +11,7 @@ import {
 import { workspacesTable } from "./workspaces";
 import { usersTable } from "./users";
 import { channelAccountsTable, conversationsTable, messagesTable } from "./conversations";
+import { outboxEventsTable } from "./outbox";
 
 export const providerAccountsTable = pgTable(
   "provider_accounts",
@@ -143,9 +144,10 @@ export const providerDeliveryAttemptsTable = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     workspaceId: uuid("workspace_id").notNull().references(() => workspacesTable.id, { onDelete: "cascade" }),
-    outboxMessageId: uuid("outbox_message_id")
-      .notNull()
-      .references(() => outboxMessagesTable.id, { onDelete: "cascade" }),
+    // Nullable: outbox_messages is deprecated (zero live writers, see W8-T1 proof) and is never
+    // populated by new attempts. New rows key off outboxEventId, the live outbox model (W4-T1).
+    outboxMessageId: uuid("outbox_message_id").references(() => outboxMessagesTable.id, { onDelete: "cascade" }),
+    outboxEventId: uuid("outbox_event_id").references(() => outboxEventsTable.id, { onDelete: "cascade" }),
     provider: text("provider").notNull(),
     attemptNumber: integer("attempt_number").notNull(),
     requestPayload: jsonb("request_payload").notNull().default({}),
@@ -158,6 +160,7 @@ export const providerDeliveryAttemptsTable = pgTable(
   (table) => [
     index("idx_provider_delivery_attempts_workspace").on(table.workspaceId),
     index("idx_provider_delivery_attempts_outbox").on(table.outboxMessageId),
+    index("idx_provider_delivery_attempts_outbox_event").on(table.outboxEventId),
   ],
 );
 

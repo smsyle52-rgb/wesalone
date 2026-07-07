@@ -217,19 +217,36 @@ tasks:
   - id: W4-T1
     title: "Consolidate outbox + feed provider_delivery_attempts + delivery receipts"
     objective: "Single outbox_events as the live writer; record an attempts row per send; reconcile status webhooks to messages.delivery_status."
-    status: todo
+    status: done
+    closure_note: >
+      2026-07-08. outbox_events was already the sole live writer (confirmed by grep, W8-T1
+      proof). Found and fixed a real blocker: provider_delivery_attempts.outbox_message_id was
+      NOT NULL against the deprecated outbox_messages (zero live writers) — additive migration
+      0033_provider_delivery_attempts_outbox_events.sql makes it nullable and adds
+      outbox_event_id (FK to outbox_events), merged into scripts/migrate-phase345.sql and
+      cloudbuild.yaml verify-migration. outbox-worker/src/index.ts now writes a
+      provider_delivery_attempts row (best-effort, wrapped so a logging failure can never break
+      a send) on every success branch, the 24h-window-expiry branch, and the catch-all retry
+      path. meta.routes.ts (the LIVE handler) now loops value.statuses[] and updates
+      messages.delivery_status scoped through the same findWhatsappChannel tenant lookup used
+      for inbound messages. Did NOT split senders/whatsapp.ts+instagram.ts+messenger.ts out of
+      handleOutboxEvent as originally planned — that refactor isn't required by the acceptance
+      criteria and this file sends real customer messages, so it was left untouched to minimize
+      blast radius. outbox_events payload contract and idempotency keys were not touched.
     wave: 4
     dependencies: [W1-T1, W2-T2]
     verified_current_files:
       - artifacts/outbox-worker/src/index.ts
+      - artifacts/api-server/src/modules/webhooks/meta.routes.ts
       - lib/db/src/schema/integrations.ts
       - lib/db/src/schema/outbox.ts
+      - lib/db/drizzle/0033_provider_delivery_attempts_outbox_events.sql
+      - scripts/migrate-phase345.sql
+      - cloudbuild.yaml
     files_to_modify:
       - artifacts/outbox-worker/src/index.ts
     files_to_create:
-      - artifacts/outbox-worker/src/senders/whatsapp.ts
-      - artifacts/outbox-worker/src/senders/instagram.ts
-      - artifacts/outbox-worker/src/senders/messenger.ts
+      - artifacts/api-server/src/__tests__/meta-status-reconciliation.spec.ts
     files_to_delete: []
     database_changes: "write provider_delivery_attempts each send; outbox_messages gets no new writer (deprecate later)"
     api_changes: "none"
