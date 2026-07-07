@@ -107,6 +107,10 @@ const agentStatusSchema = z.object({
   pauseMinutes: z.number().int().min(1).max(1440).optional(),
 });
 
+const labelSchema = z.object({
+  label: z.string().trim().min(1, "الوسم مطلوب").max(50, "الوسم طويل جداً"),
+});
+
 const importSchema = z.object({
   text: z.string().min(1, "نص المحادثة مطلوب").max(50000),
 });
@@ -118,6 +122,7 @@ router.get("/", requirePermission("conversations:read"), async (req: Authenticat
   const channel = (req.query.channel as string) || "";
   const assignee = (req.query.assignee as string) || "";
   const view = (req.query.view as string) || "";
+  const label = (req.query.label as string) || "";
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
   const offset = (page - 1) * limit;
@@ -151,6 +156,9 @@ router.get("/", requirePermission("conversations:read"), async (req: Authenticat
     conditions.push(sql`${conversationsTable.assignedMembershipId} IS NULL`);
   } else if (assignee) {
     conditions.push(eq(conversationsTable.assignedMembershipId, assignee));
+  }
+  if (label) {
+    conditions.push(sql`${label} = ANY(${conversationsTable.labels})`);
   }
   if (search) {
     conditions.push(or(
@@ -520,6 +528,61 @@ router.patch("/:id/status", requirePermission("conversations:resolve"), async (r
   });
 
   res.json({ conversation: conv });
+});
+
+router.post("/:id/labels", requirePermission("conversations:update"), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = labelSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
+    return;
+  }
+
+  const { activeWorkspaceId } = req.sessionUser;
+  const label = parsed.data.label;
+
+  const [existing] = await db.select({ id: conversationsTable.id, labels: conversationsTable.labels })
+    .from(conversationsTable)
+    .where(and(
+      eq(conversationsTable.id, req.params.id as string),
+      eq(conversationsTable.workspaceId, activeWorkspaceId)
+    ))
+    .limit(1);
+
+  if (!existing) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
+
+  if ((existing.labels ?? []).includes(label)) {
+    res.json({ labels: existing.labels });
+    return;
+  }
+
+  const [conv] = await db.update(conversationsTable)
+    .set({ labels: sql`array_append(${conversationsTable.labels}, ${label})`, updatedAt: new Date() })
+    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
+    .returning({ labels: conversationsTable.labels });
+
+  res.json({ labels: conv.labels });
+});
+
+router.delete("/:id/labels/:label", requirePermission("conversations:update"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const label = String(req.params.label);
+
+  const [existing] = await db.select({ id: conversationsTable.id })
+    .from(conversationsTable)
+    .where(and(
+      eq(conversationsTable.id, req.params.id as string),
+      eq(conversationsTable.workspaceId, activeWorkspaceId)
+    ))
+    .limit(1);
+
+  if (!existing) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
+
+  const [conv] = await db.update(conversationsTable)
+    .set({ labels: sql`array_remove(${conversationsTable.labels}, ${label})`, updatedAt: new Date() })
+    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
+    .returning({ labels: conversationsTable.labels });
+
+  res.json({ labels: conv.labels });
 });
 
 router.patch("/:id/assign", requirePermission("conversations:assign"), async (req: AuthenticatedRequest, res: Response) => {
