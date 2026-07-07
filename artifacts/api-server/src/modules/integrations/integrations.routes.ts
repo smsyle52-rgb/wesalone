@@ -513,6 +513,7 @@ async function upsertMetaChannelAccount(params: {
   lookupKey: string;
   lookupValue: string;
   credentialsSecretRef: string | null;
+  externalAccountId?: string | null;
   externalBusinessId?: string | null;
   externalPhoneId?: string | null;
 }) {
@@ -540,6 +541,8 @@ async function upsertMetaChannelAccount(params: {
     updatedAt: new Date(),
     // 7 يوليو 2026: تُملأ فقط حين يمررها الاستدعاء (واتساب) — بلا هذا، فحص اكتمال onboarding
     // الاحتياطي (حين لا credentialsSecretRef، أي مسار توكن النظام) لا يجد أي دليل إطلاقاً.
+    // W6-T1: نفس المبدأ عُمِّم على إنستغرام/ماسنجر (externalAccountId = igAccountId/pageId).
+    ...(params.externalAccountId !== undefined ? { externalAccountId: params.externalAccountId } : {}),
     ...(params.externalBusinessId !== undefined ? { externalBusinessId: params.externalBusinessId } : {}),
     ...(params.externalPhoneId !== undefined ? { externalPhoneId: params.externalPhoneId } : {}),
   };
@@ -669,6 +672,7 @@ async function connectInstagramChannel(params: {
     lookupKey: "igAccountId",
     lookupValue: params.igAccountId,
     credentialsSecretRef: encryptedTokenRef(pageToken ?? params.userToken),
+    externalAccountId: params.igAccountId,
   });
 
   try {
@@ -717,6 +721,7 @@ async function connectMessengerChannel(params: {
     lookupKey: "pageId",
     lookupValue: params.pageId,
     credentialsSecretRef: encryptedTokenRef(pageToken ?? params.userToken),
+    externalAccountId: params.pageId,
   });
 
   try {
@@ -1370,6 +1375,11 @@ router.get("/meta/channels", requirePermission("integrations:read"), async (req:
       status: account.status,
       providerConfig: account.providerConfig,
       hasCredentialReference: Boolean(account.credentialsSecretRef),
+      externalAccountId: account.externalAccountId,
+      externalBusinessId: account.externalBusinessId,
+      externalPhoneId: account.externalPhoneId,
+      healthStatus: account.healthStatus,
+      lastHealthAt: account.lastHealthAt,
       createdAt: account.createdAt,
       updatedAt: account.updatedAt,
     })),
@@ -1512,6 +1522,8 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
         lookupKey: "phoneNumberId",
         lookupValue: phone.phone_number_id,
         credentialsSecretRef: tokenRefs.userTokenRef ?? process.env.META_ACCESS_TOKEN_SECRET_REF ?? null,
+        externalBusinessId: account.waba_id ?? null,
+        externalPhoneId: phone.phone_number_id,
       });
       created.push(channel);
     }
@@ -1542,6 +1554,8 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       lookupKey: "phone_number_id",
       lookupValue: phoneNumberId,
       credentialsSecretRef: tokenRef ?? null,
+      externalBusinessId: wabaId,
+      externalPhoneId: phoneNumberId,
     });
     created.push(channel);
     handledPhoneIds.add(phoneNumberId);
@@ -1565,6 +1579,7 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       lookupKey: "igAccountId",
       lookupValue: account.ig_account_id,
       credentialsSecretRef: tokenRefs.pageTokenRefs[account.linked_page_id] ?? process.env.META_PAGE_ACCESS_TOKEN_SECRET_REF ?? null,
+      externalAccountId: account.ig_account_id,
     });
     created.push(channel);
   }
@@ -1586,6 +1601,7 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       lookupKey: "pageId",
       lookupValue: page.page_id,
       credentialsSecretRef: tokenRefs.pageTokenRefs[page.page_id] ?? process.env.META_PAGE_ACCESS_TOKEN_SECRET_REF ?? null,
+      externalAccountId: page.page_id,
     });
       created.push(channel);
   }

@@ -363,25 +363,56 @@ tasks:
   - id: W6-T1
     title: "Channel-model cutover: backfill provider_accounts → channel_accounts, deprecate"
     objective: "Backfill external ids/health into channel_accounts, flip reads to one model, mark provider_accounts/outbox_messages deprecated (retain tables)."
-    status: todo
+    status: done
+    closure_note: >
+      2026-07-08. Re-audited before writing code (high risk_level warranted it): the live
+      channels UI (/api/integrations/meta/channels, backing IntegrationsPage.tsx) already read
+      exclusively from channel_accounts — there was no second live read path to "flip". The
+      separate provider_accounts CRUD lives under a different path (/api/integrations/
+      provider-accounts) that the frontend never calls; per W8-T1's proof it still has a live
+      reader/writer (integrationLedger.service.ts), so it was left untouched, not deprecated in
+      code — deprecation stays a documentation fact (already recorded in doc 05), not a behavior
+      change, since nothing reads it as a fallback to remove.
+      Real gap found: upsertMetaChannelAccount() (integrations.routes.ts) already populated
+      externalBusinessId/externalPhoneId on write for WhatsApp only (a fix from the previous
+      day) — externalAccountId didn't exist as a param, and Instagram/Messenger's 4 call sites
+      (connectInstagramChannel, connectMessengerChannel, and the 2 loops in the combined
+      multi-select complete handler) never passed any external id. Added externalAccountId to
+      the helper and wired all 7 call sites (igAccountId/pageId → externalAccountId,
+      waba_id/phone_number_id → external{Business,Phone}Id). Added migration 0034 to backfill
+      existing rows' external ids from their own provider_config jsonb — self-contained per row,
+      COALESCE-guarded (never overwrites an already-set value), zero cross-tenant risk since
+      there's no cross-table matching. Surfaced the 5 fields (externalAccountId/Business/Phone,
+      healthStatus, lastHealthAt) in the /meta/channels response (additive; no existing consumer
+      reads them yet, so no UI depended on the old shape).
+      No ONE_CHANNEL_MODEL flag added — there is no live dual-read to gate, so a flag would be
+      unused scaffolding, not a real safety mechanism.
+      Deferred: integration_health_checks is fully wired for reads (listIntegrationHealth,
+      GET /health) but setIntegrationHealth() is never called anywhere — healthStatus/
+      lastHealthAt stay null in practice until something (outbox-worker send failures? webhook
+      processing?) is wired to write health checks. That's new functionality, not data
+      plumbing, and out of scope here — flagging as a candidate for a dedicated task.
+      secret refs / token decryption untouched, as required.
     wave: 6
     dependencies: [W2-T2, W4-T1]
     verified_current_files:
       - lib/db/src/schema/integrations.ts
       - artifacts/api-server/src/modules/channels/channels.routes.ts
       - artifacts/api-server/src/modules/integrations/integrations.routes.ts
+      - artifacts/api-server/src/modules/integrations/integrationHealth.service.ts
+      - lib/db/drizzle/0034_backfill_channel_external_ids.sql
+      - scripts/migrate-phase345.sql
     files_to_modify:
-      - artifacts/api-server/src/modules/channels/channels.routes.ts
       - artifacts/api-server/src/modules/integrations/integrations.routes.ts
     files_to_create:
-      - scripts/migrations/backfill-channels.ts
+      - lib/db/drizzle/0034_backfill_channel_external_ids.sql
     files_to_delete: []
-    database_changes: "backfill channel_accounts from provider_accounts; no drops"
-    api_changes: "channels read one model; health surfaced"
-    event_changes: "integration health/error fed from live path"
+    database_changes: "backfill channel_accounts external ids from own provider_config; no drops"
+    api_changes: "GET /meta/channels now returns externalAccountId/Business/Phone, healthStatus, lastHealthAt"
+    event_changes: "none"
     tests_required: ["one channel model read everywhere", "no cross-tenant", "deprecated tables zero writers (grep)"]
     acceptance_criteria: ["ONE_CHANNEL_MODEL on; channels UI correct"]
-    rollback: "ONE_CHANNEL_MODEL=false → read provider_accounts fallback"
+    rollback: "revert; provider_config remains the fallback source, columns just go unpopulated again"
     chatwoot_references: ["app/models/inbox.rb", "app/models/channel/*"]
     do_not_touch: ["secret refs / token decryption"]
     risk_level: high
