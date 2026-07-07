@@ -421,18 +421,41 @@ tasks:
   - id: W8-T1
     title: "Drop deprecated schema (reversible) after proof"
     objective: "Drop provider_accounts/outbox_messages and retired columns once grep-proven zero writers/readers."
-    status: in_progress
+    status: blocked
+    blocked_reason: >
+      2026-07-07 proof pass (grep across artifacts/**, lib/**, scripts/**, migrate-phase345.sql):
+      provider_accounts has a LIVE reader+writer — integrationLedger.service.ts
+      (listProviderAccounts/getProviderAccount/createProviderAccount/updateProviderAccount/
+      disableProviderAccount) is called from integrations.routes.ts, which is mounted at
+      router.use("/integrations", integrationsRouter) in routes/index.ts:73. Fails deletion-proof
+      checklist (doc 05) points 1, 2 and 3: channels.routes.ts still reads/writes a separate
+      channelAccountsTable in parallel (W6-T1 backfill/cutover never ran — no backfill DML found,
+      only empty nullable columns added), so there is no live single replacement yet.
+      outbox_messages alone IS grep-proven dead (zero references outside schema/migration DDL;
+      outbox-worker's live send loop only touches outbox_events; its FK child
+      provider_delivery_attempts is also zero-referenced), satisfying checklist points 1-3, but
+      point 4 (retain >=1 wave after a recorded deprecation checkpoint) has no dated marker to
+      measure against since W6-T1 never formally deprecated it. Per task rules, W8-T1 is scoped as
+      one action over both objects with one acceptance criterion ("each object"), so it is not
+      split; no DROP, no new migration file, no schema edit made this session. Re-evaluate after
+      W6-T1 actually ships the channel_accounts cutover and a deprecation wave has elapsed.
     wave: 8
     dependencies: [W6-T1]
     verified_current_files:
       - lib/db/src/schema/integrations.ts
+      - artifacts/api-server/src/modules/integrations/integrationLedger.service.ts
+      - artifacts/api-server/src/modules/integrations/integrations.routes.ts
+      - artifacts/api-server/src/routes/index.ts
+      - artifacts/api-server/src/modules/channels/channels.routes.ts
+      - artifacts/outbox-worker/src/index.ts
+      - scripts/migrate-phase345.sql
     files_to_modify:
       - lib/db/src/schema/integrations.ts
       - scripts/migrate-phase345.sql
     files_to_create:
       - lib/db/drizzle/0032_drop_deprecated.sql
     files_to_delete: []
-    database_changes: "DROP provider_accounts, outbox_messages (reversible migration); only after deletion-proof checklist"
+    database_changes: "NONE this session (blocked). Future: DROP provider_accounts, outbox_messages (reversible migration); only after deletion-proof checklist passes for both objects and W6-T1 has actually shipped."
     api_changes: "none"
     event_changes: "none"
     tests_required: ["grep proof: zero references", "full regression + live smoke"]

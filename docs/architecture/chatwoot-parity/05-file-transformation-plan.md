@@ -86,6 +86,18 @@ A file/table may be removed **only** when all hold and are recorded in the task:
 
 Current removal candidates and their proof status:
 - `integrations/webhooks.routes.ts` — (1) unmounted **[V]**, (2) **[U] confirm no other import**, (3) replaced by wired ingestion, (4) git revert. → **DECIDE in Wave 2.**
-- `provider_accounts`, `outbox_messages` — (1) only referenced inside `modules/integrations` **[V]**, (3) replaced after backfill, (4) retain table 1 wave. → **DEPRECATE, drop later.**
+- `provider_accounts` — 2026-07-07 re-verified: **fails (1),(2),(3)**. Live reader+writer:
+  `integrationLedger.service.ts` (list/get/create/update/disableProviderAccount) is called from
+  `integrations.routes.ts`, mounted at `/integrations` in `routes/index.ts:73`. `channels.routes.ts`
+  still runs on a separate `channelAccountsTable` in parallel — W6-T1 backfill/cutover has not run
+  (no backfill DML in `migrate-phase345.sql`, only empty nullable columns added). → **NOT SAFE TO
+  DROP. Keep W8-T1 blocked until W6-T1 ships and cutover is proven.**
+- `outbox_messages` — 2026-07-07 re-verified: **passes (1),(2),(3)**. Zero references anywhere in
+  `artifacts/**`/`lib/**`/`scripts/**` outside schema declaration + migration DDL; outbox-worker's
+  live send loop exclusively uses `outbox_events`; FK child `provider_delivery_attempts` is also
+  zero-referenced. **(4) unmet** — no dated deprecation checkpoint exists to measure "retained ≥1
+  wave" against, since W6-T1 never formally marked it deprecated. → **DEPRECATE confirmed dead in
+  code; still no DROP until a recorded deprecation wave has elapsed.** (W8-T1 is scoped as one
+  action across both objects, so this alone does not unblock W8-T1.)
 - `agent-learning.ts`, `billing-maintenance.ts` — orphaned **[V]**; decide wire-vs-deprecate in Wave 5.
 - second WhatsApp handler `handleMetaWhatsAppWebhook` — **[U] locate & prove dead** before delete.
