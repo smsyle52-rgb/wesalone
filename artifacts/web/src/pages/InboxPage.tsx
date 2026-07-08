@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { Modal } from "@/components/ui/Modal";
@@ -451,7 +451,26 @@ export default function InboxPage() {
   useEffect(() => { setPage(1); }, [viewFilter, statusFilter, searchQuery, channelFilter, assigneeFilter]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
+  const notificationDeepLink = useSearch();
+  useEffect(() => {
+    const targetId = new URLSearchParams(notificationDeepLink).get("conversation");
+    if (targetId) {
+      setSelectedConvId(targetId);
+      setDetailTab("conversation");
+      setMobileView("detail");
+    }
+  }, [notificationDeepLink]);
   const [messageText, setMessageText] = useState("");
+  const mobileComposerRef = useRef<HTMLTextAreaElement>(null);
+  const desktopComposerRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    for (const ref of [mobileComposerRef, desktopComposerRef]) {
+      const el = ref.current;
+      if (!el) continue;
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    }
+  }, [messageText]);
   const [mediaUrl, setMediaUrl] = useState("");
   const [messageMode, setMessageMode] = useState<"reply" | "note">("reply");
   const [detailTab, setDetailTab] = useState<"conversation" | "notes" | "customer" | "timeline">("conversation");
@@ -514,6 +533,14 @@ export default function InboxPage() {
     enabled: !!selectedConvId && canRead,
     refetchInterval: 5000,
   });
+
+  // فتح المحادثة يصفّر unreadCount في الخادم (انظر conversations.routes.ts GET /:id).
+  // حدّث قائمة المحادثات لتعكس الشارة الصحيحة فوراً بدل انتظار الـpoll الدوري.
+  useEffect(() => {
+    if (detail?.conversation?.id) {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    }
+  }, [detail?.conversation?.id]);
 
   const { data: membersData } = useQuery({
     queryKey: ["workspace-members"],
@@ -961,8 +988,8 @@ export default function InboxPage() {
   return (
     <div dir="rtl" className="flex flex-1 h-full min-h-0 flex-col overflow-hidden">
 
-      {/* ═══════════ MOBILE LAYOUT (md:hidden) ═══════════ */}
-      <div className="md:hidden flex flex-col h-full overflow-hidden bg-background">
+      {/* ═══════════ MOBILE LAYOUT (lg:hidden) ═══════════ */}
+      <div className="lg:hidden flex flex-col h-full overflow-hidden bg-background">
 
         {/* ── MOBILE: LIST VIEW ── */}
         {mobileView === "list" && (
@@ -1155,7 +1182,7 @@ export default function InboxPage() {
             المحادثة. قِسنا الهدر فعلياً: 71px رأس مكرر + 92px تنقّل سفلي بلا فائدة
             أثناء الدردشة = 183px من 812px (22%) كانت تُسرق من مساحة الرسائل. */}
         {mobileView === "detail" && (
-          <div className="fixed inset-0 z-30 flex flex-col bg-background md:hidden">
+          <div className="fixed inset-0 z-30 flex flex-col bg-background lg:hidden">
             {/* Conversation Header */}
             <header className="shrink-0 flex items-center gap-2 px-3 pt-[calc(0.6rem+env(safe-area-inset-top))] pb-3 bg-background border-b border-border">
               <button onClick={() => setMobileView("list")} className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted hover:bg-muted/80 text-foreground">
@@ -1411,12 +1438,13 @@ export default function InboxPage() {
                     <Sparkles size={15} />
                   </button>
                   <textarea
+                    ref={mobileComposerRef}
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     rows={1}
                     placeholder={messageMode === "note" ? "ملاحظة داخلية (لا يراها العميل)..." : "اكتب ردك..."}
-                    className="flex-1 bg-transparent text-sm outline-none resize-none min-h-[1.5rem] max-h-24"
+                    className="flex-1 bg-transparent text-sm outline-none resize-none min-h-[1.5rem] max-h-40 overflow-y-auto"
                   />
                   {messageMode === "note" && (
                     <button onClick={() => setMessageMode("reply")} className="shrink-0 text-[0.65rem] text-yellow-700 font-bold px-2 py-1 rounded-full bg-yellow-100 border border-yellow-200">
@@ -1481,8 +1509,8 @@ export default function InboxPage() {
       </div>
       {/* ═══════════ END MOBILE LAYOUT ═══════════ */}
 
-      {/* ═══════════ DESKTOP LAYOUT (hidden md:flex) ═══════════ */}
-      <div className="hidden md:flex md:flex-col md:flex-1 md:overflow-hidden">
+      {/* ═══════════ DESKTOP LAYOUT (hidden lg:flex) ═══════════ */}
+      <div className="hidden lg:flex lg:flex-col lg:flex-1 lg:overflow-hidden">
       {/* رأس مضغوط بسطر واحد — كل بكسل عمودي هنا يُسرق من المحادثات نفسها */}
       <div className="shrink-0 px-3 pb-2">
         <div className="flex h-11 items-center justify-between gap-3">
@@ -2316,6 +2344,7 @@ export default function InboxPage() {
                   )}
                   <div className="flex gap-2">
                     <textarea
+                      ref={desktopComposerRef}
                       id="inbox-message-text"
                       name="messageText"
                       aria-label={messageMode === "note" ? "ملاحظة داخلية" : "رد على المحادثة"}
@@ -2325,7 +2354,7 @@ export default function InboxPage() {
                       rows={2}
                       placeholder={messageMode === "note" ? "اكتب ملاحظة داخلية (لا يراها العميل)..." : "اكتب ردك... (Enter للإرسال)"}
                       className={cn(
-                        "flex-1 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 resize-none",
+                        "flex-1 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 resize-none max-h-40 overflow-y-auto",
                         messageMode === "note"
                           ? "border-yellow-300 bg-yellow-50 focus:ring-yellow-300/30"
                           : "border-input bg-background focus:ring-primary/30"

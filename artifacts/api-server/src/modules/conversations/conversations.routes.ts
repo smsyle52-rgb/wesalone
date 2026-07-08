@@ -1,6 +1,6 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
-import { eq, and, desc, asc, count, ilike, inArray, or, sql } from "drizzle-orm";
+import { eq, and, desc, asc, count, ilike, inArray, or, sql, gt } from "drizzle-orm";
 import {
   db, conversationsTable, messagesTable, contactsTable,
   contactChannelsTable, contactTimelineTable, workspaceMembershipsTable, usersTable,
@@ -403,6 +403,19 @@ router.get("/:id", requirePermission("conversations:read"), async (req: Authenti
   const waLink = whatsappChannel?.normalizedIdentifier
     ? `https://wa.me/${whatsappChannel.normalizedIdentifier.replace("+", "")}`
     : null;
+
+  // فتح المحادثة = قراءتها. لا مكان آخر يصفّر unreadCount (كان يُزاد فقط عند كل رسالة واردة
+  // ولا يُنقَص أبداً)، فالشارة كانت تكبر باستمرار حتى بعد أن يقرأ التاجر كل شيء.
+  if (conv.unreadCount > 0) {
+    await db.update(conversationsTable)
+      .set({ unreadCount: 0 })
+      .where(and(
+        eq(conversationsTable.id, conv.id),
+        eq(conversationsTable.workspaceId, activeWorkspaceId),
+        gt(conversationsTable.unreadCount, 0)
+      ));
+    conv.unreadCount = 0;
+  }
 
   res.json({
     conversation: conv,

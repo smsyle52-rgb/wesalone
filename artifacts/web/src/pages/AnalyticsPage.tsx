@@ -286,15 +286,14 @@ export default function AnalyticsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <StatCard label="إجمالي التشغيلات" value={ai.data.totalAiRuns ?? 0} />
-            <StatCard label="الرموز المستخدمة" value={ai.data.totalTokensUsed ?? 0} />
             <StatCard label="أحداث الأمان" value={ai.data.safetyBlockedCount ?? 0} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <SectionCard title="التشغيلات حسب النوع">
               <StatusTable rows={(ai.data.runsByTaskType ?? []).map((r: { taskType: string; count: number }) => ({ status: r.taskType, count: r.count }))} />
             </SectionCard>
-            <SectionCard title="التشغيلات حسب المزود">
-              <StatusTable rows={(ai.data.runsByProvider ?? []).map((r: { provider: string; count: number }) => ({ provider: r.provider, count: r.count }))} statusLabel="المزود" />
+            <SectionCard title="حالة المساعد الذكي">
+              <StatusTable rows={(ai.data.runsByProviderStatus ?? []).map((r: { status: string; count: number }) => ({ status: r.status, count: r.count }))} />
             </SectionCard>
             <SectionCard title="طلبات الاعتماد حسب الحالة">
               <StatusTable rows={ai.data.approvalsByStatus ?? []} />

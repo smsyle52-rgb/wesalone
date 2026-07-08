@@ -212,13 +212,20 @@ router.get("/ai", requirePermission("analytics:read"), async (req: Authenticated
       .where(and(eq(aiUsageTable.workspaceId, activeWorkspaceId), gte(aiUsageTable.date, dateFrom.toISOString().split("T")[0]), lte(aiUsageTable.date, dateTo.toISOString().split("T")[0]))),
   ]);
 
+  // لا يُكشف اسم الموديل (Vertex/Gemini/mock) للتاجر — نفس منطق isProviderLive في
+  // InboxPage.tsx، يُطبَّق هنا في الـAPI حتى لا يعتمد أي مستهلك مستقبلي على الاسم الخام.
+  const providerStatusCounts = new Map<string, number>();
+  for (const r of runsByProvider) {
+    const label = r.provider === "vertex" || r.provider === "gemini" ? "مفعّل" : "احتياطي مؤقت";
+    providerStatusCounts.set(label, (providerStatusCounts.get(label) ?? 0) + Number(r.count));
+  }
+
   res.json({
     dateFrom, dateTo,
     runsByTaskType: runsByTask.map((r) => ({ taskType: r.taskType, count: Number(r.count) })),
-    runsByProvider: runsByProvider.map((r) => ({ provider: r.provider, count: Number(r.count) })),
+    runsByProviderStatus: Array.from(providerStatusCounts, ([status, count]) => ({ status, count })),
     safetyBlockedCount: Number(safetyBlocked[0]?.count ?? 0),
     approvalsByStatus: approvalRows.map((r) => ({ status: r.status, count: Number(r.count) })),
-    totalTokensUsed: Number(usageRows[0]?.totalTokens ?? 0),
     totalAiRuns: Number(usageRows[0]?.totalRuns ?? 0),
   });
 });

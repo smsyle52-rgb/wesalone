@@ -355,9 +355,9 @@ export default function KnowledgePage() {
         </div>
       )}
 
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row">
         {/* Bases sidebar */}
-        <aside className="w-64 shrink-0 self-start rounded-xl border border-border bg-card p-2">
+        <aside className="w-full shrink-0 self-stretch rounded-xl border border-border bg-card p-2 lg:w-64 lg:self-start">
           <p className="flex items-center gap-1.5 px-2 py-2 text-xs font-semibold text-muted-foreground">
             <Library size={14} /> قواعد المعرفة
           </p>

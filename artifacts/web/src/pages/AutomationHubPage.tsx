@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Bot, BookOpen, FileText, Megaphone, Workflow, type LucideIcon } from "lucide-react";
+import { Bot, BookOpen, FileText, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 type HubItem = {
@@ -32,20 +32,9 @@ const items: HubItem[] = [
     permission: "templates:read",
     icon: FileText,
   },
-  {
-    title: "الأتمتة",
-    description: "تدفقات العمل والمتابعات حسب المرحلة الحالية",
-    href: "/automations",
-    permission: "automations:read",
-    icon: Workflow,
-  },
-  {
-    title: "الحملات",
-    description: "البث والقوائم التسويقية عند الحاجة",
-    href: "/broadcasts",
-    permission: "broadcasts:read",
-    icon: Megaphone,
-  },
+  // الأتمتة (/automations) والحملات (/broadcasts) مخفيتان: نفس سبب إخفائهما في
+  // Layout.tsx desktop nav — الـrouters الخاصة بهما غير مركّبة في routes/index.ts
+  // فالصفحتان تُرجعان 404. إضافتهما مجدداً بعد تركيب واختبار الـrouters (§5.8).
 ];
 
 export default function AutomationHubPage() {
