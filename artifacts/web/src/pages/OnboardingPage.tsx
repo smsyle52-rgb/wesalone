@@ -515,9 +515,14 @@ export default function OnboardingPage() {
   // صفر استدعاء /complete رغم عشرات محاولاته. السبب الأرجح: أول مرة يعبر تاجر خطوات إعداد
   // واتساب للأعمال داخل نافذة ميتا نفسها (اختيار/إنشاء حساب، تسجيل رقم، تحقّق OTP) — هذه
   // خطوات تستغرق حقيقةً دقائق لا ثوانٍ لمستخدم جديد، بخلاف حساب مُهيّأ مسبقاً (حالة الإصلاح
-  // الأصلي 5 يوليو الذي رفع المهلة من 5 إلى 20 ثانية فقط). رفعناها الآن لتغطي فعلياً رحلة
-  // أول مرة، لا مجرد تأخر شبكة قصير.
-  function waitForCapturedSignupInfo(timeoutMs = 90000): Promise<EmbeddedSignupSessionInfo> {
+  // الأصلي 5 يوليو الذي رفع المهلة من 5 إلى 20 ثانية فقط، ثم لـ90 ثانية لاحقاً — لا تزال
+  // أقل بكثير من الـ44 دقيقة الموثّقة أعلاه).
+  // 8 يوليو 2026: قورنت بمرجع Chatwoot (useWhatsappEmbeddedSignup.js) الذي لا يضع أي مهلة
+  // إطلاقاً على الانتظار المكافئ، معتمداً فقط على أحداث FINISH/CANCEL/error الحقيقية. رفع
+  // الرقم تدريجياً أثبت فشله مرة تلو الأخرى، فرُفعت الآن لساعة كاملة كشبكة أمان تمنع
+  // التعليق الأبدي فقط لو لم يصل أي حدث إطلاقاً، لا كمهلة متوقّع بلوغها في الاستخدام
+  // الطبيعي — معالجة CANCEL/ERROR الفعلية أسرع من المهلة دائماً.
+  function waitForCapturedSignupInfo(timeoutMs = 3600000): Promise<EmbeddedSignupSessionInfo> {
     return new Promise((resolve, reject) => {
       if (signupSessionErrorRef.current) {
         reject(new Error(signupSessionErrorRef.current));
@@ -988,7 +993,7 @@ export default function OnboardingPage() {
                     {isAwaitingMetaData && (
                       <div className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
                         <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                        <span>جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط (اختيار الحساب أو رقم الهاتف أو التحقق منه)، أكملها؛ قد يستغرق هذا حتى دقيقة.</span>
+                        <span>جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط (اختيار الحساب أو رقم الهاتف أو التحقق منه)، أكملها؛ قد يستغرق هذا عدة دقائق، لا تُغلق هذه الصفحة.</span>
                       </div>
                     )}
 

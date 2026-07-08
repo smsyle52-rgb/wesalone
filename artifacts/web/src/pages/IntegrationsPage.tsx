@@ -368,9 +368,14 @@ function ConnectedChannelCard({ channel }: { channel: ConnectedChannel }) {
 export default function IntegrationsPage() {
   const [isStartingMeta, setIsStartingMeta] = useState(false);
   const [startingMetaConfigKey, setStartingMetaConfigKey] = useState<MetaSignupConfigKey | null>(null);
-  // 6 يوليو 2026: هذه الصفحة (إعدادات → تكاملات) لها نسخة منفصلة من نفس منطق onboarding —
-  // مهلة 5 ثوانٍ هنا لم تُصلَح مع OnboardingPage (جلسة 21)، فأي عميل يربط من هنا تحديداً
-  // (أو يعيد الربط لاحقاً) كان لا يزال يفشل بسرعة قبل عودة بيانات Meta.
+  // 8 يوليو 2026: هذه الصفحة (إعدادات → تكاملات) لها نسخة منفصلة من نفس منطق onboarding —
+  // مهلة waitForCapturedSignupInfo كانت 90 ثانية فقط في كلا النسختين (هنا وOnboardingPage)،
+  // رغم أن OnboardingPage.tsx يوثّق حالة عميل حقيقي احتاج 44 دقيقة متواصلة (راجع تعليقه).
+  // قورنت بمرجع Chatwoot (useWhatsappEmbeddedSignup.js) الذي لا يضع أي مهلة إطلاقاً على
+  // الانتظار المكافئ — يعتمد فقط على أحداث FINISH/CANCEL/error الحقيقية القادمة من نافذة
+  // Meta. رفع الرقم تدريجياً (5 ثوانٍ ← 20 ← 90) أثبت فشله مرة تلو الأخرى، فرُفعت الآن
+  // لساعة كاملة كشبكة أمان تمنع التعليق الأبدي فقط لو لم يصل أي حدث إطلاقاً، لا كمهلة
+  // متوقّع بلوغها في الاستخدام الطبيعي — معالجة CANCEL/ERROR الفعلية أسرع من المهلة دائماً.
   const [isAwaitingMetaData, setIsAwaitingMetaData] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [connectedChannels, setConnectedChannels] = useState<ConnectedChannel[]>([]);
@@ -465,7 +470,7 @@ export default function IntegrationsPage() {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  function waitForCapturedSignupInfo(timeoutMs = 90000): Promise<EmbeddedSignupSessionInfo> {
+  function waitForCapturedSignupInfo(timeoutMs = 3600000): Promise<EmbeddedSignupSessionInfo> {
     return new Promise((resolve, reject) => {
       if (signupSessionErrorRef.current) {
         reject(new Error(signupSessionErrorRef.current));
@@ -724,7 +729,7 @@ export default function IntegrationsPage() {
             {metaError && <p className="mt-2 text-sm text-destructive">{metaError}</p>}
             {isAwaitingMetaData && (
               <p className="mt-2 animate-pulse text-sm text-primary">
-                جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط، أكملها؛ قد يستغرق هذا حتى دقيقة.
+                جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط، أكملها؛ قد يستغرق هذا عدة دقائق، لا تُغلق هذه الصفحة.
               </p>
             )}
           </div>
