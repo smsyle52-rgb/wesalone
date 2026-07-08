@@ -220,11 +220,16 @@ const SYSTEM_PLANS = [
     name: "Free", slug: "free", key: "free", nameAr: "مجاني",
     priceUsd: "0", priceUsdAnnual: "0", priceSar: "0", priceYer: null,
     billingCycle: "monthly", sortOrder: 10,
-    // channels=2 (لا 1): توصيل إنستغرام+ماسنجر معاً (instagram_messenger) يُنشئ دائماً قناتين
-    // في استدعاء واحد (صفحة فيسبوك + حساب إنستغرام) — بحد 1 كان الإكمال مستحيلاً فعلياً
-    // على الخطة المجانية. monthly_points خُفِّضت 1000→500 (6 يوليو) لتسجيلات جديدة فقط —
-    // من سجّل قبل هذا التغيير يحتفظ بمنحته الأصلية 1000 (سجل point_grants ثابت لا يتغيّر رجعياً).
-    limits: { channels: 2, agents: 1, team_members: 1, contacts: 100, monthly_points: 500, knowledge_documents: 1, products: 20, auto_reply: false },
+    // channels=3 (8 يوليو): الحد السابق 2 كان يمنع التاجر من ربط القنوات الثلاث معاً —
+    // واتساب (1) + إنستغرام+ماسنجر (استدعاء instagram_messenger يُنشئ دائماً قناتين: صفحة
+    // فيسبوك + حساب إنستغرام) = 3 قنوات، فكان 1+2=3 يتجاوز حد 2 ويُرجع 402 "قم بترقية الباقة"
+    // (ثبتناه من سجلات الإنتاج 8 يوليو: ثلاث حالات رفض على /instagram-messenger/complete).
+    // الرفع 1→2 السابق غطّى إنستغرام+ماسنجر وحدهما فقط، لا مع واتساب. seed.ts يُطبَّق upsert
+    // عند كل إقلاع (index.ts runSeed) فيحدّث صف الباقة في القاعدة مباشرةً لكل المشتركين الحاليين.
+    // ملاحظة: لو كان للتاجر أكثر من صفحة فيسبوك واحدة سيتجاوز 3 أيضاً — تلك حالة منفصلة تحتاج
+    // اختيار القنوات قبل الربط، غير مشمولة هنا. monthly_points خُفِّضت 1000→500 (6 يوليو)
+    // لتسجيلات جديدة فقط — من سجّل قبلها يحتفظ بمنحته 1000 (سجل point_grants ثابت رجعياً).
+    limits: { channels: 3, agents: 1, team_members: 1, contacts: 100, monthly_points: 500, knowledge_documents: 1, products: 20, auto_reply: false },
     features: ["inbox", "ai_agent", "catalog"],
   },
   {
