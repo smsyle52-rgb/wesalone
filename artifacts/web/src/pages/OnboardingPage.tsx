@@ -554,6 +554,15 @@ export default function OnboardingPage() {
     });
   }
 
+  // 8 يوليو 2026: مهلة الانتظار رُفعت لساعة (كانت 90 ثانية) لتغطية حالات إعداد واتساب
+  // الحقيقية الطويلة — لكن هذا يعني أن أي عميل يعلق فعلاً (مثلاً نافذة Meta تعرض "أغلق
+  // هذه النافذة" ولا تُغلق تلقائياً ولا يُطلق أي حدث CANCEL) يبقى بلا مخرج لمدة أطول
+  // بكثير من قبل. هذا الزر يمنح تحكماً فورياً بغض النظر عن قيمة المهلة، بإعادة استخدام
+  // نفس مسار رفض CANCEL/ERROR الموجود مسبقاً في waitForCapturedSignupInfo أعلاه.
+  function cancelMetaSignupWait() {
+    signupSessionErrorRef.current = "تم الإلغاء يدوياً. إن كانت نافذة Meta لا تزال مفتوحة يمكنك إغلاقها والمحاولة من جديد.";
+  }
+
   const saveAgentMutation = useMutation({
     mutationFn: async () => {
       const trimmedName = agentName.trim();
@@ -991,9 +1000,16 @@ export default function OnboardingPage() {
                     </div>
 
                     {isAwaitingMetaData && (
-                      <div className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+                      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
                         <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                        <span>جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط (اختيار الحساب أو رقم الهاتف أو التحقق منه)، أكملها؛ قد يستغرق هذا عدة دقائق، لا تُغلق هذه الصفحة.</span>
+                        <span>جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط (اختيار الحساب أو رقم الهاتف أو التحقق منه)، أكملها؛ قد يستغرق هذا عدة دقائق.</span>
+                        <button
+                          type="button"
+                          onClick={cancelMetaSignupWait}
+                          className="font-medium text-destructive underline underline-offset-2"
+                        >
+                          إلغاء والمحاولة من جديد
+                        </button>
                       </div>
                     )}
 

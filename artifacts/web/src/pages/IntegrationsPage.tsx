@@ -511,6 +511,15 @@ export default function IntegrationsPage() {
     });
   }
 
+  // 8 يوليو 2026: مهلة الانتظار رُفعت لساعة (كانت 90 ثانية) لتغطية حالات إعداد واتساب
+  // الحقيقية الطويلة — لكن هذا يعني أن أي عميل يعلق فعلاً (مثلاً نافذة Meta تعرض "أغلق
+  // هذه النافذة" ولا تُغلق تلقائياً ولا يُطلق أي حدث CANCEL) يبقى بلا مخرج لمدة أطول
+  // بكثير من قبل. هذا الزر يمنح تحكماً فورياً بغض النظر عن قيمة المهلة، بإعادة استخدام
+  // نفس مسار رفض CANCEL/ERROR الموجود مسبقاً في waitForCapturedSignupInfo أعلاه.
+  function cancelMetaSignupWait() {
+    signupSessionErrorRef.current = "تم الإلغاء يدوياً. إن كانت نافذة Meta لا تزال مفتوحة يمكنك إغلاقها والمحاولة من جديد.";
+  }
+
   async function completeEmbeddedSignup(code: string, configId: string, configKey: string, sessionInfo: EmbeddedSignupSessionInfo) {
     const res = await fetch(`${BASE}/integrations/meta/embedded-signup/complete`, {
       method: "POST",
@@ -728,9 +737,18 @@ export default function IntegrationsPage() {
             </p>
             {metaError && <p className="mt-2 text-sm text-destructive">{metaError}</p>}
             {isAwaitingMetaData && (
-              <p className="mt-2 animate-pulse text-sm text-primary">
-                جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط، أكملها؛ قد يستغرق هذا عدة دقائق، لا تُغلق هذه الصفحة.
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <p className="animate-pulse text-sm text-primary">
+                  جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط، أكملها؛ قد يستغرق هذا عدة دقائق.
+                </p>
+                <button
+                  type="button"
+                  onClick={cancelMetaSignupWait}
+                  className="text-sm font-medium text-destructive underline underline-offset-2"
+                >
+                  إلغاء والمحاولة من جديد
+                </button>
+              </div>
             )}
           </div>
           {/* Mobile: single trigger + Sheet */}
