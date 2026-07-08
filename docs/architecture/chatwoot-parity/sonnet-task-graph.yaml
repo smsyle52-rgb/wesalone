@@ -1,5 +1,6 @@
 # Sonnet execution task graph — Wesal One ↔ Chatwoot parity
-# One task per execution. Status: todo | in_progress | blocked | done.
+# One task per execution. Status: todo | in_progress | blocked | partial | done.
+# partial = a scoped subset shipped safely; see closure_note for exactly what's deferred and why.
 # Reference: chatwoot @ d0b1c055e8fa40ab19e4898ed6cf1aafd24431fc (patterns only, no code copy, no enterprise/).
 # Base Wesal SHA at audit: 3aa394c267569e335ee9142223c76bb47af17a47 (branch fix/mobile-reference-redesign).
 # Global rule: owner pushes; new SQL merged into scripts/migrate-phase345.sql; typecheck+build:prod+live smoke every task.
@@ -185,17 +186,45 @@ tasks:
   - id: W3-T2
     title: "Typed messages (message_type, content_attributes) + reply/quote"
     objective: "Enable reads of message_type/content_attributes; support inReplyTo on send/render; activity messages first-class."
-    status: todo
+    status: partial
+    closure_note: >
+      2026-07-08. Partial, scoped completion — done: message_type/content_attributes reads,
+      inReplyTo on send. Deferred: "activity messages first-class", which is the part that
+      genuinely depends on W3-T1 (deferred this session — see its blocked_reason).
+      GET /:id/messages already used db.select() with no explicit column list, i.e. a full-row
+      select — message_type/content_attributes were already included in every response with no
+      code change needed; the real gap was write-side (nothing ever set them to a meaningful
+      value) and reply threading (didn't exist at all).
+      Added messages.reply_to_message_id (migration 0037, additive, no FK — the quoted message
+      may be pruned independently, this is a soft reference for rendering only). POST
+      /:id/messages accepts optional inReplyTo (uuid), validated to belong to the same
+      conversation+workspace before being stored (400 otherwise) — prevents a client from
+      quoting a message from a different conversation/tenant.
+      Did not implement "activity messages first-class" (system-generated messages like
+      "status changed"/"assigned to X" as message_type='activity' rows) — the original plan
+      intended lifecycle.ts to be what produces those, and that module doesn't exist since
+      W3-T1 was deferred. Implementing it without that centralization would mean inventing an
+      ad-hoc activity-message writer now and re-doing it once W3-T1 actually lands — better to
+      defer both together.
+      No new dedicated test: small, additive, well-scoped change (one optional field + one
+      ownership check) verified via typecheck (full workspace, after learning this session that
+      `pnpm run typecheck:libs` must run before testing individual packages in isolation post
+      lib/db schema edits — a tooling quirk, not a code issue) + the existing 407/407 api-server
+      regression suite + line-by-line review. build:prod clean. attachment storage path/media
+      proxy untouched.
     wave: 3
     dependencies: [W1-T1, W3-T1]
     verified_current_files:
       - lib/db/src/schema/conversations.ts
       - artifacts/api-server/src/modules/conversations/conversations.routes.ts
+      - lib/db/drizzle/0037_messages_reply_to.sql
     files_to_modify:
       - artifacts/api-server/src/modules/conversations/conversations.routes.ts
-    files_to_create: []
+      - lib/db/src/schema/conversations.ts
+    files_to_create:
+      - lib/db/drizzle/0037_messages_reply_to.sql
     files_to_delete: []
-    database_changes: "reads message_type/content_attributes (cols from W1-T1)"
+    database_changes: "reads message_type/content_attributes (cols from W1-T1); adds reply_to_message_id"
     api_changes: "POST messages accepts inReplyTo; GET messages returns message_type/content_attributes"
     event_changes: "none"
     tests_required: ["reply links resolve", "activity message rendering", "ordering stable"]

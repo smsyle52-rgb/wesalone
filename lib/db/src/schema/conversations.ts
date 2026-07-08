@@ -97,6 +97,10 @@ export const messagesTable = pgTable(
     // W1-T1 parity columns — written but not yet read by app code
     messageType: text("message_type"),
     contentAttributes: jsonb("content_attributes"),
+    // W3-T2: reply/quote threading. No FK — the quoted message may itself be
+    // pruned/redacted independently, and this is a soft reference for
+    // rendering, not a referential-integrity requirement.
+    replyToMessageId: uuid("reply_to_message_id"),
   },
   (table) => [
     index("idx_msg_conv_created").on(table.conversationId, table.createdAt),

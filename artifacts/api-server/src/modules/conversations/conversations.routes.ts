@@ -76,6 +76,7 @@ const sendMessageSchema = z.object({
   source: z.enum(["manual", "paste", "widget", "api", "automation"]).default("manual"),
   mediaUrl: z.string().url("رابط الوسائط غير صحيح").optional(),
   mediaType: z.enum(["image", "video", "document", "audio"]).optional(),
+  inReplyTo: z.string().uuid("معرف الرسالة المُقتبسة غير صحيح").optional(),
 }).superRefine((data, ctx) => {
   const hasText = data.content.trim().length > 0;
   const hasMedia = Boolean(data.mediaUrl);
@@ -926,7 +927,17 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
 
     if (!conv) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
 
-    const { content, direction, isPrivateNote, contentType, source, mediaUrl, mediaType } = parsed.data;
+    const { content, direction, isPrivateNote, contentType, source, mediaUrl, mediaType, inReplyTo } = parsed.data;
+
+    let replyToMessageId: string | null = null;
+    if (inReplyTo) {
+      const [quoted] = await db.select({ id: messagesTable.id })
+        .from(messagesTable)
+        .where(and(eq(messagesTable.id, inReplyTo), eq(messagesTable.conversationId, conv.id), eq(messagesTable.workspaceId, activeWorkspaceId)))
+        .limit(1);
+      if (!quoted) { res.status(400).json({ error: "الرسالة المُقتبسة غير موجودة في هذه المحادثة" }); return; }
+      replyToMessageId = quoted.id;
+    }
     const effectiveDirection = isPrivateNote ? "internal" : direction;
     const effectiveSenderType = direction === "inbound" ? "contact" : "user";
     const trimmedContent = content.trim();
@@ -975,6 +986,7 @@ router.post("/:id/messages", requirePermission("conversations:reply"), async (re
       isPrivateNote,
       deliveryStatus: isOutboundToChannel ? "pending" : "sent",
       sentAt: new Date(),
+      replyToMessageId,
     }).returning();
 
     // PD-1 fix: أضف outbox event للرسائل الخارجة اليدوية كي تصل للعميل عبر القناة الصحيحة
