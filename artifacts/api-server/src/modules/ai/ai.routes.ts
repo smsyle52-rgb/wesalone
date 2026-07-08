@@ -161,6 +161,7 @@ type KnowledgeAiSource = {
   title: string;
   content: string;
   score?: number;
+  updatedAt?: Date | null;
 };
 
 async function loadCatalogAgentContext(workspaceId: string): Promise<{ context: string; sources: string[] }> {
@@ -255,6 +256,7 @@ async function searchKnowledgeDetailed(workspaceId: string, query: string, baseI
     title: source.title,
     content: source.content,
     score: source.score,
+    updatedAt: source.updatedAt,
   }));
   try {
     const words = knowledgeSearchWords(query);
@@ -1496,7 +1498,13 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
     seen.add(key);
     return true;
   }).slice(0, 5);
-  const knowledgeSources = uniqueSources.map((source) => `${source.title}\n${source.content}`);
+  // وسم الحداثة (9 يوليو 2026): يطابق نفس الحقل في المسار الحي (agent-reply.ts formatKnowledgeItem)
+  // — يمنّع تعارض مصدرين على نفس الحقيقة (مثال حيّ: رصيد باقة مجانية 500 مقابل نسخة أقدم 1000
+  // لم تُؤرشف) من إنتاج رد متضارب حسب صياغة السؤال؛ راجع «قاعدة حسم التعارض» في GROUNDING_RULES.
+  const knowledgeSources = uniqueSources.map((source) => {
+    const dateLabel = source.updatedAt ? new Date(source.updatedAt).toISOString().slice(0, 10) : "غير معروف";
+    return `(آخر تحديث: ${dateLabel}) ${source.title}\n${source.content}`;
+  });
   const sectorContext = await loadSectorAgentContext(activeWorkspaceId, selectedAgent);
   const learnedContext = await loadLearnedContext(activeWorkspaceId, searchQuery);
   const catalogContext = await loadCatalogAgentContext(activeWorkspaceId);
@@ -1520,7 +1528,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
     ? shouldEscalateKnowledgeGap
       ? "لا توجد إجابة واضحة في المعرفة المتاحة بعد محاولة توضيح سابقة. لا تخمّن. اكتب ردًا قصيرًا يقول: أحتاج أتأكد من هذه المعلومة وأرجع لك، وسيتم تحويل المحادثة للفريق."
       : "إذا لم تجد إجابة واضحة في المعرفة المتاحة، لا تخمّن. اسأل سؤالًا توضيحيًا واحدًا يساعد الموظف أو العميل على تحديد المطلوب."
-    : "لا تخترع أي سعر أو خصم أو ضمان أو سياسة. استخدم المعرفة المتاحة فقط.";
+    : "لا تخترع أي سعر أو خصم أو ضمان أو سياسة. استخدم المعرفة المتاحة فقط. إذا ذكر مصدران رقماً مختلفاً لنفس الحقيقة، اعتمد الأحدث تحديثاً فقط (المذكور بين قوسين قبل كل مصدر) ولا تخلط بينهما.";
   systemPrompt = `${systemPrompt}\n\n${sectorContext}\n\n${channelContext}\n\n${locationContext}${mediaContext.context}\n\n${escalationGuidance}`;
 
   const knowledgeContext = knowledgeSources.length > 0

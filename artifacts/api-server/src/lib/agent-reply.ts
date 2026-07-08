@@ -37,7 +37,20 @@ const GROUNDING_RULES = [
   "قاعدة التأريض الصارمة (الأهم فوق كل شيء): كل معلومة تذكرها للعميل — سعر، رقم، مواصفة، ميزة، توفّر، مدّة، مقاس، خامة، سياسة، خدمة، أو أي حقيقة عن النشاط أو منتجاته — يجب أن تكون موجودة حرفياً في «كتالوج المنتجات» أو «معرفة قاعدة البيانات» أو «حالة طلبات هذا العميل» المرفقة. ممنوع منعاً باتاً أن تخترع أو تخمّن أو «تقرّب» أو تفترض أي معلومة غير موجودة فيها. إن لم تجد الإجابة في المرفقات: قل بصدق وبأسلوب ودّي إنها غير متوفّرة لديك الآن وستتأكّد من الفريق — لا ترتجل رقماً ولا وصفاً ولا مثالاً.",
   "قاعدة منع الوعود الكاذبة: لا تَعِد العميل بأي شيء لا تضمنه — لا توصيل، ولا موعد، ولا خصم، ولا توفّر، ولا متابعة، ولا أن أحداً «سيتواصل معك» أو أن أمراً «سيتم» — إلا إذا كان مذكوراً صراحةً في المعرفة المرفقة، أو نفّذته فعلاً باستدعاء أداة. الوعد بما لا تملك تأكيده كذبٌ على العميل وخطأ جسيم يفقده الثقة تماماً.",
   "قاعدة التحويل الصادق: لا تكتب أنك حوّلت أو ستحوّل المحادثة لموظف إلا إذا استدعيت أداة handoff_to_human فعلاً — كتابة عبارة التحويل بلا استدعاء الأداة وعدٌ كاذب.",
+  // 9 يوليو 2026: رصدنا ردوداً متضاربة (500 ثم 1000) لنفس السؤال — سببها مصدران في «معرفة قاعدة
+  // البيانات» يذكران رقمين مختلفين لنفس الحقيقة (نسخة قديمة لم تُؤرشف عند تصحيح النسخة الجديدة).
+  // كل مصدر أدناه يحمل تاريخ آخر تحديث بين قوسين — هذه القاعدة تجعل التعارض يُحسم دوماً بنفس
+  // الاتجاه بدل عشوائية صياغة السؤال.
+  "قاعدة حسم التعارض: إذا وجدت مصدرين أو أكثر في «معرفة قاعدة البيانات» يذكران رقماً أو حقيقة مختلفة عن نفس الموضوع، اعتمد المصدر الأحدث تاريخ تحديث (المذكور بين قوسين قبل كل مصدر) فقط، ولا تذكر الرقم الآخر ولا تخلط بينهما ولا تذكر وجود تعارض للعميل.",
 ].join("\n");
+
+// تنسيق مصدر معرفة واحد للحقن في البرومبت — يلحق تاريخ آخر تحديث ليطبّق النموذج «قاعدة حسم
+// التعارض» أعلاه بدل الاعتماد على ترتيب الاسترجاع وحده (الترتيب فيه كسر تعادل بالحداثة أيضاً،
+// راجع knowledge-retrieval.ts، لكن الوسم الصريح هنا شبكة أمان ثانية مستقلة عن الترتيب).
+export function formatKnowledgeItem(item: { title: string; content: string; updatedAt?: Date | null }, index: number): string {
+  const dateLabel = item.updatedAt ? item.updatedAt.toISOString().slice(0, 10) : "غير معروف";
+  return `[${index + 1}] (آخر تحديث: ${dateLabel}) ${item.title}: ${item.content.slice(0, KNOWLEDGE_INJECT_CHARS)}`;
+}
 
 // قواعد استخدام الأدوات (استدعاء أصلي): تُحقن عند تفعيل أي أداة. البنية تأتي من function calling
 // لا من نص JSON — فلا نطلب صيغة بل سلوكاً. الأهم: التحويل للبشر = استدعاء handoff_to_human فعلياً،
@@ -299,7 +312,7 @@ export async function runAgentReply(params: {
     .map((message) => `[${message.direction === "inbound" ? "العميل" : "الموظف"}]: ${message.content}`)
     .join("\n");
   const knowledgeContext = knowledgeSources.length > 0
-    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, KNOWLEDGE_INJECT_CHARS)}`).join("\n")}`
+    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => formatKnowledgeItem(item, index)).join("\n")}`
     : "";
   // مرونة الأسلوب (3 يوليو): النموذج كان يفتتح كل ردّ بـ«أهلاً بك!» وكأن المحادثة
   // تبدأ من الصفر (3 ترحيبات في محادثة واحدة). الشرط حتمي من الكود لا من ذاكرة النموذج.
@@ -576,7 +589,7 @@ export async function simulateAgentReply(params: {
   const toolDeclarations = executableTools.length > 0 ? buildAgentToolDeclarations(executableTools) : undefined;
 
   const knowledgeContext = knowledgeSources.length > 0
-    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, KNOWLEDGE_INJECT_CHARS)}`).join("\n")}`
+    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => formatKnowledgeItem(item, index)).join("\n")}`
     : "";
   const systemPrompt = [
     executableTools.length > 0 ? TOOL_USE_RULES : "",
