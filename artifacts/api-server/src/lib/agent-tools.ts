@@ -18,6 +18,7 @@ import {
 import { and, count, desc, eq, ilike, sum } from "drizzle-orm";
 import { z } from "zod";
 import type { AiFunctionDeclaration } from "./ai-provider";
+import { writeAgentStatus } from "../modules/conversations/lifecycle";
 import { createAuditLog } from "./audit";
 import { addContactTimeline } from "./contactTimeline";
 import { emitWorkspaceEvent } from "./events";
@@ -1021,14 +1022,12 @@ async function executeSendProductMedia(params: ExecuteParams, conversation: Conv
 
 async function executeHandoff(params: ExecuteParams, conversation: ConversationContext, args: unknown): Promise<AgentToolResult> {
   const data = handoffSchema.parse(args);
-  await db.update(conversationsTable)
-    .set({
-      agentStatus: "human",
-      needsHuman: true,
-      escalationReason: data.reason,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(conversationsTable.id, conversation.id), eq(conversationsTable.workspaceId, params.workspaceId)));
+  await writeAgentStatus({
+    conversationId: conversation.id,
+    workspaceId: params.workspaceId,
+    agentStatus: "human",
+    extraFields: { needsHuman: true, escalationReason: data.reason },
+  });
 
   await createAuditLog({
     workspaceId: params.workspaceId,

@@ -14,6 +14,7 @@ import type { AuthenticatedRequest } from "../../lib/types";
 import { logger } from "../../lib/logger";
 import { fetchMetaMediaStream } from "../../services/meta-media";
 import { resolveWhatsAppConversationRecipient } from "../integrations/whatsapp-contact-identity";
+import { writeAgentStatus, writeConversationStatus } from "./lifecycle";
 
 const router = Router();
 router.use(requireSession);
@@ -496,17 +497,21 @@ router.patch("/:id/status", requirePermission("conversations:resolve"), async (r
   }
 
   const now = new Date();
-  const updates: Record<string, unknown> = { status: newStatus, updatedAt: now };
-  if (newStatus === "resolved") updates.resolvedAt = now;
-  if (newStatus === "closed") { updates.closedAt = now; updates.resolvedAt = now; }
+  const extraFields: Record<string, unknown> = {};
+  if (newStatus === "resolved") extraFields.resolvedAt = now;
+  if (newStatus === "closed") { extraFields.closedAt = now; extraFields.resolvedAt = now; }
   if (newStatus === "snoozed" && parsed.data.snoozedUntil) {
-    updates.snoozedUntil = new Date(parsed.data.snoozedUntil);
+    extraFields.snoozedUntil = new Date(parsed.data.snoozedUntil);
   }
 
-  const [conv] = await db.update(conversationsTable)
-    .set(updates)
-    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
-    .returning();
+  const conv = await writeConversationStatus({
+    conversationId: existing.id,
+    workspaceId: activeWorkspaceId,
+    status: newStatus,
+    extraFields,
+  });
+
+  if (!conv) { res.status(500).json({ error: "فشل تحديث حالة المحادثة" }); return; }
 
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
@@ -683,27 +688,26 @@ router.patch("/:id/agent-status", requirePermission("conversations:resolve"), as
   if (!existing) { res.status(404).json({ error: "المحادثة غير موجودة" }); return; }
 
   const now = new Date();
-  const updates: Record<string, unknown> = {
-    agentStatus: parsed.data.status,
-    updatedAt: now,
-  };
+  const extraFields: Record<string, unknown> = {};
 
   if (parsed.data.status === "active") {
-    updates.agentPausedUntil = null;
-    updates.consecutiveAgentReplies = 0;
-    updates.needsHuman = false;
-    updates.escalationReason = null;
+    extraFields.agentPausedUntil = null;
+    extraFields.consecutiveAgentReplies = 0;
+    extraFields.needsHuman = false;
+    extraFields.escalationReason = null;
   } else if (parsed.data.status === "paused") {
     const pauseMinutes = parsed.data.pauseMinutes ?? 30;
-    updates.agentPausedUntil = new Date(now.getTime() + pauseMinutes * 60_000);
+    extraFields.agentPausedUntil = new Date(now.getTime() + pauseMinutes * 60_000);
   } else {
-    updates.agentPausedUntil = null;
+    extraFields.agentPausedUntil = null;
   }
 
-  const [conversation] = await db.update(conversationsTable)
-    .set(updates)
-    .where(and(eq(conversationsTable.id, existing.id), eq(conversationsTable.workspaceId, activeWorkspaceId)))
-    .returning();
+  const conversation = await writeAgentStatus({
+    conversationId: existing.id,
+    workspaceId: activeWorkspaceId,
+    agentStatus: parsed.data.status,
+    extraFields,
+  });
 
   if (!conversation) { res.status(500).json({ error: "فشل تحديث حالة الوكيل" }); return; }
 

@@ -20,6 +20,7 @@ import { runExpireGrantsJob } from "../jobs/expire-grants";
 import { emitWorkspaceEvent } from "../lib/events";
 import { notifyWorkspace } from "../services/notifications";
 import { resolveWhatsAppConversationRecipient } from "../modules/integrations/whatsapp-contact-identity";
+import { writeAgentStatus } from "../modules/conversations/lifecycle";
 
 const router = Router();
 
@@ -157,10 +158,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         // تصعيد للبشر. لتفادي سيل الإشعارات (مثلاً عند نفاد رصيد الذكاء فتتصعّد كل رسالة):
         // نُشعر ونبثّ مرّة واحدة عند *تحوّل* المحادثة إلى "human" فقط، لا مع كل رسالة في محادثة متصعّدة أصلاً.
         const wasAlreadyHuman = conversation.agentStatus === "human";
-        await db
-          .update(conversationsTable)
-          .set({ agentStatus: "human", updatedAt: new Date() })
-          .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)));
+        await writeAgentStatus({ conversationId, workspaceId, agentStatus: "human" });
         if (!wasAlreadyHuman) {
           await notifyWorkspace({
             workspaceId,
@@ -285,11 +283,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       // PD-7 defense-in-depth (محمية #10): لا تُسقِط العميل بصمت لو فشل الحفظ/الإدراج.
       // صعّد المحادثة لبشري وأبلغ الفريق، وأبلغ الـworker بالتصعيد (done لا failed) فلا تتكرّر الحلقة.
       logger.error({ err: saveErr, workspaceId, conversationId, agentId }, "Failed to persist/queue agent reply — escalating to human");
-      await db
-        .update(conversationsTable)
-        .set({ agentStatus: "human", updatedAt: new Date() })
-        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)))
-        .catch(() => {});
+      await writeAgentStatus({ conversationId, workspaceId, agentStatus: "human" }).catch(() => {});
       await notifyWorkspace({
         workspaceId,
         type: "conversation.needs_human",
@@ -309,10 +303,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
     }
 
     if (agentReply.shouldEscalate) {
-      await db
-        .update(conversationsTable)
-        .set({ agentStatus: "human", updatedAt: new Date() })
-        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)));
+      await writeAgentStatus({ conversationId, workspaceId, agentStatus: "human" });
       await notifyWorkspace({
         workspaceId,
         type: "conversation.needs_human",

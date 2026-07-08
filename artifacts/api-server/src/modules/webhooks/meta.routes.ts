@@ -18,6 +18,7 @@ import { handleMetaWebhook } from "../integrations/meta-webhook.handler";
 import { ingestWebhookEvent } from "../integrations/webhookIngest.service";
 import { notifyWorkspace } from "../../services/notifications";
 import { businessScopeFromProviderConfig, resolveWhatsAppInboundContact } from "../integrations/whatsapp-contact-identity";
+import { writeAgentStatus } from "../conversations/lifecycle";
 
 type RequestWithRawBody = Request & { rawBody?: Buffer };
 
@@ -509,9 +510,12 @@ async function handleInboundCall(value: MetaChangeValue, call: MetaCall): Promis
 
   await bumpConversationOnInbound(conversation, contactResolution.contactId, content);
 
-  await db.update(conversationsTable)
-    .set({ agentStatus: "human", needsHuman: true, escalationReason: "whatsapp_call", updatedAt: new Date() })
-    .where(and(eq(conversationsTable.id, conversation.id), eq(conversationsTable.workspaceId, channel.workspaceId)));
+  await writeAgentStatus({
+    conversationId: conversation.id,
+    workspaceId: channel.workspaceId,
+    agentStatus: "human",
+    extraFields: { needsHuman: true, escalationReason: "whatsapp_call" },
+  });
 
   // Fixed auto-reply within the 24h customer window (the customer just initiated contact by calling).
   await db.insert(outboxEventsTable).values({

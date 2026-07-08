@@ -227,10 +227,7 @@ async function markOutboxFailedOrRetry(event: OutboxEventRow): Promise<void> {
 
   // Q4 fix: escalate conversation to human on final outbox failure
   if (conversationId) {
-    await pool.query(
-      "UPDATE conversations SET agent_status='human', updated_at=NOW() WHERE id=$1",
-      [conversationId],
-    ).catch((err) => {
+    await markConversationHuman(conversationId).catch((err) => {
       console.error("Failed to escalate conversation after outbox failure", err);
     });
   }
@@ -626,10 +623,7 @@ async function handleOutboxEvent(event: OutboxEventRow): Promise<void> {
         "UPDATE outbox_events SET status='failed', attempts=3 WHERE id=$1 AND status='processing'",
         [event.id],
       );
-      await pool.query(
-        "UPDATE conversations SET agent_status='human', updated_at=NOW() WHERE id=$1",
-        [conversationId],
-      ).catch(() => {});
+      await markConversationHuman(conversationId).catch(() => {});
       logger.warn({ outboxEventId: event.id, conversationId }, "WhatsApp 24h window expired — escalating to human");
       await recordAttempt("failed", "WhatsApp 24h customer service window expired");
       return;
@@ -801,6 +795,11 @@ async function fetchAiAgent(workspaceId: string, agentId: string): Promise<AiAge
   return rows[0];
 }
 
+// W3-T1: pauseConversation/markConversationHuman/clearExpiredPause are the only
+// place in this process that writes conversations.agent_status — outbox-worker
+// is a separate deployable from api-server (raw pg.Pool, no shared import path),
+// so this is its own single-writer set, coordinated with but distinct from
+// api-server's modules/conversations/lifecycle.ts.
 async function pauseConversation(conversationId: string, resetReplies = false): Promise<void> {
   await pool.query(
     `
