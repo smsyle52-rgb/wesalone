@@ -10,10 +10,9 @@ function patchFile(relativePath, replacements) {
 
   for (const { from, to, optional = false } of replacements) {
     if (!content.includes(from)) {
-      if (!optional) {
-        throw new Error(`Patch target not found in ${relativePath}: ${from.slice(0, 120)}`);
-      }
-      continue;
+      // Idempotent builds: if the replacement is already present, do not fail on a second run.
+      if (content.includes(to) || optional) continue;
+      throw new Error(`Patch target not found in ${relativePath}: ${from.slice(0, 120)}`);
     }
     content = content.split(from).join(to);
     changed = true;
