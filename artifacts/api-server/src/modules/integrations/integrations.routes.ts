@@ -1001,22 +1001,10 @@ router.post("/meta/embedded-signup/complete", requirePermission("integrations:up
     return;
   }
 
-  const wabaId = parsed.data.waba_id ?? parsed.data.wabaId ?? "";
-  const phoneNumberId = parsed.data.phone_number_id ?? parsed.data.phoneNumberId ?? "";
-  if (!wabaId || !phoneNumberId) {
-    res.status(400).json({ error: "waba_id and phone_number_id are required", code: "missing_embedded_signup_ids" });
-    return;
-  }
-
-  const channelLimit = await checkLimit(req.sessionUser.activeWorkspaceId, "channels");
-  if (channelLimit.limit !== null && channelLimit.current + 1 > channelLimit.limit) {
-    res.status(402).json({
-      error: "وصلت حد باقتك لعدد القنوات. قم بترقية الباقة قبل الربط.",
-      code: "plan_limit_reached",
-      limit: channelLimit,
-    });
-    return;
-  }
+  let wabaId = parsed.data.waba_id ?? parsed.data.wabaId ?? "";
+  let phoneNumberId = parsed.data.phone_number_id ?? parsed.data.phoneNumberId ?? "";
+  let displayNumber = parsed.data.display_phone_number ?? parsed.data.displayPhoneNumber ?? "";
+  let verifiedName = parsed.data.verified_name ?? parsed.data.verifiedName ?? "";
 
   // 7 يوليو 2026: لا نستبدل هذا بتوكن النظام العام تلقائياً حين يفشل code — ذلك التوكن واسع
   // الصلاحية عبر كل حسابات واتساب تحت أعمالنا في Meta، ودون تبديل code (المُثبَت مسبقاً عبر
@@ -1042,8 +1030,55 @@ router.post("/meta/embedded-signup/complete", requirePermission("integrations:up
     return;
   }
 
-  const displayNumber = parsed.data.display_phone_number ?? parsed.data.displayPhoneNumber ?? "";
-  const verifiedName = parsed.data.verified_name ?? parsed.data.verifiedName ?? "";
+  // 8 يوليو 2026: على الجوال كثيراً ما لا تصل رسالة WA_EMBEDDED_SIGNUP (postMessage) الحاملة
+  // waba_id/phone_number_id إلى التبويب الأصلي — أُثبت من سجلات الإنتاج (صفر استدعاء /complete
+  // رغم محاولات متكررة). كان الخادم يرفض بـ400 عند غيابها، فيستحيل إكمال الربط من الجوال.
+  // الإصلاح: ما دام FB.login أعاد code موثّقاً (بُدِّل لتوكن أعلاه، وهو إثبات ملكية من Meta)،
+  // نكتشف المعرّفات من Graph بنفس توكن المستخدم — لا توكن النظام العام، فلا ينكسر العزل بين
+  // المستأجرين (نفس مبدأ التعليق أعلاه). نقبل فقط إن نتج مرشّح واحد لا لبس فيه.
+  if (!wabaId || !phoneNumberId) {
+    req.log?.info({ wabaIdPresent: Boolean(wabaId), phoneNumberIdPresent: Boolean(phoneNumberId) }, "WhatsApp embedded signup identifiers missing from client — attempting Graph discovery");
+    try {
+      const discovered = await fetchMetaChannelOptions(userToken);
+      const candidates = discovered.options.whatsapp_accounts.flatMap((account) =>
+        account.phone_numbers.map((phone) => ({ account, phone })),
+      );
+      const matching = wabaId ? candidates.filter(({ account }) => account.waba_id === wabaId) : candidates;
+      if (matching.length === 1) {
+        const only = matching[0];
+        if (!wabaId) wabaId = only.account.waba_id;
+        if (!phoneNumberId) phoneNumberId = only.phone.phone_number_id;
+        if (!displayNumber) displayNumber = only.phone.display_number ?? "";
+        if (!verifiedName) verifiedName = only.phone.verified_name ?? "";
+        req.log?.info({ wabaId, phoneNumberId }, "Recovered WhatsApp embedded signup identifiers via Graph discovery");
+      } else {
+        req.log?.warn({ candidateCount: matching.length }, "Graph discovery could not uniquely resolve WhatsApp identifiers");
+      }
+    } catch (err) {
+      req.log?.warn({ err }, "WhatsApp embedded signup Graph discovery failed");
+    }
+  }
+
+  if (!wabaId || !phoneNumberId) {
+    res.status(409).json({
+      error: "اكتمل تسجيل Meta لكن تعذّر تحديد رقم واتساب تلقائياً. أعد المحاولة، وإن تكرر تواصل معنا لإكمال الربط.",
+      code: "embedded_signup_identifier_discovery_failed",
+      wabaIdPresent: Boolean(wabaId),
+      phoneNumberIdPresent: Boolean(phoneNumberId),
+    });
+    return;
+  }
+
+  const channelLimit = await checkLimit(req.sessionUser.activeWorkspaceId, "channels");
+  if (channelLimit.limit !== null && channelLimit.current + 1 > channelLimit.limit) {
+    res.status(402).json({
+      error: "وصلت حد باقتك لعدد القنوات. قم بترقية الباقة قبل الربط.",
+      code: "plan_limit_reached",
+      limit: channelLimit,
+    });
+    return;
+  }
+
   const configId = parsed.data.config_id ?? parsed.data.configId ?? "";
   const configKey = parsed.data.config_key ?? parsed.data.configKey ?? "whatsapp_standard";
   const connectedAt = new Date().toISOString();

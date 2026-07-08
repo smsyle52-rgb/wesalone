@@ -655,9 +655,15 @@ export default function OnboardingPage() {
       }
       if (isWhatsAppSignupOption(optionKey)) {
         setIsAwaitingMetaData(true);
-        let sessionInfo: EmbeddedSignupSessionInfo;
+        // 8 يوليو 2026: على الجوال كثيراً ما لا تصل رسالة postMessage الحاملة waba_id، فكان
+        // الانتظار يفشل بلا نهاية ولا يُستدعى /complete إطلاقاً. الآن ننتظر 60 ثانية فقط، ثم
+        // نُكمل بالـcode وحده — الخادم يكتشف waba_id/phone_number_id من Graph. لا نُكمل عند
+        // إلغاء/خطأ حقيقي من Meta (يضبط signupSessionErrorRef) — نُعيد رمي الخطأ حينها فقط.
+        let sessionInfo: EmbeddedSignupSessionInfo = {};
         try {
-          sessionInfo = await waitForCapturedSignupInfo();
+          sessionInfo = await waitForCapturedSignupInfo(60000);
+        } catch (err) {
+          if (signupSessionErrorRef.current) throw err;
         } finally {
           setIsAwaitingMetaData(false);
         }
