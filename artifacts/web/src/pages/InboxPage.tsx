@@ -293,6 +293,11 @@ const PRESENCE_DOT_COLORS: Record<"online" | "away" | "offline", string> = {
 };
 
 function resolvePresence(member: any): { tone: "online" | "away" | "offline"; label: string } {
+  // Note (W5-T1 partial): availability defaults to 'offline' in the DB and there is
+  // no UI yet to set it meaningfully, so "offline" is deliberately NOT special-cased
+  // here — doing so would make every member appear offline regardless of recent
+  // activity. Only explicit non-default signals (online/away) short-circuit the
+  // lastSeenAt heuristic below; once a real toggle UI exists this can be revisited.
   const availability = typeof member?.availability === "string" ? member.availability.toLowerCase() : null;
   if (availability === "online") return { tone: "online", label: "متصل" };
   if (availability === "busy" || availability === "away") return { tone: "away", label: "بعيد" };

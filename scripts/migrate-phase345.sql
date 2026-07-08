@@ -1991,4 +1991,14 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to_message_id) WHERE reply_to_message_id IS NOT NULL;
 
+-- ── 0038_membership_availability (W5-T1, partial) ─────────────────────────────
+-- Self-reported presence on workspace_memberships. Additive. Auto-assignment
+-- (which would also write conversations.agent_status) stays deferred with W3-T1.
+
+DO $$
+BEGIN
+  ALTER TABLE workspace_memberships ADD COLUMN availability text NOT NULL DEFAULT 'offline';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
 SELECT 'MIGRATION_BUNDLE_APPLIED_SUCCESSFULLY' AS status;

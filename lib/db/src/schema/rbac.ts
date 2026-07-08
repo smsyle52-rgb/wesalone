@@ -36,6 +36,10 @@ export const workspaceMembershipsTable = pgTable("workspace_memberships", {
   invitedBy: uuid("invited_by").references(() => usersTable.id),
   joinedAt: timestamp("joined_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // W5-T1 (partial): self-reported presence, independent of auto-assignment
+  // (which stays deferred with W3-T1 — it would also need to write
+  // conversations.agent_status, the exact field W3-T1 was meant to centralize).
+  availability: text("availability").notNull().default("offline"),
 });
 
 export const membershipRolesTable = pgTable("membership_roles", {

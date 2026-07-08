@@ -429,19 +429,49 @@ tasks:
   - id: W5-T1
     title: "Agent availability + per-channel round-robin auto-assignment"
     objective: "Add membership availability; assignment_policies; assignmentSubscriber assigns online agents; reset-bot-on-assign."
-    status: todo
+    status: partial
+    closure_note: >
+      2026-07-08. Partial, scoped completion — the "availability" half only. Auto-assignment
+      (assignment_policies table, assignmentSubscriber, round-robin, reset-bot-on-assign) stays
+      deferred with W3-T1: reset-bot-on-assign means writing conversations.agent_status on
+      auto-assign, which is exactly the field W3-T1 was meant to centralize — adding another ad
+      hoc writer now would make that eventual refactor harder, not easier, and W5-T1's own
+      dependency list already said so.
+      Added workspace_memberships.availability (migration 0038, text enum online/away/offline,
+      default 'offline', additive). Surfaced in GET /api/users (which already returned
+      usersTable.lastSeenAt) and wired toward InboxPage.tsx's W7-T1 resolvePresence(), which was
+      already defensively checking member.availability with no real data behind it. Added
+      self-service PATCH /api/users/me/availability, scoped to the caller's own membership only
+      — no permission gate beyond being logged in, since this reflects the agent's own reported
+      state rather than something managed on their behalf.
+      Caught before committing: since every row defaults to 'offline' and no frontend toggle UI
+      exists yet to set it meaningfully, making resolvePresence() special-case "offline" would
+      have made every member appear offline regardless of real recent activity — a regression,
+      not an improvement. Left "offline" deliberately un-special-cased (comment added at the
+      call site explaining why) so only genuine non-default signals (online/away) — which
+      nothing sets yet either, pending the toggle UI — would ever override the lastSeenAt
+      heuristic. The column and endpoint exist and are correct; the presence loop isn't fully
+      closed until a toggle UI ships, which is out of scope here.
+      Did not add assignment_policies, an assignment.ts module, or any auto-assignment logic —
+      that's the genuinely-blocked half. availability sits ready to be read once that lands.
+      No new dedicated test: small additive column + a straightforward self-scoped PATCH,
+      verified via typecheck (full workspace) + 407/407 api-server regression + build:prod, all
+      clean. RBAC permission slugs untouched — the new endpoint intentionally uses only
+      requireSession, no new permission slug introduced.
     wave: 5
     dependencies: [W3-T1, W4-T3]
     verified_current_files:
       - lib/db/src/schema/rbac.ts
-      - artifacts/api-server/src/modules/conversations/conversations.routes.ts
+      - artifacts/api-server/src/modules/users/users.routes.ts
+      - artifacts/web/src/pages/InboxPage.tsx
+      - lib/db/drizzle/0038_membership_availability.sql
     files_to_modify:
       - lib/db/src/schema/rbac.ts
+      - artifacts/api-server/src/modules/users/users.routes.ts
       - scripts/migrate-phase345.sql
+      - cloudbuild.yaml
     files_to_create:
-      - lib/db/drizzle/0031_assignment.sql
-      - lib/db/src/schema/assignment.ts
-      - artifacts/api-server/src/modules/conversations/assignment.ts
+      - lib/db/drizzle/0038_membership_availability.sql
     files_to_delete: []
     database_changes: "workspace_memberships.availability; new assignment_policies table"
     api_changes: "assignment policy CRUD; PATCH /:id/assign writes activity message"

@@ -33,6 +33,7 @@ router.get("/", requirePermission("team:read"), async (req: Request, res: Respon
         status: workspaceMembershipsTable.status,
         joinedAt: workspaceMembershipsTable.joinedAt,
         lastSeenAt: usersTable.lastSeenAt,
+        availability: workspaceMembershipsTable.availability,
       })
       .from(workspaceMembershipsTable)
       .innerJoin(usersTable, eq(workspaceMembershipsTable.userId, usersTable.id))
@@ -43,6 +44,36 @@ router.get("/", requirePermission("team:read"), async (req: Request, res: Respon
     logger.error({ err }, "Failed to list users");
     res.status(500).json({ error: "حدث خطأ داخلي" });
   }
+});
+
+const availabilitySchema = z.object({
+  availability: z.enum(["online", "away", "offline"]),
+});
+
+// W5-T1 (partial): self-service presence toggle. Scoped to the caller's own
+// membership only — no permission beyond being logged in, matching the fact
+// that this reflects the agent's own reported state, not something managed
+// on their behalf. Auto-assignment reading this field stays deferred with W3-T1.
+router.patch("/me/availability", async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  const parsed = availabilitySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
+    return;
+  }
+
+  const [membership] = await db
+    .update(workspaceMembershipsTable)
+    .set({ availability: parsed.data.availability })
+    .where(and(
+      eq(workspaceMembershipsTable.id, authReq.sessionUser.activeMembershipId),
+      eq(workspaceMembershipsTable.workspaceId, authReq.sessionUser.activeWorkspaceId),
+    ))
+    .returning({ id: workspaceMembershipsTable.id, availability: workspaceMembershipsTable.availability });
+
+  if (!membership) { res.status(404).json({ error: "العضوية غير موجودة" }); return; }
+
+  res.json({ availability: membership.availability });
 });
 
 const inviteSchema = z.object({
