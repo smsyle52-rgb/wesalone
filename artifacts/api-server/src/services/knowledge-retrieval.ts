@@ -26,9 +26,6 @@ export type KnowledgeSearchItem = {
   score: number;
   vectorScore: number;
   lexicalScore: number;
-  // آخر تحديث للمصدر الأصلي (المستند/السؤال الشائع) — يغذّي كسر التعادل بالحداثة أدناه،
-  // ويُعرض للنموذج ليفضّل الأحدث عند تعارض مصدرين على نفس الحقيقة (راجع recencyBonus).
-  updatedAt: Date | null;
 };
 
 export type KnowledgeSearchParams = {
@@ -38,7 +35,7 @@ export type KnowledgeSearchParams = {
   limit?: number;
 };
 
-export type KnowledgeAiSource = Pick<KnowledgeSearchItem, "type" | "id" | "title" | "content" | "updatedAt"> & {
+export type KnowledgeAiSource = Pick<KnowledgeSearchItem, "type" | "id" | "title" | "content"> & {
   sourceUrl?: string | null;
   score?: number;
 };
@@ -97,7 +94,6 @@ async function searchTsvChunks(params: Required<Pick<KnowledgeSearchParams, "wor
       knowledge_base_id: string;
       document_title: string;
       source_url: string | null;
-      document_updated_at: string | Date;
       rank: string | number;
     }>(
       `
@@ -108,7 +104,6 @@ async function searchTsvChunks(params: Required<Pick<KnowledgeSearchParams, "wor
         kc.document_id,
         kc.knowledge_base_id,
         kd.title AS document_title,
-        kd.updated_at AS document_updated_at,
         ks.source_url,
         ts_rank_cd(kc.tsv, plainto_tsquery('simple', $2)) AS rank
       FROM knowledge_chunks kc
@@ -132,7 +127,6 @@ async function searchTsvChunks(params: Required<Pick<KnowledgeSearchParams, "wor
       knowledgeBaseId: row.knowledge_base_id,
       documentId: row.document_id,
       sourceUrl: row.source_url,
-      updatedAt: row.document_updated_at ? new Date(row.document_updated_at) : null,
       lexicalScore: Number(row.rank) * 100,
       vectorScore: 0,
       score: Number(row.rank) * 100,
@@ -172,7 +166,6 @@ async function searchVectorChunks(params: {
       knowledge_base_id: string;
       document_title: string;
       source_url: string | null;
-      document_updated_at: string | Date;
       score: string | number;
     }>(
       `
@@ -183,7 +176,6 @@ async function searchVectorChunks(params: {
         kc.document_id,
         kc.knowledge_base_id,
         kd.title AS document_title,
-        kd.updated_at AS document_updated_at,
         ks.source_url,
         1 - (kc.embedding <=> $1::vector) AS score
       FROM knowledge_chunks kc
@@ -210,7 +202,6 @@ async function searchVectorChunks(params: {
           knowledgeBaseId: row.knowledge_base_id,
           documentId: row.document_id,
           sourceUrl: row.source_url,
-          updatedAt: row.document_updated_at ? new Date(row.document_updated_at) : null,
           lexicalScore: 0,
           vectorScore,
           score: vectorScore,
@@ -224,22 +215,6 @@ async function searchVectorChunks(params: {
     );
     return [];
   }
-}
-
-// كسر تعادل بالحداثة (9 يوليو 2026): سُجِّل رد وكيل متضارب — "500" ثم "1000" لنفس الحقيقة
-// (رصيد الباقة المجانية) على أسئلة متتالية بصياغة مختلفة قليلاً. لا تعارض حقيقي في الكود:
-// مصدرا معرفة (قديم مُصحَّح لاحقاً + نسخة أقدم لم تُؤرشف) يتقاربان في درجة التطابق الدلالي/
-// اللفظي، فيقلب الترتيب حسب صياغة العميل فقط. هذا لا يحلّ الحالة الحالية (تحتاج أرشفة المصدر
-// القديم يدوياً) لكنه يمنع تكرارها: عند تقارب درجتين، يرجّح الأحدث تحديثاً باستمرار بدل عشوائية
-// الصياغة. الحدّ الأقصى 0.05 (من مدى 0-1) — يكسر التعادل فقط، لا يتغلّب على فارق تطابق حقيقي.
-export const RECENCY_BONUS_MAX = 0.05;
-export const RECENCY_BONUS_WINDOW_DAYS = 30;
-export function recencyBonus(updatedAt: Date | null): number {
-  if (!updatedAt) return 0;
-  const ageDays = (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
-  if (ageDays <= 0) return RECENCY_BONUS_MAX;
-  if (ageDays >= RECENCY_BONUS_WINDOW_DAYS) return 0;
-  return RECENCY_BONUS_MAX * (1 - ageDays / RECENCY_BONUS_WINDOW_DAYS);
 }
 
 export async function searchKnowledge(params: KnowledgeSearchParams): Promise<KnowledgeSearchItem[]> {
@@ -294,7 +269,6 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
         question: faqEntriesTable.question,
         answer: faqEntriesTable.answer,
         knowledgeBaseId: faqEntriesTable.knowledgeBaseId,
-        updatedAt: faqEntriesTable.updatedAt,
       })
       .from(faqEntriesTable)
       .where(and(...faqFilters))
@@ -306,7 +280,6 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
         contentText: knowledgeDocumentsTable.contentText,
         knowledgeBaseId: knowledgeDocumentsTable.knowledgeBaseId,
         sourceUrl: knowledgeSourcesTable.sourceUrl,
-        updatedAt: knowledgeDocumentsTable.updatedAt,
       })
       .from(knowledgeDocumentsTable)
       .leftJoin(knowledgeSourcesTable, eq(knowledgeSourcesTable.id, knowledgeDocumentsTable.sourceId))
@@ -321,7 +294,6 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
         knowledgeBaseId: knowledgeChunksTable.knowledgeBaseId,
         documentTitle: knowledgeDocumentsTable.title,
         sourceUrl: knowledgeSourcesTable.sourceUrl,
-        documentUpdatedAt: knowledgeDocumentsTable.updatedAt,
       })
       .from(knowledgeChunksTable)
       .innerJoin(knowledgeDocumentsTable, eq(knowledgeDocumentsTable.id, knowledgeChunksTable.documentId))
@@ -339,7 +311,6 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
       title: faq.question,
       content: `سؤال: ${faq.question}\nإجابة: ${faq.answer}`,
       knowledgeBaseId: faq.knowledgeBaseId,
-      updatedAt: faq.updatedAt,
       lexicalScore: lexicalScore(faq.question, faq.answer, query, words, 12),
       vectorScore: 0,
       score: 0,
@@ -352,7 +323,6 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
       knowledgeBaseId: doc.knowledgeBaseId,
       documentId: doc.id,
       sourceUrl: doc.sourceUrl,
-      updatedAt: doc.updatedAt,
       lexicalScore: lexicalScore(doc.title, doc.contentText, query, words, 3),
       vectorScore: 0,
       score: 0,
@@ -365,7 +335,6 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
       knowledgeBaseId: chunk.knowledgeBaseId,
       documentId: chunk.documentId,
       sourceUrl: chunk.sourceUrl,
-      updatedAt: chunk.documentUpdatedAt,
       lexicalScore: lexicalScore(chunk.documentTitle, chunk.chunkText, query, words, 5),
       vectorScore: 0,
       score: 0,
@@ -384,7 +353,6 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
     existing.lexicalScore = Math.max(existing.lexicalScore, candidate.lexicalScore);
     existing.vectorScore = Math.max(existing.vectorScore, candidate.vectorScore);
     if (!existing.sourceUrl && candidate.sourceUrl) existing.sourceUrl = candidate.sourceUrl;
-    if (!existing.updatedAt && candidate.updatedAt) existing.updatedAt = candidate.updatedAt;
   }
 
   const ranked = await Promise.all([...seen.values()].map(async (item) => {
@@ -397,7 +365,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
     return {
       ...item,
       vectorScore,
-      score: (0.6 * Math.max(vectorScore, 0)) + (0.4 * normalizedLexical) + recencyBonus(item.updatedAt),
+      score: (0.6 * Math.max(vectorScore, 0)) + (0.4 * normalizedLexical),
     };
   }));
 
@@ -415,6 +383,5 @@ export async function searchKnowledgeForAi(params: KnowledgeSearchParams): Promi
     content: result.content,
     sourceUrl: result.sourceUrl,
     score: result.score,
-    updatedAt: result.updatedAt,
   }));
 }
