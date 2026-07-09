@@ -194,17 +194,63 @@ router.post("/bases/:id/sources", requirePermission("knowledge:create"), async (
     res.status(400).json({ error: parsed.error.errors[0]?.message ?? "بيانات غير صحيحة", code: "VALIDATION_ERROR" });
     return;
   }
+  // إصلاح (9 يوليو 2026): كان مصدر «نص عادي» يُحفظ سطراً في knowledge_sources فقط — بلا وثيقة
+  // ولا chunks — فلا يراه الاسترجاع أبداً، والوكيل لا يقرأ أي معرفة تُضاف بهذا الخيار (وهو الافتراضي).
+  // الآن نفهرسه فعلياً بنفس مسار الملف الناجح: مصدر → وثيقة → rebuildDocumentChunks (تقطيع + embedding)،
+  // مع تنظيف عند الفشل حتى لا يبقى مصدر يتيم. الأنواع الأخرى (url/faq) تبقى بسلوكها الحالي.
+  const indexText = (parsed.data.type === "text" ? (parsed.data.rawText ?? "") : "")
+    .split(String.fromCharCode(0)).join("").trim();
+  const shouldIndex = parsed.data.type === "text" && indexText.length > 0;
+
   const [source] = await db.insert(knowledgeSourcesTable).values({
     workspaceId: activeWorkspaceId,
     knowledgeBaseId: baseId,
     type: parsed.data.type,
     title: parsed.data.title,
-    status: "draft",
+    status: shouldIndex ? "processing" : "draft",
     rawText: parsed.data.rawText ?? null,
     sourceUrl: parsed.data.sourceUrl ?? null,
     metadata: parsed.data.metadata ?? {},
     createdBy: userId,
   }).returning();
+
+  if (shouldIndex) {
+    try {
+      const [doc] = await db.insert(knowledgeDocumentsTable).values({
+        workspaceId: activeWorkspaceId,
+        knowledgeBaseId: baseId,
+        sourceId: source.id,
+        title: parsed.data.title,
+        contentText: indexText,
+        status: "ready",
+        tokenEstimate: estimateKnowledgeTokens(indexText),
+        createdBy: userId,
+      }).returning();
+      const { chunkCount } = await rebuildDocumentChunks({
+        documentId: doc.id, workspaceId: activeWorkspaceId, knowledgeBaseId: baseId, contentText: indexText,
+      });
+      const [readySource] = await db.update(knowledgeSourcesTable)
+        .set({ status: "ready", updatedAt: new Date() })
+        .where(and(eq(knowledgeSourcesTable.id, source.id), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)))
+        .returning();
+      await createAuditLog({
+        ...auditFromRequest(req, req.sessionUser),
+        action: "knowledge_source_create",
+        entityType: "knowledge_source", entityId: source.id, entityLabel: source.title,
+        newData: { type: source.type, title: source.title, indexed: true, chunks: chunkCount },
+      });
+      res.status(201).json({ source: readySource, chunkCount });
+      return;
+    } catch (err) {
+      // تنظيف: احذف الوثيقة (ومقاطعها بالتعاقب) ثم المصدر حتى لا يبقى يتيماً، ثم مرّر الخطأ للمعالج العام.
+      await db.delete(knowledgeDocumentsTable)
+        .where(and(eq(knowledgeDocumentsTable.sourceId, source.id), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
+      await db.delete(knowledgeSourcesTable)
+        .where(and(eq(knowledgeSourcesTable.id, source.id), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)));
+      throw err;
+    }
+  }
+
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "knowledge_source_create",
