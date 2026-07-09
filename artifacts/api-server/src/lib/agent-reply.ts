@@ -81,6 +81,30 @@ const KNOWLEDGE_INJECT_CHARS = Number(process.env.KNOWLEDGE_INJECT_CHARS ?? "200
 // لأن المحادثة تُصعَّد فعلاً معه دائماً)، ولا يكشف أي تفصيل تقني (محمية #10).
 const SAFE_REVIEW_REPLY = "أحتاج أن أحوّل طلبك للفريق لمراجعته والتأكد من تنفيذه بشكل صحيح.";
 
+// التأكيد الحتمي عند نجاح أداة handoff_to_human بلا نصّ مصاحب (مُستخرَج ثابتاً ليُقارَن به في
+// ensureHandoffCommunicated — صياغته «بحوّلك» لا تطابق أنماط وعد التحويل فتحتاج مقارنة صريحة).
+const HANDOFF_TOOL_CONFIRMATION = "لحظة من فضلك، بحوّلك لأحد أعضاء الفريق ليكمل معك.";
+
+// إشعار التحويل الصريح للعميل — يُرسَل أو يُلحَق عند كل تصعيد (قرار مالك 9 يوليو 2026).
+export const HANDOFF_NOTICE = "لحظة من فضلك، حوّلت المحادثة لأحد أعضاء الفريق ليكمل معك من هنا.";
+
+// شكوى إنتاج (9 يوليو 2026): «الوكيل عند التحويل البشري لا يخبر العميل — ينقطع فجأة».
+// السبب: أغلب التصعيدات تأتي من الشبكات الخادمية (طلب العميل بكلمة مفتاحية، وعد التأكد من
+// الفريق، بوابة الادّعاء) حيث نصّ النموذج لا يذكر التحويل إطلاقاً — فيتبدّل agent_status بصمت
+// ويظنّ العميل أن المتجر تجاهله. القاعدة: أي ردّ يخرج مع تصعيدٍ يجب أن يُعلم العميل بالتحويل؛
+// إن لم يذكره النص نُلحق إشعاراً حتمياً صادقاً (التحويل حدث فعلاً: agent_status=human + إشعار
+// التاجر) — ولا نُلحقه إن كان النص يعد به أصلاً (لا تكرار). دالة نقية قابلة للاختبار المباشر.
+export function ensureHandoffCommunicated(reply: string, escalated: boolean): { reply: string; noticeAppended: boolean } {
+  const trimmed = reply.trim();
+  if (!escalated || !trimmed) return { reply: trimmed, noticeAppended: false };
+  const alreadyCommunicated =
+    replyPromisesHandoff(trimmed) ||
+    trimmed === HANDOFF_TOOL_CONFIRMATION ||
+    trimmed.includes(HANDOFF_NOTICE);
+  if (alreadyCommunicated) return { reply: trimmed, noticeAppended: false };
+  return { reply: `${trimmed}\n\n${HANDOFF_NOTICE}`, noticeAppended: true };
+}
+
 async function upsertUsage(params: {
   workspaceId: string;
   model: string;
@@ -177,7 +201,7 @@ function sanitizeReply(text: string): string {
 // حتمياً موجزاً حسب نتيجة الأداة الناجحة — بلا استدعاء ذكاء ثانٍ (أوفر للرصيد وأأمن من الهلوسة).
 function confirmationFromToolResults(results: AgentToolResult[]): string {
   const succeeded = (tool: string) => results.some((r) => r.tool === tool && r.status === "success");
-  if (succeeded("handoff_to_human")) return "لحظة من فضلك، بحوّلك لأحد أعضاء الفريق ليكمل معك.";
+  if (succeeded("handoff_to_human")) return HANDOFF_TOOL_CONFIRMATION;
   if (succeeded("create_order")) return "تمام، سجّلت طلبك ✅ وبنراجع التفاصيل ونؤكّدها لك قريباً.";
   if (succeeded("schedule_followup")) return "تمام، سجّلت الموعد وبنتابع معك في وقته.";
   if (succeeded("log_payment_claim")) return "شكراً، سجّلت بيانات الدفع وبيتأكّد منها الفريق ونرجع لك.";
@@ -399,14 +423,16 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       audio: mediaContext.audio,
     });
 
-    // H5-1 fix: لو AI غير متوفّر → صعّد للبشر بصمت، لا تُرسل نص تجريبي للعميل (محمية #10)
+    // H5-1 + تحديث 9 يوليو (قرار مالك): لو AI غير متوفّر → صعّد للبشر، ولا تُرسل نص تجريبي
+    // (محمية #10) — لكن لا تتركه صمتاً مطبقاً أيضاً: أرسل إشعار التحويل الحتمي الصادق
+    // (التحويل يحدث فعلاً مع هذا الرد). «الانقطاع الفجائي» بلا كلمة كان أسوأ تجربة للعميل.
     if (aiOutput.fallbackUsed) {
       await db.update(aiRunsTable).set({
         status: "failed",
-        errorMessage: "AI provider unavailable — escalating silently",
+        errorMessage: "AI provider unavailable — escalating with handoff notice",
         completedAt: new Date(),
       }).where(and(eq(aiRunsTable.id, run.id), eq(aiRunsTable.workspaceId, params.workspaceId)));
-      return { reply: "", shouldEscalate: true, runId: run.id, toolResults: [] };
+      return { reply: HANDOFF_NOTICE, shouldEscalate: true, runId: run.id, toolResults: [] };
     }
 
     // استدعاء الأدوات الأصلي: النموذج يعيد toolCalls منظّمة مباشرةً — لا تحليل نصّ هشّ (يقتل PD-8/PD-10).
@@ -442,7 +468,8 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
         errorMessage: "AI returned empty reply",
         completedAt: new Date(),
       }).where(and(eq(aiRunsTable.id, run.id), eq(aiRunsTable.workspaceId, params.workspaceId)));
-      return { reply: "", shouldEscalate: true, runId: run.id, toolResults };
+      // ردّ فارغ → تصعيد، ومع إشعار تحويل صادق بدل الصمت المطبق (قرار مالك 9 يوليو).
+      return { reply: HANDOFF_NOTICE, shouldEscalate: true, runId: run.id, toolResults };
     }
 
     // أسباب التصعيد مجمّعة باسمها الصريح — تُخزَّن في metadata.decision لتشخيص «لماذا تصرّف
@@ -459,6 +486,10 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       escalationReasons.push("customer_request");
     }
     const shouldEscalate = escalationReasons.length > 0;
+    // إشعار التحويل الصريح: العميل يجب أن يعرف أن المحادثة انتقلت لإنسان — لا انقطاع صامت.
+    // يُحسب بعد أسباب التصعيد (الإشعار نفسه لا يولّد سبباً) وقبل التخزين (يُخزَّن ما سيُرسَل فعلاً).
+    const handoffCommunication = ensureHandoffCommunicated(finalReply, shouldEscalate);
+    const outboundReply = handoffCommunication.reply;
 
     await db.insert(aiMessagesTable).values([
       { workspaceId: params.workspaceId, aiRunId: run.id, role: "system", content: systemPrompt, metadata: {} },
@@ -467,7 +498,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
         workspaceId: params.workspaceId,
         aiRunId: run.id,
         role: "assistant",
-        content: finalReply,
+        content: outboundReply,
         metadata: {
           knowledgeSources,
           toolResults,
@@ -477,6 +508,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
             escalated: shouldEscalate,
             reasons: escalationReasons,
             replyReplacedByGuard: claimGuardTripped,
+            handoffNoticeAppended: handoffCommunication.noticeAppended,
             knowledgeCount: knowledgeSources.length,
             knowledgeTopScore: knowledgeSources.reduce((max, source) => Math.max(max, source.score ?? 0), 0) || null,
             catalogInjected: productCatalogContext.length > 0,
@@ -516,7 +548,8 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     //     تركه مكسوراً. (5) وعد «أتأكد من الفريق وأرجع لك» (العبارة التي تأمر بها قواعد
     //     التأريض نفسها عند غياب المعرفة) → يُبلَّغ الفريق فعلاً بدل ترك العميل ينتظر للأبد.
     //     (6) طلب صريح من العميل: تُفحص رسالته وحدها لا ردّ الوكيل (حادثة 3 يوليو).
-    return { reply: finalReply, shouldEscalate, runId: run.id, toolResults };
+    // كل تصعيد يخرج للعميل بإشعار تحويل صريح (outboundReply) — لا انقطاع صامت (قرار مالك 9 يوليو).
+    return { reply: outboundReply, shouldEscalate, runId: run.id, toolResults };
   } catch (err) {
     if ((err as { code?: string }).code === "ai_points_exhausted") {
       await db.update(aiRunsTable).set({
@@ -524,7 +557,9 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
         errorMessage: "AI points exhausted",
         completedAt: new Date(),
       }).where(and(eq(aiRunsTable.id, run.id), eq(aiRunsTable.workspaceId, params.workspaceId)));
-      return { reply: "", shouldEscalate: true, runId: run.id, toolResults: [] };
+      // نفاد الرصيد → تصعيد بإشعار تحويل صادق (يُرسَل مرة واحدة — المحادثة تصير human بعدها
+      // فيتجاهل الـworker بقية الرسائل، لا سيل إشعارات). لا ذكر للرصيد أمام العميل (محمية #10).
+      return { reply: HANDOFF_NOTICE, shouldEscalate: true, runId: run.id, toolResults: [] };
     }
     await db.update(aiRunsTable).set({
       status: "failed",
@@ -651,9 +686,11 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   if (replyPromisesHandoff(previewReply)) escalationReasons.push("handoff_promise");
   if (replyPromisesVerification(previewReply)) escalationReasons.push("verification_promise");
   if (includesEscalationKeyword(message)) escalationReasons.push("customer_request");
+  // أمانة المحاكاة: نفس إشعار التحويل الذي سيلحقه المسار الحيّ عند التصعيد — المعاينة = المُرسَل.
+  const handoffCommunication = ensureHandoffCommunicated(previewReply, escalationReasons.length > 0);
 
   return {
-    reply: previewReply,
+    reply: handoffCommunication.reply,
     knowledgeSources: knowledgeSources.map((item) => item.title),
     sourcesDetailed: knowledgeSources.map((item) => ({ title: item.title, score: item.score ?? null })),
     toolCalls: intendedCalls,
