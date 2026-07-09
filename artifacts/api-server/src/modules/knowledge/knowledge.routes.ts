@@ -5,7 +5,7 @@ import {
   knowledgeBasesTable, knowledgeSourcesTable, knowledgeDocumentsTable,
   knowledgeChunksTable, faqEntriesTable,
 } from "@workspace/db";
-import { eq, and, desc, ne, or, ilike, asc, type SQL } from "drizzle-orm";
+import { eq, and, desc, ne, or, ilike, asc, isNull, type SQL } from "drizzle-orm";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
@@ -147,6 +147,16 @@ router.patch("/bases/:id/archive", requirePermission("knowledge:delete"), async 
   if (!existing) { res.status(404).json({ error: "قاعدة المعرفة غير موجودة", code: "NOT_FOUND" }); return; }
   const [updated] = await db.update(knowledgeBasesTable).set({ status: "archived", updatedAt: new Date() })
     .where(and(eq(knowledgeBasesTable.id, id), eq(knowledgeBasesTable.workspaceId, activeWorkspaceId))).returning();
+  // إصلاح «الأرشفة لا تُؤرشف» (10 يوليو 2026): أرشفة القاعدة كانت شكلية — تختفي من الشريط
+  // الجانبي بينما وثائقها وأسئلتها تبقى حيّة يجيب منها الوكيل (الاسترجاع لا يفحص حالة القاعدة).
+  // الأرشفة تتسلسل الآن للمصادر والوثائق والأسئلة الشائعة (الاسترجاع يستبعد المؤرشف منها فعلاً).
+  const now = new Date();
+  await db.update(knowledgeSourcesTable).set({ status: "archived", updatedAt: now })
+    .where(and(eq(knowledgeSourcesTable.knowledgeBaseId, id), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)));
+  await db.update(knowledgeDocumentsTable).set({ status: "archived", updatedAt: now })
+    .where(and(eq(knowledgeDocumentsTable.knowledgeBaseId, id), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
+  await db.update(faqEntriesTable).set({ status: "archived", updatedAt: now })
+    .where(and(eq(faqEntriesTable.knowledgeBaseId, id), eq(faqEntriesTable.workspaceId, activeWorkspaceId)));
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "knowledge_base_archive",
@@ -396,6 +406,11 @@ router.patch("/sources/:sourceId/archive", requirePermission("knowledge:delete")
   if (!existing) { res.status(404).json({ error: "المصدر غير موجود", code: "NOT_FOUND" }); return; }
   const [updated] = await db.update(knowledgeSourcesTable).set({ status: "archived", updatedAt: new Date() })
     .where(and(eq(knowledgeSourcesTable.id, sourceId), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId))).returning();
+  // إصلاح «الأرشفة لا تُؤرشف» (10 يوليو 2026): الاسترجاع يقرأ knowledge_documents فقط ولا يفحص
+  // حالة المصدر أبداً — فأرشفة المصدر وحدها كانت شكلية والوكيل يظل يجيب من وثائقه. الأرشفة
+  // تتسلسل الآن للوثائق المشتقة (والاسترجاع يستبعد الوثائق المؤرشفة أصلاً).
+  await db.update(knowledgeDocumentsTable).set({ status: "archived", updatedAt: new Date() })
+    .where(and(eq(knowledgeDocumentsTable.sourceId, sourceId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "knowledge_source_archive",
@@ -555,7 +570,7 @@ router.post("/documents/:documentId/rechunk", requirePermission("knowledge:updat
 // once after enabling real Vertex embeddings — documents indexed under dry-run carry
 // pseudo-vectors that semantic search can never match until they are rebuilt.
 router.post("/reindex", requirePermission("knowledge:update"), async (req: AuthenticatedRequest, res: Response) => {
-  const { activeWorkspaceId } = req.sessionUser;
+  const { activeWorkspaceId, userId } = req.sessionUser;
   const docs = await db
     .select({
       id: knowledgeDocumentsTable.id,
@@ -584,14 +599,60 @@ router.post("/reindex", requirePermission("knowledge:update"), async (req: Authe
     }
   }
 
+  // معالجة المعرفة اليتيمة (10 يوليو 2026): مصادر «نص عادي» المُنشأة قبل إصلاح الفهرسة لها
+  // rawText لكن بلا وثيقة إطلاقاً — تظهر «جاهزة» في الواجهة والوكيل لا يراها أبداً، وإعادة
+  // الفهرسة كانت تتجاهلها (تمرّ على الوثائق فقط). الآن زرّ «إعادة فهرسة شاملة» يعالجها:
+  // ينشئ الوثيقة والمقاطع بنفس مسار الإنشاء المُصلَح، فيشفي معرفة التاجر القديمة بضغطة واحدة.
+  const orphanSources = await db
+    .select({
+      id: knowledgeSourcesTable.id,
+      knowledgeBaseId: knowledgeSourcesTable.knowledgeBaseId,
+      title: knowledgeSourcesTable.title,
+      rawText: knowledgeSourcesTable.rawText,
+    })
+    .from(knowledgeSourcesTable)
+    .leftJoin(knowledgeDocumentsTable, eq(knowledgeDocumentsTable.sourceId, knowledgeSourcesTable.id))
+    .where(and(
+      eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId),
+      eq(knowledgeSourcesTable.type, "text"),
+      ne(knowledgeSourcesTable.status, "archived"),
+      isNull(knowledgeDocumentsTable.id),
+    ));
+
+  let backfilled = 0;
+  for (const orphan of orphanSources) {
+    const text = (orphan.rawText ?? "").split(String.fromCharCode(0)).join("").trim();
+    if (!text) continue;
+    try {
+      const [doc] = await db.insert(knowledgeDocumentsTable).values({
+        workspaceId: activeWorkspaceId,
+        knowledgeBaseId: orphan.knowledgeBaseId,
+        sourceId: orphan.id,
+        title: orphan.title,
+        contentText: text,
+        status: "ready",
+        tokenEstimate: estimateKnowledgeTokens(text),
+        createdBy: userId,
+      }).returning();
+      await rebuildDocumentChunks({
+        documentId: doc.id, workspaceId: activeWorkspaceId, knowledgeBaseId: orphan.knowledgeBaseId, contentText: text,
+      });
+      await db.update(knowledgeSourcesTable).set({ status: "ready", updatedAt: new Date() })
+        .where(and(eq(knowledgeSourcesTable.id, orphan.id), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)));
+      backfilled += 1;
+    } catch {
+      failedIds.push(orphan.id);
+    }
+  }
+
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "knowledge_document_rechunk",
     entityType: "workspace", entityId: activeWorkspaceId, entityLabel: "إعادة فهرسة شاملة",
-    newData: { total: docs.length, reindexed, failed: failedIds.length },
+    newData: { total: docs.length, reindexed, backfilledOrphanSources: backfilled, failed: failedIds.length },
   });
 
-  res.json({ total: docs.length, reindexed, failed: failedIds.length });
+  res.json({ total: docs.length, reindexed, backfilled, failed: failedIds.length });
 });
 
 // ─── FAQ Entries ─────────────────────────────────────────────────────────────
