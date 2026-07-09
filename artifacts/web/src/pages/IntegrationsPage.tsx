@@ -549,6 +549,30 @@ export default function IntegrationsPage() {
     }
   }
 
+  // 9 يوليو 2026: مسار بديل يعمل على الجوال. نافذة FB.login المنبثقة (المسار الأساسي أعلاه)
+  // لا تُعيد الكود على بعض متصفحات الجوال (يفتح Meta تبويباً منفصلاً ولا يعود الرد للتبويب
+  // الأصلي) — أُثبت من سجلات الإنتاج (صفر استدعاء /complete). هذا المسار يتجاوز النافذة كلياً:
+  // ينتقل بالصفحة كاملةً إلى Meta عبر /start، وMeta يُعيد الكود إلينا عبر رابط /callback
+  // (مبني مسبقاً) الذي يكتشف القنوات ويوجّه لصفحة اختيارها. إضافي تماماً — لا يمسّ المسار
+  // الأساسي. يتطلب أن يكون رابط العودة مسجّلاً في إعدادات تطبيق Meta (Valid OAuth Redirect URIs).
+  async function startRedirectSignup() {
+    setMetaError(null);
+    setIsStartingMeta(true);
+    try {
+      const res = await fetch(`${BASE}/integrations/meta/embedded-signup/start`, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        const missing = Array.isArray(data.missing) && data.missing.length ? `: ${data.missing.join(", ")}` : "";
+        throw new Error(data.error ?? `تعذر بدء الربط عبر المتصفح${missing}`);
+      }
+      // الصفحة تنتقل الآن إلى Meta؛ لا نُعيد ضبط isStartingMeta لأن الصفحة الحالية ستُفرَغ.
+      window.location.href = data.url as string;
+    } catch (err) {
+      setMetaError((err as Error).message);
+      setIsStartingMeta(false);
+    }
+  }
+
   async function startMetaSignup(option = metaSignupOptions[0]) {
     if (metaSignupInFlightRef.current) {
       logMetaSignupDiagnostic("signup_ignored", {
@@ -807,6 +831,20 @@ export default function IntegrationsPage() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+          <button
+            type="button"
+            onClick={() => void startRedirectSignup()}
+            disabled={isStartingMeta}
+            className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:w-auto"
+          >
+            {isStartingMeta ? "جارٍ التحويل إلى Meta..." : "ربط واتساب — الطريقة البديلة (مناسبة للجوال)"}
+          </button>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            إن لم تنجح النافذة المنبثقة على جوالك، استخدم هذا الزر: ستنتقل صفحتك إلى Meta لتسجيل الدخول ومنح الصلاحيات، ثم تعود تلقائياً إلى وصال ون لاختيار الرقم — بلا نافذة منبثقة.
+          </p>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
