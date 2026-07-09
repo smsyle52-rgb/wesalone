@@ -229,16 +229,7 @@ async function fetchMetaSignupConfig(): Promise<MetaSignupConfig> {
   return data;
 }
 
-// 8 يوليو 2026: توثيق Meta الرسمي (developers.facebook.com، Embedded Signup v4) يقول
-// صراحةً إن النقر على "Finish" أو إغلاق النافذة المنبثقة يدوياً (زر X) كلاهما "onboarding
-// ناجح" — أي أن شاشة "أغلق هذه النافذة" التي تظهر أحياناً هي سلوك مصمَّم من Meta نفسها،
-// وليست خللاً. المشكلة الفعلية المُثبَتة من سجلات الإنتاج (صفر استدعاء /complete رغم
-// محاولات متكررة على الجوال): رد نداء FB.login() نفسه قد لا يُطلَق إطلاقاً بعد إغلاق يدوي
-// للنافذة على بعض متصفحات الجوال (على الأرجح تعليق/إعادة تحميل التبويب الأصلي في الخلفية
-// من نظام أندرويد أثناء انشغال المستخدم في تبويب Meta) — وهذه الدالة لم يكن لها أي مهلة أو
-// مخرج إطلاقاً قبل هذا التعديل، خلافاً لـ waitForCapturedSignupInfo. أضيفت هنا مهلة ساعة
-// (شبكة أمان) + إمكانية إلغاء يدوي عبر cancelRef يتشاركها زر "إلغاء" في الواجهة.
-function loginWithFacebook(configId: string, optionKey: MetaSignupConfigKey, cancelRef: { current: boolean }): Promise<string> {
+function loginWithFacebook(configId: string, optionKey: MetaSignupConfigKey): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!window.FB) {
       reject(new Error("Facebook SDK is not ready"));
@@ -251,28 +242,6 @@ function loginWithFacebook(configId: string, optionKey: MetaSignupConfigKey, can
     };
     const extras = embeddedSignupExtrasForOption(optionKey);
     if (extras) loginOptions.extras = extras;
-
-    let settled = false;
-    const settle = (fn: typeof resolve | typeof reject, value: never) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeoutTimer);
-      window.clearInterval(cancelPoll);
-      fn(value as never);
-    };
-
-    const timeoutTimer = window.setTimeout(() => {
-      settle(reject, new Error(
-        "لم يصل رد من نافذة Meta. إن أكملت كل الخطوات هناك وأغلقت النافذة يدوياً (هذا أمر طبيعي)، اضغط \"إلغاء والمحاولة من جديد\" ثم كرر الربط."
-      ) as never);
-    }, 3600000);
-
-    const cancelPoll = window.setInterval(() => {
-      if (cancelRef.current) {
-        settle(reject, new Error("تم الإلغاء يدوياً.") as never);
-      }
-    }, 100);
-
     window.FB.login((response) => {
       const code = response.authResponse?.code;
       logMetaSignupDiagnostic("fb_login_callback", {
@@ -280,13 +249,13 @@ function loginWithFacebook(configId: string, optionKey: MetaSignupConfigKey, can
         codeReceived: Boolean(code),
       });
       if (code) {
-        settle(resolve, code as never);
+        resolve(code);
         return;
       }
       // 7 يوليو 2026: كانت هذه رسالة تقنية خام بالإنجليزية تظهر مباشرة للتاجر (شكوى مالك
       // موثّقة) — رد نداء FB.login() الكلاسيكي قد لا يعطي code حتى بعد إتمام خطوات نافذة
       // Meta فعلياً، فلا نجزم بالفشل الكامل.
-      settle(reject, new Error("لم يكتمل تسجيل الدخول من نافذة Meta. إن كنت أكملت كل خطواتها هناك، انتظر لحظة وأعد المحاولة؛ وإن تكرر ذلك تواصل معنا مباشرة.") as never);
+      reject(new Error("لم يكتمل تسجيل الدخول من نافذة Meta. إن كنت أكملت كل خطواتها هناك، انتظر لحظة وأعد المحاولة؛ وإن تكرر ذلك تواصل معنا مباشرة."));
     }, loginOptions);
   });
 }
@@ -399,15 +368,9 @@ function ConnectedChannelCard({ channel }: { channel: ConnectedChannel }) {
 export default function IntegrationsPage() {
   const [isStartingMeta, setIsStartingMeta] = useState(false);
   const [startingMetaConfigKey, setStartingMetaConfigKey] = useState<MetaSignupConfigKey | null>(null);
-  // 8 يوليو 2026: هذه الصفحة (إعدادات → تكاملات) لها نسخة منفصلة من نفس منطق onboarding —
-  // مهلة waitForCapturedSignupInfo كانت 90 ثانية فقط في كلا النسختين (هنا وOnboardingPage)،
-  // رغم أن OnboardingPage.tsx يوثّق حالة عميل حقيقي احتاج 44 دقيقة متواصلة (راجع تعليقه).
-  // قورنت بمرجع Chatwoot (useWhatsappEmbeddedSignup.js) الذي لا يضع أي مهلة إطلاقاً على
-  // الانتظار المكافئ — يعتمد فقط على أحداث FINISH/CANCEL/error الحقيقية القادمة من نافذة
-  // Meta. رفع الرقم تدريجياً (5 ثوانٍ ← 20 ← 90) أثبت فشله مرة تلو الأخرى، فرُفعت الآن
-  // لساعة كاملة كشبكة أمان تمنع التعليق الأبدي فقط لو لم يصل أي حدث إطلاقاً، لا كمهلة
-  // متوقّع بلوغها في الاستخدام الطبيعي — معالجة CANCEL/ERROR الفعلية أسرع من المهلة دائماً.
-  const [isAwaitingFacebookLogin, setIsAwaitingFacebookLogin] = useState(false);
+  // 6 يوليو 2026: هذه الصفحة (إعدادات → تكاملات) لها نسخة منفصلة من نفس منطق onboarding —
+  // مهلة 5 ثوانٍ هنا لم تُصلَح مع OnboardingPage (جلسة 21)، فأي عميل يربط من هنا تحديداً
+  // (أو يعيد الربط لاحقاً) كان لا يزال يفشل بسرعة قبل عودة بيانات Meta.
   const [isAwaitingMetaData, setIsAwaitingMetaData] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [connectedChannels, setConnectedChannels] = useState<ConnectedChannel[]>([]);
@@ -418,7 +381,6 @@ export default function IntegrationsPage() {
   const metaSignupInFlightRef = useRef(false);
   const signupSessionInfoRef = useRef<EmbeddedSignupSessionInfo | null>(null);
   const signupSessionErrorRef = useRef<string | null>(null);
-  const signupCancelledRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -485,23 +447,25 @@ export default function IntegrationsPage() {
         signupSessionErrorRef.current = message.errorMessage ?? "تعذر إكمال التسجيل المضمن من Meta.";
         return;
       }
-      // 9 يوليو 2026: حدث FINISH بلا معرّفات كاملة شائع على الجوال — كنا نعتبره خطأً فنُجهض،
-      // فلا يُستدعى /complete إطلاقاً ولا يعمل اكتشاف Graph في الخادم (وهذا سبب "صفر استدعاء"
-      // في السجلات). الآن لا نُجهض عند FINISH: نُسجّل ما وصل (ولو ناقصاً) وندع مهلة الـ60 ثانية
-      // تُكمل بالـcode، فيكتشف الخادم waba_id/phone_number_id من Graph. CANCEL/ERROR وحدهما يُجهضان.
-      const info = message.info;
-      if (info) {
-        signupSessionInfoRef.current = {
-          ...signupSessionInfoRef.current,
-          ...info,
-        };
+      if (
+        (message.eventName === "FINISH" || message.eventName === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING")
+        && (!message.info?.waba_id || !message.info?.phone_number_id)
+      ) {
+        signupSessionErrorRef.current = "اكتمل التسجيل المضمن لكن لم تصل معرفات واتساب المطلوبة.";
+        return;
       }
+      const info = message.info;
+      if (!info) return;
+      signupSessionInfoRef.current = {
+        ...signupSessionInfoRef.current,
+        ...info,
+      };
     }
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  function waitForCapturedSignupInfo(timeoutMs = 3600000): Promise<EmbeddedSignupSessionInfo> {
+  function waitForCapturedSignupInfo(timeoutMs = 90000): Promise<EmbeddedSignupSessionInfo> {
     return new Promise((resolve, reject) => {
       if (signupSessionErrorRef.current) {
         reject(new Error(signupSessionErrorRef.current));
@@ -540,16 +504,6 @@ export default function IntegrationsPage() {
         }
       }, 100);
     });
-  }
-
-  // 8 يوليو 2026: مهلة الانتظار رُفعت لساعة (كانت 90 ثانية) لتغطية حالات إعداد واتساب
-  // الحقيقية الطويلة — لكن هذا يعني أن أي عميل يعلق فعلاً (مثلاً نافذة Meta تعرض "أغلق
-  // هذه النافذة" ولا تُغلق تلقائياً ولا يُطلق أي حدث CANCEL) يبقى بلا مخرج لمدة أطول
-  // بكثير من قبل. هذا الزر يمنح تحكماً فورياً بغض النظر عن قيمة المهلة، بإعادة استخدام
-  // نفس مسار رفض CANCEL/ERROR الموجود مسبقاً في waitForCapturedSignupInfo أعلاه.
-  function cancelMetaSignupWait() {
-    signupCancelledRef.current = true;
-    signupSessionErrorRef.current = "تم الإلغاء يدوياً. إن كانت نافذة Meta لا تزال مفتوحة يمكنك إغلاقها والمحاولة من جديد.";
   }
 
   async function completeEmbeddedSignup(code: string, configId: string, configKey: string, sessionInfo: EmbeddedSignupSessionInfo) {
@@ -663,29 +617,15 @@ export default function IntegrationsPage() {
 
       signupSessionInfoRef.current = null;
       signupSessionErrorRef.current = null;
-      signupCancelledRef.current = false;
-      setIsAwaitingFacebookLogin(true);
-      let code: string;
-      try {
-        code = await loginWithFacebook(configId, option.key, signupCancelledRef);
-      } finally {
-        setIsAwaitingFacebookLogin(false);
-      }
+      const code = await loginWithFacebook(configId, option.key);
       codeReceived = Boolean(code);
       if (option.key === "instagramMessenger") {
         await completeInstagramMessengerSignup(code);
       } else {
         setIsAwaitingMetaData(true);
-        // 8 يوليو 2026: على الجوال كثيراً ما لا تصل رسالة postMessage الحاملة waba_id، فكان
-        // الانتظار يفشل بلا نهاية ولا يُستدعى /complete إطلاقاً. الآن ننتظر 60 ثانية فقط، ثم
-        // نُكمل بالـcode وحده — الخادم يكتشف waba_id/phone_number_id من Graph. لا نُكمل عند
-        // إلغاء/خطأ حقيقي من Meta (يضبط signupSessionErrorRef) — نُعيد رمي الخطأ حينها فقط.
-        let sessionInfo: EmbeddedSignupSessionInfo = {};
+        let sessionInfo: EmbeddedSignupSessionInfo;
         try {
-          sessionInfo = await waitForCapturedSignupInfo(60000);
-        } catch (err) {
-          if (signupSessionErrorRef.current) throw err;
-          logMetaSignupDiagnostic("identifiers_timeout_fallback_to_backend", { codeReceived: Boolean(code) });
+          sessionInfo = await waitForCapturedSignupInfo();
         } finally {
           setIsAwaitingMetaData(false);
         }
@@ -782,33 +722,10 @@ export default function IntegrationsPage() {
               يدعم المسار الموحد اختيار واتساب وإنستقرام وماسنجر بعد إكمال الربط. في وضع التطوير لا يتم أي إرسال خارجي.
             </p>
             {metaError && <p className="mt-2 text-sm text-destructive">{metaError}</p>}
-            {isAwaitingFacebookLogin && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <p className="animate-pulse text-sm text-primary">
-                  جارٍ الانتظار حتى تُكمل خطوات نافذة Meta — إن أغلقتها يدوياً بعد الانتهاء (طبيعي لو طلبت ذلك)، اضغط الزر بجانب هذا النص.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => { signupCancelledRef.current = true; }}
-                  className="text-sm font-medium text-destructive underline underline-offset-2"
-                >
-                  إلغاء والمحاولة من جديد
-                </button>
-              </div>
-            )}
             {isAwaitingMetaData && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <p className="animate-pulse text-sm text-primary">
-                  جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط، أكملها؛ قد يستغرق هذا عدة دقائق.
-                </p>
-                <button
-                  type="button"
-                  onClick={cancelMetaSignupWait}
-                  className="text-sm font-medium text-destructive underline underline-offset-2"
-                >
-                  إلغاء والمحاولة من جديد
-                </button>
-              </div>
+              <p className="mt-2 animate-pulse text-sm text-primary">
+                جارٍ تأكيد بيانات واتساب من Meta — إن كنت لا تزال داخل خطوات الربط، أكملها؛ قد يستغرق هذا حتى دقيقة.
+              </p>
             )}
           </div>
           {/* Mobile: single trigger + Sheet */}
