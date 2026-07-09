@@ -242,7 +242,7 @@ export async function runAgentReply(params: {
   conversationId: string;
   agentId: string;
   systemUserId: string;
-}): Promise<{ reply: string; shouldEscalate: boolean; runId: string; toolResults: AgentToolResult[] }> {
+}): Promise<{ reply: string; shouldEscalate: boolean; needsAttention?: boolean; runId: string; toolResults: AgentToolResult[] }> {
   const [agent] = await db
     .select()
     .from(aiAgentsTable)
@@ -462,18 +462,32 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     // أسباب التصعيد مجمّعة باسمها الصريح — تُخزَّن في metadata.decision لتشخيص «لماذا تصرّف
     // الوكيل هكذا» لكل ردّ (بديل التخمين من السجلات). التصعيد بنيوي أولاً (أداة/بوابة)،
     // وشبكات الوعود ثانياً (الخادم يجعل كلام النموذج صادقاً)، وطلب العميل الصريح أخيراً.
-    const escalationReasons: string[] = [];
-    if (hasToolProblem) escalationReasons.push("tool_failure");
-    if (unbackedClaim) escalationReasons.push(`unbacked_claim:${unbackedClaim}`);
-    if (paymentClaim) escalationReasons.push("payment_confirmation_claim");
-    if (hasHandoff) escalationReasons.push("handoff_tool");
-    if (replyPromisesHandoff(finalReply)) escalationReasons.push("handoff_promise");
-    if (replyPromisesVerification(finalReply)) escalationReasons.push("verification_promise");
+    //
+    // سياسة متدرّجة (10 يوليو 2026 — إصلاح «وباء إسكات الوكيل»): كانت «سأتأكد من الفريق»
+    // (verification_promise) تُعامل كتحويل كامل: agent_status=human للأبد + إشعار تحويل للعميل.
+    // ولأن قواعد التأريض نفسها تأمر النموذج بهذه العبارة كلما غابت معلومة، كانت أغلب المحادثات
+    // تموت خلال أول رسائل («الوكيل لا يرد/لا يستخدم المخزون/يحوّل دون طلب العميل» — شكاوى حية).
+    // الآن مستويان:
+    //  - تحويل كامل (hardEscalationReasons): فشل أداة، بوابة الادّعاء، أداة handoff فعلية،
+    //    وعد تحويل نصّي، طلب صريح من العميل → يسكت الوكيل + إشعار تحويل للعميل + إشعار التاجر.
+    //  - تنبيه ناعم (needsAttention): «سأتأكد من الفريق» فقط → إشعار للتاجر + علامة needsHuman
+    //    في الوارد، والوكيل يواصل خدمة العميل طبيعياً — لا إسكات ولا إشعار تحويل.
+    const hardEscalationReasons: string[] = [];
+    if (hasToolProblem) hardEscalationReasons.push("tool_failure");
+    if (unbackedClaim) hardEscalationReasons.push(`unbacked_claim:${unbackedClaim}`);
+    if (paymentClaim) hardEscalationReasons.push("payment_confirmation_claim");
+    if (hasHandoff) hardEscalationReasons.push("handoff_tool");
+    if (replyPromisesHandoff(finalReply)) hardEscalationReasons.push("handoff_promise");
     if (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound)) {
-      escalationReasons.push("customer_request");
+      hardEscalationReasons.push("customer_request");
     }
-    const shouldEscalate = escalationReasons.length > 0;
-    // إشعار التحويل الصريح: العميل يجب أن يعرف أن المحادثة انتقلت لإنسان — لا انقطاع صامت.
+    const softAttentionReasons: string[] = [];
+    if (replyPromisesVerification(finalReply)) softAttentionReasons.push("verification_promise");
+
+    const shouldEscalate = hardEscalationReasons.length > 0;
+    const needsAttention = !shouldEscalate && softAttentionReasons.length > 0;
+    const escalationReasons = [...hardEscalationReasons, ...softAttentionReasons];
+    // إشعار التحويل الصريح: فقط مع التحويل الكامل — التنبيه الناعم لا يغيّر ردّ العميل إطلاقاً.
     // يُحسب بعد أسباب التصعيد (الإشعار نفسه لا يولّد سبباً) وقبل التخزين (يُخزَّن ما سيُرسَل فعلاً).
     const handoffCommunication = ensureHandoffCommunicated(finalReply, shouldEscalate);
     const outboundReply = handoffCommunication.reply;
@@ -493,6 +507,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
           rawOutput: modelText !== aiOutput.content ? aiOutput.content : undefined,
           decision: {
             escalated: shouldEscalate,
+            needsAttention,
             reasons: escalationReasons,
             replyReplacedByGuard: claimGuardTripped,
             handoffNoticeAppended: handoffCommunication.noticeAppended,
@@ -528,15 +543,9 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       estimatedCost: aiOutput.estimatedCost,
     });
 
-    // التصعيد ستّ طبقات (محسوبة أعلاه في escalationReasons قبل تخزين metadata):
-    // (1) فشل أداة → مراجعة بشرية. (2) بوابة ادّعاء التنفيذ: ادّعاء «تم» بلا أداة ناجحة أو
-    //     تأكيد دفع بأي صيغة → استُبدل الردّ وصُعِّد. (3) استدعاء handoff_to_human فعلياً =
-    //     المسار الأساسي الموثوق (بنية لا صياغة). (4) وعد التحويل نصّاً → ننفّذ الوعد بدل
-    //     تركه مكسوراً. (5) وعد «أتأكد من الفريق وأرجع لك» (العبارة التي تأمر بها قواعد
-    //     التأريض نفسها عند غياب المعرفة) → يُبلَّغ الفريق فعلاً بدل ترك العميل ينتظر للأبد.
-    //     (6) طلب صريح من العميل: تُفحص رسالته وحدها لا ردّ الوكيل (حادثة 3 يوليو).
-    // كل تصعيد يخرج للعميل بإشعار تحويل صريح (outboundReply) — لا انقطاع صامت (قرار مالك 9 يوليو).
-    return { reply: outboundReply, shouldEscalate, runId: run.id, toolResults };
+    // shouldEscalate = تحويل كامل فقط (يسكت الوكيل ويُبلَّغ العميل والتاجر).
+    // needsAttention = تنبيه ناعم فقط (يُبلَّغ التاجر، والوكيل يواصل) — انظر السياسة المتدرّجة أعلاه.
+    return { reply: outboundReply, shouldEscalate, needsAttention, runId: run.id, toolResults };
   } catch (err) {
     if ((err as { code?: string }).code === "ai_points_exhausted") {
       await db.update(aiRunsTable).set({
@@ -666,23 +675,25 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   const claimGuardTripped = unbackedClaim !== null || paymentClaim;
   const previewReply = claimGuardTripped ? SAFE_REVIEW_REPLY : candidateReply;
 
-  const escalationReasons: string[] = [];
-  if (unbackedClaim) escalationReasons.push(`unbacked_claim:${unbackedClaim}`);
-  if (paymentClaim) escalationReasons.push("payment_confirmation_claim");
-  if (intendedCalls.some((call) => call.name === "handoff_to_human")) escalationReasons.push("handoff_tool");
-  if (replyPromisesHandoff(previewReply)) escalationReasons.push("handoff_promise");
-  if (replyPromisesVerification(previewReply)) escalationReasons.push("verification_promise");
-  if (includesEscalationKeyword(message)) escalationReasons.push("customer_request");
-  // أمانة المحاكاة: نفس إشعار التحويل الذي سيلحقه المسار الحيّ عند التصعيد — المعاينة = المُرسَل.
-  const handoffCommunication = ensureHandoffCommunicated(previewReply, escalationReasons.length > 0);
+  // نفس السياسة المتدرّجة الحيّة: «سأتأكد من الفريق» تنبيه ناعم لا يحوّل ولا يغيّر الردّ —
+  // wouldEscalate هنا يعكس التحويل الكامل فقط (ما سيُسكِت الوكيل فعلاً)، والمعاينة = المُرسَل.
+  const hardReasons: string[] = [];
+  if (unbackedClaim) hardReasons.push(`unbacked_claim:${unbackedClaim}`);
+  if (paymentClaim) hardReasons.push("payment_confirmation_claim");
+  if (intendedCalls.some((call) => call.name === "handoff_to_human")) hardReasons.push("handoff_tool");
+  if (replyPromisesHandoff(previewReply)) hardReasons.push("handoff_promise");
+  if (includesEscalationKeyword(message)) hardReasons.push("customer_request");
+  const softReasons: string[] = [];
+  if (replyPromisesVerification(previewReply)) softReasons.push("verification_promise");
+  const handoffCommunication = ensureHandoffCommunicated(previewReply, hardReasons.length > 0);
 
   return {
     reply: handoffCommunication.reply,
     knowledgeSources: knowledgeSources.map((item) => item.title),
     sourcesDetailed: knowledgeSources.map((item) => ({ title: item.title, score: item.score ?? null })),
     toolCalls: intendedCalls,
-    wouldEscalate: escalationReasons.length > 0,
-    escalationReasons,
+    wouldEscalate: hardReasons.length > 0,
+    escalationReasons: [...hardReasons, ...softReasons],
     provider: aiOutput.provider,
     aiUnavailable: aiOutput.fallbackUsed === true || aiOutput.provider === "mock",
   };

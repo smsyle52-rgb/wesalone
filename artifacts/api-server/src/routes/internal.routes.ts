@@ -135,6 +135,7 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         externalThreadId: conversationsTable.externalThreadId,
         channel: conversationsTable.channel,
         agentStatus: conversationsTable.agentStatus,
+        needsHuman: conversationsTable.needsHuman,
       })
       .from(conversationsTable)
       .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)))
@@ -315,6 +316,21 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
         link: `/inbox?conversation=${conversationId}`,
       }).catch((err) => logger.warn({ err, conversationId }, "Failed to notify workspace of escalation"));
       emitWorkspaceEvent({ workspaceId, type: "conversation.needs_human", entityType: "conversation", entityId: conversationId, payload: { conversationId } });
+    } else if (agentReply.needsAttention && !conversation.needsHuman) {
+      // تنبيه ناعم (10 يوليو 2026 — إصلاح وباء الإسكات): الوكيل قال «سأتأكد من الفريق» لغياب
+      // معلومة. نعلّم المحادثة needsHuman ونُشعر التاجر مرة واحدة ليضيف المعلومة الناقصة —
+      // لكن الوكيل يبقى نشطاً (لا agent_status=human) فيواصل خدمة العميل في بقية أسئلته.
+      await db.update(conversationsTable)
+        .set({ needsHuman: true, escalationReason: "knowledge_gap", updatedAt: new Date() })
+        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.workspaceId, workspaceId)));
+      await notifyWorkspace({
+        workspaceId,
+        type: "conversation.needs_human",
+        titleAr: "الوكيل يحتاج معلومة",
+        bodyAr: "سأل عميل عن معلومة غير متوفرة لدى الوكيل — راجع المحادثة وأضف الإجابة لقاعدة المعرفة.",
+        link: `/inbox?conversation=${conversationId}`,
+      }).catch((err) => logger.warn({ err, conversationId }, "Failed to notify workspace of knowledge gap"));
+      emitWorkspaceEvent({ workspaceId, type: "conversation.needs_human", entityType: "conversation", entityId: conversationId, payload: { conversationId, soft: true } });
     }
 
     res.status(200).json({
