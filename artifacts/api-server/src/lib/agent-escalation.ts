@@ -104,9 +104,28 @@ export function includesEscalationKeyword(value: string): boolean {
   return ESCALATION_KEYWORDS.some((keyword) => normalized.includes(keyword));
 }
 
+// حادثة 6 يوليو 2026: الوكيل عرض «إذا تحتاج تحويل بشري سأحوّلك الآن» فحوّلته الشبكة فوراً دون
+// رضا العميل — رغم أن قواعد التأريض نفسها توجّهه أن «يسأل العميل إن كان يرغب بالتحويل». العرضُ
+// المشروط سلوك صحيح مقصود؛ الوعد الصريح وحده هو ما يُنفَّذ. الفحص جملةً-جملة حتى لا يُلغي عرضٌ
+// في جملةٍ وعداً صريحاً في جملة أخرى («قمت بتحويل طلبك. هل أساعدك بشيء آخر؟» تبقى وعداً).
+// «ان» المفردة مستبعدة عمداً من كلمات الشرط: تلتبس بـ«أن» المصدرية («يسعدني أن أحوّلك») و«الآن».
+const OFFER_MARKER_WORDS = ["اذا", "لو", "هل"];
+const OFFER_MARKER_SUBSTRINGS = ["تحب", "تبي", "تبغ", "ودك", "تريد", "ترغب", "يناسبك", "؟"];
+
+function isOfferSentence(normalizedSentence: string): boolean {
+  if (OFFER_MARKER_SUBSTRINGS.some((marker) => normalizedSentence.includes(marker))) return true;
+  const words = normalizedSentence.split(/\s+/);
+  return words.some((word) => OFFER_MARKER_WORDS.includes(word));
+}
+
 export function replyPromisesHandoff(reply: string): boolean {
-  const normalized = normalizeArabic(reply);
-  return HANDOFF_PROMISE_PATTERNS.some((pattern) => normalized.includes(pattern));
+  // التقسيم يُبقي علامة الجملة (lookbehind) حتى تُرى «؟» داخل جملتها عند فحص العرض.
+  const sentences = reply.split(/(?<=[.!؟?\n…])/);
+  return sentences.some((sentence) => {
+    const normalized = normalizeArabic(sentence);
+    if (!HANDOFF_PROMISE_PATTERNS.some((pattern) => normalized.includes(pattern))) return false;
+    return !isOfferSentence(normalized);
+  });
 }
 
 // ─── بوابة ادّعاء التنفيذ (7 يوليو 2026) ─────────────────────────────────────

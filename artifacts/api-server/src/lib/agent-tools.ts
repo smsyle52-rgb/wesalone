@@ -171,7 +171,7 @@ const TOOL_LABELS: Record<AgentToolKey, string> = {
   log_payment_claim: "Log a pending payment claim for human review. Never confirms money.",
   schedule_followup: "Schedule a future follow-up for the current contact.",
   send_product_media: "Send one product image from the merchant's inventory to the customer on the current channel (WhatsApp, Instagram, or Messenger).",
-  handoff_to_human: "Move the conversation to human handling immediately.",
+  handoff_to_human: "Move the conversation to human handling immediately. Call ONLY after the customer explicitly asked for a human, agreed to your offer, complained, or you cannot help from the context. NEVER call it in the same turn where you are merely OFFERING or asking whether the customer wants a transfer — offer first, then wait for their consent in their next message.",
 };
 
 function isAgentToolKey(value: string): value is AgentToolKey {
