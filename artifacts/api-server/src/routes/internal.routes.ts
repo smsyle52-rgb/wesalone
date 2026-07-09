@@ -174,7 +174,10 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       res.status(200).json({
         success: true,
         runId: agentReply.runId,
-        shouldEscalate: true,
+        // كان ثابتاً true — فرسالة فاضية/ملصق من العميل (shouldEscalate=false فعلياً) كانت تجعل
+        // الـworker يقلب المحادثة لبشري بصمت وبلا إشعار، ويصمت الوكيل عن العميل للأبد. نرجّع القيمة
+        // الحقيقية: التصعيد الصامت يحدث فقط حين يقرّره runAgentReply فعلاً (ومعه إشعار التاجر أعلاه).
+        shouldEscalate: agentReply.shouldEscalate,
         toolResults: agentReply.toolResults,
         outboxEventId: null,
       });
