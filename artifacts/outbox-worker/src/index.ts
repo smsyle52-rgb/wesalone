@@ -10,12 +10,6 @@ const AGENT_INTERVAL_MS = 5_000;
 const INGESTION_INTERVAL_MS = 3_000;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const CLEANUP_INTERVAL_MS = 300_000;
-// Burst coalescing (9 Jul 2026, live complaint): a customer typing 3 quick messages used to get
-// one reply per message — then the anti-loop counter hit 2 and silently PAUSED the agent for 30
-// minutes mid-conversation. message.received events now wait this long before being claimable,
-// so a burst settles first; combined with the superseded-event skip below, the whole burst gets
-// exactly ONE reply built from the full context. Worst-case added latency ≈ settle + one poll.
-const AGENT_SETTLE_SECONDS = Number(process.env.AGENT_SETTLE_SECONDS ?? "4");
 const INGEST_DEFERRED = process.env.INGEST_DEFERRED === "true";
 const EVENT_DISPATCHER = process.env.EVENT_DISPATCHER === "true";
 const AUTOMATIONS_WIRED = process.env.AUTOMATIONS_WIRED === "true";
@@ -687,8 +681,6 @@ export async function runOutboxSender(): Promise<void> {
 }
 
 async function claimDomainEvents(): Promise<DomainEventRow[]> {
-  // message.received waits AGENT_SETTLE_SECONDS before it can be claimed (burst coalescing);
-  // message.echo stays immediate — it only pauses the conversation, no reply is generated.
   const { rows } = await pool.query<DomainEventRow>(
     `
       UPDATE domain_events
@@ -697,50 +689,14 @@ async function claimDomainEvents(): Promise<DomainEventRow[]> {
         SELECT id FROM domain_events
         WHERE status='pending'
           AND event_type IN ('message.received', 'message.echo')
-          AND (event_type <> 'message.received' OR created_at <= NOW() - make_interval(secs => $1))
         ORDER BY created_at ASC
         LIMIT 5
         FOR UPDATE SKIP LOCKED
       )
       RETURNING id, workspace_id, event_type, entity_id, payload
     `,
-    [AGENT_SETTLE_SECONDS],
   );
   return rows;
-}
-
-// Burst coalescing, part 2: if the conversation already holds an inbound message NEWER than the
-// one this event was emitted for, skip this event — the newest message's own event will produce
-// one reply that answers the whole burst (runAgentReply reads the last 15 messages anyway).
-// Conservative: if the triggering message can't be resolved, process normally rather than skip.
-async function supersededByNewerInbound(event: DomainEventRow, conversation: ConversationRow): Promise<boolean> {
-  const payload = asRecord(event.payload);
-  const candidateIds = [stringField(payload, "messageId"), event.entity_id].filter(
-    (id): id is string => typeof id === "string" && id.length > 0,
-  );
-
-  for (const messageId of [...new Set(candidateIds)]) {
-    const { rows } = await pool.query<{ created_at: Date }>(
-      "SELECT created_at FROM messages WHERE id=$1 AND workspace_id=$2 AND conversation_id=$3 LIMIT 1",
-      [messageId, conversation.workspace_id, conversation.id],
-    );
-    const createdAt = rows[0]?.created_at;
-    if (!createdAt) continue; // entity_id may be the conversation id — try next candidate
-
-    const { rows: newer } = await pool.query(
-      `
-        SELECT 1 FROM messages
-        WHERE conversation_id=$1 AND workspace_id=$2
-          AND direction='inbound'
-          AND created_at > $3
-        LIMIT 1
-      `,
-      [conversation.id, conversation.workspace_id, createdAt],
-    );
-    return newer.length > 0;
-  }
-
-  return false;
 }
 
 async function fetchConversation(event: DomainEventRow): Promise<ConversationRow | undefined> {
@@ -962,14 +918,6 @@ async function handleDomainEvent(event: DomainEventRow): Promise<void> {
 
   if (event.event_type === "message.echo") {
     await pauseConversation(conversation.id);
-    await markDone(event.id);
-    return;
-  }
-
-  // Burst coalescing: a newer inbound message exists → its event replies for the whole burst.
-  // Checked BEFORE the anti-loop counter so a burst can no longer trip the 30-minute pause.
-  if (event.event_type === "message.received" && await supersededByNewerInbound(event, conversation)) {
-    console.log("agent-runner: coalesced superseded event", event.id, "conversation", conversation.id);
     await markDone(event.id);
     return;
   }
