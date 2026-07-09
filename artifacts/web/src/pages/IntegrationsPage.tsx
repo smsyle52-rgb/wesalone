@@ -485,19 +485,17 @@ export default function IntegrationsPage() {
         signupSessionErrorRef.current = message.errorMessage ?? "تعذر إكمال التسجيل المضمن من Meta.";
         return;
       }
-      if (
-        (message.eventName === "FINISH" || message.eventName === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING")
-        && (!message.info?.waba_id || !message.info?.phone_number_id)
-      ) {
-        signupSessionErrorRef.current = "اكتمل التسجيل المضمن لكن لم تصل معرفات واتساب المطلوبة.";
-        return;
-      }
+      // 9 يوليو 2026: حدث FINISH بلا معرّفات كاملة شائع على الجوال — كنا نعتبره خطأً فنُجهض،
+      // فلا يُستدعى /complete إطلاقاً ولا يعمل اكتشاف Graph في الخادم (وهذا سبب "صفر استدعاء"
+      // في السجلات). الآن لا نُجهض عند FINISH: نُسجّل ما وصل (ولو ناقصاً) وندع مهلة الـ60 ثانية
+      // تُكمل بالـcode، فيكتشف الخادم waba_id/phone_number_id من Graph. CANCEL/ERROR وحدهما يُجهضان.
       const info = message.info;
-      if (!info) return;
-      signupSessionInfoRef.current = {
-        ...signupSessionInfoRef.current,
-        ...info,
-      };
+      if (info) {
+        signupSessionInfoRef.current = {
+          ...signupSessionInfoRef.current,
+          ...info,
+        };
+      }
     }
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
