@@ -13,13 +13,13 @@ router.use(requireSession);
 const DELIVERY_POLICIES = ["all", "local", "pickup_only"] as const;
 
 const createSchema = z.object({
-  name: z.string().min(1, "ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬ ظ…ط·ظ„ظˆط¨").max(200),
+  name: z.string().min(1, "اسم المنتج مطلوب").max(200),
   description: z.string().max(1000).optional().nullable(),
   sku: z.string().max(100).optional().nullable(),
   price: z.number().min(0).default(0),
   currency: z.enum(["YER", "SAR", "USD"]).default("YER"),
   unit: z.string().max(50).optional().nullable(),
-  imageUrl: z.string().url("ط±ط§ط¨ط· ط§ظ„طµظˆط±ط© ط؛ظٹط± طµط­ظٹط­").max(2000).optional().nullable(),
+  imageUrl: z.string().url("رابط الصورة غير صحيح").max(2000).optional().nullable(),
   quantityAvailable: z.number().int().min(0).optional().nullable(),
   deliveryPolicy: z.enum(DELIVERY_POLICIES).default("all"),
 });
@@ -27,7 +27,7 @@ const createSchema = z.object({
 const updateSchema = createSchema.partial();
 
 const quantitySchema = z.object({
-  adjustment: z.number().int().refine((n) => n !== 0, { message: "ط§ظ„طھط¹ط¯ظٹظ„ ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ط؛ظٹط± طµظپط±" }),
+  adjustment: z.number().int().refine((n) => n !== 0, { message: "التعديل يجب أن يكون غير صفر" }),
 });
 
 // GET /api/products
@@ -52,7 +52,7 @@ router.get("/", requirePermission("products:read"), async (req: AuthenticatedReq
 router.post("/", requirePermission("products:create"), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "ط¨ظٹط§ظ†ط§طھ ط؛ظٹط± طµط­ظٹط­ط©" });
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
     return;
   }
 
@@ -96,7 +96,7 @@ router.get("/:id", requirePermission("products:read"), async (req: Authenticated
     ))
     .limit(1);
 
-  if (!product) { res.status(404).json({ error: "ط§ظ„ظ…ظ†طھط¬ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }); return; }
+  if (!product) { res.status(404).json({ error: "المنتج غير موجود" }); return; }
   res.json({ product });
 });
 
@@ -104,7 +104,7 @@ router.get("/:id", requirePermission("products:read"), async (req: Authenticated
 router.patch("/:id", requirePermission("products:update"), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "ط¨ظٹط§ظ†ط§طھ ط؛ظٹط± طµط­ظٹط­ط©" });
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
     return;
   }
 
@@ -114,7 +114,7 @@ router.patch("/:id", requirePermission("products:update"), async (req: Authentic
     .where(and(eq(inventoryProductsTable.id, req.params.id as string), eq(inventoryProductsTable.workspaceId, activeWorkspaceId)))
     .limit(1);
 
-  if (!existing) { res.status(404).json({ error: "ط§ظ„ظ…ظ†طھط¬ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }); return; }
+  if (!existing) { res.status(404).json({ error: "المنتج غير موجود" }); return; }
 
   const data = parsed.data;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -150,7 +150,7 @@ router.patch("/:id", requirePermission("products:update"), async (req: Authentic
 router.patch("/:id/quantity", requirePermission("products:update"), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = quantitySchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "ط¨ظٹط§ظ†ط§طھ ط؛ظٹط± طµط­ظٹط­ط©" });
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
     return;
   }
 
@@ -160,9 +160,9 @@ router.patch("/:id/quantity", requirePermission("products:update"), async (req: 
     .where(and(eq(inventoryProductsTable.id, req.params.id as string), eq(inventoryProductsTable.workspaceId, activeWorkspaceId)))
     .limit(1);
 
-  if (!existing) { res.status(404).json({ error: "ط§ظ„ظ…ظ†طھط¬ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }); return; }
+  if (!existing) { res.status(404).json({ error: "المنتج غير موجود" }); return; }
   if (existing.quantityAvailable === null) {
-    res.status(400).json({ error: "ط§ظ„ظ…ظ†طھط¬ ط؛ظٹط± ظ…ط­ط¯ظˆط¯ ط§ظ„ظƒظ…ظٹط© â€” ط¹ظٹظ‘ظ† ظƒظ…ظٹط© ط£ظˆظ„ط§ظ‹ ظ‚ط¨ظ„ ط§ظ„طھط¹ط¯ظٹظ„" });
+    res.status(400).json({ error: "المنتج غير محدود الكمية — عيّن كمية أولاً قبل التعديل" });
     return;
   }
 
@@ -183,7 +183,7 @@ router.delete("/:id", requirePermission("products:delete"), async (req: Authenti
     .where(and(eq(inventoryProductsTable.id, req.params.id as string), eq(inventoryProductsTable.workspaceId, activeWorkspaceId)))
     .limit(1);
 
-  if (!existing) { res.status(404).json({ error: "ط§ظ„ظ…ظ†طھط¬ ط؛ظٹط± ظ…ظˆط¬ظˆط¯" }); return; }
+  if (!existing) { res.status(404).json({ error: "المنتج غير موجود" }); return; }
 
   await db.update(inventoryProductsTable)
     .set({ isArchived: true, updatedAt: new Date() })
