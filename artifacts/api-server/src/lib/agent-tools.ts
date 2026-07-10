@@ -167,7 +167,7 @@ const handoffSchema = z.object({
 });
 
 const TOOL_LABELS: Record<AgentToolKey, string> = {
-  create_order: "Create a new order linked to the current conversation/contact.",
+  create_order: "Create a real order in the system. CALL THIS TOOL whenever the customer clearly wants to buy/order and the product and quantity are known — do NOT just say the order was placed; saying it without calling this tool is lying to the customer. If product or quantity is missing, ask the customer instead of calling.",
   log_payment_claim: "Log a pending payment claim for human review. Never confirms money.",
   schedule_followup: "Schedule a future follow-up for the current contact.",
   send_product_media: "Send one product image from the merchant's inventory to the customer on the current channel (WhatsApp, Instagram, or Messenger).",

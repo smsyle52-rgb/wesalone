@@ -460,7 +460,13 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     // log_payment_claim (الأداة تسجّل ادّعاءً معلّقاً فقط). القاعدة النصية وحدها ثبت اختراقها
     // (حادثة «299 ريال» ادّعى بعدها «قمت بتحويل طلبك») — هذه ترجمتها البنيوية.
     const successfulTools = toolResults.filter((result) => result.status === "success").map((result) => result.tool);
-    const unbackedClaim = hasToolProblem ? null : findUnbackedActionClaim(candidateReply, successfulTools);
+    // حادثة 10 يوليو: عميل له طلب سابق فعلي قد يُقال له صدقاً «تم تأكيد طلبك» بلا استدعاء
+    // create_order في هذا التشغيل — orderStatusContext غير الفارغ يعني وجود طلبات حقيقية له.
+    const unbackedClaim = hasToolProblem
+      ? null
+      : findUnbackedActionClaim(candidateReply, successfulTools, {
+          customerHasOrders: orderStatusContext.trim().length > 0,
+        });
     const paymentClaim = !hasToolProblem && replyConfirmsPayment(candidateReply);
     const claimGuardTripped = unbackedClaim !== null || paymentClaim;
     const finalReply = claimGuardTripped ? SAFE_REVIEW_REPLY : candidateReply;

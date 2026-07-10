@@ -140,6 +140,35 @@ describe("findUnbackedActionClaim — ادّعاء تنفيذ بلا أداة", 
   });
 });
 
+// حادثة 10 يوليو 2026 (مباشرة): عميل طلب أوردر، الوكيل ردّ «تم تأكيد طلبك، سيتواصل معك
+// الفريق» بلا استدعاء create_order — صفحة الطلبات بقيت فارغة والبوابة لم تُصعِّد وقتها.
+// customerHasOrders يميّز هذا الادّعاء الكاذب عن تقرير حالة صادق لعميل له طلب سابق فعلي.
+describe("findUnbackedActionClaim — خيار customerHasOrders", () => {
+  it("يكشف ادّعاء الحادثة الحيّة: بلا أدوات ناجحة ولا طلبات سابقة للعميل", () => {
+    expect(
+      findUnbackedActionClaim("تم تأكيد طلبك وسيتواصل معك الفريق", [], { customerHasOrders: false }),
+    ).toBe("create_order");
+  });
+
+  it("لا يكشف زوراً حين customerHasOrders=true (تقرير حالة صادق عن طلب موجود)", () => {
+    expect(
+      findUnbackedActionClaim("تم تأكيد طلبك وسيتواصل معك الفريق", [], { customerHasOrders: true }),
+    ).toBeNull();
+  });
+
+  it("يمرّ حين نجح create_order فعلاً في نفس التشغيل، بصرف النظر عن customerHasOrders", () => {
+    expect(
+      findUnbackedActionClaim("تم تأكيد طلبك وسيتواصل معك الفريق", ["create_order"]),
+    ).toBeNull();
+  });
+
+  it("يكشف عائلة «استلمنا طلبك» المضافة حديثاً: بلا أدوات ولا طلبات سابقة", () => {
+    expect(
+      findUnbackedActionClaim("استلمنا طلبك وجاري تجهيزه", [], { customerHasOrders: false }),
+    ).toBe("create_order");
+  });
+});
+
 // تأكيد الدفع محظور مطلقاً — حتى مع نجاح log_payment_claim (تسجّل ادّعاءً معلّقاً فقط).
 describe("replyConfirmsPayment — ادّعاء تأكيد مالي", () => {
   it.each([

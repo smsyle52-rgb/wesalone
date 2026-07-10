@@ -180,9 +180,13 @@ const ACTION_CLAIM_PATTERNS: Record<ActionClaimTool, string[]> = {
     "اضفت طلبك",
     "تم اضافه طلبك",
     "تم رفع طلبك",
+    "رفعت طلبك",
     "اكدت طلبك",
     "تم تاكيد طلبك",
     "تم تاكيد الطلب",
+    "تم استلام طلبك",
+    "استلمنا طلبك",
+    "طلبك تم بنجاح",
   ],
   schedule_followup: [
     "حجزت لك موعد",
@@ -225,13 +229,22 @@ export function replyConfirmsPayment(reply: string): boolean {
 
 // يعيد أول أداة ادّعى الردُّ تنفيذَها دون نتيجة ناجحة مطابقة لها — أو null إن كان الردّ صادقاً.
 // successfulTools = أسماء الأدوات التي أعادت status="success" في هذا التشغيل تحديداً.
+//
+// حادثة 10 يوليو 2026 (مباشرة): عميل طلب أوردر، الوكيل ردّ «تم تأكيد طلبك، سيتواصل معك
+// الفريق» بلا استدعاء create_order إطلاقاً — صفحة الطلبات بقيت فارغة. لكن نفس العبارة
+// حرفياً صادقة تماماً حين يقرأ الوكيل سياق طلب سابق فعلي للعميل (get_order_status يحقنه
+// في المطالبة) ويُخبره بحالته — هذا تقرير حالة لا ادّعاء تنفيذ. customerHasOrders يميّز
+// الحالتين: صحيح فقط حين للعميل طلبات موجودة فعلاً، فتُعفى ادّعاءات create_order وحدها
+// (schedule_followup لا يتأثر — لا سياق موعد مشابه يُحقن اليوم).
 export function findUnbackedActionClaim(
   reply: string,
   successfulTools: readonly string[],
+  opts?: { customerHasOrders?: boolean },
 ): ActionClaimTool | null {
   const normalized = normalizeArabic(reply);
   for (const [tool, patterns] of Object.entries(ACTION_CLAIM_PATTERNS) as [ActionClaimTool, string[]][]) {
     if (successfulTools.includes(tool)) continue;
+    if (tool === "create_order" && opts?.customerHasOrders === true) continue;
     if (patterns.some((pattern) => normalized.includes(pattern))) return tool;
   }
   return null;
