@@ -1,4 +1,4 @@
-import { Bot, Inbox, LayoutDashboard, MoreHorizontal, Users, type LucideIcon } from "lucide-react";
+import { Bot, Inbox, LayoutDashboard, MoreHorizontal, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
@@ -14,11 +14,13 @@ type MobileBottomNavProps = {
   hasPermission: (permission: string) => boolean;
 };
 
+// أربعة أقسام فقط بطلب المالك (تبسيط الشريط السفلي، 8 يوليو): العملاء انتقلت إلى
+// "المزيد" (MorePage.tsx) بدل أن تشغل تبويباً أساسياً. "الوكلاء" تفتح نفس مركز
+// automation-hub (وكلاء + معرفة + قوالب) — تسمية أوضح فقط، لا تغيير في الوجهة.
 const routeItems: MobileBottomNavItem[] = [
   { path: "/dashboard", label: "الرئيسية", icon: LayoutDashboard },
   { path: "/inbox", label: "الوارد", permission: "conversations:read", icon: Inbox },
-  { path: "/contacts", label: "العملاء", permission: "contacts:read", icon: Users },
-  { path: "/automation-hub", label: "الأتمتة", permission: "ai:read", icon: Bot },
+  { path: "/automation-hub", label: "الوكلاء", permission: "ai:read", icon: Bot },
   { path: "/more", label: "المزيد", icon: MoreHorizontal },
 ];
 

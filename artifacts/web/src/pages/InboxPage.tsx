@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { openInboxStream, type InboxStreamStatus } from "@/lib/realtime";
 import { FaWhatsapp, FaInstagram, FaFacebookMessenger } from "react-icons/fa6";
-import { Search, MoreHorizontal, Star, ArrowRight, User, FileText, ArrowLeftRight, StickyNote, Sparkles, Plus, Smile, Paperclip, Mic, Send, ShieldCheck, AlertTriangle, Clock } from "lucide-react";
+import { Search, MoreHorizontal, ArrowRight, User, FileText, ArrowLeftRight, StickyNote, Sparkles, Plus, Smile, Paperclip, Mic, Send, ShieldCheck, AlertTriangle, Clock, X, SlidersHorizontal, Pin } from "lucide-react";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
 
@@ -411,6 +411,22 @@ function providerLiveLabel(providerStatus: any): string {
   return "المساعد غير متاح مؤقتاً";
 }
 
+// تبسيط حالة المحادثة لعرض الجوال إلى حالة واحدة فقط من ثلاث (بدل تركيب
+// status/agentStatus/needsHuman/priority في عدة شارات متزامنة). مغلقة تعلو أي
+// شيء آخر؛ ثم الوكيل نشط فعلاً؛ وإلا فهي تحتاج تدخلاً بشرياً (لا وكيل مفعّل،
+// موقوف، أو مُصعَّد) — هذا يغطي كل الحالات الحقيقية بلا استثناء.
+type MobileConvStatus = "closed" | "ai_active" | "needs_human";
+function mobileConvStatus(c: { status?: string; agentStatus?: string | null; needsHuman?: boolean }): MobileConvStatus {
+  if (c.status === "closed" || c.status === "resolved") return "closed";
+  if (c.agentStatus === "active") return "ai_active";
+  return "needs_human";
+}
+const MOBILE_STATUS_BADGE: Record<MobileConvStatus, { label: string; className: string }> = {
+  ai_active: { label: "الذكاء يرد", className: "bg-green-50 text-green-700 border-green-200" },
+  needs_human: { label: "تحتاج تدخل", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  closed: { label: "مغلقة", className: "bg-gray-100 text-gray-500 border-gray-200" },
+};
+
 export default function InboxPage() {
   const { hasPermission, user } = useAuth();
   const qc = useQueryClient();
@@ -493,7 +509,31 @@ export default function InboxPage() {
   const [quickForm, setQuickForm] = useState({ title: "", priority: "normal", type: "manual", dueAt: "", notes: "" });
   const [orderForm, setOrderForm] = useState({ channel: "manual", currency: "YER", notes: "" });
   const [realtimeStatus, setRealtimeStatus] = useState<InboxStreamStatus>("reconnecting");
-  const [showMobileAiSheet, setShowMobileAiSheet] = useState(false);
+
+  // ── إعادة تصميم الجوال (8 يوليو) ──────────────────────────────────────────
+  const [mobileStatusFilter, setMobileStatusFilter] = useState<"" | "needs_human" | "ai_active" | "closed">("");
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [showMobileMoreMenu, setShowMobileMoreMenu] = useState(false);
+  const [showMobileCustomerInfo, setShowMobileCustomerInfo] = useState(false);
+  const [showMobileTransfer, setShowMobileTransfer] = useState(false);
+  const [showMobileAttach, setShowMobileAttach] = useState(false);
+  const [showMobileConvSearch, setShowMobileConvSearch] = useState(false);
+  const [convSearchQuery, setConvSearchQuery] = useState("");
+  const [suggestReplyLoading, setSuggestReplyLoading] = useState(false);
+  const [suggestReplyError, setSuggestReplyError] = useState<string | null>(null);
+  // تثبيت المحادثات: لا عمود pinned في قاعدة البيانات (ولا نضيف هجرة لهذا التبسيط
+  // البصري) — تثبيت محلي حقيقي عبر localStorage بدل زر شكلي بلا وظيفة. يبقى على
+  // هذا الجهاز فقط؛ ليس مشتركاً بين أعضاء الفريق.
+  const [pinnedConvIds, setPinnedConvIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("wesal:pinnedConversations") ?? "[]"); } catch { return []; }
+  });
+  function togglePinConversation(convId: string) {
+    setPinnedConvIds((prev) => {
+      const next = prev.includes(convId) ? prev.filter((id) => id !== convId) : [convId, ...prev];
+      try { localStorage.setItem("wesal:pinnedConversations", JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
   selectedConvIdRef.current = selectedConvId;
 
   const { data: workspaceData } = useQuery({
@@ -883,6 +923,30 @@ export default function InboxPage() {
     finally { setAiLoading(false); }
   }
 
+  // نسخة الجوال من "اقترح رد": نفس نقطة الاتصال (ai/runs/draft-reply) التي
+  // يستخدمها runAIDraft، لكن تكتب الناتج مباشرة في مربع الكتابة كمسودة قابلة
+  // للتعديل بدل عرضه في بطاقة منفصلة تحتاج ضغطة "إدراج" إضافية. حالة تحميل/خطأ
+  // مستقلة عن aiLoading/aiError المشتركة مع تلخيص/تصنيف حتى لا تتزاحم الحالتان.
+  async function runSuggestReplyIntoComposer() {
+    if (!selectedConvId) return;
+    setSuggestReplyLoading(true);
+    setSuggestReplyError(null);
+    try {
+      const res = await apiFetch("ai/runs/draft-reply", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: selectedConvId, model: "mock" }),
+      });
+      if (res.draft) {
+        setMessageText(res.draft);
+        setMessageMode("reply");
+      }
+    } catch (e) {
+      setSuggestReplyError((e as Error).message || "تعذّر توليد الاقتراح");
+    } finally {
+      setSuggestReplyLoading(false);
+    }
+  }
+
   function selectConv(conv: any) {
     setSelectedConvId(conv.id);
     setDetailTab("conversation");
@@ -974,6 +1038,20 @@ export default function InboxPage() {
           ? { label: "👤 يرد بشري", className: "bg-gray-50 text-gray-700 border-gray-200" }
           : null;
 
+  // بطاقة الجوال المبسّطة: قرار واحد فقط — الوكيل يرد أو الموظف يتولى. "موقوف
+  // مؤقتاً" و"يحتاج تفعيلاً" (needsHuman) كلاهما "الموظف يتولي" من منظور المستخدم؛
+  // agentStatusAction أعلاه يعطي فعلياً نفس الإجراء التالي الصحيح لكلتا الحالتين
+  // مسبقاً، فلا حاجة لتغيير أي منطق — تبسيط عرض فقط.
+  const mobileAgentCardIsHuman = agentStatus !== "active";
+  // زر واحد ديناميكي بدل قائمة انتقالات الحالة الكاملة: لو توجد خطوة "إغلاق"
+  // حقيقية (resolved/closed) نسمّيها "إغلاق المحادثة" بدل كلمة "حل"؛ غير ذلك
+  // نعرض أول إجراء متاح بتسميته الأصلية (مثل "إعادة فتح" لمحادثة مغلقة فعلاً).
+  const closingAction = statusActions.find((a) => a.next === "resolved" || a.next === "closed");
+  const primaryStatusAction = closingAction ?? statusActions[0] ?? null;
+  const primaryStatusLabel = primaryStatusAction
+    ? (primaryStatusAction.next === "resolved" || primaryStatusAction.next === "closed" ? "إغلاق المحادثة" : primaryStatusAction.label)
+    : null;
+
   if (!canRead) {
     return (
       <div dir="rtl" className="p-6">
@@ -995,151 +1073,126 @@ export default function InboxPage() {
         {mobileView === "list" && (
           <>
             {/* Header */}
-            <header className="shrink-0 flex items-center justify-between px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 bg-background border-b border-border">
-              <button className="h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground">
-                <Search size={18} />
+            <header className="shrink-0 flex items-center gap-2 px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 bg-background border-b border-border">
+              <button
+                onClick={() => setShowMobileSearch((v) => { const next = !v; if (!next) setSearchQuery(""); return next; })}
+                className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground"
+              >
+                {showMobileSearch ? <X size={18} /> : <Search size={18} />}
               </button>
-              <h1 className="text-base font-black text-foreground tracking-tight">{workspaceName}</h1>
+              {showMobileSearch ? (
+                <input
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ابحث بالاسم أو الرقم..."
+                  className="flex-1 min-w-0 rounded-full border border-border bg-muted px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              ) : (
+                <h1 className="flex-1 min-w-0 text-base font-black text-foreground tracking-tight truncate">{workspaceName}</h1>
+              )}
+              <button
+                onClick={() => setShowMobileFilters(true)}
+                className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground"
+                title="فلاتر متقدمة"
+              >
+                <SlidersHorizontal size={16} />
+              </button>
               <ContactInitials name={user?.name} size={36} />
             </header>
 
             {pointsAlert && <div className="shrink-0 px-3 py-2">{pointsAlert}</div>}
 
-            {/* Channel Filter Chips */}
+            {/* شريط حالة واحد مبسّط: الكل / تحتاج تدخل / الذكاء يرد / مغلقة — بدل شرائط
+                القنوات + بطاقة الإحصاءات + شارات متعددة متزامنة على كل بطاقة. */}
             <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 overflow-x-auto border-b border-border/40" style={{ scrollbarWidth: "none" }}>
               {(
                 [
-                  { key: "", label: "الكل", icon: null, special: false },
-                  { key: "unread", label: `غير مقروءة${list.filter((c: any) => (c.unreadCount ?? 0) > 0).length > 0 ? ` ${list.filter((c: any) => (c.unreadCount ?? 0) > 0).length}` : ""}`, icon: null, special: true },
-                  { key: "whatsapp", label: "واتساب", icon: <FaWhatsapp size={13} className="text-[#128C4A]" />, special: false },
-                  { key: "instagram", label: "إنستغرام", icon: <FaInstagram size={13} className="text-pink-600" />, special: false },
-                  { key: "messenger", label: "ماسنجر", icon: <FaFacebookMessenger size={13} className="text-blue-600" />, special: false },
-                ] as { key: string; label: string; icon: React.ReactNode; special: boolean }[]
-              ).map(({ key, label, icon, special }) => {
-                const isActive = special ? statusFilter === "new" : key === "" ? (channelFilter === "" && statusFilter !== "new") : channelFilter === key;
+                  { key: "", label: "الكل" },
+                  { key: "needs_human", label: "تحتاج تدخل" },
+                  { key: "ai_active", label: "الذكاء يرد" },
+                  { key: "closed", label: "مغلقة" },
+                ] as { key: typeof mobileStatusFilter; label: string }[]
+              ).map(({ key, label }) => {
+                const isActive = mobileStatusFilter === key;
                 return (
                   <button
                     key={key}
-                    onClick={() => {
-                      if (special) setStatusFilter(statusFilter === "new" ? "" : "new");
-                      else { setChannelFilter(channelFilter === key ? "" : key); if (statusFilter === "new") setStatusFilter(""); }
-                    }}
+                    onClick={() => setMobileStatusFilter(key)}
                     className={cn(
-                      "shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.75rem] font-bold whitespace-nowrap border transition-colors",
-                      isActive
-                        ? special ? "bg-red-500 text-white border-red-500" : "bg-primary text-primary-foreground border-primary"
-                        : "bg-muted text-muted-foreground border-border"
+                      "shrink-0 rounded-full px-3.5 py-1.5 text-[0.8rem] font-bold whitespace-nowrap border transition-colors",
+                      isActive ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-border"
                     )}
                   >
-                    {icon}
-                    <span>{label}</span>
+                    {label}
                   </button>
                 );
               })}
             </div>
 
-            {/* Stats Card */}
-            <div className="shrink-0 mx-3 my-2 rounded-2xl border border-border bg-card px-4 py-3 grid grid-cols-3 gap-2 text-center">
-              <div>
-                <div className="text-xl font-black text-foreground">
-                  {list.filter((c: any) => c.status === "open" || c.status === "new").length}
-                </div>
-                <div className="text-[0.65rem] text-muted-foreground leading-tight mt-0.5">المحادثات{"\n"}النشطة</div>
-              </div>
-              <div className="border-x border-border">
-                <div className="text-xl font-black text-amber-500">
-                  {list.filter((c: any) => (c.unreadCount ?? 0) > 0).length}
-                </div>
-                <div className="text-[0.65rem] text-muted-foreground leading-tight mt-0.5">بانتظار{"\n"}الرد</div>
-              </div>
-              <div>
-                <div className="text-xl font-black text-red-500">
-                  {list.filter((c: any) => (c.unreadCount ?? 0) > 0 && c.lastMessageAt && new Date(c.lastMessageAt).getTime() < Date.now() - defaultSlaMinutes * 60 * 1000).length}
-                </div>
-                <div className="text-[0.65rem] text-muted-foreground leading-tight mt-0.5">متأخرة</div>
-              </div>
-            </div>
-
-            {/* List label */}
-            <div className="shrink-0 flex items-center justify-between px-4 mb-1">
-              <span className="text-sm font-bold text-foreground">المحادثات</span>
-              <span className="text-xs text-muted-foreground">الأحدث أولاً</span>
-            </div>
-
-            {/* Conversation Items */}
+            {/* Conversation Items — بطاقة مبسّطة: صورة/حرف، اسم، آخر رسالة، وقت، رمز
+                القناة، وحالة واحدة فقط. المثبّتة (محلياً) تعلو القائمة. */}
             <div className="flex-1 overflow-y-auto">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-40 text-muted-foreground text-sm animate-pulse">جار التحميل...</div>
-              ) : sortedList.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground text-sm">
-                  <span className="text-2xl">📭</span>
-                  <span>لا توجد محادثات</span>
-                </div>
-              ) : (
-                sortedList.map((c: any) => {
-                  const conversationLabels = normalizeConversationLabels(c.labels);
-                  const unifiedStatus = normalizeConversationStatus(c.status, c.lifecycleState);
-                  const assignedListMember = c.assignedMembershipId
-                    ? memberByMembershipId.get(String(c.assignedMembershipId))
-                    : null;
-
+              {(() => {
+                const filtered = mobileStatusFilter
+                  ? sortedList.filter((c: any) => mobileConvStatus(c) === mobileStatusFilter)
+                  : sortedList;
+                const displayList = [...filtered].sort((a, b) => {
+                  const pinnedA = pinnedConvIds.includes(a.id) ? 1 : 0;
+                  const pinnedB = pinnedConvIds.includes(b.id) ? 1 : 0;
+                  return pinnedB - pinnedA;
+                });
+                if (isLoading) {
+                  return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm animate-pulse">جار التحميل...</div>;
+                }
+                if (displayList.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground text-sm">
+                      <span className="text-2xl">📭</span>
+                      <span>لا توجد محادثات</span>
+                    </div>
+                  );
+                }
+                return displayList.map((c: any) => {
+                  const badge = MOBILE_STATUS_BADGE[mobileConvStatus(c)];
+                  const isPinned = pinnedConvIds.includes(c.id);
                   return (
                     <button key={c.id} onClick={() => selectConv(c)} className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3.5 border-b border-border/40 transition-colors text-start",
-                    selectedConvId === c.id ? "bg-primary/8" : "hover:bg-muted/30"
-                  )}>
-                    <div className="relative shrink-0">
-                      <ContactInitials name={c.contactName} size={44} />
-                      <span className="absolute -bottom-0.5 -start-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-card shadow ring-1 ring-card">
-                        <ChannelIconBadge channel={c.channel} size={12} />
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <span className="min-w-0 flex-1">
-                          <span className={cn("block truncate text-sm", (c.unreadCount ?? 0) > 0 ? "font-black text-foreground" : "font-semibold text-foreground/80")}>
-                            {c.contactName ?? "عميل غير معروف"}
-                          </span>
-                          {c.contactPhone && <span dir="ltr" className="block truncate text-[0.72rem] text-muted-foreground">{c.contactPhone}</span>}
+                      "w-full flex items-center gap-3 px-4 py-3.5 border-b border-border/40 transition-colors text-start",
+                      selectedConvId === c.id ? "bg-primary/8" : "hover:bg-muted/30"
+                    )}>
+                      <div className="relative shrink-0">
+                        <ContactInitials name={c.contactName} size={44} />
+                        <span className="absolute -bottom-0.5 -start-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-card shadow ring-1 ring-card">
+                          <ChannelIconBadge channel={c.channel} size={12} />
                         </span>
-                        <DisplayIdBadge value={c.displayId} />
-                        <span className="text-[0.68rem] text-muted-foreground shrink-0">{timeAgo(c.lastMessageAt ?? c.createdAt)}</span>
                       </div>
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs text-muted-foreground truncate leading-snug">{c.lastMessage ?? c.subject ?? "—"}</span>
-                        {(c.unreadCount ?? 0) > 0 && (
-                          <span className="shrink-0 h-5 min-w-5 rounded-full bg-primary text-primary-foreground text-[0.65rem] font-black flex items-center justify-center px-1">
-                            {c.unreadCount}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                          <span className="min-w-0 flex-1 flex items-center gap-1">
+                            {isPinned && <Pin size={11} className="shrink-0 text-primary" fill="currentColor" />}
+                            <span className={cn("block truncate text-sm", (c.unreadCount ?? 0) > 0 ? "font-black text-foreground" : "font-semibold text-foreground/80")}>
+                              {c.contactName ?? "عميل غير معروف"}
+                            </span>
                           </span>
-                        )}
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                        <CompactStatusChip status={unifiedStatus} />
-                        <AssignmentChip member={assignedListMember} membershipId={c.assignedMembershipId} compact />
-                      </div>
-                      {conversationLabels.length > 0 && (
-                        <div className="mt-1">
-                          <LabelsRow labels={conversationLabels} compact />
+                          <span className="text-[0.68rem] text-muted-foreground shrink-0">{timeAgo(c.lastMessageAt ?? c.createdAt)}</span>
                         </div>
-                      )}
-                      {(c.priority === "high" || c.priority === "urgent" || c.agentStatus === "active" || c.needsHuman) && (
-                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                          {(c.priority === "high" || c.priority === "urgent") && (
-                            <span className="text-[0.6rem] px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 font-bold">أولوية عالية</span>
-                          )}
-                          {c.agentStatus === "active" && (
-                            <span className="text-[0.6rem] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-200 font-bold">يتابعه الذكاء</span>
-                          )}
-                          {c.needsHuman && (
-                            <span className="text-[0.6rem] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border font-bold">محول لموظف</span>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs text-muted-foreground truncate leading-snug">{c.lastMessage ?? c.subject ?? "—"}</span>
+                          {(c.unreadCount ?? 0) > 0 && (
+                            <span className="shrink-0 h-5 min-w-5 rounded-full bg-primary text-primary-foreground text-[0.65rem] font-black flex items-center justify-center px-1">
+                              {c.unreadCount}
+                            </span>
                           )}
                         </div>
-                      )}
-                    </div>
+                        <div className="mt-1.5">
+                          <span className={cn("text-[0.68rem] px-2 py-0.5 rounded-full border font-bold", badge.className)}>{badge.label}</span>
+                        </div>
+                      </div>
                     </button>
                   );
-                })
-              )}
+                });
+              })()}
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-3 px-4 py-3 border-t border-border/40 text-xs text-muted-foreground">
                   <button
@@ -1183,13 +1236,13 @@ export default function InboxPage() {
             أثناء الدردشة = 183px من 812px (22%) كانت تُسرق من مساحة الرسائل. */}
         {mobileView === "detail" && (
           <div className="fixed inset-0 z-30 flex flex-col bg-background lg:hidden">
-            {/* Conversation Header */}
+            {/* Conversation Header — رجوع، صورة، اسم، القناة+آخر نشاط، ⋮ فقط */}
             <header className="shrink-0 flex items-center gap-2 px-3 pt-[calc(0.6rem+env(safe-area-inset-top))] pb-3 bg-background border-b border-border">
               <button onClick={() => setMobileView("list")} className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted hover:bg-muted/80 text-foreground">
                 <ArrowRight size={18} />
               </button>
               {conv ? (
-                <div className="flex-1 min-w-0 flex items-center justify-center gap-2">
+                <div className="flex-1 min-w-0 flex items-center gap-2">
                   <div className="relative shrink-0">
                     <ContactInitials name={conv.contactName} size={36} />
                     <span className="absolute -bottom-0.5 -start-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-card shadow ring-1 ring-card">
@@ -1198,60 +1251,60 @@ export default function InboxPage() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm font-bold text-foreground truncate">{conv.contactName ?? "عميل غير معروف"}</div>
-                    <div className="text-xs text-muted-foreground">{channelLabels[conv.channel] ?? conv.channel} · {statusLabels[conv.status] ?? conv.status}</div>
+                    <div className="text-xs text-muted-foreground truncate">{channelLabels[conv.channel] ?? conv.channel} · آخر نشاط {timeAgo(conv.lastMessageAt ?? conv.updatedAt)}</div>
                   </div>
                 </div>
               ) : (
                 <div className="flex-1" />
               )}
-              <div className="flex items-center gap-1 shrink-0">
-                <button className="h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80">
-                  <Search size={16} />
-                </button>
-                <button className="h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80">
-                  <Star size={16} />
-                </button>
-                {conv && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80">
-                        <MoreHorizontal size={16} />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      {canManageConversationAgent && (
-                        <DropdownMenuItem onClick={() => changeAgentStatus.mutate({ convId: conv.id, status: agentStatusAction })}>
-                          {needsAgentReactivation ? "إعادة للوكيل" : agentStatus === "active" ? "إيقاف الوكيل" : "إعادة الوكيل"}
-                        </DropdownMenuItem>
-                      )}
-                      {statusActions.map((a) => (
-                        <DropdownMenuItem key={a.next} onClick={() => changeStatus.mutate({ convId: conv.id, status: a.next })}>
-                          {a.label}
-                        </DropdownMenuItem>
-                      ))}
-                      {waLink && (
-                        <DropdownMenuItem onClick={() => window.open(waLink, "_blank")}>
-                          فتح واتساب
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
+              {conv && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80">
+                      <MoreHorizontal size={16} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => setShowMobileConvSearch(true)}>
+                      البحث داخل المحادثة
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => togglePinConversation(conv.id)}>
+                      {pinnedConvIds.includes(conv.id) ? "إلغاء تثبيت المحادثة" : "تثبيت المحادثة"}
+                    </DropdownMenuItem>
+                    {waLink && (
+                      <DropdownMenuItem onClick={() => window.open(waLink, "_blank")}>
+                        فتح في واتساب
+                      </DropdownMenuItem>
+                    )}
+                    {canResolve && primaryStatusAction && (
+                      <DropdownMenuItem onClick={() => changeStatus.mutate({ convId: conv.id, status: primaryStatusAction.next })}>
+                        {primaryStatusLabel}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </header>
 
-            {/* Agent status bar */}
-            {conv && showAgentControls && agentBadge && (
-              <div className="shrink-0 flex items-center justify-between px-4 py-2 bg-muted/30 border-b border-border/50">
-                <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium", agentBadge.className)}>{agentBadge.label}</span>
+            {/* بطاقة حالة واحدة: الوكيل يرد، أو الموظف يتولى — قرار واحد بزر واحد */}
+            {conv && showAgentControls && (
+              <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-2.5 bg-muted/30 border-b border-border/50">
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-foreground">
+                    {mobileAgentCardIsHuman ? "أنت تتولى المحادثة" : "الوكيل يرد تلقائياً"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {mobileAgentCardIsHuman ? "تم إيقاف الوكيل مؤقتاً في هذه المحادثة" : "الوكيل نشط ويرد نيابة عنك"}
+                  </div>
+                </div>
                 {canManageConversationAgent && (
                   <button
                     onClick={() => changeAgentStatus.mutate({ convId: conv.id, status: agentStatusAction })}
                     disabled={changeAgentStatus.isPending}
-                    className={cn("px-3 py-1 rounded-full text-xs font-medium border disabled:opacity-50",
-                      needsAgentReactivation ? "bg-green-600 text-white border-green-600" : "bg-muted text-muted-foreground border-border")}
+                    className={cn("shrink-0 px-3.5 py-2 rounded-full text-xs font-bold border disabled:opacity-50 min-h-11",
+                      mobileAgentCardIsHuman ? "bg-primary text-primary-foreground border-primary" : "bg-background text-foreground border-border")}
                   >
-                    {needsAgentReactivation ? "إعادة للوكيل" : agentStatus === "active" ? "أوقف" : "أعد الوكيل"}
+                    {mobileAgentCardIsHuman ? "إعادة للوكيل" : "استلام المحادثة"}
                   </button>
                 )}
               </div>
@@ -1264,19 +1317,18 @@ export default function InboxPage() {
               </div>
             )}
 
-            {/* Horizontal Action Bar */}
+            {/* شريط الأدوات: معلومات العميل / تحويل / المزيد فقط — الباقي داخل المزيد */}
             {conv && (
               <div className="shrink-0 flex items-stretch bg-card border-b border-border">
                 {[
-                  { icon: <User size={16} />, label: "معلومات العميل", action: undefined as (() => void) | undefined },
-                  { icon: <FileText size={16} />, label: "قالب", action: undefined as (() => void) | undefined },
-                  { icon: <ArrowLeftRight size={16} />, label: "تحويل", action: undefined as (() => void) | undefined },
-                  { icon: <StickyNote size={16} />, label: "ملاحظة", action: () => setMessageMode("note") as void },
+                  { icon: <User size={16} />, label: "معلومات العميل", action: () => setShowMobileCustomerInfo(true) },
+                  { icon: <ArrowLeftRight size={16} />, label: "تحويل", action: () => setShowMobileTransfer(true) },
+                  { icon: <MoreHorizontal size={16} />, label: "المزيد", action: () => setShowMobileMoreMenu(true) },
                 ].map(({ icon, label, action }) => (
                   <button
                     key={label}
                     onClick={action}
-                    className="flex flex-col items-center justify-center gap-1 flex-1 py-2.5 hover:bg-muted/50 transition-colors border-e border-border last:border-e-0"
+                    className="flex flex-col items-center justify-center gap-1 flex-1 py-2.5 hover:bg-muted/50 transition-colors border-e border-border last:border-e-0 min-h-11"
                   >
                     <span className="text-muted-foreground">{icon}</span>
                     <span className="text-[0.6rem] text-muted-foreground font-medium">{label}</span>
@@ -1337,28 +1389,10 @@ export default function InboxPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* AI Result Card (summary/draft/classify above composer) */}
-            {canUseAI && aiPanel === "draft" && aiDraft && (
-              <div className="shrink-0 mx-3 mb-2 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles size={14} className="text-purple-600" />
-                  <span className="text-xs font-bold text-purple-700">اقتراح الذكاء</span>
-                  <button onClick={() => { setAiPanel(null); setAiDraft(null); }} className="ms-auto text-purple-400 hover:text-purple-600 text-sm">✕</button>
-                </div>
-                <p className="text-xs text-purple-900 leading-relaxed mb-3">{aiDraft}</p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => { setMessageText(aiDraft); setMessageMode("reply"); setAiPanel(null); setAiDraft(null); }}
-                    className="flex-1 rounded-xl bg-purple-600 text-white text-xs font-bold py-2 hover:bg-purple-700 transition-colors"
-                  >
-                    إدراج الرد +
-                  </button>
-                  <button className="px-3 py-2 rounded-xl border border-purple-200 text-xs font-medium text-purple-700 hover:bg-purple-100 flex items-center gap-1">
-                    تعديل ✏
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* نتيجة "تلخيص المحادثة" — الأداة الوحيدة المتبقية ظاهرة على الجوال غير
+                اقتراح الرد (الذي انتقل مباشرة لشريط الكتابة). التصنيف واقتراح
+                الخطوة التالية ما زالا يعملان على الديسكتوب، لم يُحذَفا، فقط لم
+                يعودا مربوطين بواجهة الجوال كي لا تزدحم الشاشة. */}
             {canUseAI && aiPanel === "summary" && aiSummary && (
               <div className="shrink-0 mx-3 mb-2 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3">
                 <div className="flex items-center gap-2 mb-1.5">
@@ -1369,56 +1403,17 @@ export default function InboxPage() {
                 <p className="text-xs text-purple-900 leading-relaxed">{aiSummary}</p>
               </div>
             )}
-            {canUseAI && aiPanel === "classify" && aiClassify && (
-              <div className="shrink-0 mx-3 mb-2 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Sparkles size={14} className="text-purple-600" />
-                  <span className="text-xs font-bold text-purple-700">تصنيف المحادثة</span>
-                  <button onClick={() => { setAiPanel(null); setAiClassify(null); }} className="ms-auto text-purple-400 hover:text-purple-600 text-sm">✕</button>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {aiClassify.category != null && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">{formatAiCategory(aiClassify.category)}</span>}
-                  {aiClassify.priority != null && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{formatAiPriority(aiClassify.priority)}</span>}
-                  {aiClassify.sentiment != null && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{formatAiSentiment(aiClassify.sentiment)}</span>}
-                </div>
+            {canUseAI && aiPanel === "summary" && aiLoading && (
+              <div className="shrink-0 mx-3 mb-2 text-center text-xs text-purple-600 animate-pulse">جارٍ تلخيص المحادثة...</div>
+            )}
+            {canUseAI && aiPanel === "summary" && aiError && (
+              <div className="shrink-0 mx-3 mb-2 flex items-center justify-between gap-2 text-xs text-destructive bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                <span>{aiError}</span>
+                <button onClick={runAISummarize} className="shrink-0 font-bold underline">إعادة المحاولة</button>
               </div>
-            )}
-            {/* عطل مكتشف بالاختبار الحي (3 يوليو): «اقترح الخطوة التالية» ينجح فعلياً
-                (runAISuggest يُرجع النتيجة بنجاح) لكن الجوال لا يملك كتلة عرض لها —
-                النتيجة تضيع بصمت. نُسخت بطاقة الديسكتوب المطابقة (aiPanel==="suggest") حرفياً. */}
-            {canUseAI && aiPanel === "suggest" && (
-              <div className="shrink-0 mx-3 mb-2 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Sparkles size={14} className="text-purple-600" />
-                  <span className="text-xs font-bold text-purple-700">اقتراح الخطوة التالية</span>
-                  <button onClick={() => { setAiPanel(null); setAiSuggestions([]); }} className="ms-auto text-purple-400 hover:text-purple-600 text-sm">✕</button>
-                </div>
-                {aiSuggestions.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {aiSuggestions.map((s: any, i: number) => (
-                      <div key={i} className="flex items-start gap-2 text-xs text-purple-900">
-                        <span className="text-purple-400 mt-0.5">•</span>
-                        <div>
-                          <span className="font-medium">{formatAiSuggestionLabel(s)}</span>
-                          {s.reason && <span className="text-purple-600 ms-1">— {s.reason}</span>}
-                        </div>
-                      </div>
-                    ))}
-                    <p className="text-xs text-purple-500 pt-1">راجع طلبات الاعتماد في صفحة وكلاء الذكاء الاصطناعي</p>
-                  </div>
-                ) : !aiLoading && !aiError ? (
-                  <p className="text-xs text-purple-900">لا توجد اقتراحات لهذه المحادثة</p>
-                ) : null}
-              </div>
-            )}
-            {canUseAI && aiLoading && (
-              <div className="shrink-0 mx-3 mb-2 text-center text-xs text-purple-600 animate-pulse">الذكاء الاصطناعي يعمل...</div>
-            )}
-            {canUseAI && aiError && (
-              <div className="shrink-0 mx-3 mb-2 text-xs text-destructive bg-red-50 border border-red-200 rounded-xl px-3 py-2">{aiError}</div>
             )}
 
-            {/* Composer */}
+            {/* Composer: [+] [نص] [اقتراح رد — للموظف فقط] [إرسال] */}
             {canReply ? (
               <div className="shrink-0 bg-background border-t border-border px-3 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
                 {workspaceName && (
@@ -1426,16 +1421,22 @@ export default function InboxPage() {
                     الرد سيكون من فريق {workspaceName}
                   </div>
                 )}
+                {suggestReplyError && (
+                  <div className="flex items-center justify-between gap-2 text-xs text-destructive bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-2">
+                    <span>{suggestReplyError}</span>
+                    <button onClick={runSuggestReplyIntoComposer} className="shrink-0 font-bold underline">إعادة المحاولة</button>
+                  </div>
+                )}
                 <div className={cn(
                   "flex items-center gap-2 rounded-2xl border px-3 py-2",
                   messageMode === "note" ? "border-yellow-300 bg-yellow-50" : "border-border bg-card"
                 )}>
                   <button
-                    onClick={() => setShowMobileAiSheet(true)}
-                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-purple-50 text-purple-600 hover:bg-purple-100"
-                    title="أدوات الذكاء"
+                    onClick={() => setShowMobileAttach(true)}
+                    className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80"
+                    title="إرفاق"
                   >
-                    <Sparkles size={15} />
+                    <Plus size={17} />
                   </button>
                   <textarea
                     ref={mobileComposerRef}
@@ -1449,6 +1450,21 @@ export default function InboxPage() {
                   {messageMode === "note" && (
                     <button onClick={() => setMessageMode("reply")} className="shrink-0 text-[0.65rem] text-yellow-700 font-bold px-2 py-1 rounded-full bg-yellow-100 border border-yellow-200">
                       ملاحظة
+                    </button>
+                  )}
+                  {/* اقتراح رد يظهر فقط عندما الموظف يتولى — لا فائدة منه والوكيل نشط أصلاً */}
+                  {canUseAI && mobileAgentCardIsHuman && messageMode === "reply" && (
+                    <button
+                      onClick={runSuggestReplyIntoComposer}
+                      disabled={suggestReplyLoading}
+                      title="اقتراح رد"
+                      className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-purple-50 text-purple-600 hover:bg-purple-100 disabled:opacity-50"
+                    >
+                      {suggestReplyLoading ? (
+                        <span className="h-3.5 w-3.5 rounded-full border-2 border-purple-300 border-t-purple-600 animate-spin" />
+                      ) : (
+                        <Sparkles size={15} />
+                      )}
                     </button>
                   )}
                   <button
@@ -1473,35 +1489,182 @@ export default function InboxPage() {
               </div>
             )}
 
-            {/* AI Tools Bottom Sheet */}
-            <Drawer open={showMobileAiSheet} onOpenChange={setShowMobileAiSheet}>
+            {/* + إرفاق: صورة (رابط فعلي) / ملف (غير مبني بعد) / قالب (يحتاج قناة واتساب) / ملاحظة داخلية */}
+            <Drawer open={showMobileAttach} onOpenChange={setShowMobileAttach}>
               <DrawerContent>
                 <DrawerHeader>
-                  <DrawerTitle>أدوات الذكاء الاصطناعي</DrawerTitle>
-                  <DrawerDescription>تحليل المحادثة وتوليد مقترحات للرد</DrawerDescription>
+                  <DrawerTitle>إرفاق</DrawerTitle>
                 </DrawerHeader>
-                {canUseAI && selectedConvId ? (
-                  <div className="px-4 pb-6 grid grid-cols-2 gap-3">
-                    {[
-                      { emoji: "🤖", label: "لخص المحادثة", action: runAISummarize },
-                      { emoji: "✍️", label: "اقترح رد", action: runAIDraft },
-                      { emoji: "🏷️", label: "صنّف الطلب", action: runAIClassify },
-                      { emoji: "💡", label: "اقترح الخطوة التالية", action: runAISuggest },
-                    ].map(({ emoji, label, action }) => (
-                      <button
-                        key={label}
-                        onClick={() => { action(); setShowMobileAiSheet(false); }}
-                        disabled={aiLoading}
-                        className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-4 hover:bg-muted/50 disabled:opacity-50 transition-colors"
-                      >
-                        <span className="text-2xl">{emoji}</span>
-                        <span className="text-xs font-bold text-foreground">{label}</span>
-                      </button>
-                    ))}
+                <div className="px-4 pb-6 grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => { attachImageByUrl(); setShowMobileAttach(false); }}
+                    className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-4 hover:bg-muted/50 transition-colors"
+                  >
+                    <span className="text-2xl">🖼️</span>
+                    <span className="text-xs font-bold text-foreground">صورة (رابط)</span>
+                  </button>
+                  <button disabled title="رفع ملف مباشر غير متاح بعد"
+                    className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-card/60 p-4 opacity-60 cursor-not-allowed">
+                    <span className="text-2xl">📎</span>
+                    <span className="text-xs font-bold text-foreground">ملف</span>
+                  </button>
+                  <button disabled title="إدراج القوالب يحتاج قناة واتساب مربوطة"
+                    className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-card/60 p-4 opacity-60 cursor-not-allowed">
+                    <span className="text-2xl">📄</span>
+                    <span className="text-xs font-bold text-foreground">قالب</span>
+                  </button>
+                  <button
+                    onClick={() => { setMessageMode("note"); setShowMobileAttach(false); }}
+                    className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-4 hover:bg-muted/50 transition-colors"
+                  >
+                    <span className="text-2xl">🔒</span>
+                    <span className="text-xs font-bold text-foreground">ملاحظة داخلية</span>
+                  </button>
+                </div>
+              </DrawerContent>
+            </Drawer>
+
+            {/* المزيد (شريط الأدوات): ملاحظة / قالب / تلخيص / واتساب / إغلاق */}
+            <Drawer open={showMobileMoreMenu} onOpenChange={setShowMobileMoreMenu}>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle>المزيد</DrawerTitle>
+                </DrawerHeader>
+                <div className="px-4 pb-6 space-y-1">
+                  <button
+                    onClick={() => { setMessageMode("note"); setShowMobileMoreMenu(false); }}
+                    className="w-full flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-foreground hover:bg-muted transition-colors min-h-11"
+                  >
+                    <StickyNote size={17} className="text-muted-foreground" /> إضافة ملاحظة داخلية
+                  </button>
+                  <button disabled title="إدراج القوالب يحتاج قناة واتساب مربوطة"
+                    className="w-full flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-muted-foreground opacity-60 cursor-not-allowed min-h-11"
+                  >
+                    <FileText size={17} /> إرسال قالب
+                  </button>
+                  {canUseAI && (
+                    <button
+                      onClick={() => { runAISummarize(); setShowMobileMoreMenu(false); }}
+                      className="w-full flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-foreground hover:bg-muted transition-colors min-h-11"
+                    >
+                      <Sparkles size={17} className="text-purple-600" /> تلخيص المحادثة
+                    </button>
+                  )}
+                  {waLink && (
+                    <button
+                      onClick={() => { window.open(waLink, "_blank"); setShowMobileMoreMenu(false); }}
+                      className="w-full flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-foreground hover:bg-muted transition-colors min-h-11"
+                    >
+                      <FaWhatsapp size={17} className="text-[#128C4A]" /> فتح في واتساب
+                    </button>
+                  )}
+                  {canResolve && conv && primaryStatusAction && (
+                    <button
+                      onClick={() => { changeStatus.mutate({ convId: conv.id, status: primaryStatusAction.next }); setShowMobileMoreMenu(false); }}
+                      className="w-full flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-foreground hover:bg-muted transition-colors min-h-11"
+                    >
+                      <ArrowLeftRight size={17} className="text-muted-foreground" /> {primaryStatusLabel}
+                    </button>
+                  )}
+                </div>
+              </DrawerContent>
+            </Drawer>
+
+            {/* معلومات العميل — نفس بطاقة الديسكتوب (اسم/هاتف/شركة + القنوات المرتبطة) */}
+            <Drawer open={showMobileCustomerInfo} onOpenChange={setShowMobileCustomerInfo}>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle>معلومات العميل</DrawerTitle>
+                </DrawerHeader>
+                {conv && (
+                  <div className="px-4 pb-6 space-y-3 text-sm">
+                    <div className="rounded-xl border border-border bg-background p-4 space-y-2">
+                      <div className="text-xs text-muted-foreground">العميل</div>
+                      <div className="font-semibold">{conv.contactName ?? "عميل غير معروف"}</div>
+                      <div className="text-muted-foreground">{conv.contactPhone ?? "لا يوجد رقم محفوظ"}</div>
+                      <div className="text-muted-foreground">{conv.contactCompany ?? "لا توجد شركة"}</div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background p-4 space-y-2">
+                      <div className="text-xs text-muted-foreground">القنوات المرتبطة</div>
+                      {contactChannels.length === 0 ? (
+                        <div className="text-muted-foreground">لا توجد قنوات محفوظة</div>
+                      ) : contactChannels.map((channel: any) => (
+                        <div key={channel.id} className="flex justify-between gap-2">
+                          <span>{channel.channelType}</span>
+                          <span dir="ltr" className="text-muted-foreground">{channel.identifier}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ) : (
-                  <div className="px-4 pb-6 text-center text-sm text-muted-foreground">اختر محادثة أولاً</div>
                 )}
+              </DrawerContent>
+            </Drawer>
+
+            {/* تحويل: نفس قائمة الفريق وطفرة assignConv المستخدمة في الديسكتوب */}
+            <Drawer open={showMobileTransfer} onOpenChange={setShowMobileTransfer}>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle>تحويل المحادثة</DrawerTitle>
+                  <DrawerDescription>اختر الموظف المسؤول عن المتابعة</DrawerDescription>
+                </DrawerHeader>
+                <div className="px-4 pb-6 space-y-1">
+                  <button
+                    onClick={() => { if (conv) assignConv.mutate({ convId: conv.id, membershipId: null }); setShowMobileTransfer(false); }}
+                    className={cn("w-full flex items-center justify-between rounded-xl px-3 py-3 text-sm font-medium hover:bg-muted transition-colors min-h-11",
+                      !conv?.assignedMembershipId ? "bg-primary/10 text-primary" : "text-foreground")}
+                  >
+                    بدون مسؤول
+                  </button>
+                  {members.map((m: any) => {
+                    const membershipId = String(m.membershipId ?? m.id);
+                    const isAssigned = String(conv?.assignedMembershipId ?? "") === membershipId;
+                    return (
+                      <button
+                        key={membershipId}
+                        onClick={() => { if (conv) assignConv.mutate({ convId: conv.id, membershipId }); setShowMobileTransfer(false); }}
+                        className={cn("w-full flex items-center justify-between rounded-xl px-3 py-3 text-sm font-medium hover:bg-muted transition-colors min-h-11",
+                          isAssigned ? "bg-primary/10 text-primary" : "text-foreground")}
+                      >
+                        <span>{m.name}</span>
+                        <span className="text-xs text-muted-foreground">{resolvePresence(m).label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </DrawerContent>
+            </Drawer>
+
+            {/* بحث داخل المحادثة: تصفية عميلة على الرسائل المحمّلة فعلياً */}
+            <Drawer open={showMobileConvSearch} onOpenChange={(open) => { setShowMobileConvSearch(open); if (!open) setConvSearchQuery(""); }}>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle>البحث داخل المحادثة</DrawerTitle>
+                </DrawerHeader>
+                <div className="px-4 pb-6 space-y-3">
+                  <input
+                    autoFocus
+                    value={convSearchQuery}
+                    onChange={(e) => setConvSearchQuery(e.target.value)}
+                    placeholder="ابحث في نص الرسائل..."
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                    {convSearchQuery.trim() === "" ? (
+                      <p className="text-xs text-muted-foreground text-center py-4">اكتب كلمة للبحث ضمن الرسائل المحمّلة في هذه المحادثة</p>
+                    ) : (() => {
+                      const q = convSearchQuery.trim().toLowerCase();
+                      const matches = visibleMessages.filter((msg: any) => (msg.content ?? "").toLowerCase().includes(q));
+                      return matches.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-4">لا نتائج مطابقة</p>
+                      ) : matches.map((msg: any) => (
+                        <div key={msg.id} className="rounded-lg border border-border bg-background p-3 text-sm">
+                          <div className="text-xs text-muted-foreground mb-1">{formatDateTime(msg.sentAt)}</div>
+                          <div className="line-clamp-3">{msg.content}</div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
               </DrawerContent>
             </Drawer>
           </div>

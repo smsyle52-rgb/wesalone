@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import {
   BarChart3,
   ClipboardList,
+  Contact,
   CreditCard,
   Package,
   Plug,
@@ -29,8 +30,9 @@ type MoreGroup = {
 };
 
 // مجموعات مطابقة لتصنيف القائمة الجانبية في الديسكتوب (navGroups في Layout.tsx) —
-// نفس الترتيب المنطقي: قنوات → متجر → عملاء (ما تبقّى بعد تبويب «العملاء» السفلي) →
-// تحليلات → إعداد. الرئيسية/الوارد/العملاء/الأتمتة موجودة في الشريط السفلي فلا تتكرر هنا.
+// نفس الترتيب المنطقي: قنوات → متجر → عملاء → تحليلات → إعداد. الرئيسية/الوارد/الوكلاء
+// موجودة في الشريط السفلي فلا تتكرر هنا؛ «العملاء» انتقلت هنا (8 يوليو) لتبسيط الشريط
+// السفلي إلى 4 أقسام فقط.
 // أُزيل رابط «الحملات» (/broadcasts): الباك-إند غير مُركَّب فعلياً (يطابق استثناء
 // الديسكتوب الصريح في Layout.tsx) — لا نعرض رابطاً سيفشل بـ404.
 const moreGroups: MoreGroup[] = [
@@ -51,6 +53,7 @@ const moreGroups: MoreGroup[] = [
   {
     label: "العملاء",
     items: [
+      { title: "جهات الاتصال", description: "قائمة العملاء وبياناتهم", href: "/contacts", permission: "contacts:read", icon: Contact },
       { title: "الفرص", description: "فرص البيع الجارية والمتوقعة", href: "/opportunities", permission: "opportunities:read", icon: Target },
       { title: "الديون", description: "المستحقات المالية على العملاء", href: "/debts", permission: "debts:read", icon: ReceiptText },
       { title: "المهام", description: "المهام والمتابعات اليومية", href: "/tasks", permission: "tasks:read", icon: ClipboardList },
