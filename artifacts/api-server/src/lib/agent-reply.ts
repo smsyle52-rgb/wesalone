@@ -16,6 +16,7 @@ import { logger } from "./logger";
 import {
   buildAgentToolDeclarations,
   executeAgentToolCalls,
+  hasCriticalAgentToolFailure,
   loadExecutableAgentTools,
   loadOrderStatusContext,
   loadProductCatalogContext,
@@ -49,6 +50,7 @@ const TOOL_USE_RULES = [
   "للتحويل لموظف بشري: استدعِ أداة handoff_to_human فعلياً — لا تكتفِ بقول إنك ستحوّل. إن لم تستدعِ الأداة فلن يحدث تحويل.",
   "عند التحويل لموظف بشري، لا تذكر أي رقم هاتف أو وسيلة تواصل بديلة من عندك أبداً — التحويل عبر الأداة وحده يكفي، والموظف يكمل المحادثة من هنا نفسها.",
   "إن عرضتَ التحويل على العميل كسؤال («تحب أحوّلك لموظف؟») فلا تستدعِ handoff_to_human في نفس الرسالة أبداً — انتظر موافقته الصريحة في رسالته التالية ثم استدعِ الأداة.",
+  "صور المنتجات: عندما يسأل العميل عن منتج معيّن معلَّم في الكتالوج بـ«صورة متوفرة»، أرسل صورته عبر send_product_media مع ردّك (باسم المنتج الحرفي من الكتالوج). منتج بلا هذه العلامة لا صورة له — لا تستدعِ الأداة له ولا تَعِد بصورة، اكتفِ بالوصف النصي.",
 ].join("\n");
 
 // حرارة ردّ المحادثة: دافئة (0.6) لتكون بشرية ومرنة ومتنوّعة، لا 0.1 الباردة المتكرّرة. قابلة للضبط
@@ -443,7 +445,9 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       systemUserId: params.systemUserId,
       calls: structuredCalls,
     });
-    const hasToolProblem = toolResults.some((result) => result.status !== "success");
+    // فشل حرج فقط (طلب/دفعة/موعد/تحويل فشلت فعلياً) يمسح الردّ ويصعّد. فشل حميد — مثل صورة
+    // منتج غير متوفرة — يُبقي الردّ النصي السليم ويُسجَّل ملاحظةً داخلية فقط (حادثة 10 يوليو).
+    const hasToolProblem = hasCriticalAgentToolFailure(toolResults);
     const hasHandoff = toolResults.some((result) => result.tool === "handoff_to_human" && result.status === "success");
     const modelText = sanitizeReply(aiOutput.content);
     // نصّ النموذج إن وُجد؛ وإلا تأكيد حتمي حسب نتيجة الأداة (يتفادى الردّ الفارغ عند استدعاء أداة بلا نص).

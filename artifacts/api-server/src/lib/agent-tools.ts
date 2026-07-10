@@ -178,6 +178,24 @@ function isAgentToolKey(value: string): value is AgentToolKey {
   return (AGENT_TOOL_KEYS as readonly string[]).includes(value);
 }
 
+// حادثة 10 يوليو: عميل سأل عن منتج، الوكيل حاول إرسال صورته والمنتج بلا صورة مرفوعة —
+// ففشلت الأداة، والكود كان يعامل أي فشلٍ أياً كان كخطأ جسيم: يمسح الردّ النصي السليم كله
+// ويستبدله بـ«أحوّل طلبك للفريق» ويحوّل المحادثة (تحويل «غريب بلا سبب» من منظور التاجر).
+// التمييز الصحيح: الأدوات الحرجة وعودٌ معاملاتية للعميل (طلب/دفعة/موعد/تحويل) — فشلها الفعلي
+// يستوجب المراجعة البشرية. أما إرسال الصورة فتحسين عرضٍ: فشله لا يمسّ صحة الردّ النصي،
+// والملاحظة الداخلية (appendToolNote) تُطلع التاجر على السبب. حالات skip (أداة معطّلة/مجهولة)
+// تحميها بوابة الادّعاء غير المسنود نصّياً، فلا تحتاج تصعيداً أعمى هنا.
+const CRITICAL_AGENT_TOOLS: ReadonlySet<AgentToolKey> = new Set([
+  "create_order",
+  "log_payment_claim",
+  "schedule_followup",
+  "handoff_to_human",
+]);
+
+export function hasCriticalAgentToolFailure(results: AgentToolResult[]): boolean {
+  return results.some((result) => result.status === "failed" && CRITICAL_AGENT_TOOLS.has(result.tool));
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
   return {};
@@ -574,6 +592,7 @@ export async function loadProductCatalogContext(workspaceId: string, limit = 40)
       currency: inventoryProductsTable.currency,
       unit: inventoryProductsTable.unit,
       quantityAvailable: inventoryProductsTable.quantityAvailable,
+      imageUrl: inventoryProductsTable.imageUrl,
     })
     .from(inventoryProductsTable)
     .where(and(
@@ -591,7 +610,10 @@ export async function loadProductCatalogContext(workspaceId: string, limit = 40)
       : product.quantityAvailable > 0
         ? ` | المتوفر: ${product.quantityAvailable}${product.unit ? ` ${product.unit}` : ""}`
         : " | غير متوفر حالياً";
-    return `- ${product.name}: ${product.price} ${product.currency}${availability}`;
+    // علامة الصورة توجّه النموذج: يرسل صورة (send_product_media) فقط لمنتج معلَّم بها —
+    // محاولة إرسال صورة لمنتج بلا صورة كانت تفشل وتُربك التجربة (حادثة 10 يوليو).
+    const imageMark = product.imageUrl ? " | صورة متوفرة" : "";
+    return `- ${product.name}: ${product.price} ${product.currency}${availability}${imageMark}`;
   });
 
   return [

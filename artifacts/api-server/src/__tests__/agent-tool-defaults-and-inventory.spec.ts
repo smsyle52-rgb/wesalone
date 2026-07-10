@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultAgentToolPolicies,
+  hasCriticalAgentToolFailure,
   resolveOrderItemsAgainstInventory,
+  type AgentToolResult,
   type InventoryProductLite,
   type OrderItemInput,
 } from "../lib/agent-tools";
@@ -105,5 +107,39 @@ describe("resolveOrderItemsAgainstInventory — ربط بنود الطلب بك�
     expect(resolved.inventoryProductId).toBe("p1");
     expect(resolved.resolvedUnitPrice).toBe(900);
     expect(resolved.modelPrice).toBe(900);
+  });
+});
+
+// حادثة 10 يوليو: فشل «إرسال صورة منتج» (منتج بلا صورة) كان يمسح الردّ النصي السليم كله
+// ويحوّل المحادثة بشرياً «بلا سبب». الفشل الحرج فقط (وعد معاملاتي فشل فعلياً) يستوجب ذلك.
+describe("hasCriticalAgentToolFailure — تمييز الفشل الحرج عن الحميد", () => {
+  const result = (tool: AgentToolResult["tool"], status: AgentToolResult["status"]): AgentToolResult =>
+    ({ tool, status, summary: "" });
+
+  it.each(["create_order", "log_payment_claim", "schedule_followup", "handoff_to_human"] as const)(
+    "فشل %s الفعلي = حرج (يمسح الردّ ويصعّد)",
+    (tool) => {
+      expect(hasCriticalAgentToolFailure([result(tool, "failed")])).toBe(true);
+    },
+  );
+
+  it("فشل send_product_media حميد — الردّ النصي يبقى ولا تصعيد", () => {
+    expect(hasCriticalAgentToolFailure([result("send_product_media", "failed")])).toBe(false);
+  });
+
+  it("skip (أداة معطّلة/مجهولة) ليس فشلاً حرجاً — بوابة الادّعاء تحمي النص", () => {
+    expect(hasCriticalAgentToolFailure([result("create_order", "skipped")])).toBe(false);
+  });
+
+  it("نجاح كامل أو قائمة فارغة — لا مشكلة", () => {
+    expect(hasCriticalAgentToolFailure([result("create_order", "success")])).toBe(false);
+    expect(hasCriticalAgentToolFailure([])).toBe(false);
+  });
+
+  it("فشل حميد + فشل حرج معاً — الحرج يغلب", () => {
+    expect(hasCriticalAgentToolFailure([
+      result("send_product_media", "failed"),
+      result("create_order", "failed"),
+    ])).toBe(true);
   });
 });
