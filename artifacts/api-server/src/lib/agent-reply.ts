@@ -283,7 +283,17 @@ export async function runAgentReply(params: {
   const searchQuery = primaryQuery.trim().length >= 15
     ? primaryQuery
     : [primaryQuery, priorInboundContext].filter(Boolean).join("\n").slice(0, 600);
-  const knowledgeSources = await searchKnowledgeForAi({ workspaceId: params.workspaceId, query: searchQuery });
+  // تدقيق 10 يوليو: واجهة الوكيل تَعِد أن «قاعدة المعرفة المختارة هي مصدر إجابات هذا الوكيل»،
+  // لكن الاختيار لم يكن يُمرَّر إطلاقاً — كل وكيل كان يقرأ كل معرفة المساحة. الآن: اختيار صريح
+  // يُحترَم (عزل معرفي بين وكلاء نفس المتجر)؛ لا اختيار = كل المساحة كما قبل (يوسّع لا يضيّق).
+  const agentKnowledgeBaseIds = Array.isArray(agent.knowledgeBaseIds)
+    ? (agent.knowledgeBaseIds as unknown[]).filter((id): id is string => typeof id === "string" && id.length > 0)
+    : [];
+  const knowledgeSources = await searchKnowledgeForAi({
+    workspaceId: params.workspaceId,
+    query: searchQuery,
+    knowledgeBaseIds: agentKnowledgeBaseIds,
+  });
   const mediaContext = await loadMediaContext(messages);
   // get_order_status (الدفعة 3): احقن حالة طلبات العميل في السياق ليردّ الوكيل على «وين طلبي؟» بدقّة (بنية أحادية التمرير).
   // حماية: فشل جلب الطلبات يجب ألّا يكسر الردّ كلّه — تدهور رشيق إلى سياق فارغ.
@@ -603,7 +613,15 @@ export async function simulateAgentReply(params: {
     .limit(1);
 
   const message = params.message.trim();
-  const knowledgeSources = await searchKnowledgeForAi({ workspaceId: params.workspaceId, query: message });
+  // نفس تقييد المعرفة المطبَّق في المسار الحيّ أعلاه — حتى تُطابق المحاكاةُ السلوكَ الحقيقي تماماً.
+  const simKnowledgeBaseIds = Array.isArray(agent.knowledgeBaseIds)
+    ? (agent.knowledgeBaseIds as unknown[]).filter((id): id is string => typeof id === "string" && id.length > 0)
+    : [];
+  const knowledgeSources = await searchKnowledgeForAi({
+    workspaceId: params.workspaceId,
+    query: message,
+    knowledgeBaseIds: simKnowledgeBaseIds,
+  });
   let productCatalogContext = "";
   try {
     productCatalogContext = await loadProductCatalogContext(params.workspaceId);
