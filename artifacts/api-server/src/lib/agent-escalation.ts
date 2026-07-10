@@ -281,3 +281,40 @@ export function replyPromisesVerification(reply: string): boolean {
   if (VERIFY_TEAM_PATTERNS.some((pattern) => normalized.includes(pattern))) return true;
   return VERIFY_THEN_RETURN.test(normalized);
 }
+
+// ─── حارس الروابط المخترعة (10 يوليو 2026) ───────────────────────────────────
+// حوادث حيّة سابقة: النموذج اخترع رقم/رابط تواصل غير موجود في أي سياق مرفق (GROUNDING_RULES
+// وصية نصّية فقط ولا تكفي وحدها). هذه الدالة تجعل المنع بنيوياً على مستوى الخادم: أي رابط
+// يظهر في ردّ الوكيل يجب أن يكون نطاقه (domain) موجوداً حرفياً في السياق المسموح به (البرومبت
+// + المعرفة + الكتالوج + حالة الطلبات) — وإلا فهو مخترع. المطابقة على مستوى النطاق فقط
+// (وليس المسار الكامل) عمداً: نطاق مذكور في المعرفة بمسار مختلف في ردّ الوكيل ليس اختراعاً.
+const LINK_CANDIDATE_PATTERN =
+  /https?:\/\/[^\s]+|www\.[^\s]+|\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|ai|one|shop|store|co|me|sa|ye|ae)\b/gi;
+
+// علامات ترقيم عربية ولاتينية شائعة في نهاية الجملة قد تلتصق بنهاية رابط مقتطَع من نصّ حرّ.
+const TRAILING_PUNCTUATION_PATTERN = /[.,;:!؟?»«)('"]+$/;
+
+// يحوّل مرشّح رابط خام إلى نطاقه المطبَّع: أحرف صغيرة، بلا بروتوكول ولا www. بادئة،
+// بلا علامات ترقيم لاصقة، وقبل أول / أو ? (أي بلا مسار أو استعلام).
+function extractDomain(candidate: string): string {
+  let value = candidate.toLowerCase();
+  value = value.replace(/^https?:\/\//, "");
+  value = value.replace(/^www\./, "");
+  value = value.replace(TRAILING_PUNCTUATION_PATTERN, "");
+  const cutIndex = value.search(/[/?]/);
+  return cutIndex >= 0 ? value.slice(0, cutIndex) : value;
+}
+
+// يعيد أول نطاق غير مُصرَّح به في الردّ (غير موجود حرفياً في allowedContext)، أو null إن كانت
+// كل الروابط (إن وُجدت) مسنودة بسياق حقيقي. دالة نقية بلا اعتماديات — لا db ولا شبكة.
+export function findUnauthorizedLink(reply: string, allowedContext: string): string | null {
+  const candidates = reply.match(LINK_CANDIDATE_PATTERN);
+  if (!candidates) return null;
+  const normalizedContext = allowedContext.toLowerCase();
+  for (const candidate of candidates) {
+    const domain = extractDomain(candidate);
+    if (!domain) continue;
+    if (!normalizedContext.includes(domain)) return domain;
+  }
+  return null;
+}

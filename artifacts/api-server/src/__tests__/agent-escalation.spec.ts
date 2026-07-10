@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  findUnauthorizedLink,
   findUnbackedActionClaim,
   includesEscalationKeyword,
   normalizeArabic,
@@ -212,5 +213,41 @@ describe("replyPromisesVerification — وعد التأكد والرجوع", () 
     "أسعارنا مؤكدة وثابتة طوال الأسبوع.",
   ])("لا يصعّد: %s", (reply) => {
     expect(replyPromisesVerification(reply)).toBe(false);
+  });
+});
+
+// حارس الروابط المخترعة (10 يوليو 2026): أي رابط في ردّ الوكيل يجب أن يكون نطاقه موجوداً
+// حرفياً في السياق المسموح به (البرومبت/المعرفة/الكتالوج/حالة الطلبات)، وإلا فهو اختراع.
+describe("findUnauthorizedLink — حارس الروابط المخترعة", () => {
+  it("(a) رابط https مخترع كامل بلا أي سياق مسموح — يُكشف نطاقه", () => {
+    expect(findUnauthorizedLink("تفضل العرض هنا: https://example-store.com/offer", "")).toBe("example-store.com");
+  });
+
+  it("(b) نفس الرابط يمرّ حين يظهر نطاقه حرفياً في السياق المسموح", () => {
+    const reply = "تفضل العرض هنا: https://example-store.com/offer";
+    const allowedContext = "الموقع الرسمي للمتجر: example-store.com — كل عروضنا هناك.";
+    expect(findUnauthorizedLink(reply, allowedContext)).toBeNull();
+  });
+
+  it("(c) نطاق مخترع بلا بروتوكول ولا www", () => {
+    expect(findUnauthorizedLink("زوروا موقعنا wesal-fake.shop للتفاصيل", "")).toBe("wesal-fake.shop");
+  });
+
+  it("(d) رابط واتساب مخترع (wa.me) بلا سياق", () => {
+    expect(findUnauthorizedLink("تواصل معنا عبر wa.me/967777 مباشرة", "")).toBe("wa.me");
+  });
+
+  it("(e) نطاق موجود في المعرفة بمسار مختلف يمرّ — سماح على مستوى النطاق عمداً", () => {
+    const reply = "شوف عروضنا على wesal.one/offers";
+    const allowedContext = "معرفة ذات صلة: تفاصيل الأسعار على https://www.wesal.one/pricing";
+    expect(findUnauthorizedLink(reply, allowedContext)).toBeNull();
+  });
+
+  it("(f) لا يكشف شيئاً حين لا توجد أي روابط في الردّ", () => {
+    expect(findUnauthorizedLink("أهلاً بك، تفضل بطلبك وسنجهزه لك بأسرع وقت.", "")).toBeNull();
+  });
+
+  it("(g) لا إيجابية كاذبة مع نقاط نهاية الجملة في نص عربي عادي", () => {
+    expect(findUnauthorizedLink("شكراً لتواصلك. نسعد بخدمتك.", "")).toBeNull();
   });
 });

@@ -385,7 +385,8 @@
       "rolePrompt": "System instructions",
       "businessRules": "Business rules",
       "forbiddenActions": "Forbidden actions",
-      "escalationRules": "Escalation rules"
+      "escalationRules": "Handoff to human — when should the agent transfer?",
+      "escalationRulesPlaceholder": "Example: Hand off to a human if the customer requests a formal invoice, complains about a damaged product, asks to modify/cancel an existing order, or asks about something outside our business"
     },
     "models": {
       "mock": "Mock mode",

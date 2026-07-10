@@ -293,7 +293,14 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
             {(["rolePrompt", "businessRules", "forbiddenActions", "escalationRules"] as const).map((field) => (
               <label key={field} className="block space-y-1 text-sm">
                 <span className="font-medium">{t(`agents.fields.${field}`)}</span>
-                <textarea value={instructions[field]} onChange={(event) => setInstructions({ ...instructions, [field]: event.target.value })} disabled={!canConfigure} rows={field === "rolePrompt" ? 8 : 4} className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60" />
+                <textarea
+                  value={instructions[field]}
+                  onChange={(event) => setInstructions({ ...instructions, [field]: event.target.value })}
+                  disabled={!canConfigure}
+                  rows={field === "rolePrompt" ? 8 : 4}
+                  placeholder={field === "escalationRules" ? t("agents.fields.escalationRulesPlaceholder") : undefined}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60"
+                />
                 <span className="text-xs text-muted-foreground">{instructions[field].length.toLocaleString("ar-YE-u-nu-latn")}</span>
               </label>
             ))}

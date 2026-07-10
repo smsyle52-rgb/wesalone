@@ -23,6 +23,7 @@ import {
   type AgentToolResult,
 } from "./agent-tools";
 import {
+  findUnauthorizedLink,
   findUnbackedActionClaim,
   includesEscalationKeyword,
   replyConfirmsPayment,
@@ -350,6 +351,8 @@ export async function runAgentReply(params: {
     `Current date/time: ${new Date().toISOString()}.`,
     instructions?.rolePrompt ?? "أنت موظف مبيعات وخدمة عملاء حقيقي، ودود ومحترف، تردّ على عملاء النشاط التجاري بأسلوب إنساني طبيعي. تفاعل مع آخر رسالة من العميل مباشرةً.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
+    instructions?.forbiddenActions ? `ممنوعات يحددها التاجر (ملزمة): ${instructions.forbiddenActions}` : "",
+    instructions?.escalationRules ? `قواعد التحويل لموظف (يحددها التاجر لقطاعه — تسري إضافةً للقواعد العامة): ${instructions.escalationRules}\nعندما تنطبق حالة من هذه القواعد على رسالة العميل، استدعِ أداة handoff_to_human فعلياً.` : "",
     sectorContext,
     GROUNDING_RULES,
     HUMAN_STYLE,
@@ -469,7 +472,12 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
         });
     const paymentClaim = !hasToolProblem && replyConfirmsPayment(candidateReply);
     const claimGuardTripped = unbackedClaim !== null || paymentClaim;
-    const finalReply = claimGuardTripped ? SAFE_REVIEW_REPLY : candidateReply;
+    // حارس الروابط المخترعة (10 يوليو 2026): نفس فلسفة بوابة الادّعاء أعلاه — أي رابط في الردّ
+    // نطاقه غير موجود حرفياً في أي سياق مرفق (البرومبت/المعرفة/الكتالوج/حالة الطلبات) يُعتبر
+    // اختراعاً يُستبدل الردّ ويُصعَّد. تُتخطّى إن كانت بوابة الادّعاء قد استبدلت الردّ أصلاً.
+    const allowedLinkContext = [systemPrompt, knowledgeContext, productCatalogContext, orderStatusContext].join("\n");
+    const unauthorizedLink = claimGuardTripped ? null : findUnauthorizedLink(candidateReply, allowedLinkContext);
+    const finalReply = (claimGuardTripped || unauthorizedLink) ? SAFE_REVIEW_REPLY : candidateReply;
 
     if (!finalReply) {
       await db.update(aiRunsTable).set({
@@ -498,6 +506,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     if (hasToolProblem) hardEscalationReasons.push("tool_failure");
     if (unbackedClaim) hardEscalationReasons.push(`unbacked_claim:${unbackedClaim}`);
     if (paymentClaim) hardEscalationReasons.push("payment_confirmation_claim");
+    if (unauthorizedLink) hardEscalationReasons.push(`unauthorized_link:${unauthorizedLink}`);
     if (hasHandoff) hardEscalationReasons.push("handoff_tool");
     if (replyPromisesHandoff(finalReply)) hardEscalationReasons.push("handoff_promise");
     if (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound)) {
@@ -657,6 +666,8 @@ export async function simulateAgentReply(params: {
     `Current date/time: ${new Date().toISOString()}.`,
     instructions?.rolePrompt ?? "أنت موظف مبيعات وخدمة عملاء حقيقي، ودود ومحترف، تردّ على عملاء النشاط التجاري بأسلوب إنساني طبيعي. تفاعل مع آخر رسالة من العميل مباشرةً.",
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
+    instructions?.forbiddenActions ? `ممنوعات يحددها التاجر (ملزمة): ${instructions.forbiddenActions}` : "",
+    instructions?.escalationRules ? `قواعد التحويل لموظف (يحددها التاجر لقطاعه — تسري إضافةً للقواعد العامة): ${instructions.escalationRules}\nعندما تنطبق حالة من هذه القواعد على رسالة العميل، استدعِ أداة handoff_to_human فعلياً.` : "",
     sectorContext,
     GROUNDING_RULES,
     HUMAN_STYLE,
