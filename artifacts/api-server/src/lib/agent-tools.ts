@@ -22,6 +22,8 @@ import { writeAgentStatus } from "../modules/conversations/lifecycle";
 import { createAuditLog } from "./audit";
 import { addContactTimeline } from "./contactTimeline";
 import { emitWorkspaceEvent } from "./events";
+import { logger } from "./logger";
+import { notifyWorkspace } from "../services/notifications";
 import { resolveWhatsAppConversationRecipient } from "../modules/integrations/whatsapp-contact-identity";
 
 export const AGENT_TOOL_KEYS = [
@@ -842,6 +844,16 @@ async function executeCreateOrder(params: ExecuteParams, conversation: Conversat
     payload: { orderNumber: order.orderNumber, conversationId: conversation.id, contactId: conversation.contactId, source: "agent_tool" },
   });
 
+  // تدقيق 10 يوليو (الجزء 2): طلب الوكيل كان يُنشأ بصمت — إشعار فوري للتاجر ليراجعه ويؤكده
+  // (الطلب حالته «جديد» بانتظار قرار بشري). أفضل-جهد: فشل الإشعار لا يفشل إنشاء الطلب.
+  await notifyWorkspace({
+    workspaceId: params.workspaceId,
+    type: "order.created",
+    titleAr: "طلب جديد أنشأه الوكيل",
+    bodyAr: `الوكيل سجّل الطلب ${order.orderNumber} من محادثة عميل — راجعه وأكّده.`,
+    link: "/orders",
+  }).catch((err) => logger.warn({ err, orderId: order.id }, "agent-order notification failed (non-fatal)"));
+
   return {
     tool: "create_order",
     status: "success",
@@ -982,6 +994,16 @@ async function executePaymentClaim(params: ExecuteParams, conversation: Conversa
     entityId: payment.id,
     payload: { status: "pending", conversationId: conversation.id, source: "agent_tool" },
   });
+
+  // تدقيق 10 يوليو (الجزء 2): ادّعاء الدفع كان يُنشأ بصمت — التاجر لا يعلم إلا لو فتح صفحة
+  // المدفوعات بنفسه. إشعار فوري (أفضل-جهد، لا يكسر تنفيذ الأداة) لأن التأكيد قراره البشري.
+  await notifyWorkspace({
+    workspaceId: params.workspaceId,
+    type: "payment.claim.received",
+    titleAr: "مطالبة دفع جديدة بانتظار تأكيدك",
+    bodyAr: `العميل أبلغ عن دفعة ${data.amount} ${data.currency} — راجعها وأكّدها أو ارفضها.`,
+    link: "/payments",
+  }).catch((err) => logger.warn({ err, paymentId: payment.id }, "payment-claim notification failed (non-fatal)"));
 
   return {
     tool: "log_payment_claim",

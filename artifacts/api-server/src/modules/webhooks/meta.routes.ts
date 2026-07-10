@@ -405,6 +405,17 @@ async function handleInboundMessage(value: MetaChangeValue, message: MetaMessage
     },
     correlationId,
   });
+
+  // تدقيق 10 يوليو (الجزء 2): واتساب — القناة الأساسية — كان الوحيد بلا إشعار «رسالة جديدة»
+  // (إنستغرام/ماسنجر يُشعران عبر meta-channel-ingest). نفس النمط، وبأفضل-جهد حتى لا يمسّ
+  // الاستقبال الحيّ (محمية #1) أي فشلٍ في الإشعار.
+  await notifyWorkspace({
+    workspaceId: channel.workspaceId,
+    type: "message.received",
+    titleAr: "رسالة جديدة",
+    bodyAr: "وصلت رسالة جديدة عبر واتساب.",
+    link: `/inbox?conversation=${conversation.id}`,
+  }).catch((err) => logger.warn({ err, conversationId: conversation.id }, "WhatsApp inbound notification failed (non-fatal)"));
 }
 
 async function handleEchoEvent(value: MetaChangeValue, externalThreadId: string | undefined, correlationId: string): Promise<void> {
