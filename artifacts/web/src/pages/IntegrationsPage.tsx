@@ -268,6 +268,8 @@ type ConnectedChannel = {
   hasCredentialReference: boolean;
   providerConfig?: Record<string, unknown>;
   updatedAt?: string;
+  healthStatus?: string | null;
+  lastHealthAt?: string | null;
 };
 
 const channelMeta: Record<ConnectedChannel["channelType"], { label: string; Icon: IconType; tone: string }> = {
@@ -376,6 +378,7 @@ export default function IntegrationsPage() {
   const [connectedChannels, setConnectedChannels] = useState<ConnectedChannel[]>([]);
   const [isLoadingChannels, setIsLoadingChannels] = useState(true);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+  const [checkingHealthId, setCheckingHealthId] = useState<string | null>(null);
   const [metaSignupConfig, setMetaSignupConfig] = useState<MetaSignupConfig | null>(null);
   const [linkSheetOpen, setLinkSheetOpen] = useState(false);
   const metaSignupInFlightRef = useRef(false);
@@ -702,6 +705,28 @@ export default function IntegrationsPage() {
     }
   }
 
+  // 9 يوليو 2026: فحص عند الطلب لحالة رقم واتساب لدى Meta نفسها (مقيّد/محظور) — أغلب شكاوى
+  // "الوكيل لا يرد" الحقيقية سببها هذا لا كودنا. يستدعي نقطة الخادم الجديدة ويحدّث الحالة محلياً.
+  async function checkChannelHealth(id: string) {
+    setCheckingHealthId(id);
+    setMetaError(null);
+    try {
+      const res = await fetch(`${BASE}/integrations/meta/channels/${id}/check-health`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "تعذّر فحص حالة الرقم");
+      setConnectedChannels((current) => current.map((channel) => (
+        channel.id === id ? { ...channel, healthStatus: data.healthStatus, lastHealthAt: data.lastHealthAt } : channel
+      )));
+    } catch (err) {
+      setMetaError((err as Error).message);
+    } finally {
+      setCheckingHealthId(null);
+    }
+  }
+
   const metaChannelStatuses = (["whatsapp", "instagram", "messenger"] as const).map((type) => {
     const channel = connectedChannels.find((item) => item.channelType === type && item.status === "active");
     return { type, channel };
@@ -884,6 +909,45 @@ export default function IntegrationsPage() {
             connectedChannels.map((channel) => (
               <div key={channel.id} className="space-y-2">
                 <ConnectedChannelCard channel={channel} />
+                {channel.channelType === "whatsapp" && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-background px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {channel.healthStatus === "problem" ? (
+                        <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                          ⚠ مشكلة في الحساب لدى Meta
+                        </span>
+                      ) : channel.healthStatus === "ok" ? (
+                        <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                          الحساب سليم لدى Meta
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                          لم تُفحص الحالة بعد
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => checkChannelHealth(channel.id)}
+                        disabled={checkingHealthId === channel.id}
+                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted disabled:opacity-50"
+                      >
+                        {checkingHealthId === channel.id ? "جارٍ الفحص..." : "تحقّق من الحالة"}
+                      </button>
+                      {channel.healthStatus === "problem" && (
+                        <a
+                          href="https://business.facebook.com/wa/manage/phone-numbers/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                        >
+                          إدارة الحساب في Meta
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-3">
                   <span className="text-xs text-muted-foreground">
                     آخر نشاط: {channel.updatedAt ? new Date(channel.updatedAt).toLocaleString("ar-YE-u-nu-latn") : "غير متاح"}

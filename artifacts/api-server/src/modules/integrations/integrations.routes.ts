@@ -1386,6 +1386,64 @@ router.get("/meta/channels", requirePermission("integrations:read"), async (req:
   });
 });
 
+// 9 يوليو 2026: أغلب شكاوى "الوكيل لا يرد" الفعلية سببها تقييد Meta لرقم واتساب نفسه
+// (RESTRICTED/FLAGGED عند تجاوز حد الرسائل، أو BLOCKED من health_status عند مخالفة سياسة) —
+// لا علاقة له بكودنا، ولا نراه إلا بسؤال Meta مباشرة. هذا فحص عند الطلب (لا تلقائي دوري)
+// يستخدم عمودي channel_accounts.health_status/last_health_at الموجودين مسبقاً (كانا بلا
+// كاتب فعلي — W1-T1) فيُعطيهما أول استخدام حقيقي. يعتمد توكن النظام العام للقراءة فقط
+// (GET حالة، لا كتابة على حساب العميل) — نفس مبدأ الاسترجاع اليدوي، بلا خطر عزل مستأجرين.
+router.post("/meta/channels/:id/check-health", requirePermission("integrations:read"), async (req: AuthenticatedRequest, res: Response) => {
+  const { activeWorkspaceId } = req.sessionUser;
+  const channelId = String(req.params.id);
+  const [channel] = await db
+    .select()
+    .from(channelAccountsTable)
+    .where(and(eq(channelAccountsTable.id, channelId), eq(channelAccountsTable.workspaceId, activeWorkspaceId)))
+    .limit(1);
+  if (!channel) { res.status(404).json({ error: "القناة غير موجودة" }); return; }
+  if (channel.channelType !== "whatsapp" || !channel.externalPhoneId) {
+    res.status(400).json({ error: "فحص الحالة متاح لقنوات واتساب المرتبطة فقط", code: "not_whatsapp_or_unlinked" });
+    return;
+  }
+
+  const systemToken = process.env.META_SYSTEM_USER_TOKEN;
+  if (!systemToken) {
+    res.status(503).json({ error: "فحص الحالة غير مهيأ حالياً على الخادم", code: "meta_token_unavailable" });
+    return;
+  }
+
+  let metaStatus: string | null = null;
+  let canSendMessage: string | null = null;
+  try {
+    const payload = await callMetaGraph(`${channel.externalPhoneId}?fields=status,health_status`, systemToken);
+    metaStatus = typeof payload?.status === "string" ? payload.status : null;
+    const entities = payload?.health_status?.entities;
+    const phoneEntity = Array.isArray(entities) ? entities.find((e: any) => e?.entity_type === "PHONE_NUMBER") : null;
+    canSendMessage = typeof phoneEntity?.can_send_message === "string" ? phoneEntity.can_send_message : null;
+  } catch (err) {
+    req.log?.warn({ err, channelAccountId: channel.id }, "WhatsApp health check failed");
+    res.status(502).json({ error: "تعذّر الاتصال بـ Meta لفحص حالة الرقم. حاول لاحقاً.", code: "meta_health_check_failed" });
+    return;
+  }
+
+  // مشكلة فعلية فقط إن أكّد أحد الحقلين قيداً واضحاً — لا نُظهر "مشكلة" على مجرد غياب حقل
+  // (بعض الأرقام السليمة لا تُرجع health_status إطلاقاً).
+  const hasProblem = metaStatus === "RESTRICTED" || metaStatus === "FLAGGED" || canSendMessage === "BLOCKED" || canSendMessage === "LIMITED";
+  const healthStatus = hasProblem ? "problem" : "ok";
+
+  const [updated] = await db.update(channelAccountsTable)
+    .set({ healthStatus, lastHealthAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(channelAccountsTable.id, channel.id), eq(channelAccountsTable.workspaceId, activeWorkspaceId)))
+    .returning();
+
+  res.json({
+    healthStatus: updated.healthStatus,
+    lastHealthAt: updated.lastHealthAt,
+    metaStatus,
+    canSendMessage,
+  });
+});
+
 router.delete("/channels/:id", requirePermission("integrations:manage"), async (req: AuthenticatedRequest, res: Response) => {
   const [existing] = await db
     .select()
