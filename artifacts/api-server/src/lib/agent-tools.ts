@@ -186,7 +186,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 function publicToolSpec(tool: ToolPolicy): string {
   const base = `${tool.key}: ${TOOL_LABELS[tool.key]}`;
   if (tool.key === "create_order") {
-    return `${base} Arguments: currency (use ISO code: YER for ريال يمني, SAR for ريال سعودي, USD for دولار), channel, discount, notes, items[{name, quantity, unitPrice, currency, description}].`;
+    return `${base} Arguments: currency (use ISO code: YER for ريال يمني, SAR for ريال سعودي, USD for دولار), channel, discount, notes, items[{name, quantity, unitPrice, currency, description}]. For items that exist in the قائمة كتالوج المنتجات, use the product's EXACT name as listed.`;
   }
   if (tool.key === "log_payment_claim") {
     return `${base} Arguments: amount, currency, method, paymentMethodId, orderId, reference, notes, paidAt.`;
@@ -200,11 +200,26 @@ function publicToolSpec(tool: ToolPolicy): string {
   return `${base} Arguments: reason.`;
 }
 
+// 9 يوليو 2026: الشكوى الأولى للمالك «الوكلاء لا يستخدمون المخزون/الطلبات» — سببها الجذري
+// جزئياً هنا: لا واجهة في المنتج لتفعيل أي أداة، فأي وكيل جديد يُنشأ بصفر صفوف تهيئة، ويبقى
+// محروماً من create_order/log_payment_claim/schedule_followup رغم أنها مبنية بالكامل.
+// دالة نقية بلا db — قابلة للاختبار مباشرة — تصف الإعداد الافتراضي الآمن للأدوات الخمس كلها.
+export function defaultAgentToolPolicies(): ToolPolicy[] {
+  return AGENT_TOOL_KEYS.map((key) => ({ key, requiresApproval: false, config: {} }));
+}
+
 export async function loadExecutableAgentTools(workspaceId: string, agentId: string): Promise<ToolPolicy[]> {
   const rows = await db
     .select()
     .from(aiAgentToolsTable)
     .where(and(eq(aiAgentToolsTable.workspaceId, workspaceId), eq(aiAgentToolsTable.agentId, agentId)));
+
+  // صفر صفوف = التاجر لم يخصّص شيئاً بعد (لا توجد واجهة تهيئة أصلاً) — افتح الأدوات الخمس
+  // كلها بإعداد آمن افتراضياً بدل حرمان الوكيل منها بصمت. أي صفّ واحد يعني تخصيصاً صريحاً من
+  // التاجر — نحترمه بالكامل ولا نتدخّل (الفرع أدناه دون أي تغيير في سلوكه).
+  if (rows.length === 0) {
+    return defaultAgentToolPolicies();
+  }
 
   const policies = rows
     .filter((row) => row.isEnabled && !row.requiresApproval && isAgentToolKey(row.toolKey))
@@ -252,7 +267,7 @@ function buildOrderItemParametersSchema(): Record<string, unknown> {
   return {
     type: "object",
     properties: {
-      name: { type: "string", description: "Item name." },
+      name: { type: "string", description: "Item name. For items that exist in the قائمة كتالوج المنتجات, use the product's EXACT name as listed." },
       description: { type: "string", description: "Optional item description." },
       quantity: { type: "integer", description: "Quantity ordered (whole number)." },
       unitPrice: { type: "number", description: "Price per unit." },
@@ -656,6 +671,67 @@ async function recalcOrderTotal(orderId: string, workspaceId: string): Promise<v
     .where(and(eq(ordersTable.id, orderId), eq(ordersTable.workspaceId, workspaceId)));
 }
 
+// تأريض الأسعار وربط المخزون (9 يوليو 2026): نفس فلسفة loadProductCatalogContext — الأسعار
+// مصدرها كتالوج المخزون الحقيقي لا كتابة النموذج الحرة. دالة نقية (بلا db) قابلة للاختبار
+// مستقلة: تُطابق كل بند طلب باسمه مع منتج مخزون (تطابق تام أولاً، ثم احتواء فريد الاتجاهين)،
+// وتستبدل سعر البند بسعر الكتالوج عند التطابق مع سعر كتالوج صالح (> 0)، مع الاحتفاظ بسعر
+// النموذج الأصلي في modelPrice للتدقيق (يُسجَّل في snapshot عند التطابق فقط).
+export type InventoryProductLite = { id: string; name: string; price: string; currency: string | null };
+
+export type OrderItemInput = {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  currency?: string;
+  description?: string;
+};
+
+export type ResolvedOrderItem = {
+  item: OrderItemInput;
+  inventoryProductId: string | null;
+  resolvedUnitPrice: number;
+  modelPrice: number;
+};
+
+function normalizeProductName(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function findInventoryMatch(itemName: string, inventory: InventoryProductLite[]): InventoryProductLite | null {
+  const normItem = normalizeProductName(itemName);
+  if (!normItem) return null;
+
+  const exactMatches = inventory.filter((product) => normalizeProductName(product.name) === normItem);
+  if (exactMatches.length === 1) return exactMatches[0];
+  if (exactMatches.length > 1) return null; // تطابق تام متعدد — غامض، لا نخمّن
+
+  const containingMatches = inventory.filter((product) => {
+    const normProduct = normalizeProductName(product.name);
+    return normProduct.includes(normItem) || normItem.includes(normProduct);
+  });
+  if (containingMatches.length === 1) return containingMatches[0];
+  return null; // صفر أو أكثر من مرشّح احتواء — لا ربط
+}
+
+export function resolveOrderItemsAgainstInventory(
+  items: OrderItemInput[],
+  inventory: InventoryProductLite[],
+): ResolvedOrderItem[] {
+  return items.map((item) => {
+    const match = findInventoryMatch(item.name, inventory);
+    const catalogPrice = match ? Number(match.price) : NaN;
+    const resolvedUnitPrice = match && Number.isFinite(catalogPrice) && catalogPrice > 0
+      ? catalogPrice
+      : item.unitPrice;
+    return {
+      item,
+      inventoryProductId: match ? match.id : null,
+      resolvedUnitPrice,
+      modelPrice: item.unitPrice,
+    };
+  });
+}
+
 async function executeCreateOrder(params: ExecuteParams, conversation: ConversationContext, args: unknown): Promise<AgentToolResult> {
   const data = createOrderSchema.parse(args);
   const [{ total: existingCount }] = await db.select({ total: count() })
@@ -677,15 +753,36 @@ async function executeCreateOrder(params: ExecuteParams, conversation: Conversat
   }).returning();
 
   if (data.items?.length) {
-    await db.insert(orderItemsTable).values(data.items.map((item) => ({
+    // اربط كل بند بمنتج المخزون قبل الإدراج — الأسعار مصدرها الكتالوج لا ذاكرة النموذج.
+    const inventory = await db
+      .select({
+        id: inventoryProductsTable.id,
+        name: inventoryProductsTable.name,
+        price: inventoryProductsTable.price,
+        currency: inventoryProductsTable.currency,
+      })
+      .from(inventoryProductsTable)
+      .where(and(
+        eq(inventoryProductsTable.workspaceId, params.workspaceId),
+        eq(inventoryProductsTable.isArchived, false),
+        eq(inventoryProductsTable.status, "active"),
+      ))
+      .limit(500);
+    const resolvedItems = resolveOrderItemsAgainstInventory(data.items, inventory);
+
+    await db.insert(orderItemsTable).values(resolvedItems.map(({ item, inventoryProductId, resolvedUnitPrice, modelPrice }) => ({
       workspaceId: params.workspaceId,
       orderId: order.id,
+      inventoryProductId,
       name: item.name,
       description: item.description ?? null,
       quantity: item.quantity,
-      unitPrice: String(item.unitPrice),
+      unitPrice: String(resolvedUnitPrice),
       currency: item.currency ?? data.currency,
-      total: String(item.quantity * item.unitPrice),
+      total: String(item.quantity * resolvedUnitPrice),
+      snapshot: inventoryProductId
+        ? { matchedBy: "agent_inventory_resolver", modelPrice }
+        : {},
     })));
     await recalcOrderTotal(order.id, params.workspaceId);
   }

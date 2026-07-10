@@ -20,6 +20,7 @@ import { runAI, getProviderStatus, ACTIVE_PROVIDER, getDefaultModel, type AiMess
 import { checkActionSafety, recordSafetyBlock, isSuggestionSafe } from "../../lib/ai-safety";
 import { aiRunLimiter } from "../../lib/rateLimiter";
 import { runAgentReply, simulateAgentReply } from "../../lib/agent-reply";
+import { defaultAgentToolPolicies } from "../../lib/agent-tools";
 import { loadSectorAgentContext } from "../../lib/agent-sector";
 import { logger } from "../../lib/logger";
 import { appendTurn, clear as clearAgentMemory, loadContext, rotate, shouldRotate } from "../../services/agent-memory";
@@ -894,6 +895,28 @@ router.get("/agents/:id/tools", requirePermission("ai:read"), async (req: Authen
   const tools = await db.select().from(aiAgentToolsTable).where(
     and(eq(aiAgentToolsTable.agentId, agentId), eq(aiAgentToolsTable.workspaceId, activeWorkspaceId))
   );
+  // 9 يوليو 2026: صفر صفوف يعني أدوات افتراضية فعّالة فعلياً في مسار الرد الحيّ
+  // (loadExecutableAgentTools) — يجب أن تعرض الواجهة نفس الواقع بدل قائمة فارغة توحي بأن
+  // الوكيل عاجز. لا يوجد استهلاك حالي لهذا المسار في الواجهة (web) — isDefault إضافة آمنة
+  // لا تكسر أي عميل موجود، وتُميّز هذه الصفوف الافتراضية (غير محفوظة فعلياً في الجدول) عمّا
+  // خصّصه التاجر صراحةً.
+  if (tools.length === 0) {
+    const now = new Date();
+    const defaultTools = defaultAgentToolPolicies().map((policy) => ({
+      id: `default:${policy.key}`,
+      workspaceId: activeWorkspaceId,
+      agentId,
+      toolKey: policy.key,
+      isEnabled: true,
+      requiresApproval: policy.requiresApproval,
+      config: policy.config,
+      createdAt: now,
+      updatedAt: now,
+      isDefault: true,
+    }));
+    res.json({ tools: defaultTools });
+    return;
+  }
   res.json({ tools });
 });
 
