@@ -104,27 +104,39 @@ export function includesEscalationKeyword(value: string): boolean {
   return ESCALATION_KEYWORDS.some((keyword) => normalized.includes(keyword));
 }
 
-// حادثة 6 يوليو 2026: الوكيل عرض «إذا تحتاج تحويل بشري سأحوّلك الآن» فحوّلته الشبكة فوراً دون
-// رضا العميل — رغم أن قواعد التأريض نفسها توجّهه أن «يسأل العميل إن كان يرغب بالتحويل». العرضُ
-// المشروط سلوك صحيح مقصود؛ الوعد الصريح وحده هو ما يُنفَّذ. الفحص جملةً-جملة حتى لا يُلغي عرضٌ
-// في جملةٍ وعداً صريحاً في جملة أخرى («قمت بتحويل طلبك. هل أساعدك بشيء آخر؟» تبقى وعداً).
-// «ان» المفردة مستبعدة عمداً من كلمات الشرط: تلتبس بـ«أن» المصدرية («يسعدني أن أحوّلك») و«الآن».
+// توازن التصعيد — قلب المنتج (حادثتا 6 و10 يوليو 2026):
+// • «إذا تحتاج تحويل بشري سأحوّلك» = عرضٌ ينتظر موافقة العميل → لا تصعيد (لا استعجال).
+// • «صعّدت طلبك للفريق، تحب أساعدك بشي ثاني؟» = وعدٌ واقع يليه سؤال مجاملة → يُنفَّذ (لا وعد مكسور).
+// المحادثات العربية نادراً تستخدم النقاط، ففحصُ «هل توجد أداة شرط في الجملة؟» وحده جعل سؤال
+// المجاملة بعد الوعد يلغيه. القاعدة الأدق: أداة الشرط تُعفي الوعدَ فقط إذا وردت **قبله** في
+// جملته — الشرط يحكم ما بعده لا ما قبله. الفحص جملةً-جملة (كي لا يُعفي عرضٌ في جملةٍ وعداً
+// في أخرى)، و«ان» المفردة مستبعدة عمداً: تلتبس بـ«أن» المصدرية («يسعدني أن أحوّلك») و«الآن».
 const OFFER_MARKER_WORDS = ["اذا", "لو", "هل"];
-const OFFER_MARKER_SUBSTRINGS = ["تحب", "تبي", "تبغ", "ودك", "تريد", "ترغب", "يناسبك", "؟"];
+const OFFER_MARKER_SUBSTRINGS = ["تحب", "تبي", "تبغ", "ودك", "تريد", "ترغب", "يناسبك"];
 
-function isOfferSentence(normalizedSentence: string): boolean {
-  if (OFFER_MARKER_SUBSTRINGS.some((marker) => normalizedSentence.includes(marker))) return true;
-  const words = normalizedSentence.split(/\s+/);
+function earliestHandoffPatternIndex(normalizedSentence: string): number {
+  let earliest = -1;
+  for (const pattern of HANDOFF_PROMISE_PATTERNS) {
+    const index = normalizedSentence.indexOf(pattern);
+    if (index >= 0 && (earliest < 0 || index < earliest)) earliest = index;
+  }
+  return earliest;
+}
+
+function hasOfferMarkerBefore(normalizedSentence: string, patternIndex: number): boolean {
+  const prefix = normalizedSentence.slice(0, patternIndex);
+  if (OFFER_MARKER_SUBSTRINGS.some((marker) => prefix.includes(marker))) return true;
+  const words = prefix.split(/\s+/);
   return words.some((word) => OFFER_MARKER_WORDS.includes(word));
 }
 
 export function replyPromisesHandoff(reply: string): boolean {
-  // التقسيم يُبقي علامة الجملة (lookbehind) حتى تُرى «؟» داخل جملتها عند فحص العرض.
   const sentences = reply.split(/(?<=[.!؟?\n…])/);
   return sentences.some((sentence) => {
     const normalized = normalizeArabic(sentence);
-    if (!HANDOFF_PROMISE_PATTERNS.some((pattern) => normalized.includes(pattern))) return false;
-    return !isOfferSentence(normalized);
+    const patternIndex = earliestHandoffPatternIndex(normalized);
+    if (patternIndex < 0) return false;
+    return !hasOfferMarkerBefore(normalized, patternIndex);
   });
 }
 
