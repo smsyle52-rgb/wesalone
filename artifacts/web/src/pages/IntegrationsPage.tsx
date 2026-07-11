@@ -68,7 +68,6 @@ type EmbeddedSignupMessage = {
 };
 
 const metaSignupOptions: Array<{ key: MetaSignupConfigKey; backendKey: string; label: string }> = [
-  { key: "whatsappStandard", backendKey: "whatsapp_standard", label: "ربط رقم واتساب جديد" },
   { key: "whatsappCoexistence", backendKey: "whatsapp_coexistence", label: "ربط رقم واتساب موجود (تعايش)" },
   { key: "instagramMessenger", backendKey: "instagram_messenger", label: "ربط إنستغرام وماسنجر" },
   { key: "facebookContent", backendKey: "facebook_content", label: "ربط صفحات فيسبوك" },

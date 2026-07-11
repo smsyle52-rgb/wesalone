@@ -98,6 +98,37 @@ router.post("/cleanup-domain-events", async (req: Request, res: Response): Promi
   res.status(200).json({ updated: result.rowCount ?? 0 });
 });
 
+// إصلاح (10 يوليو 2026): نفس بق «تصعيد حقيقي لكن استجابة تقول false + صفر إشعار للتاجر» اتكرّر
+// مرّتين مستقلّتين (فرع القناة المفقودة، فرع مستلم واتساب غير محلول) بعد إصلاح فرع الردّ الفارغ —
+// اكتشفه اختبار حمل آلي حقيقي (محادثات فعلية عبر هذا المسار بالذات، لا محاكاة). استخرجناه لدالة
+// واحدة بدل تكرار نفس المنطق في كل «مخرج مبكر» بالمسار — يمنع ظهور نسخة رابعة منسية لاحقاً.
+// يُطبَّق التصعيد فقط عند shouldEscalate=true، ويُشعَر التاجر مرّة واحدة فقط عند *تحوّل* المحادثة
+// لحالة human فعلاً (لا مع كل رسالة في محادثة متصعّدة أصلاً) — نفس دلالة الفرع الأصلي بالضبط.
+async function applyEscalationIfNeeded(params: {
+  workspaceId: string;
+  conversationId: string;
+  shouldEscalate: boolean;
+  wasAlreadyHuman: boolean;
+}): Promise<void> {
+  if (!params.shouldEscalate) return;
+  await writeAgentStatus({ conversationId: params.conversationId, workspaceId: params.workspaceId, agentStatus: "human" });
+  if (params.wasAlreadyHuman) return;
+  await notifyWorkspace({
+    workspaceId: params.workspaceId,
+    type: "conversation.needs_human",
+    titleAr: "محادثة تحتاج تدخل",
+    bodyAr: "لم يتمكن الوكيل من الرد، وتم تحويل المحادثة لمراجعة الفريق.",
+    link: `/inbox?conversation=${params.conversationId}`,
+  }).catch((err) => logger.warn({ err, conversationId: params.conversationId }, "Failed to notify workspace of escalation"));
+  emitWorkspaceEvent({
+    workspaceId: params.workspaceId,
+    type: "conversation.needs_human",
+    entityType: "conversation",
+    entityId: params.conversationId,
+    payload: { conversationId: params.conversationId },
+  });
+}
+
 router.post("/agent-reply", async (req: Request, res: Response): Promise<void> => {
   if (!requireInternalSecret(req, res)) return;
 
@@ -153,31 +184,15 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       systemUserId: agent.createdBy,
     });
 
+    const wasAlreadyHuman = conversation.agentStatus === "human";
     const replyText = agentReply.reply.trim();
     if (!replyText) {
-      if (agentReply.shouldEscalate) {
-        // تصعيد للبشر. لتفادي سيل الإشعارات (مثلاً عند نفاد رصيد الذكاء فتتصعّد كل رسالة):
-        // نُشعر ونبثّ مرّة واحدة عند *تحوّل* المحادثة إلى "human" فقط، لا مع كل رسالة في محادثة متصعّدة أصلاً.
-        const wasAlreadyHuman = conversation.agentStatus === "human";
-        await writeAgentStatus({ conversationId, workspaceId, agentStatus: "human" });
-        if (!wasAlreadyHuman) {
-          await notifyWorkspace({
-            workspaceId,
-            type: "conversation.needs_human",
-            titleAr: "محادثة تحتاج تدخل",
-            bodyAr: "لم يتمكن الوكيل من الرد، وتم تحويل المحادثة لمراجعة الفريق.",
-            link: `/inbox?conversation=${conversationId}`,
-          }).catch((err) => logger.warn({ err, conversationId }, "Failed to notify workspace of escalation"));
-          emitWorkspaceEvent({ workspaceId, type: "conversation.needs_human", entityType: "conversation", entityId: conversationId, payload: { conversationId } });
-        }
-      }
-
+      // ردّ فارغ من runAgentReply — تصعيد حقيقي إن قرّره (نفاد رصيد، رصيد نموذج مؤقت، إلخ)،
+      // يُطبَّق ويُبلَّغ التاجر عبر applyEscalationIfNeeded أدناه (لا صمت، لا ادّعاء بلا أثر).
+      await applyEscalationIfNeeded({ workspaceId, conversationId, shouldEscalate: agentReply.shouldEscalate, wasAlreadyHuman });
       res.status(200).json({
         success: true,
         runId: agentReply.runId,
-        // كان ثابتاً true — فرسالة فاضية/ملصق من العميل (shouldEscalate=false فعلياً) كانت تجعل
-        // الـworker يقلب المحادثة لبشري بصمت وبلا إشعار، ويصمت الوكيل عن العميل للأبد. نرجّع القيمة
-        // الحقيقية: التصعيد الصامت يحدث فقط حين يقرّره runAgentReply فعلاً (ومعه إشعار التاجر أعلاه).
         shouldEscalate: agentReply.shouldEscalate,
         toolResults: agentReply.toolResults,
         outboxEventId: null,
@@ -186,10 +201,15 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
     }
 
     if (!conversation.channelAccountId || !conversation.externalThreadId) {
+      // إصلاح (10 يوليو 2026): كان shouldEscalate ثابتاً false هنا بلا أي إشعار للتاجر — فمحادثة
+      // بلا قناة موصولة (بيانات ناقصة، أو اختبار) تُخفي تصعيداً حقيقياً (نفاد رصيد، فشل أداة، طلب
+      // عميل صريح) تماماً؛ اكتشفه اختبار حمل آلي حقيقي (3 سيناريوهات مستقلة أكّدته). الوكيل ما زال
+      // لا يقدر يرسل رداً فعلياً هنا (لا وجهة)، لكن حالة التصعيد الحقيقية والإشعار يجب ألا يضيعا.
+      await applyEscalationIfNeeded({ workspaceId, conversationId, shouldEscalate: agentReply.shouldEscalate, wasAlreadyHuman });
       res.status(200).json({
         success: true,
         runId: agentReply.runId,
-        shouldEscalate: false,
+        shouldEscalate: agentReply.shouldEscalate,
         toolResults: agentReply.toolResults,
         outboxEventId: null,
       });
@@ -211,10 +231,13 @@ router.post("/agent-reply", async (req: Request, res: Response): Promise<void> =
       });
       if (!whatsappRecipient.ok) {
         logger.warn({ workspaceId, conversationId, code: whatsappRecipient.code }, "Agent reply has no sendable WhatsApp recipient");
+        // نفس إصلاح فرع القناة المفقودة أعلاه — لا وجهة إرسال هنا أيضاً، لكن التصعيد الحقيقي
+        // وإشعار التاجر يجب ألا يضيعا بحجة تعذّر تحديد المستلم.
+        await applyEscalationIfNeeded({ workspaceId, conversationId, shouldEscalate: agentReply.shouldEscalate, wasAlreadyHuman });
         res.status(200).json({
           success: true,
           runId: agentReply.runId,
-          shouldEscalate: false,
+          shouldEscalate: agentReply.shouldEscalate,
           toolResults: agentReply.toolResults,
           outboxEventId: null,
         });

@@ -172,7 +172,7 @@ const TOOL_LABELS: Record<AgentToolKey, string> = {
   create_order: "Create a real order in the system. CALL THIS TOOL whenever the customer clearly wants to buy/order and the product and quantity are known — do NOT just say the order was placed; saying it without calling this tool is lying to the customer. If product or quantity is missing, ask the customer instead of calling.",
   log_payment_claim: "Log a pending payment claim for human review. Never confirms money.",
   schedule_followup: "Schedule a future follow-up for the current contact.",
-  send_product_media: "Send one product image from the merchant's inventory to the customer on the current channel (WhatsApp, Instagram, or Messenger).",
+  send_product_media: "Send the product's real image to the customer on the current channel. CALL THIS TOOL whenever the customer asks to see a product, asks for its photo, or asks about a specific product that is marked «صورة متوفرة» in the catalog — do NOT say you sent or will send a picture without calling this tool. Products WITHOUT that mark have no image: never call it for them, describe in text instead.",
   handoff_to_human: "Move the conversation to human handling immediately. Call ONLY after the customer explicitly asked for a human, agreed to your offer, complained, or you cannot help from the context. NEVER call it in the same turn where you are merely OFFERING or asking whether the customer wants a transfer — offer first, then wait for their consent in their next message.",
 };
 
@@ -586,6 +586,15 @@ export async function loadOrderStatusContext(
 // تأريض الأسعار (3 يوليو 2026): حادثة «299 ريال» أثبتت أن قاعدة «لا تخترع أسعاراً»
 // النصية وحدها لا تكفي — النموذج اخترع سعراً رغمها. الحل الجذري: حقن كتالوج المخزون
 // الحقيقي في السياق كقائمة حصرية، فيصير المنع قابلاً للتحقق بدل أن يكون وصية مجردة.
+// شكوى عميل مفقود (10 يوليو، m775029375): الوكيل «لا يقرأ سياسة التوصيل من المنتج» — العمود
+// موجود لكل منتج (all/local/pickup_only) لكنه لم يكن يُجلب للكتالوج إطلاقاً، فالوكيل يجيب عن
+// التوصيل أعمى. الآن تظهر لكل منتج بالعربية.
+const DELIVERY_POLICY_LABELS: Record<string, string> = {
+  all: "توصيل واستلام متاحان",
+  local: "توصيل محلي فقط",
+  pickup_only: "استلام من المتجر فقط",
+};
+
 export async function loadProductCatalogContext(workspaceId: string, limit = 40): Promise<string> {
   const products = await db
     .select({
@@ -595,6 +604,7 @@ export async function loadProductCatalogContext(workspaceId: string, limit = 40)
       unit: inventoryProductsTable.unit,
       quantityAvailable: inventoryProductsTable.quantityAvailable,
       imageUrl: inventoryProductsTable.imageUrl,
+      deliveryPolicy: inventoryProductsTable.deliveryPolicy,
     })
     .from(inventoryProductsTable)
     .where(and(
@@ -615,7 +625,9 @@ export async function loadProductCatalogContext(workspaceId: string, limit = 40)
     // علامة الصورة توجّه النموذج: يرسل صورة (send_product_media) فقط لمنتج معلَّم بها —
     // محاولة إرسال صورة لمنتج بلا صورة كانت تفشل وتُربك التجربة (حادثة 10 يوليو).
     const imageMark = product.imageUrl ? " | صورة متوفرة" : "";
-    return `- ${product.name}: ${product.price} ${product.currency}${availability}${imageMark}`;
+    const delivery = DELIVERY_POLICY_LABELS[product.deliveryPolicy ?? "all"];
+    const deliveryMark = delivery ? ` | التوصيل: ${delivery}` : "";
+    return `- ${product.name}: ${product.price} ${product.currency}${availability}${imageMark}${deliveryMark}`;
   });
 
   return [

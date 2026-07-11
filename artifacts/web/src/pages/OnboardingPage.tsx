@@ -101,14 +101,6 @@ const CHANNEL_OPTIONS: Array<{
   icon: ReactNode;
 }> = [
   {
-    key: "whatsappStandard",
-    backendKey: "whatsapp_standard",
-    label: "ربط رقم واتساب جديد",
-    description: "افتح رقمًا جديدًا عبر التسجيل المضمن الرسمي من Meta.",
-    tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    icon: <FaWhatsapp className="h-5 w-5" />,
-  },
-  {
     key: "whatsappCoexistence",
     backendKey: "whatsapp_coexistence",
     label: "ربط رقم واتساب موجود على التطبيق",
