@@ -1,6 +1,7 @@
 import {
   index,
   integer,
+  boolean,
   jsonb,
   pgTable,
   text,
@@ -228,6 +229,42 @@ export const idempotencyKeysTable = pgTable(
     index("idx_idempotency_keys_status").on(table.status),
     index("idx_idempotency_keys_expires_at").on(table.expiresAt),
     index("idx_idempotency_expires").on(table.expiresAt),
+  ],
+);
+
+export const metaMobileSignupAttemptsTable = pgTable(
+  "meta_mobile_signup_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    signupAttemptId: text("signup_attempt_id").notNull(),
+    nonceHash: text("nonce_hash").notNull(),
+    userId: uuid("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspacesTable.id, { onDelete: "cascade" }),
+    configKey: text("config_key").notNull(),
+    configId: text("config_id").notNull(),
+    returnTo: text("return_to").notNull(),
+    status: text("status").notNull().default("pending"),
+    checkpoint: text("checkpoint").notNull().default("pending"),
+    claimToken: text("claim_token"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    encryptedTokenRef: text("encrypted_token_ref"),
+    discoveredOptions: jsonb("discovered_options"),
+    channelAccountId: uuid("channel_account_id").references(() => channelAccountsTable.id, { onDelete: "set null" }),
+    resultReady: boolean("result_ready").notNull().default(false),
+    retryCount: integer("retry_count").notNull().default(0),
+    lastErrorCode: text("last_error_code"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("uq_meta_mobile_signup_attempt_id").on(table.signupAttemptId),
+    uniqueIndex("uq_meta_mobile_signup_nonce_hash").on(table.nonceHash),
+    index("idx_meta_mobile_signup_workspace_status").on(table.workspaceId, table.status),
+    index("idx_meta_mobile_signup_lease").on(table.leaseExpiresAt),
+    index("idx_meta_mobile_signup_expires").on(table.expiresAt),
   ],
 );
 

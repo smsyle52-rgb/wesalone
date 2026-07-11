@@ -85,7 +85,7 @@ export default function MetaConnectChannelsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "تعذر حفظ القنوات المختارة");
-      setLocation("/integrations");
+      setLocation(data.returnTo === "/dashboard?whatsapp_connected=1" ? data.returnTo : "/integrations");
     } catch (err) {
       setError((err as Error).message);
     } finally {

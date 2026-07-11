@@ -23,6 +23,11 @@ describe("Meta mobile redirect web regression contract", () => {
     }
   });
 
+  it("does not process or poll mobile results until the server flag is enabled", () => {
+    expect(onboardingSource).toContain("metaConfigQuery.data?.mobileRedirectEnabled !== true");
+    expect(integrationsSource).toContain("metaSignupConfig?.mobileRedirectEnabled !== true");
+  });
+
   it("keeps Instagram and Messenger on their existing completion path", () => {
     expect(onboardingSource).toContain("embedded-signup/instagram-messenger/complete");
     expect(integrationsSource).toContain("embedded-signup/instagram-messenger/complete");

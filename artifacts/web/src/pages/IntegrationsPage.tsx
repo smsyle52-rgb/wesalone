@@ -409,6 +409,7 @@ export default function IntegrationsPage() {
   }, []);
 
   useEffect(() => {
+    if (metaSignupConfig?.mobileRedirectEnabled !== true) return;
     let cancelled = false;
     async function continueMobileOnboarding() {
       try {
@@ -424,7 +425,7 @@ export default function IntegrationsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [metaSignupConfig?.mobileRedirectEnabled]);
 
   useEffect(() => {
     let cancelled = false;

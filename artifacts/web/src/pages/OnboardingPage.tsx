@@ -421,6 +421,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (handledMobileReturnRef.current) return;
+    if (metaConfigQuery.data?.mobileRedirectEnabled !== true) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("metaSignup") !== "success") return;
     handledMobileReturnRef.current = true;
@@ -431,12 +432,19 @@ export default function OnboardingPage() {
         if (!result.completed || result.returnTo !== "/onboarding") {
           throw new Error("تعذر التحقق من اكتمال ربط واتساب.");
         }
+        const refreshed = await channelsQuery.refetch();
+        const connected = refreshed.data?.accounts?.some((channel) =>
+          channel.channelType === "whatsapp"
+          && channel.status === "active"
+          && channel.hasCredentialReference,
+        );
+        if (!connected) throw new Error("WhatsApp channel is not active yet");
         await finishOnboarding();
       } catch (err) {
         setFinishError((err as Error).message);
       }
     })();
-  }, []);
+  }, [metaConfigQuery.data?.mobileRedirectEnabled]);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {

@@ -1,8 +1,18 @@
 import { createServer, type Server } from "node:http";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { db, pool } from "@workspace/db";
 import type { SessionUser } from "../lib/types";
-import integrationsRouter from "../modules/integrations/integrations.routes";
+import integrationsRouter, {
+  assertWhatsAppPhoneAvailableForWorkspace,
+  claimMetaMobileRedirectCallback,
+  ensureAutoAgentChannel,
+} from "../modules/integrations/integrations.routes";
+
+vi.mock("@workspace/db", async (importOriginal) => {
+  const schema = await import("@workspace/db/schema");
+  return { ...schema, db: {}, pool: { connect: vi.fn(), query: vi.fn(async () => ({ rows: [], rowCount: 0 })) } };
+});
 
 const USER_ID = "00000000-0000-4000-8000-000000000100";
 const WORKSPACE_ID = "00000000-0000-4000-8000-000000000200";
@@ -61,6 +71,7 @@ describe("Meta WhatsApp mobile Embedded Signup redirect", () => {
   const servers: Server[] = [];
 
   beforeEach(() => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as any);
     process.env.META_MOBILE_REDIRECT_ENABLED = "true";
     process.env.META_APP_ID = "123456789";
     process.env.META_GRAPH_VERSION = "v22.0";
@@ -73,6 +84,7 @@ describe("Meta WhatsApp mobile Embedded Signup redirect", () => {
   afterEach(async () => {
     await Promise.all(servers.splice(0).map(close));
     delete process.env.META_MOBILE_REDIRECT_ENABLED;
+    vi.restoreAllMocks();
   });
 
   async function request(testSession: TestSession, path: string, init?: RequestInit) {
@@ -91,6 +103,24 @@ describe("Meta WhatsApp mobile Embedded Signup redirect", () => {
     const response = await start(session(), "whatsapp_standard", STANDARD_CONFIG_ID);
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({ enabled: false, code: "meta_mobile_redirect_disabled" });
+
+    const callbackSession = session();
+    callbackSession.metaWhatsAppRedirectState = {
+      nonce: "mobile",
+      signupAttemptId: "disabled-attempt",
+      userId: USER_ID,
+      workspaceId: WORKSPACE_ID,
+      configKey: "whatsapp_standard",
+      configId: STANDARD_CONFIG_ID,
+      returnTo: "/onboarding",
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 60_000,
+    };
+    const callback = await request(callbackSession, "/api/integrations/meta/embedded-signup/callback?state=mobile&code=unused");
+    expect(callback.status).toBe(404);
+
+    const result = await request(session(), "/api/integrations/meta/embedded-signup/mobile-redirect/result");
+    expect(result.status).toBe(404);
   });
 
   it("builds Standard with the configured config and no broad OAuth scopes", async () => {
@@ -163,24 +193,82 @@ describe("Meta WhatsApp mobile Embedded Signup redirect", () => {
     expect((await request(otherWorkspace, "/api/integrations/meta/embedded-signup/callback?state=other-workspace&code=unused")).status).toBe(403);
   });
 
-  it("consumes a valid state before processing and rejects its second callback", async () => {
-    const testSession = session();
-    testSession.metaWhatsAppRedirectState = {
-      nonce: "one-use",
-      signupAttemptId: "attempt-one-use",
-      userId: USER_ID,
-      workspaceId: WORKSPACE_ID,
-      configKey: "whatsapp_standard",
-      configId: STANDARD_CONFIG_ID,
-      returnTo: "/onboarding",
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 15 * 60_000,
-    };
-    const first = await request(testSession, "/api/integrations/meta/embedded-signup/callback?state=one-use");
-    expect(first.status).toBe(400);
-    expect(testSession.metaWhatsAppRedirectState?.consumedAt).toEqual(expect.any(Number));
-    const second = await request(testSession, "/api/integrations/meta/embedded-signup/callback?state=one-use&code=reused");
-    expect(second.status).toBe(403);
+  it("claims concurrent callbacks atomically with one database winner", async () => {
+    let claimed = false;
+    let lockTail = Promise.resolve();
+    vi.spyOn(pool, "connect").mockImplementation(async () => {
+      let unlock: (() => void) | undefined;
+      return {
+        query: vi.fn(async (query: string) => {
+          if (query.includes("SELECT status")) {
+            const previous = lockTail;
+            lockTail = new Promise<void>((resolve) => { unlock = resolve; });
+            await previous;
+            return { rows: [{ status: claimed ? "processing" : "pending", checkpoint: "pending", lease_expires_at: claimed ? new Date(Date.now() + 60_000) : null, encrypted_token_ref: null }] };
+          }
+          if (query.includes("UPDATE meta_mobile_signup_attempts")) claimed = true;
+          if (query === "COMMIT" || query === "ROLLBACK") unlock?.();
+          return { rowCount: null, rows: [] };
+        }),
+        release: vi.fn(),
+      } as any;
+    });
+
+    const results = await Promise.all([
+      claimMetaMobileRedirectCallback({ workspaceId: WORKSPACE_ID, userId: USER_ID, signupAttemptId: "attempt-one-use", nonce: "nonce" }),
+      claimMetaMobileRedirectCallback({ workspaceId: WORKSPACE_ID, userId: USER_ID, signupAttemptId: "attempt-one-use", nonce: "nonce" }),
+    ]);
+
+    expect(results.map((result) => result.outcome).sort()).toEqual(["busy", "claimed"]);
+  });
+
+  it("rejects a phone owned by another workspace without mutating that channel", async () => {
+    const channelA = { id: "channel-a", workspaceId: "workspace-a", status: "active", credentialsSecretRef: "enc:v1:unchanged" };
+    const before = structuredClone(channelA);
+    const limit = vi.fn(async () => [channelA]);
+    const where = vi.fn(() => ({ limit }));
+    const from = vi.fn(() => ({ where }));
+    const update = vi.fn();
+    Object.assign(db, { select: vi.fn(() => ({ from })), update });
+
+    await expect(assertWhatsAppPhoneAvailableForWorkspace(WORKSPACE_ID, {} as any))
+      .rejects.toMatchObject({ status: 409, code: "phone_number_linked_to_another_workspace" });
+    expect(update).not.toHaveBeenCalled();
+    expect(channelA).toEqual(before);
+  });
+
+  it("serializes concurrent auto-agent linking and inserts one row", async () => {
+    let rowExists = false;
+    let insertCalls = 0;
+    let lockTail = Promise.resolve();
+    const connect = vi.fn(async () => {
+      let unlock: (() => void) | undefined;
+      return {
+        query: vi.fn(async (query: string) => {
+          if (query.includes("pg_advisory_xact_lock")) {
+            const previous = lockTail;
+            lockTail = new Promise<void>((resolve) => { unlock = resolve; });
+            await previous;
+          } else if (query.includes("UPDATE ai_agent_channels")) {
+            return { rowCount: rowExists ? 1 : 0, rows: rowExists ? [{ id: "link" }] : [] };
+          } else if (query.includes("INSERT INTO ai_agent_channels")) {
+            insertCalls += 1;
+            rowExists = true;
+          } else if (query === "COMMIT" || query === "ROLLBACK") {
+            unlock?.();
+          }
+          return { rowCount: null, rows: [] };
+        }),
+        release: vi.fn(),
+      };
+    });
+    vi.spyOn(pool, "connect").mockImplementation(connect as any);
+
+    await Promise.all([
+      ensureAutoAgentChannel(WORKSPACE_ID, "00000000-0000-4000-8000-000000000600", "00000000-0000-4000-8000-000000000700"),
+      ensureAutoAgentChannel(WORKSPACE_ID, "00000000-0000-4000-8000-000000000600", "00000000-0000-4000-8000-000000000700"),
+    ]);
+    expect(insertCalls).toBe(1);
   });
 
   it("keeps the existing generic start and /complete contracts available", async () => {
@@ -198,20 +286,24 @@ describe("Meta WhatsApp mobile Embedded Signup redirect", () => {
     expect(await complete.json()).toMatchObject({ error: "بيانات التسجيل المضمن غير صالحة" });
   });
 
-  it("returns and consumes only the current user's completion result", async () => {
+  it("returns the current user's completion result idempotently until its TTL", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [{ signup_attempt_id: "attempt-result" }], rowCount: 1 } as any);
     const testSession = session();
     testSession.metaMobileRedirectResult = {
       userId: USER_ID,
       workspaceId: WORKSPACE_ID,
       signupAttemptId: "attempt-result",
       returnTo: "/onboarding",
+      channelAccountId: "00000000-0000-4000-8000-000000000500",
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 60_000,
     };
     const first = await request(testSession, "/api/integrations/meta/embedded-signup/mobile-redirect/result");
     expect(first.status).toBe(200);
     expect(await first.json()).toEqual({ completed: true, returnTo: "/onboarding", signupAttemptId: "attempt-result" });
-    expect(testSession.metaMobileRedirectResult).toBeUndefined();
+    expect(testSession.metaMobileRedirectResult).toBeDefined();
 
     const second = await request(testSession, "/api/integrations/meta/embedded-signup/mobile-redirect/result");
-    expect(await second.json()).toEqual({ completed: false });
+    expect(await second.json()).toEqual({ completed: true, returnTo: "/onboarding", signupAttemptId: "attempt-result" });
   });
 });
