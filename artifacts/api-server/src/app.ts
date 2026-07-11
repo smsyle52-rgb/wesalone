@@ -108,7 +108,7 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
     res.status(err.statusCode).json({ error: err.messageAr, code: err.code });
     return;
   }
-  logger.error({ err, requestId: req.id, url: req.url, method: req.method }, "Unhandled error");
+  logger.error({ err, requestId: req.id, url: req.url?.split("?")[0], method: req.method }, "Unhandled error");
   res.status(500).json({ error: "حدث خطأ غير متوقع", code: "INTERNAL_ERROR" });
 });
 

@@ -48,6 +48,7 @@ declare global {
 type MetaSignupConfig = {
   appId: string | null;
   graphVersion: string;
+  mobileRedirectEnabled?: boolean;
   configIds: {
     whatsappStandard: string | null;
     whatsappCoexistence: string | null;
@@ -347,6 +348,10 @@ function toWizardStep(value: 1 | 2 | 3): Step {
   return value >= 2 ? 2 : 1;
 }
 
+function isMobileMetaRedirectViewport() {
+  return window.matchMedia("(max-width: 767px)").matches;
+}
+
 export default function OnboardingPage() {
   const [, navigate] = useLocation();
   const { user, onboardingStatus, refreshAuth, clearAuth } = useAuth();
@@ -361,6 +366,7 @@ export default function OnboardingPage() {
   const signupSessionInfoRef = useRef<EmbeddedSignupSessionInfo | null>(null);
   const signupSessionErrorRef = useRef<string | null>(null);
   const agentPrefilledRef = useRef(false);
+  const handledMobileReturnRef = useRef(false);
   const [connectingKey, setConnectingKey] = useState<MetaSignupConfigKey | null>(null);
   // مهلة انتظار بيانات واتساب من Meta صارت طويلة (حتى 90 ثانية) — بلا رسالة توضيحية، يبدو
   // الزر معلّقاً لتاجر ينتظر بعد أن أغلق نافذة Meta بالفعل. تُعرض فقط في هذه النافذة الزمنية.
@@ -401,8 +407,36 @@ export default function OnboardingPage() {
   useEffect(() => {
     const config = metaConfigQuery.data;
     if (step !== 2 || !config?.appId) return;
+    if (config.mobileRedirectEnabled && isMobileMetaRedirectViewport()) return;
     void loadFacebookSdk(config.appId, config.graphVersion).catch(() => {});
   }, [metaConfigQuery.data, step]);
+
+  useEffect(() => {
+    if (handledMobileReturnRef.current) return;
+    if (metaConfigQuery.data?.mobileRedirectEnabled !== true) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("metaSignup") !== "success") return;
+    handledMobileReturnRef.current = true;
+    window.history.replaceState({}, "", window.location.pathname);
+    void (async () => {
+      try {
+        const result = await apiFetch<{ completed?: boolean; returnTo?: string }>("integrations/meta/embedded-signup/mobile-redirect/result");
+        if (!result.completed || result.returnTo !== "/onboarding") {
+          throw new Error("تعذر التحقق من اكتمال ربط واتساب.");
+        }
+        const refreshed = await channelsQuery.refetch();
+        const connected = refreshed.data?.accounts?.some((channel) =>
+          channel.channelType === "whatsapp"
+          && channel.status === "active"
+          && channel.hasCredentialReference,
+        );
+        if (!connected) throw new Error("WhatsApp channel is not active yet");
+        await finishOnboarding();
+      } catch (err) {
+        setFinishError((err as Error).message);
+      }
+    })();
+  }, [metaConfigQuery.data?.mobileRedirectEnabled]);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -586,6 +620,17 @@ export default function OnboardingPage() {
       if (!config?.appId) throw new Error("إعدادات Meta غير جاهزة بعد.");
       const configId = config.configIds[optionKey];
       if (!configId) throw new Error("هذه القناة غير مهيأة بعد.");
+      if (isWhatsAppSignupOption(optionKey) && config.mobileRedirectEnabled && isMobileMetaRedirectViewport()) {
+        const query = new URLSearchParams({
+          configKey: selectedOption.backendKey,
+          configId,
+          returnTo: "/onboarding",
+        });
+        const redirect = await apiFetch<{ url?: string }>(`integrations/meta/embedded-signup/whatsapp/redirect/start?${query}`);
+        if (!redirect.url) throw new Error("تعذر تجهيز رابط Meta للجوال.");
+        window.location.href = redirect.url;
+        return true;
+      }
       signupSessionInfoRef.current = null;
       signupSessionErrorRef.current = null;
       await loadFacebookSdk(config.appId, config.graphVersion);
@@ -619,6 +664,7 @@ export default function OnboardingPage() {
         });
       }
       await Promise.all([channelsQuery.refetch(), refreshAuth()]);
+      return false;
     },
     onMutate: (optionKey) => {
       setChannelError(null);
@@ -626,7 +672,9 @@ export default function OnboardingPage() {
       setConnectingKey(optionKey);
     },
     onSettled: () => setConnectingKey(null),
-    onSuccess: () => void finishOnboarding(),
+    onSuccess: (redirected) => {
+      if (!redirected) void finishOnboarding();
+    },
     onError: (error) => setChannelError((error as Error).message),
   });
 

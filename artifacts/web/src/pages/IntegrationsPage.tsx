@@ -46,6 +46,7 @@ declare global {
 type MetaSignupConfig = {
   appId: string | null;
   graphVersion: string;
+  mobileRedirectEnabled?: boolean;
   configIds: {
     whatsappStandard: string | null;
     whatsappCoexistence: string | null;
@@ -84,6 +85,10 @@ function configIdLast4(configId: string | null | undefined) {
 
 function isWhatsAppSignupOption(key: MetaSignupConfigKey) {
   return key === "whatsappStandard" || key === "whatsappCoexistence";
+}
+
+function isMobileMetaRedirectViewport() {
+  return window.matchMedia("(max-width: 767px)").matches;
 }
 
 function logMetaSignupDiagnostic(event: string, details: Record<string, unknown>) {
@@ -636,6 +641,25 @@ export default function IntegrationsPage() {
   }, []);
 
   useEffect(() => {
+    if (metaSignupConfig?.mobileRedirectEnabled !== true) return;
+    let cancelled = false;
+    async function continueMobileOnboarding() {
+      try {
+        const res = await fetch(`${BASE}/integrations/meta/embedded-signup/mobile-redirect/result`, { credentials: "include" });
+        const result = await res.json();
+        if (cancelled || !res.ok || !result.completed || result.returnTo !== "/onboarding") return;
+        window.location.href = "/onboarding?metaSignup=success";
+      } catch {
+        // This endpoint is an optional continuation for the flagged mobile flow.
+      }
+    }
+    void continueMobileOnboarding();
+    return () => {
+      cancelled = true;
+    };
+  }, [metaSignupConfig?.mobileRedirectEnabled]);
+
+  useEffect(() => {
     let cancelled = false;
     async function loadConfig() {
       try {
@@ -855,6 +879,19 @@ export default function IntegrationsPage() {
       }
       if (!configId) {
         throw new Error("Meta config_id is not configured for this signup type");
+      }
+
+      if (isWhatsAppSignupOption(option.key) && config.mobileRedirectEnabled && isMobileMetaRedirectViewport()) {
+        const query = new URLSearchParams({
+          configKey: option.backendKey,
+          configId,
+          returnTo: "/integrations",
+        });
+        const res = await fetch(`${BASE}/integrations/meta/embedded-signup/whatsapp/redirect/start?${query}`, { credentials: "include" });
+        const redirect = await res.json();
+        if (!res.ok || !redirect.url) throw new Error(redirect.error ?? "تعذر تجهيز رابط Meta للجوال.");
+        window.location.href = redirect.url as string;
+        return;
       }
 
       try {
