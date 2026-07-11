@@ -62,6 +62,30 @@ describe("catalog auto sync", () => {
     expect(results.has("ads-1")).toBe(false);
   });
 
+  // الطور 2 (11 يوليو 2026): التاجر يتوقع ظهور منشورات صفحته فوراً بعد الربط — page_posts
+  // ينضم الآن لـcommerce_catalog في المزامنة الفورية، بينما ads يبقى خارجها عمداً (يكفيه
+  // جدول Phase-1 الدوري خلال ساعات).
+  it("auto-syncs new page_posts sources alongside commerce catalog sources, but still skips ads", async () => {
+    const syncSource = vi.fn(async (source: { id: string; sourceType: string }) => ({
+      status: "success" as const,
+      itemsSynced: source.id === "catalog-1" ? 3 : source.id === "posts-1" ? 2 : 0,
+      itemsFailed: 0,
+    }));
+
+    const results = await autoSyncCreatedCatalogSources([
+      { id: "catalog-1", sourceType: "commerce_catalog" },
+      { id: "posts-1", sourceType: "page_posts" },
+      { id: "ads-1", sourceType: "ads" },
+    ], syncSource);
+
+    expect(syncSource).toHaveBeenCalledTimes(2);
+    expect(syncSource).toHaveBeenCalledWith({ id: "catalog-1", sourceType: "commerce_catalog" });
+    expect(syncSource).toHaveBeenCalledWith({ id: "posts-1", sourceType: "page_posts" });
+    expect(results.get("catalog-1")).toEqual({ status: "success", itemsSynced: 3, itemsFailed: 0 });
+    expect(results.get("posts-1")).toEqual({ status: "success", itemsSynced: 2, itemsFailed: 0 });
+    expect(results.has("ads-1")).toBe(false);
+  });
+
   it("captures sync failures without throwing", async () => {
     const onError = vi.fn();
     const syncSource = vi.fn(async () => {

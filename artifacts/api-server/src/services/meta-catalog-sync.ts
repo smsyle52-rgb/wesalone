@@ -64,6 +64,18 @@ type MetaPost = {
   type?: string;
 };
 
+// إنستغرام (الطور 2 — 11 يوليو 2026): حسابات الأعمال في إنستغرام لا تملك {id}/posts أصلاً —
+// منشوراتها الحقيقية عبر {ig-user-id}/media بحقول مختلفة الأسماء تماماً (caption لا message،
+// permalink لا permalink_url، إلخ). النوع هنا يعكس شكل استجابة ميتا الفعلي لهذا الـendpoint.
+type MetaIgMedia = {
+  id: string;
+  caption?: string;
+  permalink?: string | null;
+  timestamp?: string;
+  media_url?: string | null;
+  media_type?: string;
+};
+
 type MetaAd = {
   id: string;
   name?: string;
@@ -532,12 +544,34 @@ export async function syncCommerceCatalog(source: CatalogSource): Promise<SyncRe
   });
 }
 
+// طبّع استجابة {ig-user-id}/media لنفس شكل MetaPost (caption→message، permalink→permalink_url،
+// timestamp→created_time، media_url→attachments[0].media.image.src، media_type→type) — فيُعاد
+// استخدام حلقة upsert/dry-run أدناه بلا أي تفرّع إضافي بعد نقطة الجلب.
+function normalizeIgMediaToPost(media: MetaIgMedia): MetaPost {
+  return {
+    id: media.id,
+    message: media.caption,
+    created_time: media.timestamp,
+    permalink_url: media.permalink ?? null,
+    type: media.media_type,
+    attachments: media.media_url
+      ? { data: [{ media: { image: { src: media.media_url } } }] }
+      : null,
+  };
+}
+
 export async function syncPagePosts(source: CatalogSource): Promise<SyncResult> {
   return runWithAudit(source, async () => {
     const channelAccount = await loadChannelAccount(source);
     const token = accessToken(source, channelAccount);
+    // فرع إنستغرام (الطور 2): نفس مصدر page_posts يخدم صفحات فيسبوك وحسابات إنستغرام معاً —
+    // config.platform (مضبوطة عند إنشاء المصدر في integrations.routes.ts) تحدّد الـendpoint
+    // الصحيح. بلا توكن (dry-run محلي) نستخدم dryRunPosts نفسها للمنصّتين — لا حاجة لعيّنة مستقلة.
+    const isInstagram = sourceConfig(source).platform === "instagram";
     const rows = token
-      ? await collectPages<MetaPost>(`${source.externalId}/posts?fields=id,message,created_time,permalink_url,attachments,type`, token)
+      ? isInstagram
+        ? (await collectPages<MetaIgMedia>(`${source.externalId}/media?fields=id,caption,permalink,timestamp,media_url,media_type`, token)).map(normalizeIgMediaToPost)
+        : await collectPages<MetaPost>(`${source.externalId}/posts?fields=id,message,created_time,permalink_url,attachments,type`, token)
       : dryRunPosts(source);
     if (!token) logger.info({ sourceId: source.id }, "DRY_RUN Meta page posts sync");
 

@@ -7,7 +7,7 @@ import {
   aiUsageTable, aiFeedbackTable, aiSafetyEventsTable, approvalRequestsTable,
   autoReplyDecisionsTable, outboxEventsTable, messagesTable, contactsTable, contactChannelsTable,
   conversationsTable, knowledgeChunksTable, faqEntriesTable, knowledgeDocumentsTable,
-  channelAccountsTable, adCampaignsTable, socialPostsTable, productsTable,
+  channelAccountsTable,
   workspacesTable,
   tasksTable, learnedAnswersTable,
 } from "@workspace/db";
@@ -20,7 +20,7 @@ import { runAI, getProviderStatus, ACTIVE_PROVIDER, getDefaultModel, type AiMess
 import { checkActionSafety, recordSafetyBlock, isSuggestionSafe } from "../../lib/ai-safety";
 import { aiRunLimiter } from "../../lib/rateLimiter";
 import { runAgentReply, simulateAgentReply } from "../../lib/agent-reply";
-import { defaultAgentToolPolicies } from "../../lib/agent-tools";
+import { defaultAgentToolPolicies, loadMetaStoreContext } from "../../lib/agent-tools";
 import { loadSectorAgentContext } from "../../lib/agent-sector";
 import { logger } from "../../lib/logger";
 import { appendTurn, clear as clearAgentMemory, loadContext, rotate, shouldRotate } from "../../services/agent-memory";
@@ -163,49 +163,6 @@ type KnowledgeAiSource = {
   content: string;
   score?: number;
 };
-
-async function loadCatalogAgentContext(workspaceId: string): Promise<{ context: string; sources: string[] }> {
-  const [ads, posts, products] = await Promise.all([
-    db.select().from(adCampaignsTable)
-      .where(and(eq(adCampaignsTable.workspaceId, workspaceId), eq(adCampaignsTable.status, "ACTIVE")))
-      .orderBy(desc(adCampaignsTable.syncedAt))
-      .limit(5),
-    db.select().from(socialPostsTable)
-      .where(and(
-        eq(socialPostsTable.workspaceId, workspaceId),
-        gte(socialPostsTable.publishedAt, new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)),
-      ))
-      .orderBy(desc(socialPostsTable.publishedAt))
-      .limit(5),
-    db.select({
-      externalProductId: productsTable.externalProductId,
-      name: productsTable.name,
-    }).from(productsTable)
-      .where(and(eq(productsTable.workspaceId, workspaceId), eq(productsTable.isVisible, true)))
-      .limit(100),
-  ]);
-
-  const productNames = new Map(products.map((product) => [product.externalProductId, product.name]));
-  const adLines = ads.map((ad) => {
-    const promotedIds = Array.isArray(ad.promotedProductIds) ? ad.promotedProductIds : [];
-    const names = promotedIds.map((id) => productNames.get(id) ?? id).filter(Boolean);
-    return `${ad.name} — يروّج لمنتجات: ${names.join(", ") || "غير محدد"}`;
-  });
-  const postLines = posts.map((post) => {
-    const summary = (post.message ?? "").replace(/\s+/g, " ").slice(0, 220);
-    return summary || post.permalinkUrl || post.externalPostId;
-  });
-
-  const blocks = [
-    adLines.length > 0 ? `إعلانات نشطة حالياً:\n${adLines.map((line) => `- ${line}`).join("\n")}` : "",
-    postLines.length > 0 ? `آخر منشورات:\n${postLines.map((line) => `- ${line}`).join("\n")}` : "",
-  ].filter(Boolean);
-
-  return {
-    context: blocks.length > 0 ? `\n\nسياق المتجر من ميتا:\n${blocks.join("\n")}` : "",
-    sources: [...adLines.map((line) => `إعلان نشط: ${line}`), ...postLines.map((line) => `منشور حديث: ${line}`)],
-  };
-}
 
 function knowledgeSearchWords(query: string): string[] {
   return query
@@ -1522,7 +1479,7 @@ router.post("/runs/draft-reply", aiRunLimiter, requirePermission("ai:use"), asyn
   const knowledgeSources = uniqueSources.map((source) => `${source.title}\n${source.content}`);
   const sectorContext = await loadSectorAgentContext(activeWorkspaceId, selectedAgent);
   const learnedContext = await loadLearnedContext(activeWorkspaceId, searchQuery);
-  const catalogContext = await loadCatalogAgentContext(activeWorkspaceId);
+  const catalogContext = await loadMetaStoreContext(activeWorkspaceId);
   const mediaContext = await loadMediaContext(conversationMessagesForDraft);
   const allKnowledgeContextSources = [...knowledgeSources, ...catalogContext.sources, ...learnedContext.sources, ...mediaContext.sources];
   const channelContext = channelGuidance(conversationForDraft?.channel ?? "manual", selectedAgent?.channelTone);

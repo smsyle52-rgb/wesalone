@@ -18,6 +18,7 @@ import {
   executeAgentToolCalls,
   hasCriticalAgentToolFailure,
   loadExecutableAgentTools,
+  loadMetaStoreContext,
   loadOrderStatusContext,
   loadProductCatalogContext,
   type AgentToolResult,
@@ -333,6 +334,15 @@ export async function runAgentReply(params: {
   } catch (err) {
     logger.warn({ err, workspaceId: params.workspaceId }, "loadProductCatalogContext failed — continuing without catalog context");
   }
+  // سياق ميتا الحي (الطور 2 — 11 يوليو 2026): منشورات/إعلانات ميتا كانت حبيسة مسار الاقتراح
+  // اليدوي المعطَّل (draft-reply) فقط — هذا المسار الحيّ لم يكن يراها إطلاقاً. نفس أسلوب
+  // التسامح مع الفشل المطبَّق أعلاه: فشل جلب منشورات ميتا لا يجوز أن يكسر الردّ للعميل.
+  let metaStoreContext = "";
+  try {
+    metaStoreContext = (await loadMetaStoreContext(params.workspaceId)).context;
+  } catch (err) {
+    logger.warn({ err, workspaceId: params.workspaceId }, "loadMetaStoreContext failed — continuing without meta store context");
+  }
   // هوية القطاع (7 يوليو): sector_profiles مبذورة والوكيل يحمل sectorKey منذ البداية، لكن
   // المسار الحي كان يتجاهلهما (كانت حبيسة مسار الاقتراح اليدوي). حواجز القطاع («لا تقدم
   // تشخيصاً طبياً»، «لا تخترع خصومات») تُقوّي التأريض لا تبدّله. فشله لا يكسر الردّ.
@@ -383,7 +393,7 @@ export async function runAgentReply(params: {
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.
 
 المحادثة:
-${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogContext}` : ""}${orderStatusContext ? `\n\n${orderStatusContext}` : ""}
+${transcript || "لا توجد رسائل في هذه المحادثة"}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogContext}` : ""}${orderStatusContext ? `\n\n${orderStatusContext}` : ""}${metaStoreContext}
 
 المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. لا تكرّر ردّاً سابقاً حرفياً، ولا تكتفِ بعبارة ختامية عامة إلا إذا أنهى العميل المحادثة فعلاً. ردّ بالعربية بأسلوب إنساني ودافئ طبيعي مناسب للسياق.${styleGuidance}`;
   const model = agent.defaultModel && agent.defaultModel !== "mock" ? agent.defaultModel : getDefaultModel();
@@ -566,6 +576,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
             knowledgeTopScore: knowledgeSources.reduce((max, source) => Math.max(max, source.score ?? 0), 0) || null,
             catalogInjected: productCatalogContext.length > 0,
             orderContextInjected: orderStatusContext.length > 0,
+            metaStoreContextInjected: metaStoreContext.length > 0,
             sectorInjected: sectorContext.length > 0,
           },
         },
@@ -668,6 +679,13 @@ export async function simulateAgentReply(params: {
   } catch (err) {
     logger.warn({ err, workspaceId: params.workspaceId }, "simulate: loadProductCatalogContext failed — continuing without catalog context");
   }
+  // أمانة المحاكاة (الطور 2): نفس سياق ميتا الحيّ المحقون في المسار الحي أعلاه، بنفس التسامح مع الفشل.
+  let metaStoreContext = "";
+  try {
+    metaStoreContext = (await loadMetaStoreContext(params.workspaceId)).context;
+  } catch (err) {
+    logger.warn({ err, workspaceId: params.workspaceId }, "simulate: loadMetaStoreContext failed — continuing without meta store context");
+  }
   // أمانة المحاكاة: نفس سياق القطاع المحقون في المسار الحي.
   let sectorContext = "";
   try {
@@ -699,7 +717,7 @@ export async function simulateAgentReply(params: {
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.
 
 المحادثة:
-${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogContext}` : ""}
+${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogContext}` : ""}${metaStoreContext}
 
 المطلوب: أجب مباشرةً على آخر رسالة من العميل بمحتواها المحدّد. ردّ بالعربية بأسلوب إنساني ودافئ طبيعي مناسب للسياق.`;
 

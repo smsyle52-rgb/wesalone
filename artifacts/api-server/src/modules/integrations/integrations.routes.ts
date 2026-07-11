@@ -496,6 +496,52 @@ async function upsertMetaCatalogSources(params: {
   return createdSources;
 }
 
+// سياق الوكيل الحي من ميتا (الطور 2 — 11 يوليو 2026): حتى الآن لا يوجد أي مصدر page_posts
+// يُنشأ عند الربط — فمنشورات الصفحة/حساب إنستغرام لا تصل الوكيل الحيّ أبداً مهما مضى الوقت.
+// كل صفحة فيسبوك أو حساب إنستغرام مختار يحصل الآن على مصدر page_posts فور الربط (نفس نمط
+// onConflictDoUpdate + سجل تدقيق catalog_source_create المستخدم في مصادر الإعلانات أدناه)،
+// فيلتقطه autoSyncCreatedCatalogSources للمزامنة الفورية (انظر catalog-auto-sync.ts).
+async function upsertMetaPagePostsSource(params: {
+  req: AuthenticatedRequest;
+  channelAccountId: string;
+  externalId: string;
+  name: string;
+  platform: "facebook" | "instagram";
+  connectedAt: string;
+}): Promise<typeof catalogSourcesTable.$inferSelect> {
+  const config = { provider: "meta", platform: params.platform, connectedAt: params.connectedAt };
+  const [source] = await db.insert(catalogSourcesTable).values({
+    workspaceId: params.req.sessionUser.activeWorkspaceId,
+    channelAccountId: params.channelAccountId,
+    sourceType: "page_posts",
+    externalId: params.externalId,
+    name: params.name,
+    status: "active",
+    config,
+  }).onConflictDoUpdate({
+    target: [catalogSourcesTable.workspaceId, catalogSourcesTable.sourceType, catalogSourcesTable.externalId],
+    set: {
+      name: params.name,
+      channelAccountId: params.channelAccountId,
+      config,
+      status: "active",
+      updatedAt: new Date(),
+    },
+  }).returning();
+
+  await createAuditLog({
+    ...auditFromRequest(params.req, params.req.sessionUser),
+    action: "catalog_source_create",
+    severity: "info",
+    entityType: "catalog_source",
+    entityId: source.id,
+    entityLabel: source.name,
+    newData: { sourceType: source.sourceType, externalId: source.externalId, provider: "meta" },
+  });
+
+  return source;
+}
+
 function currentMetaSession(req: AuthenticatedRequest): { options: MetaChannelOptions; tokenRefs: MetaTokenRefs } {
   const stored = (req.session as any).metaChannelOptions;
   if (stored?.workspaceId === req.sessionUser.activeWorkspaceId && Date.now() - stored.createdAt < 30 * 60_000) {
@@ -1640,6 +1686,17 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       externalAccountId: account.ig_account_id,
     });
     created.push(channel);
+
+    // الطور 2: حساب إنستغرام مربوط الآن ينشئ مصدر page_posts فوراً (سياق الوكيل الحي — انظر
+    // upsertMetaPagePostsSource أعلاه). لا نُعيد الجلب من ميتا — نفس بيانات الحساب المكتشفة أعلاه.
+    createdSources.push(await upsertMetaPagePostsSource({
+      req,
+      channelAccountId: channel.id,
+      externalId: account.ig_account_id,
+      name: account.username ? `Instagram ${account.username}` : account.ig_account_id,
+      platform: "instagram",
+      connectedAt,
+    }));
   }
 
   for (const page of options.facebook_pages) {
@@ -1662,6 +1719,16 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       externalAccountId: page.page_id,
     });
       created.push(channel);
+
+    // الطور 2: صفحة فيسبوك مربوطة الآن تنشئ مصدر page_posts فوراً — نفس المنطق أعلاه لإنستغرام.
+    createdSources.push(await upsertMetaPagePostsSource({
+      req,
+      channelAccountId: channel.id,
+      externalId: page.page_id,
+      name: page.name || page.page_id,
+      platform: "facebook",
+      connectedAt,
+    }));
   }
 
   const selectedWhatsappChannels = created.filter((account) => account.channelType === "whatsapp");

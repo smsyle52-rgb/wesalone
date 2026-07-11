@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import {
   aiAgentToolsTable,
+  adCampaignsTable,
   channelAccountsTable,
   conversationsTable,
   contactsTable,
@@ -14,8 +15,12 @@ import {
   paymentMethodsTable,
   paymentsTable,
   inventoryProductsTable,
+  productsTable,
+  socialPostsTable,
+  type AdCampaign,
+  type SocialPost,
 } from "@workspace/db";
-import { and, count, desc, eq, ilike, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, sum } from "drizzle-orm";
 import { z } from "zod";
 import type { AiFunctionDeclaration } from "./ai-provider";
 import { writeAgentStatus } from "../modules/conversations/lifecycle";
@@ -634,6 +639,82 @@ export async function loadProductCatalogContext(workspaceId: string, limit = 40)
     "كتالوج المنتجات والأسعار (القائمة الحصرية للأسعار والتوفر — أي منتج أو سعر غير مذكور هنا وغير موجود في معرفة قاعدة البيانات يُعامل كغير متوفر لديك ولا يُذكر له رقم):",
     ...lines,
   ].join("\n");
+}
+
+// سياق المتجر من ميتا (نقل الطور 2 — 11 يوليو 2026): كانت loadCatalogAgentContext حبيسة مسار
+// الاقتراح اليدوي المعطَّل (draft-reply في ai.routes.ts) فقط — المسار الحيّ (runAgentReply) كان
+// أعمى تماماً عن منشورات/إعلانات ميتا. انتقلت هنا باسم loadMetaStoreContext لتصير أداة سياق
+// مشتركة، مقسومة لمنسّق نقي (formatMetaStoreContext، بلا db، قابل للاختبار مباشرة) وجالب نحيف.
+export type MetaStoreAdInput = Pick<AdCampaign, "name" | "promotedProductIds">;
+export type MetaStorePostInput = Pick<SocialPost, "message" | "permalinkUrl" | "externalPostId" | "publishedAt">;
+
+// تأريض تسويقي: نفس فلسفة تأريض الأسعار أعلاه لكن معكوسة الاتجاه — منشورات/إعلانات ميتا نصوص
+// تسويقية حرة قد تحمل عروضاً أو أسعاراً قديمة أو منتهية، وبلا هذا التنبيه الصريح في نهاية الكتلة
+// قد يقتبسها النموذج بثقة كأنها سارية اليوم. الأسعار الحقيقية مصدرها الحصري كتالوج المخزون فقط.
+export const META_STORE_GROUNDING_LINE =
+  "تنبيه إلزامي: هذه منشورات/إعلانات تسويقية للسياق فقط — الأسعار والتوفر تُؤخذ حصراً من قائمة المخزون، وأي سعر أو عرض وارد في منشور أو إعلان لا يُعتمد ولا يُقتبس إلا إذا كان موجوداً بنفسه في قائمة المخزون أو معرفة النشاط.";
+
+// دالة تنسيق نقية (بلا db) — قابلة للاختبار مباشرة. now مقبولة لتثبيت لحظة "اليوم" حتمياً لأي
+// استخدام مستقبلي (اختبارات حتمية)؛ غير مستخدمة في النص حالياً لأن نطاق هذا التعديل لا يتجاوز
+// تاريخ كل منشور وسطر التأريض الختامي — لا رأس جديد للكتلة.
+export function formatMetaStoreContext(input: {
+  ads: MetaStoreAdInput[];
+  posts: MetaStorePostInput[];
+  productNames: Map<string, string>;
+  now?: Date;
+}): { context: string; sources: string[] } {
+  const adLines = input.ads.map((ad) => {
+    const promotedIds = Array.isArray(ad.promotedProductIds) ? ad.promotedProductIds : [];
+    const names = promotedIds.map((id) => input.productNames.get(id) ?? id).filter(Boolean);
+    return `${ad.name} — يروّج لمنتجات: ${names.join(", ") || "غير محدد"}`;
+  });
+  const postLines = input.posts.map((post) => {
+    const summary = (post.message ?? "").replace(/\s+/g, " ").slice(0, 220);
+    const text = summary || post.permalinkUrl || post.externalPostId;
+    // تاريخ صريح لكل منشور (الطور 2): بلا هذا يرى النموذج نصّ المنشور فقط دون معرفة حداثته،
+    // فقد يستحضر عرضاً أو سعراً قديماً بثقة كأنه سارٍ اليوم — هذا هو دافع هذا التعديل بالذات.
+    const dateStr = post.publishedAt ? new Date(post.publishedAt).toISOString().slice(0, 10) : null;
+    return dateStr ? `${dateStr} — ${text}` : text;
+  });
+
+  const blocks = [
+    adLines.length > 0 ? `إعلانات نشطة حالياً:\n${adLines.map((line) => `- ${line}`).join("\n")}` : "",
+    postLines.length > 0 ? `آخر منشورات:\n${postLines.map((line) => `- ${line}`).join("\n")}` : "",
+  ].filter(Boolean);
+
+  return {
+    context: blocks.length > 0
+      ? `\n\nسياق المتجر من ميتا:\n${blocks.join("\n")}\n\n${META_STORE_GROUNDING_LINE}`
+      : "",
+    sources: [...adLines.map((line) => `إعلان نشط: ${line}`), ...postLines.map((line) => `منشور حديث: ${line}`)],
+  };
+}
+
+// جالب نحيف: نافذة 14 يوماً وحدّ 5 كما كانتا بالضبط قبل النقل — التصفية الزمنية تعيش في
+// استعلام SQL هنا (gte)، لا في المنسّق النقي أعلاه. يفوّض التنسيق بالكامل لـformatMetaStoreContext.
+export async function loadMetaStoreContext(workspaceId: string): Promise<{ context: string; sources: string[] }> {
+  const [ads, posts, products] = await Promise.all([
+    db.select().from(adCampaignsTable)
+      .where(and(eq(adCampaignsTable.workspaceId, workspaceId), eq(adCampaignsTable.status, "ACTIVE")))
+      .orderBy(desc(adCampaignsTable.syncedAt))
+      .limit(5),
+    db.select().from(socialPostsTable)
+      .where(and(
+        eq(socialPostsTable.workspaceId, workspaceId),
+        gte(socialPostsTable.publishedAt, new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)),
+      ))
+      .orderBy(desc(socialPostsTable.publishedAt))
+      .limit(5),
+    db.select({
+      externalProductId: productsTable.externalProductId,
+      name: productsTable.name,
+    }).from(productsTable)
+      .where(and(eq(productsTable.workspaceId, workspaceId), eq(productsTable.isVisible, true)))
+      .limit(100),
+  ]);
+
+  const productNames = new Map(products.map((product) => [product.externalProductId, product.name]));
+  return formatMetaStoreContext({ ads, posts, productNames });
 }
 
 async function appendToolNote(params: {

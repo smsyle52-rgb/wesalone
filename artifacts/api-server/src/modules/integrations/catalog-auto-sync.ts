@@ -88,8 +88,11 @@ export async function autoSyncCreatedCatalogSources<TSource extends SyncableCata
 ): Promise<Map<string, AutoSyncResult>> {
   const results = new Map<string, AutoSyncResult>();
 
+  // الطور 2 (11 يوليو 2026): منشورات الصفحة (page_posts) يتوقعها التاجر ظاهرة فوراً بعد الربط —
+  // فتُزامَن فور الإنشاء أسوة بـcommerce_catalog. الإعلانات (ads) تبقى خارج المزامنة الفورية
+  // عمداً: تتغيّر ببطء ويكفيها جدول Phase-1 الدوري (catalog-sync-scheduler) خلال ساعات قليلة.
   for (const source of sources) {
-    if (source.sourceType !== "commerce_catalog") continue;
+    if (source.sourceType !== "commerce_catalog" && source.sourceType !== "page_posts") continue;
     try {
       results.set(source.id, await syncSource(source));
     } catch (err) {
