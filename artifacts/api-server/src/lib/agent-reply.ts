@@ -357,7 +357,7 @@ export async function runAgentReply(params: {
     .map((message) => `[${message.direction === "inbound" ? "العميل" : "الموظف"}]: ${message.content}`)
     .join("\n");
   const knowledgeContext = knowledgeSources.length > 0
-    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, KNOWLEDGE_INJECT_CHARS)}`).join("\n")}`
+    ? `\n\nمعرفة ذات صلة من قاعدة البيانات (هذه هي الحقيقة الحالية المحدَّثة — إن تعارض مصدران في معلومة فاعتمد حصراً الأحدث «آخر تحديث» وتجاهل الأقدم؛ وإن خالفت هذه المعرفةُ ردّاً سابقاً لك في المحادثة فاعتمدها الآن وصحّح المعلومة للعميل بلطف):\n${knowledgeSources.map((item, index) => `[${index + 1}]${item.updatedAt ? ` (آخر تحديث: ${new Date(item.updatedAt).toISOString().slice(0, 10)})` : ""} ${item.title}: ${item.content.slice(0, KNOWLEDGE_INJECT_CHARS)}`).join("\n")}`
     : "";
   // مرونة الأسلوب (3 يوليو): النموذج كان يفتتح كل ردّ بـ«أهلاً بك!» وكأن المحادثة
   // تبدأ من الصفر (3 ترحيبات في محادثة واحدة). الشرط حتمي من الكود لا من ذاكرة النموذج.
@@ -679,7 +679,7 @@ export async function simulateAgentReply(params: {
   const toolDeclarations = executableTools.length > 0 ? buildAgentToolDeclarations(executableTools) : undefined;
 
   const knowledgeContext = knowledgeSources.length > 0
-    ? `\n\nمعرفة ذات صلة من قاعدة البيانات:\n${knowledgeSources.map((item, index) => `[${index + 1}] ${item.title}: ${item.content.slice(0, KNOWLEDGE_INJECT_CHARS)}`).join("\n")}`
+    ? `\n\nمعرفة ذات صلة من قاعدة البيانات (هذه هي الحقيقة الحالية المحدَّثة — إن تعارض مصدران في معلومة فاعتمد حصراً الأحدث «آخر تحديث» وتجاهل الأقدم؛ وإن خالفت هذه المعرفةُ ردّاً سابقاً لك في المحادثة فاعتمدها الآن وصحّح المعلومة للعميل بلطف):\n${knowledgeSources.map((item, index) => `[${index + 1}]${item.updatedAt ? ` (آخر تحديث: ${new Date(item.updatedAt).toISOString().slice(0, 10)})` : ""} ${item.title}: ${item.content.slice(0, KNOWLEDGE_INJECT_CHARS)}`).join("\n")}`
     : "";
   const systemPrompt = [
     executableTools.length > 0 ? TOOL_USE_RULES : "",

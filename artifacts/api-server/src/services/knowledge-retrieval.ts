@@ -23,6 +23,9 @@ export type KnowledgeSearchItem = {
   knowledgeBaseId: string;
   documentId?: string | null;
   sourceUrl?: string | null;
+  // تاريخ آخر تحديث للمصدر — يُحقن مع كل مصدر في برومبت الوكيل ليحسم تعارض النسخ المكررة
+  // («الأحدث تحديثاً يغلب») — حادثة «القديم/الجديد» 11 يوليو: FAQ قديم كان يغلب وثيقة معدّلة.
+  updatedAt?: Date | null;
   score: number;
   vectorScore: number;
   lexicalScore: number;
@@ -38,6 +41,7 @@ export type KnowledgeSearchParams = {
 export type KnowledgeAiSource = Pick<KnowledgeSearchItem, "type" | "id" | "title" | "content"> & {
   sourceUrl?: string | null;
   score?: number;
+  updatedAt?: Date | null;
 };
 
 function wordsForQuery(query: string): string[] {
@@ -94,6 +98,7 @@ async function searchTsvChunks(params: Required<Pick<KnowledgeSearchParams, "wor
       knowledge_base_id: string;
       document_title: string;
       source_url: string | null;
+      doc_updated_at: Date | string | null;
       rank: string | number;
     }>(
       `
@@ -104,6 +109,7 @@ async function searchTsvChunks(params: Required<Pick<KnowledgeSearchParams, "wor
         kc.document_id,
         kc.knowledge_base_id,
         kd.title AS document_title,
+        kd.updated_at AS doc_updated_at,
         ks.source_url,
         ts_rank_cd(kc.tsv, plainto_tsquery('simple', $2)) AS rank
       FROM knowledge_chunks kc
@@ -127,6 +133,7 @@ async function searchTsvChunks(params: Required<Pick<KnowledgeSearchParams, "wor
       knowledgeBaseId: row.knowledge_base_id,
       documentId: row.document_id,
       sourceUrl: row.source_url,
+      updatedAt: row.doc_updated_at ? new Date(row.doc_updated_at) : null,
       lexicalScore: Number(row.rank) * 100,
       vectorScore: 0,
       score: Number(row.rank) * 100,
@@ -166,6 +173,7 @@ async function searchVectorChunks(params: {
       knowledge_base_id: string;
       document_title: string;
       source_url: string | null;
+      doc_updated_at: Date | string | null;
       score: string | number;
     }>(
       `
@@ -176,6 +184,7 @@ async function searchVectorChunks(params: {
         kc.document_id,
         kc.knowledge_base_id,
         kd.title AS document_title,
+        kd.updated_at AS doc_updated_at,
         ks.source_url,
         1 - (kc.embedding <=> $1::vector) AS score
       FROM knowledge_chunks kc
@@ -202,6 +211,7 @@ async function searchVectorChunks(params: {
           knowledgeBaseId: row.knowledge_base_id,
           documentId: row.document_id,
           sourceUrl: row.source_url,
+      updatedAt: row.doc_updated_at ? new Date(row.doc_updated_at) : null,
           lexicalScore: 0,
           vectorScore,
           score: vectorScore,
@@ -269,6 +279,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
         question: faqEntriesTable.question,
         answer: faqEntriesTable.answer,
         knowledgeBaseId: faqEntriesTable.knowledgeBaseId,
+        updatedAt: faqEntriesTable.updatedAt,
       })
       .from(faqEntriesTable)
       .where(and(...faqFilters))
@@ -280,6 +291,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
         contentText: knowledgeDocumentsTable.contentText,
         knowledgeBaseId: knowledgeDocumentsTable.knowledgeBaseId,
         sourceUrl: knowledgeSourcesTable.sourceUrl,
+        updatedAt: knowledgeDocumentsTable.updatedAt,
       })
       .from(knowledgeDocumentsTable)
       .leftJoin(knowledgeSourcesTable, eq(knowledgeSourcesTable.id, knowledgeDocumentsTable.sourceId))
@@ -294,6 +306,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
         knowledgeBaseId: knowledgeChunksTable.knowledgeBaseId,
         documentTitle: knowledgeDocumentsTable.title,
         sourceUrl: knowledgeSourcesTable.sourceUrl,
+        docUpdatedAt: knowledgeDocumentsTable.updatedAt,
       })
       .from(knowledgeChunksTable)
       .innerJoin(knowledgeDocumentsTable, eq(knowledgeDocumentsTable.id, knowledgeChunksTable.documentId))
@@ -311,6 +324,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
       title: faq.question,
       content: `سؤال: ${faq.question}\nإجابة: ${faq.answer}`,
       knowledgeBaseId: faq.knowledgeBaseId,
+      updatedAt: faq.updatedAt,
       lexicalScore: lexicalScore(faq.question, faq.answer, query, words, 12),
       vectorScore: 0,
       score: 0,
@@ -323,6 +337,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
       knowledgeBaseId: doc.knowledgeBaseId,
       documentId: doc.id,
       sourceUrl: doc.sourceUrl,
+      updatedAt: doc.updatedAt,
       lexicalScore: lexicalScore(doc.title, doc.contentText, query, words, 3),
       vectorScore: 0,
       score: 0,
@@ -335,6 +350,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
       knowledgeBaseId: chunk.knowledgeBaseId,
       documentId: chunk.documentId,
       sourceUrl: chunk.sourceUrl,
+      updatedAt: chunk.docUpdatedAt,
       lexicalScore: lexicalScore(chunk.documentTitle, chunk.chunkText, query, words, 5),
       vectorScore: 0,
       score: 0,
@@ -353,6 +369,7 @@ export async function searchKnowledge(params: KnowledgeSearchParams): Promise<Kn
     existing.lexicalScore = Math.max(existing.lexicalScore, candidate.lexicalScore);
     existing.vectorScore = Math.max(existing.vectorScore, candidate.vectorScore);
     if (!existing.sourceUrl && candidate.sourceUrl) existing.sourceUrl = candidate.sourceUrl;
+    if (!existing.updatedAt && candidate.updatedAt) existing.updatedAt = candidate.updatedAt;
   }
 
   const ranked = await Promise.all([...seen.values()].map(async (item) => {
@@ -383,5 +400,6 @@ export async function searchKnowledgeForAi(params: KnowledgeSearchParams): Promi
     content: result.content,
     sourceUrl: result.sourceUrl,
     score: result.score,
+    updatedAt: result.updatedAt ?? null,
   }));
 }
