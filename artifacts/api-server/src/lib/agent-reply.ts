@@ -210,6 +210,96 @@ function sanitizeReply(text: string): string {
   return "";
 }
 
+// حارس تسريب استدعاءات الأدوات النصّية (11 يوليو 2026 — حادثة «مكبر السيارن»): عميل حقيقي
+// استلم على واتساب كتلة {"tool_calls": [...]} خاماً ملحقةً بردٍّ طبيعي — النموذج «كتب» نيّة
+// إرسال صورة المنتج نصّاً بدل إصدارها functionCall أصلياً (يحدث خاصةً مع الرسائل الصوتية).
+// sanitizeReply أعلاه يمسك حالة «الردّ كله JSON» فقط ولا يرى كتلةً ملحقة بنصٍّ سليم.
+// المعالجة من شقّين: (1) اقتصاص الكتلة من النص فلا يصل العميل أي كود إطلاقاً، (2) إنقاذ النيّة —
+// تُحوَّل الاستدعاءات المستخرجة لنفس مسار executeAgentToolCalls الآمن (تحقّق zod لكل أداة هناك)،
+// فيستلم العميل الصورة الموعودة فعلاً بدل وعدٍ مكسور. فشل التحليل = اقتصاص بلا إنقاذ (الأولوية
+// المطلقة ألّا يتسرّب كود، حتى لو ضاعت الأداة).
+type SalvagedToolCall = { name: string; arguments: Record<string, unknown> };
+
+// ماسح أقواس واعٍ بالنصوص: يجد نهاية كائن JSON يبدأ عند start (يتجاوز الأقواس داخل السلاسل والهروب).
+function findJsonObjectEnd(text: string, start: number): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === "\\") { if (inString) escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function parseSalvagedCalls(blob: string): SalvagedToolCall[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(blob);
+  } catch {
+    return [];
+  }
+  if (!parsed || typeof parsed !== "object") return [];
+  const obj = parsed as Record<string, unknown>;
+
+  // صيغة OpenAI-النصّية قد تحمل arguments ككائن مباشر أو كسلسلة JSON — نقبل الاثنين.
+  const normalizeArgs = (value: unknown): Record<string, unknown> => {
+    if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+    if (typeof value === "string") {
+      try {
+        const inner = JSON.parse(value);
+        if (inner && typeof inner === "object" && !Array.isArray(inner)) return inner as Record<string, unknown>;
+      } catch { /* سلسلة غير صالحة — تُهمل */ }
+    }
+    return {};
+  };
+
+  const fromEntry = (entry: unknown): SalvagedToolCall | null => {
+    if (!entry || typeof entry !== "object") return null;
+    const item = entry as Record<string, unknown>;
+    const fn = (item.function && typeof item.function === "object" ? item.function : item) as Record<string, unknown>;
+    if (typeof fn.name !== "string" || !fn.name.trim()) return null;
+    return { name: fn.name.trim(), arguments: normalizeArgs(fn.arguments) };
+  };
+
+  if (Array.isArray(obj.tool_calls)) {
+    return obj.tool_calls.map(fromEntry).filter((call): call is SalvagedToolCall => call !== null);
+  }
+  const single = fromEntry(obj.function_call ?? obj);
+  return single ? [single] : [];
+}
+
+export function extractTextualToolCalls(text: string): { cleanText: string; calls: SalvagedToolCall[] } {
+  let working = text;
+  const calls: SalvagedToolCall[] = [];
+  // علامات كتلة استدعاء نصّية؛ حلقة محدودة تحسّباً لأكثر من كتلة في نفس الردّ.
+  const markerPattern = /"tool_calls"|"function_call"|\{\s*"name"\s*:\s*"[\w.-]+"\s*,\s*"arguments"/;
+  for (let round = 0; round < 3; round += 1) {
+    const marker = working.match(markerPattern);
+    if (marker?.index === undefined) break;
+    // ارجع من العلامة لأقرب '{' يفتح الكائن الحاوي.
+    const openIndex = working.lastIndexOf("{", marker.index);
+    if (openIndex === -1) break;
+    const endIndex = findJsonObjectEnd(working, openIndex);
+    if (endIndex === -1) {
+      // كتلة مقطوعة (بلا إغلاق) — اقتصّ من بدايتها لنهاية النص: لا يصل العميل كود ولو مبتوراً.
+      working = working.slice(0, openIndex);
+      break;
+    }
+    calls.push(...parseSalvagedCalls(working.slice(openIndex, endIndex + 1)));
+    working = `${working.slice(0, openIndex)}${working.slice(endIndex + 1)}`;
+  }
+  return { cleanText: working.replace(/\n{3,}/g, "\n\n").trim(), calls };
+}
+
 // استدعاء الأدوات الأصلي قد يعيد استدعاء أداة بلا نصّ مصاحب. لتفادي ردّ فارغ، نولّد تأكيداً
 // حتمياً موجزاً حسب نتيجة الأداة الناجحة — بلا استدعاء ذكاء ثانٍ (أوفر للرصيد وأأمن من الهلوسة).
 function confirmationFromToolResults(results: AgentToolResult[]): string {
@@ -481,7 +571,23 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     }
 
     // استدعاء الأدوات الأصلي: النموذج يعيد toolCalls منظّمة مباشرةً — لا تحليل نصّ هشّ (يقتل PD-8/PD-10).
-    const structuredCalls = (aiOutput.toolCalls ?? []).map((call) => ({ name: call.name, arguments: call.args }));
+    // حادثة «مكبر السيارن» (11 يوليو): النموذج قد يكتب الاستدعاء نصّاً داخل الردّ بدل القناة
+    // الأصلية — يُقتصّ من النص (لا يصل العميل كود أبداً) وتُنقَذ النيّة بدمجها في نفس مسار التنفيذ
+    // الآمن أدناه (تحقّق zod لكل أداة). المكرَّر مع استدعاء أصلي بنفس الاسم يُهمَل (النموذج قد
+    // يصدر القناتين معاً).
+    const textualExtraction = extractTextualToolCalls(aiOutput.content);
+    if (textualExtraction.calls.length > 0 || textualExtraction.cleanText !== aiOutput.content.trim()) {
+      logger.warn(
+        { runId: run.id, conversationId: params.conversationId, salvaged: textualExtraction.calls.map((call) => call.name) },
+        "Textual tool-call JSON stripped from agent reply (salvaged into native execution path)",
+      );
+    }
+    const nativeCalls = (aiOutput.toolCalls ?? []).map((call) => ({ name: call.name, arguments: call.args }));
+    const nativeCallNames = new Set(nativeCalls.map((call) => call.name));
+    const structuredCalls = [
+      ...nativeCalls,
+      ...textualExtraction.calls.filter((call) => !nativeCallNames.has(call.name)),
+    ];
     const toolResults = await executeAgentToolCalls({
       workspaceId: params.workspaceId,
       conversationId: params.conversationId,
@@ -494,7 +600,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     // منتج غير متوفرة — يُبقي الردّ النصي السليم ويُسجَّل ملاحظةً داخلية فقط (حادثة 10 يوليو).
     const hasToolProblem = hasCriticalAgentToolFailure(toolResults);
     const hasHandoff = toolResults.some((result) => result.tool === "handoff_to_human" && result.status === "success");
-    const modelText = sanitizeReply(aiOutput.content);
+    const modelText = sanitizeReply(textualExtraction.cleanText);
     // نصّ النموذج إن وُجد؛ وإلا تأكيد حتمي حسب نتيجة الأداة (يتفادى الردّ الفارغ عند استدعاء أداة بلا نص).
     const candidateReply = hasToolProblem
       ? SAFE_REVIEW_REPLY
@@ -589,6 +695,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
             orderContextInjected: orderStatusContext.length > 0,
             metaStoreContextInjected: metaStoreContext.length > 0,
             learnedContextInjected: learnedContext.length > 0,
+            salvagedTextualToolCalls: textualExtraction.calls.length,
             sectorInjected: sectorContext.length > 0,
           },
         },
@@ -760,8 +867,15 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
     tools: toolDeclarations,
   });
 
-  const intendedCalls = (aiOutput.toolCalls ?? []).map((call) => ({ name: call.name, args: call.args }));
-  const modelText = sanitizeReply(aiOutput.content);
+  // نفس حارس التسريب النصّي الحيّ (حادثة «مكبر السيارن») — المحاكاة يجب أن ترى ما سيُرسَل فعلاً.
+  const textualExtraction = extractTextualToolCalls(aiOutput.content);
+  const nativeSimCalls = (aiOutput.toolCalls ?? []).map((call) => ({ name: call.name, args: call.args }));
+  const nativeSimNames = new Set(nativeSimCalls.map((call) => call.name));
+  const intendedCalls = [
+    ...nativeSimCalls,
+    ...textualExtraction.calls.filter((call) => !nativeSimNames.has(call.name)).map((call) => ({ name: call.name, args: call.arguments })),
+  ];
+  const modelText = sanitizeReply(textualExtraction.cleanText);
   // نصّ المعاينة: نصّ النموذج، وإلا نفس التأكيد الحتمي الذي سيرسله المسار الحيّ عند استدعاء أداة بلا نص.
   const candidateReply = modelText || confirmationFromToolResults(
     intendedCalls.map((call) => ({ tool: call.name as AgentToolResult["tool"], status: "success" as const, summary: "" })),
