@@ -6,6 +6,7 @@ import {
   adCampaignsTable,
   catalogSourcesTable,
   catalogSyncRunsTable,
+  channelAccountsTable,
   db,
   productsTable,
   socialPostsTable,
@@ -15,7 +16,9 @@ import { logger } from "../../lib/logger";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { requireSession } from "../../middlewares/requireSession";
-import { syncCatalogSource, upsertSingleProductKnowledge } from "../../services/meta-catalog-sync";
+import { collectPages, syncCatalogSource, upsertSingleProductKnowledge } from "../../services/meta-catalog-sync";
+import { resolveCredentialsSecretRef } from "../../services/meta-whatsapp-business-profile";
+import { autoSyncCreatedCatalogSources } from "../integrations/catalog-auto-sync";
 
 const router = Router();
 router.use(requireSession);
@@ -131,6 +134,47 @@ async function getOrCreateManualSource(workspaceId: string) {
   return source;
 }
 
+function providerConfigRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function stringField(config: Record<string, unknown>, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const value = config[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+// نفس ترتيب أولوية الحصول على رمز الوصول المستخدَم في accessToken() داخل meta-catalog-sync.ts،
+// لكن بلا اعتماد على CatalogSource (الاكتشاف يسبق وجود أي مصدر) وبلا رمي استثناء — القناة التي
+// يتعذّر حلّ رمزها تُستبعَد ضمن skipped بدل إفشال الطلب كاملاً.
+function resolveDiscoveryToken(channel: { id: string; credentialsSecretRef: string | null }): string | null {
+  if (process.env.META_SYSTEM_USER_TOKEN) return process.env.META_SYSTEM_USER_TOKEN;
+  if (process.env.META_ACCESS_TOKEN) return process.env.META_ACCESS_TOKEN;
+  if (channel.credentialsSecretRef) {
+    try {
+      return resolveCredentialsSecretRef(channel.credentialsSecretRef);
+    } catch (err) {
+      logger.warn(
+        { err, channelAccountId: channel.id },
+        "Meta catalog discovery token could not be resolved from the linked channel",
+      );
+    }
+  }
+  return null;
+}
+
+type DiscoveredMetaCatalog = {
+  channelAccountId: string;
+  catalogId: string;
+  name: string;
+  businessId: string;
+  wabaId: string | null;
+};
+
 router.get("/sources", requirePermission("catalog:read"), async (req: AuthenticatedRequest, res: Response) => {
   const sources = await db.select()
     .from(catalogSourcesTable)
@@ -175,6 +219,149 @@ router.post("/sources", requirePermission("catalog:manage"), async (req: Authent
   });
 
   res.status(201).json({ source });
+});
+
+// نقطة اكتشاف/تعويض (11 يوليو): التجّار الذين ربطوا واتساب قبل 4 يوليو — قبل أن تبدأ
+// integrations.routes.ts بإنشاء مصادر commerce_catalog تلقائياً عند الربط ثم مزامنتها —
+// لديهم صفر صفوف في catalog_sources رغم امتلاكهم كتالوجات فعلية على ميتا. هذه النقطة تفحص
+// كل أرقام واتساب النشطة في مساحة العمل، تكتشف كتالوجاتها عبر Graph API (owned_product_catalogs)،
+// تُنشئ/تُحدّث مصادرها بنفس أسلوب upsertMetaCatalogSources في integrations.routes.ts، ثم تزامنها.
+router.post("/sources/discover", requirePermission("catalog:manage"), async (req: AuthenticatedRequest, res: Response) => {
+  const workspaceId = req.sessionUser.activeWorkspaceId;
+
+  const whatsappChannels = await db.select({
+    id: channelAccountsTable.id,
+    providerConfig: channelAccountsTable.providerConfig,
+    credentialsSecretRef: channelAccountsTable.credentialsSecretRef,
+  })
+    .from(channelAccountsTable)
+    .where(and(
+      eq(channelAccountsTable.workspaceId, workspaceId),
+      eq(channelAccountsTable.channelType, "whatsapp"),
+      eq(channelAccountsTable.status, "active"),
+    ));
+
+  if (whatsappChannels.length === 0) {
+    res.json({
+      channelsChecked: 0,
+      catalogsFound: 0,
+      sources: [],
+      skipped: [],
+      message: "لا توجد أرقام واتساب مربوطة بعد",
+    });
+    return;
+  }
+
+  const skipped: Array<{ channelAccountId: string; reason: string }> = [];
+  // Map بمفتاح catalogId: أكثر من رقم واتساب قد يتشارك نفس النشاط التجاري (business_id) وبالتالي
+  // نفس الكتالوجات — الاكتشاف يُبقي كل كتالوج مرة واحدة فقط.
+  const discoveredByCatalogId = new Map<string, DiscoveredMetaCatalog>();
+
+  for (const channel of whatsappChannels) {
+    const config = providerConfigRecord(channel.providerConfig);
+    const businessId = stringField(config, "business_id", "businessId");
+    const wabaId = stringField(config, "waba_id", "wabaId");
+
+    if (!businessId) {
+      skipped.push({ channelAccountId: channel.id, reason: "missing_business_id" });
+      continue;
+    }
+
+    const token = resolveDiscoveryToken(channel);
+    if (!token) {
+      skipped.push({ channelAccountId: channel.id, reason: "missing_access_token" });
+      continue;
+    }
+
+    try {
+      const catalogs = await collectPages<{ id?: string; name?: string }>(
+        `${businessId}/owned_product_catalogs?fields=id,name`,
+        token,
+      );
+      for (const catalog of catalogs) {
+        if (!catalog.id || discoveredByCatalogId.has(catalog.id)) continue;
+        discoveredByCatalogId.set(catalog.id, {
+          channelAccountId: channel.id,
+          catalogId: catalog.id,
+          name: catalog.name || catalog.id,
+          businessId,
+          wabaId,
+        });
+      }
+    } catch (err) {
+      logger.warn({ err, channelAccountId: channel.id }, "Meta owned_product_catalogs discovery failed for channel");
+      skipped.push({
+        channelAccountId: channel.id,
+        reason: err instanceof Error ? err.message : "meta_api_error",
+      });
+    }
+  }
+
+  const upsertedSources: Array<typeof catalogSourcesTable.$inferSelect> = [];
+  const discoveredAt = new Date().toISOString();
+
+  for (const found of discoveredByCatalogId.values()) {
+    const [source] = await db.insert(catalogSourcesTable).values({
+      workspaceId,
+      channelAccountId: found.channelAccountId,
+      sourceType: "commerce_catalog",
+      externalId: found.catalogId,
+      name: found.name,
+      status: "active",
+      config: {
+        provider: "meta",
+        business_id: found.businessId,
+        waba_id: found.wabaId,
+        discoveredAt,
+      },
+    }).onConflictDoUpdate({
+      target: [catalogSourcesTable.workspaceId, catalogSourcesTable.sourceType, catalogSourcesTable.externalId],
+      set: {
+        name: found.name,
+        status: "active",
+        updatedAt: new Date(),
+      },
+    }).returning();
+
+    upsertedSources.push(source);
+
+    await createAuditLog({
+      ...auditFromRequest(req, req.sessionUser),
+      action: "catalog_source_create",
+      severity: "info",
+      entityType: "catalog_source",
+      entityId: source.id,
+      entityLabel: source.name,
+      newData: { sourceType: source.sourceType, externalId: source.externalId, provider: "meta", discovered: true },
+    });
+  }
+
+  const autoSyncResults = await autoSyncCreatedCatalogSources(
+    upsertedSources,
+    syncCatalogSource,
+    (source, err) => logger.warn({ err, sourceId: source.id }, "Auto sync failed for discovered catalog source"),
+  );
+
+  const responseSources = upsertedSources.map((source) => ({
+    id: source.id,
+    name: source.name,
+    sourceType: source.sourceType,
+    syncStatus: autoSyncResults.get(source.id)?.status ?? source.syncStatus,
+    syncResult: autoSyncResults.get(source.id) ?? null,
+  }));
+
+  // "كل القنوات انتهت بها الحال ضمن skipped" تُعامَل كحالة واحدة برسالة عربية موحّدة، سواء كان
+  // السبب رمزاً مفقوداً أو business_id مفقوداً أو خطأ Graph API — جميعها تعني عملياً أن التاجر
+  // يحتاج إعادة ربط الرقم. لا حاجة لتفريق الرسالة حسب السبب الدقيق هنا.
+  const allChannelsSkipped = responseSources.length === 0 && skipped.length === whatsappChannels.length;
+
+  res.json({
+    channelsChecked: whatsappChannels.length,
+    catalogsFound: responseSources.length,
+    sources: responseSources,
+    skipped,
+    ...(allChannelsSkipped ? { message: "تعذر الوصول لكتالوجات ميتا — أعد ربط الرقم" } : {}),
+  });
 });
 
 router.post("/sources/:id/sync", requirePermission("catalog:sync"), async (req: AuthenticatedRequest, res: Response) => {

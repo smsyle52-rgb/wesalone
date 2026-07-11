@@ -1,9 +1,11 @@
 import { Link } from "wouter";
 import { useEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import type { IconType } from "react-icons";
 import { FaFacebookMessenger, FaInstagram, FaWhatsapp } from "react-icons/fa6";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { cn } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@workspace/ui/sheet";
 
 const BASE = `${import.meta.env.BASE_URL}api`;
@@ -363,6 +365,237 @@ function ConnectedChannelCard({ channel }: { channel: ConnectedChannel }) {
         {channel.hasCredentialReference ? "رمز الوصول محفوظ كمرجع آمن." : "لا يوجد مرجع رمز وصول بعد."}
       </p>
     </div>
+  );
+}
+
+type CatalogSourceType = "commerce_catalog" | "page_posts" | "ads" | "manual";
+
+type CatalogSource = {
+  id: string;
+  name: string;
+  sourceType: CatalogSourceType;
+  status: "active" | "paused";
+  syncStatus: string | null;
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
+  updatedAt: string;
+};
+
+type CatalogSyncResult = {
+  status: "success" | "partial" | "failed";
+  itemsSynced: number;
+  itemsFailed: number;
+  error?: string;
+};
+
+type CatalogDiscoverResponse = {
+  channelsChecked: number;
+  catalogsFound: number;
+  sources: Array<{
+    id: string;
+    name: string;
+    sourceType: CatalogSourceType;
+    syncStatus: string | null;
+    syncResult: CatalogSyncResult | null;
+  }>;
+  skipped: Array<{ channelAccountId: string; reason: string }>;
+  message?: string;
+};
+
+const catalogSourceTypeLabels: Record<CatalogSourceType, string> = {
+  commerce_catalog: "كتالوج منتجات ميتا",
+  page_posts: "منشورات صفحة",
+  ads: "إعلانات",
+  manual: "منتجات يدوية",
+};
+
+function catalogSyncBadge(syncStatus: string | null) {
+  if (syncStatus === "synced") {
+    return { label: "متزامن", tone: "border-green-200 bg-green-50 text-green-700" };
+  }
+  if (syncStatus === "failed") {
+    return { label: "فشلت المزامنة", tone: "border-red-200 bg-red-50 text-red-700" };
+  }
+  if (syncStatus === "syncing" || syncStatus === "pending") {
+    return { label: "قيد المزامنة", tone: "border-slate-200 bg-slate-50 text-slate-600" };
+  }
+  return { label: "لم تُزامن بعد", tone: "border-slate-200 bg-slate-50 text-slate-600" };
+}
+
+function CatalogSourceCard({
+  source,
+  isSyncing,
+  onSync,
+}: {
+  source: CatalogSource;
+  isSyncing: boolean;
+  onSync: (id: string) => void;
+}) {
+  const badge = catalogSyncBadge(source.syncStatus);
+  return (
+    <div className="rounded-xl border border-border bg-background p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">{catalogSourceTypeLabels[source.sourceType]}</p>
+          <h3 className="mt-0.5 truncate text-sm font-semibold text-foreground">{source.name}</h3>
+        </div>
+        <span className={cn("shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium", badge.tone)}>
+          {badge.label}
+        </span>
+      </div>
+      {source.syncStatus === "failed" && source.lastSyncError && (
+        <p className="mt-2 text-xs text-muted-foreground">{source.lastSyncError}</p>
+      )}
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">
+          آخر مزامنة: {source.lastSyncedAt ? timeAgo(source.lastSyncedAt) : "لم تتم مزامنة بعد"}
+        </span>
+        {source.sourceType !== "manual" && (
+          <button
+            type="button"
+            onClick={() => onSync(source.id)}
+            disabled={isSyncing}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={isSyncing ? "animate-spin" : undefined} />
+            {isSyncing ? "جارٍ المزامنة..." : "زامن الآن"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 11 يوليو 2026: قسم مضغوط لعرض حالة مزامنة كتالوج ميتا (واتساب) وإعادة تشغيلها يدوياً.
+// مكتفٍ ذاتياً (يجلب بياناته الخاصة) حتى لا يلمس حالة/تأثيرات IntegrationsPage الحالية.
+function CatalogSyncSection() {
+  const [sources, setSources] = useState<CatalogSource[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [forbidden, setForbidden] = useState(false);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  async function loadSources() {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch(`${BASE}/catalog/sources`, { credentials: "include" });
+      if (res.status === 403) {
+        setForbidden(true);
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "تعذّر تحميل مصادر المزامنة");
+      setSources(data.sources ?? []);
+    } catch (err) {
+      setLoadError((err as Error).message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadSources();
+  }, []);
+
+  async function discoverSources() {
+    setIsDiscovering(true);
+    try {
+      const res = await fetch(`${BASE}/catalog/sources/discover`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "تعذّر البحث عن كتالوجات مرتبطة");
+      const discovered = data as CatalogDiscoverResponse;
+      const suffix = discovered.message ? `: ${discovered.message}` : "";
+      toast.success(`تم فحص ${discovered.channelsChecked} قناة — وُجد ${discovered.catalogsFound} كتالوج${suffix}`);
+      if (discovered.skipped?.length) {
+        toast.message("تم تخطي بعض القنوات", {
+          description: discovered.skipped.map((item) => item.reason).join("، "),
+        });
+      }
+      await loadSources();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setIsDiscovering(false);
+    }
+  }
+
+  async function syncSource(id: string) {
+    setSyncingId(id);
+    try {
+      const res = await fetch(`${BASE}/catalog/sources/${id}/sync`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok || data.result?.status === "failed") {
+        throw new Error(data.error ?? data.result?.error ?? "تعذّرت المزامنة");
+      }
+      toast.success(`تمت المزامنة — ${data.result.itemsSynced} عنصر`);
+      await loadSources();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSyncingId(null);
+    }
+  }
+
+  if (forbidden) return null;
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">المزامنة من ميتا</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            منتجات كتالوج واتساب تنسحب تلقائياً لقائمة المخزون ويستخدمها الوكيل مباشرة.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void discoverSources()}
+          disabled={isDiscovering}
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted disabled:opacity-50"
+        >
+          <RefreshCw size={16} className={isDiscovering ? "animate-spin" : undefined} />
+          {isDiscovering ? "جارٍ البحث..." : "البحث عن كتالوجات مرتبطة"}
+        </button>
+      </div>
+
+      {loadError && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          <span>{loadError}</span>
+          <button type="button" onClick={() => void loadSources()} className="shrink-0 text-xs font-semibold underline">
+            إعادة المحاولة
+          </button>
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {isLoading ? (
+          <div className="rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground md:col-span-3">
+            جارٍ تحميل مصادر المزامنة...
+          </div>
+        ) : sources.length > 0 ? (
+          sources.map((source) => (
+            <CatalogSourceCard
+              key={source.id}
+              source={source}
+              isSyncing={syncingId === source.id}
+              onSync={(id) => void syncSource(id)}
+            />
+          ))
+        ) : !loadError ? (
+          <div className="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-muted-foreground md:col-span-3">
+            لا توجد مصادر مزامنة بعد — اربط رقم واتساب فيه كتالوج، أو اضغط «البحث عن كتالوجات مرتبطة».
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -969,6 +1202,8 @@ export default function IntegrationsPage() {
           )}
         </div>
       </section>
+
+      <CatalogSyncSection />
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {manualChannels.map((channel) => (

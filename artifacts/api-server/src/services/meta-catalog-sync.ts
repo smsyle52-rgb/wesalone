@@ -153,7 +153,9 @@ async function loadChannelAccount(source: CatalogSource) {
   return null;
 }
 
-async function metaGet<T>(path: string, token: string): Promise<T> {
+// مصدَّرة (11 يوليو) لتُعاد استخدامها في اكتشاف كتالوجات ميتا (catalog.routes.ts POST
+// /sources/discover) بدل تكرار منطق الترقيم والمصادقة مع Graph API هناك.
+export async function metaGet<T>(path: string, token: string): Promise<T> {
   const graphVersion = requireMetaGraphVersion();
   const url = `https://graph.facebook.com/${graphVersion}/${path.replace(/^\//, "")}`;
 
@@ -177,7 +179,7 @@ async function metaGet<T>(path: string, token: string): Promise<T> {
   return await response.json() as T;
 }
 
-async function collectPages<T>(initialPath: string, token: string): Promise<T[]> {
+export async function collectPages<T>(initialPath: string, token: string): Promise<T[]> {
   const rows: T[] = [];
   let path: string | null = initialPath;
   for (let page = 0; path && page < 20; page += 1) {

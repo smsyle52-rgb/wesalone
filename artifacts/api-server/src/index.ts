@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { runSeed } from "./lib/seed";
 import { runCommerceSafetySeed } from "./lib/commerceSafetySeed";
+import { startCatalogSyncScheduler } from "./services/catalog-sync-scheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -25,6 +26,9 @@ runSeed()
         process.exit(1);
       }
       logger.info({ port }, "Server listening");
+      // بعد الاستماع مباشرة — انظر شرح "لماذا" في catalog-sync-scheduler.ts (مزامنة الكتالوج
+      // الدورية كانت في outbox-worker وحُذفت هناك 16 يونيو، فتعيش هنا الآن بمؤقّت داخلي بسيط).
+      startCatalogSyncScheduler();
     });
   })
   .catch((err) => {

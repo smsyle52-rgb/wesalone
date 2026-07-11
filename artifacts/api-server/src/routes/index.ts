@@ -25,6 +25,7 @@ import approvalsRouter from "../modules/approvals/approvals.routes";
 import analyticsRouter from "../modules/analytics/analytics.routes";
 import reportsRouter from "../modules/reports/reports.routes";
 import productsRouter from "../modules/products/products.routes";
+import catalogRouter from "../modules/catalog/catalog.routes";
 import uploadsRouter from "../modules/uploads/uploads.routes";
 import pointsRouter from "../modules/points/points.routes";
 import adminRouter from "../modules/admin/admin.routes";
@@ -77,6 +78,13 @@ router.use("/approvals", approvalsRouter);
 router.use("/analytics", analyticsRouter);
 router.use("/reports", reportsRouter);
 router.use("/products", productsRouter);
+// اكتُشف 11 يوليو: وحدة الكتالوج (catalog.routes.ts) مكتملة بالكامل — مصادر الكتالوج ونقطة
+// المزامنة /sources/:id/sync ومنتجاتها ومنشوراتها وإعلاناتها وسجلّات التشغيل — لكنها لم
+// تُسجَّل هنا قط. النتيجة: زر «زامن الآن» وكل endpoints الكتالوج كانت تتلقّى 404 صامتاً منذ
+// إضافة الوحدة. جداول catalog_sources وcatalog_sync_runs وproducts وsocial_posts وad_campaigns
+// مؤكَّدة في migrate-phase345.sql، وصلاحيات catalog:read/sync/manage مبذورة ومملوكة بالكامل
+// لدور المالك — فالتسجيل آمن (نفس حالة inboxSupportRouter وsectorsRouter أعلاه).
+router.use("/catalog", catalogRouter);
 router.use("/uploads", uploadsRouter);
 router.use("/points", pointsRouter);
 router.use("/admin", adminRouter);
