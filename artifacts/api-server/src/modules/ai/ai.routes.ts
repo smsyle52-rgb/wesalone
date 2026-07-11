@@ -417,7 +417,10 @@ const agentCreateSchema = z.object({
   temperature: z.coerce.number().min(0).max(2).default(0.3),
   maxOutputTokens: z.coerce.number().int().min(128).max(8192).default(1024),
   knowledgeBaseIds: z.array(z.string().uuid()).default([]),
-  dialect: z.enum(["standard_arabic", "yemeni_light", "yemeni_business"]).default("standard_arabic"),
+  // نص حر قصير لا enum: المعالج المنشور (380b964) يرسل قيم عرض عربية («اليمنية»، «العربية الفصحى»…)
+  // تُحقن حرفياً في البرومبت — الـenum الإنجليزي القديم كان يرفضها بـ400 ويكسر إنشاء الوكيل من الواجهة
+  // (اصطادته جولة «المستخدم الحي» 11 يوليو). القيم القديمة تبقى صالحة كسلاسل عادية.
+  dialect: z.string().trim().min(2).max(40).default("standard_arabic"),
   tone: z.string().trim().max(200).optional().nullable(),
   channelTone: z.record(z.string().trim().max(600)).optional().default({}),
   sectorKey: z.string().trim().min(2).max(80).default("services_general"),
@@ -432,7 +435,7 @@ const agentUpdateSchema = z.object({
   temperature: z.coerce.number().min(0).max(2).optional(),
   maxOutputTokens: z.coerce.number().int().min(128).max(8192).optional(),
   knowledgeBaseIds: z.array(z.string().uuid()).optional(),
-  dialect: z.enum(["standard_arabic", "yemeni_light", "yemeni_business"]).optional(),
+  dialect: z.string().trim().min(2).max(40).optional(),
   tone: z.string().trim().max(200).optional().nullable(),
   channelTone: z.record(z.string().trim().max(600)).optional(),
   sectorKey: z.string().trim().min(2).max(80).optional(),
