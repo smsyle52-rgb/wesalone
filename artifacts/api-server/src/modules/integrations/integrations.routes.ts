@@ -2,7 +2,7 @@ import { Router, type Response } from "express";
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { aiAgentsTable, catalogSourcesTable, channelAccountsTable, db, workspacesTable } from "@workspace/db";
+import { aiAgentChannelsTable, aiAgentsTable, catalogSourcesTable, channelAccountsTable, db, workspacesTable } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import type { AuthenticatedRequest } from "../../lib/types";
@@ -27,6 +27,7 @@ import { collectEquivalentMetaChannelIds, lookupAliasesForMetaKey } from "./meta
 import { checkLimit } from "../../services/billing";
 import { getWorkspaceOnboardingStatus } from "../../services/onboarding-status";
 import { syncCatalogSource } from "../../services/meta-catalog-sync";
+import { resolveCredentialsSecretRef } from "../../services/meta-whatsapp-business-profile";
 import { autoSyncCreatedCatalogSources, resolveCatalogsForSelectedWabas } from "./catalog-auto-sync";
 
 const router = Router();
@@ -156,6 +157,58 @@ type MetaTokenRefs = {
   userTokenRef?: string;
   pageTokenRefs: Record<string, string>;
 };
+
+type MetaMobileConfigKey = "whatsapp_standard" | "whatsapp_coexistence";
+type MetaMobileReturnTo = "/onboarding" | "/integrations";
+
+type MetaWhatsAppRedirectState = {
+  nonce: string;
+  signupAttemptId: string;
+  userId: string;
+  workspaceId: string;
+  configKey: MetaMobileConfigKey;
+  configId: string;
+  returnTo: MetaMobileReturnTo;
+  createdAt: number;
+  expiresAt: number;
+  consumedAt?: number;
+};
+
+type MetaMobileSessionContext = {
+  signupAttemptId: string;
+  configKey: MetaMobileConfigKey;
+  returnTo: MetaMobileReturnTo;
+};
+
+function metaMobileRedirectEnabled() {
+  return process.env.META_MOBILE_REDIRECT_ENABLED?.trim().toLowerCase() === "true";
+}
+
+function configuredMobileConfigId(configKey: MetaMobileConfigKey) {
+  return configKey === "whatsapp_standard"
+    ? process.env.META_WHATSAPP_STANDARD_CONFIG_ID?.trim()
+    : process.env.META_WHATSAPP_COEXISTENCE_CONFIG_ID?.trim();
+}
+
+function mobileEmbeddedSignupExtras(configKey: MetaMobileConfigKey) {
+  return configKey === "whatsapp_coexistence"
+    ? {
+        setup: {},
+        featureType: "whatsapp_business_app_onboarding",
+        sessionInfoVersion: "3",
+        version: "v4",
+      }
+    : {
+        sessionInfoVersion: "3",
+        version: "v4",
+      };
+}
+
+function saveSession(req: AuthenticatedRequest) {
+  return new Promise<void>((resolve, reject) => {
+    req.session.save((error) => error ? reject(error) : resolve());
+  });
+}
 
 function metaEncryptionKey(): Buffer {
   const material = process.env.META_OAUTH_STATE_SECRET ?? process.env.SESSION_SECRET;
@@ -399,6 +452,12 @@ const metaChannelSelectionSchema = z.object({
   access_token: z.string().optional(),
 });
 
+const metaWhatsAppRedirectStartSchema = z.object({
+  configKey: z.enum(["whatsapp_standard", "whatsapp_coexistence"]),
+  configId: z.string().trim().min(1),
+  returnTo: z.enum(["/onboarding", "/integrations"]),
+});
+
 const metaEmbeddedSignupCompleteSchema = z.object({
   code: z.string().trim().min(1),
   waba_id: z.string().trim().min(1).optional(),
@@ -496,12 +555,61 @@ async function upsertMetaCatalogSources(params: {
   return createdSources;
 }
 
-function currentMetaSession(req: AuthenticatedRequest): { options: MetaChannelOptions; tokenRefs: MetaTokenRefs } {
+function currentMetaSession(req: AuthenticatedRequest): {
+  options: MetaChannelOptions;
+  tokenRefs: MetaTokenRefs;
+  mobileContext?: MetaMobileSessionContext;
+} {
   const stored = (req.session as any).metaChannelOptions;
   if (stored?.workspaceId === req.sessionUser.activeWorkspaceId && Date.now() - stored.createdAt < 30 * 60_000) {
-    return { options: stored.options, tokenRefs: stored.tokenRefs ?? { pageTokenRefs: {} } };
+    return {
+      options: stored.options,
+      tokenRefs: stored.tokenRefs ?? { pageTokenRefs: {} },
+      mobileContext: stored.mobileContext,
+    };
   }
   return fallbackMetaOptions();
+}
+
+async function fetchMetaWhatsAppOptions(userToken: string): Promise<{ options: MetaChannelOptions; tokenRefs: MetaTokenRefs }> {
+  const businesses = await callMetaGraph(
+    "me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name}}",
+    userToken,
+  );
+  const whatsappAccounts: MetaChannelOptions["whatsapp_accounts"] = [];
+  const commerceCatalogs: MetaChannelOptions["commerce_catalogs"] = [];
+  for (const business of businesses?.data ?? []) {
+    const businessId = String(business.id ?? "");
+    for (const waba of business?.owned_whatsapp_business_accounts?.data ?? []) {
+      const wabaId = String(waba.id);
+      whatsappAccounts.push({
+        waba_id: wabaId,
+        business_id: businessId,
+        name: String(waba.name ?? business.name ?? "WhatsApp Business"),
+        phone_numbers: (waba.phone_numbers?.data ?? []).map((phone: any) => ({
+          phone_number_id: String(phone.id),
+          display_number: String(phone.display_phone_number ?? ""),
+          verified_name: phone.verified_name ? String(phone.verified_name) : undefined,
+        })),
+      });
+      for (const catalog of await fetchWabaProductCatalogs(wabaId, userToken, businessId)) {
+        pushUniqueMetaCatalog(commerceCatalogs, catalog);
+      }
+    }
+  }
+  return {
+    options: {
+      whatsapp_accounts: whatsappAccounts,
+      facebook_pages: [],
+      instagram_accounts: [],
+      commerce_catalogs: commerceCatalogs,
+      ad_accounts: [],
+    },
+    tokenRefs: {
+      userTokenRef: encryptedTokenRef(userToken) ?? undefined,
+      pageTokenRefs: {},
+    },
+  };
 }
 
 async function upsertMetaChannelAccount(params: {
@@ -516,6 +624,7 @@ async function upsertMetaChannelAccount(params: {
   externalAccountId?: string | null;
   externalBusinessId?: string | null;
   externalPhoneId?: string | null;
+  ensureAutoAgent?: boolean;
 }) {
   const lookupCondition = providerLookupCondition(params.lookupKey, params.lookupValue);
 
@@ -573,6 +682,31 @@ async function upsertMetaChannelAccount(params: {
     }
   }
 
+  if (params.ensureAutoAgent && account.defaultAgentId) {
+    const [existingAgentChannel] = await db
+      .select({ id: aiAgentChannelsTable.id })
+      .from(aiAgentChannelsTable)
+      .where(and(
+        eq(aiAgentChannelsTable.workspaceId, params.req.sessionUser.activeWorkspaceId),
+        eq(aiAgentChannelsTable.agentId, account.defaultAgentId),
+        eq(aiAgentChannelsTable.channelAccountId, account.id),
+      ))
+      .limit(1);
+    if (existingAgentChannel) {
+      await db
+        .update(aiAgentChannelsTable)
+        .set({ mode: "auto", updatedAt: new Date() })
+        .where(eq(aiAgentChannelsTable.id, existingAgentChannel.id));
+    } else {
+      await db.insert(aiAgentChannelsTable).values({
+        workspaceId: params.req.sessionUser.activeWorkspaceId,
+        agentId: account.defaultAgentId,
+        channelAccountId: account.id,
+        mode: "auto",
+      });
+    }
+  }
+
   const claimedAccountIds: string[] = [];
   if (params.channelType === "whatsapp") {
     const duplicatedAccounts = await db
@@ -617,6 +751,71 @@ async function upsertMetaChannelAccount(params: {
   });
 
   return account;
+}
+
+async function subscribeMobileWhatsAppAccounts(
+  req: AuthenticatedRequest,
+  accounts: MetaChannelOptions["whatsapp_accounts"],
+  userToken: string,
+  signupAttemptId: string,
+) {
+  for (const account of accounts) {
+    await postMetaGraph(`${account.waba_id}/subscribed_apps`, userToken);
+  }
+  req.log?.info({ signupAttemptId, accountCount: accounts.length }, "Meta mobile signup WABA subscriptions completed");
+}
+
+async function connectMobileWhatsAppPhone(params: {
+  req: AuthenticatedRequest;
+  account: MetaChannelOptions["whatsapp_accounts"][number];
+  phone: MetaPhoneNumber;
+  tokenRef: string;
+  userToken: string;
+  configKey: MetaMobileConfigKey;
+  signupAttemptId: string;
+}) {
+  if (params.configKey === "whatsapp_standard") {
+    try {
+      await postMetaGraph(`${params.phone.phone_number_id}/register`, params.userToken, {
+        messaging_product: "whatsapp",
+        pin: "000000",
+      });
+    } catch (err) {
+      params.req.log?.warn({ err, signupAttemptId: params.signupAttemptId }, "Meta mobile signup phone registration failed; continuing");
+    }
+  }
+
+  const connectedAt = new Date().toISOString();
+  return upsertMetaChannelAccount({
+    req: params.req,
+    channelType: "whatsapp",
+    name: `whatsapp-${params.phone.phone_number_id}`,
+    displayName: params.phone.display_number
+      ? `WhatsApp ${params.phone.display_number}`
+      : `WhatsApp ${params.phone.phone_number_id}`,
+    providerConfig: {
+      provider: "meta",
+      business_id: params.account.business_id ?? null,
+      meta_app_id: process.env.META_APP_ID ?? null,
+      waba_id: params.account.waba_id,
+      phone_number_id: params.phone.phone_number_id,
+      display_number: params.phone.display_number,
+      verified_name: params.phone.verified_name,
+      wabaId: params.account.waba_id,
+      phoneNumberId: params.phone.phone_number_id,
+      displayPhoneNumber: params.phone.display_number,
+      verifiedName: params.phone.verified_name,
+      embeddedSignup: true,
+      configKey: params.configKey,
+      connectedAt,
+    },
+    lookupKey: "phoneNumberId",
+    lookupValue: params.phone.phone_number_id,
+    credentialsSecretRef: params.tokenRef,
+    externalBusinessId: params.account.waba_id,
+    externalPhoneId: params.phone.phone_number_id,
+    ensureAutoAgent: true,
+  });
 }
 
 function serializeChannelAccount(account: typeof channelAccountsTable.$inferSelect) {
@@ -945,6 +1144,7 @@ router.get("/meta/embedded-signup/config", requirePermission("integrations:updat
     appId,
     graphVersion,
     configIds,
+    mobileRedirectEnabled: metaMobileRedirectEnabled(),
     ready: Boolean(appId) && Boolean(graphVersion) && Boolean(configIds.whatsappStandard),
     missing,
   });
@@ -992,6 +1192,81 @@ router.get("/meta/embedded-signup/start", requirePermission("integrations:update
   url.searchParams.set("response_type", "code");
 
   res.json({ url: url.toString(), state, redirectUri, scopes, channels: ["whatsapp", "instagram", "messenger", "commerce_catalog", "ads"] });
+});
+
+router.get("/meta/embedded-signup/whatsapp/redirect/start", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
+  if (!metaMobileRedirectEnabled()) {
+    res.status(404).json({ enabled: false, code: "meta_mobile_redirect_disabled" });
+    return;
+  }
+
+  const parsed = metaWhatsAppRedirectStartSchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "بيانات تحويل واتساب غير صالحة", code: "invalid_mobile_redirect_request" });
+    return;
+  }
+
+  const appId = process.env.META_APP_ID?.trim();
+  const graphVersion = process.env.META_GRAPH_VERSION?.trim();
+  const expectedConfigId = configuredMobileConfigId(parsed.data.configKey);
+  if (!appId || !graphVersion || !expectedConfigId) {
+    res.status(409).json({ error: "إعدادات Meta غير مكتملة", code: "meta_mobile_redirect_config_missing" });
+    return;
+  }
+  if (parsed.data.configId !== expectedConfigId) {
+    res.status(400).json({ error: "إعداد التسجيل المضمن غير معروف", code: "unknown_meta_signup_config" });
+    return;
+  }
+
+  const now = Date.now();
+  const pending: MetaWhatsAppRedirectState = {
+    nonce: randomBytes(24).toString("hex"),
+    signupAttemptId: randomBytes(12).toString("hex"),
+    userId: req.sessionUser.userId,
+    workspaceId: req.sessionUser.activeWorkspaceId,
+    configKey: parsed.data.configKey,
+    configId: expectedConfigId,
+    returnTo: parsed.data.returnTo,
+    createdAt: now,
+    expiresAt: now + 15 * 60_000,
+  };
+  (req.session as any).metaWhatsAppRedirectState = pending;
+
+  // FB.login sends these same Embedded Signup parameters to dialog/oauth. The only change is
+  // replacing the opener callback with this server callback so mobile tab separation cannot lose it.
+  const url = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
+  url.searchParams.set("client_id", appId);
+  url.searchParams.set("redirect_uri", metaRedirectUri(req));
+  url.searchParams.set("state", pending.nonce);
+  url.searchParams.set("config_id", pending.configId);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("override_default_response_type", "true");
+  url.searchParams.set("extras", JSON.stringify(mobileEmbeddedSignupExtras(pending.configKey)));
+
+  await saveSession(req);
+  req.log?.info({
+    signupAttemptId: pending.signupAttemptId,
+    configKey: pending.configKey,
+    returnTo: pending.returnTo,
+    expiresAt: new Date(pending.expiresAt).toISOString(),
+  }, "Meta mobile signup redirect started");
+  res.json({
+    enabled: true,
+    url: url.toString(),
+    signupAttemptId: pending.signupAttemptId,
+    expiresAt: new Date(pending.expiresAt).toISOString(),
+  });
+});
+
+router.get("/meta/embedded-signup/mobile-redirect/result", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
+  const result = (req.session as any).metaMobileRedirectResult;
+  if (!result || result.workspaceId !== req.sessionUser.activeWorkspaceId || result.userId !== req.sessionUser.userId) {
+    res.json({ completed: false });
+    return;
+  }
+  delete (req.session as any).metaMobileRedirectResult;
+  await saveSession(req);
+  res.json({ completed: true, returnTo: result.returnTo, signupAttemptId: result.signupAttemptId });
 });
 
 router.post("/meta/embedded-signup/complete", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
@@ -1308,6 +1583,121 @@ router.post("/meta/embedded-signup/instagram-messenger/complete", requirePermiss
 
 router.get("/meta/embedded-signup/callback", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
   const state = String(req.query.state ?? "");
+  const mobileStored = (req.session as any).metaWhatsAppRedirectState as MetaWhatsAppRedirectState | undefined;
+  if (mobileStored?.nonce === state) {
+    if (!metaMobileRedirectEnabled()) {
+      res.status(404).json({ connected: false, error: "meta_mobile_redirect_disabled" });
+      return;
+    }
+
+    const now = Date.now();
+    const valid = Boolean(state)
+      && mobileStored.nonce === state
+      && mobileStored.userId === req.sessionUser.userId
+      && mobileStored.workspaceId === req.sessionUser.activeWorkspaceId
+      && !mobileStored.consumedAt
+      && mobileStored.expiresAt > now;
+    if (!valid) {
+      req.log?.warn({ signupAttemptId: mobileStored.signupAttemptId }, "Meta mobile signup callback rejected invalid state");
+      res.status(403).json({ connected: false, error: "invalid_state" });
+      return;
+    }
+
+    // Consume and persist before exchanging the code. A retry cannot reuse this state even if Meta fails.
+    mobileStored.consumedAt = now;
+    await saveSession(req);
+    const code = String(req.query.code ?? "");
+    if (!code) {
+      req.log?.warn({ signupAttemptId: mobileStored.signupAttemptId }, "Meta mobile signup callback missing code");
+      res.status(400).json({ connected: false, error: "missing_code" });
+      return;
+    }
+
+    req.log?.info({ signupAttemptId: mobileStored.signupAttemptId, configKey: mobileStored.configKey }, "Meta mobile signup callback accepted");
+    try {
+      const userToken = await exchangeCodeForToken(req, code);
+      if (!userToken) {
+        res.status(502).json({ connected: false, error: "meta_token_exchange_unavailable" });
+        return;
+      }
+      const tokenRef = encryptedTokenRef(userToken);
+      if (!tokenRef?.startsWith("enc:v1:")) {
+        res.status(409).json({ connected: false, error: "meta_per_channel_token_storage_unavailable" });
+        return;
+      }
+
+      const channelOptions = await fetchMetaWhatsAppOptions(userToken);
+      const whatsappAccounts = channelOptions.options.whatsapp_accounts.filter((account) => account.phone_numbers.length > 0);
+      const discoveredPhones = whatsappAccounts.flatMap((account) => account.phone_numbers.map((phone) => ({ account, phone })));
+      if (discoveredPhones.length === 0) {
+        res.status(409).json({ connected: false, error: "no_whatsapp_phone_discovered" });
+        return;
+      }
+
+      if (discoveredPhones.length === 1) {
+        const selected = discoveredPhones[0];
+        const [existingChannel] = await db
+          .select({ id: channelAccountsTable.id })
+          .from(channelAccountsTable)
+          .where(and(
+            eq(channelAccountsTable.workspaceId, req.sessionUser.activeWorkspaceId),
+            eq(channelAccountsTable.channelType, "whatsapp"),
+            providerLookupCondition("phoneNumberId", selected.phone.phone_number_id),
+          ))
+          .limit(1);
+        if (!existingChannel) {
+          const channelLimit = await checkLimit(req.sessionUser.activeWorkspaceId, "channels");
+          if (channelLimit.limit !== null && channelLimit.current + 1 > channelLimit.limit) {
+            res.status(402).json({ connected: false, error: "plan_limit_reached", limit: channelLimit });
+            return;
+          }
+        }
+        await subscribeMobileWhatsAppAccounts(req, [selected.account], userToken, mobileStored.signupAttemptId);
+        const account = await connectMobileWhatsAppPhone({
+          req,
+          account: selected.account,
+          phone: selected.phone,
+          tokenRef,
+          userToken,
+          configKey: mobileStored.configKey,
+          signupAttemptId: mobileStored.signupAttemptId,
+        });
+        (req.session as any).metaMobileRedirectResult = {
+          userId: req.sessionUser.userId,
+          workspaceId: req.sessionUser.activeWorkspaceId,
+          signupAttemptId: mobileStored.signupAttemptId,
+          returnTo: mobileStored.returnTo,
+          channelAccountId: account.id,
+          createdAt: now,
+        };
+        await saveSession(req);
+        req.log?.info({ signupAttemptId: mobileStored.signupAttemptId, autoSelected: true }, "Meta mobile signup channel connected");
+        res.redirect(`${mobileStored.returnTo}?metaSignup=success`);
+        return;
+      }
+
+      (req.session as any).metaChannelOptions = {
+        workspaceId: req.sessionUser.activeWorkspaceId,
+        options: sanitizeMetaOptions(channelOptions.options),
+        tokenRefs: { ...channelOptions.tokenRefs, userTokenRef: tokenRef },
+        mobileContext: {
+          signupAttemptId: mobileStored.signupAttemptId,
+          configKey: mobileStored.configKey,
+          returnTo: mobileStored.returnTo,
+        } satisfies MetaMobileSessionContext,
+        createdAt: now,
+      };
+      await saveSession(req);
+      req.log?.info({ signupAttemptId: mobileStored.signupAttemptId, autoSelected: false, phoneCount: discoveredPhones.length }, "Meta mobile signup requires channel selection");
+      res.redirect(`/integrations/meta/select-channels?metaSignupAttempt=${encodeURIComponent(mobileStored.signupAttemptId)}`);
+      return;
+    } catch (err) {
+      req.log?.warn({ err, signupAttemptId: mobileStored.signupAttemptId }, "Meta mobile signup callback failed");
+      res.status(502).json({ connected: false, error: "meta_mobile_redirect_callback_failed" });
+      return;
+    }
+  }
+
   const stored = (req.session as any).metaOAuthState;
   if (!stored || stored.state !== state || stored.workspaceId !== req.sessionUser.activeWorkspaceId || Date.now() - stored.createdAt > 15 * 60_000) {
     res.status(403).json({ connected: false, error: "invalid_state" });
@@ -1533,11 +1923,13 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
     return;
   }
 
-  const { options, tokenRefs } = currentMetaSession(req);
+  const { options, tokenRefs, mobileContext } = currentMetaSession(req);
   const created: Array<typeof channelAccountsTable.$inferSelect> = [];
   const createdSources: Array<typeof catalogSourcesTable.$inferSelect> = [];
   const connectedAt = new Date().toISOString();
   const metaAppId = process.env.META_APP_ID ?? null;
+  const mobileUserToken = mobileContext ? resolveCredentialsSecretRef(tokenRefs.userTokenRef) : null;
+  const subscribedMobileWabas = new Set<string>();
   const requestedChannelCount =
     parsed.data.whatsapp_phone_ids.length +
     parsed.data.instagram_account_ids.length +
@@ -1557,6 +1949,10 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
   for (const account of options.whatsapp_accounts) {
     for (const phone of account.phone_numbers) {
       if (!parsed.data.whatsapp_phone_ids.includes(phone.phone_number_id)) continue;
+      if (mobileContext && mobileUserToken && !subscribedMobileWabas.has(account.waba_id)) {
+        await subscribeMobileWhatsAppAccounts(req, [account], mobileUserToken, mobileContext.signupAttemptId);
+        subscribedMobileWabas.add(account.waba_id);
+      }
       const channel = await upsertMetaChannelAccount({
         req,
         channelType: "whatsapp",
@@ -1582,6 +1978,7 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
         credentialsSecretRef: tokenRefs.userTokenRef ?? process.env.META_ACCESS_TOKEN_SECRET_REF ?? null,
         externalBusinessId: account.waba_id ?? null,
         externalPhoneId: phone.phone_number_id,
+        ensureAutoAgent: Boolean(mobileContext),
       });
       created.push(channel);
     }
@@ -1614,6 +2011,7 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       credentialsSecretRef: tokenRef ?? null,
       externalBusinessId: wabaId,
       externalPhoneId: phoneNumberId,
+      ensureAutoAgent: Boolean(mobileContext),
     });
     created.push(channel);
     handledPhoneIds.add(phoneNumberId);
@@ -1716,6 +2114,19 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
     (source, err) => req.log?.warn({ err, sourceId: source.id }, "Auto sync failed for newly connected catalog source"),
   );
 
+  if (mobileContext && created.some((account) => account.channelType === "whatsapp")) {
+    (req.session as any).metaMobileRedirectResult = {
+      userId: req.sessionUser.userId,
+      workspaceId: req.sessionUser.activeWorkspaceId,
+      signupAttemptId: mobileContext.signupAttemptId,
+      returnTo: mobileContext.returnTo,
+      createdAt: Date.now(),
+    };
+    delete (req.session as any).metaChannelOptions;
+    await saveSession(req);
+    req.log?.info({ signupAttemptId: mobileContext.signupAttemptId, autoSelected: false }, "Meta mobile signup selected channel connected");
+  }
+
   res.status(201).json({
     accounts: created.map((account) => ({
       id: account.id,
@@ -1734,6 +2145,8 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       syncStatus: autoSyncResults.get(source.id)?.status ?? source.syncStatus,
       syncResult: autoSyncResults.get(source.id) ?? null,
     })),
+    returnTo: mobileContext?.returnTo ?? null,
+    signupAttemptId: mobileContext?.signupAttemptId ?? null,
   });
 });
 
