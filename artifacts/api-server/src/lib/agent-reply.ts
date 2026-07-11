@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import {
   aiAgentInstructionsTable,
   aiAgentsTable,
+  workspacesTable,
   aiMessagesTable,
   aiRunsTable,
   aiUsageTable,
@@ -78,11 +79,28 @@ const KNOWLEDGE_INJECT_CHARS = Number(process.env.KNOWLEDGE_INJECT_CHARS ?? "200
 // انضباط المحادثة (11 يوليو 2026) — مستخلص حرفياً من شهادات 5 عملاء رفضوا الاشتراك:
 // «يكثر أسئلة» · «يطلب صوراً من كل العملاء» (حوّل تعليمة شرطية في المعرفة لسلوك افتراضي) ·
 // «يكرر مواضيع قديمة» · «يرد على كل رسالة برد طويل موازٍ». كل بند هنا يقابل شكوى بعينها.
+// الدور الافتراضي حين لا يكتب التاجر دوراً مخصصاً — يُثرى باسم المتجر تلقائياً (جذر شكوى «الوكيل
+// عام لبعض المتاجر» 11 يوليو): المتاجر التي كتب أصحابها rolePrompt باسمها كانت مخصّصة، والبقية
+// (الأغلبية) تحصل على موظف مجهول الهوية. الاسم يُعيد الانتماء بلا أي كتابة من التاجر.
+function defaultRolePrompt(workspaceName: string): string {
+  const at = workspaceName ? ` في «${workspaceName}»` : "";
+  return `أنت موظف مبيعات وخدمة عملاء حقيقي${at}، ودود ومحترف، تردّ على عملاء النشاط التجاري بأسلوب إنساني طبيعي. تفاعل مع آخر رسالة من العميل مباشرةً.`;
+}
+
 const CONVERSATION_DISCIPLINE = [
   "سؤال واحد كحد أقصى في الردّ الواحد — ولا تسأل إلا إذا كان الجواب ضرورياً فعلاً للخطوة التالية. إن كان بوسعك التقدّم بلا سؤال فتقدّم.",
   "التعليمات الشرطية في معرفة التاجر («إذا احتاج…»، «في حال…»، «لو طلب…») تُطبَّق فقط عند تحقق شرطها في محادثتك الحالية فعلاً — لا تحوّلها أبداً لسلوك افتراضي مع كل عميل (مثال: «اطلب صورة إذا لزم» لا تعني أن تطلب صورة من كل عميل).",
   "أجب على آخر رسائل العميل فقط. موضوع أُجيب وانتهى لا يُعاد فتحه ولا يُلخَّص مجدداً — إلا إذا أعاد العميل نفسه فتحه.",
   "إن وصلت من العميل عدة رسائل متتابعة، فردّ برد واحد جامع يغطيها كلها بترتيبها — لا ردّ منفصل لكل رسالة.",
+].join("\n");
+
+// حدود الدور (11 يوليو — شكوى «الوكيل عام»): بلا هذه الكتلة كان وكيل المكتبة يجيب عن عواصم الدول
+// ويكتب القصائد ويترجم وينصح دوائياً — يتحوّل لمساعد ذكاء عام ويفقد هوية المتجر. الحصر صريح:
+// لا يجيب السؤالَ الخارجي نفسه ولو جزئياً، اعتذارٌ بجملة ثم إعادة توجيه لنشاط المتجر.
+const SCOPE_DISCIPLINE = [
+  "حدود دورك (التزام صارم): أنت موظف هذا النشاط التجاري حصراً — لست مساعداً عاماً ولا موسوعة ولا مترجماً.",
+  "أي طلب خارج نشاط المتجر ومنتجاته وخدماته وطلبات عملائه — معلومات عامة (عواصم، تواريخ، حسابات)، قصائد وإنشاء، ترجمة، واجبات ودروس، برمجة، نصائح طبية أو دوائية أو قانونية، آراء في السياسة أو الدين أو الأخبار، مقارنات أو آراء في منافسين أو في منتجات لا يبيعها المتجر — اعتذر عنه بجملة واحدة لطيفة دون أن تجيب عن السؤال نفسه ولو جزئياً، ثم وجّه الحديث فوراً لما تقدر تخدم العميل فيه من نشاط المتجر.",
+  "إن سألك العميل عن هويتك أو طبيعتك: قدّم نفسك بدورك فقط — موظف خدمة عملاء هذا النشاط — بلا خوض في أي تفاصيل تقنية عن طبيعتك، وبلا نقاش حولها؛ ثم انتقل لخدمته.",
 ].join("\n");
 
 // طول الردود كخيار منتج لا كتابة برومبت (11 يوليو): تاجر وصال ون لا يُتقن كتابة التعليمات —
@@ -369,6 +387,13 @@ export async function runAgentReply(params: {
     .where(and(eq(aiAgentsTable.id, params.agentId), eq(aiAgentsTable.workspaceId, params.workspaceId)))
     .limit(1);
   if (!agent) throw new Error("AI_AGENT_NOT_FOUND");
+  // اسم المتجر للدور الافتراضي — جلب خفيف بالمفتاح الأساسي (انظر defaultRolePrompt).
+  const [workspaceRow] = await db
+    .select({ name: workspacesTable.name })
+    .from(workspacesTable)
+    .where(eq(workspacesTable.id, params.workspaceId))
+    .limit(1);
+  const workspaceName = workspaceRow?.name?.trim() ?? "";
 
   const [instructions] = await db
     .select()
@@ -483,7 +508,7 @@ export async function runAgentReply(params: {
   const systemPrompt = [
     executableTools.length > 0 ? TOOL_USE_RULES : "",
     `Current date/time: ${new Date().toISOString()}.`,
-    instructions?.rolePrompt ?? "أنت موظف مبيعات وخدمة عملاء حقيقي، ودود ومحترف، تردّ على عملاء النشاط التجاري بأسلوب إنساني طبيعي. تفاعل مع آخر رسالة من العميل مباشرةً.",
+    instructions?.rolePrompt ?? defaultRolePrompt(workspaceName),
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
     instructions?.forbiddenActions ? `ممنوعات يحددها التاجر (ملزمة): ${instructions.forbiddenActions}` : "",
     instructions?.escalationRules ? `قواعد التحويل لموظف (يحددها التاجر لقطاعه — تسري إضافةً للقواعد العامة): ${instructions.escalationRules}\nعندما تنطبق حالة من هذه القواعد على رسالة العميل، استدعِ أداة handoff_to_human فعلياً.` : "",
@@ -491,6 +516,7 @@ export async function runAgentReply(params: {
     GROUNDING_RULES,
     HUMAN_STYLE,
     CONVERSATION_DISCIPLINE,
+    SCOPE_DISCIPLINE,
     `اللهجة: ${agent.dialect}.`,
     agent.tone ? (REPLY_LENGTH_PRESETS[agent.tone.trim()] ?? `النبرة: ${agent.tone}.`) : "",
     mediaGuidance,
@@ -785,6 +811,13 @@ export async function simulateAgentReply(params: {
     .where(and(eq(aiAgentsTable.id, params.agentId), eq(aiAgentsTable.workspaceId, params.workspaceId)))
     .limit(1);
   if (!agent) throw new Error("AI_AGENT_NOT_FOUND");
+  // اسم المتجر للدور الافتراضي — جلب خفيف بالمفتاح الأساسي (انظر defaultRolePrompt).
+  const [workspaceRow] = await db
+    .select({ name: workspacesTable.name })
+    .from(workspacesTable)
+    .where(eq(workspacesTable.id, params.workspaceId))
+    .limit(1);
+  const workspaceName = workspaceRow?.name?.trim() ?? "";
 
   const [instructions] = await db
     .select()
@@ -838,7 +871,7 @@ export async function simulateAgentReply(params: {
   const systemPrompt = [
     executableTools.length > 0 ? TOOL_USE_RULES : "",
     `Current date/time: ${new Date().toISOString()}.`,
-    instructions?.rolePrompt ?? "أنت موظف مبيعات وخدمة عملاء حقيقي، ودود ومحترف، تردّ على عملاء النشاط التجاري بأسلوب إنساني طبيعي. تفاعل مع آخر رسالة من العميل مباشرةً.",
+    instructions?.rolePrompt ?? defaultRolePrompt(workspaceName),
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
     instructions?.forbiddenActions ? `ممنوعات يحددها التاجر (ملزمة): ${instructions.forbiddenActions}` : "",
     instructions?.escalationRules ? `قواعد التحويل لموظف (يحددها التاجر لقطاعه — تسري إضافةً للقواعد العامة): ${instructions.escalationRules}\nعندما تنطبق حالة من هذه القواعد على رسالة العميل، استدعِ أداة handoff_to_human فعلياً.` : "",
@@ -846,6 +879,7 @@ export async function simulateAgentReply(params: {
     GROUNDING_RULES,
     HUMAN_STYLE,
     CONVERSATION_DISCIPLINE,
+    SCOPE_DISCIPLINE,
     `اللهجة: ${agent.dialect}.`,
     agent.tone ? (REPLY_LENGTH_PRESETS[agent.tone.trim()] ?? `النبرة: ${agent.tone}.`) : "",
   ].filter(Boolean).join("\n");
