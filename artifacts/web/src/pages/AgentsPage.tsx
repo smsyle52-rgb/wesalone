@@ -52,6 +52,19 @@ const TRUST_OPTIONS = [
   { value: "auto_after_hours", title: "تلقائي بعد الدوام", desc: "اقتراح أثناء الدوام، وتلقائي خارج ساعات العمل." },
 ];
 
+// اختيار اللهجة يُكتب حرفياً في dialect (نص حر) — البرومبت الحي يحقنه كما هو
+// (`اللهجة: ${agent.dialect}`)، فالقيم هنا عربية دائماً بصرف النظر عن لغة الواجهة.
+const DIALECT_OPTIONS = ["اليمنية", "السعودية", "الخليجية", "المصرية", "الشامية", "العربية الفصحى"];
+const DEFAULT_DIALECT = DIALECT_OPTIONS[0];
+
+// طول الردود: القيم يجب أن تطابق REPLY_LENGTH_PRESETS في agent-reply.ts حرفياً (مفاتيح عربية).
+const TONE_PRESETS: Array<{ value: string; titleKey: string; descKey: string }> = [
+  { value: "مختصر", titleKey: "agents.fields.toneOptions.brief.title", descKey: "agents.fields.toneOptions.brief.desc" },
+  { value: "متوازن", titleKey: "agents.fields.toneOptions.balanced.title", descKey: "agents.fields.toneOptions.balanced.desc" },
+  { value: "مفصل", titleKey: "agents.fields.toneOptions.detailed.title", descKey: "agents.fields.toneOptions.detailed.desc" },
+];
+const DEFAULT_TONE = TONE_PRESETS[0].value;
+
 // قائمة احتياطية حين لا يرجع GET /sectors قطاعات — مفاتيحها يجب أن تطابق حرفياً
 // sector_profiles المبذورة في migrate-phase345.sql، وإلا يُحفظ للوكيل sectorKey بلا
 // ملفّ قطاع مقابل فيرجع سياق القطاع فارغاً بصمت (القائمة السابقة كانت بمفاتيح مختلفة).
@@ -65,12 +78,16 @@ const BUSINESS_TYPES: Array<{ key: string; label: string }> = [
 ];
 
 function CreateAgentWizard({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+  const { t } = useTranslation("pages");
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     sectorKey: "",
+    dialect: DEFAULT_DIALECT,
+    tonePreset: DEFAULT_TONE,
+    toneCustom: "",
     rolePrompt: "",
     businessRules: "",
     knowledgeBaseIds: [] as string[],
@@ -104,10 +121,13 @@ function CreateAgentWizard({ onClose, onCreated }: { onClose: () => void; onCrea
     setSubmitting(true);
     setError(null);
     try {
+      // نبرة مخصصة (متقدم) تتغلّب على القالب المختار إن كُتبت؛ غير ذلك يُرسَل القالب حرفياً
+      // ليطابق مفاتيح REPLY_LENGTH_PRESETS بالضبط.
+      const effectiveTone = form.toneCustom.trim() || form.tonePreset;
       const created = await apiFetch("ai/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name.trim(), type: "support", defaultModel: "mock", dialect: "standard_arabic" }),
+        body: JSON.stringify({ name: form.name.trim(), type: "support", defaultModel: "mock", dialect: form.dialect, tone: effectiveTone }),
       });
       const id = created.agent.id as string;
       await apiFetch(`ai/agents/${id}`, {
@@ -162,13 +182,22 @@ function CreateAgentWizard({ onClose, onCreated }: { onClose: () => void; onCrea
           )}
 
           {step === 2 && (
-            <label className="block space-y-1">
-              <span className="font-medium">نوع النشاط</span>
-              <select value={form.sectorKey} onChange={(e) => setForm({ ...form, sectorKey: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2">
-                {displaySectors.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-              </select>
-              <span className="block text-xs text-muted-foreground">يضبط أسلوب الوكيل ليناسب مجال عملك. يمكنك تغييره لاحقًا.</span>
-            </label>
+            <div className="space-y-3">
+              <label className="block space-y-1">
+                <span className="font-medium">نوع النشاط</span>
+                <select value={form.sectorKey} onChange={(e) => setForm({ ...form, sectorKey: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2">
+                  {displaySectors.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                </select>
+                <span className="block text-xs text-muted-foreground">يضبط أسلوب الوكيل ليناسب مجال عملك. يمكنك تغييره لاحقًا.</span>
+              </label>
+              <label className="block space-y-1">
+                <span className="font-medium">{t("agents.fields.dialect")}</span>
+                <select value={form.dialect} onChange={(e) => setForm({ ...form, dialect: e.target.value })} className="w-full rounded-lg border border-input bg-background px-3 py-2">
+                  {DIALECT_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <span className="block text-xs text-muted-foreground">{t("agents.fields.dialectHint")}</span>
+              </label>
+            </div>
           )}
 
           {step === 3 && (
@@ -208,17 +237,41 @@ function CreateAgentWizard({ onClose, onCreated }: { onClose: () => void; onCrea
           )}
 
           {step === 5 && (
-            <div className="space-y-2">
-              <span className="font-medium">وضع الرد</span>
-              {TRUST_OPTIONS.map((o) => (
-                <label key={o.value} className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${form.trustMode === o.value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}>
-                  <input type="radio" name="trustMode" className="mt-1" checked={form.trustMode === o.value} onChange={() => setForm({ ...form, trustMode: o.value })} />
-                  <span>
-                    <span className="block font-medium">{o.title}</span>
-                    <span className="block text-xs text-muted-foreground">{o.desc}</span>
-                  </span>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <span className="font-medium">وضع الرد</span>
+                {TRUST_OPTIONS.map((o) => (
+                  <label key={o.value} className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${form.trustMode === o.value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}>
+                    <input type="radio" name="trustMode" className="mt-1" checked={form.trustMode === o.value} onChange={() => setForm({ ...form, trustMode: o.value })} />
+                    <span>
+                      <span className="block font-medium">{o.title}</span>
+                      <span className="block text-xs text-muted-foreground">{o.desc}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="space-y-2 border-t border-border pt-3">
+                <span className="font-medium">{t("agents.fields.tone")}</span>
+                {TONE_PRESETS.map((preset) => (
+                  <label key={preset.value} className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${form.tonePreset === preset.value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}>
+                    <input type="radio" name="tonePreset" className="mt-1" checked={form.tonePreset === preset.value} onChange={() => setForm({ ...form, tonePreset: preset.value })} />
+                    <span>
+                      <span className="block font-medium">{t(preset.titleKey)}</span>
+                      <span className="block text-xs text-muted-foreground">{t(preset.descKey)}</span>
+                    </span>
+                  </label>
+                ))}
+                <label className="block space-y-1 pt-1">
+                  <span className="text-xs font-medium text-muted-foreground">{t("agents.fields.toneCustomOption")}</span>
+                  <input
+                    value={form.toneCustom}
+                    onChange={(e) => setForm({ ...form, toneCustom: e.target.value })}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    placeholder={t("agents.fields.toneCustomPlaceholder")}
+                  />
+                  <span className="block text-xs text-muted-foreground">{t("agents.fields.toneCustomHint")}</span>
                 </label>
-              ))}
+              </div>
             </div>
           )}
         </div>

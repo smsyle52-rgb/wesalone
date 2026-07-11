@@ -386,7 +386,21 @@
       "businessRules": "Business rules",
       "forbiddenActions": "Forbidden actions",
       "escalationRules": "Handoff to human — when should the agent transfer?",
-      "escalationRulesPlaceholder": "Example: Hand off to a human if the customer requests a formal invoice, complains about a damaged product, asks to modify/cancel an existing order, or asks about something outside our business"
+      "escalationRulesPlaceholder": "Example: Hand off to a human if the customer requests a formal invoice, complains about a damaged product, asks to modify/cancel an existing order, or asks about something outside our business",
+      "dialect": "Agent dialect",
+      "dialectHint": "The dialect the agent uses when replying to your customers.",
+      "dialectCustomOption": "Other (custom) dialect",
+      "dialectCustomPlaceholder": "Enter a dialect name",
+      "tone": "Reply length",
+      "toneHint": "Controls how long and detailed the agent's replies are.",
+      "toneOptions": {
+        "brief": { "title": "Brief", "desc": "Short, direct replies — best for WhatsApp" },
+        "balanced": { "title": "Balanced", "desc": "The standard, default option" },
+        "detailed": { "title": "Detailed", "desc": "Fuller explanations when needed" }
+      },
+      "toneCustomOption": "Custom tone",
+      "toneCustomHint": "If you write a tone here, it will be used instead of the choice above (advanced).",
+      "toneCustomPlaceholder": "Example: very friendly, explains in detail with examples"
     },
     "models": {
       "mock": "Mock mode",

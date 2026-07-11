@@ -11,6 +11,21 @@ import { formatDateTime } from "@/lib/utils";
 const BASE = `${import.meta.env.BASE_URL}api`;
 const tabs = ["settings", "instructions", "knowledge", "serviceStyle", "learned", "channels", "runs", "trust", "playground"] as const;
 
+// نفس قيم اختيار اللهجة في معالج الإنشاء (AgentsPage) — تُكتب حرفياً في dialect (نص حر)
+// يحقنه البرومبت الحي كما هو. قيمة قديمة لا تطابق أياً منها (مثل yemeni_light) تُعرض في
+// حالة "مخصّصة" فلا تُفقَد أو تُستبدَل بصمت عند مجرّد فتح الصفحة.
+const DIALECT_OPTIONS = ["اليمنية", "السعودية", "الخليجية", "المصرية", "الشامية", "العربية الفصحى"];
+const DEFAULT_DIALECT = DIALECT_OPTIONS[0];
+const CUSTOM_DIALECT_VALUE = "__custom__";
+
+// طول الردود: نفس قوالب معالج الإنشاء، يجب أن تطابق REPLY_LENGTH_PRESETS في agent-reply.ts حرفياً.
+const TONE_PRESETS: Array<{ value: string; titleKey: string; descKey: string }> = [
+  { value: "مختصر", titleKey: "agents.fields.toneOptions.brief.title", descKey: "agents.fields.toneOptions.brief.desc" },
+  { value: "متوازن", titleKey: "agents.fields.toneOptions.balanced.title", descKey: "agents.fields.toneOptions.balanced.desc" },
+  { value: "مفصل", titleKey: "agents.fields.toneOptions.detailed.title", descKey: "agents.fields.toneOptions.detailed.desc" },
+];
+const TONE_PRESET_VALUES = TONE_PRESETS.map((preset) => preset.value);
+
 interface AgentSimulationResult {
   reply: string;
   knowledgeSources: string[];
@@ -42,7 +57,7 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("settings");
   const [message, setMessage] = useState<string | null>(null);
-  const [settings, setSettings] = useState({ name: "", defaultModel: "mock", temperature: "0.30", maxOutputTokens: "1024", knowledgeBaseIds: [] as string[] });
+  const [settings, setSettings] = useState({ name: "", defaultModel: "mock", temperature: "0.30", maxOutputTokens: "1024", knowledgeBaseIds: [] as string[], dialect: DEFAULT_DIALECT, tone: "" });
   const [instructions, setInstructions] = useState({ rolePrompt: "", businessRules: "", forbiddenActions: "", escalationRules: "" });
   const [serviceStyle, setServiceStyle] = useState({ sectorKey: "services_general", notes: "" });
   const [trustSettings, setTrustSettings] = useState({
@@ -102,6 +117,11 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
       temperature: String(agent.temperature ?? "0.30"),
       maxOutputTokens: String(agent.maxOutputTokens ?? 1024),
       knowledgeBaseIds: Array.isArray(agent.knowledgeBaseIds) ? agent.knowledgeBaseIds : [],
+      // قيمة قديمة لا تطابق أياً من الخيارات الحالية (dialect حرفياً؛ tone فارغ أو نص حر
+      // سابق) تُحفَظ كما هي هنا — لا تُستبدَل بافتراضي عند التحميل، فتظهر لاحقاً في حالة
+      // "مخصّصة" بدل أن تُفقَد بصمت.
+      dialect: agent.dialect ?? DEFAULT_DIALECT,
+      tone: agent.tone ?? "",
     });
     setInstructions({
       rolePrompt: detailQuery.data?.instructions?.rolePrompt ?? "",
@@ -135,6 +155,8 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
         temperature: Number(settings.temperature),
         maxOutputTokens: Number(settings.maxOutputTokens),
         knowledgeBaseIds: settings.knowledgeBaseIds,
+        dialect: settings.dialect.trim(),
+        tone: settings.tone.trim() || null,
         sectorKey: serviceStyle.sectorKey,
         sectorBehaviorOverrides: { notes: serviceStyle.notes },
       }),
@@ -276,6 +298,59 @@ export default function AgentDetailPage({ agentId }: { agentId: string }) {
               <span className="font-medium">{t("agents.fields.name")}</span>
               <input value={settings.name} onChange={(event) => setSettings({ ...settings, name: event.target.value })} disabled={!canConfigure} className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60" />
             </label>
+
+            <label className="space-y-1 text-sm">
+              <span className="font-medium">{t("agents.fields.dialect")}</span>
+              <select
+                value={DIALECT_OPTIONS.includes(settings.dialect) ? settings.dialect : CUSTOM_DIALECT_VALUE}
+                onChange={(event) => setSettings({ ...settings, dialect: event.target.value === CUSTOM_DIALECT_VALUE ? "" : event.target.value })}
+                disabled={!canConfigure}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 disabled:opacity-60"
+              >
+                {DIALECT_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                <option value={CUSTOM_DIALECT_VALUE}>{t("agents.fields.dialectCustomOption")}</option>
+              </select>
+              {!DIALECT_OPTIONS.includes(settings.dialect) && (
+                <input
+                  value={settings.dialect}
+                  onChange={(event) => setSettings({ ...settings, dialect: event.target.value })}
+                  disabled={!canConfigure}
+                  placeholder={t("agents.fields.dialectCustomPlaceholder")}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
+                />
+              )}
+              <span className="block text-xs text-muted-foreground">{t("agents.fields.dialectHint")}</span>
+            </label>
+
+            <div className="space-y-2 text-sm md:col-span-2">
+              <span className="font-medium">{t("agents.fields.tone")}</span>
+              <div className="grid gap-2 sm:grid-cols-4">
+                {TONE_PRESETS.map((preset) => (
+                  <label key={preset.value} className={`flex cursor-pointer gap-2 rounded-lg border p-3 ${settings.tone === preset.value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}>
+                    <input type="radio" name="tone" className="mt-1" checked={settings.tone === preset.value} onChange={() => setSettings({ ...settings, tone: preset.value })} disabled={!canConfigure} />
+                    <span>
+                      <span className="block font-medium">{t(preset.titleKey)}</span>
+                      <span className="block text-xs text-muted-foreground">{t(preset.descKey)}</span>
+                    </span>
+                  </label>
+                ))}
+                <label className={`flex cursor-pointer gap-2 rounded-lg border p-3 ${!TONE_PRESET_VALUES.includes(settings.tone) ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}>
+                  <input type="radio" name="tone" className="mt-1" checked={!TONE_PRESET_VALUES.includes(settings.tone)} onChange={() => setSettings({ ...settings, tone: "" })} disabled={!canConfigure} />
+                  <span className="font-medium">{t("agents.fields.toneCustomOption")}</span>
+                </label>
+              </div>
+              {!TONE_PRESET_VALUES.includes(settings.tone) && (
+                <input
+                  value={settings.tone}
+                  onChange={(event) => setSettings({ ...settings, tone: event.target.value })}
+                  disabled={!canConfigure}
+                  placeholder={t("agents.fields.toneCustomPlaceholder")}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
+                />
+              )}
+              <span className="block text-xs text-muted-foreground">{t("agents.fields.toneHint")}</span>
+            </div>
+
             <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs leading-6 text-muted-foreground md:col-span-2">
               يعمل هذا الوكيل على محرّك ذكاء يُدار تلقائياً لاختيار أفضل جودة وسرعة لكل رسالة — لا حاجة لأي ضبط تقني منك.
             </div>
