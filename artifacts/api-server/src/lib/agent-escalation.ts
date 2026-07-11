@@ -332,3 +332,30 @@ export function findUnauthorizedLink(reply: string, allowedContext: string): str
   }
   return null;
 }
+
+// حارس ساعات الدوام المخترعة/المقلوبة (11 يوليو 2026 — جولة «المستخدم الحي»): النموذج قلب
+// «من 10 صباحاً حتى 8 مساءً» إلى «من 8 صباحاً حتى 10 مساءً» رغم قاعدة النقل الحرفي في البرومبت،
+// واخترع دواماً كاملاً بعد حذف مصدره — عميل يصل لمحل مغلق = ضرر حقيقي. نفس فلسفة حارس الروابط:
+// كل زوج «ساعة + فترة» (صباحاً/مساءً/ظهراً/عصراً/فجراً) في الردّ يجب أن يوجد حرفياً في سياق
+// مرفق (البرومبت/المحادثة/المعرفة/الكتالوج/الطلبات) — وإلا فهو اختراع يُستبدل الردّ ويُصعَّد.
+// السياق يشمل نص المحادثة عمداً: ترديد ساعة ذكرها العميل نفسه («أجي الساعة 7 مساءً؟») مشروع.
+const HOUR_PERIOD_PATTERN = /(\d{1,2})\s*(?:ال)?(صباح|مساء|ظهر|عصر|فجر)/g;
+const ARABIC_INDIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+
+function normalizeForHours(value: string): string {
+  return value
+    .replace(/[٠-٩]/g, (digit) => String(ARABIC_INDIC_DIGITS.indexOf(digit)))
+    .replace(/\s+/g, " ");
+}
+
+export function findUngroundedWorkHours(reply: string, allowedContext: string): string | null {
+  const normalizedReply = normalizeForHours(reply);
+  const normalizedContext = normalizeForHours(allowedContext);
+  for (const match of normalizedReply.matchAll(HOUR_PERIOD_PATTERN)) {
+    const hour = match[1];
+    const period = match[2];
+    const grounded = new RegExp(`${hour}\\s*(?:ال)?${period}`).test(normalizedContext);
+    if (!grounded) return `${hour} ${period}`;
+  }
+  return null;
+}

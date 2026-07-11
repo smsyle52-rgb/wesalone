@@ -25,6 +25,7 @@ import {
 } from "./agent-tools";
 import {
   findUnauthorizedLink,
+  findUngroundedWorkHours,
   findUnbackedActionClaim,
   includesEscalationKeyword,
   replyConfirmsPayment,
@@ -41,6 +42,9 @@ const GROUNDING_RULES = [
   "قاعدة التأريض الصارمة (الأهم فوق كل شيء): كل معلومة تذكرها للعميل — سعر، رقم، مواصفة، ميزة، توفّر، مدّة، مقاس، خامة، سياسة، خدمة، أو أي حقيقة عن النشاط أو منتجاته — يجب أن تكون موجودة حرفياً في «كتالوج المنتجات» أو «معرفة قاعدة البيانات» أو «حالة طلبات هذا العميل» المرفقة. ممنوع منعاً باتاً أن تخترع أو تخمّن أو «تقرّب» أو تفترض أي معلومة غير موجودة فيها. إن لم تجد الإجابة في المرفقات: قل بصدق وبأسلوب ودّي إنها غير متوفّرة لديك الآن وستتأكّد من الفريق — لا ترتجل رقماً ولا وصفاً ولا مثالاً.",
   "قاعدة منع الوعود الكاذبة: لا تَعِد العميل بأي شيء لا تضمنه — لا توصيل، ولا موعد، ولا خصم، ولا توفّر، ولا متابعة، ولا أن أحداً «سيتواصل معك» أو أن أمراً «سيتم» — إلا إذا كان مذكوراً صراحةً في المعرفة المرفقة، أو نفّذته فعلاً باستدعاء أداة. الوعد بما لا تملك تأكيده كذبٌ على العميل وخطأ جسيم يفقده الثقة تماماً.",
   "قاعدة التحويل الصادق: لا تكتب أنك حوّلت أو ستحوّل المحادثة لموظف إلا إذا استدعيت أداة handoff_to_human فعلاً — كتابة عبارة التحويل بلا استدعاء الأداة وعدٌ كاذب.",
+  // أضيفت بعد جولة «المستخدم الحي» 11 يوليو: النموذج قلب ساعات الدوام (10ص-8م → 8ص-10م) واخترع
+  // دواماً بعد حذف الوثيقة رغم قاعدة التأريض العامة — فئة «حقائق النشاط الثابتة» تحتاج تسمية صريحة.
+  "قاعدة النقل الحرفي: الأرقام والأوقات والمدد تُنقل من المرفقات كما هي حرفياً وبترتيبها — ممنوع قلب البداية والنهاية (إن قالت المعرفة «من 10 صباحاً حتى 8 مساءً» فلا تقل أبداً «من 8 صباحاً حتى 10 مساءً»). وأوقات الدوام والعناوين وأرقام التواصل ومدد ورسوم التوصيل تحديداً: إن لم تكن مكتوبة في المرفقات فلا تذكر لها أي قيمة إطلاقاً مهما بدت بديهية — قل بصدق إنك ستتأكّد من الفريق.",
 ].join("\n");
 
 // قواعد استخدام الأدوات (استدعاء أصلي): تُحقن عند تفعيل أي أداة. البنية تأتي من function calling
@@ -624,7 +628,12 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     // اختراعاً يُستبدل الردّ ويُصعَّد. تُتخطّى إن كانت بوابة الادّعاء قد استبدلت الردّ أصلاً.
     const allowedLinkContext = [systemPrompt, knowledgeContext, productCatalogContext, orderStatusContext].join("\n");
     const unauthorizedLink = claimGuardTripped ? null : findUnauthorizedLink(candidateReply, allowedLinkContext);
-    const finalReply = (claimGuardTripped || unauthorizedLink) ? SAFE_REVIEW_REPLY : candidateReply;
+    // حارس الساعات المخترعة/المقلوبة (11 يوليو): زوج «ساعة+فترة» في الردّ غير موجود حرفياً في أي
+    // سياق مرفق = اختراع (النموذج قلب 10ص-8م إلى 8ص-10م رغم قاعدة النقل الحرفي). السياق يشمل
+    // نص المحادثة عمداً — ترديد ساعة ذكرها العميل نفسه مشروع. تفاصيل: agent-escalation.ts.
+    const allowedHoursContext = [allowedLinkContext, transcript, metaStoreContext, learnedContext].join("\n");
+    const ungroundedHours = (claimGuardTripped || unauthorizedLink) ? null : findUngroundedWorkHours(candidateReply, allowedHoursContext);
+    const finalReply = (claimGuardTripped || unauthorizedLink || ungroundedHours) ? SAFE_REVIEW_REPLY : candidateReply;
 
     if (!finalReply) {
       await db.update(aiRunsTable).set({
@@ -654,6 +663,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     if (unbackedClaim) hardEscalationReasons.push(`unbacked_claim:${unbackedClaim}`);
     if (paymentClaim) hardEscalationReasons.push("payment_confirmation_claim");
     if (unauthorizedLink) hardEscalationReasons.push(`unauthorized_link:${unauthorizedLink}`);
+    if (ungroundedHours) hardEscalationReasons.push(`ungrounded_hours:${ungroundedHours}`);
     if (hasHandoff) hardEscalationReasons.push("handoff_tool");
     if (replyPromisesHandoff(finalReply)) hardEscalationReasons.push("handoff_promise");
     if (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound)) {

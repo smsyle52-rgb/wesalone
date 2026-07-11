@@ -44,12 +44,24 @@ export type KnowledgeAiSource = Pick<KnowledgeSearchItem, "type" | "id" | "title
   updatedAt?: Date | null;
 };
 
-function wordsForQuery(query: string): string[] {
-  return query
+// ضمائر متصلة شائعة في أسئلة العملاء («دوامكم/أسعاركم/فروعكم») تجعل الكلمة لا تطابق نصياً
+// جذرها في المعرفة («دوام/أسعار/فروع»). الطبقة الدلالية (pgvector) تلتقط ذلك عادةً، لكن الطبقة
+// النصية يجب أن تصمد وحدها عند تعثّر الـembeddings — جولة «المستخدم الحي» 11 يوليو أظهرت سؤالاً
+// بصيغة «دوامكم» يمرّ بلا أي مصدر عبر المسار النصي. نضيف المتغيّر المجرّد بجانب الأصل، لا بدله.
+const ARABIC_ATTACHED_PRONOUN = /(كم|كن|هم|هن|ها|نا|ك|ه|ي)$/;
+
+export function wordsForQuery(query: string): string[] {
+  const words = query
     .split(/\s+/)
     .map((word) => word.trim().replace(/[?؟،,.;:!]/g, ""))
     .filter((word) => word.length > 2)
     .slice(0, 8);
+  const withStems = new Set<string>(words);
+  for (const word of words) {
+    const stem = word.replace(ARABIC_ATTACHED_PRONOUN, "");
+    if (stem.length > 2 && stem !== word) withStems.add(stem);
+  }
+  return [...withStems];
 }
 
 function normalize(value: string): string {

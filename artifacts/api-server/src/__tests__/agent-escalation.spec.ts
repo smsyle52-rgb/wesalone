@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   findUnauthorizedLink,
+  findUngroundedWorkHours,
   findUnbackedActionClaim,
   includesEscalationKeyword,
   normalizeArabic,
@@ -254,5 +255,38 @@ describe("findUnauthorizedLink — حارس الروابط المخترعة", ()
 
   it("(g) لا إيجابية كاذبة مع نقاط نهاية الجملة في نص عربي عادي", () => {
     expect(findUnauthorizedLink("شكراً لتواصلك. نسعد بخدمتك.", "")).toBeNull();
+  });
+});
+
+describe("findUngroundedWorkHours — حارس الساعات المخترعة/المقلوبة", () => {
+  const context = "معرفة ذات صلة: دوام المكتبة من الساعة 10 صباحاً حتى 8 مساءً فقط.";
+
+  it("(a) يكشف قلب الساعات: 10ص-8م في المصدر تصير 8ص-10م في الردّ", () => {
+    expect(findUngroundedWorkHours("دوامنا من 8 صباحاً حتى 10 مساءً", context)).toBe("8 صباح");
+  });
+
+  it("(b) يمرّر الساعات الحرفية المطابقة للمصدر", () => {
+    expect(findUngroundedWorkHours("دوامنا من 10 صباحاً حتى 8 مساءً، حياك الله", context)).toBeNull();
+  });
+
+  it("(c) يكشف دواماً مخترعاً بلا أي مصدر", () => {
+    expect(findUngroundedWorkHours("نفتح من 9 صباحاً إلى 9 مساءً", "")).toBe("9 صباح");
+  });
+
+  it("(d) يطبّع الأرقام الهندية: ٨ مساءً تُقارن كـ8 مساءً", () => {
+    expect(findUngroundedWorkHours("نغلق الساعة ٨ مساءً", context)).toBeNull();
+  });
+
+  it("(e) ترديد ساعة ذكرها العميل في المحادثة مشروع (السياق يشمل النص)", () => {
+    const withTranscript = "[العميل]: أقدر أمر عليكم الساعة 7 مساءً؟";
+    expect(findUngroundedWorkHours("أهلاً بك، نتشرف فيك الساعة 7 مساءً", withTranscript)).toBeNull();
+  });
+
+  it("(f) ردّ بلا أي ساعات لا يكشف شيئاً", () => {
+    expect(findUngroundedWorkHours("أهلاً بك، كيف أقدر أخدمك؟", "")).toBeNull();
+  });
+
+  it("(g) صيغة «الساعة 10 الصباح» بأداة التعريف تُطابق مصدرها", () => {
+    expect(findUngroundedWorkHours("نفتح الساعة 10 الصباح", context)).toBeNull();
   });
 });
