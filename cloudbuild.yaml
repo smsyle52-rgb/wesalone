@@ -125,6 +125,21 @@ steps:
       - --set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,META_APP_SECRET=meta-app-secret:latest,META_SYSTEM_USER_TOKEN=META_SYSTEM_USER_TOKEN:latest,META_WEBHOOK_SECRET=META_WEBHOOK_SECRET:latest,META_WEBHOOK_VERIFY_TOKEN=meta-webhook-verify-token:latest,INTERNAL_SECRET=INTERNAL_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest
       - --quiet
 
+  # حادثة 11 يوليو 2026: الترافيك وُجد مثبَّتاً بالاسم على نسخة قديمة (00343) — أربع نشرات ناجحة
+  # لم يصلها أي ترافيك والدومين ظل يخدم كوداً قديماً أياماً («النشر ما يوصل الدومين»). عقد الخط
+  # المعلن: push إلى main = 100% للأحدث — هذه الخطوة تفرضه بعد كل نشر وتشفي أي تثبيت يدوي منسي.
+  - id: force-traffic-to-latest
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update-traffic
+      - $_SERVICE
+      - --region=$_REGION
+      - --to-latest
+      - --quiet
+
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
 

@@ -41,6 +41,20 @@ steps:
       - --set-env-vars=NODE_ENV=production,API_SERVER_URL=https://khadamatak-staging-1067617934225.us-central1.run.app,AI_PROVIDER=vertex,VERTEX_PROJECT_ID=$PROJECT_ID,VERTEX_LOCATION=global,VERTEX_MODEL=gemini-2.5-flash,AI_MAX_OUTPUT_TOKENS=2048,AI_TEMPERATURE=0.2,WHATSAPP_BSUID_ENABLED=true
       - --quiet
 
+  # حادثة 11 يوليو 2026: الـworker وُجد مثبَّتاً على نسخة متأخرة 20 نسخة عن الأحدث — محرك الرد
+  # نفسه كان يشغّل كوداً قديماً لأيام رغم نجاح كل النشرات. هذه الخطوة تفرض عقد الخط بعد كل نشر.
+  - id: force-traffic-to-latest
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update-traffic
+      - $_SERVICE
+      - --region=$_REGION
+      - --to-latest
+      - --quiet
+
 images:
   - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_IMAGE:$SHORT_SHA
 
