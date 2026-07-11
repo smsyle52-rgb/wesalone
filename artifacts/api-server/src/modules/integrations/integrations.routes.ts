@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { aiAgentChannelsTable, aiAgentInstructionsTable, aiAgentsTable, catalogSourcesTable, channelAccountsTable, db, featureFlagsTable, metaMobileSignupAttemptsTable, pool, workspacesTable } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
+import { logger } from "../../lib/logger";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { auditFromRequest, createAuditLog } from "../../lib/audit";
 import {
@@ -285,13 +286,22 @@ async function loadMobileAttemptByNonce(nonce: string): Promise<MobileAttemptIde
     expires_ms: string | number;
   }>(`
     SELECT signup_attempt_id, user_id, workspace_id, config_key, return_to,
-           (EXTRACT(EPOCH FROM expires_at) * 1000)::bigint AS expires_ms
+           (EXTRACT(EPOCH FROM expires_at) * 1000)::bigint AS expires_ms,
+           (expires_at <= NOW()) AS is_expired
     FROM meta_mobile_signup_attempts
-    WHERE nonce_hash = $1 AND expires_at > NOW()
+    WHERE nonce_hash = $1
+    ORDER BY created_at DESC
     LIMIT 1
   `, [nonceHash(nonce)]);
-  const row = rows[0];
-  if (!row) return null;
+  const row = rows[0] as (typeof rows)[number] & { is_expired?: boolean } | undefined;
+  // تشخيص حادثة 12 يوليو: العودة تصل بكود صالح لكن الصف لا يُوجد → 401. نسجّل بصمة الـhash
+  // وعدد الصفوف وحالة الصلاحية لنميّز بين (لا صف إطلاقاً = خلل إدراج/تطابق) و(صف منتهي).
+  logger.info({
+    nonceHashPrefix: nonceHash(nonce).slice(0, 12),
+    matchedRows: rows.length,
+    isExpired: row?.is_expired ?? null,
+  }, "Meta mobile signup attempt lookup by nonce");
+  if (!row || row.is_expired) return null;
   return {
     signupAttemptId: row.signup_attempt_id,
     userId: row.user_id,
@@ -1635,6 +1645,8 @@ router.get("/meta/embedded-signup/whatsapp/redirect/start", requirePermission("i
   };
   (req.session as any).metaWhatsAppRedirectState = pending;
   await createMetaMobileAttempt(pending);
+  // تشخيص 12 يوليو: نبصم hash الـnonce المكتوب لنقارنه ببصمة البحث عند العودة (يكشف تحوير state).
+  logger.info({ nonceHashPrefix: nonceHash(pending.nonce).slice(0, 12), signupAttemptId: pending.signupAttemptId }, "Meta mobile signup attempt row created");
 
   // FB.login sends these same Embedded Signup parameters to dialog/oauth. The only change is
   // replacing the opener callback with this server callback so mobile tab separation cannot lose it.
@@ -2008,6 +2020,14 @@ router.get("/meta/embedded-signup/callback", async (req: Request, res: Response)
   const state = String(req.query.state ?? "");
   const sessionUser = (req as AuthenticatedRequest).sessionUser as AuthenticatedRequest["sessionUser"] | undefined;
   const attempt = state ? await loadMobileAttemptByNonce(state) : null;
+  // تشخيص 12 يوليو: صورة كاملة عند كل عودة — هل وصل state/code، وهل صار مسار جوال أم لا.
+  logger.info({
+    hasState: Boolean(state),
+    hasCode: Boolean(req.query.code),
+    hasSession: Boolean(sessionUser),
+    attemptResolved: Boolean(attempt),
+    lookupHashPrefix: state ? nonceHash(state).slice(0, 12) : null,
+  }, "Meta embedded-signup callback entry");
   if (attempt && !metaMobileRedirectEnabled()) {
     res.status(404).json({ connected: false, error: "meta_mobile_redirect_disabled" });
     return;
