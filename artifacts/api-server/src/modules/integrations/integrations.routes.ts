@@ -1,4 +1,4 @@
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
@@ -261,6 +261,45 @@ async function createMetaMobileAttempt(state: MetaWhatsAppRedirectState) {
       (signup_attempt_id, nonce_hash, user_id, workspace_id, config_key, config_id, return_to, expires_at)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
   `, [state.signupAttemptId, nonceHash(state.nonce), state.userId, state.workspaceId, state.configKey, state.configId, state.returnTo, new Date(state.expiresAt)]);
+}
+
+// تحميل محاولة الجوال بهوية كاملة عبر nonce الـstate وحده — أساس نقطة العودة العديمة الجلسة
+// (12 يوليو): user/workspace يؤخذان من الصف المربوط عند البدء بجلسة موثّقة، لا من كوكي قد يضيع.
+type MobileAttemptIdentity = {
+  signupAttemptId: string;
+  userId: string;
+  workspaceId: string;
+  configKey: MetaMobileConfigKey;
+  returnTo: string;
+  expiresAtMs: number;
+};
+
+async function loadMobileAttemptByNonce(nonce: string): Promise<MobileAttemptIdentity | null> {
+  if (!nonce) return null;
+  const { rows } = await pool.query<{
+    signup_attempt_id: string;
+    user_id: string;
+    workspace_id: string;
+    config_key: string;
+    return_to: string;
+    expires_ms: string | number;
+  }>(`
+    SELECT signup_attempt_id, user_id, workspace_id, config_key, return_to,
+           (EXTRACT(EPOCH FROM expires_at) * 1000)::bigint AS expires_ms
+    FROM meta_mobile_signup_attempts
+    WHERE nonce_hash = $1 AND expires_at > NOW()
+    LIMIT 1
+  `, [nonceHash(nonce)]);
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    signupAttemptId: row.signup_attempt_id,
+    userId: row.user_id,
+    workspaceId: row.workspace_id,
+    configKey: row.config_key as MetaMobileConfigKey,
+    returnTo: row.return_to || "/dashboard",
+    expiresAtMs: Number(row.expires_ms),
+  };
 }
 
 export async function claimMetaMobileRedirectCallback(params: {
@@ -1010,7 +1049,9 @@ async function connectMobileWhatsAppPhone(params: {
 }
 
 async function finalizeMobileWhatsAppConnection(params: {
-  req: AuthenticatedRequest;
+  // هوية صريحة من صف المحاولة (لا من req.sessionUser): نقطة العودة تعمل بلا جلسة (12 يوليو).
+  workspaceId: string;
+  userId: string;
   account: MetaChannelOptions["whatsapp_accounts"][number];
   phone: MetaPhoneNumber;
   tokenRef: string;
@@ -1018,8 +1059,8 @@ async function finalizeMobileWhatsAppConnection(params: {
   signupAttemptId: string;
   claimToken: string;
 }) {
-  const workspaceId = params.req.sessionUser.activeWorkspaceId;
-  const userId = params.req.sessionUser.userId;
+  const workspaceId = params.workspaceId;
+  const userId = params.userId;
   const lookupCondition = providerLookupCondition("phoneNumberId", params.phone.phone_number_id);
   const connectedAt = new Date().toISOString();
 
@@ -1626,18 +1667,22 @@ router.get("/meta/embedded-signup/mobile-redirect/result", requirePermission("in
     res.status(404).json({ enabled: false, code: "meta_mobile_redirect_disabled" });
     return;
   }
+  // قاعدة البيانات هي الحكم (12 يوليو): كانت النتيجة مرهونة بكتابة جلسة يجريها الـcallback —
+  // الذي قد يهبط في متصفح آخر بلا جلسة أصلاً (تطبيق فيسبوك/تبويب جديد) فلا يعرف التبويبُ
+  // الأصلي المسجَّل أبداً أن الربط اكتمل. الآن: الصف المكتمل لهذا المستخدم/المساحة يكفي.
   const sessionResult = (req.session as any).metaMobileRedirectResult as MetaMobileRedirectResult | undefined;
-  const signupAttemptId = sessionResult?.signupAttemptId ?? String(req.query.signupAttemptId ?? "");
-  const result = signupAttemptId ? await pool.query<{ signup_attempt_id: string }>(`
-    SELECT signup_attempt_id FROM meta_mobile_signup_attempts
+  const signupAttemptId = String(req.query.signupAttemptId ?? "") || sessionResult?.signupAttemptId || "";
+  const result = signupAttemptId ? await pool.query<{ signup_attempt_id: string; return_to: string }>(`
+    SELECT signup_attempt_id, return_to FROM meta_mobile_signup_attempts
     WHERE signup_attempt_id = $1 AND workspace_id = $2 AND user_id = $3
       AND status = 'completed' AND result_ready = true AND expires_at > NOW()
   `, [signupAttemptId, req.sessionUser.activeWorkspaceId, req.sessionUser.userId]) : null;
-  if (!sessionResult || sessionResult.expiresAt <= Date.now() || !result?.rows[0]) {
+  const row = result?.rows[0];
+  if (!row) {
     res.json({ completed: false });
     return;
   }
-  res.json({ completed: true, returnTo: sessionResult.returnTo, signupAttemptId: sessionResult.signupAttemptId });
+  res.json({ completed: true, returnTo: row.return_to || "/dashboard", signupAttemptId: row.signup_attempt_id });
 });
 
 router.post("/meta/embedded-signup/complete", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
@@ -1952,79 +1997,83 @@ router.post("/meta/embedded-signup/instagram-messenger/complete", requirePermiss
   res.status(201).json({ accounts: created.map(serializeChannelAccount) });
 });
 
-router.get("/meta/embedded-signup/callback", requirePermission("integrations:update"), async (req: AuthenticatedRequest, res: Response) => {
+// نقطة عودة OAuth — عامة عمداً (بلا requirePermission): عودة الجوال كثيراً ما تصل في سياق
+// متصفح بلا كوكي الجلسة (فتح عبر تطبيق فيسبوك، فقدان التبويب الأصلي، اختلاف www/بدونها) —
+// حادثة 12 يوليو: عميل حقيقي أكمل عند ميتا وارتطم بـ401 خام «يجب تسجيل الدخول أولاً».
+// إثبات مسار الجوال = امتلاك nonce الـstate (عشوائي، مخزَّن مُجزّأً، بصلاحية، وادّعاء ذرّي
+// بعقد إيجار) + كود OAuth صالح من ميتا لنفس التطبيق؛ الهوية (user/workspace) تؤخذ من صف
+// المحاولة المربوط عند البدء بجلسة موثّقة. مسار سطح المكتب يبقى مشروطاً بالجلسة كما كان.
+// وكل فشل هنا "توجيه" لا JSON خام — هذه صفحة يقف أمامها إنسان لا عميل API.
+router.get("/meta/embedded-signup/callback", async (req: Request, res: Response): Promise<void> => {
   const state = String(req.query.state ?? "");
-  const mobileStored = (req.session as any).metaWhatsAppRedirectState as MetaWhatsAppRedirectState | undefined;
-  if (mobileStored?.nonce === state) {
-    if (!metaMobileRedirectEnabled()) {
-      res.status(404).json({ connected: false, error: "meta_mobile_redirect_disabled" });
-      return;
-    }
-
-    const now = Date.now();
-    const valid = Boolean(state)
-      && mobileStored.nonce === state
-      && mobileStored.userId === req.sessionUser.userId
-      && mobileStored.workspaceId === req.sessionUser.activeWorkspaceId
-      && mobileStored.expiresAt > now;
-    if (!valid) {
-      req.log?.warn({ signupAttemptId: mobileStored.signupAttemptId }, "Meta mobile signup callback rejected invalid state");
-      res.status(403).json({ connected: false, error: "invalid_state" });
-      return;
-    }
+  const sessionUser = (req as AuthenticatedRequest).sessionUser as AuthenticatedRequest["sessionUser"] | undefined;
+  const attempt = state ? await loadMobileAttemptByNonce(state) : null;
+  if (attempt && !metaMobileRedirectEnabled()) {
+    res.status(404).json({ connected: false, error: "meta_mobile_redirect_disabled" });
+    return;
+  }
+  if (attempt) {
+    const sessionMatches = Boolean(sessionUser
+      && sessionUser.userId === attempt.userId
+      && sessionUser.activeWorkspaceId === attempt.workspaceId);
+    const withParam = (base: string, suffix: string) => `${base}${base.includes("?") ? "&" : "?"}${suffix}`;
+    const failRedirect = (reason: string) => {
+      req.log?.warn({ signupAttemptId: attempt.signupAttemptId, reason }, "Meta mobile signup callback failed for visitor");
+      res.redirect(withParam(attempt.returnTo, `whatsapp_connected=0&reason=${encodeURIComponent(reason)}`));
+    };
 
     const code = String(req.query.code ?? "");
     if (!code) {
-      req.log?.warn({ signupAttemptId: mobileStored.signupAttemptId }, "Meta mobile signup callback missing code");
-      res.status(400).json({ connected: false, error: "missing_code" });
+      failRedirect("missing_code");
       return;
     }
 
     const claim = await claimMetaMobileRedirectCallback({
-      workspaceId: req.sessionUser.activeWorkspaceId,
-      userId: req.sessionUser.userId,
-      signupAttemptId: mobileStored.signupAttemptId,
+      workspaceId: attempt.workspaceId,
+      userId: attempt.userId,
+      signupAttemptId: attempt.signupAttemptId,
       nonce: state,
     });
     if (claim.outcome === "invalid") {
-      res.status(403).json({ connected: false, error: "invalid_state" });
+      failRedirect("invalid_state");
       return;
     }
     if (claim.outcome === "busy") {
-      res.status(409).json({ connected: false, error: "attempt_processing" });
+      failRedirect("attempt_processing");
       return;
     }
     if (claim.outcome === "completed") {
-      res.redirect("/dashboard?whatsapp_connected=1");
+      res.redirect(withParam(attempt.returnTo, "whatsapp_connected=1"));
       return;
     }
     const claimToken = claim.claimToken!;
+    const now = Date.now();
 
-    req.log?.info({ signupAttemptId: mobileStored.signupAttemptId, configKey: mobileStored.configKey }, "Meta mobile signup callback accepted");
+    req.log?.info({ signupAttemptId: attempt.signupAttemptId, configKey: attempt.configKey, sessionMatches }, "Meta mobile signup callback accepted");
     try {
       const resumedToken = claim.encryptedTokenRef ? resolveCredentialsSecretRef(claim.encryptedTokenRef) : null;
-      const userToken = resumedToken ?? await exchangeCodeForToken(req, code);
+      const userToken = resumedToken ?? await exchangeCodeForToken(req as AuthenticatedRequest, code);
       if (!userToken) {
-        await updateMobileAttempt({ signupAttemptId: mobileStored.signupAttemptId, claimToken, status: "failed_retryable", checkpoint: "pending", lastErrorCode: "meta_token_exchange_unavailable" });
-        res.status(502).json({ connected: false, error: "meta_token_exchange_unavailable" });
+        await updateMobileAttempt({ signupAttemptId: attempt.signupAttemptId, claimToken, status: "failed_retryable", checkpoint: "pending", lastErrorCode: "meta_token_exchange_unavailable" });
+        failRedirect("meta_token_exchange_unavailable");
         return;
       }
       const tokenRef = encryptedTokenRef(userToken);
       if (!tokenRef?.startsWith("enc:v1:")) {
-        await updateMobileAttempt({ signupAttemptId: mobileStored.signupAttemptId, claimToken, status: "failed_terminal", checkpoint: "token_exchanged", lastErrorCode: "meta_per_channel_token_storage_unavailable" });
-        res.status(409).json({ connected: false, error: "meta_per_channel_token_storage_unavailable" });
+        await updateMobileAttempt({ signupAttemptId: attempt.signupAttemptId, claimToken, status: "failed_terminal", checkpoint: "token_exchanged", lastErrorCode: "meta_per_channel_token_storage_unavailable" });
+        failRedirect("meta_per_channel_token_storage_unavailable");
         return;
       }
       if (!resumedToken) {
-        await updateMobileAttempt({ signupAttemptId: mobileStored.signupAttemptId, claimToken, status: "processing", checkpoint: "token_exchanged", encryptedTokenRef: tokenRef });
+        await updateMobileAttempt({ signupAttemptId: attempt.signupAttemptId, claimToken, status: "processing", checkpoint: "token_exchanged", encryptedTokenRef: tokenRef });
       }
 
       const channelOptions = await fetchMetaWhatsAppOptions(userToken);
-      await updateMobileAttempt({ signupAttemptId: mobileStored.signupAttemptId, claimToken, status: "processing", checkpoint: "meta_discovered", encryptedTokenRef: tokenRef });
+      await updateMobileAttempt({ signupAttemptId: attempt.signupAttemptId, claimToken, status: "processing", checkpoint: "meta_discovered", encryptedTokenRef: tokenRef });
       const whatsappAccounts = channelOptions.options.whatsapp_accounts.filter((account) => account.phone_numbers.length > 0);
       const discoveredPhones = whatsappAccounts.flatMap((account) => account.phone_numbers.map((phone) => ({ account, phone })));
       if (discoveredPhones.length === 0) {
-        res.status(409).json({ connected: false, error: "no_whatsapp_phone_discovered" });
+        failRedirect("no_whatsapp_phone_discovered");
         return;
       }
 
@@ -2034,75 +2083,94 @@ router.get("/meta/embedded-signup/callback", requirePermission("integrations:upd
           .select({ id: channelAccountsTable.id })
           .from(channelAccountsTable)
           .where(and(
-            eq(channelAccountsTable.workspaceId, req.sessionUser.activeWorkspaceId),
+            eq(channelAccountsTable.workspaceId, attempt.workspaceId),
             eq(channelAccountsTable.channelType, "whatsapp"),
             providerLookupCondition("phoneNumberId", selected.phone.phone_number_id),
           ))
           .limit(1);
         if (!existingChannel) {
-          const channelLimit = await checkLimit(req.sessionUser.activeWorkspaceId, "channels");
+          const channelLimit = await checkLimit(attempt.workspaceId, "channels");
           if (channelLimit.limit !== null && channelLimit.current + 1 > channelLimit.limit) {
-            res.status(402).json({ connected: false, error: "plan_limit_reached", limit: channelLimit });
+            failRedirect("plan_limit_reached");
             return;
           }
         }
-        await subscribeMobileWhatsAppAccounts(req, [selected.account], userToken, mobileStored.signupAttemptId);
-        await updateMobileAttempt({ signupAttemptId: mobileStored.signupAttemptId, claimToken, status: "processing", checkpoint: "subscribed", encryptedTokenRef: tokenRef });
+        await subscribeMobileWhatsAppAccounts(req as AuthenticatedRequest, [selected.account], userToken, attempt.signupAttemptId);
+        await updateMobileAttempt({ signupAttemptId: attempt.signupAttemptId, claimToken, status: "processing", checkpoint: "subscribed", encryptedTokenRef: tokenRef });
         const account = await finalizeMobileWhatsAppConnection({
-          req,
+          workspaceId: attempt.workspaceId,
+          userId: attempt.userId,
           account: selected.account,
           phone: selected.phone,
           tokenRef,
-          configKey: mobileStored.configKey,
-          signupAttemptId: mobileStored.signupAttemptId,
+          configKey: attempt.configKey,
+          signupAttemptId: attempt.signupAttemptId,
           claimToken,
         });
-        (req.session as any).metaMobileRedirectResult = {
-          userId: req.sessionUser.userId,
-          workspaceId: req.sessionUser.activeWorkspaceId,
-          signupAttemptId: mobileStored.signupAttemptId,
-          returnTo: mobileStored.returnTo,
-          channelAccountId: account.id,
-          createdAt: now,
-          expiresAt: mobileStored.expiresAt,
-        };
-        await saveSession(req);
-        req.log?.info({ signupAttemptId: mobileStored.signupAttemptId, autoSelected: true }, "Meta mobile signup channel connected");
-        res.redirect("/dashboard?whatsapp_connected=1");
+        if (sessionMatches) {
+          ((req as AuthenticatedRequest).session as any).metaMobileRedirectResult = {
+            userId: attempt.userId,
+            workspaceId: attempt.workspaceId,
+            signupAttemptId: attempt.signupAttemptId,
+            returnTo: attempt.returnTo,
+            channelAccountId: account.id,
+            createdAt: now,
+            expiresAt: attempt.expiresAtMs,
+          };
+          await saveSession(req as AuthenticatedRequest);
+        }
+        req.log?.info({ signupAttemptId: attempt.signupAttemptId, autoSelected: true, sessionMatches }, "Meta mobile signup channel connected");
+        res.redirect(withParam(attempt.returnTo, "whatsapp_connected=1"));
         return;
       }
 
-      (req.session as any).metaChannelOptions = {
-        workspaceId: req.sessionUser.activeWorkspaceId,
-        options: sanitizeMetaOptions(channelOptions.options),
-        tokenRefs: { ...channelOptions.tokenRefs, userTokenRef: tokenRef },
-        mobileContext: {
-          signupAttemptId: mobileStored.signupAttemptId,
-          configKey: mobileStored.configKey,
-          returnTo: mobileStored.returnTo,
-          expiresAt: mobileStored.expiresAt,
-          claimToken,
-        } satisfies MetaMobileSessionContext,
-        createdAt: now,
-      };
-      await saveSession(req);
-      req.log?.info({ signupAttemptId: mobileStored.signupAttemptId, autoSelected: false, phoneCount: discoveredPhones.length }, "Meta mobile signup requires channel selection");
-      res.redirect(`/integrations/meta/select-channels?metaSignupAttempt=${encodeURIComponent(mobileStored.signupAttemptId)}`);
+      // أكثر من رقم: تُحفظ الخيارات في صف المحاولة (مصدر دائم لا يضيع مع الجلسة)، وتُكتب نسخة
+      // في الجلسة أيضاً إن كانت موجودة ومطابقة — فيكمل الاختيار في نفس المتصفح فوراً، أو من
+      // التبويب الأصلي المسجَّل عبر معرف المحاولة.
+      const sanitizedOptions = sanitizeMetaOptions(channelOptions.options);
+      await pool.query(
+        `UPDATE meta_mobile_signup_attempts SET discovered_options = $1, updated_at = NOW() WHERE signup_attempt_id = $2 AND claim_token = $3`,
+        [JSON.stringify(sanitizedOptions), attempt.signupAttemptId, claimToken],
+      );
+      if (sessionMatches) {
+        ((req as AuthenticatedRequest).session as any).metaChannelOptions = {
+          workspaceId: attempt.workspaceId,
+          options: sanitizedOptions,
+          tokenRefs: { ...channelOptions.tokenRefs, userTokenRef: tokenRef },
+          mobileContext: {
+            signupAttemptId: attempt.signupAttemptId,
+            configKey: attempt.configKey,
+            // قيمة العمود تُكتب حصراً من الاتحاد المضيّق في نقطة البدء الموثّقة
+            returnTo: attempt.returnTo as MetaMobileReturnTo,
+            expiresAt: attempt.expiresAtMs,
+            claimToken,
+          } satisfies MetaMobileSessionContext,
+          createdAt: now,
+        };
+        await saveSession(req as AuthenticatedRequest);
+      }
+      req.log?.info({ signupAttemptId: attempt.signupAttemptId, autoSelected: false, phoneCount: discoveredPhones.length, sessionMatches }, "Meta mobile signup requires channel selection");
+      res.redirect(`/integrations/meta/select-channels?metaSignupAttempt=${encodeURIComponent(attempt.signupAttemptId)}`);
       return;
     } catch (err) {
       if (err instanceof MetaChannelConflictError) {
-        res.status(err.status).json({ connected: false, error: err.code });
+        failRedirect(err.code);
         return;
       }
-      await updateMobileAttempt({ signupAttemptId: mobileStored.signupAttemptId, claimToken, status: "failed_retryable", checkpoint: claim.checkpoint ?? "processing", lastErrorCode: "meta_mobile_redirect_callback_failed" }).catch(() => {});
-      req.log?.warn({ signupAttemptId: mobileStored.signupAttemptId, errorCode: "meta_mobile_redirect_callback_failed" }, "Meta mobile signup callback failed");
-      res.status(502).json({ connected: false, error: "meta_mobile_redirect_callback_failed" });
+      await updateMobileAttempt({ signupAttemptId: attempt.signupAttemptId, claimToken, status: "failed_retryable", checkpoint: claim.checkpoint ?? "processing", lastErrorCode: "meta_mobile_redirect_callback_failed" }).catch(() => {});
+      req.log?.warn({ signupAttemptId: attempt.signupAttemptId, errorCode: "meta_mobile_redirect_callback_failed" }, "Meta mobile signup callback failed");
+      failRedirect("meta_mobile_redirect_callback_failed");
       return;
     }
   }
 
+  // مسار سطح المكتب (النافذة المنبثقة): يتطلب جلسة كما كان دائماً.
+  if (!sessionUser) {
+    res.status(401).json({ error: "يجب تسجيل الدخول أولاً", code: "UNAUTHORIZED" });
+    return;
+  }
   const stored = (req.session as any).metaOAuthState;
-  if (!stored || stored.state !== state || stored.workspaceId !== req.sessionUser.activeWorkspaceId || Date.now() - stored.createdAt > 15 * 60_000) {
+  if (!stored || stored.state !== state || stored.workspaceId !== sessionUser.activeWorkspaceId || Date.now() - stored.createdAt > 15 * 60_000) {
     res.status(403).json({ connected: false, error: "invalid_state" });
     return;
   }
@@ -2111,7 +2179,7 @@ router.get("/meta/embedded-signup/callback", requirePermission("integrations:upd
   let channelOptions: { options: MetaChannelOptions; tokenRefs: MetaTokenRefs };
 
   try {
-    const userToken = code ? await exchangeCodeForToken(req, code) : null;
+    const userToken = code ? await exchangeCodeForToken(req as AuthenticatedRequest, code) : null;
     channelOptions = userToken ? await fetchMetaChannelOptions(userToken) : fallbackMetaOptions();
   } catch (err) {
     req.log?.warn({ err }, "Meta channel discovery failed, falling back to configured environment references");
@@ -2133,7 +2201,7 @@ router.get("/meta/embedded-signup/callback", requirePermission("integrations:upd
   }
 
   (req.session as any).metaChannelOptions = {
-    workspaceId: req.sessionUser.activeWorkspaceId,
+    workspaceId: sessionUser.activeWorkspaceId,
     options: sanitizeMetaOptions(channelOptions.options),
     tokenRefs: channelOptions.tokenRefs,
     createdAt: Date.now(),
@@ -2365,7 +2433,8 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
       await subscribeMobileWhatsAppAccounts(req, [selectedAccount], mobileUserToken, mobileContext.signupAttemptId);
       await updateMobileAttempt({ signupAttemptId: mobileContext.signupAttemptId, claimToken: mobileContext.claimToken, status: "processing", checkpoint: "subscribed", encryptedTokenRef: tokenRefs.userTokenRef });
       const channel = await finalizeMobileWhatsAppConnection({
-        req,
+        workspaceId: req.sessionUser.activeWorkspaceId,
+        userId: req.sessionUser.userId,
         account: selectedAccount,
         phone: selectedPhone,
         tokenRef: tokenRefs.userTokenRef!,

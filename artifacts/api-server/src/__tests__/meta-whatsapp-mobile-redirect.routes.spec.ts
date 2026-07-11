@@ -104,19 +104,19 @@ describe("Meta WhatsApp mobile Embedded Signup redirect", () => {
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({ enabled: false, code: "meta_mobile_redirect_disabled" });
 
-    const callbackSession = session();
-    callbackSession.metaWhatsAppRedirectState = {
-      nonce: "mobile",
-      signupAttemptId: "disabled-attempt",
-      userId: USER_ID,
-      workspaceId: WORKSPACE_ID,
-      configKey: "whatsapp_standard",
-      configId: STANDARD_CONFIG_ID,
-      returnTo: "/onboarding",
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 60_000,
-    };
-    const callback = await request(callbackSession, "/api/integrations/meta/embedded-signup/callback?state=mobile&code=unused");
+    // العقد الجديد (12 يوليو): نقطة العودة عديمة الجلسة — الهوية من صف المحاولة عبر nonce.
+    vi.mocked(pool.query).mockResolvedValueOnce({
+      rows: [{
+        signup_attempt_id: "disabled-attempt",
+        user_id: USER_ID,
+        workspace_id: WORKSPACE_ID,
+        config_key: "whatsapp_standard",
+        return_to: "/onboarding",
+        expires_ms: String(Date.now() + 60_000),
+      }],
+      rowCount: 1,
+    } as any);
+    const callback = await request(session(), "/api/integrations/meta/embedded-signup/callback?state=mobile&code=unused");
     expect(callback.status).toBe(404);
 
     const result = await request(session(), "/api/integrations/meta/embedded-signup/mobile-redirect/result");
@@ -287,7 +287,7 @@ describe("Meta WhatsApp mobile Embedded Signup redirect", () => {
   });
 
   it("returns the current user's completion result idempotently until its TTL", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [{ signup_attempt_id: "attempt-result" }], rowCount: 1 } as any);
+    vi.mocked(pool.query).mockResolvedValue({ rows: [{ return_to: "/onboarding", signup_attempt_id: "attempt-result" }], rowCount: 1 } as any);
     const testSession = session();
     testSession.metaMobileRedirectResult = {
       userId: USER_ID,

@@ -40,7 +40,7 @@ describe("Meta mobile signup production completion contract", () => {
   it("checkpoints the encrypted customer token and redirects only internally", () => {
     expect(routes).toContain('checkpoint: "token_exchanged", encryptedTokenRef: tokenRef');
     expect(routes).toContain("resolveCredentialsSecretRef(claim.encryptedTokenRef)");
-    expect(routes).toContain('res.redirect("/dashboard?whatsapp_connected=1")');
+    expect(routes).toContain('withParam(attempt.returnTo, "whatsapp_connected=1")');
     expect(routes).not.toContain("res.redirect(mobileStored.returnTo)");
   });
 
