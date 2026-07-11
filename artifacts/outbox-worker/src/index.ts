@@ -16,6 +16,12 @@ const AUTOMATIONS_WIRED = process.env.AUTOMATIONS_WIRED === "true";
 const AGENT_SUBSCRIBER_EVENT_TYPES = new Set(["message.received", "message.echo"]);
 const META_DRY_RUN = process.env.META_DRY_RUN === "true";
 const WHATSAPP_BSUID_ENABLED = process.env.WHATSAPP_BSUID_ENABLED === "true";
+// قاتل الانسحاب #1 (شهادة 5 عملاء رافضين، 11 يوليو 2026): عميل يرسل 2-3 رسائل متتابعة → الوكيل
+// كان يرد على كل واحدة برد طويل موازٍ (سبام). نافذة تهدئة: حدث message.received لا يُلتقط إلا
+// بعد سكون N ثوانٍ من إنشائه — رسائل الاندفاعة تتجمع، والأحدث فقط يرد رداً واحداً جامعاً (القاعدة
+// الثانية في handleDomainEvent). محاولة سابقة (a8938f0) فشلت بكبت ردود حقيقية فأُرجعت — الفرق
+// الجوهري هنا: الكبت فقط عند وجود حدث أحدث «قيد الانتظار/المعالجة» (رد قادم مضمون)، أبداً على done.
+const BURST_SETTLE_SECONDS = Math.max(0, Number(process.env.BURST_SETTLE_SECONDS ?? "8"));
 const META_GRAPH_VERSION = "v22.0";
 const API_SERVER_URL = (process.env.API_SERVER_URL ?? "http://localhost:8080").replace(/\/$/, "");
 const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "";
@@ -43,6 +49,7 @@ type DomainEventRow = {
   event_type: string;
   entity_id: string;
   payload: unknown;
+  created_at?: Date;
 };
 
 type ConversationRow = {
@@ -681,6 +688,8 @@ export async function runOutboxSender(): Promise<void> {
 }
 
 async function claimDomainEvents(): Promise<DomainEventRow[]> {
+  // نافذة التهدئة: message.received يُلتقط فقط بعد سكون BURST_SETTLE_SECONDS من إنشائه —
+  // فتتجمع رسائل الاندفاعة قبل أول التقاط. echo لا يتأخر (لا رد عليه أصلاً، مجرد إيقاف مؤقت).
   const { rows } = await pool.query<DomainEventRow>(
     `
       UPDATE domain_events
@@ -689,14 +698,42 @@ async function claimDomainEvents(): Promise<DomainEventRow[]> {
         SELECT id FROM domain_events
         WHERE status='pending'
           AND event_type IN ('message.received', 'message.echo')
+          AND (event_type <> 'message.received' OR created_at <= NOW() - make_interval(secs => $1))
         ORDER BY created_at ASC
         LIMIT 5
         FOR UPDATE SKIP LOCKED
       )
-      RETURNING id, workspace_id, event_type, entity_id, payload
+      RETURNING id, workspace_id, event_type, entity_id, payload, created_at
     `,
+    [BURST_SETTLE_SECONDS],
   );
+  // ترتيب UPDATE…RETURNING غير مضمون في Postgres (اكتُشف بالاختبار المحلي: دفعة اندفاعة رجعت
+  // معكوسة فعالج الأحدث أولاً وأفسد قاعدة «الأحدث يرد» فتكرر الرد). فرز حتمي: الأقدم أولاً.
+  rows.sort((a, b) => (a.created_at?.getTime() ?? 0) - (b.created_at?.getTime() ?? 0));
   return rows;
+}
+
+// قاعدة «الأحدث يرد»: هذا الحدث يُكبت (بلا رد) فقط إذا وُجد حدث message.received أحدث منه لنفس
+// المحادثة حالته pending/processing — أي أن رداً أحدث قادم مضموناً وسيغطي رسالته (الرد يقرأ آخر
+// 15 رسالة من النص الكامل). لا يُكبت أبداً استناداً لحدث done/failed — هذا بالضبط ما كسر محاولة
+// a8938f0 السابقة (كبتت ردوداً حقيقية في محادثات جارية) واستوجب إرجاعها.
+async function newerInboundReplyIsQueued(event: DomainEventRow, conversationId: string): Promise<boolean> {
+  if (!event.created_at) return false;
+  const { rows } = await pool.query(
+    `
+      SELECT 1
+      FROM domain_events
+      WHERE workspace_id = $1
+        AND event_type = 'message.received'
+        AND status IN ('pending', 'processing')
+        AND id <> $2
+        AND created_at > $3
+        AND (payload->>'conversationId') = $4
+      LIMIT 1
+    `,
+    [event.workspace_id, event.id, event.created_at, conversationId],
+  );
+  return rows.length > 0;
 }
 
 async function fetchConversation(event: DomainEventRow): Promise<ConversationRow | undefined> {
@@ -924,6 +961,14 @@ async function handleDomainEvent(event: DomainEventRow): Promise<void> {
 
   if (conversation.consecutive_agent_replies >= 2) {
     await pauseConversation(conversation.id, true);
+    await markDone(event.id);
+    return;
+  }
+
+  // اندفاعة رسائل: حدث أحدث لنفس المحادثة قيد الانتظار/المعالجة → هو من سيرد رداً واحداً جامعاً
+  // (يقرأ النص الكامل). نكبت هذا الحدث بأمان — لا رد مكرر، ولا سبام ردود متوازية (قاتل الانسحاب #1).
+  if (event.event_type === "message.received" && await newerInboundReplyIsQueued(event, conversation.id)) {
+    console.log(`agent-runner: burst-superseded event ${event.id} (newer inbound reply queued for conversation ${conversation.id})`);
     await markDone(event.id);
     return;
   }

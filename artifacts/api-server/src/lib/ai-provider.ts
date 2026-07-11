@@ -416,6 +416,11 @@ type VertexGenerateContentResponse = {
 };
 
 async function getMetadataAccessToken(): Promise<string> {
+  // بيئة التطوير المحلية فقط: لا يوجد metadata server خارج Cloud Run — توكن gcloud مؤقت عبر env
+  // (`gcloud auth print-access-token`) يتيح اختبار مسار Vertex الحقيقي بنفس موديل الإنتاج محلياً.
+  const localDevToken = process.env.LOCAL_DEV_GCP_ACCESS_TOKEN?.trim();
+  if (localDevToken && process.env.NODE_ENV !== "production") return localDevToken;
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
 
