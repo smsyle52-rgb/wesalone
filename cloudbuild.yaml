@@ -6,7 +6,6 @@ substitutions:
   _DATABASE_URL_SECRET: DATABASE_URL
   _DB_CONNECTION_NAME: khadamatk-auth:us-central1:khadamatak-prod
   _CLOUDSQL_INSTANCE: khadamatk-auth:us-central1:khadamatak-prod
-  _PUBLIC_BASE_URL: https://khadamatak-staging-1067617934225.us-central1.run.app
   _UPLOADS_BUCKET: khadamatak-auth-uploads
 
 options:
