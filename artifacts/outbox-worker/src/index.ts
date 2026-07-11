@@ -1,15 +1,19 @@
 import { createDecipheriv, createHash } from "node:crypto";
 import { createServer } from "node:http";
 import pg from "pg";
+import pino from "pino";
 import { runIngestionDispatcher } from "./ingestion-dispatcher";
 import { runEventDispatcher, type EventSubscriber } from "./event-dispatcher";
 import { runAutomationsForEvent } from "./automation-engine";
+import { mineHistoryAnswers } from "./agent-learning";
 
 const OUTBOX_INTERVAL_MS = 3_000;
 const AGENT_INTERVAL_MS = 5_000;
 const INGESTION_INTERVAL_MS = 3_000;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const CLEANUP_INTERVAL_MS = 300_000;
+// مزامنة ميتا — الطور 3ب: تنقيب دفعي لا فوري، بنفس وتيرة "cleanup" (5 دقائق).
+const AGENT_LEARNING_INTERVAL_MS = 300_000;
 const INGEST_DEFERRED = process.env.INGEST_DEFERRED === "true";
 const EVENT_DISPATCHER = process.env.EVENT_DISPATCHER === "true";
 const AUTOMATIONS_WIRED = process.env.AUTOMATIONS_WIRED === "true";
@@ -29,6 +33,11 @@ const INTERNAL_SECRET = process.env.INTERNAL_SECRET ?? "";
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const logger = console;
 const port = Number(process.env.PORT ?? "8080");
+
+// agent-learning.ts يتوقّع pino.Logger فعلياً (raw console لا يطابق الواجهة) — نسخة
+// مخصّصة لمنجم سجل واتساب وحده؛ الـ`logger` أعلاه (console) يبقى كما هو بلا مساس
+// لبقية هذا الملف تفادياً لتوسيع نطاق هذا التغيير.
+const learningLogger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
 type JsonRecord = Record<string, unknown>;
 
@@ -1006,6 +1015,17 @@ export async function runAgentRunner(): Promise<void> {
   }
 }
 
+// مزامنة ميتا — الطور 3ب (11 يوليو 2026): أول تفعيل حقيقي لملف agent-learning.ts في
+// هذه العملية. ملاحظة: mineLearnedAnswers (تنقيب من ai_feedback/المحادثات المحلولة،
+// بلا علاقة بسجل واتساب) كانت هي الأخرى مكتوبة منذ فترة لكن غير مستوردة هنا إطلاقاً
+// (موثّق: WESAL_ONE_CHAT_HANDOFF.md + docs/architecture/chatwoot-parity 01/05/08 —
+// "agent-learning.ts orphaned"). أُبقيت كما هي عمداً هنا: تفعيلها يُشغِّل تعلّماً حياً
+// من ملاحظات فعلية لأول مرة، قرار منفصل خارج نطاق الطور 3ب (مرصود أصلاً في خطة
+// chatwoot-parity كـ"wire-vs-deprecate"). هذا التنقيب هنا خاص بمصدر 'history' فقط.
+async function runHistoryMining(): Promise<void> {
+  await mineHistoryAnswers(learningLogger);
+}
+
 async function writeHeartbeat(): Promise<void> {
   await pool.query(
     `INSERT INTO service_heartbeats(service_name, last_beat_at)
@@ -1099,6 +1119,7 @@ if (EVENT_DISPATCHER) {
 }
 startLoop("heartbeat", HEARTBEAT_INTERVAL_MS, writeHeartbeat);
 startLoop("cleanup", CLEANUP_INTERVAL_MS, runCleanup);
+startLoop("agent learning history mining", AGENT_LEARNING_INTERVAL_MS, runHistoryMining);
 if (INGEST_DEFERRED) {
   startLoop("ingestion dispatcher", INGESTION_INTERVAL_MS, () =>
     runIngestionDispatcher({ pool, apiServerUrl: API_SERVER_URL, internalSecret: INTERNAL_SECRET }),

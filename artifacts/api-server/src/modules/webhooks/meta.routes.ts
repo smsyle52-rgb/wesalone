@@ -9,11 +9,13 @@ import {
   domainEventsTable,
   messagesTable,
   outboxEventsTable,
+  waHistoryMessagesTable,
 } from "@workspace/db";
 import { env } from "../../lib/env";
 import { logger } from "../../lib/logger";
 import { verifyMetaHmac } from "../../lib/meta-signature";
 import { extractMetaCommerceMessage } from "../integrations/meta-commerce-message";
+import { extractHistoryMessages } from "./meta-history-ingest";
 import { handleMetaWebhook } from "../integrations/meta-webhook.handler";
 import { ingestWebhookEvent } from "../integrations/webhookIngest.service";
 import { notifyWorkspace } from "../../services/notifications";
@@ -71,6 +73,9 @@ type MetaPayload = {
   entry?: Array<{
     changes?: Array<{
       value?: MetaChangeValue;
+      // "history" (تعايش واتساب — سجل دردشة قديم) و"smb_app_state_sync" (مزامنة جهات
+      // اتصال) لا تحملان messages/calls/statuses المعتادة؛ field يميّزهما عند التوزيع.
+      field?: string;
     }>;
   }>;
 };
@@ -440,6 +445,67 @@ async function handleEchoEvent(value: MetaChangeValue, externalThreadId: string 
   });
 }
 
+const HISTORY_INSERT_BATCH_SIZE = 100;
+
+// تعايش واتساب (Coexistence) — مزامنة ميتا الطور 3ب (11 يوليو 2026): سجل الدردشة القديم
+// (حتى ~6 أشهر) يصل بعد موافقة التاجر أثناء embedded signup، على نفس نقطة الاستقبال،
+// بحقل change.field === "history". staging بحت — لا نكتب أبداً إلى conversations/messages
+// الحيّة (القرار المقفل: تصميم مزامنة ميتا). التنقيب لاحقاً عبر outbox-worker/agent-learning.ts.
+async function handleHistoryEvent(value: MetaChangeValue, correlationId: string): Promise<void> {
+  const phoneNumberId = value.metadata?.phone_number_id;
+  if (!phoneNumberId) {
+    logger.warn({ correlationId }, "WhatsApp history change missing metadata.phone_number_id");
+    return;
+  }
+
+  const channel = await findWhatsappChannel(phoneNumberId);
+  if (!channel) {
+    logger.warn({ phoneNumberId, correlationId }, "No WhatsApp channel account found for Meta history webhook");
+    return;
+  }
+
+  const extracted = extractHistoryMessages(value);
+  const threadCount = new Set(extracted.map((m) => m.customerWaId)).size;
+
+  if (extracted.length === 0) {
+    logger.info(
+      { workspaceId: channel.workspaceId, threads: 0, messagesInserted: 0, correlationId },
+      "WhatsApp history chunk had no extractable messages",
+    );
+    return;
+  }
+
+  const rows = extracted.map((m) => ({
+    workspaceId: channel.workspaceId,
+    channelAccountId: channel.id,
+    customerWaId: m.customerWaId,
+    externalMessageId: m.externalMessageId,
+    direction: m.direction,
+    messageType: m.messageType,
+    content: m.content,
+    messageTimestamp: m.messageTimestamp,
+    raw: m.raw as Record<string, unknown>,
+  }));
+
+  // دفعات 100 صف: ميتا تنتظر رداً سريعاً على الـwebhook، وسجل حقيقي قد يحمل مئات/آلاف
+  // الرسائل في حمولة واحدة — await لكل رسالة على حدة قد يتجاوز مهلة ميتا.
+  let inserted = 0;
+  for (let i = 0; i < rows.length; i += HISTORY_INSERT_BATCH_SIZE) {
+    const batch = rows.slice(i, i + HISTORY_INSERT_BATCH_SIZE);
+    const result = await db
+      .insert(waHistoryMessagesTable)
+      .values(batch)
+      .onConflictDoNothing()
+      .returning({ id: waHistoryMessagesTable.id });
+    inserted += result.length;
+  }
+
+  logger.info(
+    { workspaceId: channel.workspaceId, threads: threadCount, messagesInserted: inserted, correlationId },
+    "Ingested WhatsApp coexistence history chunk",
+  );
+}
+
 // W4-T1: reconcile Meta's outbound delivery receipts (sent/delivered/read/failed)
 // onto messages.delivery_status. Workspace-scoped via the same channel lookup as inbound.
 async function handleStatusUpdate(value: MetaChangeValue, status: MetaStatus): Promise<void> {
@@ -560,6 +626,24 @@ async function handleMetaPayload(payload: MetaPayload, correlationId: string): P
     for (const change of entry.changes ?? []) {
       const value = change.value;
       if (!value) continue;
+
+      // تعايش واتساب: سجل الدردشة القديم يصل بحقل مختلف تماماً (history) لا
+      // messages/calls/statuses المعتادة — يُوجَّه هنا أولاً قبل أي مسار قد يتجاهله
+      // بصمت لعدم تطابق الشكل (staging بحت، انظر handleHistoryEvent أعلاه).
+      if (change.field === "history") {
+        await handleHistoryEvent(value, correlationId);
+        continue;
+      }
+
+      // مزامنة حالة تطبيق واتساب للأعمال (جهات اتصال) — تعايش أيضاً، خارج نطاقنا عمداً.
+      // ليست خطأ ولا حالة تستحق تحذيراً — سجل تشخيصي منخفض فقط لتفادي إغراق السجلات.
+      if (change.field === "smb_app_state_sync") {
+        logger.debug(
+          { phoneNumberId: value.metadata?.phone_number_id, correlationId },
+          "Ignoring WhatsApp smb_app_state_sync change (out of scope)",
+        );
+        continue;
+      }
 
       for (const message of value.messages ?? []) {
         if (message.senderType === "business") {

@@ -2001,4 +2001,37 @@ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+-- =============================================================
+-- Meta sync initiative — الطور 3ب (11 يوليو 2026): سجل دردشة واتساب Coexistence
+-- =============================================================
+-- staging بحت: لا يُقرأ من مسار العميل الحي ولا يُكتب إليه إطلاقاً — conversations/messages
+-- تبقى كما هي تماماً. يُغذّي فقط منجم outbox-worker/agent-learning.ts (mineHistoryAnswers)
+-- نحو learned_answers، بنفس بوابة الحساسية + قيد سعر إضافي (الكتالوج/المخزون هو مصدر
+-- السعر الوحيد — مبدأ مقفل، انظر مذكرة مزامنة ميتا).
+
+CREATE TABLE IF NOT EXISTS wa_history_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  channel_account_id uuid REFERENCES channel_accounts(id) ON DELETE SET NULL,
+  customer_wa_id text NOT NULL,
+  external_message_id text NOT NULL,
+  direction text NOT NULL,
+  message_type text,
+  content text,
+  message_timestamp timestamptz,
+  raw jsonb,
+  mined_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT uq_wa_history_messages_ws_external UNIQUE (workspace_id, external_message_id)
+);
+
+-- يخدم بحث "أول رد لاحق لنفس العميل ضمن 24 ساعة" في mineHistoryAnswers.
+CREATE INDEX IF NOT EXISTS idx_wa_history_messages_ws_customer
+  ON wa_history_messages(workspace_id, customer_wa_id, message_timestamp);
+
+-- فهرس جزئي: المنجم يفحص فقط الصفوف غير المنقَّبة، لا الجدول كاملاً كل دورة.
+CREATE INDEX IF NOT EXISTS idx_wa_history_messages_unmined
+  ON wa_history_messages(workspace_id)
+  WHERE mined_at IS NULL;
+
 SELECT 'MIGRATION_BUNDLE_APPLIED_SUCCESSFULLY' AS status;

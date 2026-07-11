@@ -40,3 +40,4 @@ export * from "./inventory_movements";
 export * from "./order_history";
 export * from "./point_wallet";
 export * from "./sequences";
+export * from "./wa_history";
