@@ -1641,7 +1641,11 @@ router.get("/meta/embedded-signup/whatsapp/redirect/start", requirePermission("i
     configId: expectedConfigId,
     returnTo: parsed.data.returnTo,
     createdAt: now,
-    expiresAt: now + 15 * 60_000,
+    // 12 يوليو: كانت 15 دقيقة — أقصر بكثير من رحلة تسجيل مضمّن حقيقية على الجوال (فتح تطبيق
+    // فيسبوك، اختيار الأصل والرقم، OTP، أحياناً حذف/إعادة تثبيت التطبيق). سابقة موثّقة: عميل
+    // احتاج 44 دقيقة متواصلة. نافذة منتهية = العودة تصل بكود صالح فلا تجد صف محاولتها → 401.
+    // ساعتان تطابق فلسفة المرجع (بلا مهلة عملياً)؛ الصف يُنظَّف لاحقاً عبر expires_at أياً كان.
+    expiresAt: now + 120 * 60_000,
   };
   (req.session as any).metaWhatsAppRedirectState = pending;
   await createMetaMobileAttempt(pending);
