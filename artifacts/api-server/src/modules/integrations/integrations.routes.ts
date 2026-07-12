@@ -519,7 +519,12 @@ async function exchangeCodeForToken(
   url.searchParams.set("code", code);
 
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Meta OAuth exchange returned ${response.status}`);
+  if (!response.ok) {
+    // نقرأ جسم خطأ ميتا لنعرف السبب الدقيق (code مُستهلك، redirect_uri، صلاحية) بدل رقم حالة مجرّد.
+    // بلا أسرار: جسم خطأ OAuth من ميتا لا يحمل توكناً، فقط رسالة/رمز الخطأ.
+    const body = await response.text().catch(() => "");
+    throw new Error(`Meta OAuth exchange returned ${response.status}: ${body.slice(0, 300)}`);
+  }
   const payload: any = await response.json();
   // 6 يوليو 2026: عميل حقيقي أخذ 409 (meta_token_exchange_unavailable) ثلاث مرات متتالية —
   // هذا الفرع كان يُسقط رسالة خطأ Meta الفعلية (غالباً code إعادة استخدام أو رفض صلاحية)
@@ -2275,7 +2280,16 @@ router.get("/meta/embedded-signup/callback", async (req: Request, res: Response)
         return;
       }
       await updateMobileAttempt({ signupAttemptId: attempt.signupAttemptId, claimToken, status: "failed_retryable", checkpoint: claim.checkpoint ?? "processing", lastErrorCode: "meta_mobile_redirect_callback_failed" }).catch(() => {});
-      req.log?.warn({ signupAttemptId: attempt.signupAttemptId, errorCode: "meta_mobile_redirect_callback_failed" }, "Meta mobile signup callback failed");
+      // تشخيص 12 يوليو: الكتلة كانت تبتلع الاستثناء الفعلي وتسجّل رمزاً عاماً فقط — فتعذّر معرفة
+      // أي خطوة فشلت (تبادل الكود/اكتشاف الأرقام/الاشتراك/الإنهاء). الآن نسجّل رسالة الخطأ ونوعه
+      // وأول سطر من الأثر (بلا أي توكن — الرسائل لا تحمل أسراراً).
+      req.log?.warn({
+        signupAttemptId: attempt.signupAttemptId,
+        errorCode: "meta_mobile_redirect_callback_failed",
+        errName: err instanceof Error ? err.name : typeof err,
+        errMessage: err instanceof Error ? err.message : String(err),
+        errStackTop: err instanceof Error ? (err.stack ?? "").split("\n")[1]?.trim() ?? null : null,
+      }, "Meta mobile signup callback failed");
       failRedirect("meta_mobile_redirect_callback_failed");
       return;
     }
