@@ -458,7 +458,14 @@ async function callMetaGraph(path: string, token: string): Promise<any> {
   const response = await fetch(`https://graph.facebook.com/${requireMetaGraphVersion()}/${path.replace(/^\//, "")}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!response.ok) throw new Error(`Meta Graph API returned ${response.status}`);
+  if (!response.ok) {
+    // تشخيص 12 يوليو: كان الخطأ يحمل رقم الحالة فقط — فتعذّر معرفة أي edge فشل ولماذا. نُضمّن
+    // المسار (edge) وجسم خطأ ميتا (رمز/رسالة الخطأ — لا يحمل توكناً) لنكشف السبب الدقيق (صلاحية
+    // ناقصة، edge غير مدعوم لتوكن التعايش، معرّف خاطئ). نقتطع المسار قبل أي «?» لئلا نسرّب باراميترات.
+    const body = await response.text().catch(() => "");
+    const safePath = path.split("?")[0];
+    throw new Error(`Meta Graph API returned ${response.status} for ${safePath}: ${body.slice(0, 400)}`);
+  }
   return response.json();
 }
 
@@ -865,8 +872,14 @@ async function fetchMetaWhatsAppOptions(userToken: string): Promise<{ options: M
           verified_name: phone.verified_name ? String(phone.verified_name) : undefined,
         })),
       });
-      for (const catalog of await fetchWabaProductCatalogs(wabaId, userToken, businessId)) {
-        pushUniqueMetaCatalog(commerceCatalogs, catalog);
+      // جلب الكتالوج ثانوي بحت — ربط الرقم هو الهدف. فشله (مثلاً 400 على edge كتالوج غير مدعوم
+      // لتوكن التعايش) يجب ألا يُجهض ربط واتساب كله (حادثة 12 يوليو: الرقم لا يُربط بسبب هذا).
+      try {
+        for (const catalog of await fetchWabaProductCatalogs(wabaId, userToken, businessId)) {
+          pushUniqueMetaCatalog(commerceCatalogs, catalog);
+        }
+      } catch (err) {
+        logger.warn({ wabaId, err: err instanceof Error ? err.message : String(err) }, "WABA catalog discovery failed; continuing without catalogs");
       }
     }
   }
@@ -2219,16 +2232,22 @@ router.get("/meta/embedded-signup/callback", async (req: Request, res: Response)
           claimToken,
         });
         // «المزامنة الكاذبة» (12 يوليو): الكتالوج يلتحق بالقناة فور الربط — كما في مسار الكمبيوتر.
-        await attachMobileWhatsAppCatalogs({
-          workspaceId: attempt.workspaceId,
-          userId: attempt.userId,
-          channelAccountId: account.id,
-          wabaId: selected.account.waba_id,
-          businessId: selected.account.business_id ?? null,
-          userToken,
-          signupAttemptId: attempt.signupAttemptId,
-          log: req.log,
-        });
+        // غير قاتل: القناة أُنشئت فعلاً في finalize أعلاه؛ فشل إرفاق الكتالوج (ثانوي) يجب ألا يقلب
+        // ربطاً ناجحاً إلى «فشل» في نظر العميل. نسجّله ونكمل نحو نجاح الربط.
+        try {
+          await attachMobileWhatsAppCatalogs({
+            workspaceId: attempt.workspaceId,
+            userId: attempt.userId,
+            channelAccountId: account.id,
+            wabaId: selected.account.waba_id,
+            businessId: selected.account.business_id ?? null,
+            userToken,
+            signupAttemptId: attempt.signupAttemptId,
+            log: req.log,
+          });
+        } catch (err) {
+          req.log?.warn({ signupAttemptId: attempt.signupAttemptId, err: err instanceof Error ? err.message : String(err) }, "Mobile WhatsApp catalog attach failed; channel already linked, continuing");
+        }
         if (sessionMatches) {
           ((req as AuthenticatedRequest).session as any).metaMobileRedirectResult = {
             userId: attempt.userId,
