@@ -851,36 +851,69 @@ function currentMetaSession(req: AuthenticatedRequest): {
   return fallbackMetaOptions();
 }
 
+// معرّفات WABA الممنوحة تُستخرج من صلاحيات التوكن الدقيقة (debug_token) لا من me/businesses:
+// توكن التسجيل المضمّن (تعايش/قياسي) يمنح whatsapp_business_management للـWABA الممنوح فقط، بلا
+// business_management — فـ me/businesses يرد «(#100) Missing Permission» ويُجهض الربط (حادثة 12
+// يوليو، السبب الجذري لعدم ربط الجوال). granular_scopes.target_ids هي معرّفات WABA مباشرة.
+async function discoverGrantedWabaIds(userToken: string): Promise<string[]> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) return [];
+  const url = new URL(`https://graph.facebook.com/${requireMetaGraphVersion()}/debug_token`);
+  url.searchParams.set("input_token", userToken);
+  url.searchParams.set("access_token", `${appId}|${appSecret}`);
+  const response = await fetch(url);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Meta debug_token returned ${response.status}: ${body.slice(0, 300)}`);
+  }
+  const payload: any = await response.json();
+  const scopes: any[] = payload?.data?.granular_scopes ?? [];
+  const wabaIds = new Set<string>();
+  for (const scope of scopes) {
+    if (scope?.scope === "whatsapp_business_management" || scope?.scope === "whatsapp_business_messaging") {
+      for (const targetId of scope?.target_ids ?? []) if (targetId) wabaIds.add(String(targetId));
+    }
+  }
+  return [...wabaIds];
+}
+
 async function fetchMetaWhatsAppOptions(userToken: string): Promise<{ options: MetaChannelOptions; tokenRefs: MetaTokenRefs }> {
-  const businesses = await callMetaGraph(
-    "me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name}}",
-    userToken,
-  );
+  const wabaIds = await discoverGrantedWabaIds(userToken);
   const whatsappAccounts: MetaChannelOptions["whatsapp_accounts"] = [];
   const commerceCatalogs: MetaChannelOptions["commerce_catalogs"] = [];
-  for (const business of businesses?.data ?? []) {
-    const businessId = String(business.id ?? "");
-    for (const waba of business?.owned_whatsapp_business_accounts?.data ?? []) {
-      const wabaId = String(waba.id);
-      whatsappAccounts.push({
-        waba_id: wabaId,
-        business_id: businessId,
-        name: String(waba.name ?? business.name ?? "WhatsApp Business"),
-        phone_numbers: (waba.phone_numbers?.data ?? []).map((phone: any) => ({
-          phone_number_id: String(phone.id),
-          display_number: String(phone.display_phone_number ?? ""),
-          verified_name: phone.verified_name ? String(phone.verified_name) : undefined,
-        })),
-      });
-      // جلب الكتالوج ثانوي بحت — ربط الرقم هو الهدف. فشله (مثلاً 400 على edge كتالوج غير مدعوم
-      // لتوكن التعايش) يجب ألا يُجهض ربط واتساب كله (حادثة 12 يوليو: الرقم لا يُربط بسبب هذا).
-      try {
-        for (const catalog of await fetchWabaProductCatalogs(wabaId, userToken, businessId)) {
-          pushUniqueMetaCatalog(commerceCatalogs, catalog);
-        }
-      } catch (err) {
-        logger.warn({ wabaId, err: err instanceof Error ? err.message : String(err) }, "WABA catalog discovery failed; continuing without catalogs");
+  for (const wabaId of wabaIds) {
+    // التوكن يملك whatsapp_business_management لهذا الـWABA تحديداً → قراءته مباشرةً مسموحة.
+    // owner_business_info أفضل جهد (لتعبئة business_id)؛ إن نقصت صلاحيته لا يُجهض الربط.
+    let waba: any;
+    try {
+      waba = await callMetaGraph(
+        `${wabaId}?fields=id,name,phone_numbers{id,display_phone_number,verified_name},owner_business_info{id,name}`,
+        userToken,
+      );
+    } catch (err) {
+      logger.warn({ wabaId, err: err instanceof Error ? err.message : String(err) }, "WABA detail fetch failed; retrying without business info");
+      // إعادة محاولة بالحقول الأساسية فقط (الرقم هو المطلوب) — قد يكون owner_business_info هو المرفوض.
+      waba = await callMetaGraph(`${wabaId}?fields=id,name,phone_numbers{id,display_phone_number,verified_name}`, userToken);
+    }
+    const businessId = String(waba?.owner_business_info?.id ?? "");
+    whatsappAccounts.push({
+      waba_id: String(waba?.id ?? wabaId),
+      business_id: businessId,
+      name: String(waba?.name ?? waba?.owner_business_info?.name ?? "WhatsApp Business"),
+      phone_numbers: (waba?.phone_numbers?.data ?? []).map((phone: any) => ({
+        phone_number_id: String(phone.id),
+        display_number: String(phone.display_phone_number ?? ""),
+        verified_name: phone.verified_name ? String(phone.verified_name) : undefined,
+      })),
+    });
+    // جلب الكتالوج ثانوي بحت — ربط الرقم هو الهدف. فشله يجب ألا يُجهض ربط واتساب.
+    try {
+      for (const catalog of await fetchWabaProductCatalogs(wabaId, userToken, businessId)) {
+        pushUniqueMetaCatalog(commerceCatalogs, catalog);
       }
+    } catch (err) {
+      logger.warn({ wabaId, err: err instanceof Error ? err.message : String(err) }, "WABA catalog discovery failed; continuing without catalogs");
     }
   }
   return {
