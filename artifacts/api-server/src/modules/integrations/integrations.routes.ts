@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { aiAgentChannelsTable, aiAgentInstructionsTable, aiAgentsTable, catalogSourcesTable, channelAccountsTable, db, featureFlagsTable, metaMobileSignupAttemptsTable, pool, workspaceMembershipsTable, workspacesTable } from "@workspace/db";
+import { aiAgentChannelsTable, aiAgentInstructionsTable, aiAgentsTable, catalogSourcesTable, channelAccountsTable, db, featureFlagsTable, metaMobileSignupAttemptsTable, pool, workspacesTable } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { logger } from "../../lib/logger";
@@ -1222,22 +1222,13 @@ async function finalizeMobileWhatsAppConnection(params: {
       ))
       .limit(1);
     if (foreignAccount) {
-      // الرقم مربوط بمساحة عمل أخرى. نتحقق: هل هي للمالك نفسه (عضو نشط فيها)؟ إن كانت له، فهذا
-      // رقمه أثبت ملكيته عبر ميتا (OTP) للتو، ونستعيده لمساحته الحالية بدل رفضه — استئناف ربط لم
-      // يكتمل (طلب المالك 12 يوليو: «رقمي مربوط بحسابي على مساحة سابقة، لا لوحة ولا وكيل، فلْيُكمل
-      // الكودُ الربط»). إن كانت المساحة لمالك مختلف نُبقي حارس الاختطاف بين المستأجرين كما هو.
-      const [ownMembership] = await tx
-        .select({ id: workspaceMembershipsTable.id })
-        .from(workspaceMembershipsTable)
-        .where(and(
-          eq(workspaceMembershipsTable.workspaceId, foreignAccount.workspaceId),
-          eq(workspaceMembershipsTable.userId, userId),
-          eq(workspaceMembershipsTable.status, "active"),
-        ))
-        .limit(1);
-      if (!ownMembership) throw new MetaChannelConflictError("phone_number_linked_to_another_workspace");
-      // استعادة: عطّل قناة المساحة القديمة (لا حذف — قابل للتراجع) لتحرير الرقم، ثم يكمل الإنهاء أدناه
-      // ربطه في المساحة الحالية (إسناد وكيل + تفعيل أعلام + إكمال onboarding + فتح اللوحة).
+      // استئناف الربط الموجود (طلب المالك المتكرر 12 يوليو): الرقم مسجَّل في مساحة عمل سابقة، لكن
+      // ربطه لم يكتمل هناك (لا وكيل/لا لوحة) والمالك عالق في الإعداد. نستعيده لمساحته الحالية بدل
+      // رفضه. الأمان محفوظ: هذا المسار (mobile finalize) لا يُبلَغ إلا بعد أن اكتشف fetchMetaWhatsAppOptions
+      // هذا الـWABA من صلاحيات توكن المستخدم نفسه عبر debug_token (granular_scopes) — أي أن ميتا نفسها
+      // (مرجع الملكية) أثبتت للتو أن الحساب الحالي يملك هذا الرقم. ميتا لا تضع WABA في صلاحيات مستخدم
+      // إلا إن كان يملك صلاحيته فعلاً، فلا يمكن لمهاجم انتزاع رقم غيره عبر هذا المسار. لذا الاستعادة هنا
+      // ليست ثغرة الاختطاف القديمة (تلك كانت: تصديق waba_id مُرسَل من العميل بلا تحقق ميتا + توكن نظام).
       await tx.update(channelAccountsTable).set({
         status: "disabled",
         providerConfig: null,
@@ -1245,8 +1236,13 @@ async function finalizeMobileWhatsAppConnection(params: {
         externalBusinessId: null,
         externalPhoneId: null,
         updatedAt: new Date(),
-      }).where(eq(channelAccountsTable.id, foreignAccount.id));
-      logger.info({ toWorkspaceId: workspaceId, fromWorkspaceId: foreignAccount.workspaceId, signupAttemptId: params.signupAttemptId }, "Meta mobile signup reclaimed number from owner's previous workspace");
+      }).where(and(
+        inArray(channelAccountsTable.channelType, ["whatsapp", "whatsapp_api"]),
+        eq(channelAccountsTable.status, "active"),
+        lookupCondition,
+        sql`${channelAccountsTable.workspaceId} <> ${workspaceId}`,
+      ));
+      logger.info({ toWorkspaceId: workspaceId, fromWorkspaceId: foreignAccount.workspaceId, signupAttemptId: params.signupAttemptId }, "Meta mobile signup resumed: reclaimed Meta-verified number from a previous workspace");
     }
 
     const [existing] = await tx
