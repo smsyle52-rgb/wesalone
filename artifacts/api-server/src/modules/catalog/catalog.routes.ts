@@ -16,7 +16,7 @@ import { logger } from "../../lib/logger";
 import type { AuthenticatedRequest } from "../../lib/types";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { requireSession } from "../../middlewares/requireSession";
-import { collectPages, syncCatalogSource, upsertSingleProductKnowledge } from "../../services/meta-catalog-sync";
+import { collectPages, metaGet, syncCatalogSource, upsertSingleProductKnowledge } from "../../services/meta-catalog-sync";
 import { resolveCredentialsSecretRef } from "../../services/meta-whatsapp-business-profile";
 import { autoSyncCreatedCatalogSources } from "../integrations/catalog-auto-sync";
 
@@ -296,6 +296,7 @@ router.post("/sources/discover", requirePermission("catalog:manage"), async (req
     const config = providerConfigRecord(channel.providerConfig);
     const businessId = stringField(config, "business_id", "businessId");
     const wabaId = stringField(config, "waba_id", "wabaId");
+    const phoneNumberId = stringField(config, "phone_number_id", "phoneNumberId");
 
     // كتالوج تطبيق واتساب يحتاج waba_id فقط؛ كتالوجات مدير الأعمال تحتاج business_id.
     // وجود أيٍّ منهما يكفي للمتابعة — الحرمان الكامل فقط عند غياب الاثنين معاً.
@@ -327,6 +328,50 @@ router.post("/sources/discover", requirePermission("catalog:manage"), async (req
 
     let anyEdgeSucceeded = false;
     const attemptErrors: string[] = [];
+
+    // «كتالوج تطبيق واتساب» — الباب الموثَّق المباشر (12 يوليو، بعد فشل {waba}/product_catalogs
+    // بـ400 على التوكنين): إعدادات التجارة الخاصة بالرقم نفسه تُرجِع معرّف الكتالوج المتصل
+    // بالرقم — وفي وضع التعايش هذا هو كتالوج التطبيق الذي يبنيه التاجر من جواله حرفياً.
+    if (phoneNumberId) {
+      for (const attempt of tokenAttempts) {
+        try {
+          const settings = await metaGet<{ data?: Array<{ catalog_id?: string }> }>(
+            `${phoneNumberId}/whatsapp_commerce_settings?fields=catalog_id`,
+            attempt.token,
+          );
+          const catalogId = settings?.data?.[0]?.catalog_id;
+          logger.info(
+            { channelAccountId: channel.id, edge: "commerce_settings", tokenSource: attempt.label, catalogId: catalogId ?? null },
+            "Meta catalog discovery attempt succeeded",
+          );
+          if (catalogId && !discoveredByCatalogId.has(catalogId)) {
+            // اسم الكتالوج تحسيني بحت — فشله لا يعطّل الاكتشاف.
+            let catalogName = "كتالوج واتساب";
+            try {
+              const info = await metaGet<{ name?: string }>(`${catalogId}?fields=name`, attempt.token);
+              if (info?.name) catalogName = info.name;
+            } catch { /* الاسم الافتراضي يكفي */ }
+            discoveredByCatalogId.set(catalogId, {
+              channelAccountId: channel.id,
+              catalogId,
+              name: catalogName,
+              businessId,
+              wabaId,
+            });
+          }
+          anyEdgeSucceeded = true;
+          break;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "meta_api_error";
+          attemptErrors.push(`commerce_settings/${attempt.label}: ${message}`);
+          logger.warn(
+            { err, channelAccountId: channel.id, edge: "commerce_settings", tokenSource: attempt.label },
+            "Meta catalog discovery attempt failed",
+          );
+        }
+      }
+    }
+
     for (const { path, edge } of edges) {
       for (const attempt of tokenAttempts) {
         try {

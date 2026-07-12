@@ -194,7 +194,12 @@ export async function metaGet<T>(path: string, token: string): Promise<T> {
 
   let response = await attempt();
   if (response.status >= 500) response = await attempt();
-  if (!response.ok) throw new Error(`Meta Graph API returned ${response.status}`);
+  if (!response.ok) {
+    // تحقيق 12 يوليو: «400» وحدها عمياء — نصّ خطأ ميتا (رمز #100 حقل غير موجود؟ صلاحية؟
+    // معرّف خاطئ؟) هو الذي يحسم. يُقتطع لتفادي تضخيم السجلات.
+    const body = await response.text().catch(() => "");
+    throw new Error(`Meta Graph API returned ${response.status}: ${body.slice(0, 300)}`);
+  }
   return await response.json() as T;
 }
 
