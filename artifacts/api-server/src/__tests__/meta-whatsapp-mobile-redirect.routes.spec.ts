@@ -306,4 +306,36 @@ describe("Meta WhatsApp mobile Embedded Signup redirect", () => {
     const second = await request(testSession, "/api/integrations/meta/embedded-signup/mobile-redirect/result");
     expect(await second.json()).toEqual({ completed: true, returnTo: "/onboarding", signupAttemptId: "attempt-result" });
   });
+
+  // انحدار حادثة 12 يوليو: عودة الجوال تصل بلا كوكي جلسة (يفتح تطبيق فيسبوك مسار OAuth، أو
+  // يضيع التبويب). كان router.use(requireSession) المطلق يرد 401 قبل معالج العودة — فتفشل كل
+  // محاولة رغم اكتمالها عند ميتا. يجب أن تتجاوز عودةُ نطاق nonce حارسَ الجلسة وتصل المعالج.
+  it("lets the mobile OAuth callback through WITHOUT a login session (nonce is the auth)", async () => {
+    // صف محاولة حيّ لهذا الـstate — الهوية من القاعدة لا من الجلسة.
+    vi.mocked(pool.query).mockResolvedValueOnce({
+      rows: [{
+        signup_attempt_id: "no-session-attempt",
+        user_id: USER_ID,
+        workspace_id: WORKSPACE_ID,
+        config_key: "whatsapp_standard",
+        return_to: "/onboarding",
+        expires_ms: String(Date.now() + 60_000),
+        is_expired: false,
+      }],
+      rowCount: 1,
+    } as any);
+    // جلسة بلا مستخدم = لا كوكي دخول (نفس واقع عودة الجوال).
+    const sessionless: TestSession = { save: (callback) => callback() } as TestSession;
+    // بلا code: المعالج يدخل فرع الجوال (اجتاز حارس الجلسة) ويوجّه بدل رمي 401.
+    const callback = await request(sessionless, "/api/integrations/meta/embedded-signup/callback?state=live-nonce");
+    expect(callback.status).toBe(302);
+    expect(callback.headers.get("location")).toContain("whatsapp_connected=0");
+    expect(callback.headers.get("location")).toContain("reason=missing_code");
+  });
+
+  it("still guards a non-callback integrations route without a session (401)", async () => {
+    const sessionless: TestSession = { save: (callback) => callback() } as TestSession;
+    const guarded = await request(sessionless, "/api/integrations/meta/channels/options");
+    expect(guarded.status).toBe(401);
+  });
 });

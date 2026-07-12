@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
@@ -32,7 +32,19 @@ import { resolveCredentialsSecretRef } from "../../services/meta-whatsapp-busine
 import { autoSyncCreatedCatalogSources, resolveCatalogsForSelectedWabas } from "./catalog-auto-sync";
 
 const router = Router();
-router.use(requireSession);
+// الحارس على مستوى الراوتر — مع استثناء واحد: مسار عودة OAuth للجوال. كان router.use(requireSession)
+// المطلق يرد 401 قبل أن يصل الطلب لمعالج العودة إطلاقاً (اكتُشف بالسجلات 12 يوليو: العودة تصل بكود
+// صالح لكن حارس الجلسة يرفضها لأن كوكي الجلسة يضيع على الجوال). عودة الجوال تصادق عبر nonce الحالة
+// لا الجلسة؛ نتجاوز الحارس لها فقط، مع إرفاق sessionUser إن وُجدت جلسة (مسار سطح المكتب + تحسين
+// نفس المتصفح)، والمعالج نفسه يعيد فرض 401 على مسار سطح المكتب عديم الجلسة.
+router.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.path.endsWith("/meta/embedded-signup/callback")) {
+    if (req.session?.user) (req as AuthenticatedRequest).sessionUser = req.session.user;
+    next();
+    return;
+  }
+  requireSession(req, res, next);
+});
 
 const metadataSchema = z.record(z.unknown()).optional();
 
