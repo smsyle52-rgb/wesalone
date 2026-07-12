@@ -384,6 +384,8 @@ type CatalogSource = {
   lastSyncedAt: string | null;
   lastSyncError: string | null;
   updatedAt: string;
+  lastRunItemsSynced: number | null;
+  lastRunStatus: string | null;
 };
 
 type CatalogSyncResult = {
@@ -451,9 +453,15 @@ function CatalogSourceCard({
       {source.syncStatus === "failed" && source.lastSyncError && (
         <p className="mt-2 text-xs text-muted-foreground">{source.lastSyncError}</p>
       )}
+      {source.sourceType === "commerce_catalog" && source.lastRunStatus === "success" && source.lastRunItemsSynced === 0 && (
+        <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">
+          آخر مزامنة نجحت لكنها ما لقت أي منتج في هذا الكتالوج. تأكد أن منتجاتك داخل نفس الكتالوج في حساب ميتا، أو اضغط «البحث عن كتالوجات مرتبطة» لجلب كتالوجاتك الأخرى.
+        </p>
+      )}
       <div className="mt-3 flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">
           آخر مزامنة: {source.lastSyncedAt ? timeAgo(source.lastSyncedAt) : "لم تتم مزامنة بعد"}
+          {source.lastRunItemsSynced !== null && source.lastSyncedAt ? ` — ${source.lastRunItemsSynced} عنصر` : ""}
         </span>
         {source.sourceType !== "manual" && (
           <button

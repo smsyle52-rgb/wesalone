@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Router, type Response } from "express";
 import { z } from "zod";
-import { and, desc, eq, ilike, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, type SQL } from "drizzle-orm";
 import {
   adCampaignsTable,
   catalogSourcesTable,
@@ -180,7 +180,38 @@ router.get("/sources", requirePermission("catalog:read"), async (req: Authentica
     .from(catalogSourcesTable)
     .where(eq(catalogSourcesTable.workspaceId, req.sessionUser.activeWorkspaceId))
     .orderBy(desc(catalogSourcesTable.updatedAt));
-  res.json({ sources });
+
+  // حادثة «المزامنة الكاذبة» (12 يوليو): «متزامن» وحدها بلا عدد تُوهم التاجر أن منتجاته وصلت
+  // بينما آخر مزامنة قد تكون سحبت صفراً. نرفق نتيجة آخر تشغيل لكل مصدر لتعرضها الواجهة صراحةً.
+  const sourceIds = sources.map((source) => source.id);
+  const lastRunBySource = new Map<string, { itemsSynced: number; status: string }>();
+  if (sourceIds.length > 0) {
+    const runs = await db.select({
+      catalogSourceId: catalogSyncRunsTable.catalogSourceId,
+      itemsSynced: catalogSyncRunsTable.itemsSynced,
+      status: catalogSyncRunsTable.status,
+    })
+      .from(catalogSyncRunsTable)
+      .where(and(
+        eq(catalogSyncRunsTable.workspaceId, req.sessionUser.activeWorkspaceId),
+        inArray(catalogSyncRunsTable.catalogSourceId, sourceIds),
+      ))
+      .orderBy(desc(catalogSyncRunsTable.startedAt))
+      .limit(200);
+    for (const run of runs) {
+      if (run.catalogSourceId && !lastRunBySource.has(run.catalogSourceId)) {
+        lastRunBySource.set(run.catalogSourceId, { itemsSynced: run.itemsSynced ?? 0, status: run.status });
+      }
+    }
+  }
+
+  res.json({
+    sources: sources.map((source) => ({
+      ...source,
+      lastRunItemsSynced: lastRunBySource.get(source.id)?.itemsSynced ?? null,
+      lastRunStatus: lastRunBySource.get(source.id)?.status ?? null,
+    })),
+  });
 });
 
 router.post("/sources", requirePermission("catalog:manage"), async (req: AuthenticatedRequest, res: Response) => {

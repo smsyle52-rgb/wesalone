@@ -115,17 +115,24 @@ function isDryRun(channelAccount?: { id: string; credentialsSecretRef: string | 
   return !process.env.META_APP_SECRET;
 }
 
+// حادثة «المزامنة الكاذبة» (12 يوليو 2026): مزامنات الليل كلها success/itemsSynced=0 —
+// توكن النظام العام كان له الأولوية، وميتا تُرجِع كتالوجاً «فارغاً» بصمت (200 بلا عناصر) حين
+// لا يملك التوكن صلاحية كتالوج ذلك النشاط، بدل أن تُخطئ بوضوح. توكن التاجر نفسه (المحفوظ
+// من embedded signup بنطاقات الكتالوج — commit 18a33ee) هو الأقدر على رؤية كتالوجه، وهو
+// الأصح عزلاً بين المستأجرين أيضاً. الترتيب الجديد: توكن قناة التاجر أولاً، ثم توكنات النظام
+// كاحتياط (مصادر بلا قناة مربوطة: ads/يدوية/قديمة). فشل حلّ توكن القناة يسقط للاحتياط، لا يرمي.
 function accessToken(source: CatalogSource, channelAccount?: { id: string; credentialsSecretRef: string | null } | null): string | null {
   if (isDryRun(channelAccount)) return null;
-  if (process.env.META_SYSTEM_USER_TOKEN) return process.env.META_SYSTEM_USER_TOKEN;
-  if (process.env.META_ACCESS_TOKEN) return process.env.META_ACCESS_TOKEN;
   if (channelAccount?.credentialsSecretRef) {
     try {
-      return resolveCredentialsSecretRef(channelAccount.credentialsSecretRef);
+      const channelToken = resolveCredentialsSecretRef(channelAccount.credentialsSecretRef);
+      if (channelToken) return channelToken;
     } catch (err) {
-      logger.warn({ err, sourceId: source.id, channelAccountId: channelAccount.id }, "Meta catalog access token could not be resolved from the linked channel");
+      logger.warn({ err, sourceId: source.id, channelAccountId: channelAccount.id }, "Channel token resolution failed for catalog read — falling back to system token");
     }
   }
+  if (process.env.META_SYSTEM_USER_TOKEN) return process.env.META_SYSTEM_USER_TOKEN;
+  if (process.env.META_ACCESS_TOKEN) return process.env.META_ACCESS_TOKEN;
   throw new Error("Meta catalog access token is not configured");
 }
 
@@ -486,6 +493,20 @@ export async function syncCommerceCatalog(source: CatalogSource): Promise<SyncRe
       ? await collectPages<MetaProduct>(`${source.externalId}/products?fields=id,name,description,price,currency,availability,inventory,image_url,url,brand,category`, token)
       : dryRunProducts(source);
     if (!token) logger.info({ sourceId: source.id }, "DRY_RUN Meta commerce catalog sync");
+    // حادثة «المزامنة الكاذبة» (12 يوليو): نجاح بصفر عناصر ليس نجاحاً من منظور التاجر — سطر
+    // تشخيصي دائم يحدّد الكتالوج ومصدر التوكن المستخدم، ليكون سبب الفراغ (كتالوج خاطئ/صلاحية
+    // توكن/كتالوج فارغ فعلاً) قابلاً للحسم من السجلات مباشرة بلا نفاذ لقاعدة البيانات.
+    if (token && rows.length === 0) {
+      logger.info(
+        {
+          sourceId: source.id,
+          workspaceId: source.workspaceId,
+          catalogExternalId: source.externalId,
+          tokenSource: channelAccount?.credentialsSecretRef ? "channel" : (process.env.META_SYSTEM_USER_TOKEN ? "system" : "env"),
+        },
+        "Meta commerce catalog returned ZERO products",
+      );
+    }
 
     const seenIds: string[] = [];
     for (const item of rows) {
