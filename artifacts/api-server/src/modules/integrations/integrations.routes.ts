@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { aiAgentChannelsTable, aiAgentInstructionsTable, aiAgentsTable, catalogSourcesTable, channelAccountsTable, db, featureFlagsTable, metaMobileSignupAttemptsTable, pool, workspacesTable } from "@workspace/db";
+import { aiAgentChannelsTable, aiAgentInstructionsTable, aiAgentsTable, catalogSourcesTable, channelAccountsTable, db, featureFlagsTable, metaMobileSignupAttemptsTable, pool, workspaceMembershipsTable, workspacesTable } from "@workspace/db";
 import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { logger } from "../../lib/logger";
@@ -1212,7 +1212,7 @@ async function finalizeMobileWhatsAppConnection(params: {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`whatsapp-phone:${workspaceId}:${params.phone.phone_number_id}`}, 0))`);
 
     const [foreignAccount] = await tx
-      .select({ id: channelAccountsTable.id })
+      .select({ id: channelAccountsTable.id, workspaceId: channelAccountsTable.workspaceId })
       .from(channelAccountsTable)
       .where(and(
         sql`${channelAccountsTable.workspaceId} <> ${workspaceId}`,
@@ -1221,7 +1221,33 @@ async function finalizeMobileWhatsAppConnection(params: {
         lookupCondition,
       ))
       .limit(1);
-    if (foreignAccount) throw new MetaChannelConflictError("phone_number_linked_to_another_workspace");
+    if (foreignAccount) {
+      // الرقم مربوط بمساحة عمل أخرى. نتحقق: هل هي للمالك نفسه (عضو نشط فيها)؟ إن كانت له، فهذا
+      // رقمه أثبت ملكيته عبر ميتا (OTP) للتو، ونستعيده لمساحته الحالية بدل رفضه — استئناف ربط لم
+      // يكتمل (طلب المالك 12 يوليو: «رقمي مربوط بحسابي على مساحة سابقة، لا لوحة ولا وكيل، فلْيُكمل
+      // الكودُ الربط»). إن كانت المساحة لمالك مختلف نُبقي حارس الاختطاف بين المستأجرين كما هو.
+      const [ownMembership] = await tx
+        .select({ id: workspaceMembershipsTable.id })
+        .from(workspaceMembershipsTable)
+        .where(and(
+          eq(workspaceMembershipsTable.workspaceId, foreignAccount.workspaceId),
+          eq(workspaceMembershipsTable.userId, userId),
+          eq(workspaceMembershipsTable.status, "active"),
+        ))
+        .limit(1);
+      if (!ownMembership) throw new MetaChannelConflictError("phone_number_linked_to_another_workspace");
+      // استعادة: عطّل قناة المساحة القديمة (لا حذف — قابل للتراجع) لتحرير الرقم، ثم يكمل الإنهاء أدناه
+      // ربطه في المساحة الحالية (إسناد وكيل + تفعيل أعلام + إكمال onboarding + فتح اللوحة).
+      await tx.update(channelAccountsTable).set({
+        status: "disabled",
+        providerConfig: null,
+        credentialsSecretRef: null,
+        externalBusinessId: null,
+        externalPhoneId: null,
+        updatedAt: new Date(),
+      }).where(eq(channelAccountsTable.id, foreignAccount.id));
+      logger.info({ toWorkspaceId: workspaceId, fromWorkspaceId: foreignAccount.workspaceId, signupAttemptId: params.signupAttemptId }, "Meta mobile signup reclaimed number from owner's previous workspace");
+    }
 
     const [existing] = await tx
       .select()
