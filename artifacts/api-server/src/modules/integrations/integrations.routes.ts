@@ -1070,6 +1070,76 @@ async function connectMobileWhatsAppPhone(params: {
   });
 }
 
+// حادثة «المزامنة الكاذبة» (12 يوليو 2026): مسار ربط الجوال كان يربط القناة **بدون** أي إنشاء
+// لمصادر الكتالوج — عكس مسار الكمبيوتر تماماً (الذي يكتشف كتالوجات الـWABA ويُنشئ مصادرها
+// ويزامنها فوراً منذ 4 يوليو). النتيجة: كل تاجر يربط رقمه من الجوال يبقى كتالوجه يتيماً
+// إلى الأبد ولا منتج واحد يصل مخزونه. هذه الدالة تعوّض ذلك بنفس تسلسل الكمبيوتر، لكن بهوية
+// صريحة (workspaceId/userId من صف المحاولة) لأن نقطة عودة الجوال تعمل بلا جلسة. فشلها
+// لا يفشل الربط أبداً — الكتالوج قابل للاسترداد لاحقاً بزر «البحث عن كتالوجات مرتبطة».
+async function attachMobileWhatsAppCatalogs(params: {
+  workspaceId: string;
+  userId: string;
+  channelAccountId: string;
+  wabaId: string;
+  businessId: string | null;
+  userToken: string;
+  signupAttemptId: string;
+  log?: { info?: (obj: unknown, msg?: string) => void; warn?: (obj: unknown, msg?: string) => void };
+}): Promise<void> {
+  try {
+    const catalogs = await fetchWabaProductCatalogs(params.wabaId, params.userToken, params.businessId ?? undefined);
+    if (catalogs.length === 0) {
+      params.log?.info?.({ signupAttemptId: params.signupAttemptId, wabaId: params.wabaId }, "Mobile signup: no WABA-linked catalogs found at connect");
+      return;
+    }
+    const connectedAt = new Date().toISOString();
+    const createdSources: Array<typeof catalogSourcesTable.$inferSelect> = [];
+    for (const catalog of catalogs) {
+      const [source] = await db.insert(catalogSourcesTable).values({
+        workspaceId: params.workspaceId,
+        channelAccountId: params.channelAccountId,
+        sourceType: "commerce_catalog",
+        externalId: catalog.catalog_id,
+        name: catalog.name || catalog.catalog_id,
+        status: "active",
+        config: { provider: "meta", business_id: catalog.business_id ?? null, waba_id: params.wabaId, connectedAt },
+      }).onConflictDoUpdate({
+        target: [catalogSourcesTable.workspaceId, catalogSourcesTable.sourceType, catalogSourcesTable.externalId],
+        set: {
+          name: catalog.name || catalog.catalog_id,
+          channelAccountId: params.channelAccountId,
+          config: { provider: "meta", business_id: catalog.business_id ?? null, waba_id: params.wabaId, connectedAt },
+          status: "active",
+          updatedAt: new Date(),
+        },
+      }).returning();
+      createdSources.push(source);
+      await createAuditLog({
+        workspaceId: params.workspaceId,
+        actorType: "user",
+        actorId: params.userId,
+        action: "catalog_source_create",
+        severity: "info",
+        entityType: "catalog_source",
+        entityId: source.id,
+        entityLabel: source.name,
+        newData: { sourceType: source.sourceType, externalId: source.externalId, provider: "meta", mobileSignup: true },
+      });
+    }
+    const results = await autoSyncCreatedCatalogSources(
+      createdSources,
+      syncCatalogSource,
+      (source, err) => params.log?.warn?.({ err, sourceId: source.id, signupAttemptId: params.signupAttemptId }, "Auto sync failed for mobile signup catalog source"),
+    );
+    params.log?.info?.(
+      { signupAttemptId: params.signupAttemptId, catalogs: createdSources.length, synced: [...results.values()].reduce((sum, r) => sum + r.itemsSynced, 0) },
+      "Mobile signup: WABA catalogs attached and synced",
+    );
+  } catch (err) {
+    params.log?.warn?.({ err, signupAttemptId: params.signupAttemptId, wabaId: params.wabaId }, "Mobile signup catalog attach failed — channel connect unaffected");
+  }
+}
+
 async function finalizeMobileWhatsAppConnection(params: {
   // هوية صريحة من صف المحاولة (لا من req.sessionUser): نقطة العودة تعمل بلا جلسة (12 يوليو).
   workspaceId: string;
@@ -2143,6 +2213,17 @@ router.get("/meta/embedded-signup/callback", async (req: Request, res: Response)
           signupAttemptId: attempt.signupAttemptId,
           claimToken,
         });
+        // «المزامنة الكاذبة» (12 يوليو): الكتالوج يلتحق بالقناة فور الربط — كما في مسار الكمبيوتر.
+        await attachMobileWhatsAppCatalogs({
+          workspaceId: attempt.workspaceId,
+          userId: attempt.userId,
+          channelAccountId: account.id,
+          wabaId: selected.account.waba_id,
+          businessId: selected.account.business_id ?? null,
+          userToken,
+          signupAttemptId: attempt.signupAttemptId,
+          log: req.log,
+        });
         if (sessionMatches) {
           ((req as AuthenticatedRequest).session as any).metaMobileRedirectResult = {
             userId: attempt.userId,
@@ -2477,6 +2558,17 @@ router.post("/meta/channels", requirePermission("integrations:update"), async (r
         configKey: mobileContext.configKey,
         signupAttemptId: mobileContext.signupAttemptId,
         claimToken: mobileContext.claimToken,
+      });
+      // «المزامنة الكاذبة» (12 يوليو): نفس التحاق الكتالوج المطبَّق في نقطة العودة بلا جلسة.
+      await attachMobileWhatsAppCatalogs({
+        workspaceId: req.sessionUser.activeWorkspaceId,
+        userId: req.sessionUser.userId,
+        channelAccountId: channel.id,
+        wabaId: selectedAccount.waba_id,
+        businessId: selectedAccount.business_id ?? null,
+        userToken: mobileUserToken,
+        signupAttemptId: mobileContext.signupAttemptId,
+        log: req.log,
       });
       (req.session as any).metaMobileRedirectResult = {
         userId: req.sessionUser.userId,

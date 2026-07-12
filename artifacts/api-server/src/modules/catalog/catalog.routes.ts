@@ -152,18 +152,22 @@ function stringField(config: Record<string, unknown>, ...keys: string[]): string
 // لكن بلا اعتماد على CatalogSource (الاكتشاف يسبق وجود أي مصدر) وبلا رمي استثناء — القناة التي
 // يتعذّر حلّ رمزها تُستبعَد ضمن skipped بدل إفشال الطلب كاملاً.
 function resolveDiscoveryToken(channel: { id: string; credentialsSecretRef: string | null }): string | null {
-  if (process.env.META_SYSTEM_USER_TOKEN) return process.env.META_SYSTEM_USER_TOKEN;
-  if (process.env.META_ACCESS_TOKEN) return process.env.META_ACCESS_TOKEN;
+  // «المزامنة الكاذبة» (12 يوليو): توكن قناة التاجر أولاً — نفس قاعدة accessToken في
+  // meta-catalog-sync.ts وبنفس السبب: ميتا تُرجِع قوائم فارغة بصمت للتوكنات ناقصة صلاحية
+  // الكتالوج، وتوكن التاجر (بنطاقات embedded signup) هو الأقدر على رؤية كتالوجات نشاطه.
   if (channel.credentialsSecretRef) {
     try {
-      return resolveCredentialsSecretRef(channel.credentialsSecretRef);
+      const channelToken = resolveCredentialsSecretRef(channel.credentialsSecretRef);
+      if (channelToken) return channelToken;
     } catch (err) {
       logger.warn(
         { err, channelAccountId: channel.id },
-        "Meta catalog discovery token could not be resolved from the linked channel",
+        "Meta catalog discovery token could not be resolved from the linked channel — falling back to system token",
       );
     }
   }
+  if (process.env.META_SYSTEM_USER_TOKEN) return process.env.META_SYSTEM_USER_TOKEN;
+  if (process.env.META_ACCESS_TOKEN) return process.env.META_ACCESS_TOKEN;
   return null;
 }
 

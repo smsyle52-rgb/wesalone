@@ -55,6 +55,9 @@ async function fetchDueSources(intervalMs: number, now: Date): Promise<CatalogSo
     .from(catalogSourcesTable)
     .where(and(
       eq(catalogSourcesTable.status, "active"),
+      // «المزامنة الكاذبة» (12 يوليو): المصادر اليدوية لا تملك طرفاً بعيداً يُسحب منه أصلاً —
+      // إعادة «مزامنتها» دورياً ضجيج بلا معنى كان يظهر للتاجر نجاحاً متكرراً بصفر عناصر.
+      sql`${catalogSourcesTable.sourceType} <> 'manual'`,
       or(
         isNull(catalogSourcesTable.lastSyncedAt),
         lt(catalogSourcesTable.lastSyncedAt, cutoff),

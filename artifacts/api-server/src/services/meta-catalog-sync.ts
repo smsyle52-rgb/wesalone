@@ -673,8 +673,13 @@ export async function syncCatalogSource(source: CatalogSource): Promise<SyncResu
   if (source.sourceType === "page_posts") return syncPagePosts(source);
   if (source.sourceType === "ads") return syncAds(source);
   if (source.sourceType === "manual") {
-    await upsertProductKnowledge(source);
-    return { status: "success", itemsSynced: 0, itemsFailed: 0 };
+    // حادثة «المزامنة الكاذبة» (12 يوليو): هذا الفرع كان يرجع نجاحاً بلا runWithAudit —
+    // فلا يُسجَّل تشغيل ولا يتحدّث lastSyncedAt، فيبقى المصدر اليدوي «مستحقاً» أبدياً ويظهر
+    // للتاجر «متزامناً» كل إقلاع بصفر عناصر. الآن يمرّ بنفس مسار التدقيق كالبقية.
+    return runWithAudit(source, async () => {
+      await upsertProductKnowledge(source);
+      return { status: "success", itemsSynced: 0, itemsFailed: 0 };
+    });
   }
   return { status: "failed", itemsSynced: 0, itemsFailed: 1, error: `Unsupported source type ${source.sourceType}` };
 }
