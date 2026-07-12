@@ -175,7 +175,7 @@ type DiscoveredMetaCatalog = {
   channelAccountId: string;
   catalogId: string;
   name: string;
-  businessId: string;
+  businessId: string | null;
   wabaId: string | null;
 };
 
@@ -297,38 +297,69 @@ router.post("/sources/discover", requirePermission("catalog:manage"), async (req
     const businessId = stringField(config, "business_id", "businessId");
     const wabaId = stringField(config, "waba_id", "wabaId");
 
-    if (!businessId) {
-      skipped.push({ channelAccountId: channel.id, reason: "missing_business_id" });
+    // كتالوج تطبيق واتساب يحتاج waba_id فقط؛ كتالوجات مدير الأعمال تحتاج business_id.
+    // وجود أيٍّ منهما يكفي للمتابعة — الحرمان الكامل فقط عند غياب الاثنين معاً.
+    if (!businessId && !wabaId) {
+      skipped.push({ channelAccountId: channel.id, reason: "missing_business_and_waba_id" });
       continue;
     }
 
-    const token = resolveDiscoveryToken(channel);
-    if (!token) {
+    const channelToken = resolveDiscoveryToken(channel);
+    if (!channelToken) {
       skipped.push({ channelAccountId: channel.id, reason: "missing_access_token" });
       continue;
     }
 
-    try {
-      const catalogs = await collectPages<{ id?: string; name?: string }>(
-        `${businessId}/owned_product_catalogs?fields=id,name`,
-        token,
-      );
-      for (const catalog of catalogs) {
-        if (!catalog.id || discoveredByCatalogId.has(catalog.id)) continue;
-        discoveredByCatalogId.set(catalog.id, {
-          channelAccountId: channel.id,
-          catalogId: catalog.id,
-          name: catalog.name || catalog.id,
-          businessId,
-          wabaId,
-        });
+    // توضيح المالك (12 يوليو): الهدف الأساسي هو **كتالوج تطبيق واتساب للأعمال** — الذي يبنيه
+    // التاجر من جواله داخل التطبيق. في وضع التعايش يظهر هذا الكتالوج على WABA الرقم نفسه
+    // ({waba_id}/product_catalogs — نفس نقطة النهاية التي يستدعيها الربط منذ البداية)، فهي
+    // المحاولة الأولى هنا. كتالوجات مدير الأعمال ({business_id}/owned_product_catalogs) تبقى
+    // شبكة أوسع ثانوية لمن يديرون منتجاتهم هناك. ولكل نداء: توكن التاجر أولاً ثم توكن النظام
+    // (403 موثَّقة بالسجلات — الدستور: «الكتالوج/الإعلانات غير متوفرين حالياً» على مستوى
+    // التطبيق)، ومصير كل محاولة يُسجَّل صراحةً ليكون الحسم من السجلات لا التخمين.
+    const systemToken = process.env.META_SYSTEM_USER_TOKEN ?? process.env.META_ACCESS_TOKEN ?? null;
+    const tokenAttempts: Array<{ token: string; label: "channel" | "system" }> = [{ token: channelToken, label: "channel" }];
+    if (systemToken && systemToken !== channelToken) tokenAttempts.push({ token: systemToken, label: "system" });
+
+    const edges: Array<{ path: string; edge: "waba_catalogs" | "business_catalogs" }> = [];
+    if (wabaId) edges.push({ path: `${wabaId}/product_catalogs?fields=id,name`, edge: "waba_catalogs" });
+    if (businessId) edges.push({ path: `${businessId}/owned_product_catalogs?fields=id,name`, edge: "business_catalogs" });
+
+    let anyEdgeSucceeded = false;
+    const attemptErrors: string[] = [];
+    for (const { path, edge } of edges) {
+      for (const attempt of tokenAttempts) {
+        try {
+          const catalogs = await collectPages<{ id?: string; name?: string }>(path, attempt.token);
+          logger.info(
+            { channelAccountId: channel.id, edge, tokenSource: attempt.label, catalogsFound: catalogs.length },
+            "Meta catalog discovery attempt succeeded",
+          );
+          for (const catalog of catalogs) {
+            if (!catalog.id || discoveredByCatalogId.has(catalog.id)) continue;
+            discoveredByCatalogId.set(catalog.id, {
+              channelAccountId: channel.id,
+              catalogId: catalog.id,
+              name: catalog.name || catalog.id,
+              businessId,
+              wabaId,
+            });
+          }
+          anyEdgeSucceeded = true;
+          break; // نجحت هذه الحافة — لا حاجة لتوكن آخر عليها؛ ننتقل للحافة التالية.
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "meta_api_error";
+          attemptErrors.push(`${edge}/${attempt.label}: ${message}`);
+          logger.warn(
+            { err, channelAccountId: channel.id, edge, tokenSource: attempt.label },
+            "Meta catalog discovery attempt failed",
+          );
+        }
       }
-    } catch (err) {
-      logger.warn({ err, channelAccountId: channel.id }, "Meta owned_product_catalogs discovery failed for channel");
-      skipped.push({
-        channelAccountId: channel.id,
-        reason: err instanceof Error ? err.message : "meta_api_error",
-      });
+    }
+
+    if (!anyEdgeSucceeded) {
+      skipped.push({ channelAccountId: channel.id, reason: attemptErrors.join(" | ") || "meta_api_error" });
     }
   }
 

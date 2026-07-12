@@ -491,7 +491,11 @@ async function fetchWabaProductCatalogs(
         name: String(catalog.name ?? "WhatsApp Catalog"),
         business_id: businessId,
       }));
-  } catch {
+  } catch (err) {
+    // تحقيق 12 يوليو («المزامنة كاذبة»، الفصل الأخير): البلع الصامت هنا جعل رفض ميتا (403
+    // نقص صلاحية catalog_management) يظهر كـ«لا توجد كتالوجات» — عمى تشخيصي كامل. الإرجاع
+    // الفارغ يبقى (الربط لا يفشل بسبب الكتالوج) لكن السبب يُسجَّل دائماً.
+    logger.warn({ err, wabaId }, "WABA product_catalogs fetch failed (likely token missing catalog permission) — returning empty");
     return [];
   }
 }
