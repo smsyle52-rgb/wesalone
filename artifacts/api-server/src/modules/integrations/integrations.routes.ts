@@ -2229,12 +2229,24 @@ router.get("/meta/embedded-signup/callback", async (req: Request, res: Response)
       await updateMobileAttempt({ signupAttemptId: attempt.signupAttemptId, claimToken, status: "processing", checkpoint: "meta_discovered", encryptedTokenRef: tokenRef });
       const whatsappAccounts = channelOptions.options.whatsapp_accounts.filter((account) => account.phone_numbers.length > 0);
       const discoveredPhones = whatsappAccounts.flatMap((account) => account.phone_numbers.map((phone) => ({ account, phone })));
+      const distinctWabaCount = new Set(discoveredPhones.map((entry) => entry.account.waba_id)).size;
+      // تشخيص + رؤية: كم WABA وكم رقماً اكتُشف (أرقام مقنّعة، لا نكشف الرقم كاملاً في السجل).
+      req.log?.info({
+        signupAttemptId: attempt.signupAttemptId,
+        distinctWabaCount,
+        phoneCount: discoveredPhones.length,
+        phones: discoveredPhones.map((entry) => (entry.phone.display_number || "").replace(/\d(?=\d{2})/g, "•")),
+      }, "Meta mobile signup discovered WhatsApp numbers");
       if (discoveredPhones.length === 0) {
         failRedirect("no_whatsapp_phone_discovered");
         return;
       }
 
-      if (discoveredPhones.length === 1) {
+      // ربط تلقائي عند WABA واحد (حتى لو له أكثر من رقم) — كل أرقامه تخص نفس نشاط التاجر، فربط
+      // أولها آمن وقابل للإضافة لاحقاً. صفحة الاختيار كانت تُجهض مستخدم الجوال أول مرة (بوابة
+      // onboarding تُعيده للإعداد فلا يراها — حادثة 12 يوليو). الاختيار يبقى للحالة النادرة:
+      // WABAs متعددة (أنشطة مختلفة) حيث الربط التلقائي قد يخطئ النشاط.
+      if (distinctWabaCount <= 1) {
         const selected = discoveredPhones[0];
         const [existingChannel] = await db
           .select({ id: channelAccountsTable.id })
