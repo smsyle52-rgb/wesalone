@@ -27,11 +27,17 @@ import {
 import {
   findUnauthorizedLink,
   findUngroundedWorkHours,
+  findUngroundedPrice,
   findUnbackedActionClaim,
   includesEscalationKeyword,
   replyConfirmsPayment,
+  replyPromisesMoneyToCustomer,
   replyPromisesHandoff,
   replyPromisesVerification,
+  replyPromisesTeamAction,
+  replyPromisesEscalationReview,
+  detectsRefundDemand,
+  detectsSeriousDispute,
 } from "./agent-escalation";
 import { loadSectorAgentContext } from "./agent-sector";
 import { loadLearnedContext } from "../services/agent-learning";
@@ -46,6 +52,9 @@ const GROUNDING_RULES = [
   // أضيفت بعد جولة «المستخدم الحي» 11 يوليو: النموذج قلب ساعات الدوام (10ص-8م → 8ص-10م) واخترع
   // دواماً بعد حذف الوثيقة رغم قاعدة التأريض العامة — فئة «حقائق النشاط الثابتة» تحتاج تسمية صريحة.
   "قاعدة النقل الحرفي: الأرقام والأوقات والمدد تُنقل من المرفقات كما هي حرفياً وبترتيبها — ممنوع قلب البداية والنهاية (إن قالت المعرفة «من 10 صباحاً حتى 8 مساءً» فلا تقل أبداً «من 8 صباحاً حتى 10 مساءً»). وأوقات الدوام والعناوين وأرقام التواصل ومدد ورسوم التوصيل تحديداً: إن لم تكن مكتوبة في المرفقات فلا تذكر لها أي قيمة إطلاقاً مهما بدت بديهية — قل بصدق إنك ستتأكّد من الفريق.",
+  // أضيفت مع حارس الأسعار البنيوي (13 يوليو): سدّ حلقة التسميم الذاتي عند مصدرها النصّي — الوكيل
+  // كان يعامل سعراً اخترعه في ردّ سابق (يظهر في سجل المحادثة) كأنه حقيقة فيكرّره ويحوّره.
+  "قاعدة عدم الاستناد لكلامك السابق: ردودك أنت السابقة في هذه المحادثة ليست مصدراً للحقائق — أي سعر أو رقم لا تجده الآن في «كتالوج المنتجات» أو «معرفة قاعدة البيانات» أو «حالة طلبات العميل» المرفقة لا تذكره ولا تكرّره حتى لو كنت قد قلته في ردّ سابق. سعر منتج غير موجود في الكتالوج = قل بصدق إنك ستتأكّد من الفريق، ولا تخترع له رقماً ولا تعيد رقماً سبق أن ذكرته بلا مصدر.",
 ].join("\n");
 
 // قواعد استخدام الأدوات (استدعاء أصلي): تُحقن عند تفعيل أي أداة. البنية تأتي من function calling
@@ -648,7 +657,10 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
           customerHasOrders: orderStatusContext.trim().length > 0,
         });
     const paymentClaim = !hasToolProblem && replyConfirmsPayment(candidateReply);
-    const claimGuardTripped = unbackedClaim !== null || paymentClaim;
+    // وعد تحويل/إرجاع مال للعميل (13 يوليو): مالي بحت بلا أداة استرداد — يُعامل كتأكيد الدفع
+    // (استبدال + تصعيد دائماً). داخل claimGuardTripped ليُستبدَل الردّ وتتخطّاه الحُرّاس التالية.
+    const moneyPromise = !hasToolProblem && replyPromisesMoneyToCustomer(candidateReply);
+    const claimGuardTripped = unbackedClaim !== null || paymentClaim || moneyPromise;
     // حارس الروابط المخترعة (10 يوليو 2026): نفس فلسفة بوابة الادّعاء أعلاه — أي رابط في الردّ
     // نطاقه غير موجود حرفياً في أي سياق مرفق (البرومبت/المعرفة/الكتالوج/حالة الطلبات) يُعتبر
     // اختراعاً يُستبدل الردّ ويُصعَّد. تُتخطّى إن كانت بوابة الادّعاء قد استبدلت الردّ أصلاً.
@@ -659,7 +671,20 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     // نص المحادثة عمداً — ترديد ساعة ذكرها العميل نفسه مشروع. تفاصيل: agent-escalation.ts.
     const allowedHoursContext = [allowedLinkContext, transcript, metaStoreContext, learnedContext].join("\n");
     const ungroundedHours = (claimGuardTripped || unauthorizedLink) ? null : findUngroundedWorkHours(candidateReply, allowedHoursContext);
-    const finalReply = (claimGuardTripped || unauthorizedLink || ungroundedHours) ? SAFE_REVIEW_REPLY : candidateReply;
+    // حارس الأسعار المخترعة/المسمَّمة ذاتياً (13 يوليو 2026): أي سعر في الردّ قيمتُه غير موجودة في
+    // السياق الموثوق = اختراع يُستبدل الردّ ويُصعَّد. السياق الموثوق للسعر يستبعد عمداً ردودَ الوكيل
+    // الصادرة (يكسر حلقة التسميم الذاتي: الرقم المختلق في السجل لا يصير مصدراً)، ومنشوراتِ ميتا
+    // والأجوبةَ المتعلَّمة (قرار مقفل: المخزون هو سلطة السعر الوحيدة). يشمل رسائل العميل الواردة —
+    // ترديد سعر ذكره العميل نفسه مشروع. تفاصيل: agent-escalation.ts.
+    const customerInboundText = messages
+      .filter((message) => message.direction === "inbound")
+      .map((message) => message.content ?? "")
+      .join("\n");
+    const allowedPriceContext = [systemPrompt, knowledgeContext, productCatalogContext, orderStatusContext, customerInboundText].join("\n");
+    const ungroundedPrice = (claimGuardTripped || unauthorizedLink || ungroundedHours)
+      ? null
+      : findUngroundedPrice(candidateReply, allowedPriceContext);
+    const finalReply = (claimGuardTripped || unauthorizedLink || ungroundedHours || ungroundedPrice) ? SAFE_REVIEW_REPLY : candidateReply;
 
     if (!finalReply) {
       await db.update(aiRunsTable).set({
@@ -688,15 +713,29 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     if (hasToolProblem) hardEscalationReasons.push("tool_failure");
     if (unbackedClaim) hardEscalationReasons.push(`unbacked_claim:${unbackedClaim}`);
     if (paymentClaim) hardEscalationReasons.push("payment_confirmation_claim");
+    if (moneyPromise) hardEscalationReasons.push("money_transfer_promise");
     if (unauthorizedLink) hardEscalationReasons.push(`unauthorized_link:${unauthorizedLink}`);
     if (ungroundedHours) hardEscalationReasons.push(`ungrounded_hours:${ungroundedHours}`);
+    if (ungroundedPrice) hardEscalationReasons.push(`ungrounded_price:${ungroundedPrice}`);
     if (hasHandoff) hardEscalationReasons.push("handoff_tool");
     if (replyPromisesHandoff(finalReply)) hardEscalationReasons.push("handoff_promise");
     if (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound)) {
       hardEscalationReasons.push("customer_request");
     }
+    // تصعيد بنيّة العميل (الحل الجذري): نزاع جدّي/تهديد قانوني/اتهام احتيال في رسالة العميل يحتاج
+    // بشراً فوراً — تصعيد صلب مستقلٌّ تماماً عن صياغة الوكيل (يُنهي مطاردة الأنماط لهذه الفئة).
+    if (detectsSeriousDispute(lastInbound?.content ?? "")) hardEscalationReasons.push("dispute_complaint");
     const softAttentionReasons: string[] = [];
     if (replyPromisesVerification(finalReply)) softAttentionReasons.push("verification_promise");
+    // وعد عمل من الفريق (13 يوليو): «طلبت من الفريق فيديو» → تنبيه ناعم يجعل الوعد صادقاً
+    // (التاجر يُشعَر فيرسل الوسائط) دون إسكات الوكيل — نفس سياسة verification_promise المتدرّجة.
+    if (replyPromisesTeamAction(finalReply)) softAttentionReasons.push("team_action_promise");
+    // وعد تصعيد/رفع الأمر للإدارة أو الفريق (أ-2.5، رُصد حيّاً): تنبيه ناعم — التاجر يُشعَر ليراجع
+    // ويتصرّف، والوكيل يواصل. «صعّدت طلبك» الصريحة يلتقطها حارس التحويل الصلب أعلاه ويغلب.
+    if (replyPromisesEscalationReview(finalReply)) softAttentionReasons.push("escalation_review_promise");
+    // مطالبة استرجاع مال (نيّة العميل): التاجر يُشعَر بكل رسالة استرجاع مهما كتب الوكيل — تنبيه
+    // ناعم لا يُسكِت الوكيل (يبقى يجيب أسئلة سياسة الاسترجاع)، وحُرّاس أ-2 تمنع أي وعد مال خطر.
+    if (detectsRefundDemand(lastInbound?.content ?? "")) softAttentionReasons.push("refund_demand");
 
     const shouldEscalate = hardEscalationReasons.length > 0;
     const needsAttention = !shouldEscalate && softAttentionReasons.length > 0;
@@ -929,19 +968,30 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   const intendedToolNames = intendedCalls.map((call) => call.name);
   const unbackedClaim = findUnbackedActionClaim(candidateReply, intendedToolNames);
   const paymentClaim = replyConfirmsPayment(candidateReply);
-  const claimGuardTripped = unbackedClaim !== null || paymentClaim;
-  const previewReply = claimGuardTripped ? SAFE_REVIEW_REPLY : candidateReply;
+  const moneyPromise = replyPromisesMoneyToCustomer(candidateReply);
+  const claimGuardTripped = unbackedClaim !== null || paymentClaim || moneyPromise;
+  // نفس حارس الأسعار الحيّ: أي سعر في المعاينة غير موجود في السياق الموثوق = اختراع يُستبدل.
+  // السياق هنا = التعليمات + المعرفة + الكتالوج + رسالة العميل (لا سياق طلبات في المحاكاة).
+  const allowedPriceContext = [systemPrompt, knowledgeContext, productCatalogContext, message].join("\n");
+  const ungroundedPrice = claimGuardTripped ? null : findUngroundedPrice(candidateReply, allowedPriceContext);
+  const previewReply = (claimGuardTripped || ungroundedPrice) ? SAFE_REVIEW_REPLY : candidateReply;
 
   // نفس السياسة المتدرّجة الحيّة: «سأتأكد من الفريق» تنبيه ناعم لا يحوّل ولا يغيّر الردّ —
   // wouldEscalate هنا يعكس التحويل الكامل فقط (ما سيُسكِت الوكيل فعلاً)، والمعاينة = المُرسَل.
   const hardReasons: string[] = [];
   if (unbackedClaim) hardReasons.push(`unbacked_claim:${unbackedClaim}`);
   if (paymentClaim) hardReasons.push("payment_confirmation_claim");
+  if (moneyPromise) hardReasons.push("money_transfer_promise");
+  if (ungroundedPrice) hardReasons.push(`ungrounded_price:${ungroundedPrice}`);
   if (intendedCalls.some((call) => call.name === "handoff_to_human")) hardReasons.push("handoff_tool");
   if (replyPromisesHandoff(previewReply)) hardReasons.push("handoff_promise");
   if (includesEscalationKeyword(message)) hardReasons.push("customer_request");
+  if (detectsSeriousDispute(message)) hardReasons.push("dispute_complaint");
   const softReasons: string[] = [];
   if (replyPromisesVerification(previewReply)) softReasons.push("verification_promise");
+  if (replyPromisesTeamAction(previewReply)) softReasons.push("team_action_promise");
+  if (replyPromisesEscalationReview(previewReply)) softReasons.push("escalation_review_promise");
+  if (detectsRefundDemand(message)) softReasons.push("refund_demand");
   const handoffCommunication = ensureHandoffCommunicated(previewReply, hardReasons.length > 0);
 
   return {
