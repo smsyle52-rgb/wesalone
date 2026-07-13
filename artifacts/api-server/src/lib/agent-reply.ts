@@ -514,9 +514,12 @@ export async function runAgentReply(params: {
   const styleGuidance = hasPriorAgentReply
     ? "\nمهم: هذه ليست بداية المحادثة — لا تبدأ ردّك بأي تحية أو ترحيب («أهلاً»، «مرحباً»، «يا هلا»، «حياك»...). ادخل في صلب الإجابة مباشرةً، ونوّع افتتاحياتك وصياغتك عن ردودك السابقة في المحادثة."
     : "";
+  // كفاءة التوكنات (ب، 13 يوليو): سطر «Current date/time» بدقّة الثانية كان في مقدّمة البرومبت،
+  // فيتغيّر كل استدعاء ويُبطل الكاش الضمني (implicit caching) لكامل البادئة الثابتة (القواعد/الدور/
+  // القطاع = آلاف التوكنات تُدفع 100% كل مرة). نُقل إلى ذيل البرومبت: البادئة تبقى ثابتة لكل وكيل
+  // فتُخصَم بالكاش، والتاريخ (المتغيّر) في الذيل فقط. التاريخ ما زال مرئياً للنموذج (للاستدلال الزمني).
   const systemPrompt = [
     executableTools.length > 0 ? TOOL_USE_RULES : "",
-    `Current date/time: ${new Date().toISOString()}.`,
     instructions?.rolePrompt ?? defaultRolePrompt(workspaceName),
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
     instructions?.forbiddenActions ? `ممنوعات يحددها التاجر (ملزمة): ${instructions.forbiddenActions}` : "",
@@ -529,6 +532,7 @@ export async function runAgentReply(params: {
     `اللهجة: ${agent.dialect}.`,
     agent.tone ? (REPLY_LENGTH_PRESETS[agent.tone.trim()] ?? `النبرة: ${agent.tone}.`) : "",
     mediaGuidance,
+    `Current date/time: ${new Date().toISOString()}.`,
   ].filter(Boolean).join("\n");
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.
 
@@ -907,9 +911,9 @@ export async function simulateAgentReply(params: {
   const knowledgeContext = knowledgeSources.length > 0
     ? `\n\nمعرفة ذات صلة من قاعدة البيانات (هذه هي الحقيقة الحالية المحدَّثة — إن تعارض مصدران في معلومة فاعتمد حصراً الأحدث «آخر تحديث» وتجاهل الأقدم؛ وإن خالفت هذه المعرفةُ ردّاً سابقاً لك في المحادثة فاعتمدها الآن وصحّح المعلومة للعميل بلطف):\n${knowledgeSources.map((item, index) => `[${index + 1}]${item.updatedAt ? ` (آخر تحديث: ${new Date(item.updatedAt).toISOString().slice(0, 10)})` : ""} ${item.title}: ${item.content.slice(0, KNOWLEDGE_INJECT_CHARS)}`).join("\n")}`
     : "";
+  // كفاءة التوكنات (ب): التاريخ في الذيل لا المقدّمة — البادئة الثابتة قابلة للكاش الضمني (كالحيّ).
   const systemPrompt = [
     executableTools.length > 0 ? TOOL_USE_RULES : "",
-    `Current date/time: ${new Date().toISOString()}.`,
     instructions?.rolePrompt ?? defaultRolePrompt(workspaceName),
     instructions?.businessRules ? `قواعد النشاط: ${instructions.businessRules}` : "",
     instructions?.forbiddenActions ? `ممنوعات يحددها التاجر (ملزمة): ${instructions.forbiddenActions}` : "",
@@ -921,6 +925,7 @@ export async function simulateAgentReply(params: {
     SCOPE_DISCIPLINE,
     `اللهجة: ${agent.dialect}.`,
     agent.tone ? (REPLY_LENGTH_PRESETS[agent.tone.trim()] ?? `النبرة: ${agent.tone}.`) : "",
+    `Current date/time: ${new Date().toISOString()}.`,
   ].filter(Boolean).join("\n");
   const transcript = `[العميل]: ${message}`;
   const userPrompt = `اكتب رداً مناسباً على آخر رسالة في هذه المحادثة.

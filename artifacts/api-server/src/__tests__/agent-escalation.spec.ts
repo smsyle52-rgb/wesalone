@@ -262,6 +262,27 @@ describe("findUnauthorizedLink — حارس الروابط المخترعة", ()
   it("(g) لا إيجابية كاذبة مع نقاط نهاية الجملة في نص عربي عادي", () => {
     expect(findUnauthorizedLink("شكراً لتواصلك. نسعد بخدمتك.", "")).toBeNull();
   });
+
+  // أ-3 (13 يوليو): منصّات UGC — تطابق المسار الكامل لا النطاق (حادثة تيك توك الحيّة).
+  it("(h) رابط تيك توك مخترع يُكشف رغم وجود نطاق tiktok.com في السياق (مسار مختلف)", () => {
+    const reply = "شوف الفيديو: https://www.tiktok.com/@someone/video/9999";
+    const allowedContext = "حسابنا على تيك توك: tiktok.com/@mystore";
+    expect(findUnauthorizedLink(reply, allowedContext)).toBe("tiktok.com/@someone/video/9999");
+  });
+
+  it("(i) رابط تيك توك المتجر نفسه (مسار مطابق في السياق) يمرّ", () => {
+    const reply = "تابعنا هنا: https://tiktok.com/@mystore";
+    const allowedContext = "حسابنا الرسمي على تيك توك: tiktok.com/@mystore — تابعونا.";
+    expect(findUnauthorizedLink(reply, allowedContext)).toBeNull();
+  });
+
+  it("(j) يوتيوب مخترع بمسار غير موجود يُكشف", () => {
+    expect(findUnauthorizedLink("الشرح على youtube.com/watch?v=fakeID123", "قناتنا youtube.com/@store")).toBe("youtube.com/watch?v=fakeid123");
+  });
+
+  it("(k) موقع عادي بمسار مختلف يبقى مسموحاً على مستوى النطاق (لا تشدّد UGC)", () => {
+    expect(findUnauthorizedLink("شوف mystore.com/products/5", "متجرنا mystore.com")).toBeNull();
+  });
 });
 
 describe("findUngroundedWorkHours — حارس الساعات المخترعة/المقلوبة", () => {

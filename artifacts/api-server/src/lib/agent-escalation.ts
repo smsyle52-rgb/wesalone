@@ -447,17 +447,26 @@ export function detectsSeriousDispute(text: string): boolean {
   return SERIOUS_DISPUTE_PATTERNS.some((pattern) => normalized.includes(pattern));
 }
 
-// ─── حارس الروابط المخترعة (10 يوليو 2026) ───────────────────────────────────
+// ─── حارس الروابط المخترعة (10 يوليو 2026، + أ-3 توسعة 13 يوليو) ────────────────
 // حوادث حيّة سابقة: النموذج اخترع رقم/رابط تواصل غير موجود في أي سياق مرفق (GROUNDING_RULES
 // وصية نصّية فقط ولا تكفي وحدها). هذه الدالة تجعل المنع بنيوياً على مستوى الخادم: أي رابط
-// يظهر في ردّ الوكيل يجب أن يكون نطاقه (domain) موجوداً حرفياً في السياق المسموح به (البرومبت
-// + المعرفة + الكتالوج + حالة الطلبات) — وإلا فهو مخترع. المطابقة على مستوى النطاق فقط
-// (وليس المسار الكامل) عمداً: نطاق مذكور في المعرفة بمسار مختلف في ردّ الوكيل ليس اختراعاً.
+// يظهر في ردّ الوكيل يجب أن يكون موجوداً في السياق المسموح به (البرومبت + المعرفة + الكتالوج
+// + حالة الطلبات) — وإلا فهو مخترع.
+//
+// النطاق مقابل الرابط الكامل: للمواقع العادية (موقع المتجر) المطابقة على مستوى **النطاق** فقط
+// عمداً — نطاق مذكور في المعرفة بمسار مختلف ليس اختراعاً. لكن **منصّات المحتوى (UGC)** حيث كلُّ
+// رابط محتوى فريد (تيك توك/يوتيوب/سناب) المطابقة على النطاق لا تكفي: حادثة الإنتاج (13 يوليو)
+// مرّر فيها الوكيل رابطَي تيك توك مخترعَين لأن tiktok.com ورد مرة في سياق آخر — فالنطاق «مسنود»
+// شكلاً بينما الفيديو مختلق. لهذه المنصّات نشترط تطابق **المسار الكامل** حرفياً في السياق.
 const LINK_CANDIDATE_PATTERN =
-  /https?:\/\/[^\s]+|www\.[^\s]+|\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|ai|one|shop|store|co|me|sa|ye|ae)\b/gi;
+  /https?:\/\/[^\s]+|www\.[^\s]+|\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|ai|one|shop|store|co|me|sa|ye|ae)\b(?:\/[^\s]*)?/gi;
 
 // علامات ترقيم عربية ولاتينية شائعة في نهاية الجملة قد تلتصق بنهاية رابط مقتطَع من نصّ حرّ.
 const TRAILING_PUNCTUATION_PATTERN = /[.,;:!؟?»«)('"]+$/;
+
+// منصّات محتوى المستخدم — كل رابط فيها محتوى فريد، فتطابق النطاق وحده لا يُثبت أن هذا المحتوى
+// موجود فعلاً في السياق (على عكس موقع المتجر). لهذه نشترط المسار الكامل.
+const UGC_CONTENT_DOMAINS = ["tiktok.com", "youtube.com", "youtu.be", "snapchat.com", "pinterest.com"];
 
 // يحوّل مرشّح رابط خام إلى نطاقه المطبَّع: أحرف صغيرة، بلا بروتوكول ولا www. بادئة،
 // بلا علامات ترقيم لاصقة، وقبل أول / أو ? (أي بلا مسار أو استعلام).
@@ -470,8 +479,22 @@ function extractDomain(candidate: string): string {
   return cutIndex >= 0 ? value.slice(0, cutIndex) : value;
 }
 
-// يعيد أول نطاق غير مُصرَّح به في الردّ (غير موجود حرفياً في allowedContext)، أو null إن كانت
-// كل الروابط (إن وُجدت) مسنودة بسياق حقيقي. دالة نقية بلا اعتماديات — لا db ولا شبكة.
+// نفس التطبيع لكن مع الإبقاء على المسار الكامل (للمقارنة الحرفية في منصّات UGC).
+function normalizeFullUrl(candidate: string): string {
+  return candidate
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(TRAILING_PUNCTUATION_PATTERN, "");
+}
+
+function isUgcDomain(domain: string): boolean {
+  return UGC_CONTENT_DOMAINS.some((ugc) => domain === ugc || domain.endsWith(`.${ugc}`));
+}
+
+// يعيد أول رابط غير مُصرَّح به في الردّ (غير موجود في allowedContext)، أو null إن كانت كل
+// الروابط مسنودة. للمواقع العادية: يكفي وجود النطاق. لمنصّات UGC ذات المسار: يجب وجود الرابط
+// كاملاً بمساره (نطاق مجرّد بلا مسار لمنصّة UGC = مقبول بالنطاق — لا محتوى مخترع بعد).
 export function findUnauthorizedLink(reply: string, allowedContext: string): string | null {
   const candidates = reply.match(LINK_CANDIDATE_PATTERN);
   if (!candidates) return null;
@@ -479,7 +502,18 @@ export function findUnauthorizedLink(reply: string, allowedContext: string): str
   for (const candidate of candidates) {
     const domain = extractDomain(candidate);
     if (!domain) continue;
-    if (!normalizedContext.includes(domain)) return domain;
+    if (isUgcDomain(domain)) {
+      const fullUrl = normalizeFullUrl(candidate);
+      // رابط بمسار فعلي (أطول من النطاق) → يجب تطابقه الكامل؛ نطاق UGC مجرّد → يكفي النطاق.
+      const hasPath = fullUrl.length > domain.length + 1;
+      if (hasPath) {
+        if (!normalizedContext.includes(fullUrl)) return fullUrl;
+      } else if (!normalizedContext.includes(domain)) {
+        return domain;
+      }
+    } else if (!normalizedContext.includes(domain)) {
+      return domain;
+    }
   }
   return null;
 }
