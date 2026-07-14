@@ -1045,6 +1045,11 @@ async function runCleanup(): Promise<void> {
       method: "POST",
       headers: { "X-Internal-Secret": INTERNAL_SECRET },
     }),
+    // G1 (15 يوليو): تذكير التصعيدات الراكدة بلا ردّ بشري — sweep صيانة كل 5د، READ+notify فقط.
+    fetch(`${API_SERVER_URL}/internal/escalation-sla-sweep`, {
+      method: "POST",
+      headers: { "X-Internal-Secret": INTERNAL_SECRET },
+    }),
   ]);
 }
 

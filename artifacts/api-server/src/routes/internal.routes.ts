@@ -98,6 +98,65 @@ router.post("/cleanup-domain-events", async (req: Request, res: Response): Promi
   res.status(200).json({ updated: result.rowCount ?? 0 });
 });
 
+// ─── تذكير التصعيدات الراكدة (SLA) — G1 (15 يوليو 2026) ──────────────────────────────
+// applyEscalationIfNeeded (أدناه) يُشعر التاجر مرّة واحدة عند تحوّل المحادثة لـhuman، لكن لا شيء
+// يلاحقه لو تركها. تدقيق آخر 24س رصد تصعيدات كثيرة بلا ردّ بشري خلال ساعة — فجوة «إغلاق الحلقة»
+// لا أمانة الوكيل (نصوص «سأحوّل/حوّلت» هي حرّاسنا نفسها، والتصعيد يحصل فعلاً). هذا الـsweep
+// (يستدعيه الـworker كل 5د ضمن runCleanup) يُعيد تذكير التاجر بالمحادثات المصعّدة الراكدة بلا ردّ
+// بشري (user/outbound) منذ أكثر من SLA دقيقة، مع تهدئة عبر علامة domain_event حتى لا يتكرّر كل
+// دورة. READ + notify فقط (بلا توليد ردّ للعميل) — لا يمسّ حلقة الردّ ولا يخاطر بها.
+const ESCALATION_SLA_MINUTES = Number(process.env.ESCALATION_SLA_MINUTES ?? "20");
+const ESCALATION_REMINDER_COOLDOWN_MINUTES = Number(process.env.ESCALATION_REMINDER_COOLDOWN_MINUTES ?? "60");
+
+router.post("/escalation-sla-sweep", async (req: Request, res: Response): Promise<void> => {
+  if (!requireInternalSecret(req, res)) return;
+
+  // مرشّحون: مصعّدة للبشر، غير محلولة/مغلقة، وآخر رسالة فيها ليست ردّ تاجر بشري (user/outbound)
+  // وأقدم من SLA، ولم تُذكَّر خلال فترة التهدئة. LATERAL يجلب آخر رسالة لكل محادثة (مجموعة human صغيرة).
+  const candidates = await db.execute<{ id: string; workspace_id: string }>(sql`
+    SELECT c.id, c.workspace_id
+    FROM conversations c
+    JOIN LATERAL (
+      SELECT m.sender_type, m.direction, m.created_at
+      FROM messages m
+      WHERE m.conversation_id = c.id
+      ORDER BY m.created_at DESC
+      LIMIT 1
+    ) lm ON TRUE
+    WHERE c.agent_status = 'human'
+      AND c.resolved_at IS NULL
+      AND c.closed_at IS NULL
+      AND lm.created_at < NOW() - (${ESCALATION_SLA_MINUTES}::int * INTERVAL '1 minute')
+      AND NOT (lm.direction = 'outbound' AND lm.sender_type = 'user')
+      AND NOT EXISTS (
+        SELECT 1 FROM domain_events de
+        WHERE de.entity_id = c.id
+          AND de.event_type = 'conversation.escalation_reminded'
+          AND de.created_at > NOW() - (${ESCALATION_REMINDER_COOLDOWN_MINUTES}::int * INTERVAL '1 minute')
+      )
+    LIMIT 200
+  `);
+
+  let reminded = 0;
+  for (const row of candidates.rows) {
+    await notifyWorkspace({
+      workspaceId: row.workspace_id,
+      type: "escalation_stale",
+      titleAr: "محادثة مُصعّدة تنتظر ردّك",
+      bodyAr: "هناك محادثة عميل حُوِّلت للمتابعة البشرية ولم يُرَدّ عليها بعد. افتح الوارد وأكمل مع العميل.",
+      link: `/inbox?conversation=${row.id}`,
+    }).catch((err) => logger.warn({ err, conversationId: row.id }, "escalation SLA reminder notify failed"));
+    // علامة تهدئة (status=done فلا يلتقطها الـworker). نفس أعمدة إدراج domain_events المُثبتة.
+    await db.execute(sql`
+      INSERT INTO domain_events (workspace_id, event_type, entity_type, entity_id, payload, status)
+      VALUES (${row.workspace_id}, 'conversation.escalation_reminded', 'conversation', ${row.id}, '{}'::jsonb, 'done')
+    `);
+    reminded += 1;
+  }
+
+  res.status(200).json({ ok: true, candidates: candidates.rows.length, reminded });
+});
+
 // إصلاح (10 يوليو 2026): نفس بق «تصعيد حقيقي لكن استجابة تقول false + صفر إشعار للتاجر» اتكرّر
 // مرّتين مستقلّتين (فرع القناة المفقودة، فرع مستلم واتساب غير محلول) بعد إصلاح فرع الردّ الفارغ —
 // اكتشفه اختبار حمل آلي حقيقي (محادثات فعلية عبر هذا المسار بالذات، لا محاكاة). استخرجناه لدالة
