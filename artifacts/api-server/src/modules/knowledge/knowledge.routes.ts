@@ -873,9 +873,26 @@ router.delete("/documents/:documentId", requirePermission("knowledge:delete"), a
   const [existing] = await db.select().from(knowledgeDocumentsTable)
     .where(and(eq(knowledgeDocumentsTable.id, docId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId))).limit(1);
   if (!existing) { res.status(404).json({ error: "الوثيقة غير موجودة", code: "NOT_FOUND" }); return; }
-  // مقاطع الوثيقة تُحذف بالتعاقب (onDelete: cascade على document_id).
-  await db.delete(knowledgeDocumentsTable)
-    .where(and(eq(knowledgeDocumentsTable.id, docId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
+  // مقاطع الوثيقة تُحذف بالتعاقب (onDelete: cascade على document_id). وإن كانت الوثيقة مشتقّة من
+  // مصدر ولم يبقَ لذلك المصدر أي وثيقة أخرى، نحذف المصدر أيضاً داخل نفس المعاملة — وإلّا بقي
+  // المصدر يتيماً، فيُحييه زرّ «إعادة الفهرسة الشاملة» (backfill للمصادر بلا وثيقة) ويُعيد ما
+  // حُذف «نهائياً». مصادر الملفات تُنتج عدّة وثائق، لذا لا نحذف المصدر ما دام له وثيقة شقيقة باقية.
+  await db.transaction(async (tx) => {
+    await tx.delete(knowledgeDocumentsTable)
+      .where(and(eq(knowledgeDocumentsTable.id, docId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
+    if (existing.sourceId) {
+      const [sibling] = await tx.select({ id: knowledgeDocumentsTable.id })
+        .from(knowledgeDocumentsTable)
+        .where(and(
+          eq(knowledgeDocumentsTable.sourceId, existing.sourceId),
+          eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId),
+        )).limit(1);
+      if (!sibling) {
+        await tx.delete(knowledgeSourcesTable)
+          .where(and(eq(knowledgeSourcesTable.id, existing.sourceId), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)));
+      }
+    }
+  });
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "knowledge_document_delete",
@@ -906,11 +923,14 @@ router.delete("/sources/:sourceId", requirePermission("knowledge:delete"), async
   const [existing] = await db.select().from(knowledgeSourcesTable)
     .where(and(eq(knowledgeSourcesTable.id, sourceId), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId))).limit(1);
   if (!existing) { res.status(404).json({ error: "المصدر غير موجود", code: "NOT_FOUND" }); return; }
-  // احذف وثائق المصدر أولاً (ومقاطعها بالتعاقب) لأن documents.source_id = set null لا cascade.
-  await db.delete(knowledgeDocumentsTable)
-    .where(and(eq(knowledgeDocumentsTable.sourceId, sourceId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
-  await db.delete(knowledgeSourcesTable)
-    .where(and(eq(knowledgeSourcesTable.id, sourceId), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)));
+  // احذف وثائق المصدر أولاً (ومقاطعها بالتعاقب) ثم المصدر — داخل معاملة واحدة حتى لا يتبقّى
+  // مصدرٌ بلا وثائق أو وثائقُ بلا مصدر لو انقطع التنفيذ بين الحذفين (documents.source_id = set null لا cascade).
+  await db.transaction(async (tx) => {
+    await tx.delete(knowledgeDocumentsTable)
+      .where(and(eq(knowledgeDocumentsTable.sourceId, sourceId), eq(knowledgeDocumentsTable.workspaceId, activeWorkspaceId)));
+    await tx.delete(knowledgeSourcesTable)
+      .where(and(eq(knowledgeSourcesTable.id, sourceId), eq(knowledgeSourcesTable.workspaceId, activeWorkspaceId)));
+  });
   await createAuditLog({
     ...auditFromRequest(req, req.sessionUser),
     action: "knowledge_source_delete",
