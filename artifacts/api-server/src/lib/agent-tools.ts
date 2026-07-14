@@ -23,6 +23,7 @@ import {
 import { and, count, desc, eq, gte, ilike, sum } from "drizzle-orm";
 import { z } from "zod";
 import type { AiFunctionDeclaration } from "./ai-provider";
+import { normalizeArabic } from "./agent-escalation";
 import { writeAgentStatus } from "../modules/conversations/lifecycle";
 import { createAuditLog } from "./audit";
 import { addContactTimeline } from "./contactTimeline";
@@ -600,7 +601,134 @@ const DELIVERY_POLICY_LABELS: Record<string, string> = {
   pickup_only: "استلام من المتجر فقط",
 };
 
-export async function loadProductCatalogContext(workspaceId: string, limit = 40): Promise<string> {
+// تقليص الكتالوج المعتمد على الصلة (ب — تدقيق 13 يوليو 2026): كان السياق يحقن أحدث 40 منتجاً
+// (updatedAt desc) بلا أي صلة بسؤال العميل — تضخيم توكِنز (98.4% من التوكِنز مدخلات، تُدفع كل نداء)
+// وتشتيت. لا توجد أداة بحث في الكتالوج، فالسياق هو المرجع الوحيد للوكيل عن المنتجات؛ لذلك القاعدة
+// الحاكمة: **لا يُقصّ أبداً منتج له صلة بالسؤال الحالي** — القص يطال فقط المنتجات غير المتعلقة.
+const CATALOG_SOFT_CAP = 12;         // حجم الإخراج الهدف/الأرضية (لا نُظهر أقل منه إلا لو المتجر أصغر)
+const CATALOG_MATCHED_CEILING = 30;  // سقف المطابقات حين يطابق السؤال منتجات كثيرة (حماية من الحالات المرَضيّة)
+const CATALOG_CANDIDATE_CEILING = 200; // حد جلب SQL / بركة المطابقة — أوسع بكثير من 40 فتقلّ فرص التفويت
+
+// كلمات وظيفية عربية شائعة في أسئلة العملاء — تُطرح من تقطيع السؤال حتى لا تطابق أسماء المنتجات زوراً.
+// مخزَّنة بصيغة مطبَّعة (normalizeArabic يطوي ة→ه، ى→ي، الهمزات→ا) لأن السؤال يُطبَّع قبل المطابقة.
+const CATALOG_QUERY_STOPWORDS = new Set<string>([
+  "كم", "بكم", "السعر", "سعر", "كام", "هل", "في", "من", "الي", "علي", "عن", "ما", "ايش", "وش",
+  "شنو", "شو", "كيف", "متي", "وين", "اين", "هذا", "هذه", "ذي", "لو", "سمحت", "ممكن", "اريد",
+  "ابي", "ابغي", "عايز", "عاوز", "عندكم", "عندك", "لديكم", "فيه", "فيها", "هنا", "الان", "توفر",
+  "متوفر", "متاح", "حق", "مال", "بتاع", "و", "او", "ثم", "يا", "السلام", "عليكم", "مرحبا", "اهلا",
+  "شكرا", "تمام", "طيب", "لكم", "لكن", "علي",
+]);
+
+export type CatalogProductRow = {
+  name: string;
+  price: string | number | null;
+  currency: string | null;
+  unit: string | null;
+  quantityAvailable: number | null;
+  imageUrl: string | null;
+  deliveryPolicy: string | null;
+};
+
+// تقطيع السؤال لكلمات مفتاحية مطبَّعة صالحة للمطابقة. يجرّد أداة التعريف «ال» البادئة حتى تطابق
+// «الطاولة» في السؤال منتجاً اسمه «طاولة» والعكس (فرق شائع جداً في العربية)، ويسقط الكلمات الوظيفية.
+function tokenizeCatalogQuery(query: string): string[] {
+  if (!query) return [];
+  const raw = normalizeArabic(query).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const tokens: string[] = [];
+  for (let token of raw) {
+    if (token.startsWith("ال") && token.length > 3) token = token.slice(2);
+    if (token.length < 2) continue;
+    if (CATALOG_QUERY_STOPWORDS.has(token)) continue;
+    tokens.push(token);
+  }
+  return tokens;
+}
+
+// درجة الصلة = عدد كلمات السؤال التي تظهر كسلسلة فرعية داخل اسم المنتج المطبَّع. المطابقة الجزئية
+// (substring) متسامحة عمداً: «طاوله» في السؤال تطابق «طاوله خشبيه كبيره». صفر = لا صلة.
+function scoreProductAgainstQuery(name: string, queryTokens: string[]): number {
+  if (queryTokens.length === 0) return 0;
+  const nameNorm = normalizeArabic(name);
+  let score = 0;
+  for (const token of queryTokens) {
+    if (nameNorm.includes(token)) score += 1;
+  }
+  return score;
+}
+
+// نقية وقابلة للاختبار بلا DB. تستقبل المنتجات مرتَّبةً بالأحدثية تنازلياً (updatedAt desc). تعيد
+// المنتجات المختارة + علم truncated (هل أُخفيت منتجات؟) لتختار الترويسةُ لهجتها الصحيحة.
+export function selectRelevantProducts(
+  products: CatalogProductRow[],
+  query: string,
+  opts: { softCap?: number; matchedCeiling?: number } = {},
+): { selected: CatalogProductRow[]; truncated: boolean } {
+  const softCap = opts.softCap ?? CATALOG_SOFT_CAP;
+  const matchedCeiling = opts.matchedCeiling ?? CATALOG_MATCHED_CEILING;
+
+  // متجر صغير: أظهر كل ما لديه — لا قص، والترويسة تبقى «القائمة الحصرية» (صادقة لأنها كاملة).
+  if (products.length <= softCap) {
+    return { selected: products, truncated: false };
+  }
+
+  const queryTokens = tokenizeCatalogQuery(query);
+  // index يحفظ ترتيب الأحدثية كسِرّ لكسر التعادل (Array.sort غير مستقر عبر المحرّكات).
+  const scored = products.map((product, index) => ({
+    product,
+    index,
+    score: scoreProductAgainstQuery(product.name, queryTokens),
+  }));
+
+  const matched = scored
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .slice(0, matchedCeiling)
+    .map((entry) => entry.product);
+
+  // مطابقات كثيرة كفايةً: أظهرها وحدها (حتى matchedCeiling) — أعلى تركيزاً وأقل توكِنز.
+  if (matched.length >= softCap) {
+    return { selected: matched, truncated: true };
+  }
+
+  // مطابقات قليلة (أو صفر لسؤال عام كتحيّة): أكمل بالأحدث غير المطابق حتى نبلغ الأرضية — هامش أمان
+  // يضمن ألّا نُظهر أقل من ~softCap حتى لو أخطأت المطابقة، وهو الاتجاه الآمن (نُظهر أكثر لا أقل).
+  const matchedSet = new Set(matched);
+  const fillers = products.filter((product) => !matchedSet.has(product)).slice(0, softCap - matched.length);
+  return { selected: [...matched, ...fillers], truncated: true };
+}
+
+// ترويسة المتجر الصغير: القائمة كاملة فعلاً، فوصفها بالحصرية صادق ويمنع اختلاق أي منتج/سعر.
+const CATALOG_HEADER_FULL =
+  "كتالوج المنتجات والأسعار (القائمة الحصرية للأسعار والتوفر — أي منتج أو سعر غير مذكور هنا وغير موجود في معرفة قاعدة البيانات يُعامل كغير متوفر لديك ولا يُذكر له رقم):";
+// ترويسة القائمة المقصوصة: لم تعد كل المنتجات، فلا يجوز ادّعاء الحصرية. تمنع نمطَي الهلوسة (اختلاق
+// سعر لا يظهر، أو نفي توفّر منتج لمجرّد غيابه عن هذه القائمة المختارة)، وتُقرَن بحارس السعر (أ-1).
+const CATALOG_HEADER_PARTIAL =
+  "منتجات ذات صلة بسؤال العميل (قائمة مختارة من كتالوج أوسع — ليست كل المنتجات). لا تذكر سعراً لا يظهر في هذه القائمة أو في معرفة النشاط، ولا تَنفِ توفّر منتج لمجرّد عدم ظهوره هنا؛ إن لزم اسأل العميل توضيحاً أو اعرض متابعته:";
+
+// نقية وقابلة للاختبار بلا DB: تبني الأسطر المحقونة في برومبت النموذج وتختار الترويسة حسب القص.
+export function formatProductCatalog(products: CatalogProductRow[], truncated: boolean): string {
+  if (products.length === 0) return "";
+  const lines = products.map((product) => {
+    const availability = product.quantityAvailable == null
+      ? ""
+      : product.quantityAvailable > 0
+        ? ` | المتوفر: ${product.quantityAvailable}${product.unit ? ` ${product.unit}` : ""}`
+        : " | غير متوفر حالياً";
+    // علامة الصورة توجّه النموذج: يرسل صورة (send_product_media) فقط لمنتج معلَّم بها —
+    // محاولة إرسال صورة لمنتج بلا صورة كانت تفشل وتُربك التجربة (حادثة 10 يوليو).
+    const imageMark = product.imageUrl ? " | صورة متوفرة" : "";
+    const delivery = DELIVERY_POLICY_LABELS[product.deliveryPolicy ?? "all"];
+    const deliveryMark = delivery ? ` | التوصيل: ${delivery}` : "";
+    return `- ${product.name}: ${product.price} ${product.currency}${availability}${imageMark}${deliveryMark}`;
+  });
+  return [truncated ? CATALOG_HEADER_PARTIAL : CATALOG_HEADER_FULL, ...lines].join("\n");
+}
+
+export async function loadProductCatalogContext(
+  workspaceId: string,
+  query = "",
+  opts: { softCap?: number; matchedCeiling?: number; candidateCeiling?: number } = {},
+): Promise<string> {
   const products = await db
     .select({
       name: inventoryProductsTable.name,
@@ -618,27 +746,10 @@ export async function loadProductCatalogContext(workspaceId: string, limit = 40)
       eq(inventoryProductsTable.status, "active"),
     ))
     .orderBy(desc(inventoryProductsTable.updatedAt))
-    .limit(limit);
+    .limit(opts.candidateCeiling ?? CATALOG_CANDIDATE_CEILING);
   if (products.length === 0) return "";
-
-  const lines = products.map((product) => {
-    const availability = product.quantityAvailable == null
-      ? ""
-      : product.quantityAvailable > 0
-        ? ` | المتوفر: ${product.quantityAvailable}${product.unit ? ` ${product.unit}` : ""}`
-        : " | غير متوفر حالياً";
-    // علامة الصورة توجّه النموذج: يرسل صورة (send_product_media) فقط لمنتج معلَّم بها —
-    // محاولة إرسال صورة لمنتج بلا صورة كانت تفشل وتُربك التجربة (حادثة 10 يوليو).
-    const imageMark = product.imageUrl ? " | صورة متوفرة" : "";
-    const delivery = DELIVERY_POLICY_LABELS[product.deliveryPolicy ?? "all"];
-    const deliveryMark = delivery ? ` | التوصيل: ${delivery}` : "";
-    return `- ${product.name}: ${product.price} ${product.currency}${availability}${imageMark}${deliveryMark}`;
-  });
-
-  return [
-    "كتالوج المنتجات والأسعار (القائمة الحصرية للأسعار والتوفر — أي منتج أو سعر غير مذكور هنا وغير موجود في معرفة قاعدة البيانات يُعامل كغير متوفر لديك ولا يُذكر له رقم):",
-    ...lines,
-  ].join("\n");
+  const { selected, truncated } = selectRelevantProducts(products, query, opts);
+  return formatProductCatalog(selected, truncated);
 }
 
 // سياق المتجر من ميتا (نقل الطور 2 — 11 يوليو 2026): كانت loadCatalogAgentContext حبيسة مسار

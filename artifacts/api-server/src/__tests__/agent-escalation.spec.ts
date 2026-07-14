@@ -6,8 +6,6 @@ import {
   replyPromisesMoneyToCustomer,
   replyPromisesTeamAction,
   replyPromisesEscalationReview,
-  detectsRefundDemand,
-  detectsSeriousDispute,
   findUnbackedActionClaim,
   includesEscalationKeyword,
   normalizeArabic,
@@ -469,46 +467,5 @@ describe("replyPromisesEscalationReview — وعد تصعيد الأمر للإ�
     "أهلاً بك، كيف أقدر أخدمك اليوم؟",
   ])("لا يُعلَّم: %s", (reply) => {
     expect(replyPromisesEscalationReview(reply)).toBe(false);
-  });
-});
-
-// تصعيد بنيّة العميل (الحل الجذري، 13 يوليو) — يفحص رسالة العميل الواردة لا صياغة الوكيل.
-describe("detectsRefundDemand — نيّة مطالبة استرجاع مال العميل", () => {
-  it.each([
-    "ألغيت الطلب وأبغى فلوسي كاملة الحين",
-    "رجعوا لي مبلغي اللي دفعته من فضلكم",
-    "وين فلوسي؟ صار أسبوع وما وصلني شي",
-    "أطلب استرداد المبلغ المدفوع فوراً",
-    "بدي استرجع مبلغي حق العطر المرتجع",
-  ])("يُعلَّم (مطالبة استرجاع صريحة): %s", (msg) => {
-    expect(detectsRefundDemand(msg)).toBe(true);
-  });
-
-  it.each([
-    "هل عندكم سياسة استرجاع للمنتجات؟",                           // سؤال سياسة — لا «فلوسي/مبلغي»
-    "كم مدة الإرجاع المسموحة عندكم؟",
-    "أبغى أشوف باقي العطور المتوفرة",                             // نيّة شراء لا استرجاع
-    "متى يوصل طلبي؟ صار له يومين",                                // استفسار توصيل
-  ])("لا يُعلَّم (سؤال سياسة/غير استرجاع): %s", (msg) => {
-    expect(detectsRefundDemand(msg)).toBe(false);
-  });
-});
-
-describe("detectsSeriousDispute — نزاع جدّي/تهديد قانوني", () => {
-  it.each([
-    "هذا احتيال واضح وسأبلغ عنكم",
-    "أنتم نصابين وبروح للقضاء",
-    "بكلم محامي ويرفع عليكم قضية",
-    "سأشتكي لحماية المستهلك على هذا الغش",
-  ])("يُعلَّم (نزاع جدّي): %s", (msg) => {
-    expect(detectsSeriousDispute(msg)).toBe(true);
-  });
-
-  it.each([
-    "المنتج وصل تالف، ممكن استبدال؟",                             // شكوى عادية قابلة للمعالجة
-    "ما هو منصبك في الشركة؟",                                     // «منصب» لا «نصب» — لا التباس
-    "الخدمة ممتازة، شكراً لكم",
-  ])("لا يُعلَّم (شكوى عادية/بلا تهديد): %s", (msg) => {
-    expect(detectsSeriousDispute(msg)).toBe(false);
   });
 });

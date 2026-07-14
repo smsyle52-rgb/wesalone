@@ -36,8 +36,6 @@ import {
   replyPromisesVerification,
   replyPromisesTeamAction,
   replyPromisesEscalationReview,
-  detectsRefundDemand,
-  detectsSeriousDispute,
 } from "./agent-escalation";
 import { loadSectorAgentContext } from "./agent-sector";
 import { loadLearnedContext } from "../services/agent-learning";
@@ -456,10 +454,11 @@ export async function runAgentReply(params: {
   } catch (err) {
     logger.warn({ err, conversationId: params.conversationId }, "loadOrderStatusContext failed — continuing without order context");
   }
-  // تأريض الأسعار: كتالوج المخزون الحقيقي يُحقن كقائمة حصرية — فشله لا يكسر الردّ.
+  // تأريض الأسعار: كتالوج المخزون الحقيقي يُحقن كسياق. نمرّر searchQuery (المُثرى للمتابعات القصيرة)
+  // ليختار المُحمِّل المنتجات ذات الصلة أولاً ويقصّ غير المتعلقة فقط (ب — تقليص توكِنز بلا تفويت منتج).
   let productCatalogContext = "";
   try {
-    productCatalogContext = await loadProductCatalogContext(params.workspaceId);
+    productCatalogContext = await loadProductCatalogContext(params.workspaceId, searchQuery);
   } catch (err) {
     logger.warn({ err, workspaceId: params.workspaceId }, "loadProductCatalogContext failed — continuing without catalog context");
   }
@@ -726,9 +725,6 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     if (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound)) {
       hardEscalationReasons.push("customer_request");
     }
-    // تصعيد بنيّة العميل (الحل الجذري): نزاع جدّي/تهديد قانوني/اتهام احتيال في رسالة العميل يحتاج
-    // بشراً فوراً — تصعيد صلب مستقلٌّ تماماً عن صياغة الوكيل (يُنهي مطاردة الأنماط لهذه الفئة).
-    if (detectsSeriousDispute(lastInbound?.content ?? "")) hardEscalationReasons.push("dispute_complaint");
     const softAttentionReasons: string[] = [];
     if (replyPromisesVerification(finalReply)) softAttentionReasons.push("verification_promise");
     // وعد عمل من الفريق (13 يوليو): «طلبت من الفريق فيديو» → تنبيه ناعم يجعل الوعد صادقاً
@@ -737,9 +733,6 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     // وعد تصعيد/رفع الأمر للإدارة أو الفريق (أ-2.5، رُصد حيّاً): تنبيه ناعم — التاجر يُشعَر ليراجع
     // ويتصرّف، والوكيل يواصل. «صعّدت طلبك» الصريحة يلتقطها حارس التحويل الصلب أعلاه ويغلب.
     if (replyPromisesEscalationReview(finalReply)) softAttentionReasons.push("escalation_review_promise");
-    // مطالبة استرجاع مال (نيّة العميل): التاجر يُشعَر بكل رسالة استرجاع مهما كتب الوكيل — تنبيه
-    // ناعم لا يُسكِت الوكيل (يبقى يجيب أسئلة سياسة الاسترجاع)، وحُرّاس أ-2 تمنع أي وعد مال خطر.
-    if (detectsRefundDemand(lastInbound?.content ?? "")) softAttentionReasons.push("refund_demand");
 
     const shouldEscalate = hardEscalationReasons.length > 0;
     const needsAttention = !shouldEscalate && softAttentionReasons.length > 0;
@@ -880,7 +873,8 @@ export async function simulateAgentReply(params: {
   });
   let productCatalogContext = "";
   try {
-    productCatalogContext = await loadProductCatalogContext(params.workspaceId);
+    // نفس تقليص الكتالوج المعتمد على الصلة في المسار الحيّ — نمرّر رسالة المحاكاة كسؤال (أمانة المحاكاة).
+    productCatalogContext = await loadProductCatalogContext(params.workspaceId, message);
   } catch (err) {
     logger.warn({ err, workspaceId: params.workspaceId }, "simulate: loadProductCatalogContext failed — continuing without catalog context");
   }
@@ -991,12 +985,10 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   if (intendedCalls.some((call) => call.name === "handoff_to_human")) hardReasons.push("handoff_tool");
   if (replyPromisesHandoff(previewReply)) hardReasons.push("handoff_promise");
   if (includesEscalationKeyword(message)) hardReasons.push("customer_request");
-  if (detectsSeriousDispute(message)) hardReasons.push("dispute_complaint");
   const softReasons: string[] = [];
   if (replyPromisesVerification(previewReply)) softReasons.push("verification_promise");
   if (replyPromisesTeamAction(previewReply)) softReasons.push("team_action_promise");
   if (replyPromisesEscalationReview(previewReply)) softReasons.push("escalation_review_promise");
-  if (detectsRefundDemand(message)) softReasons.push("refund_demand");
   const handoffCommunication = ensureHandoffCommunicated(previewReply, hardReasons.length > 0);
 
   return {
