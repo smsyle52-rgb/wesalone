@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -816,7 +817,7 @@ export default function OrdersPage() {
                       {!isTerminal && canUpdate && (
                         <div className="flex gap-1 shrink-0">
                           <button onClick={() => openEditItem(item)} className="text-xs px-1.5 py-0.5 bg-muted hover:bg-muted/80 rounded text-muted-foreground">تعديل</button>
-                          <button onClick={() => { if (confirm(`حذف "${item.name}"؟`)) deleteItem.mutate(item.id); }}
+                          <button onClick={async () => { if (await confirmDialog(`حذف "${item.name}"؟`)) deleteItem.mutate(item.id); }}
                             disabled={deleteItem.isPending}
                             className="text-xs px-1.5 py-0.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded">حذف</button>
                         </div>
@@ -883,7 +884,7 @@ export default function OrdersPage() {
             {/* Danger zone */}
             {canDelete && (selectedOrder.status === "new" || selectedOrder.status === "cancelled") && (
               <div className="border-t border-border pt-3">
-                <button onClick={() => { if (confirm(`حذف الطلب ${selectedOrder.orderNumber}؟ لا يمكن التراجع.`)) deleteOrder.mutate(selectedOrder.id); }}
+                <button onClick={async () => { if (await confirmDialog(`حذف الطلب ${selectedOrder.orderNumber}؟ لا يمكن التراجع.`)) deleteOrder.mutate(selectedOrder.id); }}
                   disabled={deleteOrder.isPending}
                   className="w-full py-2 rounded-lg bg-destructive/10 text-destructive text-xs hover:bg-destructive/20 transition-colors disabled:opacity-50">
                   {deleteOrder.isPending ? "جار الحذف..." : "حذف الطلب"}

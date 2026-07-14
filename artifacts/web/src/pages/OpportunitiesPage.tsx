@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -119,7 +120,7 @@ export default function OpportunitiesPage({ prefill }: { prefill?: { contactId?:
             className="text-xs px-2 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded">إنشاء طلب</button>
         )}
         {canDelete && !TERMINAL_STAGES.includes(r.stage) && (
-          <button onClick={() => { if (confirm(`حذف "${r.title}"؟`)) deleteOpp.mutate(r.id); }}
+          <button onClick={async () => { if (await confirmDialog(`حذف "${r.title}"؟`)) deleteOpp.mutate(r.id); }}
             className="text-xs px-2 py-1 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded">حذف</button>
         )}
       </div>

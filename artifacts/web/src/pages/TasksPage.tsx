@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -105,7 +106,7 @@ export default function TasksPage({ prefill }: { prefill?: { contactId?: string;
           <button onClick={() => setStatusTask(r)} className="text-xs px-2 py-1 bg-muted hover:bg-muted/80 rounded text-muted-foreground">تغيير</button>
         )}
         {canDelete && ["pending", "in_progress"].includes(r.status) && (
-          <button onClick={() => { if (confirm(`حذف "${r.title}"؟`)) deleteTask.mutate(r.id); }}
+          <button onClick={async () => { if (await confirmDialog(`حذف "${r.title}"؟`)) deleteTask.mutate(r.id); }}
             className="text-xs px-2 py-1 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded">حذف</button>
         )}
       </div>

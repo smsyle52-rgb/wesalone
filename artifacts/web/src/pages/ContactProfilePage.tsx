@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Merge, Plus, Trash2 } from "lucide-react";
@@ -477,7 +478,7 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
             )}
             {canDelete && (
               <button
-                onClick={() => { if (confirm(`هل تريد أرشفة "${contact.name}"؟ ستختفي من القائمة وتبقى سجلاتها محفوظة.`)) deleteContact.mutate(); }}
+                onClick={async () => { if (await confirmDialog(`هل تريد أرشفة "${contact.name}"؟ ستختفي من القائمة وتبقى سجلاتها محفوظة.`)) deleteContact.mutate(); }}
                 disabled={deleteContact.isPending}
                 className="px-3 py-1.5 text-xs bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors"
               >
@@ -930,7 +931,7 @@ export default function ContactProfilePage({ contactId }: { contactId: string })
                   <div className="truncate text-sm font-medium">{candidate.name}</div>
                   <div className="truncate text-xs text-muted-foreground" dir="ltr">{candidate.phone ?? candidate.email ?? "—"}</div>
                 </div>
-                <button disabled={mergeContact.isPending} onClick={() => { if (confirm(`سيتم دمج «${candidate.name}» داخل «${contact.name}» وأرشفة النسخة المكررة. هل تريد المتابعة؟`)) mergeContact.mutate(candidate.id); }} className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">دمج</button>
+                <button disabled={mergeContact.isPending} onClick={async () => { if (await confirmDialog(`سيتم دمج «${candidate.name}» داخل «${contact.name}» وأرشفة النسخة المكررة. هل تريد المتابعة؟`)) mergeContact.mutate(candidate.id); }} className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">دمج</button>
               </div>
             ))}
           </div>

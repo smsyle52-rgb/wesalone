@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -287,8 +288,8 @@ export default function ProductsPage() {
           )}
           {canDelete && !p.isArchived && (
             <button
-              onClick={() => {
-                if (confirm(`أرشفة "${p.name}"؟`)) archiveMut.mutate(p.id);
+              onClick={async () => {
+                if (await confirmDialog(`أرشفة "${p.name}"؟`)) archiveMut.mutate(p.id);
               }}
               className="text-xs text-red-500 hover:underline"
             >

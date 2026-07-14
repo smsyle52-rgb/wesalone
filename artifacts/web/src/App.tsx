@@ -54,6 +54,7 @@ import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { DirectionProvider } from "@workspace/ui/direction-provider";
 import { TooltipProvider } from "@workspace/ui/tooltip";
 import { Toaster } from "@workspace/ui/sonner";
+import { ConfirmDialogHost } from "@/components/ui/confirm-dialog";
 import {
   isMarketingRoute,
   isRunningAsInstalledApp,
@@ -295,6 +296,7 @@ function App() {
                 <InternalRouteMemory />
                 <Router />
                 <Toaster />
+                <ConfirmDialogHost />
                 <PwaInstallBanner />
               </WouterRouter>
             </AuthProvider>

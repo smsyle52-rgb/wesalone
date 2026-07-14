@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAuth } from "@/context/AuthContext";
@@ -428,7 +429,7 @@ export default function KnowledgePage() {
                   {selectedBase && <Badge status={selectedBase.status} />}
                   {canDelete && selectedBase?.status === "active" && (
                     <button
-                      onClick={() => { if (confirm("هل تريد أرشفة هذه القاعدة؟")) archiveBase.mutate(selectedBaseId!); }}
+                      onClick={async () => { if (await confirmDialog("هل تريد أرشفة هذه القاعدة؟")) archiveBase.mutate(selectedBaseId!); }}
                       className="text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1 rounded hover:bg-muted"
                     >
                       أرشفة
@@ -504,13 +505,13 @@ export default function KnowledgePage() {
                             {s.rawText && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{s.rawText}</p>}
                           </div>
                           {canDelete && s.status !== "archived" && (
-                            <button onClick={() => { if (confirm("أرشفة المصدر؟")) archiveSource.mutate(s.id); }}
+                            <button onClick={async () => { if (await confirmDialog("أرشفة المصدر؟")) archiveSource.mutate(s.id); }}
                               className="text-xs text-muted-foreground hover:text-red-500 transition-colors shrink-0">
                               أرشفة
                             </button>
                           )}
                           {canDelete && (
-                            <button onClick={() => { if (confirm("حذف المصدر نهائياً؟ لا يمكن التراجع.")) deleteSource.mutate(s.id); }}
+                            <button onClick={async () => { if (await confirmDialog("حذف المصدر نهائياً؟ لا يمكن التراجع.")) deleteSource.mutate(s.id); }}
                               className="text-xs text-red-500 hover:text-red-700 transition-colors shrink-0">
                               حذف
                             </button>
@@ -572,13 +573,13 @@ export default function KnowledgePage() {
                                 </button>
                               )}
                               {canDelete && doc.status !== "archived" && (
-                                <button onClick={() => { if (confirm("أرشفة الوثيقة؟")) archiveDoc.mutate(doc.id); }}
+                                <button onClick={async () => { if (await confirmDialog("أرشفة الوثيقة؟")) archiveDoc.mutate(doc.id); }}
                                   className="text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1">
                                   أرشفة
                                 </button>
                               )}
                               {canDelete && (
-                                <button onClick={() => { if (confirm("حذف الوثيقة نهائياً؟ لا يمكن التراجع.")) deleteDoc.mutate(doc.id); }}
+                                <button onClick={async () => { if (await confirmDialog("حذف الوثيقة نهائياً؟ لا يمكن التراجع.")) deleteDoc.mutate(doc.id); }}
                                   className="text-xs text-red-500 hover:text-red-700 transition-colors px-2 py-1">
                                   حذف
                                 </button>
@@ -642,13 +643,13 @@ export default function KnowledgePage() {
                                 </button>
                               )}
                               {canDelete && faq.status === "active" && (
-                                <button onClick={() => { if (confirm("أرشفة هذا السؤال؟")) archiveFaq.mutate(faq.id); }}
+                                <button onClick={async () => { if (await confirmDialog("أرشفة هذا السؤال؟")) archiveFaq.mutate(faq.id); }}
                                   className="text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1">
                                   أرشفة
                                 </button>
                               )}
                               {canDelete && (
-                                <button onClick={() => { if (confirm("حذف السؤال نهائياً؟ لا يمكن التراجع.")) deleteFaq.mutate(faq.id); }}
+                                <button onClick={async () => { if (await confirmDialog("حذف السؤال نهائياً؟ لا يمكن التراجع.")) deleteFaq.mutate(faq.id); }}
                                   className="text-xs text-red-500 hover:text-red-700 transition-colors px-2 py-1">
                                   حذف
                                 </button>

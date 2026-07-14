@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -625,7 +626,7 @@ export default function DebtsPage() {
 
             {canDelete && isTerminal && (
               <div className="border-t border-border pt-3">
-                <button onClick={() => { if (confirm("حذف هذا الدين نهائياً؟")) deleteDebt.mutate(); }}
+                <button onClick={async () => { if (await confirmDialog("حذف هذا الدين نهائياً؟")) deleteDebt.mutate(); }}
                   disabled={deleteDebt.isPending}
                   className="w-full py-2 rounded-lg bg-destructive/10 text-destructive text-sm hover:bg-destructive/20 transition-colors disabled:opacity-50">
                   {deleteDebt.isPending ? "جار الحذف..." : "حذف الدين"}
