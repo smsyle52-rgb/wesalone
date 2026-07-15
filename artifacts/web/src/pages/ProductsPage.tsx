@@ -110,6 +110,10 @@ export default function ProductsPage() {
   const [err, setErr] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importCurrency, setImportCurrency] = useState<Currency>("YER");
+  const [importResult, setImportResult] = useState<{ created: number; updated: number; skipped: number; total: number } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["products", showArchived, search],
@@ -176,6 +180,30 @@ export default function ProductsPage() {
     },
     onError: (e: Error) => setErr(e.message),
   });
+
+  const importMut = useMutation({
+    mutationFn: () =>
+      apiFetch("products/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: importText, currency: importCurrency }),
+      }),
+    onSuccess: (res: { created: number; updated: number; skipped: number; total: number }) => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      setImportResult(res);
+      setImportText("");
+      setErr("");
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const openImport = () => {
+    setImportText("");
+    setImportResult(null);
+    setImportCurrency("YER");
+    setErr("");
+    setImportOpen(true);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -308,13 +336,22 @@ export default function ProductsPage() {
         subtitle="إدارة منتجاتك وكمياتها المتاحة"
         actions={
           canCreate ? (
-            <button
-              onClick={openCreate}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90"
-            >
-              <Plus size={16} />
-              منتج جديد
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={openImport}
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:bg-accent"
+              >
+                <Package size={16} />
+                استيراد من Manager
+              </button>
+              <button
+                onClick={openCreate}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90"
+              >
+                <Plus size={16} />
+                منتج جديد
+              </button>
+            </div>
           ) : undefined
         }
       />
@@ -709,6 +746,68 @@ export default function ProductsPage() {
           </div>
         </Modal>
       )}
+
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="استيراد المخزون من Manager">
+        <div className="space-y-4" dir="rtl">
+          <div className="rounded-xl border border-border bg-muted/30 p-4 text-xs leading-relaxed text-muted-foreground">
+            <p className="mb-1 text-sm font-semibold text-foreground">من برنامج Manager إلى وصال</p>
+            في Manager: افتح قائمة المخزون <span className="font-mono">Inventory Items</span> → حدّد الجدول وانسخه
+            (Copy) → الصقه في الأسفل. لا بد أن يتضمّن صفّ العناوين (مثل <span className="font-mono">Item Name</span>،
+            <span className="font-mono"> Sale Price</span>، <span className="font-mono">Qty on hand</span>). نتعرّف على
+            الأعمدة تلقائياً، عربية كانت أو إنجليزية. تكرار الاستيراد يُحدّث المنتجات (بالكود ثم بالاسم) ولا يُكرّرها.
+          </div>
+
+          {err && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">{err}</div>}
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">عملة الأسعار</label>
+            <select
+              value={importCurrency}
+              onChange={(e) => setImportCurrency(e.target.value as Currency)}
+              className={surfaceInputClassName()}
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">بيانات المخزون (منسوخة من Manager)</label>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              rows={8}
+              dir="ltr"
+              placeholder={"Item Code  Item Name  Sale Price  Qty on hand\nP-001  عطر عود ملكي  45000  12"}
+              className={`${surfaceInputClassName()} font-mono text-xs`}
+            />
+          </div>
+
+          {importResult && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+              ✅ تمّ الاستيراد: أُضيف <b>{importResult.created}</b> · حُدِّث <b>{importResult.updated}</b>
+              {importResult.skipped ? ` · تُخطّي ${importResult.skipped} صفاً بلا اسم` : ""} (الإجمالي {importResult.total}).
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setImportOpen(false)}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
+            >
+              {importResult ? "إغلاق" : "إلغاء"}
+            </button>
+            <button
+              onClick={() => importMut.mutate()}
+              disabled={importMut.isPending || !importText.trim()}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {importMut.isPending ? "جارٍ الاستيراد…" : "استيراد"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

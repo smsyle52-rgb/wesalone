@@ -6,6 +6,7 @@ import { requireSession } from "../../middlewares/requireSession";
 import { requirePermission } from "../../middlewares/requirePermission";
 import { createAuditLog, auditFromRequest } from "../../lib/audit";
 import type { AuthenticatedRequest } from "../../lib/types";
+import { parseManagerInventory } from "./manager-import";
 
 const router = Router();
 router.use(requireSession);
@@ -83,6 +84,93 @@ router.post("/", requirePermission("products:create"), async (req: Authenticated
   });
 
   res.status(201).json({ product });
+});
+
+// POST /api/products/import — استيراد مخزون من Manager (نصّ مُلصَق CSV/TSV) → upsert منتجات وصال.
+// المطابقة للتحديث: بالكود (sku) إن وُجد وإلّا بالاسم — فإعادة الاستيراد تُحدّث لا تُكرّر.
+const importSchema = z.object({
+  text: z.string().min(1, "الصق بيانات المخزون من Manager"),
+  currency: z.enum(["YER", "SAR", "USD"]).default("YER"),
+});
+
+router.post("/import", requirePermission("products:create"), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = importSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" });
+    return;
+  }
+  const { activeWorkspaceId } = req.sessionUser;
+  const { text, currency } = parsed.data;
+
+  const result = parseManagerInventory(text);
+  if (!result.headerFound) {
+    res.status(400).json({ error: "لم أتعرّف على عمود اسم المنتج — تأكّد أنك نسخت صفّ العناوين من Manager أيضاً (Item Name / الاسم)." });
+    return;
+  }
+  if (result.rows.length === 0) {
+    res.status(400).json({ error: "لم أجد صفوف منتجات صالحة في المُلصَق." });
+    return;
+  }
+  if (result.rows.length > 2000) {
+    res.status(400).json({ error: "الحدّ الأقصى 2000 منتج في الاستيراد الواحد — قسّمه على دفعات." });
+    return;
+  }
+
+  let created = 0;
+  let updated = 0;
+  const errors: Array<{ row: number; reason: string }> = [];
+
+  for (let i = 0; i < result.rows.length; i++) {
+    const row = result.rows[i];
+    try {
+      const [existing] = await db.select({ id: inventoryProductsTable.id })
+        .from(inventoryProductsTable)
+        .where(and(
+          eq(inventoryProductsTable.workspaceId, activeWorkspaceId),
+          row.sku ? eq(inventoryProductsTable.sku, row.sku) : eq(inventoryProductsTable.name, row.name),
+        ))
+        .limit(1);
+
+      if (existing) {
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
+        if (row.sku) updates.name = row.name; // مطابقة بالكود → حدّث الاسم أيضاً إن تغيّر في Manager
+        if (row.price !== null) updates.price = String(row.price);
+        if (row.cost !== null) updates.cost = String(row.cost);
+        if (row.quantityAvailable !== null) updates.quantityAvailable = row.quantityAvailable;
+        if (row.unit) updates.unit = row.unit;
+        await db.update(inventoryProductsTable)
+          .set(updates)
+          .where(and(eq(inventoryProductsTable.id, existing.id), eq(inventoryProductsTable.workspaceId, activeWorkspaceId)));
+        updated += 1;
+      } else {
+        await db.insert(inventoryProductsTable).values({
+          workspaceId: activeWorkspaceId,
+          name: row.name,
+          sku: row.sku,
+          price: row.price !== null ? String(row.price) : "0",
+          cost: row.cost !== null ? String(row.cost) : null,
+          currency,
+          unit: row.unit,
+          quantityAvailable: row.quantityAvailable,
+        });
+        created += 1;
+      }
+    } catch {
+      errors.push({ row: i + 2, reason: "تعذّر حفظ هذا الصف" }); // +2 = صفّ العنوان + الفهرسة من 1
+    }
+  }
+
+  await createAuditLog({
+    ...auditFromRequest(req, req.sessionUser),
+    workspaceId: activeWorkspaceId,
+    action: "products_import_manager",
+    entityType: "product",
+    entityId: activeWorkspaceId,
+    entityLabel: `Manager import +${created} ~${updated}`,
+    newData: { created, updated, skipped: result.skipped, mappedColumns: result.mappedColumns },
+  });
+
+  res.json({ ok: true, created, updated, skipped: result.skipped, total: result.rows.length, errors, mappedColumns: result.mappedColumns });
 });
 
 // GET /api/products/:id
