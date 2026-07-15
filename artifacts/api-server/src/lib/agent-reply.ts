@@ -127,6 +127,12 @@ const REPLY_LENGTH_PRESETS: Record<string, string> = {
 // لأن المحادثة تُصعَّد فعلاً معه دائماً)، ولا يكشف أي تفصيل تقني (محمية #10).
 const SAFE_REVIEW_REPLY = "أحتاج أن أحوّل طلبك للفريق لمراجعته والتأكد من تنفيذه بشكل صحيح.";
 
+// الردّ الآمن الناعم (16 يوليو 2026): حرّاس المعلومة (سعر/ساعات/روابط/وعد مال) كانت تُسكِت الوكيل
+// وتحوّل للبشر عند أي اختراع — فكانت تقتل المحادثات وتخسّر عملاء. الآن تُصلح الرسالة (فلا معلومة
+// مخترعة) لكن الوكيل **يواصل الخدمة** (تنبيه ناعم للتاجر، لا إسكات). هذا الردّ يَعِد بالتأكّد فقط
+// (verification، صادق مع بقاء الوكيل نشطاً) ولا يَعِد بتحويل — العميل يكمل معه في نفس الرسالة.
+const SOFT_REVIEW_REPLY = "اسمح لي أتأكّد من هذه النقطة بدقّة من الفريق وأوافيك بها مؤكّدة قريباً — وأنا في خدمتك لأي استفسار آخر الآن.";
+
 // التأكيد الحتمي عند نجاح أداة handoff_to_human بلا نصّ مصاحب (مُستخرَج ثابتاً ليُقارَن به في
 // ensureHandoffCommunicated — صياغته «بحوّلك» لا تطابق أنماط وعد التحويل فتحتاج مقارنة صريحة).
 const HANDOFF_TOOL_CONFIRMATION = "لحظة من فضلك، بحوّلك لأحد أعضاء الفريق ليكمل معك.";
@@ -691,7 +697,14 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     const ungroundedPrice = (claimGuardTripped || unauthorizedLink || ungroundedHours)
       ? null
       : findUngroundedPrice(candidateReply, allowedPriceContext);
-    const finalReply = (claimGuardTripped || unauthorizedLink || ungroundedHours || ungroundedPrice) ? SAFE_REVIEW_REPLY : candidateReply;
+    // تقسيم الحرّاس (16 يوليو 2026 — قرار مالك «التحويل الزائد يخسّرني عملاء»): الادّعاء الكاذب عن
+    // تنفيذ فعلي (طلب/دفع سُجِّل) يبقى تحويلاً صلباً (خطر حقيقي). أما حرّاس المعلومة الأربعة (وعد
+    // مال/رابط/ساعات/سعر) فتُصلح الرسالة (لا معلومة مخترعة) لكنها تنبيهٌ ناعم — الوكيل يواصل الخدمة.
+    const hardClaimGuard = unbackedClaim !== null || paymentClaim;
+    const softInfoGuard = moneyPromise || unauthorizedLink !== null || ungroundedHours !== null || ungroundedPrice !== null;
+    const finalReply = hardClaimGuard
+      ? SAFE_REVIEW_REPLY
+      : (softInfoGuard ? SOFT_REVIEW_REPLY : candidateReply);
 
     if (!finalReply) {
       await db.update(aiRunsTable).set({
@@ -712,24 +725,27 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     // ولأن قواعد التأريض نفسها تأمر النموذج بهذه العبارة كلما غابت معلومة، كانت أغلب المحادثات
     // تموت خلال أول رسائل («الوكيل لا يرد/لا يستخدم المخزون/يحوّل دون طلب العميل» — شكاوى حية).
     // الآن مستويان:
-    //  - تحويل كامل (hardEscalationReasons): فشل أداة، بوابة الادّعاء، أداة handoff فعلية،
+    //  - تحويل كامل (hardEscalationReasons): فشل أداة، ادّعاء طلب/دفع كاذب، أداة handoff فعلية،
     //    وعد تحويل نصّي، طلب صريح من العميل → يسكت الوكيل + إشعار تحويل للعميل + إشعار التاجر.
-    //  - تنبيه ناعم (needsAttention): «سأتأكد من الفريق» فقط → إشعار للتاجر + علامة needsHuman
-    //    في الوارد، والوكيل يواصل خدمة العميل طبيعياً — لا إسكات ولا إشعار تحويل.
+    //  - تنبيه ناعم (needsAttention): حرّاس المعلومة الأربعة (سعر/ساعات/رابط/وعد مال) + «سأتأكد من
+    //    الفريق» → الرسالة أُصلحت والتاجر يُشعَر، والوكيل يواصل الخدمة — لا إسكات ولا إشعار تحويل.
     const hardEscalationReasons: string[] = [];
     if (hasToolProblem) hardEscalationReasons.push("tool_failure");
     if (unbackedClaim) hardEscalationReasons.push(`unbacked_claim:${unbackedClaim}`);
     if (paymentClaim) hardEscalationReasons.push("payment_confirmation_claim");
-    if (moneyPromise) hardEscalationReasons.push("money_transfer_promise");
-    if (unauthorizedLink) hardEscalationReasons.push(`unauthorized_link:${unauthorizedLink}`);
-    if (ungroundedHours) hardEscalationReasons.push(`ungrounded_hours:${ungroundedHours}`);
-    if (ungroundedPrice) hardEscalationReasons.push(`ungrounded_price:${ungroundedPrice}`);
     if (hasHandoff) hardEscalationReasons.push("handoff_tool");
     if (replyPromisesHandoff(finalReply)) hardEscalationReasons.push("handoff_promise");
     if (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound)) {
       hardEscalationReasons.push("customer_request");
     }
     const softAttentionReasons: string[] = [];
+    // حرّاس المعلومة الأربعة (16 يوليو 2026 — «التحويل الزائد يخسّرني عملاء»): نُقِلت من التحويل
+    // الصلب إلى التنبيه الناعم — الرسالة أُصلحت (SOFT_REVIEW_REPLY) فلا معلومة مخترعة، والتاجر
+    // يُشعَر ليزوّد الصحيح، والوكيل يبقى نشطاً بدل ما يُسكَت (سبب نزيف العملاء).
+    if (moneyPromise) softAttentionReasons.push("money_transfer_promise");
+    if (unauthorizedLink) softAttentionReasons.push(`unauthorized_link:${unauthorizedLink}`);
+    if (ungroundedHours) softAttentionReasons.push(`ungrounded_hours:${ungroundedHours}`);
+    if (ungroundedPrice) softAttentionReasons.push(`ungrounded_price:${ungroundedPrice}`);
     if (replyPromisesVerification(finalReply)) softAttentionReasons.push("verification_promise");
     // وعد عمل من الفريق (13 يوليو): «طلبت من الفريق فيديو» → تنبيه ناعم يجعل الوعد صادقاً
     // (التاجر يُشعَر فيرسل الوسائط) دون إسكات الوكيل — نفس سياسة verification_promise المتدرّجة.
@@ -977,19 +993,24 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   // السياق هنا = التعليمات + المعرفة + الكتالوج + رسالة العميل (لا سياق طلبات في المحاكاة).
   const allowedPriceContext = [systemPrompt, knowledgeContext, productCatalogContext, message].join("\n");
   const ungroundedPrice = claimGuardTripped ? null : findUngroundedPrice(candidateReply, allowedPriceContext);
-  const previewReply = (claimGuardTripped || ungroundedPrice) ? SAFE_REVIEW_REPLY : candidateReply;
+  // نفس تقسيم الحرّاس الحيّ (16 يوليو): ادّعاء طلب/دفع كاذب → تحويل صلب (SAFE_REVIEW_REPLY)؛
+  // حرّاس المعلومة (وعد مال/سعر) → تنبيه ناعم (SOFT_REVIEW_REPLY) والوكيل يواصل.
+  const hardClaimGuard = unbackedClaim !== null || paymentClaim;
+  const softInfoGuard = moneyPromise || ungroundedPrice !== null;
+  const previewReply = hardClaimGuard ? SAFE_REVIEW_REPLY : (softInfoGuard ? SOFT_REVIEW_REPLY : candidateReply);
 
   // نفس السياسة المتدرّجة الحيّة: «سأتأكد من الفريق» تنبيه ناعم لا يحوّل ولا يغيّر الردّ —
   // wouldEscalate هنا يعكس التحويل الكامل فقط (ما سيُسكِت الوكيل فعلاً)، والمعاينة = المُرسَل.
   const hardReasons: string[] = [];
   if (unbackedClaim) hardReasons.push(`unbacked_claim:${unbackedClaim}`);
   if (paymentClaim) hardReasons.push("payment_confirmation_claim");
-  if (moneyPromise) hardReasons.push("money_transfer_promise");
-  if (ungroundedPrice) hardReasons.push(`ungrounded_price:${ungroundedPrice}`);
   if (intendedCalls.some((call) => call.name === "handoff_to_human")) hardReasons.push("handoff_tool");
   if (replyPromisesHandoff(previewReply)) hardReasons.push("handoff_promise");
   if (includesEscalationKeyword(message)) hardReasons.push("customer_request");
   const softReasons: string[] = [];
+  // حرّاس المعلومة → تنبيه ناعم (16 يوليو): الرسالة أُصلحت والوكيل يواصل، لا تحويل.
+  if (moneyPromise) softReasons.push("money_transfer_promise");
+  if (ungroundedPrice) softReasons.push(`ungrounded_price:${ungroundedPrice}`);
   if (replyPromisesVerification(previewReply)) softReasons.push("verification_promise");
   if (replyPromisesTeamAction(previewReply)) softReasons.push("team_action_promise");
   if (replyPromisesEscalationReview(previewReply)) softReasons.push("escalation_review_promise");
