@@ -15,6 +15,7 @@ import { ACTIVE_PROVIDER, getDefaultModel, runAI } from "./ai-provider";
 import { classifyComplexity, resolveModel } from "./model-router";
 import { logger } from "./logger";
 import {
+  AGENT_TOOL_KEYS,
   buildAgentToolDeclarations,
   executeAgentToolCalls,
   hasCriticalAgentToolFailure,
@@ -279,6 +280,45 @@ function findJsonObjectEnd(text: string, start: number): number {
   return -1;
 }
 
+// حادثة ثانية (13 يوليو 2026 — «استدعاء أداة» بصيغة نداء دالة): صياغة مختلفة تماماً عن كتلة
+// JSON أعلاه — النموذج يكتب "استدعاء أداة handoff_to_human(reason=\"...\")" كنص عربي حرّ بأقواس
+// عادية، بلا أي قوس معقوف. الارتكاز هنا على اسم الأداة الحقيقي نفسه (قائمة مغلقة من AGENT_TOOL_KEYS)
+// لا على عبارة تمهيدية قد تتغيّر صياغتها من ردّ لآخر — عميل حقيقي لن يكتب طبيعياً "handoff_to_human("
+// في رسالته، فهذا ارتكاز آمن بلا اشتباه كاذب متوقّع.
+const TOOL_CALL_PAREN_PATTERN = new RegExp(`\\b(?:${AGENT_TOOL_KEYS.join("|")})\\s*\\(`);
+
+// ماسح أقواس واعٍ بالنصوص، بنفس منطق findJsonObjectEnd لكن للأقواس العادية (يتجاهل ما بداخل السلاسل).
+function findParenEnd(text: string, openIndex: number): number {
+  let depth = 0;
+  let inString = false;
+  let quoteChar = "";
+  let escaped = false;
+  for (let i = openIndex; i < text.length; i += 1) {
+    const ch = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === "\\") { if (inString) escaped = true; continue; }
+    if (inString) { if (ch === quoteChar) inString = false; continue; }
+    if (ch === '"' || ch === "'") { inString = true; quoteChar = ch; continue; }
+    if (ch === "(") depth += 1;
+    else if (ch === ")") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+// يحلّل "مفتاح=\"قيمة\", مفتاح2='قيمة2'" (نمط kwargs) إلى كائن وسائط — بلا اعتماد على JSON.parse.
+function parseParenStyleArgs(inner: string): Record<string, unknown> {
+  const args: Record<string, unknown> = {};
+  const pattern = /(\w+)\s*=\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(inner)) !== null) {
+    args[match[1]!] = match[2] ?? match[3] ?? "";
+  }
+  return args;
+}
+
 function parseSalvagedCalls(blob: string): SalvagedToolCall[] {
   let parsed: unknown;
   try {
@@ -336,6 +376,29 @@ export function extractTextualToolCalls(text: string): { cleanText: string; call
     calls.push(...parseSalvagedCalls(working.slice(openIndex, endIndex + 1)));
     working = `${working.slice(0, openIndex)}${working.slice(endIndex + 1)}`;
   }
+
+  // الممرّ الثاني — صيغة نداء الدالة بأقواس عادية (حادثة 13 يوليو): يعمل بعد ممرّ JSON أعلاه،
+  // بلا أي تغيير على واجهة الدالة أو مستدعييها.
+  for (let round = 0; round < 3; round += 1) {
+    const marker = working.match(TOOL_CALL_PAREN_PATTERN);
+    if (marker?.index === undefined) break;
+    const nameStart = marker.index;
+    const openParen = nameStart + marker[0].length - 1; // موضع '(' نفسه
+    const closeParen = findParenEnd(working, openParen);
+    // اقتصاص من بداية السطر الحاوي (لا من اسم الأداة فقط) — فتُزال أي عبارة عربية/إنجليزية
+    // تمهيدية سبقته ("استدعاء أداة"، "Tool call:"...) تلقائياً بغض النظر عن صياغتها الدقيقة.
+    const lineStart = working.lastIndexOf("\n", nameStart) + 1;
+    if (closeParen === -1) {
+      // قوس بلا إغلاق (ردّ مقطوع) — اقتصّ من بداية السطر لنهاية النص، لا إنقاذ لاستدعاء مبتور.
+      working = working.slice(0, lineStart);
+      break;
+    }
+    const toolName = marker[0].slice(0, -1).trim();
+    const args = parseParenStyleArgs(working.slice(openParen + 1, closeParen));
+    calls.push({ name: toolName, arguments: args });
+    working = `${working.slice(0, lineStart)}${working.slice(closeParen + 1)}`;
+  }
+
   return { cleanText: working.replace(/\n{3,}/g, "\n\n").trim(), calls };
 }
 

@@ -79,4 +79,53 @@ describe("extractTextualToolCalls — حارس تسريب استدعاءات ا�
     expect(result.cleanText).toBe("تمام.");
     expect(result.calls[0]!.arguments.caption).toBe("صورة {المنتج} المطلوب");
   });
+
+  // حادثة ثانية (13 يوليو 2026): عميل حقيقي استلم "استدعاء أداة handoff_to_human(reason=\"...\")"
+  // بأقواس عادية — صياغة مختلفة تماماً عن كتلة JSON أعلاه، فشل ممرّ JSON في التقاطها إطلاقاً.
+  describe("الممرّ الثاني — صيغة نداء الدالة بأقواس عادية", () => {
+    it("حمولة الحادثة الحرفية: يقتصّ السطر كاملاً (بالعبارة العربية التمهيدية) وينقذ handoff_to_human بوسيطة reason", () => {
+      const reply = `أهلاً بك يا غالي، ولا تقلق بخصوص الحساب؛ الموديل هذا مش ظاهر عندي في النظام حالياً وثواني لزميلي في العمل يدخل يتأكد لك من توفره وسعره في المخزن ويحل حالاً لك أي مشكلة في التواصل.\nاستدعاء أداة handoff_to_human(reason="العميل يواجه مشكلة في مراسلة الرقم المعروض وظهور رسالة تقييد الحساب، ويحتاج التأكد من توفر موديل الملكي")`;
+      const result = extractTextualToolCalls(reply);
+
+      expect(result.cleanText).not.toContain("استدعاء أداة");
+      expect(result.cleanText).not.toContain("handoff_to_human");
+      expect(result.cleanText).not.toContain("(");
+      expect(result.cleanText).toContain("ولا تقلق بخصوص الحساب");
+
+      expect(result.calls).toHaveLength(1);
+      expect(result.calls[0]!.name).toBe("handoff_to_human");
+      expect(result.calls[0]!.arguments.reason).toContain("تقييد الحساب");
+    });
+
+    it("بلا أي عبارة تمهيدية على الإطلاق: يُكتشف وينقذ بالاعتماد على اسم الأداة وحده", () => {
+      const reply = `تمام، لحظة.\ncreate_order(productName="بخور فاخر", quantity="2")`;
+      const result = extractTextualToolCalls(reply);
+      expect(result.cleanText).toBe("تمام، لحظة.");
+      expect(result.calls).toHaveLength(1);
+      expect(result.calls[0]!.name).toBe("create_order");
+      expect(result.calls[0]!.arguments.quantity).toBe("2");
+    });
+
+    it("قوس داخل قيمة مقتبسة لا يكسر موازنة الأقواس", () => {
+      const reply = `حسناً.\nschedule_followup(note="تابع بعد يومين (مساءً)")`;
+      const result = extractTextualToolCalls(reply);
+      expect(result.cleanText).toBe("حسناً.");
+      expect(result.calls[0]!.arguments.note).toBe("تابع بعد يومين (مساءً)");
+    });
+
+    it("قوس مبتور بلا إغلاق (ردّ مقطوع): يُقتصّ حتى نهاية السطر — لا إنقاذ لاستدعاء مبتور", () => {
+      const reply = `سعره 3000 ريال.\nاستدعاء أداة log_payment_claim(amount="30`;
+      const result = extractTextualToolCalls(reply);
+      expect(result.cleanText).toBe("سعره 3000 ريال.");
+      expect(result.cleanText).not.toContain("(");
+      expect(result.calls).toHaveLength(0);
+    });
+
+    it("أكثر من استدعاء نصّي في نفس الردّ: يُنقذ الاثنان", () => {
+      const reply = `send_product_media(productName="مكينة كيمي")\nhandoff_to_human(reason="متابعة")`;
+      const result = extractTextualToolCalls(reply);
+      expect(result.cleanText).toBe("");
+      expect(result.calls.map((c) => c.name)).toEqual(["send_product_media", "handoff_to_human"]);
+    });
+  });
 });
