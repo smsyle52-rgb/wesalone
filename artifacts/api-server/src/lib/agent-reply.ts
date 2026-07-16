@@ -164,6 +164,18 @@ export function ensureHandoffCommunicated(reply: string, escalated: boolean): { 
   return { reply: `${trimmed}\n\n${HANDOFF_NOTICE}`, noticeAppended: true };
 }
 
+// ادّعاء تنفيذ إجراء بلا أداة يبقى محجوباً، لكنه لا يُسكِت الوكيل ولا يحوّل المحادثة وحده.
+// تأكيد الدفع الكاذب أعلى خطراً ويبقى تحويلاً صلباً. دالة نقية كي يتطابق المسار الحي مع المعاينة.
+export function classifyActionClaimGuard(
+  unbackedClaim: string | null,
+  paymentClaim: boolean,
+): { hardGuard: boolean; softReason: string | null } {
+  return {
+    hardGuard: paymentClaim,
+    softReason: unbackedClaim ? `unbacked_claim:${unbackedClaim}` : null,
+  };
+}
+
 async function upsertUsage(params: {
   workspaceId: string;
   model: string;
@@ -772,9 +784,8 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     const misattributedPrice = (claimGuardTripped || unauthorizedLink || ungroundedHours || ungroundedPrice)
       ? null
       : findMisattributedProductPrice(candidateReply, productCatalogContext);
-    // تقسيم الحرّاس (16 يوليو 2026 — قرار مالك «التحويل الزائد يخسّرني عملاء»): الادّعاء الكاذب عن
-    // تنفيذ فعلي (طلب/دفع سُجِّل) يبقى تحويلاً صلباً (خطر حقيقي). أما حرّاس المعلومة الأربعة (وعد
-    // مال/رابط/ساعات/سعر) فتُصلح الرسالة (لا معلومة مخترعة) لكنها تنبيهٌ ناعم — الوكيل يواصل الخدمة.
+    // تقسيم الحرّاس: ادّعاء تنفيذ طلب بلا أداة يُحجب ويصبح تنبيهاً ناعماً كي لا تُقتل المحادثة؛
+    // تأكيد الدفع الكاذب وحده يبقى تحويلاً صلباً. حرّاس المعلومة تُصلح الرسالة والوكيل يواصل.
     // التحويل الذي يبادره الوكيل بلا طلب صريح من العميل (قرار مالك 16 يوليو 2026 يعكس صلابة سابقة —
     // «التحويل الزائد خسّرني عملاء»): «بحولك لزميلي يتأكد من المخزن» ونحوه كان يُسكِت الوكيل للأبد
     // رغم أن العميل لم يطلب موظفاً أصلاً. الآن: طلب العميل الصريح لموظف يبقى تحويلاً كاملاً؛ أما
@@ -782,10 +793,11 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     const customerRequestedHuman = includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound);
     const promisesHandoff = replyPromisesHandoff(candidateReply);
     const selfInitiatedHandoff = (hasHandoff || promisesHandoff) && !customerRequestedHuman;
-    const hardClaimGuard = unbackedClaim !== null || paymentClaim;
+    const actionClaimPolicy = classifyActionClaimGuard(unbackedClaim, paymentClaim);
+    const hardClaimGuard = actionClaimPolicy.hardGuard;
     // selfInitiatedHandoff يدخل هنا ليُستبدَل الردّ بـSOFT_REVIEW_REPLY: لو بقي نصّ «بحولك للفريق»
     // بينما الوكيل يظل نشطاً لتناقض العميلَ (يُقال له يُحوَّل ثم يستمر الوكيل) — الاستبدال يمنع ذلك.
-    const softInfoGuard = moneyPromise || unauthorizedLink !== null || ungroundedHours !== null || ungroundedPrice !== null || misattributedPrice !== null || selfInitiatedHandoff;
+    const softInfoGuard = actionClaimPolicy.softReason !== null || moneyPromise || unauthorizedLink !== null || ungroundedHours !== null || ungroundedPrice !== null || misattributedPrice !== null || selfInitiatedHandoff;
     const finalReply = hardClaimGuard
       ? SAFE_REVIEW_REPLY
       : (softInfoGuard ? SOFT_REVIEW_REPLY : candidateReply);
@@ -821,19 +833,19 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     // ولأن قواعد التأريض نفسها تأمر النموذج بهذه العبارة كلما غابت معلومة، كانت أغلب المحادثات
     // تموت خلال أول رسائل («الوكيل لا يرد/لا يستخدم المخزون/يحوّل دون طلب العميل» — شكاوى حية).
     // الآن مستويان:
-    //  - تحويل كامل (hardEscalationReasons): فشل أداة، ادّعاء طلب/دفع كاذب، أداة handoff فعلية،
+    //  - تحويل كامل (hardEscalationReasons): فشل أداة، تأكيد دفع كاذب، أداة handoff فعلية،
     //    وعد تحويل نصّي، طلب صريح من العميل → يسكت الوكيل + إشعار تحويل للعميل + إشعار التاجر.
     //  - تنبيه ناعم (needsAttention): حرّاس المعلومة الأربعة (سعر/ساعات/رابط/وعد مال) + «سأتأكد من
     //    الفريق» → الرسالة أُصلحت والتاجر يُشعَر، والوكيل يواصل الخدمة — لا إسكات ولا إشعار تحويل.
     const hardEscalationReasons: string[] = [];
     if (hasToolProblem) hardEscalationReasons.push("tool_failure");
-    if (unbackedClaim) hardEscalationReasons.push(`unbacked_claim:${unbackedClaim}`);
     if (paymentClaim) hardEscalationReasons.push("payment_confirmation_claim");
     // التحويل صلبٌ فقط مع طلب العميل الصريح لموظف؛ مبادرة الوكيل وحدها تنبيهٌ ناعم (أدناه).
     if (hasHandoff && customerRequestedHuman) hardEscalationReasons.push("handoff_tool");
     if (promisesHandoff && customerRequestedHuman) hardEscalationReasons.push("handoff_promise");
     if (customerRequestedHuman) hardEscalationReasons.push("customer_request");
     const softAttentionReasons: string[] = [];
+    if (actionClaimPolicy.softReason) softAttentionReasons.push(actionClaimPolicy.softReason);
     // حرّاس المعلومة الأربعة (16 يوليو 2026 — «التحويل الزائد يخسّرني عملاء»): نُقِلت من التحويل
     // الصلب إلى التنبيه الناعم — الرسالة أُصلحت (SOFT_REVIEW_REPLY) فلا معلومة مخترعة، والتاجر
     // يُشعَر ليزوّد الصحيح، والوكيل يبقى نشطاً بدل ما يُسكَت (سبب نزيف العملاء).
@@ -1095,25 +1107,25 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   const misattributedPrice = (claimGuardTripped || ungroundedPrice)
     ? null
     : findMisattributedProductPrice(candidateReply, productCatalogContext);
-  // نفس تقسيم الحرّاس الحيّ (16 يوليو): ادّعاء طلب/دفع كاذب → تحويل صلب (SAFE_REVIEW_REPLY)؛
-  // حرّاس المعلومة (وعد مال/سعر) → تنبيه ناعم (SOFT_REVIEW_REPLY) والوكيل يواصل.
+  // نفس تقسيم الحرّاس الحيّ: ادّعاء طلب غير مسنود → تنبيه ناعم؛ تأكيد دفع كاذب → تحويل صلب.
   // نفس منطق التحويل الذاتي الحيّ: مبادرة الوكيل بالتحويل بلا طلب صريح من العميل = تنبيه ناعم.
   const customerRequestedHuman = includesEscalationKeyword(message);
   const promisesHandoff = replyPromisesHandoff(candidateReply);
   const selfInitiatedHandoff = (intendedCalls.some((call) => call.name === "handoff_to_human") || promisesHandoff) && !customerRequestedHuman;
-  const hardClaimGuard = unbackedClaim !== null || paymentClaim;
-  const softInfoGuard = moneyPromise || ungroundedPrice !== null || misattributedPrice !== null || selfInitiatedHandoff;
+  const actionClaimPolicy = classifyActionClaimGuard(unbackedClaim, paymentClaim);
+  const hardClaimGuard = actionClaimPolicy.hardGuard;
+  const softInfoGuard = actionClaimPolicy.softReason !== null || moneyPromise || ungroundedPrice !== null || misattributedPrice !== null || selfInitiatedHandoff;
   const previewReply = hardClaimGuard ? SAFE_REVIEW_REPLY : (softInfoGuard ? SOFT_REVIEW_REPLY : candidateReply);
 
   // نفس السياسة المتدرّجة الحيّة: «سأتأكد من الفريق» تنبيه ناعم لا يحوّل ولا يغيّر الردّ —
   // wouldEscalate هنا يعكس التحويل الكامل فقط (ما سيُسكِت الوكيل فعلاً)، والمعاينة = المُرسَل.
   const hardReasons: string[] = [];
-  if (unbackedClaim) hardReasons.push(`unbacked_claim:${unbackedClaim}`);
   if (paymentClaim) hardReasons.push("payment_confirmation_claim");
   if (intendedCalls.some((call) => call.name === "handoff_to_human") && customerRequestedHuman) hardReasons.push("handoff_tool");
   if (promisesHandoff && customerRequestedHuman) hardReasons.push("handoff_promise");
   if (customerRequestedHuman) hardReasons.push("customer_request");
   const softReasons: string[] = [];
+  if (actionClaimPolicy.softReason) softReasons.push(actionClaimPolicy.softReason);
   // حرّاس المعلومة → تنبيه ناعم (16 يوليو): الرسالة أُصلحت والوكيل يواصل، لا تحويل.
   if (moneyPromise) softReasons.push("money_transfer_promise");
   if (ungroundedPrice) softReasons.push(`ungrounded_price:${ungroundedPrice}`);
