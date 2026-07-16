@@ -41,6 +41,7 @@ import {
 } from "./agent-escalation";
 import { loadSectorAgentContext } from "./agent-sector";
 import { loadLearnedContext } from "../services/agent-learning";
+import { writeAgentStatus } from "../modules/conversations/lifecycle";
 
 // تأريض صارم (3 يوليو 2026): حادثة «299 ريال» — النموذج اخترع سعراً رغم قاعدة المنع في
 // SAFETY_SYSTEM_PROMPT، ثم ادّعى «قمت بتحويل طلبك» تهرّباً. هاتان القاعدتان تربطان
@@ -71,6 +72,10 @@ const TOOL_USE_RULES = [
   "للتحويل لموظف بشري: استدعِ أداة handoff_to_human فعلياً — لا تكتفِ بقول إنك ستحوّل. إن لم تستدعِ الأداة فلن يحدث تحويل.",
   "عند التحويل لموظف بشري، لا تذكر أي رقم هاتف أو وسيلة تواصل بديلة من عندك أبداً — التحويل عبر الأداة وحده يكفي، والموظف يكمل المحادثة من هنا نفسها.",
   "إن عرضتَ التحويل على العميل كسؤال («تحب أحوّلك لموظف؟») فلا تستدعِ handoff_to_human في نفس الرسالة أبداً — انتظر موافقته الصريحة في رسالته التالية ثم استدعِ الأداة.",
+  // القاعدة الحاسمة ضد «التحويل الزائد» (16 يوليو 2026 — «التحويل الغبي خسّرني عملاء»): سؤال المنتج/
+  // السعر/المقاس/التوفّر لا يُحوَّل أبداً. كان الوكيل يتهرّب بـ«بحولك لزميلي يتأكد من المخزن» فيسكت
+  // ويخسر العميل — والحل: لا تحويل، بل «سأتأكد وأرجع لك» مع مواصلة الخدمة.
+  "التحويل للبشر لمسائل جدّية فقط (طلب العميل الصريح لموظف، أو شكوى/نزاع لا تقدر تحلّه). سؤالٌ عن منتج أو سعر أو مقاس أو توفّر غير واضح عندك ليس سبباً للتحويل إطلاقاً — لا تحوّل ولا تعرض التحويل ولا تَعِد به من أجله، بل قل بلطف إنك ستتأكّد من الفريق وتواصِل خدمة العميل. لا تقل «بحوّلك لزميلي ليتأكد من المخزن/السعر» أبداً.",
   "صور المنتجات: عندما يسأل العميل عن منتج معيّن معلَّم في الكتالوج بـ«صورة متوفرة»، أرسل صورته عبر send_product_media مع ردّك (باسم المنتج الحرفي من الكتالوج). منتج بلا هذه العلامة لا صورة له — لا تستدعِ الأداة له ولا تَعِد بصورة، اكتفِ بالوصف النصي.",
   "الطلب أولاً، لا تهرّب: عندما يريد العميل الشراء أو الطلب، أمامك خياران فقط — إن عرفتَ المنتج والكمية فاستدعِ create_order فعلياً، وإن نقصك شيء فاسأل العميل عنه مباشرةً. ممنوع منعاً باتاً أن تقول «صعّدت طلبك» أو «سجّلت طلبك» أو ما يشبهها كبديل عن إنشاء الطلب — التصعيد ليس طريقةً لإنهاء عملية بيع، وهو آخر حل لا أوله.",
 ].join("\n");
@@ -770,11 +775,32 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     // تقسيم الحرّاس (16 يوليو 2026 — قرار مالك «التحويل الزائد يخسّرني عملاء»): الادّعاء الكاذب عن
     // تنفيذ فعلي (طلب/دفع سُجِّل) يبقى تحويلاً صلباً (خطر حقيقي). أما حرّاس المعلومة الأربعة (وعد
     // مال/رابط/ساعات/سعر) فتُصلح الرسالة (لا معلومة مخترعة) لكنها تنبيهٌ ناعم — الوكيل يواصل الخدمة.
+    // التحويل الذي يبادره الوكيل بلا طلب صريح من العميل (قرار مالك 16 يوليو 2026 يعكس صلابة سابقة —
+    // «التحويل الزائد خسّرني عملاء»): «بحولك لزميلي يتأكد من المخزن» ونحوه كان يُسكِت الوكيل للأبد
+    // رغم أن العميل لم يطلب موظفاً أصلاً. الآن: طلب العميل الصريح لموظف يبقى تحويلاً كاملاً؛ أما
+    // مبادرة الوكيل نفسه (أداةً أو وعداً نصّياً) بلا ذلك الطلب فتصير تنبيهاً ناعماً — الوكيل يكمل.
+    const customerRequestedHuman = includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound);
+    const promisesHandoff = replyPromisesHandoff(candidateReply);
+    const selfInitiatedHandoff = (hasHandoff || promisesHandoff) && !customerRequestedHuman;
     const hardClaimGuard = unbackedClaim !== null || paymentClaim;
-    const softInfoGuard = moneyPromise || unauthorizedLink !== null || ungroundedHours !== null || ungroundedPrice !== null || misattributedPrice !== null;
+    // selfInitiatedHandoff يدخل هنا ليُستبدَل الردّ بـSOFT_REVIEW_REPLY: لو بقي نصّ «بحولك للفريق»
+    // بينما الوكيل يظل نشطاً لتناقض العميلَ (يُقال له يُحوَّل ثم يستمر الوكيل) — الاستبدال يمنع ذلك.
+    const softInfoGuard = moneyPromise || unauthorizedLink !== null || ungroundedHours !== null || ungroundedPrice !== null || misattributedPrice !== null || selfInitiatedHandoff;
     const finalReply = hardClaimGuard
       ? SAFE_REVIEW_REPLY
       : (softInfoGuard ? SOFT_REVIEW_REPLY : candidateReply);
+
+    // أداة handoff_to_human تقلب الحالة إلى «human» فوراً داخل executeHandoff. إن بادَر الوكيل بها
+    // بلا طلب صريح من العميل، نُلغي هذا القلب ليبقى الوكيل نشطاً (التاجر أُشعِر أصلاً عبر الأداة —
+    // فيبقى التنبيه الناعم قائماً بلا إسكات). طلبُ العميل الصريح لا يصل هنا (selfInitiatedHandoff=false).
+    if (hasHandoff && selfInitiatedHandoff) {
+      await writeAgentStatus({
+        conversationId: params.conversationId,
+        workspaceId: params.workspaceId,
+        agentStatus: "active",
+        extraFields: { needsHuman: false, escalationReason: null },
+      });
+    }
 
     if (!finalReply) {
       await db.update(aiRunsTable).set({
@@ -803,11 +829,10 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     if (hasToolProblem) hardEscalationReasons.push("tool_failure");
     if (unbackedClaim) hardEscalationReasons.push(`unbacked_claim:${unbackedClaim}`);
     if (paymentClaim) hardEscalationReasons.push("payment_confirmation_claim");
-    if (hasHandoff) hardEscalationReasons.push("handoff_tool");
-    if (replyPromisesHandoff(finalReply)) hardEscalationReasons.push("handoff_promise");
-    if (includesEscalationKeyword(lastInbound?.content ?? "") && !hasInboundMedia(lastInbound)) {
-      hardEscalationReasons.push("customer_request");
-    }
+    // التحويل صلبٌ فقط مع طلب العميل الصريح لموظف؛ مبادرة الوكيل وحدها تنبيهٌ ناعم (أدناه).
+    if (hasHandoff && customerRequestedHuman) hardEscalationReasons.push("handoff_tool");
+    if (promisesHandoff && customerRequestedHuman) hardEscalationReasons.push("handoff_promise");
+    if (customerRequestedHuman) hardEscalationReasons.push("customer_request");
     const softAttentionReasons: string[] = [];
     // حرّاس المعلومة الأربعة (16 يوليو 2026 — «التحويل الزائد يخسّرني عملاء»): نُقِلت من التحويل
     // الصلب إلى التنبيه الناعم — الرسالة أُصلحت (SOFT_REVIEW_REPLY) فلا معلومة مخترعة، والتاجر
@@ -817,6 +842,8 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     if (ungroundedHours) softAttentionReasons.push(`ungrounded_hours:${ungroundedHours}`);
     if (ungroundedPrice) softAttentionReasons.push(`ungrounded_price:${ungroundedPrice}`);
     if (misattributedPrice) softAttentionReasons.push(`misattributed_price:${misattributedPrice}`);
+    // تحويل بادَره الوكيل بلا طلب صريح من العميل → تنبيه ناعم (الوكيل يكمل، التاجر يُشعَر) بدل الإسكات.
+    if (selfInitiatedHandoff) softAttentionReasons.push("self_initiated_handoff");
     if (replyPromisesVerification(finalReply)) softAttentionReasons.push("verification_promise");
     // وعد عمل من الفريق (13 يوليو): «طلبت من الفريق فيديو» → تنبيه ناعم يجعل الوعد صادقاً
     // (التاجر يُشعَر فيرسل الوسائط) دون إسكات الوكيل — نفس سياسة verification_promise المتدرّجة.
@@ -1070,8 +1097,12 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
     : findMisattributedProductPrice(candidateReply, productCatalogContext);
   // نفس تقسيم الحرّاس الحيّ (16 يوليو): ادّعاء طلب/دفع كاذب → تحويل صلب (SAFE_REVIEW_REPLY)؛
   // حرّاس المعلومة (وعد مال/سعر) → تنبيه ناعم (SOFT_REVIEW_REPLY) والوكيل يواصل.
+  // نفس منطق التحويل الذاتي الحيّ: مبادرة الوكيل بالتحويل بلا طلب صريح من العميل = تنبيه ناعم.
+  const customerRequestedHuman = includesEscalationKeyword(message);
+  const promisesHandoff = replyPromisesHandoff(candidateReply);
+  const selfInitiatedHandoff = (intendedCalls.some((call) => call.name === "handoff_to_human") || promisesHandoff) && !customerRequestedHuman;
   const hardClaimGuard = unbackedClaim !== null || paymentClaim;
-  const softInfoGuard = moneyPromise || ungroundedPrice !== null || misattributedPrice !== null;
+  const softInfoGuard = moneyPromise || ungroundedPrice !== null || misattributedPrice !== null || selfInitiatedHandoff;
   const previewReply = hardClaimGuard ? SAFE_REVIEW_REPLY : (softInfoGuard ? SOFT_REVIEW_REPLY : candidateReply);
 
   // نفس السياسة المتدرّجة الحيّة: «سأتأكد من الفريق» تنبيه ناعم لا يحوّل ولا يغيّر الردّ —
@@ -1079,14 +1110,15 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   const hardReasons: string[] = [];
   if (unbackedClaim) hardReasons.push(`unbacked_claim:${unbackedClaim}`);
   if (paymentClaim) hardReasons.push("payment_confirmation_claim");
-  if (intendedCalls.some((call) => call.name === "handoff_to_human")) hardReasons.push("handoff_tool");
-  if (replyPromisesHandoff(previewReply)) hardReasons.push("handoff_promise");
-  if (includesEscalationKeyword(message)) hardReasons.push("customer_request");
+  if (intendedCalls.some((call) => call.name === "handoff_to_human") && customerRequestedHuman) hardReasons.push("handoff_tool");
+  if (promisesHandoff && customerRequestedHuman) hardReasons.push("handoff_promise");
+  if (customerRequestedHuman) hardReasons.push("customer_request");
   const softReasons: string[] = [];
   // حرّاس المعلومة → تنبيه ناعم (16 يوليو): الرسالة أُصلحت والوكيل يواصل، لا تحويل.
   if (moneyPromise) softReasons.push("money_transfer_promise");
   if (ungroundedPrice) softReasons.push(`ungrounded_price:${ungroundedPrice}`);
   if (misattributedPrice) softReasons.push(`misattributed_price:${misattributedPrice}`);
+  if (selfInitiatedHandoff) softReasons.push("self_initiated_handoff");
   if (replyPromisesVerification(previewReply)) softReasons.push("verification_promise");
   if (replyPromisesTeamAction(previewReply)) softReasons.push("team_action_promise");
   if (replyPromisesEscalationReview(previewReply)) softReasons.push("escalation_review_promise");

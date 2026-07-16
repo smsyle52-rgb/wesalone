@@ -179,7 +179,7 @@ const TOOL_LABELS: Record<AgentToolKey, string> = {
   log_payment_claim: "Log a pending payment claim for human review. Never confirms money.",
   schedule_followup: "Schedule a future follow-up for the current contact.",
   send_product_media: "Send the product's real image to the customer on the current channel. CALL THIS TOOL whenever the customer asks to see a product, asks for its photo, or asks about a specific product that is marked «صورة متوفرة» in the catalog — do NOT say you sent or will send a picture without calling this tool. Products WITHOUT that mark have no image: never call it for them, describe in text instead.",
-  handoff_to_human: "Move the conversation to human handling immediately. Call ONLY after the customer explicitly asked for a human, agreed to your offer, complained, or you cannot help from the context. NEVER call it in the same turn where you are merely OFFERING or asking whether the customer wants a transfer — offer first, then wait for their consent in their next message.",
+  handoff_to_human: "Move the conversation to a human. Call this ONLY when the customer EXPLICITLY asks to talk to a human/employee/manager, or raises a serious complaint or dispute you cannot resolve. A missing/unclear product, price, size, or availability is NEVER by itself a reason to transfer: in that case tell the customer you will confirm it with the team and keep helping — do NOT hand off, and do NOT offer or promise a transfer for it. NEVER call it in the same turn where you are merely OFFERING or asking whether the customer wants a transfer — offer first, then wait for their explicit consent in their next message.",
 };
 
 function isAgentToolKey(value: string): value is AgentToolKey {
