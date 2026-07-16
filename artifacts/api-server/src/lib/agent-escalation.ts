@@ -568,3 +568,43 @@ export function findUngroundedPrice(reply: string, trustedContext: string): stri
   }
   return null;
 }
+
+// ─── حارس تضارب المنتج (13 يوليو 2026 — حادثة MP300) ──────────────────────────
+// أخطر من الاختراع الصريح: findUngroundedPrice أعلاه يتحقق فقط أن الرقم موجود في مكان ما
+// بالسياق — فسعر حقيقي 100% لمنتج (فساتين يد لبانة: 2250) يمرّ بلا اعتراض حتى لو نُسب زوراً
+// لمنتج آخر لا وجود له في الكتالوج المحقون أصلاً (العميل كتب «موديل 300»، والمعرفة ذكرت
+// «MP300» كمثال تنسيق بحت لا بيانات منتج، فدمج النموذج تسمية العميل المخترعة بأرقام فستان
+// حقيقي وقدّمها كأنها بيانات ذلك «الموديل»). القاعدة هنا أضيق: أي سعر حقيقي من الكتالوج يظهر
+// في الردّ يجب أن يظهر معه اسم منتجه الحقيقي هو نفسه في نفس الردّ — وإلا فهو رقم صحيح بعنوان
+// خاطئ، بصرف النظر عن أي تسمية أخرى (حقيقية أو مخترعة) نُسب إليها.
+// حدّ معروف مقبول (يوافق فلسفة الحارس الناعم نفسها): ردّ قصير يكرّر سعراً بلا إعادة اسم المنتج
+// (متابعة طبيعية لسؤال «بكم؟» السابق) قد يُنبَّه زوراً — مقبول لأن الحارس ناعم (لا يُسكِت الوكيل،
+// فقط يستبدل هذا الردّ بعينه)، مقابل خطر أكبر بكثير: تسريب بيانات منتج حقيقي (سعر/توفر) تحت
+// اسم لا يخص التاجر إطلاقاً.
+function parseCatalogPricePoints(catalogContext: string): Array<{ name: string; price: number }> {
+  const points: Array<{ name: string; price: number }> = [];
+  // يطابق سطر formatProductCatalog حرفياً: "- الاسم: السعر العملة...".
+  const lineRegex = /^- (.+?): (\d+(?:\.\d+)?) /gm;
+  let match: RegExpExecArray | null;
+  while ((match = lineRegex.exec(catalogContext)) !== null) {
+    const price = Number.parseFloat(match[2]!);
+    if (Number.isFinite(price)) points.push({ name: match[1]!.trim(), price });
+  }
+  return points;
+}
+
+// يعيد "الاسم:السعر" لأول منتج ظهر سعرُه الحقيقي في الردّ بلا اسمه، أو null إن كان كل سعر
+// حقيقي مذكوراً مع اسم صاحبه. يحتاج كتالوجاً بمنتجَين فأكثر (بمنتج واحد لا احتمال نسب خاطئ).
+export function findMisattributedProductPrice(reply: string, catalogContext: string): string | null {
+  const points = parseCatalogPricePoints(catalogContext);
+  if (points.length < 2) return null;
+  const replyPrices = new Set(extractPriceValues(reply, true));
+  if (replyPrices.size === 0) return null;
+  const replyNorm = normalizeArabic(reply);
+  for (const point of points) {
+    if (!replyPrices.has(point.price)) continue;
+    const nameNorm = normalizeArabic(point.name);
+    if (nameNorm && !replyNorm.includes(nameNorm)) return `${point.name}:${point.price}`;
+  }
+  return null;
+}

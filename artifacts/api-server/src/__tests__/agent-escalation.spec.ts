@@ -3,6 +3,7 @@ import {
   findUnauthorizedLink,
   findUngroundedWorkHours,
   findUngroundedPrice,
+  findMisattributedProductPrice,
   replyPromisesMoneyToCustomer,
   replyPromisesTeamAction,
   replyPromisesEscalationReview,
@@ -362,6 +363,43 @@ describe("findUngroundedPrice — حارس الأسعار المخترعة/ال�
 
   it("(j) يكشف أول سعر مخترع حتى لو سبقه سعر مسنود في نفس الردّ", () => {
     expect(findUngroundedPrice("العود بـ 45000 ريال، والمروحة بـ 12000 ريال", catalog)).toBe("12000");
+  });
+});
+
+// حادثة MP300 (13 يوليو 2026): العميل كتب «موديل 300» (لا كتالوج له). المعرفة ذكرت «MP300» كمثال
+// تنسيق بحت. النموذج دمج تسمية العميل بأرقام «فساتين يد لبانة» الحقيقية (كتالوج فعلي) وقدّمها
+// كأنها بيانات «الموديل». findUngroundedPrice وحدها لا تكشف هذا (2250 حقيقي وموجود بالسياق) —
+// findMisattributedProductPrice تتحقق أن اسم صاحب السعر الحقيقي مذكور معه، لا أي تسمية أخرى.
+describe("findMisattributedProductPrice — حارس تضارب المنتج (حادثة MP300)", () => {
+  const dressCatalog =
+    "كتالوج المنتجات:\n- فساتين يد لبانة: 2250.00 YER | المتوفر: 10 قطعة\n- MP300: 3000.00 YER | المتوفر: 5 قطعة";
+
+  it("حمولة الحادثة الحرفية: سعر فساتين يد لبانة الحقيقي منسوب لتسمية «MP300» بلا اسمها الحقيقي", () => {
+    const reply = "أهلاً بك، موديل MP300 متوفر عندنا، سعره 2250 ريال، متوفر بمقاس M وXL، بألوان وردي وكحلي وكبدي وأسود.";
+    expect(findMisattributedProductPrice(reply, dressCatalog)).toBe("فساتين يد لبانة:2250");
+  });
+
+  it("لا كشف كاذب: الرد يذكر اسم صاحب السعر الحقيقي معه", () => {
+    const reply = "فساتين يد لبانة سعرها 2250 ريال ومتوفرة بمقاس M وXL.";
+    expect(findMisattributedProductPrice(reply, dressCatalog)).toBeNull();
+  });
+
+  it("لا كشف: سعر المنتج الآخر (MP300 نفسه) مذكور مع اسمه الصحيح", () => {
+    const reply = "MP300 سعره 3000 ريال.";
+    expect(findMisattributedProductPrice(reply, dressCatalog)).toBeNull();
+  });
+
+  it("بلا أي سعر في الرد: لا كشف", () => {
+    expect(findMisattributedProductPrice("أهلاً، كيف أقدر أخدمك؟", dressCatalog)).toBeNull();
+  });
+
+  it("كتالوج بمنتج واحد فقط: لا كشف (لا احتمال نسب خاطئ بلا منتج ثانٍ)", () => {
+    const singleCatalog = "كتالوج المنتجات:\n- فساتين يد لبانة: 2250.00 YER";
+    expect(findMisattributedProductPrice("سعره 2250 ريال يا غالي", singleCatalog)).toBeNull();
+  });
+
+  it("سعر غير موجود في الكتالوج أصلاً: خارج نطاق هذا الحارس (من اختصاص findUngroundedPrice)", () => {
+    expect(findMisattributedProductPrice("سعره 9999 ريال", dressCatalog)).toBeNull();
   });
 });
 

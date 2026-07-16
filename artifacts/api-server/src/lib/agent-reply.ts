@@ -29,6 +29,7 @@ import {
   findUnauthorizedLink,
   findUngroundedWorkHours,
   findUngroundedPrice,
+  findMisattributedProductPrice,
   findUnbackedActionClaim,
   includesEscalationKeyword,
   replyConfirmsPayment,
@@ -760,11 +761,17 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     const ungroundedPrice = (claimGuardTripped || unauthorizedLink || ungroundedHours)
       ? null
       : findUngroundedPrice(candidateReply, allowedPriceContext);
+    // حارس تضارب المنتج (13 يوليو — حادثة MP300): سعر حقيقي مسنود لا يكفي — قد يكون سعر منتج
+    // آخر منسوباً زوراً لتسمية لا كتالوج لها. يُتخطّى إن كان ungroundedPrice قد كشف رقماً غير
+    // مسنود أصلاً (لا حاجة لفحص أضيق على ردّ سيُستبدَل بالفعل).
+    const misattributedPrice = (claimGuardTripped || unauthorizedLink || ungroundedHours || ungroundedPrice)
+      ? null
+      : findMisattributedProductPrice(candidateReply, productCatalogContext);
     // تقسيم الحرّاس (16 يوليو 2026 — قرار مالك «التحويل الزائد يخسّرني عملاء»): الادّعاء الكاذب عن
     // تنفيذ فعلي (طلب/دفع سُجِّل) يبقى تحويلاً صلباً (خطر حقيقي). أما حرّاس المعلومة الأربعة (وعد
     // مال/رابط/ساعات/سعر) فتُصلح الرسالة (لا معلومة مخترعة) لكنها تنبيهٌ ناعم — الوكيل يواصل الخدمة.
     const hardClaimGuard = unbackedClaim !== null || paymentClaim;
-    const softInfoGuard = moneyPromise || unauthorizedLink !== null || ungroundedHours !== null || ungroundedPrice !== null;
+    const softInfoGuard = moneyPromise || unauthorizedLink !== null || ungroundedHours !== null || ungroundedPrice !== null || misattributedPrice !== null;
     const finalReply = hardClaimGuard
       ? SAFE_REVIEW_REPLY
       : (softInfoGuard ? SOFT_REVIEW_REPLY : candidateReply);
@@ -809,6 +816,7 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     if (unauthorizedLink) softAttentionReasons.push(`unauthorized_link:${unauthorizedLink}`);
     if (ungroundedHours) softAttentionReasons.push(`ungrounded_hours:${ungroundedHours}`);
     if (ungroundedPrice) softAttentionReasons.push(`ungrounded_price:${ungroundedPrice}`);
+    if (misattributedPrice) softAttentionReasons.push(`misattributed_price:${misattributedPrice}`);
     if (replyPromisesVerification(finalReply)) softAttentionReasons.push("verification_promise");
     // وعد عمل من الفريق (13 يوليو): «طلبت من الفريق فيديو» → تنبيه ناعم يجعل الوعد صادقاً
     // (التاجر يُشعَر فيرسل الوسائط) دون إسكات الوكيل — نفس سياسة verification_promise المتدرّجة.
@@ -1056,10 +1064,14 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   // السياق هنا = التعليمات + المعرفة + الكتالوج + رسالة العميل (لا سياق طلبات في المحاكاة).
   const allowedPriceContext = [systemPrompt, knowledgeContext, productCatalogContext, message].join("\n");
   const ungroundedPrice = claimGuardTripped ? null : findUngroundedPrice(candidateReply, allowedPriceContext);
+  // نفس حارس تضارب المنتج الحيّ (13 يوليو — حادثة MP300).
+  const misattributedPrice = (claimGuardTripped || ungroundedPrice)
+    ? null
+    : findMisattributedProductPrice(candidateReply, productCatalogContext);
   // نفس تقسيم الحرّاس الحيّ (16 يوليو): ادّعاء طلب/دفع كاذب → تحويل صلب (SAFE_REVIEW_REPLY)؛
   // حرّاس المعلومة (وعد مال/سعر) → تنبيه ناعم (SOFT_REVIEW_REPLY) والوكيل يواصل.
   const hardClaimGuard = unbackedClaim !== null || paymentClaim;
-  const softInfoGuard = moneyPromise || ungroundedPrice !== null;
+  const softInfoGuard = moneyPromise || ungroundedPrice !== null || misattributedPrice !== null;
   const previewReply = hardClaimGuard ? SAFE_REVIEW_REPLY : (softInfoGuard ? SOFT_REVIEW_REPLY : candidateReply);
 
   // نفس السياسة المتدرّجة الحيّة: «سأتأكد من الفريق» تنبيه ناعم لا يحوّل ولا يغيّر الردّ —
@@ -1074,6 +1086,7 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   // حرّاس المعلومة → تنبيه ناعم (16 يوليو): الرسالة أُصلحت والوكيل يواصل، لا تحويل.
   if (moneyPromise) softReasons.push("money_transfer_promise");
   if (ungroundedPrice) softReasons.push(`ungrounded_price:${ungroundedPrice}`);
+  if (misattributedPrice) softReasons.push(`misattributed_price:${misattributedPrice}`);
   if (replyPromisesVerification(previewReply)) softReasons.push("verification_promise");
   if (replyPromisesTeamAction(previewReply)) softReasons.push("team_action_promise");
   if (replyPromisesEscalationReview(previewReply)) softReasons.push("escalation_review_promise");
