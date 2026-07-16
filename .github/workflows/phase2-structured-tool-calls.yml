@@ -1,0 +1,362 @@
+name: Phase 2 structured tool calls
+
+on:
+  push:
+    branches:
+      - fix/phase2-structured-tool-calls
+    paths:
+      - .github/workflows/phase2-structured-tool-calls.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/phase2-structured-tool-calls
+          fetch-depth: 0
+
+      - name: Configure Node and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.2 --activate
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Apply Phase 2 patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          provider_path = Path('artifacts/api-server/src/lib/ai-provider.ts')
+          reply_path = Path('artifacts/api-server/src/lib/agent-reply.ts')
+
+          provider = provider_path.read_text(encoding='utf-8')
+          reply = reply_path.read_text(encoding='utf-8')
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
+
+          old_prompt = '''const SAFETY_SYSTEM_PROMPT = `
+          قواعد صارمة لا يمكن تجاوزها:
+          - لا ترسل أي رسالة تلقائياً بأي حال من الأحوال.
+          - لا تؤكد أي دفعة مالية ولا ترفضها.
+          - لا تغيّر أي دين أو رصيد مالي.
+          - لا تغيّر صلاحيات أي مستخدم.
+          - لا تحذف أي بيانات.
+          - لا تدّعي تنفيذ إجراء — أنت تقترح فقط.
+          - إن لم تعرف الإجابة، اقترح تصعيد الأمر لموظف بشري.
+          - اللهجة حسب تعليمات الوكيل المحدد.
+          `.trim();'''
+
+          new_prompt = '''const DRAFT_SAFETY_SYSTEM_PROMPT = `
+          قواعد صارمة لا يمكن تجاوزها:
+          - لا ترسل أي رسالة تلقائياً بأي حال من الأحوال.
+          - لا تؤكد أي دفعة مالية ولا ترفضها.
+          - لا تغيّر أي دين أو رصيد مالي.
+          - لا تغيّر صلاحيات أي مستخدم.
+          - لا تحذف أي بيانات.
+          - لا تدّعي تنفيذ إجراء — أنت تقترح فقط.
+          - إن لم تعرف الإجابة، اقترح تصعيد الأمر لموظف بشري.
+          - اللهجة حسب تعليمات الوكيل المحدد.
+          `.trim();
+
+          const AGENT_EXECUTION_SAFETY_SYSTEM_PROMPT = `
+          قواعد صارمة لا يمكن تجاوزها:
+          - أنت وكيل تنفيذي، لكن التنفيذ الحقيقي يتم حصراً عبر tool_calls التي ينفذها الخادم.
+          - استخدم فقط الأدوات المذكورة صراحةً في تعليمات هذه المحادثة.
+          - لا تدّعي اكتمال أي إجراء إلا إذا أدرجت tool_call مطابقاً له في نفس الاستجابة.
+          - لا تؤكد أي دفعة مالية ولا ترفضها؛ يمكنك فقط تسجيل ادعاء دفع معلّق عبر الأداة المخصصة.
+          - لا تغيّر أي دين أو رصيد مالي مباشرةً.
+          - لا تغيّر صلاحيات أي مستخدم.
+          - لا تحذف أي بيانات.
+          - إذا كانت بيانات الأداة المطلوبة ناقصة، اطلبها من العميل ولا تنشئ tool_call ناقصاً.
+          - عندما يُطلب JSON، أعد JSON صالحاً فقط بلا Markdown أو نص خارج JSON.
+          - إن لم تعرف الإجابة أو لم توجد أداة مناسبة، اقترح تصعيد الأمر لموظف بشري.
+          - اللهجة حسب تعليمات الوكيل المحدد.
+          `.trim();'''
+
+          provider = replace_once(provider, old_prompt, new_prompt, 'safety prompts')
+
+          provider = replace_once(
+              provider,
+              '''export interface AiRunInput {
+            messages: AiMessage[];
+            model: string;
+            taskType: string;
+            maxTokens?: number;
+          }''',
+              '''export interface AiRunInput {
+            messages: AiMessage[];
+            model: string;
+            taskType: string;
+            maxTokens?: number;
+            executionMode?: "draft" | "agent";
+            responseFormat?: "text" | "json";
+            allowFallback?: boolean;
+          }''',
+              'AiRunInput fields',
+          )
+
+          provider = replace_once(
+              provider,
+              '''function getTemperature(): number {
+            if (!Number.isFinite(DEFAULT_TEMPERATURE)) return 0.3;
+            return Math.min(Math.max(DEFAULT_TEMPERATURE, 0), 1);
+          }
+
+          function summarizeError''',
+              '''function getTemperature(): number {
+            if (!Number.isFinite(DEFAULT_TEMPERATURE)) return 0.3;
+            return Math.min(Math.max(DEFAULT_TEMPERATURE, 0), 1);
+          }
+
+          function getSafetySystemPrompt(input: AiRunInput): string {
+            return input.executionMode === "agent"
+              ? AGENT_EXECUTION_SAFETY_SYSTEM_PROMPT
+              : DRAFT_SAFETY_SYSTEM_PROMPT;
+          }
+
+          function wantsJsonResponse(input: AiRunInput): boolean {
+            return input.responseFormat === "json" || JSON_TASK_TYPES.has(input.taskType);
+          }
+
+          function shouldAllowFallback(input: AiRunInput): boolean {
+            return input.allowFallback !== false;
+          }
+
+          function summarizeError''',
+              'provider helpers',
+          )
+
+          system_old = 'const systemInstruction = [SAFETY_SYSTEM_PROMPT, originalSystem].filter(Boolean).join("\\n\\n");'
+          system_new = 'const systemInstruction = [getSafetySystemPrompt(input), originalSystem].filter(Boolean).join("\\n\\n");'
+          if provider.count(system_old) != 2:
+              raise SystemExit(f'system prompt selection: expected two matches, found {provider.count(system_old)}')
+          provider = provider.replace(system_old, system_new)
+
+          generation_old = '''generationConfig: {
+                  maxOutputTokens: getMaxOutputTokens(input),
+                  temperature: getTemperature(),
+                },'''
+          generation_new = '''generationConfig: {
+                  maxOutputTokens: getMaxOutputTokens(input),
+                  temperature: getTemperature(),
+                  ...(wantsJsonResponse(input) ? { responseMimeType: "application/json" } : {}),
+                },'''
+          if provider.count(generation_old) != 2:
+              raise SystemExit(f'JSON generation config: expected two matches, found {provider.count(generation_old)}')
+          provider = provider.replace(generation_old, generation_new)
+
+          provider = replace_once(
+              provider,
+              '''  if (!process.env.GEMINI_API_KEY) {
+              logger.warn("GEMINI_API_KEY not set, falling back to mock");''',
+              '''  if (!process.env.GEMINI_API_KEY) {
+              if (!shouldAllowFallback(input)) {
+                throw new Error("GEMINI_API_KEY_NOT_CONFIGURED_FOR_AGENT_EXECUTION");
+              }
+              logger.warn("GEMINI_API_KEY not set, falling back to mock");''',
+              'Gemini strict startup',
+          )
+
+          provider = replace_once(
+              provider,
+              '''  } catch (err) {
+              logger.error({ err: summarizeError(err) }, "Gemini API error — تعذر الاتصال بـ Gemini، تم استخدام الوضع التجريبي");
+              _fallbackMode = true;
+              return { ...(await runMock(input)), fallbackUsed: true };
+            }
+          }''',
+              '''  } catch (err) {
+              if (!shouldAllowFallback(input)) {
+                logger.error({ err: summarizeError(err) }, "Gemini agent execution failed without fallback");
+                throw err;
+              }
+              logger.error({ err: summarizeError(err) }, "Gemini API error — تعذر الاتصال بـ Gemini، تم استخدام الوضع التجريبي");
+              _fallbackMode = true;
+              return { ...(await runMock(input)), fallbackUsed: true };
+            }
+          }''',
+              'Gemini strict catch',
+          )
+
+          provider = replace_once(
+              provider,
+              '''  if (!VERTEX_CONFIGURED || !VERTEX_PROJECT_ID) {
+              logger.warn("Vertex AI is not configured, falling back to mock");''',
+              '''  if (!VERTEX_CONFIGURED || !VERTEX_PROJECT_ID) {
+              if (!shouldAllowFallback(input)) {
+                throw new Error("VERTEX_AI_NOT_CONFIGURED_FOR_AGENT_EXECUTION");
+              }
+              logger.warn("Vertex AI is not configured, falling back to mock");''',
+              'Vertex strict startup',
+          )
+
+          provider = replace_once(
+              provider,
+              '''  } catch (err) {
+              logger.error({ err: summarizeError(err) }, "Vertex AI error — تعذر الاتصال بـ Vertex AI، تم استخدام الوضع التجريبي");
+              _fallbackMode = true;
+              return { ...(await runMock(input)), fallbackUsed: true };
+            }
+          }''',
+              '''  } catch (err) {
+              if (!shouldAllowFallback(input)) {
+                logger.error({ err: summarizeError(err) }, "Vertex AI agent execution failed without fallback");
+                throw err;
+              }
+              logger.error({ err: summarizeError(err) }, "Vertex AI error — تعذر الاتصال بـ Vertex AI، تم استخدام الوضع التجريبي");
+              _fallbackMode = true;
+              return { ...(await runMock(input)), fallbackUsed: true };
+            }
+          }''',
+              'Vertex strict catch',
+          )
+
+          reply = replace_once(
+              reply,
+              '''function includesEscalationKeyword(value: string): boolean {
+            return ESCALATION_KEYWORDS.some((keyword) => value.includes(keyword));
+          }
+
+          export async function runAgentReply''',
+              '''function includesEscalationKeyword(value: string): boolean {
+            return ESCALATION_KEYWORDS.some((keyword) => value.includes(keyword));
+          }
+
+          function isStructuredAgentToolResponse(content: string): boolean {
+            const start = content.indexOf("{");
+            const end = content.lastIndexOf("}");
+            if (start < 0 || end <= start) return false;
+
+            try {
+              const parsed = JSON.parse(content.slice(start, end + 1)) as Record<string, unknown>;
+              return typeof parsed.reply === "string" && Array.isArray(parsed.tool_calls);
+            } catch {
+              return false;
+            }
+          }
+
+          export async function runAgentReply''',
+              'tool envelope validator',
+          )
+
+          reply = replace_once(
+              reply,
+              '''    const aiOutput = await runAIWithTimeout({ messages: runMessages, model, taskType: "draft_reply", maxTokens: agent.maxOutputTokens });
+              const parsedOutput = executableTools.length > 0
+                ? parseAgentToolResponse(aiOutput.content)
+                : { reply: aiOutput.content, toolCalls: [] };
+              const toolResults = await executeAgentToolCalls({''',
+              '''    const hasExecutableTools = executableTools.length > 0;
+              const aiOutput = await runAIWithTimeout({
+                messages: runMessages,
+                model,
+                taskType: "draft_reply",
+                maxTokens: agent.maxOutputTokens,
+                executionMode: hasExecutableTools ? "agent" : "draft",
+                responseFormat: hasExecutableTools ? "json" : "text",
+                allowFallback: !hasExecutableTools,
+              });
+              const structuredToolResponse = !hasExecutableTools || isStructuredAgentToolResponse(aiOutput.content);
+              const parsedOutput = hasExecutableTools
+                ? parseAgentToolResponse(aiOutput.content)
+                : { reply: aiOutput.content, toolCalls: [] };
+
+              if (!structuredToolResponse) {
+                await db.insert(aiMessagesTable).values([
+                  { workspaceId: params.workspaceId, aiRunId: run.id, role: "system", content: systemPrompt, metadata: {} },
+                  { workspaceId: params.workspaceId, aiRunId: run.id, role: "user", content: userPrompt, metadata: {} },
+                  {
+                    workspaceId: params.workspaceId,
+                    aiRunId: run.id,
+                    role: "assistant",
+                    content: "تعذر إنشاء استجابة أدوات منظمة.",
+                    metadata: {
+                      knowledgeSources,
+                      toolCalls: [],
+                      toolResults: [],
+                      structuredResponse: false,
+                      rawOutput: aiOutput.content,
+                    },
+                  },
+                ]);
+                throw new Error("AGENT_TOOL_RESPONSE_INVALID");
+              }
+
+              const toolResults = await executeAgentToolCalls({''',
+              'structured execution request',
+          )
+
+          reply = replace_once(
+              reply,
+              '''          metadata: {
+                    knowledgeSources,
+                    toolResults,
+                    rawOutput: parsedOutput.reply !== aiOutput.content ? aiOutput.content : undefined,
+                  },''',
+              '''          metadata: {
+                    knowledgeSources,
+                    toolCalls: parsedOutput.toolCalls,
+                    toolResults,
+                    structuredResponse: hasExecutableTools ? true : undefined,
+                    rawOutput: hasExecutableTools
+                      ? aiOutput.content
+                      : parsedOutput.reply !== aiOutput.content
+                        ? aiOutput.content
+                        : undefined,
+                  },''',
+              'tool diagnostics metadata',
+          )
+
+          provider_path.write_text(provider, encoding='utf-8')
+          reply_path.write_text(reply, encoding='utf-8')
+          PY
+
+          rm -f artifacts/api-server/src/lib/agent-execution.ts
+          rm -f artifacts/api-server/src/lib/agent-reply.phase2.ts
+
+      - name: Validate diff
+        run: git diff --check
+
+      - name: Typecheck libraries
+        run: corepack pnpm run typecheck:libs
+
+      - name: Typecheck API server
+        run: corepack pnpm --filter @workspace/api-server run typecheck
+
+      - name: Build production artifacts
+        run: corepack pnpm run build:prod
+
+      - name: Commit validated patch
+        shell: bash
+        run: |
+          git config user.name "wesal-one-bot"
+          git config user.email "smsyle52@gmail.com"
+          git add artifacts/api-server/src/lib/ai-provider.ts
+          git add artifacts/api-server/src/lib/agent-reply.ts
+          git add artifacts/api-server/src/lib/agent-execution.ts
+          git add artifacts/api-server/src/lib/agent-reply.phase2.ts
+          git add .github/workflows/phase2-structured-tool-calls.yml
+          git rm --cached --ignore-unmatch .github/workflows/phase2-structured-tool-calls.yml
+          rm -f .github/workflows/phase2-structured-tool-calls.yml
+          git add -u .github/workflows/phase2-structured-tool-calls.yml
+          git commit -m "fix(agent): enforce structured Phase 2 tool calls"
+          git push origin HEAD:fix/phase2-structured-tool-calls
