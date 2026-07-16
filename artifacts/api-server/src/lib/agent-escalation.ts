@@ -559,10 +559,32 @@ function extractPriceValues(rawText: string, currencyAnchoredOnly: boolean): num
 
 // يعيد أول سعر في الردّ قيمتُه غير موجودة في السياق الموثوق (مخترع)، أو null إن كان كل سعر مسنوداً.
 // دالة نقية بلا اعتماديات — كسابقاتها. المستدعي مسؤول عن بناء trustedContext بلا ردود الوكيل الصادرة.
-export function findUngroundedPrice(reply: string, trustedContext: string): string | null {
+function extractFixedPriceAdditions(pricingRules: string): number[] {
+  const normalized = normalizeArabic(priceDigitsToWestern(pricingRules));
+  const additions = new Set<number>();
+  const pattern = /(?:اضافه|اضف|زياده(?:\s+قدرها)?)\s*\(?\s*(\d{1,3}(?:[,،ج]\d{3})+|\d+(?:\.\d+)?)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(normalized)) !== null) {
+    const value = Number.parseFloat(match[1]!.replace(/[,،ج]/g, ""));
+    if (Number.isFinite(value) && value > 0) additions.add(value);
+  }
+  return [...additions];
+}
+
+export function findUngroundedPrice(reply: string, trustedContext: string, pricingRules = ""): string | null {
   const candidates = extractPriceValues(reply, true);
   if (candidates.length === 0) return null;
   const grounded = new Set(extractPriceValues(trustedContext, false));
+  // بعض المتاجر تستورد سعر الجملة وتضع في تعليمات الوكيل زيادة ثابتة على سعر المخزون.
+  // لا نعتبر كل أرقام التعليمات أسعاراً موثوقة (الأمثلة قديمة أو تخص منتجاً آخر)؛ نأخذ فقط
+  // مبالغ الإضافة المصرّح بها صراحةً، ونسمح بالناتج الحسابي من سعر مخزون حقيقي.
+  const additions = extractFixedPriceAdditions(pricingRules);
+  if (additions.length > 0) {
+    const basePrices = [...grounded];
+    for (const basePrice of basePrices) {
+      for (const addition of additions) grounded.add(basePrice + addition);
+    }
+  }
   for (const value of candidates) {
     if (!grounded.has(value)) return String(value);
   }

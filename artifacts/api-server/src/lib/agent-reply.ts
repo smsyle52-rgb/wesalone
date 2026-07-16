@@ -774,10 +774,12 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
       .filter((message) => message.direction === "inbound")
       .map((message) => message.content ?? "")
       .join("\n");
-    const allowedPriceContext = [systemPrompt, knowledgeContext, productCatalogContext, orderStatusContext, customerInboundText].join("\n");
+    // المخزون/الطلبات/سؤال العميل هي مصادر السعر. تعليمات النشاط لا تُضاف كاملةً لأنها قد تحوي
+    // أمثلة رقمية؛ تمرَّر منفصلةً كي يسمح الحارس فقط بنتيجة زيادة ثابتة مصرح بها على سعر المخزون.
+    const allowedPriceContext = [knowledgeContext, productCatalogContext, orderStatusContext, customerInboundText].join("\n");
     const ungroundedPrice = (claimGuardTripped || unauthorizedLink || ungroundedHours)
       ? null
-      : findUngroundedPrice(candidateReply, allowedPriceContext);
+      : findUngroundedPrice(candidateReply, allowedPriceContext, instructions?.businessRules ?? "");
     // حارس تضارب المنتج (13 يوليو — حادثة MP300): سعر حقيقي مسنود لا يكفي — قد يكون سعر منتج
     // آخر منسوباً زوراً لتسمية لا كتالوج لها. يُتخطّى إن كان ungroundedPrice قد كشف رقماً غير
     // مسنود أصلاً (لا حاجة لفحص أضيق على ردّ سيُستبدَل بالفعل).
@@ -1100,9 +1102,11 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   const moneyPromise = replyPromisesMoneyToCustomer(candidateReply);
   const claimGuardTripped = unbackedClaim !== null || paymentClaim || moneyPromise;
   // نفس حارس الأسعار الحيّ: أي سعر في المعاينة غير موجود في السياق الموثوق = اختراع يُستبدل.
-  // السياق هنا = التعليمات + المعرفة + الكتالوج + رسالة العميل (لا سياق طلبات في المحاكاة).
-  const allowedPriceContext = [systemPrompt, knowledgeContext, productCatalogContext, message].join("\n");
-  const ungroundedPrice = claimGuardTripped ? null : findUngroundedPrice(candidateReply, allowedPriceContext);
+  // السياق هنا = المعرفة + الكتالوج + رسالة العميل، وقواعد التسعير تمر منفصلة (لا سياق طلبات في المحاكاة).
+  const allowedPriceContext = [knowledgeContext, productCatalogContext, message].join("\n");
+  const ungroundedPrice = claimGuardTripped
+    ? null
+    : findUngroundedPrice(candidateReply, allowedPriceContext, instructions?.businessRules ?? "");
   // نفس حارس تضارب المنتج الحيّ (13 يوليو — حادثة MP300).
   const misattributedPrice = (claimGuardTripped || ungroundedPrice)
     ? null
