@@ -384,6 +384,12 @@ describe("findMisattributedProductPrice — حارس تضارب المنتج (ح
     expect(findMisattributedProductPrice(reply, dressCatalog)).toBeNull();
   });
 
+  it("لا كشف كاذب عند اختصار الاسم طبيعياً (طقم صلاة 5 قطع → طقم الصلاة)", () => {
+    const catalog = "كتالوج المنتجات:\n- طقم صلاة 5 قطع: 8000.00 YER | المتوفر: 20 طقم\n- جلابية منزلية: 6000.00 YER";
+    const reply = "طقم الصلاة متوفر عندنا يا غالية، سعره 8000 ريال. تحبين أعتمده لك؟";
+    expect(findMisattributedProductPrice(reply, catalog)).toBeNull();
+  });
+
   it("لا كشف: سعر المنتج الآخر (MP300 نفسه) مذكور مع اسمه الصحيح", () => {
     const reply = "MP300 سعره 3000 ريال.";
     expect(findMisattributedProductPrice(reply, dressCatalog)).toBeNull();

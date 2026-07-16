@@ -593,8 +593,18 @@ function parseCatalogPricePoints(catalogContext: string): Array<{ name: string; 
   return points;
 }
 
-// يعيد "الاسم:السعر" لأول منتج ظهر سعرُه الحقيقي في الردّ بلا اسمه، أو null إن كان كل سعر
-// حقيقي مذكوراً مع اسم صاحبه. يحتاج كتالوجاً بمنتجَين فأكثر (بمنتج واحد لا احتمال نسب خاطئ).
+// كلمات المنتج المميّزة: كلمات الاسم بعد التطبيع بطول ≥3 محارف. اشتراط ظهور الاسم كاملاً حرفياً
+// أعطى false-positive حياً (اختبار محلي 16 يوليو): الوكيل يختصر «طقم صلاة 5 قطع» إلى «طقم الصلاة»
+// فيُستبدل ردُّ سعرٍ صحيح بـ«سأتأكد من الفريق» — يغذّي شكوى «لا يقرأ المخزون». نكتفي بظهور كلمة
+// مميّزة واحدة على الأقل من اسم المنتج (يكسر النسب الخاطئ في حادثة MP300 حيث لا تظهر «فساتين»
+// ولا «لبانة» إطلاقاً، ويسمح بالاختصار الطبيعي حيث تظهر «طقم» أو «صلاة»).
+function distinctiveWords(name: string): string[] {
+  return normalizeArabic(name).split(/\s+/).filter((w) => w.length >= 3);
+}
+
+// يعيد "الاسم:السعر" لأول منتج ظهر سعرُه الحقيقي في الردّ بلا أي كلمة مميّزة من اسمه، أو null.
+// يحتاج كتالوجاً بمنتجَين فأكثر (بمنتج واحد لا احتمال نسب خاطئ). المنتج بلا كلمة مميّزة (اسم
+// رقمي/قصير جداً) يُتخطّى — لا يمكن التحقق منه بأمان بلا false-positive.
 export function findMisattributedProductPrice(reply: string, catalogContext: string): string | null {
   const points = parseCatalogPricePoints(catalogContext);
   if (points.length < 2) return null;
@@ -603,8 +613,9 @@ export function findMisattributedProductPrice(reply: string, catalogContext: str
   const replyNorm = normalizeArabic(reply);
   for (const point of points) {
     if (!replyPrices.has(point.price)) continue;
-    const nameNorm = normalizeArabic(point.name);
-    if (nameNorm && !replyNorm.includes(nameNorm)) return `${point.name}:${point.price}`;
+    const words = distinctiveWords(point.name);
+    if (words.length === 0) continue;
+    if (!words.some((w) => replyNorm.includes(w))) return `${point.name}:${point.price}`;
   }
   return null;
 }
