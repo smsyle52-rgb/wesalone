@@ -571,7 +571,13 @@ function extractFixedPriceAdditions(pricingRules: string): number[] {
   return [...additions];
 }
 
-export function findUngroundedPrice(reply: string, trustedContext: string, pricingRules = ""): string | null {
+export function findUngroundedPrice(
+  reply: string,
+  trustedContext: string,
+  pricingRules = "",
+  productCatalogContext = "",
+  productSubjectContext = reply,
+): string | null {
   const candidates = extractPriceValues(reply, true);
   if (candidates.length === 0) return null;
   const grounded = new Set(extractPriceValues(trustedContext, false));
@@ -580,8 +586,13 @@ export function findUngroundedPrice(reply: string, trustedContext: string, prici
   // مبالغ الإضافة المصرّح بها صراحةً، ونسمح بالناتج الحسابي من سعر مخزون حقيقي.
   const additions = extractFixedPriceAdditions(pricingRules);
   if (additions.length > 0) {
-    const basePrices = [...grounded];
-    for (const basePrice of basePrices) {
+    // لا نكوّن السعر النهائي من أي رقم عابر في المعرفة/الكمية أو من منتج آخر ضمن حشو الكتالوج.
+    // يجب أن يكون سعر الأساس من سطر منتج حقيقي، وأن يظهر اسم ذلك المنتج في سؤال العميل أو الرد.
+    const subjectNorm = normalizeArabic(productSubjectContext);
+    const relevantCatalogPrices = parseCatalogPricePoints(productCatalogContext)
+      .filter((point) => distinctiveWords(point.name).some((word) => subjectNorm.includes(word)))
+      .map((point) => point.price);
+    for (const basePrice of relevantCatalogPrices) {
       for (const addition of additions) grounded.add(basePrice + addition);
     }
   }

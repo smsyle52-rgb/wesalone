@@ -368,7 +368,7 @@ describe("findUngroundedPrice — حارس الأسعار المخترعة/ال�
   it("يمرّر سعر البيع الناتج من زيادة ثابتة مصرح بها على سعر المخزون", () => {
     const wholesaleCatalog = "كتالوج المنتجات:\n- جلابية مطرزة: 4000.00 YER | المتوفر: 4";
     const rules = "قسم الجلابيات: قم بإضافة (500 ريال يمني) فوق السعر الموجود في منجر.";
-    expect(findUngroundedPrice("سعر الجلابية 4500 ريال", wholesaleCatalog, rules)).toBeNull();
+    expect(findUngroundedPrice("سعر الجلابية 4500 ريال", wholesaleCatalog, rules, wholesaleCatalog)).toBeNull();
   });
 
   it("لا يجعل أمثلة الأسعار في تعليمات النشاط مصدراً مستقلاً للسعر", () => {
@@ -379,7 +379,18 @@ describe("findUngroundedPrice — حارس الأسعار المخترعة/ال�
   it("يرفض ناتجاً لا يساوي سعر المخزون مع الزيادة المصرح بها", () => {
     const wholesaleCatalog = "كتالوج المنتجات:\n- جلابية مطرزة: 4000.00 YER | المتوفر: 4";
     const rules = "أضف 500 ريال فوق السعر الموجود في المخزون.";
-    expect(findUngroundedPrice("سعر الجلابية 4750 ريال", wholesaleCatalog, rules)).toBe("4750");
+    expect(findUngroundedPrice("سعر الجلابية 4750 ريال", wholesaleCatalog, rules, wholesaleCatalog)).toBe("4750");
+  });
+
+  it("لا يخلط زيادة صحيحة مع سعر أساس يخص منتجاً آخر في الكتالوج", () => {
+    const mixedCatalog = [
+      "كتالوج المنتجات:",
+      "- فساتين MP905: 2250.00 YER | المتوفر: 5",
+      "- جلابية مطرزة: 5000.00 YER | المتوفر: 2",
+    ].join("\n");
+    const rules = "الفساتين والجلابيات: قم بإضافة 500 ريال فوق سعر المخزون.";
+    expect(findUngroundedPrice("سعر MP905 هو 5500 ريال", mixedCatalog, rules, mixedCatalog, "أريد MP905\nسعر MP905 هو 5500 ريال"))
+      .toBe("5500");
   });
 });
 

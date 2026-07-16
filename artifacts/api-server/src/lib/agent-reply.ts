@@ -779,7 +779,13 @@ ${transcript || "لا توجد رسائل في هذه المحادثة"}${knowle
     const allowedPriceContext = [knowledgeContext, productCatalogContext, orderStatusContext, customerInboundText].join("\n");
     const ungroundedPrice = (claimGuardTripped || unauthorizedLink || ungroundedHours)
       ? null
-      : findUngroundedPrice(candidateReply, allowedPriceContext, instructions?.businessRules ?? "");
+      : findUngroundedPrice(
+          candidateReply,
+          allowedPriceContext,
+          instructions?.businessRules ?? "",
+          productCatalogContext,
+          `${customerInboundText}\n${candidateReply}`,
+        );
     // حارس تضارب المنتج (13 يوليو — حادثة MP300): سعر حقيقي مسنود لا يكفي — قد يكون سعر منتج
     // آخر منسوباً زوراً لتسمية لا كتالوج لها. يُتخطّى إن كان ungroundedPrice قد كشف رقماً غير
     // مسنود أصلاً (لا حاجة لفحص أضيق على ردّ سيُستبدَل بالفعل).
@@ -1106,7 +1112,13 @@ ${transcript}${knowledgeContext}${productCatalogContext ? `\n\n${productCatalogC
   const allowedPriceContext = [knowledgeContext, productCatalogContext, message].join("\n");
   const ungroundedPrice = claimGuardTripped
     ? null
-    : findUngroundedPrice(candidateReply, allowedPriceContext, instructions?.businessRules ?? "");
+    : findUngroundedPrice(
+        candidateReply,
+        allowedPriceContext,
+        instructions?.businessRules ?? "",
+        productCatalogContext,
+        `${message}\n${candidateReply}`,
+      );
   // نفس حارس تضارب المنتج الحيّ (13 يوليو — حادثة MP300).
   const misattributedPrice = (claimGuardTripped || ungroundedPrice)
     ? null
