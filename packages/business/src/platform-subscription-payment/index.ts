@@ -1,0 +1,1 @@
+export { platformSubscriptionPaymentService } from "./service"

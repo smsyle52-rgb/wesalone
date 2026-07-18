@@ -1,0 +1,22 @@
+# Keep Cloud Build upload small and secret-free. Mirrors .dockerignore, plus
+# explicit .env exclusion (no .gcloudignore existed before; without one and
+# without a .git repo here, gcloud has no reliable default to fall back on).
+node_modules
+**/node_modules
+.turbo
+.next
+dist
+build
+coverage
+.vitest-cache
+.pnpm-store
+docker-data
+reports
+.devcontainer
+.git
+.env
+.env.local
+.env.*.local
+.env.dev
+.env.prod
+!.env.example

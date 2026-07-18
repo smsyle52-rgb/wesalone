@@ -1,0 +1,50 @@
+timeout: 3600s
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: build-builder
+    name: gcr.io/cloud-builders/docker
+    args: [build, --file=apps/builder/docker/Dockerfile, --tag=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/builder:$SHORT_SHA, .]
+  - id: push-builder
+    name: gcr.io/cloud-builders/docker
+    args: [push, us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/builder:$SHORT_SHA]
+    waitFor: [build-builder]
+  - id: deploy-builder
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: [run, services, update, wesal-one-next-builder, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/builder:$SHORT_SHA, --quiet]
+    waitFor: [push-builder]
+
+  - id: build-worker
+    name: gcr.io/cloud-builders/docker
+    args: [build, --file=apps/worker/docker/Dockerfile, --tag=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/worker:$SHORT_SHA, .]
+  - id: push-worker
+    name: gcr.io/cloud-builders/docker
+    args: [push, us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/worker:$SHORT_SHA]
+    waitFor: [build-worker]
+  - id: deploy-worker
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: [beta, run, worker-pools, update, wesal-one-next-worker, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/worker:$SHORT_SHA, --quiet]
+    waitFor: [push-worker]
+
+  - id: build-realtime
+    name: gcr.io/cloud-builders/docker
+    args: [build, --file=apps/realtime/docker/Dockerfile, --tag=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/realtime:$SHORT_SHA, .]
+  - id: push-realtime
+    name: gcr.io/cloud-builders/docker
+    args: [push, us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/realtime:$SHORT_SHA]
+    waitFor: [build-realtime]
+  - id: deploy-realtime
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: [run, services, update, wesal-one-next-realtime, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/realtime:$SHORT_SHA, --quiet]
+    waitFor: [push-realtime]
+
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/builder:$SHORT_SHA
+  - us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/worker:$SHORT_SHA
+  - us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/realtime:$SHORT_SHA

@@ -1,125 +1,217 @@
-# وصال ون — Wesal One
+<p align="center">
+  <a href="https://github.com/ChatbotXIO/ChatbotX" target="_blank" rel="noopener">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/chatbotx-logo-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/chatbotx-logo-light.svg">
+      <img alt="ChatbotX Logo" src=".github/assets/readme/chatbotx-logo-light.svg" width="280">
+    </picture>
+  </a>
+</p>
 
-منصة B2B تُعطي التاجر العربي وكيل مبيعات ذكياً يردّ على عملائه ويُنجز مهمات (طلبات، متابعات، تصعيد) عبر قنوات Meta — واتساب، إنستغرام، ماسنجر.
+<p align="center">
+  <a href="https://opensource.org/license/mit">
+    <img alt="License" src="https://img.shields.io/badge/license-MIT-blue?labelColor=111827">
+  </a>
+</p>
 
----
+<p align="center">
+  <strong>Agentic chat marketing platform built for OpenClaw, Hermes, and Claude</strong>
+  <br>
+  An alternative to ManyChat, Chatfuel, Wati, Respond, etc...
+</p>
 
-## البنية العامة
+<p align="center">
+  <a href="https://chatbotx.io/">Website</a>
+  |
+  <a href="https://chatbotx.canny.io/">Roadmap</a>
+  |
+  <a href="https://chatbotx.io/docs" rel="dofollow">Docs</a>
+  |
+  <a href="https://discord.chatbotx.io/">Discord</a>
+</p>
 
+<p align="center">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white">
+  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-111827?logo=nextdotjs&logoColor=white">
+  <img alt="Turborepo" src="https://img.shields.io/badge/Turborepo-EF4444?logo=turborepo&logoColor=white">
+  <img alt="pnpm" src="https://img.shields.io/badge/pnpm-F69220?logo=pnpm&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white">
+  <img alt="Redis" src="https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white">
+  <img alt="MCP" src="https://img.shields.io/badge/MCP-111827">
+</p>
+
+<p align="center">
+  <img alt="WhatsApp" src=".github/assets/readme/whatsapp.svg" width="32">
+  <img alt="Messenger" src=".github/assets/readme/messenger.svg" width="32">
+  <img alt="Instagram" src=".github/assets/readme/instagram.svg" width="32">
+  <img alt="Telegram" src=".github/assets/readme/telegram.svg" width="32">
+  <img alt="Zalo" src=".github/assets/readme/zalo.svg" width="32">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme/tiktok-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/readme/tiktok-light.svg">
+    <img alt="TikTok" src=".github/assets/readme/tiktok-light.svg" width="32">
+  </picture>
+  <img alt="Email" src=".github/assets/readme/email.svg" width="32">
+  <img alt="Website" src=".github/assets/readme/website.svg" width="32">
+</p>
+
+<p align="center">
+  <a href="https://youtube.com/@chatbotxofficial" rel="dofollow"><strong>Watch the YouTube Tutorials»</strong></a>
+  <br />
+</p>
+
+<p align="center">
+  <a href="https://app.chatbotx.io">Register</a>
+  ·
+  <a href="https://chatbotx.io/docs/cli/introduction">CLI</a>
+  ·
+  <a href="https://chatbotx.io/docs/mcp/introduction">MCP</a>
+  ·
+  <a href="https://chatbotx.io/docs/api-reference/api-overview">Public API</a><br />
+</p>
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=b1NUlA-fIzw" target="_blank">
+    <img alt="ChatbotX Omnichannel" src=".github/assets/readme/chatbotx-hero.png">
+  </a>
+</p>
+
+## ✨ Features
+
+- **Omnichannel:** WhatsApp, Facebook, Instagram, TikTok, Telegram, Zalo, Email, API, and Webchat
+- **Visual Flow Builder:** Drag-and-drop chatbot builder with 15+ node types
+- **AI Agents:** OpenAI, Claude, Gemini, DeepSeek, OpenRouter, NVIDIA NIM, and Local LLMs
+- **Live Chat Inbox:** Real-time inbox with human takeover and conversation assignment
+- **Contact CRM:** Manage contacts with tags, custom fields, and segmentation
+- **Broadcasting:** Send targeted messages to specific contact segments
+- **Sequences:** Automate drip campaigns with scheduled messages and auto-enrollment
+- **Team Management:** Invite team members, assign roles, and manage permissions
+- **Rich Messaging:** Media, files, buttons, quick replies, catalogs, locations, and carousel cards
+- **Comment-to-DM:** Automatically message users who comment with specific keywords
+- **A/B Testing:** Test and optimize different message flows
+- **Triggers:** Execute actions based on events within your bot
+- **Webhooks & HTTP:** Integrate external APIs directly into your flows
+- **Growth Tools:** Generate conversation starter links for each platform
+- **Analytics:** Track performance metrics, user engagement, and campaign results
+- **APIs, CLI, and MCP:** Build advanced agent workflows with MCP-compatible clients
+
+| ![Omnichannel Team Inbox](https://github.com/user-attachments/assets/daa23e91-7ba5-4093-8605-e77cddebe35c) | ![Smart Contact Import](https://github.com/user-attachments/assets/6a4a6c7d-5a77-4f3c-900b-d87cb849e589) |
+| ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| ![Visual Flow Builder](https://github.com/user-attachments/assets/6f0448ad-0f32-4065-9e2a-f41b5354a68f)    | ![Built-in AI Agents](https://github.com/user-attachments/assets/365167c6-b4d9-498a-8b8c-a5079b82edbf)   |
+
+## Why ChatbotX?
+
+| Feature | ManyChat | ChatbotX |
+|---|---:|---:|
+| Self-Hosted | ❌ | ✅ |
+| White Label | ❌ | ✅ |
+| CLI & MCP | ❌ | ✅ |
+| Cost Growth | ✅ | ❌ |
+| Public API | Limited | ✅ |
+| Omnichannel | Limited | ✅ |
+| AI Agents | Limited | ✅ |
+| AI Credits | Add-on | BYOK |
+
+## Tech Stack
+
+- Node.js 24
+- TypeScript 5
+- pnpm 10 workspaces
+- Turborepo
+- Next.js 16 and React 19 for `apps/builder`
+- PartyKit / PartySocket for realtime messaging
+- Drizzle ORM with PostgreSQL and pgvector
+- Redis and BullMQ for queues and worker coordination
+- RustFS / S3-compatible storage for uploaded assets
+- Docker Compose for local infrastructure
+
+## Quick Start
+
+To have the project up and running, please follow the [Quick Start Guide](https://chatbotx.io/docs/quickstart).
+
+## Project Structure
+
+```text
+.
+|-- apps/
+|   |-- builder/       # Next.js web app and product builder
+|   |-- worker/        # background workers for chat, AI, triggers, webhooks, analytics, sequences
+|   |-- realtime/      # realtime server
+|   |-- cli/           # ChatbotX command line client
+|   `-- mcp-server/    # MCP server backed by public APIs
+|-- integrations/
+|   |-- whatsapp/
+|   |-- messenger/
+|   |-- instagram/
+|   |-- telegram/
+|   |-- zalo/
+|   |-- tiktok/
+|   |-- webchat/
+|   |-- smtp/
+|   |-- openai/
+|   |-- google-sheets/
+|   `-- ...           # email/CRM: mailchimp, klaviyo, active-campaign, drip, get-response, mailer-lite, moosend, sendgrid
+|-- packages/
+|   |-- database/
+|   |-- ai/
+|   |-- auth/
+|   |-- business/
+|   |-- automated-response/
+|   |-- analytics/
+|   |-- event-bus/
+|   |-- mail/
+|   |-- imports/
+|   |-- flow-config/
+|   |-- variables/
+|   |-- sdk/
+|   |-- scheduler/
+|   |-- sequence-scheduler/
+|   |-- ui/
+|   `-- worker-config/
+|-- docker-compose.yml
+|-- pnpm-workspace.yaml
+`-- turbo.json
 ```
-monorepo (pnpm workspaces)
-├── artifacts/
-│   ├── api-server/     ← الخادم الرئيسي (Express 5, Node 22)
-│   ├── outbox-worker/  ← worker منفصل (إرسال + تشغيل الوكيل)
-│   └── web/            ← لوحة التحكم (React 19 + Vite)
-├── lib/
-│   └── db/             ← Drizzle ORM + schema مشترك
-└── scripts/            ← سكربتات تشغيلية (enable:phase2-tools …)
-```
 
-### api-server
-خادم HTTP يستقبل webhooks من Meta، يخدم API للواجهة، يبثّ أحداث SSE للوارد الحي، ويستدعي الـAI لتوليد الردود.
-
-### outbox-worker
-عملية مستقلة تعمل في Cloud Run منفصلاً:
-- كل **3 ثوانٍ**: يسحب `outbox_events` المعلّقة ويرسلها لـMeta Graph API (واتساب / إنستغرام / ماسنجر).
-- كل **5 ثوانٍ**: يسحب `domain_events` (نوع `message.received`) ويستدعي `/internal/agent-reply` في api-server لتشغيل الوكيل.
-
-الفرق الجوهري: **api-server يستقبل ويقرر، outbox-worker يُرسل وينفّذ.**
-
----
-
-## التشغيل المحلي
+## Development Commands
 
 ```bash
-# المتطلبات: Node 22, pnpm (عبر corepack)
-corepack enable
-
-# تثبيت الاعتماديات
-corepack pnpm install
-
-# typecheck كامل
-corepack pnpm run typecheck
-
-# بناء كامل (بدون mockup-sandbox)
-corepack pnpm run build:prod
-
-# تشغيل api-server
-corepack pnpm --filter @workspace/api-server run dev
-
-# تشغيل outbox-worker (نافذة منفصلة)
-corepack pnpm --filter @workspace/outbox-worker run dev
+pnpm dev              # run turbo dev
+pnpm build            # build all packages/apps through Turborepo
+pnpm lint             # run Ultracite lint
+pnpm fix              # run Ultracite fix
+pnpm check:circular   # check circular dependencies
+pnpm check:unused     # check unused files and dependencies
 ```
 
-متغيرات البيئة المطلوبة: انظر **الأسرار** أدناه.
+Useful package-level commands:
 
----
+```bash
+pnpm --filter builder dev
+pnpm --filter worker dev
+pnpm --filter realtime dev
+pnpm --filter chatbotx-cli dev:cli
+pnpm --filter chatbotx-mcp-server dev:mcp
+pnpm --filter @chatbotx.io/database db:studio
+```
 
-## البناء والنشر
+## Services
 
-كل `push` على `main` يُطلق Cloud Build triggers تلقائياً:
+The default Docker Compose stack includes:
 
-| Trigger | الملف | الخدمة |
-|---|---|---|
-| `khadamatak-staging` | `cloudbuild.yaml` | api-server + web |
-| `khadamatak-worker` | `cloudbuild.worker.yaml` | outbox-worker |
+- PostgreSQL with pgvector on `5432`
+- Redis on `6379`
+- RedisInsight on `5540`
+- RustFS object storage on `9000` and console on `9001`
+- MailHog SMTP on `1025` and UI on `8025`
+- Adminer on `8080`
 
-النشر يستغرق ~3-4 دقائق. **لا تحتاج push يدوي للصور.**
+## Support
 
----
+If ChatbotX helps you avoid expensive chatbot automation tools, please give us a ⭐ on GitHub.
+We're also working hard to bring open-source mobile apps to **iOS and Android** this year
 
-## الأسرار وإعداد البيئة
+## License
 
-جميع الأسرار في **GCP Secret Manager** وتُحقن وقت النشر عبر Cloud Build.
-لا يوجد سر في الكود أو git history.
-
-| المتغير | الوصف | مطلوب |
-|---|---|---|
-| `DATABASE_URL` | PostgreSQL (Cloud SQL) connection string | ✅ |
-| `SESSION_SECRET` | توقيع كوكيز الجلسة (≥32 حرف في الإنتاج) | ✅ |
-| `INTERNAL_SECRET` | يحمي `/internal/*` بين api-server وworker | ✅ في الإنتاج |
-| `META_SYSTEM_USER_TOKEN` | توكن واتساب (Tech Provider) | ✅ |
-| `META_WEBHOOK_SECRET` أو `META_APP_SECRET` | سر توقيع HMAC للـwebhook | ✅ |
-| `META_WEBHOOK_VERIFY_TOKEN` | رمز التحقق عند تسجيل الـwebhook | ✅ |
-| `META_OAUTH_STATE_SECRET` أو `SESSION_SECRET` | مفتاح فك تشفير توكنات IG/Messenger | ✅ |
-| `GEMINI_API_KEY` | Gemini AI (اختياري — بديل Vertex) | اختياري |
-| `ALLOWED_ORIGINS` | قائمة origins مسموح بها لـCORS (فاصلة) | اختياري |
-| `EMBEDDINGS_DRY_RUN` | `false` في الإنتاج لتفعيل المتجهات الحقيقية | `false` |
-
-للتطوير المحلي: انسخ `.env.example` (إن وُجد) أو أنشئ `.env` في جذر المشروع. الملف مُستثنى من git.
-
----
-
-## قنوات Meta
-
-| القناة | النموذج | الحالة |
-|---|---|---|
-| واتساب | Tech Provider (توكن مشترك `META_SYSTEM_USER_TOKEN`) | ✅ حي |
-| إنستغرام | page token مشفّر AES-256-GCM لكل حساب | ✅ حي |
-| ماسنجر | page token مشفّر AES-256-GCM لكل صفحة | ✅ حي |
-
-ربط IG/Messenger: `POST /api/integrations/meta/embedded-signup/instagram/complete` و`/messenger/complete`.
-
----
-
-## الـAI
-
-الأولوية: **Vertex AI → Gemini → mock** (يُحدَّد عند الإقلاع).
-عند غياب AI الحقيقي: الوكيل يُصعّد للبشر بصمت — لا يصل نص تجريبي للعميل.
-
----
-
-## قاعدة البيانات
-
-PostgreSQL (Cloud SQL). المخطط والهجرات في `lib/db/`.
-نموذج متعدد العملاء (Pool): بنية مشتركة + عزل منطقي بعمود `workspace_id` على كل استعلام.
-
----
-
-## ملفات مرجعية
-
-| الملف | الوصف |
-|---|---|
-| `WESAL_ONE_CHAT_HANDOFF.md` | الحالة الحيّة — النطاقات المُغلقة والمعلّقة |
-| `.claude/skills/wesal-one-agents/references/launch-readiness-plan.md` | خطة جاهزية الإطلاق الكاملة |
-| `DEPLOYMENT_STAGING.md` | تفاصيل إعداد Cloud Run |
+ChatbotX' Community Edition is released as open source under the [MIT License](https://github.com/ChatbotXIO/ChatbotX/blob/main/LICENSE) and enterprise features are released under [Commercial License](https://github.com/ChatbotXIO/ChatbotX/blob/main/apps/builder/src/enterprise/LICENSE)

@@ -1,0 +1,33 @@
+import { workspaceTokenAuthAPI } from "@/orpc"
+import { listInboxes } from "../queries"
+import {
+  publicListInboxesResponse,
+  publishInboxesRequest,
+} from "../schema/action"
+
+export const inboxesWorkspaceTokenAPIs = {
+  listChannelsWorkspaceTokenAPI: workspaceTokenAuthAPI
+    .route({
+      method: "GET",
+      path: "/v1/channels",
+      summary: "List channels",
+      tags: ["Channels"],
+    })
+    .input(publishInboxesRequest)
+    .output(publicListInboxesResponse)
+    .handler(async ({ context, input }) => {
+      const result = await listInboxes({
+        ...input,
+        workspaceId: context.workspace.id,
+      })
+      return {
+        ...result,
+        data: result.data.map(({ sourceId, ...inbox }) => ({
+          ...inbox,
+          id: sourceId,
+        })),
+      }
+    }),
+}
+
+export default inboxesWorkspaceTokenAPIs

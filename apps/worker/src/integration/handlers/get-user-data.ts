@@ -1,0 +1,389 @@
+import { contactInboxService } from "@chatbotx.io/business"
+import { db, eq, findOrFail, sql } from "@chatbotx.io/database/client"
+import { isMessageStorageError } from "@chatbotx.io/database/errors"
+import type { ConversationAttributes } from "@chatbotx.io/database/partials"
+import {
+  createMessageRepository,
+  getSafeSinceTime,
+} from "@chatbotx.io/database/repositories"
+import {
+  contactCustomFieldModel,
+  conversationModel,
+  customFieldModel,
+} from "@chatbotx.io/database/schema"
+import {
+  type GetUserDataStepSchema,
+  type InputFailureReason,
+  inputFailureReasons,
+  ReplyFormat,
+} from "@chatbotx.io/flow-config"
+import { IntegrationException, type Variable } from "@chatbotx.io/sdk"
+import { createId } from "@chatbotx.io/utils"
+import { resolveContactVariablesDeep } from "@chatbotx.io/variables"
+import { ChatJobAction, chatQueue } from "@chatbotx.io/worker-config"
+import { add, isBefore } from "date-fns"
+import { logger } from "../../lib/logger"
+import { waitForChatJobCompletion } from "../utils/message"
+import type { ExecuteStepProps } from "./flow"
+import type { ExecuteStepResult } from "./step"
+
+export type GetUserDataResult = {
+  userInput?: string
+  errorMessage?: string
+}
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const phoneRegex = /^\+?(\d[\d-. ]+)?(\([\d-. ]+\))?[\d-. ]+\d$/
+
+export async function getUserData(
+  props: ExecuteStepProps<GetUserDataStepSchema>,
+): Promise<ExecuteStepResult> {
+  const { ctx } = props
+  // if state is present, handle logic on skip or failure
+  try {
+    if (ctx?.variables.conversation.challengeAttempts) {
+      return await handleSkipOrError(props)
+    }
+
+    return await firstSendMessage(props)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error({ err: error }, "getUserData: error")
+    if (isMessageStorageError(error)) {
+      throw error
+    }
+
+    await clearChallengeSafely(props.conversation.id)
+
+    return { result: undefined, status: "error", errorMessage }
+  }
+}
+
+async function firstSendMessage(
+  props: ExecuteStepProps<GetUserDataStepSchema>,
+): Promise<ExecuteStepResult> {
+  const { step } = props
+
+  await sendMessage(props, step.message)
+
+  return { result: undefined, status: "wait" }
+}
+
+async function handleSkipOrError(
+  props: ExecuteStepProps<GetUserDataStepSchema>,
+): Promise<ExecuteStepResult> {
+  const { step, ctx } = props
+  const validUserData = await validateUserData(props)
+
+  if (!ctx?.variables.conversation.challengeAttempts) {
+    throw new IntegrationException(
+      `getUserData: state is not present for conversation ${props.conversation.id}`,
+    )
+  }
+
+  // if user data is valid, save to custom field if configured
+  if (validUserData.userInput) {
+    await contactInboxService.updateTracking({
+      contactInboxId: props.contactInbox.id,
+      contactId: props.contactInbox.contactId,
+      workspaceId: props.conversation.workspaceId,
+      data: { lastInputFailure: null },
+    })
+
+    if (step.outputFieldId) {
+      await findOrFail({
+        table: customFieldModel,
+        where: {
+          id: step.outputFieldId,
+          workspaceId: props.conversation.workspaceId,
+        },
+        message: "Field not found",
+      })
+
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(contactCustomFieldModel)
+          .values({
+            id: createId(),
+            contactId: props.conversation.contactId,
+            customFieldId: step.outputFieldId,
+            value: validUserData.userInput ?? "",
+          })
+          .onConflictDoUpdate({
+            target: [
+              contactCustomFieldModel.contactId,
+              contactCustomFieldModel.customFieldId,
+            ],
+            set: {
+              value: validUserData.userInput,
+            },
+          })
+      })
+    }
+
+    await clearChallenge(props.conversation.id)
+
+    return { result: validUserData.userInput, status: "success" }
+  }
+
+  // skip if the time to skip is reached
+  if (step.autoSkip) {
+    const skipResult = checkSkipCondition(step, ctx.variables.conversation)
+    if (skipResult.skip) {
+      await contactInboxService.updateTracking({
+        contactInboxId: props.contactInbox.id,
+        contactId: props.contactInbox.contactId,
+        workspaceId: props.conversation.workspaceId,
+        data: { lastInputFailure: skipResult.reason },
+      })
+
+      await clearChallenge(props.conversation.id)
+
+      return { result: undefined, status: "skip" }
+    }
+  }
+
+  // if user data is invalid, retry
+  logger.info(
+    {
+      conversationId: props.conversation.id,
+      reason: validUserData.errorMessage ?? "getUserData: invalid user data",
+    },
+    "getUserData: input rejected, retrying",
+  )
+
+  await sendMessage(
+    props,
+    step.retryMessage ?? step.message,
+    ((ctx?.variables.conversation.challengeAttempts?.value as number) ?? 1) + 1,
+  )
+
+  return { result: undefined, status: "retry" }
+}
+
+async function validateUserData(
+  props: ExecuteStepProps<GetUserDataStepSchema>,
+): Promise<GetUserDataResult> {
+  const messageRepository = await createMessageRepository()
+  const lastMessages = await messageRepository.findLastByConversation(
+    props.conversation.id,
+    {
+      messageTypes: ["incoming"],
+      limit: 1,
+      requireCompleteResults: true,
+      withAttachments: true,
+      // Anchor on this conversation's own lastActivityAt, not the
+      // ContactInbox's lastMessageAt — a contact's ContactInbox is shared
+      // across their DM and every comment-thread conversation, so its
+      // lastMessageAt can reflect a different, more recently active
+      // conversation and push sinceTime past this conversation's real last
+      // incoming message, causing the sharded scan to miss it.
+      sinceTime: getSafeSinceTime(
+        props.conversation.lastActivityAt ?? props.conversation.createdAt,
+        365 * 24 * 60 * 60 * 1000, // 1 year
+      ),
+      workspaceId: props.conversation.workspaceId,
+    },
+  )
+  const lastUserMessage = lastMessages[0]
+
+  if (!lastUserMessage) {
+    return {
+      errorMessage: `getUserData: unable to find last message of conversation ${props.conversation.id}`,
+    }
+  }
+
+  if (lastUserMessage.attachments.length > 0) {
+    if (
+      props.step.replyFormat === ReplyFormat.image &&
+      lastUserMessage.attachments[0].fileType === "image"
+    ) {
+      return { userInput: lastUserMessage.attachments[0].originPath }
+    }
+    if (props.step.replyFormat === ReplyFormat.file) {
+      return { userInput: lastUserMessage.attachments[0].originPath }
+    }
+    return { errorMessage: "getUserData: invalid user data" }
+  }
+
+  if (lastUserMessage.text) {
+    switch (props.step.replyFormat) {
+      case ReplyFormat.number: {
+        if (!Number.isNaN(Number.parseFloat(lastUserMessage.text))) {
+          return { userInput: lastUserMessage.text }
+        }
+        return { errorMessage: "getUserData: invalid number" }
+      }
+      case ReplyFormat.email: {
+        if (emailPattern.test(lastUserMessage.text)) {
+          return { userInput: lastUserMessage.text }
+        }
+        return { errorMessage: "getUserData: invalid email address" }
+      }
+      case ReplyFormat.phone: {
+        if (phoneRegex.test(lastUserMessage.text)) {
+          return { userInput: lastUserMessage.text }
+        }
+        return { errorMessage: "getUserData: invalid phone number" }
+      }
+      case ReplyFormat.link: {
+        try {
+          new URL(lastUserMessage.text)
+          return { userInput: lastUserMessage.text }
+        } catch {
+          return { errorMessage: "getUserData: invalid link" }
+        }
+      }
+      case ReplyFormat.date:
+      case ReplyFormat.datetime: {
+        const dateObj = new Date(lastUserMessage.text)
+        if (Number.isNaN(dateObj.getTime())) {
+          return { errorMessage: "getUserData: invalid date" }
+        }
+        return { userInput: dateObj.toISOString() }
+      }
+      default:
+        return { userInput: lastUserMessage.text }
+    }
+  }
+
+  return { errorMessage: "getUserData: invalid user data" }
+}
+
+async function sendMessage(
+  props: ExecuteStepProps<GetUserDataStepSchema>,
+  text: string,
+  attempts = 1,
+) {
+  const {
+    conversation,
+    contactInbox: targetContactInbox,
+    flowVersion,
+    step,
+  } = props
+
+  const contactInbox =
+    targetContactInbox ??
+    (await db.query.contactInboxModel.findFirst({
+      where: {
+        contactId: conversation.contactId,
+      },
+      orderBy: {
+        lastMessageAt: "desc",
+      },
+    }))
+  if (!contactInbox) {
+    throw new IntegrationException(
+      `getUserData: contact inbox not found for conversation ${conversation.id}`,
+    )
+  }
+
+  const resolvedText = await resolveContactVariablesDeep(
+    conversation.contactId,
+    text,
+    {
+      contactInbox,
+      conversation,
+    },
+  )
+
+  const job = await chatQueue.add(ChatJobAction.sendChatMessage, {
+    type: ChatJobAction.sendChatMessage,
+    data: {
+      contactInbox,
+      conversation,
+      text: resolvedText,
+    },
+  })
+
+  await db
+    .update(conversationModel)
+    .set({
+      additionalAttributes: {
+        ...(conversation.additionalAttributes as ConversationAttributes),
+        challenge: {
+          type: "step",
+          data: {
+            flowId: flowVersion.flowId,
+            flowVersionId: props.useLatestFlowVersion
+              ? undefined
+              : flowVersion.id,
+            nodeId: props.targetId,
+            stepId: step.id,
+            attempts,
+            lastAttemptAt: new Date(),
+          },
+        },
+      } as ConversationAttributes,
+    })
+    .where(eq(conversationModel.id, conversation.id))
+
+  await waitForChatJobCompletion(job, { conversationId: conversation.id })
+}
+
+async function clearChallenge(conversationId: string): Promise<void> {
+  await db
+    .update(conversationModel)
+    .set({
+      additionalAttributes: sql`${conversationModel.additionalAttributes} - 'challenge'`,
+    })
+    .where(eq(conversationModel.id, conversationId))
+}
+
+async function clearChallengeSafely(conversationId: string): Promise<void> {
+  try {
+    await clearChallenge(conversationId)
+  } catch (error) {
+    logger.warn(
+      { err: error, conversationId },
+      "getUserData: failed to clear challenge after terminal error",
+    )
+  }
+}
+
+function toValidDate(value: unknown): Date | undefined {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? undefined : date
+  }
+}
+
+function checkSkipCondition(
+  step: GetUserDataStepSchema,
+  conversationVariables: Record<string, Variable>,
+): { skip: true; reason: InputFailureReason } | { skip: false } {
+  const lastAttemptAt =
+    toValidDate(conversationVariables.challengeLastAttemptAt?.value) ??
+    new Date()
+  const attempts =
+    (conversationVariables.challengeAttempts?.value as number) ?? 1
+
+  if (
+    isBefore(
+      add(lastAttemptAt, {
+        [step.autoSkipTimeUnit]: step.autoSkipTimeValue,
+      }),
+      new Date(),
+    )
+  ) {
+    return {
+      skip: true,
+      reason: inputFailureReasons.timeout,
+    }
+  }
+
+  if (attempts >= step.autoSkipFailAttempts) {
+    return {
+      skip: true,
+      reason: inputFailureReasons.invalidInputAttempts,
+    }
+  }
+
+  return {
+    skip: false,
+  }
+}

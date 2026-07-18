@@ -1,0 +1,31 @@
+import { z } from "zod"
+
+export const integrationTypes = z.enum([
+  "activeCampaign",
+  "chatbotx",
+  "claude",
+  "deepseek",
+  "drip",
+  "facebookAds",
+  "gemini",
+  "getResponse",
+  "klaviyo",
+  "googleSheets",
+  "instagram",
+  "instagramFacebook",
+  "mailchimp",
+  "mailerLite",
+  "messenger",
+  "moosend",
+  "openai",
+  "openaiCompatible",
+  "openrouter",
+  "sendGrid",
+  "smtp",
+  "telegram",
+  "tiktok",
+  "webchat",
+  "whatsapp",
+  "zalo",
+])
+export type IntegrationType = z.infer<typeof integrationTypes>
