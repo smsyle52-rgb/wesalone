@@ -43,18 +43,17 @@ export type { QuotaMetric } from "../quota-shared/live-counter-store"
 const DEFAULT_PLAN_ENTITLEMENT_KEY = "entitlements:default-plan"
 
 // Last-resort fallback used only when the default-plan snapshot is unreadable
-// (cold/flushed Redis). A 1-day `trial` keeps the user signed in but every
-// limit is `0`, so they cannot create anything until the authoritative
-// quota-worker re-anchors the row — a deliberate fail-closed-on-capacity stance
-// for the snapshot-absent window (the user can log in, but not act).
+// (cold/flushed Redis). The isolated Wesal One deployment does not ship the
+// private quota worker, so the fallback must remain usable by itself. Keep it
+// aligned with the documented Free plan and allow exactly one workspace.
 const BOOTSTRAP_TRIAL_FALLBACK = {
-  planName: "Trial",
-  trialDays: 1,
-  workspacesLimit: 0,
-  macLimit: 0,
-  channelsLimit: 0,
-  teamMembersLimit: 0,
-  contactsLimit: 0,
+  planName: "Free",
+  trialDays: 0,
+  workspacesLimit: 1,
+  macLimit: 100,
+  channelsLimit: 1,
+  teamMembersLimit: 1,
+  contactsLimit: 100,
 } as const
 
 interface DefaultPlanSnapshot {

@@ -128,27 +128,18 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
     expect(distributedStore.delete).toHaveBeenCalledWith(`user-quota:${USER}`)
   })
 
-  test("falls back to the lockdown trial length when snapshot trialDays is invalid", async () => {
+  test("falls back to active access when snapshot trialDays is invalid", async () => {
     distributedStore.get.mockImplementation(async (key: string) =>
       key === DEFAULT_PLAN_ENTITLEMENT_KEY
         ? { ...snapshot, trialDays: undefined }
         : null,
     )
 
-    const before = Date.now()
-
     await userQuotaService.ensureBootstrapPlan({ userId: USER })
 
     const [values] = insertBuilder.values.mock.calls[0]
-    const fallbackMs = 24 * 60 * 60 * 1000
-    expect(values.planStatus).toBe("trial")
-    expect(values.periodEnd).toBeInstanceOf(Date)
-    expect(values.periodEnd.getTime()).toBeGreaterThanOrEqual(
-      before + fallbackMs,
-    )
-    expect(values.periodEnd.getTime()).toBeLessThanOrEqual(
-      Date.now() + fallbackMs,
-    )
+    expect(values.planStatus).toBe("active")
+    expect(values.periodEnd).toBeNull()
   })
 
   test("stamps an active, never-expiring row when snapshot trialDays is 0", async () => {
@@ -190,22 +181,22 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
     expect(distributedStore.delete).not.toHaveBeenCalled()
   })
 
-  test("stamps the lockdown fallback when the snapshot is absent", async () => {
+  test("stamps the usable free fallback when the snapshot is absent", async () => {
     await userQuotaService.ensureBootstrapPlan({ userId: USER })
 
     expect(insertBuilder.values).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: USER,
-        contactsLimit: 0,
-        workspacesLimit: 0,
-        channelsLimit: 0,
-        teamMembersLimit: 0,
-        macLimit: 0,
+        contactsLimit: 100,
+        workspacesLimit: 1,
+        channelsLimit: 1,
+        teamMembersLimit: 1,
+        macLimit: 100,
         whiteLabel: false,
         ssoSaml: false,
         saasMode: false,
-        planName: "Trial",
-        planStatus: "trial",
+        planName: "Free",
+        planStatus: "active",
       }),
     )
   })
@@ -229,7 +220,7 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
     expect(distributedStore.delete).not.toHaveBeenCalled()
   })
 
-  test("creates an unblocked active trial access state", async () => {
+  test("creates an unblocked active free access state", async () => {
     await userQuotaService.ensureBootstrapPlan({ userId: USER })
 
     const [values] = insertBuilder.values.mock.calls[0]
@@ -247,10 +238,10 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
 
     expect(accessState).toMatchObject({
       blocked: false,
-      planName: "Trial",
-      status: "trial",
+      planName: "Free",
+      status: "active",
     })
-    expect(accessState.trialEndsAt).toBeInstanceOf(Date)
+    expect(accessState.trialEndsAt).toBeNull()
   })
 
   test("uses a tenant snapshot for a non-root tenant", async () => {
@@ -278,7 +269,7 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
     )
   })
 
-  test("uses the lockdown fallback when a tenant snapshot is missing", async () => {
+  test("uses the free fallback when a tenant snapshot is missing", async () => {
     const tenantId = "tenant-42"
     distributedStore.get.mockImplementation(async (key: string) =>
       key === DEFAULT_PLAN_ENTITLEMENT_KEY ? snapshot : null,
@@ -295,13 +286,13 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
     expect(insertBuilder.values).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: USER,
-        contactsLimit: 0,
-        workspacesLimit: 0,
-        channelsLimit: 0,
-        teamMembersLimit: 0,
-        macLimit: 0,
-        planName: "Trial",
-        planStatus: "trial",
+        contactsLimit: 100,
+        workspacesLimit: 1,
+        channelsLimit: 1,
+        teamMembersLimit: 1,
+        macLimit: 100,
+        planName: "Free",
+        planStatus: "active",
       }),
     )
   })
