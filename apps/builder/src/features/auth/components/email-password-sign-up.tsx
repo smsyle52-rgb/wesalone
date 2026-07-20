@@ -15,6 +15,63 @@ import {
   emailPasswordSignUpRequest,
 } from "../schemas/action"
 
+const STRENGTH_COLORS = [
+  "#EF4444",
+  "#F59E0B",
+  "#F59E0B",
+  "#22D3EE",
+  "#10B981",
+] as const
+const STRENGTH_KEYS = [
+  "veryWeak",
+  "weak",
+  "medium",
+  "strong",
+  "veryStrong",
+] as const
+const UPPERCASE_REGEX = /[A-Z]/
+const DIGIT_REGEX = /[0-9]/
+const SPECIAL_CHAR_REGEX = /[^A-Za-z0-9]/
+
+const PasswordStrengthMeter = ({ password }: { password: string }) => {
+  const t = useTranslations()
+  if (!password) {
+    return null
+  }
+
+  const score = [
+    password.length >= 8,
+    UPPERCASE_REGEX.test(password),
+    DIGIT_REGEX.test(password),
+    SPECIAL_CHAR_REGEX.test(password),
+  ].filter(Boolean).length
+
+  return (
+    <div className="mt-1">
+      <div className="flex items-center gap-1.5">
+        {[0, 1, 2, 3].map((index) => (
+          <div
+            className="h-1 flex-1 rounded-full transition-colors"
+            key={index}
+            style={{
+              background:
+                index < score ? STRENGTH_COLORS[score] : "var(--border)",
+            }}
+          />
+        ))}
+      </div>
+      <div
+        className="mt-1 font-bold text-[11px]"
+        style={{ color: STRENGTH_COLORS[score] }}
+      >
+        {t("auth.passwordStrength.label", {
+          level: t(`auth.passwordStrength.${STRENGTH_KEYS[score]}`),
+        })}
+      </div>
+    </div>
+  )
+}
+
 export const EmailPasswordSignUp = () => {
   const t = useTranslations()
   const router = useRouter()
@@ -62,13 +119,18 @@ export const EmailPasswordSignUp = () => {
           type="email"
         />
 
-        <InputField
-          label={t("fields.password.label")}
-          name="password"
-          placeholder="********"
-          required
-          type="password"
-        />
+        <div>
+          <InputField
+            label={t("fields.password.label")}
+            name="password"
+            placeholder="********"
+            required
+            type="password"
+          />
+          <PasswordStrengthMeter
+            password={emailPasswordForm.watch("password")}
+          />
+        </div>
 
         <InputField
           label={t("fields.passwordConfirmation.label")}

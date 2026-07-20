@@ -2818,7 +2818,34 @@
     "signUpTitle": "Sign up to {name}",
     "changePasswordTitle": "Change your password",
     "changePasswordDescription": "Set a new password before continuing.",
-    "passwordChangeSuccess": "Password changed"
+    "passwordChangeSuccess": "Password changed",
+    "signInVisual": {
+      "title": "A unified platform for your customers' conversations.",
+      "subtitle": "Manage WhatsApp, Instagram, Messenger, and Telegram from one dashboard.",
+      "bullets": {
+        "0": "Unified inbox",
+        "1": "Live, exportable reports",
+        "2": "Top-tier security and privacy"
+      }
+    },
+    "signUpVisual": {
+      "trialBadge": "14-day free trial",
+      "title": "Start with a 14-day free trial - no card required.",
+      "subtitle": "Create your workspace and connect your channels in one unified Arabic experience.",
+      "bullets": {
+        "0": "Fast setup, no code",
+        "1": "Connects with your channels",
+        "2": "Full control over your workspace data"
+      }
+    },
+    "passwordStrength": {
+      "veryWeak": "Very weak",
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong",
+      "veryStrong": "Very strong",
+      "label": "Password strength: {level}"
+    }
   },
   "emailTopics": {
     "title": "Email Topics"
