@@ -1,1 +1,4 @@
-export { platformSubscriptionPaymentService } from "./service"
+export {
+  platformSubscriptionPaymentService,
+  verifyReceiptFile,
+} from "./service"

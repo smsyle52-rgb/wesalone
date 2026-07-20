@@ -61,7 +61,10 @@ function assertPayablePlan(plan: WesalOnePlan | undefined): WesalOnePlan {
  * mimeType + byte-size check against the object actually sitting in
  * storage (the presigned PUT itself enforces neither).
  */
-async function verifyReceiptFile(workspaceId: string, receiptFileId: string) {
+export async function verifyReceiptFile(
+  workspaceId: string,
+  receiptFileId: string,
+) {
   const file = await db.query.fileModel.findFirst({
     where: { id: receiptFileId, workspaceId },
   })

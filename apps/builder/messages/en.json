@@ -3745,8 +3745,17 @@
     "currentPlan": "Current plan",
     "sandboxBadge": "Sandbox",
     "sandboxNotice": "Sandbox mode — selecting a plan applies its limits immediately with no real payment. There is no live billing yet.",
+    "usage": {
+      "title": "Points usage",
+      "available": "Available points",
+      "monthly": "From monthly plan",
+      "purchased": "Purchased points",
+      "frozen": "Frozen points",
+      "expiresOn": "Nearest expiry: {date}",
+      "empty": "No points balance yet — select a plan below to get started."
+    },
     "summaryCustom": "Custom limits, tailored to your needs",
-    "summary": "Up to {channels} channels · {contacts} contacts · {teamMembers} team members",
+    "summary": "Up to {channels} channels · {contacts} contacts · {teamMembers} team members · {points} AI points/month",
     "toast": {
       "success": "{plan} plan applied (sandbox)",
       "error": "Could not apply the plan"
@@ -3800,6 +3809,36 @@
         "cancelError": "Could not cancel the request"
       }
     },
+    "pointPurchase": {
+      "title": "Buy more points",
+      "pointsLabel": "points",
+      "buyButton": "Buy",
+      "dialogTitle": "Pay for {product}",
+      "underReview": "Order under review",
+      "history": "Order history",
+      "methods": {
+        "kuraimi": "Kuraimi",
+        "jawali": "Jawali",
+        "bank_transfer": "Bank transfer",
+        "cash": "Cash"
+      },
+      "status": {
+        "pending_payment": "Pending payment",
+        "under_review": "Under review",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "expired": "Expired",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded",
+        "chargeback": "Chargeback"
+      },
+      "toast": {
+        "submitted": "Order submitted for review",
+        "submitError": "Could not submit the order",
+        "cancelled": "Order cancelled",
+        "cancelError": "Could not cancel the order"
+      }
+    },
     "admin": {
       "navLabel": "Subscription payments",
       "title": "Subscription payments",
@@ -3837,6 +3876,22 @@
         "confirmError": "Could not confirm the payment",
         "rejected": "Payment rejected",
         "rejectError": "Could not reject the payment"
+      }
+    },
+    "pointPurchaseAdmin": {
+      "navLabel": "Point purchases",
+      "title": "Point purchases",
+      "subtitle": "Review manual point top-up orders and credit points after verifying the receipt.",
+      "table": {
+        "buyer": "Buyer",
+        "bundle": "Bundle",
+        "points": "Points"
+      },
+      "toast": {
+        "confirmed": "Order confirmed and points credited",
+        "confirmError": "Could not confirm the order",
+        "rejected": "Order rejected",
+        "rejectError": "Could not reject the order"
       }
     },
     "recommended": "Recommended"

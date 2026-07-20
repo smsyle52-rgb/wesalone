@@ -97,6 +97,8 @@ import { platformSubscriptionPaymentRelations } from "./platform-subscription-pa
 import {
   pointGrantRelations,
   pointLedgerRelations,
+  pointPurchaseOrderRelations,
+  pointTopupProductRelations,
   pointWalletRelations,
 } from "./point"
 import { productRelations } from "./product"
@@ -242,4 +244,6 @@ export const relations = {
   ...pointWalletRelations,
   ...pointGrantRelations,
   ...pointLedgerRelations,
+  ...pointTopupProductRelations,
+  ...pointPurchaseOrderRelations,
 }

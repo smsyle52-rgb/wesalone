@@ -9,6 +9,7 @@ import {
 import {
   BrainCircuitIcon,
   CircleHelpIcon,
+  CoinsIcon,
   Grid2x2PlusIcon,
   ListTodoIcon,
   MailIcon,
@@ -29,9 +30,11 @@ import { authClient } from "@/lib/auth/auth-client"
  */
 export function AdminSidebar({
   showEnterpriseItems,
+  showPointPurchaseOrders,
   showSubscriptionPayments,
 }: {
   showEnterpriseItems: boolean
+  showPointPurchaseOrders: boolean
   showSubscriptionPayments: boolean
 }) {
   const t = useTranslations()
@@ -61,6 +64,15 @@ export function AdminSidebar({
             title: t("plans.admin.navLabel"),
             url: "/admin/subscription-payments",
             icon: ReceiptTextIcon,
+          },
+        ]
+      : []),
+    ...(showPointPurchaseOrders
+      ? [
+          {
+            title: t("plans.pointPurchaseAdmin.navLabel"),
+            url: "/admin/point-purchase-orders",
+            icon: CoinsIcon,
           },
         ]
       : []),

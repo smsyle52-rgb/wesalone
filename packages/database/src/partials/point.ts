@@ -42,3 +42,22 @@ export const pointLedgerTransactionTypes = z.enum([
 export type PointLedgerTransactionType = z.infer<
   typeof pointLedgerTransactionTypes
 >
+
+// A purchase order's lifecycle from claim to credited grant (or refund).
+// "pending_payment" -> merchant hasn't submitted proof yet; "under_review"
+// -> proof submitted, awaiting admin; "approved" -> credited, see
+// PointPurchaseOrder.creditedGrantId; "expired" is a stale pending_payment
+// order, not a rejection.
+export const pointPurchaseOrderStatuses = z.enum([
+  "pending_payment",
+  "under_review",
+  "approved",
+  "rejected",
+  "expired",
+  "cancelled",
+  "refunded",
+  "chargeback",
+])
+export type PointPurchaseOrderStatus = z.infer<
+  typeof pointPurchaseOrderStatuses
+>

@@ -3745,8 +3745,17 @@
     "currentPlan": "الباقة الحالية",
     "sandboxBadge": "وضع تجريبي",
     "sandboxNotice": "وضع تجريبي (Sandbox) — اختيار باقة يطبّق حدودها فورًا دون أي دفع حقيقي. لا يوجد فوترة فعلية بعد.",
+    "usage": {
+      "title": "استهلاك النقاط",
+      "available": "النقاط المتاحة",
+      "monthly": "من الباقة الشهرية",
+      "purchased": "نقاط مشتراة",
+      "frozen": "نقاط مجمّدة",
+      "expiresOn": "أقرب انتهاء صلاحية: {date}",
+      "empty": "ما فيه رصيد نقاط بعد — اختر باقة بالأسفل عشان تبدأ."
+    },
     "summaryCustom": "حدود مخصصة تناسب احتياجك",
-    "summary": "حتى {channels} قناة · {contacts} جهة اتصال · {teamMembers} أعضاء فريق",
+    "summary": "حتى {channels} قناة · {contacts} جهة اتصال · {teamMembers} أعضاء فريق · {points} نقطة ذكاء شهريًا",
     "toast": {
       "success": "تم تطبيق باقة {plan} (وضع تجريبي)",
       "error": "تعذّر تطبيق الباقة"
@@ -3800,6 +3809,36 @@
         "cancelError": "تعذّر إلغاء الطلب"
       }
     },
+    "pointPurchase": {
+      "title": "اشترِ نقاط إضافية",
+      "pointsLabel": "نقطة",
+      "buyButton": "شراء",
+      "dialogTitle": "دفع حزمة {product}",
+      "underReview": "الطلب قيد المراجعة",
+      "history": "سجل الطلبات",
+      "methods": {
+        "kuraimi": "كريمي",
+        "jawali": "جوالي",
+        "bank_transfer": "تحويل بنكي",
+        "cash": "نقداً"
+      },
+      "status": {
+        "pending_payment": "بانتظار الدفع",
+        "under_review": "قيد المراجعة",
+        "approved": "تمت الموافقة",
+        "rejected": "مرفوض",
+        "expired": "منتهي",
+        "cancelled": "ملغي",
+        "refunded": "مُسترد",
+        "chargeback": "استرداد بنكي"
+      },
+      "toast": {
+        "submitted": "تم إرسال الطلب للمراجعة",
+        "submitError": "تعذّر إرسال الطلب",
+        "cancelled": "تم إلغاء الطلب",
+        "cancelError": "تعذّر إلغاء الطلب"
+      }
+    },
     "admin": {
       "navLabel": "دفعات الاشتراكات",
       "title": "دفعات الاشتراكات",
@@ -3837,6 +3876,22 @@
         "confirmError": "تعذّر تأكيد الدفع",
         "rejected": "تم رفض الدفع",
         "rejectError": "تعذّر رفض الدفع"
+      }
+    },
+    "pointPurchaseAdmin": {
+      "navLabel": "طلبات شراء النقاط",
+      "title": "طلبات شراء النقاط",
+      "subtitle": "راجع طلبات شحن النقاط اليدوية وامنح النقاط بعد التحقق من الإيصال.",
+      "table": {
+        "buyer": "المشتري",
+        "bundle": "الحزمة",
+        "points": "النقاط"
+      },
+      "toast": {
+        "confirmed": "تم تأكيد الطلب ومنح النقاط",
+        "confirmError": "تعذّر تأكيد الطلب",
+        "rejected": "تم رفض الطلب",
+        "rejectError": "تعذّر رفض الطلب"
       }
     },
     "recommended": "موصى به"

@@ -182,3 +182,7 @@ export type PlatformSubscriptionPaymentModel =
 export type PointWalletModel = typeof schema.pointWalletModel.$inferSelect
 export type PointGrantModel = typeof schema.pointGrantModel.$inferSelect
 export type PointLedgerModel = typeof schema.pointLedgerModel.$inferSelect
+export type PointTopupProductModel =
+  typeof schema.pointTopupProductModel.$inferSelect
+export type PointPurchaseOrderModel =
+  typeof schema.pointPurchaseOrderModel.$inferSelect

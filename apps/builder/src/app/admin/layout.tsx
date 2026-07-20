@@ -1,6 +1,9 @@
 import { hasEnterpriseFeatures, isSuperAdmin } from "@chatbotx.io/business"
 import { notFound } from "next/navigation"
-import { isPlatformSubscriptionPaymentsEnabled } from "@/env"
+import {
+  isPlatformSubscriptionPaymentsEnabled,
+  isPointPurchasesEnabled,
+} from "@/env"
 import { AdminSidebar } from "@/features/admin/components/admin-sidebar"
 import { ManageLayout } from "@/features/manage/manage-layout"
 import { enforcePasswordCurrent } from "@/lib/auth/require-password-current"
@@ -28,6 +31,7 @@ export default async function AdminLayout({
       sidebar={
         <AdminSidebar
           showEnterpriseItems={showEnterpriseItems}
+          showPointPurchaseOrders={isPointPurchasesEnabled()}
           showSubscriptionPayments={isPlatformSubscriptionPaymentsEnabled()}
         />
       }

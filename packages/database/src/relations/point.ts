@@ -44,3 +44,37 @@ export const pointLedgerRelations = defineRelationsPart(schema, (r) => ({
     }),
   },
 }))
+
+export const pointTopupProductRelations = defineRelationsPart(schema, (r) => ({
+  pointTopupProductModel: {
+    orders: r.many.pointPurchaseOrderModel({
+      from: r.pointTopupProductModel.id,
+      to: r.pointPurchaseOrderModel.topupProductId,
+    }),
+  },
+}))
+
+export const pointPurchaseOrderRelations = defineRelationsPart(schema, (r) => ({
+  pointPurchaseOrderModel: {
+    user: r.one.userModel({
+      from: r.pointPurchaseOrderModel.userId,
+      to: r.userModel.id,
+    }),
+    topupProduct: r.one.pointTopupProductModel({
+      from: r.pointPurchaseOrderModel.topupProductId,
+      to: r.pointTopupProductModel.id,
+    }),
+    receiptFile: r.one.fileModel({
+      from: r.pointPurchaseOrderModel.receiptFileId,
+      to: r.fileModel.id,
+    }),
+    reviewer: r.one.userModel({
+      from: r.pointPurchaseOrderModel.reviewedBy,
+      to: r.userModel.id,
+    }),
+    creditedGrant: r.one.pointGrantModel({
+      from: r.pointPurchaseOrderModel.creditedGrantId,
+      to: r.pointGrantModel.id,
+    }),
+  },
+}))

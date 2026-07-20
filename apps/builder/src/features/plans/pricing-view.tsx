@@ -68,6 +68,7 @@ export function PricingView({
           channels: plan.limits.channels ?? "∞",
           contacts: plan.limits.contacts ?? "∞",
           teamMembers: plan.limits.teamMembers ?? "∞",
+          points: plan.monthlyPoints ?? "∞",
         })
 
     return {
