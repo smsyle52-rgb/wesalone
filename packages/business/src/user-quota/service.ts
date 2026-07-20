@@ -24,6 +24,7 @@ import { cacheConnections, distributedStore } from "@chatbotx.io/redis"
 import { BaseService } from "../base.service"
 import { isCloud } from "../keys"
 import { logger } from "../logger"
+import { pointWalletService } from "../point-wallet/service"
 import {
   LiveCounterStore,
   type QuotaMetric,
@@ -257,8 +258,11 @@ class UserQuotaService extends BaseService {
    * The one place that actually mutates quota from a Wesal One plan; both
    * the sandbox switcher and the reviewed subscription-payment confirmation
    * call this so the two trust paths never duplicate (or drift from) the
-   * write logic. `monthlyPoints`/`agentsLimit` are NOT written here — see
-   * wesal-one-plans.ts for why they have no native column.
+   * write logic. `agentsLimit` is still not written here — see
+   * wesal-one-plans.ts for why it has no native column. `monthlyPoints` (if
+   * given) now also issues a matching point-wallet grant for the same
+   * period, keyed by (userId, periodStart) so re-applying the same period
+   * (e.g. a retried confirmation) never double-grants.
    */
   async applyPlanEntitlements(props: {
     userId: string
@@ -269,6 +273,7 @@ class UserQuotaService extends BaseService {
         contacts: number | null
         teamMembers: number | null
       }
+      monthlyPoints?: number | null
     }
     periodStart: Date
     periodEnd: Date | null
@@ -301,6 +306,20 @@ class UserQuotaService extends BaseService {
           syncedAt: periodStart,
         },
       })
+
+    if (plan.monthlyPoints && plan.monthlyPoints > 0) {
+      await pointWalletService.createGrant({
+        userId,
+        grantType: "monthly_subscription",
+        points: plan.monthlyPoints,
+        startsAt: periodStart,
+        expiresAt: periodEnd,
+        sourceType: "subscription",
+        sourceId: plan.nameEn,
+        idempotencyKey: `monthly:${userId}:${periodStart.toISOString()}`,
+        reason: `monthly plan grant: ${plan.nameEn}`,
+      })
+    }
 
     await this.store.invalidate(userId)
   }

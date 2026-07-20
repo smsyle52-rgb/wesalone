@@ -53,6 +53,7 @@ export * from "./platform"
 export * from "./platform-ai-setting"
 export * from "./platform-credential"
 export * from "./platform-subscription-payment"
+export * from "./point-wallet"
 export * from "./qr-code"
 export * from "./quota-enforcement"
 // Shared quota key builders + the fail-closed live-counter parser, so the

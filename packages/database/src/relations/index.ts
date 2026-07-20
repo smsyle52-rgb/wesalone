@@ -94,6 +94,11 @@ import { paymentRelations } from "./payment"
 import { paymentWebhookEventRelations } from "./payment-webhook-event"
 import { platformAiSettingRelations } from "./platform-ai-setting"
 import { platformSubscriptionPaymentRelations } from "./platform-subscription-payment"
+import {
+  pointGrantRelations,
+  pointLedgerRelations,
+  pointWalletRelations,
+} from "./point"
 import { productRelations } from "./product"
 import { reflinkRelations } from "./reflink"
 import { savedReplyRelations } from "./save-reply"
@@ -234,4 +239,7 @@ export const relations = {
   ...paymentWebhookEventRelations,
   ...platformSubscriptionPaymentRelations,
   ...platformAiSettingRelations,
+  ...pointWalletRelations,
+  ...pointGrantRelations,
+  ...pointLedgerRelations,
 }

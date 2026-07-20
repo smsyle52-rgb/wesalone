@@ -179,3 +179,6 @@ export type PlatformAiSettingModel =
   typeof schema.platformAiSettingModel.$inferSelect
 export type PlatformSubscriptionPaymentModel =
   typeof schema.platformSubscriptionPaymentModel.$inferSelect
+export type PointWalletModel = typeof schema.pointWalletModel.$inferSelect
+export type PointGrantModel = typeof schema.pointGrantModel.$inferSelect
+export type PointLedgerModel = typeof schema.pointLedgerModel.$inferSelect
