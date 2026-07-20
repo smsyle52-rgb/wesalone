@@ -117,7 +117,7 @@ export default async function WorkspaceLayout({
           <ExpiredBanner blocked={cloud && blocked} />
           {children}
         </main>
-        <SidebarTrigger className="absolute top-3 -left-2 z-10 border" />
+        <SidebarTrigger className="absolute top-3 -right-2 z-10 border" />
       </SidebarInset>
     </SidebarProvider>
   )

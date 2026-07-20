@@ -261,12 +261,12 @@ export function AIMcpServersCreate({
                   <div className="flex items-start gap-2" key={field.id}>
                     <InputField
                       name={`auth.headers.${index}.header`}
-                      placeholder="Header"
+                      placeholder={t("fields.header.label")}
                     />
                     <MoveRightIcon className="size-10" />
                     <InputField
                       name={`auth.headers.${index}.value`}
-                      placeholder="Value"
+                      placeholder={t("fields.value.label")}
                     />
                     <Button
                       onClick={() => remove(index)}

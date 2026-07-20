@@ -177,7 +177,7 @@ export function CreateContactForm({
         <InputField
           label={t("fields.email.label")}
           name="email"
-          placeholder="email@chatbotx.io"
+          placeholder="email@example.com"
           required={isEmail}
         />
 

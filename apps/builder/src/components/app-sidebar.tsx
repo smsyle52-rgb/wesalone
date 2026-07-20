@@ -25,10 +25,8 @@ import {
   WrenchIcon,
 } from "lucide-react"
 
-import Link from "next/link"
 import { useTranslations } from "next-intl"
 import type { ComponentProps } from "react"
-import { BrandIcon } from "@/components/brand-icon"
 import { NavHelp } from "@/components/nav-help"
 import { NavMain } from "@/components/nav-main"
 import { NavUsage, type QuotaSummary } from "@/components/nav-usage"
@@ -167,14 +165,8 @@ export function AppSidebar({
   )
 
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar collapsible="icon" side="right" {...props}>
       <SidebarHeader className="gap-0 px-0 py-0">
-        <Link
-          className="flex h-12 items-center justify-center border-b"
-          href="/"
-        >
-          <BrandIcon alt="Brand" />
-        </Link>
         <div className="border-b px-1">
           <WorkspaceSwitcher workspaces={allWorkspaces} />
         </div>
