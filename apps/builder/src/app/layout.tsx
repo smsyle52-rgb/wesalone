@@ -7,6 +7,7 @@ import Script from "next/script"
 import { NextIntlClientProvider } from "next-intl"
 import { getLocale } from "next-intl/server"
 import { PublicEnvScript } from "@/components/public-env-script"
+import { ZodLocale } from "@/components/zod-locale"
 import { env } from "@/env"
 import { TenantProvider } from "@/features/tenant"
 import { getTenantSettings } from "@/features/tenant/utils"
@@ -79,7 +80,10 @@ export default async function RootLayout({ children }: Props) {
       >
         <TenantProvider settings={tenantSettings}>
           <UiProvider>
-            <NextIntlClientProvider>{children}</NextIntlClientProvider>
+            <NextIntlClientProvider>
+              <ZodLocale />
+              {children}
+            </NextIntlClientProvider>
           </UiProvider>
         </TenantProvider>
       </body>

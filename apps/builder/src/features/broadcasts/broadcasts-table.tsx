@@ -268,7 +268,7 @@ export function BroadcastsTable({ promises }: BroadcastsTableProps) {
       },
       {
         id: "actions",
-        header: "Actions",
+        header: t("fields.actions.label"),
         cell: ({ row }) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

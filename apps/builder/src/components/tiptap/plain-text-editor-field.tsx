@@ -10,6 +10,7 @@ import {
   FormMessage,
 } from "@chatbotx.io/ui/components/ui/form"
 import { cn } from "@chatbotx.io/ui/lib/utils"
+import { useTranslations } from "next-intl"
 import { useEffect, useState } from "react"
 import { useFormContext } from "react-hook-form"
 import { PlainTextTiptapEditor } from "./plain-text-tiptap-editor"
@@ -36,6 +37,7 @@ export const PlainTextEditorField = ({
   showEmojiPicker = true,
 }: PlainTextEditorFieldProps) => {
   const { control, getValues } = useFormContext()
+  const t = useTranslations()
 
   const [initValue, setInitValue] = useState<string | undefined>(undefined)
 
@@ -55,7 +57,7 @@ export const PlainTextEditorField = ({
               {label}
               {!required && (
                 <span className="self-start font-normal text-xxs">
-                  (optional)
+                  {t("fields.optionalHint")}
                 </span>
               )}
             </FormLabel>

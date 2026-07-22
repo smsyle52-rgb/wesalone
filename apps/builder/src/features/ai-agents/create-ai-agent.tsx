@@ -4,7 +4,6 @@ import { aiChatProviders } from "@chatbotx.io/ai"
 import { aiMessageRoles } from "@chatbotx.io/database/partials"
 import { InputField } from "@chatbotx.io/ui/components/form/input-field"
 import { SelectField } from "@chatbotx.io/ui/components/form/select-field"
-import { SliderField } from "@chatbotx.io/ui/components/form/slider-field"
 import { SwitchField } from "@chatbotx.io/ui/components/form/switch-field"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import {
@@ -18,19 +17,9 @@ import {
 } from "@chatbotx.io/ui/components/ui/dialog"
 import { Form } from "@chatbotx.io/ui/components/ui/form"
 import { Label } from "@chatbotx.io/ui/components/ui/label"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@chatbotx.io/ui/components/ui/popover"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks"
-import {
-  Loader2Icon,
-  PlusIcon,
-  SlidersHorizontalIcon,
-  XIcon,
-} from "lucide-react"
+import { Loader2Icon, PlusIcon, XIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useMemo, useState } from "react"
 import { useFieldArray } from "react-hook-form"
@@ -168,54 +157,13 @@ export function CreateAIAgentDialog({
           >
             <InputField label={t("fields.name.label")} name="name" required />
 
+            {/* Model tuning (temperature / max output tokens) is deliberately
+                not exposed to merchants — the platform manages the model and
+                its parameters. The form still submits the sane defaults set in
+                defaultValues. */}
             <div>
-              <div className="flex items-center gap-4">
-                <div className="min-w-0 flex-1 font-medium text-sm">
-                  {t("fields.instructions.label")}
-                </div>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      aria-label={t("actions.moreSettings")}
-                      className="shrink-0"
-                      size="icon"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <SlidersHorizontalIcon aria-hidden className="size-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    className="flex w-[340px] flex-col gap-6 overflow-y-auto overscroll-contain p-4"
-                    collisionPadding={16}
-                    side="right"
-                    style={{
-                      maxHeight:
-                        "min(calc(var(--radix-popover-content-available-height) - 1rem), calc(100vh - 2rem))",
-                    }}
-                  >
-                    <div className="rounded-md border border-border bg-muted/40 p-3 text-muted-foreground text-sm">
-                      {t("platformAiSettings.agentModelManaged")}
-                    </div>
-
-                    <SliderField
-                      label={t("fields.temperature.label")}
-                      max={2}
-                      min={0}
-                      name="temperature"
-                      step={0.1}
-                    />
-
-                    <SliderField
-                      label={t("fields.maxOutputTokens.label")}
-                      max={32_768}
-                      min={1}
-                      name="maxOutputTokens"
-                      step={1}
-                    />
-                  </PopoverContent>
-                </Popover>
+              <div className="min-w-0 flex-1 font-medium text-sm">
+                {t("fields.instructions.label")}
               </div>
 
               <PlainTextEditorField name="prompt" />
