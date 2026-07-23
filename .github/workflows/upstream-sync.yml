@@ -1,0 +1,176 @@
+name: Upstream Sync (ChatbotX)
+
+# Weekly (and on-demand) check for new ChatbotX upstream commits. Attempts an
+# automatic merge, auto-resolves only the two permanently-known TimescaleDB
+# conflicts (see packages/database/drizzle-wesal/README.md), runs a typecheck,
+# and opens a PR for human review. Never pushes straight to
+# release/wesal-one-next itself — merging that PR is what deploys, and that
+# stays a deliberate human action.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Monday 03:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+env:
+  UPSTREAM_URL: https://github.com/ChatbotXIO/ChatbotX.git
+  BASE_BRANCH: release/wesal-one-next
+  KNOWN_CONFLICT_FILES: |
+    packages/database/drizzle/20260517074023_migrate_analytics_to_timescaledb_table/migration.sql
+    packages/database/drizzle/20260622040000_align_message_attachment_to_shard_schema/migration.sql
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.BASE_BRANCH }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "upstream-sync-bot"
+          git config user.email "actions@github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream "$UPSTREAM_URL" 2>/dev/null || true
+
+      - name: Fetch upstream
+        run: git fetch upstream main
+
+      - name: Check for new commits
+        id: check
+        run: |
+          count=$(git rev-list --count HEAD..upstream/main)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Found $count new upstream commit(s)."
+
+      - name: Attempt merge
+        if: steps.check.outputs.count != '0'
+        id: merge
+        run: |
+          set +e
+          branch="upstream-sync/$(date +%Y-%m-%d)"
+          git checkout -b "$branch"
+
+          git merge upstream/main --no-edit
+          merge_status=$?
+
+          if [ "$merge_status" -ne 0 ]; then
+            conflicted=$(git diff --name-only --diff-filter=U | sort -u)
+            known=$(echo "$KNOWN_CONFLICT_FILES" | sed '/^$/d' | sort -u)
+            unexpected=$(comm -23 <(echo "$conflicted") <(echo "$known"))
+
+            if [ -n "$unexpected" ]; then
+              echo "status=conflict" >> "$GITHUB_OUTPUT"
+              {
+                echo "unexpected<<EOF"
+                echo "$unexpected"
+                echo "EOF"
+              } >> "$GITHUB_OUTPUT"
+              git merge --abort
+              exit 0
+            fi
+
+            # Only the known, permanently-accepted TimescaleDB files conflicted.
+            # Resolution is fixed: keep our Cloud-SQL-compatible version.
+            echo "$KNOWN_CONFLICT_FILES" | sed '/^$/d' | while read -r f; do
+              if echo "$conflicted" | grep -qxF "$f"; then
+                git checkout --ours "$f"
+                git add "$f"
+              fi
+            done
+            git commit --no-edit
+          fi
+
+          echo "status=merged" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: List new upstream migrations (for reviewer visibility only)
+        if: steps.merge.outputs.status == 'merged'
+        id: migrations
+        run: |
+          new_migrations=$(git diff --name-status "origin/$BASE_BRANCH"..HEAD -- packages/database/drizzle/ | awk '$1=="A"{print $2}')
+          {
+            echo "list<<EOF"
+            echo "${new_migrations:-(none)}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        if: steps.merge.outputs.status == 'merged'
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        if: steps.merge.outputs.status == 'merged'
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        if: steps.merge.outputs.status == 'merged'
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck builder
+        if: steps.merge.outputs.status == 'merged'
+        id: typecheck
+        run: |
+          set +e
+          pnpm --filter builder check-types
+          echo "result=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Push sync branch
+        if: steps.merge.outputs.status == 'merged'
+        run: git push origin "${{ steps.merge.outputs.branch }}" --force-with-lease
+
+      - name: Open PR for human review
+        if: steps.merge.outputs.status == 'merged'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ steps.typecheck.outputs.result }}" = "0" ]; then
+            typecheck_label="typecheck passed"
+          else
+            typecheck_label="TYPECHECK FAILED — do not merge until fixed"
+          fi
+
+          gh pr create \
+            --base "$BASE_BRANCH" \
+            --head "${{ steps.merge.outputs.branch }}" \
+            --title "Upstream sync: ChatbotX $(date +%Y-%m-%d)" \
+            --body "Automated merge from ChatbotXIO/ChatbotX main.
+
+**Verification:** ${typecheck_label}
+
+**New upstream migrations — review and test before applying, this workflow never runs \`db:migrate\`:**
+\`\`\`
+${{ steps.migrations.outputs.list }}
+\`\`\`
+
+**Auto-resolved (kept our Cloud-SQL-compatible version, per drizzle-wesal/README.md):**
+- 20260517074023_migrate_analytics_to_timescaledb_table/migration.sql
+- 20260622040000_align_message_attachment_to_shard_schema/migration.sql
+
+⚠️ Merging this PR pushes to \`$BASE_BRANCH\`, which auto-deploys to production at 100% traffic. Review before merging, don't rubber-stamp it."
+
+      - name: File an issue when conflicts need a human
+        if: steps.merge.outputs.status == 'conflict'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Upstream sync blocked: unexpected conflicts $(date +%Y-%m-%d)" \
+            --body "Automated sync from ChatbotXIO/ChatbotX hit conflicts outside the two known TimescaleDB files and stopped without merging or pushing anything.
+
+Conflicted files:
+\`\`\`
+${{ steps.merge.outputs.unexpected }}
+\`\`\`
+
+Resolve manually: \`bash scripts/update-from-upstream.sh --merge\`, fix conflicts, then open a PR by hand."
