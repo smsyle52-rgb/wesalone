@@ -4,6 +4,7 @@ import { CardTitle } from "@chatbotx.io/ui/components/ui/card"
 import Image from "next/image"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
+import { useEffect, useState } from "react"
 import { LangSelector } from "@/components/lang-selector"
 import { useTenantSettings } from "@/features/tenant"
 import { useCurrentTheme } from "@/hooks/use-current-theme"
@@ -14,7 +15,13 @@ export type AuthHeaderProps = {
 
 export const AuthHeader = ({ title }: AuthHeaderProps) => {
   const currentTheme = useCurrentTheme()
+  const [mounted, setMounted] = useState(false)
   const { name, logoLightUrl, logoDarkUrl } = useTenantSettings()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   const logoUrl = currentTheme === "dark" ? logoLightUrl : logoDarkUrl
 
   return (
@@ -24,13 +31,17 @@ export const AuthHeader = ({ title }: AuthHeaderProps) => {
       </div>
 
       <div className="flex items-center justify-center gap-4">
-        <Image
-          alt={name}
-          height={80}
-          priority={true}
-          src={logoUrl}
-          width={271}
-        />
+        {mounted ? (
+          <Image
+            alt={name}
+            height={80}
+            priority={true}
+            src={logoUrl}
+            width={271}
+          />
+        ) : (
+          <div className="h-20 w-[271px]" />
+        )}
       </div>
 
       <CardTitle className="text-slate-600 text-xl">{title}</CardTitle>
