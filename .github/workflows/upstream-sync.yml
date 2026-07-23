@@ -145,16 +145,16 @@ jobs:
             --title "Upstream sync auto-deployed: ChatbotX $(date +%Y-%m-%d)" \
             --body "Merged ChatbotXIO/ChatbotX main and pushed straight to \`$BASE_BRANCH\` — this is already live at 100% traffic, no review step ran.
 
-**New upstream migrations in this deploy — NOT auto-applied, apply by hand when ready:**
-\`\`\`
-${{ steps.migrations.outputs.list }}
-\`\`\`
+          **New upstream migrations in this deploy — NOT auto-applied, apply by hand when ready:**
+          \`\`\`
+          ${{ steps.migrations.outputs.list }}
+          \`\`\`
 
-**Auto-resolved (kept our Cloud-SQL-compatible version, per drizzle-wesal/README.md):**
-- 20260517074023_migrate_analytics_to_timescaledb_table/migration.sql
-- 20260622040000_align_message_attachment_to_shard_schema/migration.sql
+          **Auto-resolved (kept our Cloud-SQL-compatible version, per drizzle-wesal/README.md):**
+          - 20260517074023_migrate_analytics_to_timescaledb_table/migration.sql
+          - 20260622040000_align_message_attachment_to_shard_schema/migration.sql
 
-Check the service directly if anything looks off: https://console.cloud.google.com/run/detail/us-central1/wesal-one-next-builder"
+          Check the service directly if anything looks off: https://console.cloud.google.com/run/detail/us-central1/wesal-one-next-builder"
 
       - name: File a blocking issue when typecheck fails
         if: steps.merge.outputs.status == 'merged' && steps.typecheck.outputs.result != '0'
@@ -167,7 +167,7 @@ Check the service directly if anything looks off: https://console.cloud.google.c
             --title "Upstream sync NOT deployed — typecheck failed $(date +%Y-%m-%d)" \
             --body "Merged ChatbotXIO/ChatbotX main cleanly but \`pnpm --filter builder check-types\` failed, so nothing was pushed to \`$BASE_BRANCH\` — prod is unchanged.
 
-Merged branch (not deployed): \`$branch\`. Fix the type errors there and push to \`$BASE_BRANCH\` by hand when ready."
+          Merged branch (not deployed): \`$branch\`. Fix the type errors there and push to \`$BASE_BRANCH\` by hand when ready."
 
       - name: File an issue when conflicts need a human
         if: steps.merge.outputs.status == 'conflict'
@@ -178,9 +178,9 @@ Merged branch (not deployed): \`$branch\`. Fix the type errors there and push to
             --title "Upstream sync blocked: unexpected conflicts $(date +%Y-%m-%d)" \
             --body "Automated sync from ChatbotXIO/ChatbotX hit conflicts outside the two known TimescaleDB files and stopped without merging, pushing, or deploying anything. Prod is unchanged.
 
-Conflicted files:
-\`\`\`
-${{ steps.merge.outputs.unexpected }}
-\`\`\`
+          Conflicted files:
+          \`\`\`
+          ${{ steps.merge.outputs.unexpected }}
+          \`\`\`
 
-Resolve manually: \`bash scripts/update-from-upstream.sh --merge\`, fix conflicts, then push."
+          Resolve manually: \`bash scripts/update-from-upstream.sh --merge\`, fix conflicts, then push."
