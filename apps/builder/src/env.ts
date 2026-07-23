@@ -19,6 +19,19 @@ export const env = createEnv({
     BETTER_AUTH_URL: z.url(),
     LICENSE_KEY: z.string().optional(),
     WHATSAPP_OVERRIDE_CALLBACK_URI: z.url().optional(),
+    // Staging rollout switch for the manual (bank-transfer + admin-review)
+    // platform-subscription payment flow. Defaults OFF everywhere — flip
+    // explicitly per environment, never inferred from edition/NODE_ENV.
+    PLATFORM_SUBSCRIPTION_PAYMENTS_ENABLED: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
+    // Same staged-rollout convention as PLATFORM_SUBSCRIPTION_PAYMENTS_ENABLED,
+    // for the manual point top-up (Kuraimi/Jawali/bank-transfer/cash) flow.
+    PLATFORM_POINT_PURCHASES_ENABLED: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
   },
   client: {
     NEXT_PUBLIC_BUILDER_URL: z.url(),
@@ -74,3 +87,7 @@ export const env = createEnv({
 export const isEnterprise = () => env.NEXT_PUBLIC_EDITION === "enterprise"
 export const isCloud = () => env.NEXT_PUBLIC_EDITION === "cloud"
 export const isCommunity = () => env.NEXT_PUBLIC_EDITION === "community"
+export const isPlatformSubscriptionPaymentsEnabled = () =>
+  env.PLATFORM_SUBSCRIPTION_PAYMENTS_ENABLED === "true"
+export const isPointPurchasesEnabled = () =>
+  env.PLATFORM_POINT_PURCHASES_ENABLED === "true"

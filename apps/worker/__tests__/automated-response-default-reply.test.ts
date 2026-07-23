@@ -77,6 +77,10 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   appendKnowledgeBaseGuard: (p: string) => p,
   appendToolOutputGuard: (p: string) => p,
   appendUnavailableWebSearchPolicy: (p: string) => p,
+  // Platform Vertex override — always inactive here so every existing
+  // scenario in this file keeps resolving through the agent's own BYOK
+  // provider exactly as before.
+  buildPlatformOverrideCandidates: vi.fn(() => []),
   createAIProviderInstance: vi.fn(() => () => ({ type: "fake-model" })),
   createOpenaiCompatibleModelInstance: vi.fn(() => ({
     type: "openai-compatible-model",
@@ -90,6 +94,9 @@ vi.mock("@chatbotx.io/ai/server", () => ({
     cleanup: undefined,
     webSearchOmitReason: undefined,
   })),
+  getActivePlatformAiOverride: vi.fn(async () => null),
+  getPlatformVertexChatModel: vi.fn(() => ({ type: "vertex-model" })),
+  isPlatformVertexModelCandidate: vi.fn(() => false),
   McpClient: vi.fn(),
   normalizeAuthorizedWebSearchDomains: vi.fn(() => []),
   normalizeMcpContent: vi.fn((c: unknown) => c),

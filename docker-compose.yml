@@ -12,12 +12,17 @@ x-rustfs-environment: &rustfs-environment
 services:
   postgres:
     <<: *network
-    image: timescale/timescaledb-ha:pg18-all
+    image: chatbotx-postgres-local:pg18
+    build:
+      context: .
+      dockerfile: .localdev/Dockerfile.postgres
+      secrets:
+        - host_ca
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
-      - db-data:/home/postgres/pgdata
-    command: ["postgres", "-c", "log_statement=${POSTGRES_LOG_STATEMENT:-none}"]
+      - db-data-pilot:/var/lib/postgresql
+    command: ["postgres", "-c", "shared_preload_libraries=timescaledb", "-c", "log_statement=${POSTGRES_LOG_STATEMENT:-none}"]
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-chatbotx}
       - POSTGRES_USER=${POSTGRES_USER:-chatbotx}
@@ -36,22 +41,22 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${ADMINER_PORT:-8080}:8080"
+      - "${ADMINER_PORT:-58080}:8080"
 
   mailhog:
     <<: *network
     image: mailhog/mailhog
     ports:
-      - 1025:1025
-      - 8025:8025
+      - 51025:1025
+      - 58025:8025
 
   filesystem:
     <<: *network
     image: rustfs/rustfs:latest
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "59000:9000"
+      - "59001:9001"
     environment:
       <<: *rustfs-environment
     volumes:
@@ -87,7 +92,7 @@ services:
     <<: *network
     image: redis:8-alpine
     ports:
-      - "6379:6379"
+      - "56379:6379"
     volumes:
       - cache-data:/data
     healthcheck:
@@ -103,7 +108,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "5540:5540"
+      - "55540:5540"
     volumes:
       - redis-ui-data:/data
 
@@ -113,6 +118,11 @@ networks:
 
 volumes:
   db-data:
+  db-data-pilot:
   filesystem-data:
   cache-data:
   redis-ui-data:
+
+secrets:
+  host_ca:
+    file: /etc/ssl/certs/ca-certificates.crt

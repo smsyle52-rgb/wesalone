@@ -2,10 +2,11 @@
 
 import { useAnalysisStore } from "@chatbotx.io/analytics-nextjs/provider/analysis-store-context"
 import { Card, CardContent } from "@chatbotx.io/ui/components/ui/card"
-import { useTranslations } from "next-intl"
+import { useFormatter, useTranslations } from "next-intl"
 
 export default function InboxStatsList() {
   const t = useTranslations()
+  const format = useFormatter()
   const loading = useAnalysisStore((s) => s.loading)
   const totalContacts = useAnalysisStore((s) => s.inboxTotalContacts)
   const newContacts = useAnalysisStore((s) => s.inboxNewContacts)
@@ -17,7 +18,9 @@ export default function InboxStatsList() {
         <CardContent className="flex flex-col items-center justify-center gap-2 px-4">
           <h3 className="text-sm">{t("analytics.contacts")}</h3>
           <p className="font-bold text-sm">
-            {loading ? "..." : totalContacts?.toLocaleString()}
+            {loading || totalContacts === undefined
+              ? "..."
+              : format.number(totalContacts)}
           </p>
         </CardContent>
       </Card>
@@ -26,7 +29,9 @@ export default function InboxStatsList() {
         <CardContent className="flex flex-col items-center justify-center gap-2 px-4">
           <h3 className="text-sm">{t("analytics.newContacts")}</h3>
           <p className="font-bold text-sm">
-            {loading ? "..." : newContacts?.toLocaleString()}
+            {loading || newContacts === undefined
+              ? "..."
+              : format.number(newContacts)}
           </p>
         </CardContent>
       </Card>
@@ -35,7 +40,9 @@ export default function InboxStatsList() {
         <CardContent className="flex flex-col items-center justify-center gap-2 px-4">
           <h3 className="text-sm">{t("analytics.activeContacts")}</h3>
           <p className="font-bold text-sm">
-            {loading ? "..." : activeContacts?.toLocaleString()}
+            {loading || activeContacts === undefined
+              ? "..."
+              : format.number(activeContacts)}
           </p>
         </CardContent>
       </Card>

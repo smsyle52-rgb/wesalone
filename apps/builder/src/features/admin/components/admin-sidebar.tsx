@@ -7,11 +7,14 @@ import {
   SidebarHeader,
 } from "@chatbotx.io/ui/components/ui/sidebar"
 import {
+  BrainCircuitIcon,
   CircleHelpIcon,
+  CoinsIcon,
   Grid2x2PlusIcon,
   ListTodoIcon,
   MailIcon,
   PaletteIcon,
+  ReceiptTextIcon,
 } from "lucide-react"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
@@ -27,8 +30,12 @@ import { authClient } from "@/lib/auth/auth-client"
  */
 export function AdminSidebar({
   showEnterpriseItems,
+  showPointPurchaseOrders,
+  showSubscriptionPayments,
 }: {
   showEnterpriseItems: boolean
+  showPointPurchaseOrders: boolean
+  showSubscriptionPayments: boolean
 }) {
   const t = useTranslations()
   const tManage = useTranslations("manageSidebar")
@@ -46,6 +53,29 @@ export function AdminSidebar({
       url: "/admin/platform-credentials",
       icon: Grid2x2PlusIcon,
     },
+    {
+      title: t("platformAdmin.aiSettings.title"),
+      url: "/admin/ai-settings",
+      icon: BrainCircuitIcon,
+    },
+    ...(showSubscriptionPayments
+      ? [
+          {
+            title: t("plans.admin.navLabel"),
+            url: "/admin/subscription-payments",
+            icon: ReceiptTextIcon,
+          },
+        ]
+      : []),
+    ...(showPointPurchaseOrders
+      ? [
+          {
+            title: t("plans.pointPurchaseAdmin.navLabel"),
+            url: "/admin/point-purchase-orders",
+            icon: CoinsIcon,
+          },
+        ]
+      : []),
     ...(showEnterpriseItems && !isCloud()
       ? [
           {

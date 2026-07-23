@@ -10,6 +10,10 @@ export const keys = () =>
       NEXT_PUBLIC_BUILDER_URL: z.url().default("http://localhost:3123"),
       PLATFORM_ADMIN_EMAIL: z.email().optional(),
       LICENSE_KEY: z.string().optional(),
+      // How many AI tokens one visible point represents — see
+      // point-wallet/service.ts. Configurable per environment without a
+      // redeploy of the AI runtime itself.
+      TOKENS_PER_POINT: z.coerce.number().int().min(1).default(1000),
     },
     runtimeEnv: process.env,
   })

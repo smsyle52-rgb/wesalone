@@ -7,19 +7,17 @@ import {
   AccordionTrigger,
 } from "@chatbotx.io/ui/components/ui/accordion"
 import { SiFacebook } from "@icons-pack/react-simple-icons"
-import { BotIcon, CodeIcon, MailIcon, TableIcon } from "lucide-react"
+import { CodeIcon, MailIcon, TableIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
 import type { ReactNode } from "react"
 
+// BYOK AI provider slots (openAI/gemini/claude/deepSeek/openRouter/
+// openaiCompatible) are deliberately not rendered here: the platform now
+// runs a single internal Vertex AI provider (see platform-ai settings)
+// instead of per-workspace bring-your-own-key AI credentials.
 type SettingIntegrationLayoutProps = {
   children?: ReactNode
   workspaceToken?: ReactNode
-  openAI?: ReactNode
-  gemini?: ReactNode
-  claude?: ReactNode
-  deepSeek?: ReactNode
-  openRouter?: ReactNode
-  openaiCompatible?: ReactNode
   googleSheets?: ReactNode
   facebookAds?: ReactNode
   activeCampaign?: ReactNode
@@ -34,12 +32,6 @@ type SettingIntegrationLayoutProps = {
 
 export default function SettingIntegrationLayout({
   workspaceToken,
-  openAI,
-  gemini,
-  claude,
-  deepSeek,
-  openRouter,
-  openaiCompatible,
   googleSheets,
   facebookAds,
   activeCampaign,
@@ -58,36 +50,6 @@ export default function SettingIntegrationLayout({
       keyName: t("workspaceToken.title"),
       icon: CodeIcon,
       content: workspaceToken,
-    },
-    {
-      keyName: t("openai.title"),
-      icon: BotIcon,
-      content: openAI,
-    },
-    {
-      keyName: t("gemini.title"),
-      icon: BotIcon,
-      content: gemini,
-    },
-    {
-      keyName: t("claude.title"),
-      icon: BotIcon,
-      content: claude,
-    },
-    {
-      keyName: t("deepseek.title"),
-      icon: BotIcon,
-      content: deepSeek,
-    },
-    {
-      keyName: t("openrouter.title"),
-      icon: BotIcon,
-      content: openRouter,
-    },
-    {
-      keyName: t("openaiCompatible.title"),
-      icon: BotIcon,
-      content: openaiCompatible,
     },
     {
       keyName: t("googleSheets.title"),

@@ -10,7 +10,7 @@ import { BotIcon } from "lucide-react"
 import { OpenAIIcon, OpenAIIconHex } from "@/icons/openai"
 
 type AIIconProps = {
-  provider: AIProvider | "openaiCompatible"
+  provider: AIProvider | "openaiCompatible" | "google"
   className?: string
   showLabel?: boolean
   label?: string
@@ -26,6 +26,7 @@ const AIIconInner = (props: AIIconProps) => {
     case "openai":
       return <OpenAIIcon className={fullClassName} fill={OpenAIIconHex} />
     case "gemini":
+    case "google":
       return (
         <SiGooglegemini className={fullClassName} fill={SiGooglegeminiHex} />
       )

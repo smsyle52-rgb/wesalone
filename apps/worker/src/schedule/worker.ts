@@ -17,6 +17,7 @@ import {
   scanDateTimeWebhooks,
 } from "../webhook/datetime-webhook-scanner"
 import { enqueueBroadcast } from "./handlers/enqueue-broadcast"
+import { expireStalePendingOrders } from "./handlers/expire-stale-pending-orders"
 import { finalizeBroadcasts } from "./handlers/finalize-broadcasts"
 import { maintainMacPartitions } from "./handlers/maintain-mac-partitions"
 import { prepareBroadcast } from "./handlers/prepare-broadcast"
@@ -130,6 +131,10 @@ async function startScheduleWorker() {
 
         case ScheduleJobData.teardownExpiredTrial:
           await teardownExpiredTrial(job.data.data.userId)
+          return
+
+        case ScheduleJobData.expireStalePendingOrders:
+          await expireStalePendingOrders()
           return
 
         default:

@@ -1,10 +1,11 @@
 "use client"
 
-import { useTranslations } from "next-intl"
+import { useFormatter, useTranslations } from "next-intl"
 import { useAnalysisStore } from "../../provider/analysis-store-context"
 
 export function BotMessagesAIProvidersTable() {
   const t = useTranslations()
+  const format = useFormatter()
 
   const { botMessagesAIProviders } = useAnalysisStore((state) => state)
 
@@ -41,10 +42,13 @@ export function BotMessagesAIProvidersTable() {
                   {row.aiProvider}
                 </td>
                 <td className="px-4 py-3 text-right text-sm">
-                  {row.count.toLocaleString()}
+                  {format.number(row.count)}
                 </td>
                 <td className="px-4 py-3 text-right text-sm">
-                  {row.percentage.toFixed(1)}%
+                  {format.number(row.percentage / 100, {
+                    style: "percent",
+                    maximumFractionDigits: 1,
+                  })}
                 </td>
               </tr>
             ))

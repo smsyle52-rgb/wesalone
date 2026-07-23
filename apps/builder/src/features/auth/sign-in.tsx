@@ -66,8 +66,8 @@ export const SignInForm = ({
       </Card>
 
       <AcceptTermsAndPolicy
-        privacyPolicy={policyUrl ?? "https://chatbotx.io/privacy/"}
-        termsOfService={termsOfServiceUrl ?? "https://chatbotx.io/terms/"}
+        privacyPolicy={policyUrl ?? "/privacy"}
+        termsOfService={termsOfServiceUrl ?? "/terms"}
       />
     </div>
   )

@@ -4,10 +4,10 @@ import {
   quotaEnforcementService,
   userQuotaService,
 } from "@chatbotx.io/business"
-import { notFound } from "next/navigation"
 import { ExpiredBanner } from "@/components/expired-banner"
 import { WorkspaceDeletionPendingToast } from "@/components/workspace-deletion-pending-toast"
 import { isCloud } from "@/env"
+import { MarketingHome } from "@/features/marketing/marketing-home"
 import { AccountRail } from "@/features/workspaces/components/account-rail"
 import WorkspacesList from "@/features/workspaces/components/workspaces-list"
 import { hasWorkspacePermission } from "@/lib/auth/permission-routes"
@@ -22,7 +22,7 @@ import {
 export default async function MainPage() {
   const userAndWorkspaces = await getCurrentUserAndAllLinkedWorkspaces()
   if (!userAndWorkspaces) {
-    return notFound()
+    return <MarketingHome />
   }
 
   const { user, allWorkspaces, allWorkspaceMembers } = userAndWorkspaces

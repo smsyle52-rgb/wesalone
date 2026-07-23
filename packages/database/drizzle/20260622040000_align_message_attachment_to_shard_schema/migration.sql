@@ -15,10 +15,6 @@
 --          ALL EXISTING DATA IN THESE TABLES WILL BE LOST.
 --          Take a full database backup before running.
 
--- Enable TimescaleDB on the main database
-CREATE EXTENSION IF NOT EXISTS timescaledb;
---> statement-breakpoint
-
 -- Drop Attachment first (it has an FK to Message).
 -- CASCADE removes:
 --   - Attachment_messageId_Message_id_fkey
@@ -51,9 +47,6 @@ CREATE TABLE "Message" (
   "sourceId" text,
   PRIMARY KEY ("id", "createdAt")
 );
---> statement-breakpoint
-
-SELECT create_hypertable('"Message"', by_range('createdAt', INTERVAL '7 days'), if_not_exists => TRUE);
 --> statement-breakpoint
 
 -- FK from Message to regular tables (supported — FK FROM hypertable TO regular table is fine)
@@ -93,9 +86,6 @@ CREATE TABLE "Attachment" (
   "name" text,
   PRIMARY KEY ("id", "createdAt")
 );
---> statement-breakpoint
-
-SELECT create_hypertable('"Attachment"', by_range('createdAt', INTERVAL '7 days'), if_not_exists => TRUE);
 --> statement-breakpoint
 
 -- FK from Attachment to regular tables only.
@@ -142,29 +132,6 @@ CREATE INDEX "Attachment_workspaceId_createdAt_idx"
 
 CREATE INDEX "Attachment_conversationId_idx"
   ON "Attachment" ("conversationId", "createdAt" DESC);
---> statement-breakpoint
-
--- ─────────────────────────────────────────────
--- TimescaleDB compression (chunks older than 30 days)
--- ─────────────────────────────────────────────
-ALTER TABLE "Message" SET (
-  timescaledb.compress,
-  timescaledb.compress_segmentby = '"workspaceId","conversationId"',
-  timescaledb.compress_orderby = '"createdAt" DESC'
-);
---> statement-breakpoint
-
-SELECT add_compression_policy('"Message"', INTERVAL '30 days', if_not_exists => TRUE);
---> statement-breakpoint
-
-ALTER TABLE "Attachment" SET (
-  timescaledb.compress,
-  timescaledb.compress_segmentby = '"workspaceId","conversationId"',
-  timescaledb.compress_orderby = '"createdAt" DESC'
-);
---> statement-breakpoint
-
-SELECT add_compression_policy('"Attachment"', INTERVAL '30 days', if_not_exists => TRUE);
 --> statement-breakpoint
 
 -- ─────────────────────────────────────────────

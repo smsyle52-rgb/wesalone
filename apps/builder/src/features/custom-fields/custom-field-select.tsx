@@ -76,7 +76,7 @@ export const CustomFieldSelect = (props: CustomFieldSelectProps) => {
             {label}
             {!required && (
               <span className="self-start font-normal text-xxs">
-                (optional)
+                {t("fields.optionalHint")}
               </span>
             )}
           </FormLabel>

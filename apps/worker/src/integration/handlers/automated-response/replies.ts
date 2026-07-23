@@ -13,13 +13,18 @@ import {
   appendHandoffPolicy,
   appendKnowledgeBaseGuard,
   appendToolOutputGuard,
+  buildPlatformOverrideCandidates,
   createAIProviderInstance,
   createOpenaiCompatibleModelInstance,
+  getActivePlatformAiOverride,
   getAIIntegrationInDB,
   getAIToolset,
+  getPlatformVertexChatModel,
+  isPlatformVertexModelCandidate,
   McpClient,
   normalizeAuthorizedWebSearchDomains,
   normalizeMcpContent,
+  type PlatformVertexModelCandidate,
 } from "@chatbotx.io/ai/server"
 import { integrationOpenaiCompatibleService } from "@chatbotx.io/business"
 import type {
@@ -88,13 +93,21 @@ export type ReplyByAIExecutionResult = {
   }
 }
 
-export type ReplyAIProvider = AIAgentProvider | "openaiCompatible"
+export type ReplyAIProvider = AIAgentProvider | "openaiCompatible" | "vertex"
 
 export async function replyByAI(
   props: ReplyByAIProps,
 ): Promise<null | ReplyByAIExecutionResult> {
   const { aiAgent } = props
-  const providers = aiAgent.models as AIAgentProviderModels
+
+  // Platform-locked Vertex setting takes precedence over the agent's own
+  // stored fallback chain — see packages/ai/src/server/platform-provider.ts.
+  // `null` means disabled, so this behaves exactly as before this setting existed.
+  const platformOverride = await getActivePlatformAiOverride()
+  const providers: (AIAgentModelConfig | PlatformVertexModelCandidate)[] =
+    platformOverride
+      ? buildPlatformOverrideCandidates(platformOverride)
+      : (aiAgent.models as AIAgentProviderModels)
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
@@ -140,7 +153,12 @@ export async function generateAIReplyText(
   props: GenerateAIReplyProps,
 ): Promise<GeneratedAIReply | null> {
   const { conversation, contactInbox, messages, aiAgent } = props
-  const providers = aiAgent.models as AIAgentProviderModels
+
+  const platformOverride = await getActivePlatformAiOverride()
+  const providers: (AIAgentModelConfig | PlatformVertexModelCandidate)[] =
+    platformOverride
+      ? buildPlatformOverrideCandidates(platformOverride)
+      : (aiAgent.models as AIAgentProviderModels)
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
@@ -549,25 +567,40 @@ function filterToolsByAllowedSystemFunctions(
 }
 
 function isOpenaiCompatibleProviderModel(
-  providerInfo: AIAgentModelConfig,
+  providerInfo: AIAgentModelConfig | PlatformVertexModelCandidate,
 ): providerInfo is AIAgentOpenaiCompatibleProviderModel {
   return "kind" in providerInfo && providerInfo.kind === "openaiCompatible"
 }
 
-function getProviderName(providerInfo: AIAgentModelConfig): ReplyAIProvider {
+function getProviderName(
+  providerInfo: AIAgentModelConfig | PlatformVertexModelCandidate,
+): ReplyAIProvider {
+  if (isPlatformVertexModelCandidate(providerInfo)) {
+    return "vertex"
+  }
   return isOpenaiCompatibleProviderModel(providerInfo)
     ? "openaiCompatible"
     : providerInfo.provider
 }
 
 async function createReplyModel(props: {
-  providerInfo: AIAgentModelConfig
+  providerInfo: AIAgentModelConfig | PlatformVertexModelCandidate
   workspaceId: string
 }): Promise<null | {
   model: LanguageModel
   providerInstance?: AIProviderInstance
 }> {
   const { providerInfo, workspaceId } = props
+
+  if (isPlatformVertexModelCandidate(providerInfo)) {
+    const override = await getActivePlatformAiOverride()
+    // Setting flipped off between the loop starting and this call — fall
+    // through to null like any other "no integration available" case.
+    if (!override) {
+      return null
+    }
+    return { model: getPlatformVertexChatModel(providerInfo.model, override) }
+  }
 
   if (isOpenaiCompatibleProviderModel(providerInfo)) {
     const integration =
@@ -611,7 +644,7 @@ async function createReplyModel(props: {
 
 async function runAIReply(
   props: ReplyByAIProps,
-  providerInfo: AIAgentModelConfig,
+  providerInfo: AIAgentModelConfig | PlatformVertexModelCandidate,
   abortSignal: AbortSignal,
 ): Promise<null | ReplyByAIExecutionResult> {
   const { conversation, messages, aiAgent } = props

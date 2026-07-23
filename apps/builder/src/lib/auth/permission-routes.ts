@@ -7,6 +7,7 @@ export const PERMISSION_NAV = {
   broadcasts: "broadcast",
   sequences: "broadcast",
   products: "ecommerce",
+  orders: "ecommerce",
 } as const satisfies Record<string, keyof WorkspaceMemberPermissions>
 
 export type WorkspacePermissionKey = keyof WorkspaceMemberPermissions

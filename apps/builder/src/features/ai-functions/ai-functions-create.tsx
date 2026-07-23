@@ -181,7 +181,7 @@ export function AIFunctionsCreate({
                 <div className="mt-2 flex items-start gap-2" key={field.id}>
                   <InputField
                     name={`dataCollect.${index}.from`}
-                    placeholder="Attribute"
+                    placeholder={t("fields.attribute.label")}
                   />
                   <MoveRightIcon className="size-10" />
                   <CustomFieldField

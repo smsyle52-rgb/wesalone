@@ -16,7 +16,11 @@ import {
   McpClient,
   normalizeMcpContent,
 } from "@chatbotx.io/ai/server"
-import { integrationOpenaiCompatibleService } from "@chatbotx.io/business"
+import {
+  integrationOpenaiCompatibleService,
+  pointWalletService,
+  workspaceService,
+} from "@chatbotx.io/business"
 import type {
   AIAgentModelConfig,
   AIAgentOpenaiCompatibleProviderModel,
@@ -265,6 +269,40 @@ async function runAIReplyInternal(
       )
       return { fullText: "" }
     })
+
+    // Points billing, centralized here: every real AI call that reaches this
+    // point (reply text or tool-only fallback) goes through the same debit,
+    // so no call site can forget to bill and no path can double-bill. Never
+    // lets a billing failure break a reply that already succeeded — the
+    // merchant's customer still gets their answer, and the miss is logged
+    // for reconciliation instead of surfacing as a user-facing error.
+    try {
+      const usage = await result.usage
+      const totalTokens = usage.totalTokens ?? 0
+      if (totalTokens > 0) {
+        const workspace = await workspaceService.findById({
+          id: conversation.workspaceId,
+        })
+        await pointWalletService.debitPointsForTokens({
+          userId: workspace.ownerId,
+          tokens: totalTokens,
+          idempotencyKey: `ai-run:${conversation.id}:${Date.now()}`,
+          sourceType: "ai_run",
+          sourceId: conversation.id,
+          reason: "ai_usage",
+        })
+      }
+    } catch (billingError) {
+      logger.warn(
+        {
+          err: normalizeError(billingError),
+          provider,
+          conversationId: conversation.id,
+          workspaceId: conversation.workspaceId,
+        },
+        "[ai-agent-runner] points debit failed after a successful AI reply",
+      )
+    }
 
     if (fullText) {
       await aiContextService.appendHistory({

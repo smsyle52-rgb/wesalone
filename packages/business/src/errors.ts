@@ -27,3 +27,30 @@ export const channelDuplicatedException = () =>
     "This account is already connected to another workspace.",
     "channelDuplicated",
   )
+
+export const insufficientStockException = () =>
+  new ChatbotXException(
+    "Requested quantity is not available in stock.",
+    "insufficientStock",
+    409,
+  )
+
+export const orderStateConflictException = (message: string) =>
+  new ChatbotXException(message, "orderStateConflict", 409)
+
+export const paymentAlreadyProcessedException = () =>
+  new ChatbotXException(
+    "This payment event has already been processed.",
+    "paymentAlreadyProcessed",
+    409,
+  )
+
+export const invalidWebhookSignatureException = () =>
+  new ChatbotXException(
+    "Invalid webhook signature.",
+    "invalidWebhookSignature",
+    400,
+  )
+
+export const paymentMismatchException = (message: string) =>
+  new ChatbotXException(message, "paymentMismatch", 400)

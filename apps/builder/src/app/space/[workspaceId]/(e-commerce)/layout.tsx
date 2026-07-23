@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation"
-import { getTranslations } from "next-intl/server"
 import { type ReactNode, Suspense } from "react"
-import { AppTab } from "@/components/app-tab"
 import { withWorkspaceIdSchema } from "@/features/workspaces/schema/resource"
+import { EcommerceTabs } from "./ecommerce-tabs"
 
 export default async function ProductsPage({
   params,
@@ -16,29 +15,9 @@ export default async function ProductsPage({
     return notFound()
   }
 
-  const t = await getTranslations()
-
   return (
     <div className="space-y-4 p-6">
-      <AppTab
-        tabs={[
-          {
-            label: t("products.title"),
-            href: `/space/${data.workspaceId}/products`,
-            isActive: true,
-          },
-          {
-            label: t("orders.title"),
-            href: `/space/${data.workspaceId}/orders`,
-            isActive: false,
-          },
-          {
-            label: t("settings.title"),
-            href: `/space/${data.workspaceId}/ecommerce-settings`,
-            isActive: false,
-          },
-        ]}
-      />
+      <EcommerceTabs workspaceId={data.workspaceId} />
 
       <Suspense fallback={null}>{children}</Suspense>
     </div>

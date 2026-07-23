@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY apps/realtime/docker/rootfs/ /
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 COPY --from=pre /app/out/json/ .
 RUN pnpm install --frozen-lockfile

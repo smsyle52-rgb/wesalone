@@ -14,17 +14,11 @@ import { type ComponentProps, useEffect, useState } from "react"
 import { reconcileTenantEntitlementAction } from "./actions/reconcile-tenant-entitlement.action"
 
 /**
- * Same-origin path proxied to the private billing portal (see
- * apps/builder/next.config.ts). We embed it in an iframe so all pricing and
- * plan-detail logic stays in the portal and never lands in this repo.
- *
- * Uses the canonical `/portal/*` prefix (the same one portal-nav.ts links to)
- * so it resolves in both dev (the `/portal/:path*` rewrite) and prod (Caddy
- * routes `/portal/*` to the portal). Must stay relative (same-origin) so the
- * user's session cookies flow into the iframe and framing is not blocked by
- * X-Frame-Options.
+ * The isolated Wesal One release does not deploy the separate private portal.
+ * Keep the upgrade dialog same-origin and point it at the pricing page shipped
+ * with this builder so the button never opens an unavailable route.
  */
-const PRICING_PATH = "/portal/pricing"
+const PRICING_PATH = "/pricing"
 
 /** Message the portal posts on a successful upgrade so we can refresh in-app. */
 const UPGRADE_SUCCESS_TYPE = "billing:upgrade-success"

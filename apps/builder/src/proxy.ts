@@ -21,6 +21,14 @@ const publicRoutes = [
   "/unsubscribe",
   "/email-topic",
   "/extensions",
+  "/features",
+  "/channels",
+  "/about",
+  "/contact",
+  "/privacy",
+  "/terms",
+  "/data-deletion",
+  "/pricing",
 ]
 const signinPath = "/auth/sign-in"
 
@@ -103,6 +111,9 @@ function buildSigninUrl(
 }
 
 function isPublicRoute(pathname: string) {
+  if (pathname === "/") {
+    return true
+  }
   for (const route of publicRoutes) {
     if (pathname.startsWith(route)) {
       return true

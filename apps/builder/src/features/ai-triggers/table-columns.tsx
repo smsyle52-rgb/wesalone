@@ -84,7 +84,7 @@ export function getAITriggersColumns({
     {
       accessorKey: "modified",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Modified" />
+        <DataTableColumnHeader column={column} title={t("fields.modified.label")} />
       ),
       cell: ({ row }) => (
         <div>
@@ -99,7 +99,7 @@ export function getAITriggersColumns({
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t("fields.actions.label"),
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

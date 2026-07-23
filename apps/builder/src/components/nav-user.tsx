@@ -123,14 +123,14 @@ export function NavUser({
             )}
             <DropdownMenuGroup>
               <DropdownMenuItem>
-                Language
+                {t("fields.language.label")}
                 <LangSelector />
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem className="justify-between">
-                Theme
+                {t("fields.theme.label")}
                 <ThemeSwitcher />
               </DropdownMenuItem>
             </DropdownMenuGroup>

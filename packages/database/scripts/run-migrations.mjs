@@ -4,6 +4,7 @@
  *
  * Usage: DATABASE_URL=... node ./scripts/run-migrations.mjs
  */
+import { existsSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { sql } from "drizzle-orm"
@@ -15,7 +16,26 @@ import { upgradeIfNeeded } from "drizzle-orm/up-migrations/pg"
 import { Pool } from "pg"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+
+// Two migration folders, applied in order:
+//
+//   drizzle/        — UPSTREAM (ChatbotX). Treat as read-only: never add our
+//                     own migrations here, so `git pull upstream` replaces this
+//                     folder wholesale without conflicts.
+//   drizzle-wesal/  — OURS. Every new Wesal One migration goes here.
+//
+// Upstream runs first because our migrations build on their tables. Drizzle
+// tracks applied migrations by hash in drizzle.__drizzle_migrations, and each
+// migrate() call only applies hashes it doesn't already find there, so running
+// two folders against the same table is safe.
+//
+// NOTE: the six Wesal migrations that predate this split (commerce orders,
+// platform subscription payment, platform AI setting, Cloud SQL compat, point
+// wallet, point top-ups) intentionally stay in drizzle/ — they are already
+// applied in production, and moving a file changes the hash Drizzle recorded,
+// which would make it try to run them a second time.
 const migrationsFolder = join(__dirname, "..", "drizzle")
+const wesalMigrationsFolder = join(__dirname, "..", "drizzle-wesal")
 const migrationLockName = "chatbotx:database:migrations"
 
 // Drizzle's default migrator runs all pending migrations in one transaction.
@@ -37,7 +57,7 @@ const pool = new Pool({
   max: 1,
 })
 
-const runMigrationsSequentially = async (db) => {
+const runMigrationsSequentially = async (db, folder) => {
   const migrationsTable = "__drizzle_migrations"
   const migrationsSchema = "drizzle"
 
@@ -45,7 +65,7 @@ const runMigrationsSequentially = async (db) => {
     sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`,
   )
 
-  const localMigrations = readMigrationFiles({ migrationsFolder })
+  const localMigrations = readMigrationFiles({ migrationsFolder: folder })
   const { newDb } = await upgradeIfNeeded(
     migrationsSchema,
     migrationsTable,
@@ -241,9 +261,15 @@ try {
   await reconcileSquashedQuestionnaireMigration(client)
   const db = drizzle({ client })
   if (useSequentialMigrations) {
-    await runMigrationsSequentially(db)
+    await runMigrationsSequentially(db, migrationsFolder)
+    if (existsSync(wesalMigrationsFolder)) {
+      await runMigrationsSequentially(db, wesalMigrationsFolder)
+    }
   } else {
     await migrate(db, { migrationsFolder })
+    if (existsSync(wesalMigrationsFolder)) {
+      await migrate(db, { migrationsFolder: wesalMigrationsFolder })
+    }
   }
   console.log("Database migrations applied successfully.")
 } catch (error) {

@@ -1,0 +1,43 @@
+# Builder-only build+deploy. Used when a change touches apps/builder alone
+# (e.g. UI copy / i18n), so the worker and realtime services are left on their
+# current, already-verified revisions instead of being rebuilt for nothing.
+# Mirrors the builder steps of cloudbuild.wesal-next.yaml exactly.
+steps:
+  - id: build-builder
+    name: gcr.io/cloud-builders/docker
+    args:
+      [
+        build,
+        --file=apps/builder/docker/Dockerfile,
+        --tag=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/builder:$SHORT_SHA,
+        .,
+      ]
+
+  - id: push-builder
+    name: gcr.io/cloud-builders/docker
+    args:
+      [
+        push,
+        us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/builder:$SHORT_SHA,
+      ]
+
+  - id: deploy-builder
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      [
+        run,
+        services,
+        update,
+        wesal-one-next-builder,
+        --project=$PROJECT_ID,
+        --region=us-central1,
+        --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/builder:$SHORT_SHA,
+        --quiet,
+      ]
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 3600s

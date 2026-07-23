@@ -16,6 +16,7 @@ describe("workspace permission routes", () => {
       broadcasts: "broadcast",
       sequences: "broadcast",
       products: "ecommerce",
+      orders: "ecommerce",
     })
   })
 

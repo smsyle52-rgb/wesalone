@@ -189,6 +189,15 @@ export interface PricingTableFourProps
   }
   className?: string
   description?: string
+  /** i18n overrides for the few strings this component renders itself
+   * instead of taking as props — all default to the original English text,
+   * so existing callers are unaffected. */
+  labels?: {
+    perMonth?: string
+    perYear?: string
+    percentOff?: string
+    saveLabel?: string
+  }
   onPlanSelect?: (planId: string) => void
   plans: Plan[]
   showBillingToggle?: boolean
@@ -216,6 +225,12 @@ export function PricingTableFour({
     monthly: "Monthly",
     yearly: "Yearly",
   },
+  labels: {
+    perMonth = "/month",
+    perYear = "/year",
+    percentOff = "% off",
+    saveLabel = "Save",
+  } = {},
 }: PricingTableFourProps) {
   const [isAnnually, setIsAnnually] = useState(false)
   const uniqueId = useId()
@@ -321,8 +336,8 @@ export function PricingTableFour({
                   >
                     {billingToggleLabels.yearly}
                     {yearlyPriceDiscount > 0 && (
-                      <span className="ml-1 rounded border border-primary/20 bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
-                        Save {yearlyPriceDiscount}%
+                      <span className="ms-1 rounded border border-primary/20 bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
+                        {saveLabel} {yearlyPriceDiscount}%
                       </span>
                     )}
                   </Label>
@@ -433,7 +448,7 @@ export function PricingTableFour({
                               {plan.yearlyPrice}
                             </span>
                             <span className="text-muted-foreground text-sm">
-                              /year
+                              {perYear}
                             </span>
                             {calculateDiscount(
                               plan.monthlyPrice,
@@ -441,7 +456,7 @@ export function PricingTableFour({
                             ) > 0 && (
                               <span
                                 className={cn(
-                                  "ml-2 text-xs",
+                                  "ms-2 text-xs",
                                   theme === "classic"
                                     ? "font-semibold text-emerald-500"
                                     : "font-medium text-primary",
@@ -451,7 +466,7 @@ export function PricingTableFour({
                                   plan.monthlyPrice,
                                   plan.yearlyPrice,
                                 )}
-                                % off
+                                {percentOff}
                               </span>
                             )}
                           </div>
@@ -466,7 +481,7 @@ export function PricingTableFour({
                               {plan.monthlyPrice}
                             </span>
                             <span className="text-muted-foreground text-sm">
-                              /month
+                              {perMonth}
                             </span>
                           </div>
                         )}

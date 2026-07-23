@@ -82,9 +82,25 @@ import { integrationTiktokRelations } from "./integration-tiktok"
 import { integrationWebchatRelations } from "./integration-webchat"
 import { integrationWhatsappRelations } from "./integration-whatsapp"
 import { integrationZaloRelations } from "./integration-zalo"
+import { inventoryLocationRelations } from "./inventory-location"
+import { inventoryMovementRelations } from "./inventory-movement"
+import { inventoryStockRelations } from "./inventory-stock"
 import { magicLinkRelations } from "./magic-link"
 import { messageRelations } from "./message"
 import { messengerMessageTemplateRelations } from "./messenger-message-template"
+import { orderRelations } from "./order"
+import { orderItemRelations } from "./order-item"
+import { paymentRelations } from "./payment"
+import { paymentWebhookEventRelations } from "./payment-webhook-event"
+import { platformAiSettingRelations } from "./platform-ai-setting"
+import { platformSubscriptionPaymentRelations } from "./platform-subscription-payment"
+import {
+  pointGrantRelations,
+  pointLedgerRelations,
+  pointPurchaseOrderRelations,
+  pointTopupProductRelations,
+  pointWalletRelations,
+} from "./point"
 import { productRelations } from "./product"
 import { questionnaireRelations } from "./questionnaire"
 import { reflinkRelations } from "./reflink"
@@ -218,4 +234,18 @@ export const relations = {
   ...questionnaireRelations,
   ...coexistSyncRunRelations,
   ...userPersistentMenuRelations,
+  ...inventoryLocationRelations,
+  ...inventoryStockRelations,
+  ...inventoryMovementRelations,
+  ...orderRelations,
+  ...orderItemRelations,
+  ...paymentRelations,
+  ...paymentWebhookEventRelations,
+  ...platformSubscriptionPaymentRelations,
+  ...platformAiSettingRelations,
+  ...pointWalletRelations,
+  ...pointGrantRelations,
+  ...pointLedgerRelations,
+  ...pointTopupProductRelations,
+  ...pointPurchaseOrderRelations,
 }

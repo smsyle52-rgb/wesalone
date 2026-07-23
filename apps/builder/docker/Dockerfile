@@ -16,7 +16,7 @@ RUN turbo prune builder --docker
 
 # Install dependencies
 FROM base AS deps
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+ENV NODE_OPTIONS="--max-old-space-size=12288"
 
 WORKDIR /app
 COPY --from=pre /app/out/json/ .
@@ -68,7 +68,10 @@ WORKDIR /app
 # Build the application
 FROM base AS release
 
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 --gid 1001 nextjs
+
 COPY apps/builder/docker/rootfs/ /
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing

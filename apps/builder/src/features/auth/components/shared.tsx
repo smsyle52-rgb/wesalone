@@ -4,6 +4,7 @@ import { CardTitle } from "@chatbotx.io/ui/components/ui/card"
 import Image from "next/image"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
+import { LangSelector } from "@/components/lang-selector"
 import { useTenantSettings } from "@/features/tenant"
 import { useCurrentTheme } from "@/hooks/use-current-theme"
 
@@ -18,6 +19,10 @@ export const AuthHeader = ({ title }: AuthHeaderProps) => {
 
   return (
     <>
+      <div className="flex justify-end">
+        <LangSelector />
+      </div>
+
       <div className="flex items-center justify-center gap-4">
         <Image
           alt={name}

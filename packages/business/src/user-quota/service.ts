@@ -24,6 +24,7 @@ import { cacheConnections, distributedStore } from "@chatbotx.io/redis"
 import { BaseService } from "../base.service"
 import { isCloud } from "../keys"
 import { logger } from "../logger"
+import { pointWalletService } from "../point-wallet/service"
 import {
   LiveCounterStore,
   type QuotaMetric,
@@ -43,19 +44,18 @@ export type { QuotaMetric } from "../quota-shared/live-counter-store"
 const DEFAULT_PLAN_ENTITLEMENT_KEY = "entitlements:default-plan"
 
 // Last-resort fallback used only when the default-plan snapshot is unreadable
-// (cold/flushed Redis). A 1-day `trial` keeps the user signed in but every
-// limit is `0`, so they cannot create anything until the authoritative
-// quota-worker re-anchors the row — a deliberate fail-closed-on-capacity stance
-// for the snapshot-absent window (the user can log in, but not act).
+// (cold/flushed Redis). The isolated Wesal One deployment does not ship the
+// private quota worker, so the fallback must remain usable by itself. Keep it
+// aligned with the documented Free plan and allow exactly one workspace.
 const BOOTSTRAP_TRIAL_FALLBACK = {
-  planName: "Trial",
-  trialDays: 1,
-  workspacesLimit: 0,
-  macLimit: 0,
-  channelsLimit: 0,
-  teamMembersLimit: 0,
-  contactsLimit: 0,
-  botMessagesLimit: 0,
+  planName: "Free",
+  trialDays: 0,
+  workspacesLimit: 1,
+  macLimit: 100,
+  channelsLimit: 1,
+  teamMembersLimit: 1,
+  contactsLimit: 100,
+  botMessagesLimit: 100,
 } as const
 
 interface DefaultPlanSnapshot {
@@ -257,6 +257,104 @@ class UserQuotaService extends BaseService {
     if (inserted.length > 0) {
       await this.store.invalidate(userId)
     }
+  }
+
+  /**
+   * Write a plan's native-mappable limits (channels/contacts/team members)
+   * onto a workspace owner's UserQuota row and mark it `active` — no trial.
+   * The one place that actually mutates quota from a Wesal One plan; both
+   * the sandbox switcher and the reviewed subscription-payment confirmation
+   * call this so the two trust paths never duplicate (or drift from) the
+   * write logic. `agentsLimit` is still not written here — see
+   * wesal-one-plans.ts for why it has no native column. `monthlyPoints` (if
+   * given) now also issues a matching point-wallet grant for the same
+   * period, keyed by (userId, periodStart) so re-applying the same period
+   * (e.g. a retried confirmation) never double-grants.
+   */
+  async applyPlanEntitlements(props: {
+    userId: string
+    plan: {
+      nameEn: string
+      limits: {
+        channels: number | null
+        contacts: number | null
+        teamMembers: number | null
+      }
+      monthlyPoints?: number | null
+    }
+    periodStart: Date
+    periodEnd: Date | null
+  }): Promise<void> {
+    const { userId, plan, periodStart, periodEnd } = props
+
+    await db
+      .insert(userQuotaModel)
+      .values({
+        userId,
+        contactsLimit: plan.limits.contacts,
+        channelsLimit: plan.limits.channels,
+        teamMembersLimit: plan.limits.teamMembers,
+        planName: plan.nameEn,
+        planStatus: planStatuses.enum.active,
+        periodStart,
+        periodEnd,
+        syncedAt: periodStart,
+      })
+      .onConflictDoUpdate({
+        target: userQuotaModel.userId,
+        set: {
+          contactsLimit: plan.limits.contacts,
+          channelsLimit: plan.limits.channels,
+          teamMembersLimit: plan.limits.teamMembers,
+          planName: plan.nameEn,
+          planStatus: planStatuses.enum.active,
+          periodStart,
+          periodEnd,
+          syncedAt: periodStart,
+        },
+      })
+
+    if (plan.monthlyPoints && plan.monthlyPoints > 0) {
+      await pointWalletService.createGrant({
+        userId,
+        grantType: "monthly_subscription",
+        points: plan.monthlyPoints,
+        startsAt: periodStart,
+        expiresAt: periodEnd,
+        sourceType: "subscription",
+        sourceId: plan.nameEn,
+        idempotencyKey: `monthly:${userId}:${periodStart.toISOString()}`,
+        reason: `monthly plan grant: ${plan.nameEn}`,
+      })
+    }
+
+    await this.store.invalidate(userId)
+  }
+
+  /**
+   * Sandbox/test-only plan switcher — no trial period end, immediate
+   * `active`. Forbidden in production at the action layer
+   * (apply-sandbox-plan.action.ts); real activation goes through
+   * applyPlanEntitlements via the reviewed subscription-payment flow.
+   */
+  async applySandboxPlan(props: {
+    userId: string
+    plan: {
+      slug: string
+      nameEn: string
+      limits: {
+        channels: number | null
+        contacts: number | null
+        teamMembers: number | null
+      }
+    }
+  }): Promise<void> {
+    await this.applyPlanEntitlements({
+      userId: props.userId,
+      plan: props.plan,
+      periodStart: new Date(),
+      periodEnd: null,
+    })
   }
 
   /**

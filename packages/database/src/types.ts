@@ -172,3 +172,25 @@ export type QuestionnaireAnswerModel =
 export type WorkspaceMacModel = typeof schema.workspaceMacModel.$inferSelect
 export type ContactActiveHourlyModel =
   typeof schema.contactActiveHourlyModel.$inferSelect
+
+export type InventoryLocationModel =
+  typeof schema.inventoryLocationModel.$inferSelect
+export type InventoryStockModel = typeof schema.inventoryStockModel.$inferSelect
+export type InventoryMovementModel =
+  typeof schema.inventoryMovementModel.$inferSelect
+export type OrderModel = typeof schema.orderModel.$inferSelect
+export type OrderItemModel = typeof schema.orderItemModel.$inferSelect
+export type PaymentModel = typeof schema.paymentModel.$inferSelect
+export type PaymentWebhookEventModel =
+  typeof schema.paymentWebhookEventModel.$inferSelect
+export type PlatformAiSettingModel =
+  typeof schema.platformAiSettingModel.$inferSelect
+export type PlatformSubscriptionPaymentModel =
+  typeof schema.platformSubscriptionPaymentModel.$inferSelect
+export type PointWalletModel = typeof schema.pointWalletModel.$inferSelect
+export type PointGrantModel = typeof schema.pointGrantModel.$inferSelect
+export type PointLedgerModel = typeof schema.pointLedgerModel.$inferSelect
+export type PointTopupProductModel =
+  typeof schema.pointTopupProductModel.$inferSelect
+export type PointPurchaseOrderModel =
+  typeof schema.pointPurchaseOrderModel.$inferSelect

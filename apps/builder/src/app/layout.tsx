@@ -5,6 +5,7 @@ import { getLocale } from "next-intl/server"
 import type { ReactNode } from "react"
 import { PublicEnvScript } from "@/components/public-env-script"
 import { SupportChatScript } from "@/components/support-chat-script"
+import { ZodLocale } from "@/components/zod-locale"
 import { env } from "@/env"
 import { TenantProvider } from "@/features/tenant"
 import { getTenantSettings } from "@/features/tenant/utils"
@@ -48,6 +49,16 @@ export default async function RootLayout({ children }: Props) {
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
+        <link href="https://fonts.googleapis.com" rel="preconnect" />
+        <link
+          crossOrigin="anonymous"
+          href="https://fonts.gstatic.com"
+          rel="preconnect"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Tajawal:wght@400;500;700;800&display=swap"
+          rel="stylesheet"
+        />
         <PublicEnvScript />
         {isBuilderDomain && pancakeChatPageId && (
           <SupportChatScript pageId={pancakeChatPageId} />
@@ -63,7 +74,10 @@ export default async function RootLayout({ children }: Props) {
       >
         <TenantProvider settings={tenantSettings}>
           <UiProvider>
-            <NextIntlClientProvider>{children}</NextIntlClientProvider>
+            <NextIntlClientProvider>
+              <ZodLocale />
+              {children}
+            </NextIntlClientProvider>
           </UiProvider>
         </TenantProvider>
       </body>

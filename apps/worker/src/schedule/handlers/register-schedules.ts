@@ -223,4 +223,18 @@ export const registerSchedules = async () => {
       },
     },
   )
+
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.expireStalePendingOrders,
+    {
+      pattern: "* * * * *",
+    },
+    {
+      name: ScheduleJobData.expireStalePendingOrders,
+      data: {
+        type: ScheduleJobData.expireStalePendingOrders,
+        data: {},
+      },
+    },
+  )
 }
