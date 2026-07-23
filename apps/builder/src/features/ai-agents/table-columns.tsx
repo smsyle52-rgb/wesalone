@@ -86,7 +86,10 @@ export function getAIAgentsColumns({
     {
       accessorKey: "modified",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t("fields.modified.label")} />
+        <DataTableColumnHeader
+          column={column}
+          title={t("fields.modified.label")}
+        />
       ),
       cell: ({ row }) => (
         <div>

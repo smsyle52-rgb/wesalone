@@ -1,0 +1,21 @@
+# Verification-only: typecheck the builder app on a Cloud Build machine
+# instead of the local dev machine (which runs out of memory on this repo).
+# Deliberately does NOT build a docker image, push anything, or touch any
+# Cloud Run service - safe to run against any branch, any number of times.
+steps:
+  - id: install-and-typecheck
+    name: node:24-trixie-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        corepack enable
+        pnpm install --frozen-lockfile
+        pnpm --filter builder check-types
+
+options:
+  machineType: E2_HIGHCPU_32
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s

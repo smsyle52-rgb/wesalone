@@ -7,8 +7,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@chatbotx.io/ui/components/ui/select"
-import { useLocale, useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
+import { useLocale, useTranslations } from "next-intl"
 import type React from "react"
 import { useTransition } from "react"
 import type { Locale } from "@/i18n/config"

@@ -45,6 +45,7 @@ export const updateWorkspaceAdvancedRequest = z.object({
   timezone: z.enum(allTimezoneCodes as [string, ...string[]]),
   brandColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
   developmentMode: z.boolean(),
+  smartResponseDelaySeconds: smartResponseDelaySecondsSchema,
 })
 export type UpdateWorkspaceAdvancedRequest = z.infer<
   typeof updateWorkspaceAdvancedRequest
