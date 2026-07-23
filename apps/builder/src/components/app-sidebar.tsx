@@ -12,6 +12,7 @@ import {
   BrainIcon,
   ChartPieIcon,
   ChevronsRight,
+  CreditCardIcon,
   LightbulbIcon,
   type LucideIcon,
   MessageCircleMoreIcon,
@@ -137,6 +138,12 @@ export function AppSidebar({
         title: t("tools.title"),
         url: `/space/${workspaceId}/tools`,
         icon: WrenchIcon,
+      },
+      {
+        title: t("billing.navTitle"),
+        url: `/space/${workspaceId}/pricing`,
+        icon: CreditCardIcon,
+        permission: "superAdmin",
       },
       {
         title: t("settings.title"),
