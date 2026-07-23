@@ -1,0 +1,209 @@
+name: Upstream Sync (ChatbotX)
+
+# Polls ChatbotXIO/ChatbotX main every 10 minutes (schedule) or on-demand
+# (workflow_dispatch) and processes any new commits ONE AT A TIME, in
+# commit order: merge -> typecheck -> push straight to release/wesal-one-next,
+# which auto-deploys to production at 100% traffic per commit (no canary,
+# no human review gate). This is a deliberate choice, made with the risk
+# spelled out: the same no-canary deploy path already broke prod once
+# before from a human push, and this makes it fire automatically, once per
+# upstream commit, from commits nobody here reviewed.
+#
+# We don't have write access to ChatbotXIO/ChatbotX, so there's no real
+# webhook available — frequent polling is the closest practical
+# approximation to "each commit deploys on its own" without one.
+#
+# A commit only gets merged+deployed if every commit before it in the same
+# run already deployed cleanly. The first commit that hits an unexpected
+# conflict, a failing typecheck, or a rejected push stops the whole run —
+# nothing after it is attempted, and a summary issue names exactly which
+# commit blocked and why. The two known TimescaleDB conflicts still
+# auto-resolve (keep ours), same as before.
+#
+# Migrations are NEVER auto-applied here, full stop — that rule doesn't
+# bend for this workflow. New migration files just get listed in the
+# summary issue for someone to apply by hand.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes — GitHub's practical floor for "close to real-time" without a webhook
+  workflow_dispatch: {}
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false # never cancel a run that may be mid-deploy; queue the next poll instead
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  UPSTREAM_URL: https://github.com/ChatbotXIO/ChatbotX.git
+  BASE_BRANCH: release/wesal-one-next
+  KNOWN_CONFLICT_FILES: |
+    packages/database/drizzle/20260517074023_migrate_analytics_to_timescaledb_table/migration.sql
+    packages/database/drizzle/20260622040000_align_message_attachment_to_shard_schema/migration.sql
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.BASE_BRANCH }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "upstream-sync-bot"
+          git config user.email "actions@github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream "$UPSTREAM_URL" 2>/dev/null || true
+
+      - name: Fetch upstream
+        run: git fetch upstream main
+
+      - name: Check for new commits
+        id: check
+        run: |
+          count=$(git rev-list --count HEAD..upstream/main)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Found $count new upstream commit(s)."
+
+      - uses: pnpm/action-setup@v4
+        if: steps.check.outputs.count != '0'
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.count != '0'
+        with:
+          node-version: 24
+
+      - name: Process new upstream commits one at a time
+        if: steps.check.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          branch="upstream-sync/$(date -u +%Y-%m-%d-%H%M%S)"
+          start_point=$(git rev-parse HEAD)
+          git checkout -b "$branch"
+
+          deployed=""
+          stop_reason=""
+          stop_sha=""
+          unexpected=""
+
+          for sha in $(git rev-list --reverse "$start_point"..upstream/main); do
+            subject=$(git log -1 --format=%s "$sha")
+
+            git merge "$sha" --no-edit
+            merge_status=$?
+
+            if [ "$merge_status" -ne 0 ]; then
+              conflicted=$(git diff --name-only --diff-filter=U | sort -u)
+              known=$(echo "$KNOWN_CONFLICT_FILES" | sed '/^$/d' | sort -u)
+              unexpected=$(comm -23 <(echo "$conflicted") <(echo "$known"))
+
+              if [ -n "$unexpected" ]; then
+                git merge --abort
+                stop_reason="conflict"
+                stop_sha="$sha"
+                break
+              fi
+
+              # Only the known, permanently-accepted TimescaleDB files conflicted.
+              # Resolution is fixed: keep our Cloud-SQL-compatible version.
+              echo "$KNOWN_CONFLICT_FILES" | sed '/^$/d' | while read -r f; do
+                if echo "$conflicted" | grep -qxF "$f"; then
+                  git checkout --ours "$f"
+                  git add "$f"
+                fi
+              done
+              git commit --no-edit
+            fi
+
+            pnpm install --frozen-lockfile
+            pnpm --filter builder check-types
+            typecheck_status=$?
+
+            if [ "$typecheck_status" -ne 0 ]; then
+              stop_reason="typecheck"
+              stop_sha="$sha"
+              break
+            fi
+
+            git push origin "HEAD:$BASE_BRANCH"
+            push_status=$?
+
+            if [ "$push_status" -ne 0 ]; then
+              stop_reason="push"
+              stop_sha="$sha"
+              break
+            fi
+
+            deployed="${deployed}${sha:0:7} ${subject}"$'\n'
+          done
+
+          new_migrations=$(git diff --name-status "$start_point"..HEAD -- packages/database/drizzle/ | awk '$1=="A"{print $2}')
+          deployed_count=$(printf '%s' "$deployed" | grep -c .)
+
+          if [ "$stop_reason" = "typecheck" ] || [ "$stop_reason" = "push" ]; then
+            git push origin "$branch"
+          fi
+
+          {
+            if [ -n "$deployed" ]; then
+              echo "**Deployed to \`$BASE_BRANCH\` this run — one push per commit, no canary:**"
+              echo '```'
+              printf '%s' "$deployed"
+              echo '```'
+            else
+              echo "Nothing was deployed this run."
+            fi
+            echo ""
+            case "$stop_reason" in
+              conflict)
+                echo "**Stopped at \`${stop_sha:0:7}\`** — merge conflict outside the two known TimescaleDB files. Nothing after this commit was attempted; prod is unchanged from this commit onward."
+                echo ""
+                echo "Conflicted files:"
+                echo '```'
+                echo "$unexpected"
+                echo '```'
+                echo ""
+                echo "Resolve manually: \`bash scripts/update-from-upstream.sh --merge\`, fix conflicts, then push."
+                ;;
+              typecheck)
+                echo "**Stopped at \`${stop_sha:0:7}\`** — \`pnpm --filter builder check-types\` failed after merging this commit. This commit was NOT pushed to \`$BASE_BRANCH\`, and nothing after it was attempted."
+                echo ""
+                echo "Broken state pushed for review: \`$branch\`. Fix the type errors there and push to \`$BASE_BRANCH\` by hand when ready."
+                ;;
+              push)
+                echo "**Stopped at \`${stop_sha:0:7}\`** — merged and typechecked cleanly, but the push to \`$BASE_BRANCH\` was rejected (likely a concurrent push). Nothing after it was attempted."
+                echo ""
+                echo "State pushed for review: \`$branch\`."
+                ;;
+              *)
+                echo "All new upstream commits processed cleanly — nothing blocked this run."
+                ;;
+            esac
+            echo ""
+            if [ -n "$new_migrations" ]; then
+              echo "**New upstream migrations seen this run — NOT auto-applied, apply by hand when ready:**"
+              echo '```'
+              echo "$new_migrations"
+              echo '```'
+              echo ""
+            fi
+            echo "Check the service directly if anything looks off: https://console.cloud.google.com/run/detail/us-central1/wesal-one-next-builder"
+          } > /tmp/upstream-sync-issue-body.md
+
+          if [ -n "$stop_reason" ]; then
+            title="Upstream sync stopped at ${stop_sha:0:7} — $stop_reason ($(date -u +%Y-%m-%d\ %H:%M) UTC)"
+          else
+            title="Upstream sync: deployed $deployed_count commit(s) ($(date -u +%Y-%m-%d\ %H:%M) UTC)"
+          fi
+
+          gh issue create --title "$title" --body-file /tmp/upstream-sync-issue-body.md
