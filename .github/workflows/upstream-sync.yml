@@ -2,10 +2,18 @@ name: Upstream Sync (ChatbotX)
 
 # Weekly (and on-demand) check for new ChatbotX upstream commits. Attempts an
 # automatic merge, auto-resolves only the two permanently-known TimescaleDB
-# conflicts (see packages/database/drizzle-wesal/README.md), runs a typecheck,
-# and opens a PR for human review. Never pushes straight to
-# release/wesal-one-next itself — merging that PR is what deploys, and that
-# stays a deliberate human action.
+# conflicts (see packages/database/drizzle-wesal/README.md), typechecks the
+# result, and — if that passes — pushes straight to release/wesal-one-next,
+# which auto-deploys to production at 100% traffic (no canary, no human
+# review gate). This is a deliberate choice, made with the risk spelled out:
+# the same no-canary deploy path already broke prod once before from a human
+# push, and this makes it fire from upstream commits nobody here reviewed.
+# Typecheck failure and unexpected merge conflicts are the only brakes — both
+# stop before touching release/wesal-one-next and file an issue instead.
+#
+# Migrations are NEVER auto-applied here, full stop — that rule doesn't bend
+# for this workflow. New migration files just get listed in the sync issue
+# for someone to apply by hand.
 
 on:
   schedule:
@@ -14,7 +22,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
   issues: write
 
 env:
@@ -125,30 +132,20 @@ jobs:
           pnpm --filter builder check-types
           echo "result=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Push sync branch
-        if: steps.merge.outputs.status == 'merged'
-        run: git push origin "${{ steps.merge.outputs.branch }}" --force-with-lease
+      - name: Deploy — push straight to release/wesal-one-next
+        if: steps.merge.outputs.status == 'merged' && steps.typecheck.outputs.result == '0'
+        run: git push origin "HEAD:$BASE_BRANCH"
 
-      - name: Open PR for human review
-        if: steps.merge.outputs.status == 'merged'
+      - name: Log a deploy record (informational only, not a gate)
+        if: steps.merge.outputs.status == 'merged' && steps.typecheck.outputs.result == '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ "${{ steps.typecheck.outputs.result }}" = "0" ]; then
-            typecheck_label="typecheck passed"
-          else
-            typecheck_label="TYPECHECK FAILED — do not merge until fixed"
-          fi
+          gh issue create \
+            --title "Upstream sync auto-deployed: ChatbotX $(date +%Y-%m-%d)" \
+            --body "Merged ChatbotXIO/ChatbotX main and pushed straight to \`$BASE_BRANCH\` — this is already live at 100% traffic, no review step ran.
 
-          gh pr create \
-            --base "$BASE_BRANCH" \
-            --head "${{ steps.merge.outputs.branch }}" \
-            --title "Upstream sync: ChatbotX $(date +%Y-%m-%d)" \
-            --body "Automated merge from ChatbotXIO/ChatbotX main.
-
-**Verification:** ${typecheck_label}
-
-**New upstream migrations — review and test before applying, this workflow never runs \`db:migrate\`:**
+**New upstream migrations in this deploy — NOT auto-applied, apply by hand when ready:**
 \`\`\`
 ${{ steps.migrations.outputs.list }}
 \`\`\`
@@ -157,7 +154,20 @@ ${{ steps.migrations.outputs.list }}
 - 20260517074023_migrate_analytics_to_timescaledb_table/migration.sql
 - 20260622040000_align_message_attachment_to_shard_schema/migration.sql
 
-⚠️ Merging this PR pushes to \`$BASE_BRANCH\`, which auto-deploys to production at 100% traffic. Review before merging, don't rubber-stamp it."
+Check the service directly if anything looks off: https://console.cloud.google.com/run/detail/us-central1/wesal-one-next-builder"
+
+      - name: File a blocking issue when typecheck fails
+        if: steps.merge.outputs.status == 'merged' && steps.typecheck.outputs.result != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="${{ steps.merge.outputs.branch }}"
+          git push origin "$branch" --force-with-lease
+          gh issue create \
+            --title "Upstream sync NOT deployed — typecheck failed $(date +%Y-%m-%d)" \
+            --body "Merged ChatbotXIO/ChatbotX main cleanly but \`pnpm --filter builder check-types\` failed, so nothing was pushed to \`$BASE_BRANCH\` — prod is unchanged.
+
+Merged branch (not deployed): \`$branch\`. Fix the type errors there and push to \`$BASE_BRANCH\` by hand when ready."
 
       - name: File an issue when conflicts need a human
         if: steps.merge.outputs.status == 'conflict'
@@ -166,11 +176,11 @@ ${{ steps.migrations.outputs.list }}
         run: |
           gh issue create \
             --title "Upstream sync blocked: unexpected conflicts $(date +%Y-%m-%d)" \
-            --body "Automated sync from ChatbotXIO/ChatbotX hit conflicts outside the two known TimescaleDB files and stopped without merging or pushing anything.
+            --body "Automated sync from ChatbotXIO/ChatbotX hit conflicts outside the two known TimescaleDB files and stopped without merging, pushing, or deploying anything. Prod is unchanged.
 
 Conflicted files:
 \`\`\`
 ${{ steps.merge.outputs.unexpected }}
 \`\`\`
 
-Resolve manually: \`bash scripts/update-from-upstream.sh --merge\`, fix conflicts, then open a PR by hand."
+Resolve manually: \`bash scripts/update-from-upstream.sh --merge\`, fix conflicts, then push."
