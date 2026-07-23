@@ -132,7 +132,12 @@
     "onSuccess": "على النجاح",
     "clone": "استنساخ",
     "remove": "إزالة",
-    "restore": "استعادة"
+    "restore": "استعادة",
+    "loading": "جارٍ التحميل...",
+    "getMessengerAdPayload": "الحصول على حمولة إعلان ماسنجر",
+    "moveUp": "نقل لأعلى",
+    "moveDown": "نقل لأسفل",
+    "followUp": "متابعة"
   },
   "states": {
     "success": "النجاح",
@@ -270,14 +275,16 @@
       "mac": "جهات الاتصال النشطة الشهرية",
       "workspaces": "مساحات العمل",
       "channels": "القنوات",
-      "teamMembers": "أعضاء الفريق"
+      "teamMembers": "أعضاء الفريق",
+      "botMessages": "رسائل البوت"
     },
     "limitReached": {
       "workspaces": "لقد وصلت إلى الحد الأقصى لمساحة العمل الخاصة بك. قم بترقية خطتك لإنشاء المزيد.",
       "channels": "لقد وصلت إلى الحد الأقصى لقناتك. قم بترقية خطتك للاتصال أكثر.",
       "teamMembers": "لقد وصلت إلى الحد الأقصى لعدد أعضاء فريقك. قم بترقية خطتك لدعوة المزيد.",
       "contacts": "لقد وصلت إلى حد الاتصال الخاص بك. قم بترقية خطتك لإضافة المزيد.",
-      "mac": "لقد وصلت إلى حد الاتصال النشط الشهري. قم بترقية خطتك للوصول إلى المزيد."
+      "mac": "لقد وصلت إلى حد الاتصال النشط الشهري. قم بترقية خطتك للوصول إلى المزيد.",
+      "botMessages": "لقد وصلت إلى حد رسائل البوت. قم بترقية باقتك لإرسال المزيد."
     },
     "pastDue": {
       "message": "فشلت دفعتك الأخيرة. قم بتحديث طريقة الدفع الخاصة بك لتبقى مساحة العمل الخاصة بك نشطة."
@@ -377,6 +384,18 @@
       "template": "القالب",
       "noTemplate": "لا يوجد قالب",
       "integration": "التكامل"
+    },
+    "instagramActiveContacts": {
+      "title": "إنستغرام",
+      "description": "قد يحتوي على عروض ترويجية وسيُرسل فقط للمستخدمين الذين راسلوا بوتك خلال آخر 24 ساعة."
+    },
+    "telegramAllContacts": {
+      "title": "تيليجرام",
+      "description": "استخدم هذا النوع من الرسائل إذا كنت تريد إرسال بث إلى جهات اتصال تيليجرام."
+    },
+    "tiktokActiveContacts": {
+      "title": "تيك توك",
+      "description": "قد يحتوي على عروض ترويجية وسيُرسل فقط للمستخدمين الذين راسلوا بوتك خلال آخر 24 ساعة. يدعم بث تيك توك النصوص والصور فقط."
     }
   },
   "condition": {
@@ -482,7 +501,17 @@
       "archived": "مؤرشف",
       "blocked": "محظور",
       "noAdminReply": "لا رد المشرف",
-      "contactCreatedAt": "تم إنشاء جهة الاتصال في"
+      "contactCreatedAt": "تم إنشاء جهة الاتصال في",
+      "lastUserInputTypes": {
+        "text": "نص",
+        "location": "موقع",
+        "refLink": "رابط مرجعي",
+        "image": "صورة",
+        "video": "فيديو",
+        "audio": "صوت",
+        "gif": "GIF",
+        "file": "ملف"
+      }
     },
     "fieldGroups": {
       "opportunity": "فرصة",
@@ -531,7 +560,10 @@
       "webchat": "دردشة عبر الإنترنت",
       "botLink": "رابط البوت",
       "chatPlugin": "ج- البرنامج المساعد للدردشة"
-    }
+    },
+    "valuePlaceholder": "...",
+    "datetimePlaceholder": "YYYY-MM-DD HH:mm",
+    "datetimeInvalid": "أدخل التاريخ بصيغة YYYY-MM-DD HH:mm أو متغيّرًا"
   },
   "channels": {
     "title": "القنوات",
@@ -581,7 +613,9 @@
       "undone": "تم إلغاء حذف مساحة العمل",
       "bannerTitle": "تمت جدولة حذف مساحة العمل",
       "bannerDescription": "تمت جدولة مساحة العمل هذه للحذف. التراجع عن الحذف أدناه لمواصلة استخدامه.",
-      "pendingBlockedToast": "تمت جدولة مساحة العمل هذه للحذف. اتصل بمسؤول مساحة العمل لاستعادة الوصول."
+      "pendingBlockedToast": "تمت جدولة مساحة العمل هذه للحذف. اتصل بمسؤول مساحة العمل لاستعادة الوصول.",
+      "navDisabledTooltip": "غير متاح أثناء جدولة حذف مساحة العمل",
+      "badge": "الحذف مُجدوَل"
     }
   },
   "workspaces": {
@@ -1511,7 +1545,8 @@
       "link": "رابط",
       "date": "التاريخ",
       "datetime": "التاريخ والوقت",
-      "location": "الموقع"
+      "location": "الموقع",
+      "anyInput": "أي إدخال"
     },
     "workspaceMember": {
       "label": "عضو مساحة العمل"
@@ -1929,7 +1964,17 @@
       "label": "عنوان URL الخاص بوالد الدردشة عبر الويب"
     },
     "optionalHint": "(اختياري)",
-    "selectOptionsPlaceholder": "اختر من القائمة"
+    "selectOptionsPlaceholder": "اختر من القائمة",
+    "lastUserInputTypes": {
+      "text": "نص",
+      "location": "موقع",
+      "refLink": "رابط مرجعي",
+      "image": "صورة",
+      "video": "فيديو",
+      "audio": "صوت",
+      "gif": "GIF",
+      "file": "ملف"
+    }
   },
   "flows": {
     "title": "مسارات المحادثة",
@@ -2050,7 +2095,10 @@
       "unsubscribeSequence": "تسلسل إلغاء الاشتراك",
       "splitTraffic": "تقسيم حركة المرور",
       "aiEditImage": "تحرير الصورة بالذكاء الاصطناعي",
-      "whatsappFlow": "تدفق WhatsApp"
+      "whatsappFlow": "تدفق WhatsApp",
+      "questionnaires": "الاستبيانات",
+      "condition": "شرط",
+      "updateMessengerContactData": "تحديث بيانات جهة الاتصال"
     },
     "splitTraffic": {
       "balanceHint": "يجب أن يساوي المبلغ الإجمالي 100%.",
@@ -2136,6 +2184,16 @@
       "specific": "محددة",
       "dynamic": "ديناميكي",
       "selectTimePlaceholder": "حدد الوقت"
+    },
+    "condition": {
+      "addCase": "التحقق من شرط جديد",
+      "caseTitle": "الحالة {index}",
+      "otherwise": "المستخدم لا يطابق هذه الشروط"
+    },
+    "followUp": {
+      "durationLabel": "المدة",
+      "waitAndContinue": "انتظر <value>{duration} {unit}</value> ثم تابع",
+      "cancelOnReplyHint": "لن تُرسل المتابعة إذا رد جهة الاتصال قبل انتهاء الوقت."
     }
   },
   "folders": {
@@ -2876,7 +2934,9 @@
     "unauthorizedDomain": {
       "description": "موقع الويب هذا غير مصرح له بتحميل أداة الدردشة هذه.",
       "title": "الدردشة على شبكة الإنترنت غير متاحة"
-    }
+    },
+    "chatUnavailable": "هذه المحادثة غير متاحة حاليًا.",
+    "workspaceUnavailable": "مساحة العمل هذه لم تعد متاحة."
   },
   "whatsapp": {
     "category": {
@@ -3129,7 +3189,9 @@
   },
   "invitation": {
     "chatbotInvitationDescription1": "انضم إلى {chatbotName}",
-    "chatbotInvitationDescription2": "لقد دعاك {userName} للانضمام إلى {chatbotName}."
+    "chatbotInvitationDescription2": "لقد دعاك {userName} للانضمام إلى {chatbotName}.",
+    "invalidInvitation": "هذه الدعوة غير صالحة أو منتهية الصلاحية.",
+    "workspaceUnavailable": "مساحة العمل هذه لم تعد متاحة."
   },
   "inboxTeams": {
     "title": "فرق البريد الوارد"
@@ -3374,7 +3436,57 @@
   },
   "questionnaires": {
     "title": "الاستبيانات",
-    "description": "إنشاء وإدارة الاستبيانات لجهات الاتصال الخاصة بك."
+    "description": "إنشاء وإدارة الاستبيانات لجهات الاتصال الخاصة بك.",
+    "singular": "استبيان",
+    "submission": "إرسال",
+    "addNew": "إضافة جديد",
+    "applicants": "المتقدمون",
+    "generalSettings": "الإعدادات العامة",
+    "triggerFlow": "تشغيل التدفق عند إكمال الاستبيان",
+    "enableScore": "منح نقاط لكل سؤال تتم الإجابة عليه.",
+    "enableRetryMessages": "تخصيص رسائل إعادة المحاولة في حالة فشل الرد.",
+    "enableCustomFieldMapping": "حفظ البيانات في حقول مخصصة.",
+    "question": "سؤال",
+    "activeQuestion": "نشط",
+    "questionImage": "صورة السؤال",
+    "questionImageHint": "صورة اختيارية تُرسل مع هذا السؤال.",
+    "responseType": "نوع الرد",
+    "points": "النقاط",
+    "retryMessage": "رسالة إعادة المحاولة إذا كان الرد غير صالح",
+    "defaultRetryMessage": "ما أدخلته ليس نصًا صالحًا. يرجى المحاولة مرة أخرى",
+    "customField": "حفظ الرد في حقل مخصص أو حقل نظام",
+    "options": "الخيارات",
+    "mode": "الوضع",
+    "completed": "مكتمل",
+    "completionRate": "معدل الإكمال",
+    "date": "التاريخ",
+    "inbox": "صندوق الوارد",
+    "unknownContact": "جهة اتصال غير معروفة",
+    "noAnswers": "لا توجد إجابات",
+    "responseTypes": {
+      "text": "نص",
+      "number": "رقم",
+      "email": "بريد إلكتروني",
+      "phone": "هاتف",
+      "multipleChoice": "اختيار من متعدد"
+    },
+    "flowModes": {
+      "start": "بدء الاستبيان",
+      "end": "إنهاء الاستبيان",
+      "deleteApplicant": "حذف المتقدم"
+    },
+    "dialogDescriptions": {
+      "create": "قم بتسمية الاستبيان قبل إضافة الأسئلة.",
+      "rename": "تحديث اسم الاستبيان الظاهر في القوائم والتدفقات.",
+      "flowStep": "اختر كيف تتفاعل خطوة التدفق هذه مع الاستبيان."
+    },
+    "status": {
+      "inProgress": "قيد التنفيذ",
+      "completed": "مكتمل",
+      "cancelled": "ملغى",
+      "failed": "فشل",
+      "timeout": "انتهت المهلة"
+    }
   },
   "facebookCommentAutomation": {
     "title": "Facebook أتمتة التعليق",
@@ -4124,7 +4236,9 @@
       "sections": [
         {
           "title": "المحادثات والفريق",
-          "body": ["صندوق وارد موحد مع توزيع المحادثات والصلاحيات."]
+          "body": [
+            "صندوق وارد موحد مع توزيع المحادثات والصلاحيات."
+          ]
         },
         {
           "title": "الوكلاء والتجارة",
@@ -4141,11 +4255,15 @@
       "sections": [
         {
           "title": "قنوات Meta",
-          "body": ["واتساب وإنستغرام وماسنجر في صندوق وارد موحد."]
+          "body": [
+            "واتساب وإنستغرام وماسنجر في صندوق وارد موحد."
+          ]
         },
         {
           "title": "تيليجرام والويب",
-          "body": ["تيليجرام وWebchat والتكاملات الأخرى من لوحة واحدة."]
+          "body": [
+            "تيليجرام وWebchat والتكاملات الأخرى من لوحة واحدة."
+          ]
         }
       ]
     },
@@ -4156,7 +4274,9 @@
       "sections": [
         {
           "title": "رسالتنا",
-          "body": ["منح صاحب النشاط نظامًا واضحًا لخدمة العملاء والمبيعات."]
+          "body": [
+            "منح صاحب النشاط نظامًا واضحًا لخدمة العملاء والمبيعات."
+          ]
         },
         {
           "title": "التزامنا",
@@ -4173,11 +4293,15 @@
       "sections": [
         {
           "title": "البريد",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "واتساب",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },
@@ -4269,7 +4393,9 @@
         },
         {
           "title": "النسخ الاحتياطية",
-          "body": ["قد تبقى نسخ مؤقتة حتى انتهاء دورة النسخ الاحتياطي."]
+          "body": [
+            "قد تبقى نسخ مؤقتة حتى انتهاء دورة النسخ الاحتياطي."
+          ]
         },
         {
           "title": "بعد الحذف",
@@ -4278,6 +4404,19 @@
           ]
         }
       ]
+    }
+  },
+  "flowAnalytics": {
+    "nodes": {
+      "start": "البداية",
+      "notFound": "العقدة غير موجودة"
+    },
+    "stats": {
+      "sent": "أُرسلت",
+      "delivered": "تم التسليم",
+      "seen": "شوهدت",
+      "clicked": "تم النقر",
+      "waiting": "قيد الانتظار"
     }
   }
 }
