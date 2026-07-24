@@ -17,11 +17,25 @@ import * as schema from "./schema"
 
 const env = keys()
 
+/**
+ * Cloud Run serves up to 160 concurrent requests per instance, so a single
+ * pooled connection made every request queue behind one another — a burst of
+ * RSC prefetches was enough to starve a slower write and fail it outright with
+ * "timeout exceeded when trying to connect", which silently killed WhatsApp
+ * connects mid-flow.
+ *
+ * Sized against the database, not the concurrency: the shared db-f1-micro
+ * instance allows ~25 connections and also serves the legacy app, while this
+ * codebase runs at most 4 instances (builder + realtime, maxScale 2 each). Four
+ * per pool therefore caps this app at ~16 and leaves headroom rather than
+ * trading a slow path for connection exhaustion. Raise the instance tier before
+ * raising this much further.
+ */
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  max: 1,
+  max: 4,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 20_000,
 })
 
 pool.on("error", (error) => {
