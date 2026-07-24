@@ -169,19 +169,17 @@ function sortConnectableFirst(
 
 const FACEBOOK_OAUTH_BASE = "https://www.facebook.com"
 
+// Only permissions this Meta app is actually approved for (App Review page).
+// Requesting unapproved scopes (email, pages_manage_ads, pages_read_user_content,
+// pages_manage_posts, pages_manage_engagement, pages_utility_messaging) makes the
+// Facebook OAuth dialog fail with "Invalid Scopes" for the app admin.
 const MESSENGER_SCOPES = [
-  "email",
   "public_profile",
-  "pages_manage_ads",
   "pages_manage_metadata",
   "pages_read_engagement",
-  "pages_read_user_content",
-  "pages_manage_posts",
-  "pages_manage_engagement",
   "pages_messaging",
   "pages_show_list",
   "business_management",
-  "pages_utility_messaging",
 ]
 
 export function generateAuthUrl({
