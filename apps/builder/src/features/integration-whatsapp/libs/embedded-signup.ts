@@ -35,6 +35,23 @@ export const WHATSAPP_OAUTH_CALLBACK_PATH = "/integrations/whatsapp/callback"
  */
 export const WA_OAUTH_RESULT = "WA_OAUTH_RESULT" as const
 
+/**
+ * Query param the broker falls back to when `window.opener` is unavailable.
+ *
+ * The postMessage relay silently no-ops whenever the opener link is missing —
+ * the browsing-context group can be severed by an intermediate provider
+ * navigation, and some browsers drop the opener for tabs restored or reopened
+ * mid-flow. Rather than depend on it, the broker then navigates the auth tab
+ * itself back to the originating page with the `code` on the URL, where the
+ * same submit path picks it up. Redirect targets are origin-validated exactly
+ * like postMessage targets, so the code is never handed to an origin we do not
+ * control.
+ */
+export const WA_OAUTH_CODE_PARAM = "wa_code" as const
+
+/** Same-tab fallback marker for a failed/denied authorization. */
+export const WA_OAUTH_ERROR_PARAM = "wa_error" as const
+
 export type WhatsappOAuthRelayResult = {
   type: typeof WA_OAUTH_RESULT
   status: "success" | "error"
@@ -126,8 +143,12 @@ function buildEmbeddedSignupExtras(featureType?: string) {
 }
 
 export type FacebookOAuthDialogParams = {
-  /** The reseller origin the broker relays the result back to. */
-  resellerOrigin: string
+  /**
+   * The full reseller URL the broker relays the result back to. Only its origin
+   * is used to target the postMessage; the path is what the redirect fallback
+   * returns the user to, so it must be the page that opened the dialog.
+   */
+  resellerUrl: string
   clientId: string
   configId: string
   version: string
@@ -155,7 +176,7 @@ export function buildFacebookOAuthDialogUrl(
   url.searchParams.set(
     "state",
     encodeOAuthState({
-      referer: params.resellerOrigin,
+      referer: params.resellerUrl,
       locale: params.locale,
     }),
   )

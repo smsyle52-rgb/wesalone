@@ -33,6 +33,8 @@ import { getBrokerOrigin } from "@/lib/oauth-broker"
 import { connectWhatsappAction } from "../actions/connect.action"
 import {
   buildFacebookOAuthDialogUrl,
+  WA_OAUTH_CODE_PARAM,
+  WA_OAUTH_ERROR_PARAM,
   WA_OAUTH_RESULT,
   type WhatsappOAuthRelayResult,
 } from "../libs/embedded-signup"
@@ -311,9 +313,36 @@ function SdkConnectSection({
     return () => window.removeEventListener("message", handleMessage)
   }, [submitWithCode, t])
 
+  // Same-tab fallback: the broker redirects back here with the code when it had
+  // no usable `window.opener` to post to. Strip the params before submitting so
+  // a reload cannot replay a spent code.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get(WA_OAUTH_CODE_PARAM)
+    const failed = params.has(WA_OAUTH_ERROR_PARAM)
+    if (!(code || failed)) {
+      return
+    }
+
+    params.delete(WA_OAUTH_CODE_PARAM)
+    params.delete(WA_OAUTH_ERROR_PARAM)
+    const query = params.toString()
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${query ? `?${query}` : ""}`,
+    )
+
+    if (code) {
+      submitWithCode(code)
+    } else {
+      toast.error(t("messages.connectFailed", { feature: "Whatsapp" }))
+    }
+  }, [submitWithCode, t])
+
   const openFacebookDialog = useCallback(() => {
     const url = buildFacebookOAuthDialogUrl({
-      resellerOrigin: window.location.origin,
+      resellerUrl: window.location.href,
       clientId: settings.clientId,
       configId: settings.configId,
       version: settings.version,

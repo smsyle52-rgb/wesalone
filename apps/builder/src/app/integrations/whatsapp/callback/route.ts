@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server"
 import { getTranslations } from "next-intl/server"
 import {
   decodeOAuthState,
+  WA_OAUTH_CODE_PARAM,
+  WA_OAUTH_ERROR_PARAM,
   WA_OAUTH_RESULT,
   type WhatsappOAuthRelayResult,
 } from "@/features/integration-whatsapp/libs/embedded-signup"
@@ -41,6 +43,7 @@ function escapeHtml(value: string): string {
 function relayHtml(params: {
   result: WhatsappOAuthRelayResult
   targetOrigin: string
+  fallbackUrl: string
   message: string
 }): string {
   return `<!doctype html>
@@ -50,12 +53,19 @@ function relayHtml(params: {
     <p>${escapeHtml(params.message)}</p>
     <script>
       (function () {
+        var relayed = false;
         try {
-          if (window.opener) {
+          if (window.opener && !window.opener.closed) {
             window.opener.postMessage(${safeJson(params.result)}, ${safeJson(params.targetOrigin)});
+            relayed = true;
           }
         } catch (e) {}
-        window.setTimeout(function () { window.close(); }, 300);
+        if (relayed) {
+          window.setTimeout(function () { window.close(); }, 300);
+          return;
+        }
+        // No usable opener: finish the flow in this tab instead of dying quietly.
+        window.location.replace(${safeJson(params.fallbackUrl)});
       })();
     </script>
   </body>
@@ -117,10 +127,21 @@ export async function GET(req: NextRequest): Promise<Response> {
       ? { type: WA_OAUTH_RESULT, status: "success", code }
       : { type: WA_OAUTH_RESULT, status: "error" }
 
+  // Same-tab fallback target: the originating page, carrying the code so it can
+  // finish the connect without an opener. `safeReferer` is already restricted to
+  // an origin we control, so this cannot leak the code off-platform.
+  const fallbackUrl = new URL(safeReferer)
+  if (result.status === "success" && result.code) {
+    fallbackUrl.searchParams.set(WA_OAUTH_CODE_PARAM, result.code)
+  } else {
+    fallbackUrl.searchParams.set(WA_OAUTH_ERROR_PARAM, "1")
+  }
+
   return new Response(
     relayHtml({
       result,
       targetOrigin,
+      fallbackUrl: fallbackUrl.toString(),
       message: t("embeddedSignupDone"),
     }),
     { headers: RELAY_RESPONSE_HEADERS },

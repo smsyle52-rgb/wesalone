@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 const BUILDER_URL = "https://app.example.com"
 const BROKER_URL = "https://broker.example.com"
 const RESELLER_ORIGIN = "https://chat.reseller.com"
+const RESELLER_URL = `${RESELLER_ORIGIN}/space/ws-1/settings/channels/whatsapp/create`
 
 async function loadWith(envOverrides: Record<string, string | undefined>) {
   vi.resetModules()
@@ -30,7 +31,7 @@ describe("buildFacebookOAuthDialogUrl", () => {
 
     const result = new URL(
       buildFacebookOAuthDialogUrl({
-        resellerOrigin: RESELLER_ORIGIN,
+        resellerUrl: RESELLER_URL,
         clientId: "client-1",
         configId: "config-1",
         version: "v21.0",
@@ -51,7 +52,7 @@ describe("buildFacebookOAuthDialogUrl", () => {
     )
 
     const state = decodeOAuthState(result.searchParams.get("state") ?? "")
-    expect(state).toEqual({ referer: RESELLER_ORIGIN, locale: "vi" })
+    expect(state).toEqual({ referer: RESELLER_URL, locale: "vi" })
 
     // transferPhoneNumber sends the user to Meta's existing-WABA sharing screen,
     // which is where a number hosted by another provider is migrated from.
@@ -66,7 +67,7 @@ describe("buildFacebookOAuthDialogUrl", () => {
 
     const result = new URL(
       buildFacebookOAuthDialogUrl({
-        resellerOrigin: RESELLER_ORIGIN,
+        resellerUrl: RESELLER_URL,
         clientId: "client-1",
         configId: "config-1",
         version: "v21.0",
