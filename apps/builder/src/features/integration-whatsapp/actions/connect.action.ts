@@ -162,16 +162,44 @@ async function ensurePhoneNumberNotConnected(
   }
 }
 
+/**
+ * Best-effort provisioning on the platform's own Meta business.
+ *
+ * Neither step is required for the channel to send or receive messages — that
+ * runs on the credentials the customer just granted. They are convenience
+ * setup, and Meta rejects them in perfectly normal situations (the WABA is
+ * already owned by the same business, the system user is already assigned, no
+ * line of credit exists). Letting either rejection propagate aborted the whole
+ * connect and left the merchant with nothing saved and no usable channel, which
+ * is far worse than skipping an assignment they can add manually.
+ *
+ * Failures are logged loudly rather than silently swallowed, so provisioning
+ * gaps stay visible without costing the merchant their connection.
+ */
 async function setupOAuthResources(
   auth: WhatsappAuthValue,
   whatsappSettings: WhatsappCredential,
 ): Promise<void> {
-  await addSystemUser({ auth, whatsappSettings })
-  logger.info("addSystemUser")
+  try {
+    await addSystemUser({ auth, whatsappSettings })
+    logger.info("addSystemUser")
+  } catch (error) {
+    logger.error(
+      { err: error, wabaId: auth.metadata.wabaId },
+      "addSystemUser failed — continuing without system user assignment",
+    )
+  }
 
   if (whatsappSettings.businessId) {
-    await shareCreditLine({ auth, whatsappSettings })
-    logger.info("shareCreditLine")
+    try {
+      await shareCreditLine({ auth, whatsappSettings })
+      logger.info("shareCreditLine")
+    } catch (error) {
+      logger.error(
+        { err: error, wabaId: auth.metadata.wabaId },
+        "shareCreditLine failed — continuing without shared credit line",
+      )
+    }
   }
 }
 
