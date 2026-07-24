@@ -23,7 +23,7 @@ import ky from "ky"
 import { Loader2Icon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
-import { useCallback, useEffect, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useState, useTransition } from "react"
 import { useFormContext, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 import { InboxIcon } from "@/features/inboxes/components/inbox-icon"
@@ -233,6 +233,7 @@ export default function WhatsappCreate({
               ) : (
                 <SdkConnectSection
                   settings={settings}
+                  submitForm={handleSubmitWithAction}
                   visibility={visibility}
                   watchManualConnect={watchManualConnect}
                 />
@@ -249,6 +250,12 @@ type SdkConnectSectionProps = {
   visibility: FormVisibility
   watchManualConnect: boolean
   settings: WhatsappCredentialPublic
+  /**
+   * Submits the form directly. The visible submit button only renders once the
+   * code is in form state, so a programmatic submit must not go through a ref
+   * to it — on the render where the code arrives that ref is still null.
+   */
+  submitForm: () => void
 }
 
 const LAUNCH_BUTTON_CLASS =
@@ -258,6 +265,7 @@ const SWITCH_FIELD_CLASS =
   "flex items-center gap-2 flex-row-reverse justify-end"
 
 function SdkConnectSection({
+  submitForm,
   visibility,
   watchManualConnect,
   settings,
@@ -265,7 +273,6 @@ function SdkConnectSection({
   const t = useTranslations()
   const { setValue, formState, trigger } = useFormContext()
 
-  const finalSubmitRef = useRef<HTMLButtonElement>(null)
   const watchCode = useWatch({ name: FORM_FIELDS.CODE })
   const watchConnectExisting = useWatch({ name: FORM_FIELDS.CONNECT_EXISTING })
   const watchTransferPhoneNumber = useWatch({
@@ -277,17 +284,23 @@ function SdkConnectSection({
   // connectWhatsappAction.
   const submitWithCode = useCallback(
     async (code: string) => {
-      setValue(FORM_FIELDS.CODE, code)
+      setValue(FORM_FIELDS.CODE, code, { shouldValidate: true })
       try {
         const valid = await trigger()
         if (valid) {
-          finalSubmitRef.current?.click()
+          // Submit directly rather than clicking the submit button's ref: that
+          // button is gated on `watchCode`, which has not re-rendered yet on the
+          // tick the code arrives, so the ref is null and the click is a no-op —
+          // the connect then failed silently with no error anywhere.
+          submitForm()
+        } else {
+          toast.error(t("messages.connectFailed", { feature: "Whatsapp" }))
         }
       } catch {
         toast.error(t("messages.connectFailed", { feature: "Whatsapp" }))
       }
     },
-    [setValue, trigger, t],
+    [setValue, trigger, submitForm, t],
   )
 
   // The Facebook OAuth dialog redirects the code to the broker callback, which
@@ -399,7 +412,6 @@ function SdkConnectSection({
           <div className="flex items-center justify-end gap-2">
             <Button
               disabled={formState.isSubmitting}
-              ref={finalSubmitRef}
               size="sm"
               type="submit"
               variant="secondary"
