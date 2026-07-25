@@ -10,6 +10,7 @@ import {
   type PutObjectCommandInput,
   S3Client,
 } from "@aws-sdk/client-s3"
+import { Storage } from "@google-cloud/storage"
 import { AwsClient } from "aws4fetch"
 import { keys } from "../keys"
 
@@ -18,10 +19,14 @@ const env = keys()
 export class Uploader {
   readonly #client: S3Client
   readonly #bucketName: string
+  readonly #gcs: Storage | null
 
   static instance: Uploader
 
   constructor() {
+    this.#gcs = isGoogleCloudStorageEndpoint(env.S3_ENDPOINT)
+      ? new Storage()
+      : null
     this.#client = new S3Client({
       endpoint: env.S3_ENDPOINT,
       credentials:
@@ -72,6 +77,30 @@ export class Uploader {
     body: string | Uint8Array | Buffer | Readable,
     options?: Partial<PutObjectCommandInput>,
   ) {
+    if (this.#gcs) {
+      const file = this.#gcs.bucket(this.#bucketName).file(path)
+      const metadata = options?.ContentType
+        ? { contentType: options.ContentType }
+        : undefined
+
+      if (typeof body === "string" || body instanceof Uint8Array) {
+        await file.save(body, { metadata, resumable: false })
+        return {}
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = file.createWriteStream({
+          metadata,
+          resumable: false,
+        })
+        body.on("error", reject)
+        writeStream.on("error", reject)
+        writeStream.on("finish", resolve)
+        body.pipe(writeStream)
+      })
+      return {}
+    }
+
     const command = new PutObjectCommand({
       Bucket: this.#bucketName,
       Key: path,
@@ -83,6 +112,18 @@ export class Uploader {
   }
 
   async getPresignedUpload(filePath: string): Promise<string> {
+    if (this.#gcs) {
+      const [url] = await this.#gcs
+        .bucket(this.#bucketName)
+        .file(filePath)
+        .getSignedUrl({
+          version: "v4",
+          action: "write",
+          expires: Date.now() + 5 * 60 * 1000,
+        })
+      return url
+    }
+
     const client = new AwsClient({
       service: "s3",
       region: env.S3_REGION,
@@ -109,6 +150,18 @@ export class Uploader {
     filePath: string,
     expiresInSeconds = 60 * 60,
   ): Promise<string> {
+    if (this.#gcs) {
+      const [url] = await this.#gcs
+        .bucket(this.#bucketName)
+        .file(filePath)
+        .getSignedUrl({
+          version: "v4",
+          action: "read",
+          expires: Date.now() + expiresInSeconds * 1000,
+        })
+      return url
+    }
+
     const client = new AwsClient({
       service: "s3",
       region: env.S3_REGION,
@@ -132,6 +185,14 @@ export class Uploader {
   }
 
   async headObject(path: string) {
+    if (this.#gcs) {
+      const [metadata] = await this.#gcs
+        .bucket(this.#bucketName)
+        .file(path)
+        .getMetadata()
+      return { ContentLength: Number(metadata.size ?? 0) }
+    }
+
     const command = new HeadObjectCommand({
       Bucket: env.S3_BUCKET,
       Key: path,
@@ -141,6 +202,14 @@ export class Uploader {
   }
 
   async getObject(path: string): Promise<Buffer> {
+    if (this.#gcs) {
+      const [buffer] = await this.#gcs
+        .bucket(this.#bucketName)
+        .file(path)
+        .download()
+      return buffer
+    }
+
     const command = new GetObjectCommand({
       Bucket: env.S3_BUCKET,
       Key: path,
@@ -166,6 +235,15 @@ export class Uploader {
   async getObjectStream(
     path: string,
   ): Promise<{ stream: Readable; contentLength?: number }> {
+    if (this.#gcs) {
+      const file = this.#gcs.bucket(this.#bucketName).file(path)
+      const [metadata] = await file.getMetadata()
+      return {
+        stream: file.createReadStream(),
+        contentLength: Number(metadata.size ?? 0),
+      }
+    }
+
     const command = new GetObjectCommand({
       Bucket: env.S3_BUCKET,
       Key: path,
@@ -182,6 +260,14 @@ export class Uploader {
   }
 
   async copyObject(sourcePath: string, destinationPath: string) {
+    if (this.#gcs) {
+      await this.#gcs
+        .bucket(this.#bucketName)
+        .file(sourcePath)
+        .copy(this.#gcs.bucket(this.#bucketName).file(destinationPath))
+      return {}
+    }
+
     const encodedSource = sourcePath
       .split("/")
       .map((segment) => encodeURIComponent(segment))
@@ -197,6 +283,14 @@ export class Uploader {
   }
 
   async deleteObject(path: string) {
+    if (this.#gcs) {
+      await this.#gcs
+        .bucket(this.#bucketName)
+        .file(path)
+        .delete({ ignoreNotFound: true })
+      return {}
+    }
+
     const command = new DeleteObjectCommand({
       Bucket: env.S3_BUCKET,
       Key: path,
@@ -208,12 +302,35 @@ export class Uploader {
     prefix: string,
     options: Partial<ListObjectsV2CommandInput> = {},
   ) {
+    if (this.#gcs) {
+      const [files] = await this.#gcs.bucket(this.#bucketName).getFiles({
+        prefix,
+        maxResults: options.MaxKeys,
+        pageToken: options.ContinuationToken,
+      })
+      return {
+        Contents: files.map((file) => ({ Key: file.name })),
+      }
+    }
+
     const command = new ListObjectsV2Command({
       ...options,
       Bucket: env.S3_BUCKET,
       Prefix: prefix,
     })
     return await this.#client.send(command)
+  }
+}
+
+export function isGoogleCloudStorageEndpoint(endpoint?: string): boolean {
+  if (!endpoint) {
+    return false
+  }
+
+  try {
+    return new URL(endpoint).hostname === "storage.googleapis.com"
+  } catch {
+    return false
   }
 }
 

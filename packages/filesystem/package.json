@@ -17,6 +17,7 @@
     "@chatbotx.io/database": "workspace:*",
     "@chatbotx.io/logger": "workspace:*",
     "@chatbotx.io/utils": "workspace:*",
+    "@google-cloud/storage": "^7.21.0",
     "@t3-oss/env-core": "^0.13.11",
     "aws4fetch": "^1.0.20",
     "image-size": "^2.0.2",

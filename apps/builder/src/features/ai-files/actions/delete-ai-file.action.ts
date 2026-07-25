@@ -1,13 +1,13 @@
 "use server"
 
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
-import { aiEmbeddingModel, aiFileModel } from "@chatbotx.io/database/schema"
+import { aiFileModel } from "@chatbotx.io/database/schema"
 import { uploader } from "@chatbotx.io/filesystem"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { logger } from "@/lib/log"
-import { workspaceActionClient } from "@/lib/safe-action"
+import { workspaceActionClientAllowExpired } from "@/lib/safe-action"
 
-export const deleteAIFileAction = workspaceActionClient
+export const deleteAIFileAction = workspaceActionClientAllowExpired
   .bindArgsSchemas([zodBigintAsString(), zodBigintAsString()])
   .action(async (props) => {
     const {
@@ -30,13 +30,14 @@ export const deleteAIFile = async (ctx: {
     message: `AIFile with id ${ctx.id} not found`,
   })
 
+  // The database is authoritative. Its FK cascade removes the embeddings.
+  // Storage cleanup is best-effort so a missing object or temporary storage
+  // outage can never leave an undeletable knowledge-base row in the UI.
+  await db.delete(aiFileModel).where(eq(aiFileModel.id, ctx.id))
+
   try {
-    await db.transaction(async (tx) => {
-      await uploader.deleteObject(targetAIFile.path)
-      await tx.delete(aiEmbeddingModel).where(eq(aiEmbeddingModel.id, ctx.id))
-      await tx.delete(aiFileModel).where(eq(aiFileModel.id, ctx.id))
-    })
+    await uploader.deleteObject(targetAIFile.path)
   } catch (error) {
-    logger.warn(error, `deleteAIFileAction failed for id: ${ctx.id}`)
+    logger.warn(error, `AI file storage cleanup failed for id: ${ctx.id}`)
   }
 }
