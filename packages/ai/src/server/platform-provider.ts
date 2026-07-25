@@ -1,6 +1,6 @@
 import { createVertex } from "@ai-sdk/google-vertex"
 import { platformAiSettingService } from "@chatbotx.io/business"
-import type { LanguageModel } from "ai"
+import type { EmbeddingModel, LanguageModel } from "ai"
 import { env } from "../keys"
 import { logger } from "../logger"
 
@@ -61,6 +61,54 @@ export async function getActivePlatformAiOverride(): Promise<PlatformAiOverride 
     location: env.VERTEX_AI_LOCATION ?? active.location,
     projectId,
   }
+}
+
+/**
+ * The platform's Vertex embedding model, when one is configured.
+ *
+ * Retrieval has to embed the incoming query with the *same* model that
+ * embedded the stored chunks — vectors from different models are not
+ * comparable, and differing dimensions fail outright at the pgvector
+ * comparison. Resolving it from the same platform setting the indexer follows
+ * keeps both halves in lockstep and means a workspace needs no key of its own.
+ *
+ * Returns `null` under exactly the conditions {@link getActivePlatformAiOverride}
+ * does (disabled, unset, missing project id, or an unreadable setting), plus
+ * when the setting predates the embedding field — every one of which means
+ * "fall through to the workspace's own provider", never a broken half-state.
+ * Like its sibling, this must never throw: retrieval runs inside a tool call
+ * whose failure surfaces to the customer as "I found nothing".
+ */
+export async function getPlatformEmbeddingModel(): Promise<EmbeddingModel | null> {
+  let active: Awaited<ReturnType<typeof platformAiSettingService.getActive>>
+  try {
+    active = await platformAiSettingService.getActive()
+  } catch (error) {
+    logger.error(
+      { err: error instanceof Error ? error.message : String(error) },
+      "[platform-ai] Failed to read the platform Vertex setting for embeddings — falling back to the workspace's own provider",
+    )
+    return null
+  }
+
+  if (!active?.embeddingModel) {
+    return null
+  }
+
+  const projectId = env.VERTEX_AI_PROJECT_ID
+  if (!projectId) {
+    logger.error(
+      "[platform-ai] Vertex is enabled but VERTEX_AI_PROJECT_ID is not configured — falling back to the workspace's own embedding provider",
+    )
+    return null
+  }
+
+  const vertex = createVertex({
+    project: projectId,
+    location: env.VERTEX_AI_LOCATION ?? active.location,
+  })
+
+  return vertex.textEmbeddingModel(active.embeddingModel)
 }
 
 export type PlatformAiEnvStatus = {

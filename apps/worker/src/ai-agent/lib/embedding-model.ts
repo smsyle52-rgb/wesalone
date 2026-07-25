@@ -1,6 +1,7 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { createOpenAI } from "@ai-sdk/openai"
 import { geminiEmbeddingModels, openaiEmbeddingModels } from "@chatbotx.io/ai"
+import { getPlatformEmbeddingModel } from "@chatbotx.io/ai/server"
 import { db } from "@chatbotx.io/database/client"
 import type { SecretTextAuthValue } from "@chatbotx.io/sdk"
 import type { EmbeddingModel } from "ai"
@@ -8,6 +9,15 @@ import type { EmbeddingModel } from "ai"
 export async function resolveEmbeddingModel(
   workspaceId: string,
 ): Promise<EmbeddingModel> {
+  // Platform Vertex first, matching what retrieval embeds queries with. If the
+  // two halves disagree the stored vectors are silently unsearchable — and on a
+  // platform-Vertex deployment a workspace has no key of its own, so without
+  // this every upload failed outright with "No embedding provider configured".
+  const platformModel = await getPlatformEmbeddingModel()
+  if (platformModel) {
+    return platformModel
+  }
+
   // Find openAI
   const integrationOpenai = await db.query.integrationOpenaiModel.findFirst({
     where: { workspaceId },

@@ -6,6 +6,7 @@ import { embed } from "ai"
 import { z } from "zod"
 import { logger } from "../logger"
 import { openaiEmbeddingModels } from "../models"
+import { getPlatformEmbeddingModel } from "./platform-provider"
 
 const REGEX_NUMERIC_ID = /^\d+$/
 
@@ -58,10 +59,26 @@ async function getOpenAIIntegration(workspaceId: string) {
   return integrationOpenAI
 }
 
+/**
+ * Embed the incoming query with the same model that embedded the stored chunks.
+ *
+ * The platform Vertex model comes first, matching the order the indexer now
+ * follows, and because it needs no per-workspace key — previously this hardcoded the
+ * workspace's own OpenAI integration, so on a platform-Vertex deployment every
+ * retrieval threw "OpenAI integration not found" and the agent answered as if
+ * its knowledge base were empty. Workspaces still carrying their own key keep
+ * working through the fallback below.
+ */
 async function createQueryEmbedding(
   query: string,
   workspaceId: string,
 ): Promise<number[]> {
+  const platformModel = await getPlatformEmbeddingModel()
+  if (platformModel) {
+    const { embedding } = await embed({ model: platformModel, value: query })
+    return embedding
+  }
+
   const integrationOpenAI = await getOpenAIIntegration(workspaceId)
 
   const authParsed = secretTextAuthSchema.safeParse(integrationOpenAI.auth)

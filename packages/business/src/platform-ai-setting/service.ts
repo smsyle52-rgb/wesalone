@@ -25,6 +25,12 @@ export type ActivePlatformAiOverride = {
   chatModel: string
   fallbackModel: string | null
   location: string
+  /**
+   * Optional because entries cached before this field existed still deserialize
+   * into this shape until their TTL lapses; callers must treat a missing value
+   * as "no platform embedding model" rather than assuming one.
+   */
+  embeddingModel?: string
 }
 
 const DEFAULT_SETTING: PlatformAiSettingView = {
@@ -76,6 +82,7 @@ class PlatformAiSettingService {
           chatModel: setting.chatModel,
           fallbackModel: setting.fallbackModel,
           location: setting.location,
+          embeddingModel: setting.embeddingModel,
         } satisfies ActivePlatformAiOverride
       },
       { ttl: ACTIVE_CACHE_TTL_SECONDS },
