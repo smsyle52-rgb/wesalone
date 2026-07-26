@@ -1,9 +1,6 @@
 "use server"
 
-import {
-  getPlatformAiEnvStatus,
-  probePlatformVertexChatModel,
-} from "@chatbotx.io/ai/server"
+import { getPlatformAiEnvStatus } from "@chatbotx.io/ai/server"
 import { platformAiSettingService } from "@chatbotx.io/business"
 import { superAdminActionClient } from "@/lib/safe-action"
 
@@ -21,17 +18,8 @@ export const validatePlatformAiSettingsAction = superAdminActionClient.action(
       getPlatformAiEnvStatus(),
     ]
 
-    const issues: ("missingProjectId" | "modelUnavailable")[] = []
-    if (envStatus.hasProjectId) {
-      try {
-        await probePlatformVertexChatModel({
-          modelId: setting.chatModel,
-          location: setting.location,
-        })
-      } catch {
-        issues.push("modelUnavailable")
-      }
-    } else {
+    const issues: "missingProjectId"[] = []
+    if (!envStatus.hasProjectId) {
       issues.push("missingProjectId")
     }
 

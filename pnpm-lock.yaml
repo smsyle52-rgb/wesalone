@@ -1669,9 +1669,6 @@ importers:
       ai:
         specifier: ^6.0.170
         version: 6.0.197(zod@4.4.3)
-      google-auth-library:
-        specifier: ^10.7.0
-        version: 10.7.0
       ky:
         specifier: ^2.0.2
         version: 2.0.2
@@ -9789,7 +9786,6 @@ packages:
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
-    deprecated: Use your platform's native DOMException instead
 
   node-ensure@0.0.0:
     resolution: {integrity: sha512-DRI60hzo2oKN1ma0ckc6nQWlHU69RH6xN0sjQTjMpChPfTYvKZdcQFfdYK2RWbJcKyUizSIy/l8OTGxMAM1QDw==}

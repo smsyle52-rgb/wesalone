@@ -147,7 +147,6 @@ export async function handleAIExtractData({
       integrationId:
         step.provider === "openaiCompatible" ? step.integrationId : undefined,
       modelId: step.model,
-      capability: "extraction",
       conversationId: conversation.id,
     })
 

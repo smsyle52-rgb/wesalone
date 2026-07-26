@@ -1,82 +1,11 @@
 import { db, eq } from "@chatbotx.io/database/client"
-import {
-  type PlatformAiCapabilities,
-  platformAiCapabilitiesSchema,
-} from "@chatbotx.io/database/partials"
 import { platformAiSettingModel } from "@chatbotx.io/database/schema"
 import { invalidateCacheKeys, withCache } from "@chatbotx.io/redis"
 
 export const PLATFORM_AI_PROVIDER = "vertex" as const
 export const DEFAULT_PLATFORM_AI_CHAT_MODEL = "gemini-3.1-flash-lite"
 export const DEFAULT_PLATFORM_AI_EMBEDDING_MODEL = "text-embedding-005"
-export const DEFAULT_PLATFORM_AI_LOCATION = "global"
-
-export const DEFAULT_PLATFORM_AI_CAPABILITIES: PlatformAiCapabilities = {
-  vision: {
-    provider: "vertex",
-    model: "gemini-2.5-pro",
-    fallbackModel: "gemini-2.5-flash",
-    location: "global",
-  },
-  // Keep the existing embedding model as the migration default. Switching an
-  // embedding model requires a controlled full re-index; the admin UI makes
-  // the stronger gemini-embedding-001 selectable after that job is complete.
-  embedding: {
-    provider: "vertex",
-    model: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
-    location: DEFAULT_PLATFORM_AI_LOCATION,
-  },
-  summarization: {
-    provider: "vertex",
-    model: "gemini-3.1-flash-lite",
-    fallbackModel: "gemini-2.5-flash",
-    location: "global",
-  },
-  extraction: {
-    provider: "vertex",
-    model: "gemini-2.5-pro",
-    fallbackModel: "gemini-2.5-flash",
-    location: "global",
-  },
-  imageGeneration: {
-    provider: "vertex",
-    model: "imagen-4.0-ultra-generate-001",
-    fallbackModel: "imagen-4.0-generate-001",
-    location: "us-central1",
-  },
-  imageEditing: {
-    provider: "vertex",
-    model: "gemini-3.1-flash-image",
-    fallbackModel: "gemini-2.5-flash-image",
-    location: "global",
-  },
-  speechToText: {
-    provider: "vertex",
-    model: "chirp_3",
-    fallbackModel: "chirp_2",
-    location: "us",
-  },
-  textToSpeech: {
-    provider: "googleCloud",
-    model: "chirp3-hd",
-    location: "global",
-    voice: "ar-XA-Chirp3-HD-Aoede",
-  },
-  webSearch: {
-    provider: "vertex",
-    model: "gemini-2.5-flash",
-    location: "global",
-  },
-  documentParsing: {
-    provider: "local",
-    model: "builtin-layout-parser",
-  },
-  translation: {
-    provider: "googleCloud",
-    model: "translation-llm",
-    location: "global",
-  },
-}
+export const DEFAULT_PLATFORM_AI_LOCATION = "us-central1"
 
 const ACTIVE_CACHE_KEY = "platform-ai-setting:active"
 const ACTIVE_CACHE_TTL_SECONDS = 60 * 60
@@ -87,7 +16,6 @@ export type PlatformAiSettingView = {
   embeddingModel: string
   location: string
   fallbackModel: string | null
-  capabilities: PlatformAiCapabilities
   enabled: boolean
   updatedByUserId: string | null
   updatedAt: Date | null
@@ -103,7 +31,6 @@ export type ActivePlatformAiOverride = {
    * as "no platform embedding model" rather than assuming one.
    */
   embeddingModel?: string
-  capabilities: PlatformAiCapabilities
 }
 
 const DEFAULT_SETTING: PlatformAiSettingView = {
@@ -112,7 +39,6 @@ const DEFAULT_SETTING: PlatformAiSettingView = {
   embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
   location: DEFAULT_PLATFORM_AI_LOCATION,
   fallbackModel: null,
-  capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
   enabled: false,
   updatedByUserId: null,
   updatedAt: null,
@@ -157,7 +83,6 @@ class PlatformAiSettingService {
           fallbackModel: setting.fallbackModel,
           location: setting.location,
           embeddingModel: setting.embeddingModel,
-          capabilities: setting.capabilities,
         } satisfies ActivePlatformAiOverride
       },
       { ttl: ACTIVE_CACHE_TTL_SECONDS },
@@ -171,8 +96,6 @@ class PlatformAiSettingService {
   async upsert(props: {
     chatModel: string
     fallbackModel: string | null
-    location: string
-    capabilities: PlatformAiCapabilities
     enabled: boolean
     updatedByUserId: string
   }): Promise<PlatformAiSettingView> {
@@ -186,9 +109,7 @@ class PlatformAiSettingService {
           .set({
             chatModel: props.chatModel,
             fallbackModel: props.fallbackModel,
-            location: props.location,
             enabled: props.enabled,
-            capabilities: props.capabilities,
             updatedByUserId: props.updatedByUserId,
           })
           .where(eq(platformAiSettingModel.id, existing.id))
@@ -200,9 +121,8 @@ class PlatformAiSettingService {
             provider: PLATFORM_AI_PROVIDER,
             chatModel: props.chatModel,
             embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
-            location: props.location,
+            location: DEFAULT_PLATFORM_AI_LOCATION,
             fallbackModel: props.fallbackModel,
-            capabilities: props.capabilities,
             enabled: props.enabled,
             updatedByUserId: props.updatedByUserId,
           })
@@ -222,17 +142,11 @@ class PlatformAiSettingService {
       embeddingModel: row.embeddingModel,
       location: row.location,
       fallbackModel: row.fallbackModel,
-      capabilities: parseCapabilities(row.capabilities),
       enabled: row.enabled,
       updatedByUserId: row.updatedByUserId,
       updatedAt: row.updatedAt,
     }
   }
-}
-
-function parseCapabilities(value: unknown): PlatformAiCapabilities {
-  const parsed = platformAiCapabilitiesSchema.safeParse(value)
-  return parsed.success ? parsed.data : DEFAULT_PLATFORM_AI_CAPABILITIES
 }
 
 export const platformAiSettingService = new PlatformAiSettingService()

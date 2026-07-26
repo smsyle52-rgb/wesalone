@@ -1,15 +1,11 @@
 import {
   boolean,
-  jsonb,
   pgEnum,
   pgTable,
   text,
   uniqueIndex,
 } from "drizzle-orm/pg-core"
-import {
-  type PlatformAiCapabilities,
-  platformAiProviders,
-} from "../partials/platform-ai-setting"
+import { platformAiProviders } from "../partials/platform-ai-setting"
 import { bigintAsString, sharedColumns } from "../partials/shared"
 import { userModel } from "./auth-user"
 
@@ -34,7 +30,6 @@ export const platformAiSettingModel = pgTable(
     embeddingModel: text().notNull(),
     location: text().notNull(),
     fallbackModel: text(),
-    capabilities: jsonb().$type<PlatformAiCapabilities>(),
     enabled: boolean().default(false).notNull(),
     updatedByUserId: bigintAsString().references(() => userModel.id, {
       onDelete: "set null",

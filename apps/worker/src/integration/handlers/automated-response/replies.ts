@@ -19,9 +19,7 @@ import {
   getActivePlatformAiOverride,
   getAIIntegrationInDB,
   getAIToolset,
-  getPlatformCapabilityLanguageModel,
   getPlatformVertexChatModel,
-  getPlatformVertexProvider,
   isPlatformVertexModelCandidate,
   McpClient,
   normalizeAuthorizedWebSearchDomains,
@@ -467,10 +465,7 @@ function createNativeWebSearchTool(options: {
     }
   }
 
-  if (
-    options.provider === aiProviders.enum.gemini ||
-    options.provider === "vertex"
-  ) {
+  if (options.provider === aiProviders.enum.gemini) {
     if (authorizedDomains.length > 0) {
       logWebSearchOmit({
         authorizedDomainsCount,
@@ -511,7 +506,7 @@ function createNativeWebSearchTool(options: {
       )
 
       return {
-        tool: providerTools.googleSearch({}) as ToolSet[string],
+        tool: providerTools.googleSearch({}),
       }
     }
   }
@@ -604,11 +599,7 @@ async function createReplyModel(props: {
     if (!override) {
       return null
     }
-    const providerInstance = getPlatformVertexProvider(override)
-    return {
-      model: getPlatformVertexChatModel(providerInfo.model, override),
-      providerInstance,
-    }
+    return { model: getPlatformVertexChatModel(providerInfo.model, override) }
   }
 
   if (isOpenaiCompatibleProviderModel(providerInfo)) {
@@ -674,11 +665,10 @@ async function runAIReply(
     const startTime = Date.now()
 
     const directSendTracker = { sent: false, sentText: "" }
-    const visionModel = await getPlatformCapabilityLanguageModel("vision")
     const toolset = await createReplyToolset({
       abortSignal,
       directSendTracker,
-      model: visionModel ?? modelConfig.model,
+      model: modelConfig.model,
       modelId: selectedModelId,
       props,
       provider,

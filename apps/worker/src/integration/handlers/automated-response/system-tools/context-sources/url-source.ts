@@ -1,4 +1,3 @@
-import { getPlatformEmbeddingProviderOptions } from "@chatbotx.io/ai/server"
 import {
   aiConversationSourceStatuses,
   aiConversationSourceTypes,
@@ -213,8 +212,6 @@ async function retrieveUrlChunks(
   const { embedding } = await embed({
     model: embeddingModel,
     value: input.query,
-    providerOptions:
-      await getPlatformEmbeddingProviderOptions("RETRIEVAL_QUERY"),
   })
 
   const queryEmbeddingVector = `[${embedding.join(",")}]`

@@ -15,7 +15,6 @@ import {
   getOpenaiCompatibleIntegrationInDB,
 } from "../factory"
 import { createOpenaiCompatibleModelInstance } from "../openai-compatible"
-import { getPlatformCapabilityLanguageModel } from "../platform-provider"
 
 type ProviderResult =
   | {
@@ -44,9 +43,6 @@ export async function summarizeConversation(props: {
   preferredModels?: AIAgentProviderModels
 }): Promise<string> {
   const { workspaceId, messages, existingSummary, preferredModels } = props
-
-  const platformModel =
-    await getPlatformCapabilityLanguageModel("summarization")
 
   // 1. Find the best available AI integration, preferring the caller's AI Agent model.
   const preferredProviderResult = await resolvePreferredProviderResult({
@@ -88,7 +84,7 @@ export async function summarizeConversation(props: {
           : null,
     ))
 
-  if (!(platformModel || providerResult)) {
+  if (!providerResult) {
     logger.warn(
       { workspaceId },
       "[summarizer] No active AI integration found for summarization",
@@ -96,27 +92,18 @@ export async function summarizeConversation(props: {
     return existingSummary || ""
   }
 
-  const selectedProvider = platformModel
-    ? "vertex"
-    : (providerResult?.provider ?? "unknown")
-  let aiModel = platformModel
-  if (!aiModel && providerResult) {
-    aiModel =
-      providerResult.kind === "openaiCompatible"
-        ? createOpenaiCompatibleModelInstance({
-            integration: providerResult.integration,
-            modelId: providerResult.modelId,
-          })
-        : createAIModelInstance({
-            model: providerResult.integration,
-            provider: providerResult.provider,
-            modelId: providerResult.modelId,
-          })
-  }
-
-  if (!aiModel) {
-    return existingSummary || ""
-  }
+  const { provider: selectedProvider } = providerResult
+  const aiModel =
+    providerResult.kind === "openaiCompatible"
+      ? createOpenaiCompatibleModelInstance({
+          integration: providerResult.integration,
+          modelId: providerResult.modelId,
+        })
+      : createAIModelInstance({
+          model: providerResult.integration,
+          provider: providerResult.provider,
+          modelId: providerResult.modelId,
+        })
 
   // 2. Build the prompt
   const messagesToSummarize = messages
@@ -169,7 +156,7 @@ export async function summarizeConversation(props: {
     return finalSummary
   } catch (error) {
     logger.error(
-      { err: error, workspaceId, provider: selectedProvider },
+      { error, workspaceId, provider: selectedProvider },
       "[summarizer] Failed to generate summary",
     )
     return existingSummary || ""

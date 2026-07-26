@@ -2,8 +2,6 @@ import { aiProviders, aiTimeouts } from "@chatbotx.io/ai"
 import {
   aiIntegrationService,
   createAIImageModelInstance,
-  getActivePlatformAiCapability,
-  getPlatformCapabilityImageModel,
 } from "@chatbotx.io/ai/server"
 import { resolveTenantSettings } from "@chatbotx.io/business"
 import { getPublicFileUrl } from "@chatbotx.io/business/utils"
@@ -67,6 +65,19 @@ export async function handleAIGenerateImage({
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
 
   try {
+    const aiConfig = await aiIntegrationService.findBy({
+      workspaceId: conversation.workspaceId,
+      provider: step.provider,
+    })
+
+    if (!aiConfig) {
+      return {
+        status: "error",
+        errorMessage: "AI integration not found",
+        result: null,
+      }
+    }
+
     const ctx = await getIntegrationContext({
       workspaceId: conversation.workspaceId,
       contactId: conversation.contactId,
@@ -90,49 +101,28 @@ export async function handleAIGenerateImage({
 
     let buffer: Buffer | null = null
 
-    const [platformCapability, platformModel] = await Promise.all([
-      getActivePlatformAiCapability("imageGeneration"),
-      getPlatformCapabilityImageModel("imageGeneration"),
-    ])
-    const modelId = platformCapability?.model ?? step.model
-    let model = platformModel
+    const modelId = step.model
 
-    if (!model) {
-      const aiConfig = await aiIntegrationService.findBy({
-        workspaceId: conversation.workspaceId,
-        provider: step.provider,
-      })
-      if (!aiConfig) {
-        return {
-          status: "error",
-          errorMessage: "AI integration not found",
-          result: null,
-        }
-      }
-      model = createAIImageModelInstance({
-        model: aiConfig,
-        provider: step.provider,
-        modelId,
-      })
-    }
+    const model = createAIImageModelInstance({
+      model: aiConfig,
+      provider: step.provider,
+      modelId,
+    })
 
     const size =
-      !platformModel &&
       step.provider === aiProviders.enum.openai &&
       step.size !== IMAGE_AUTO_VALUE
         ? (step.size as `${number}x${number}`)
         : undefined
 
     const aspectRatio =
-      (platformModel || step.provider === aiProviders.enum.gemini) &&
+      step.provider === aiProviders.enum.gemini &&
       step.size !== IMAGE_AUTO_VALUE
         ? (step.size as `${number}:${number}`)
         : undefined
 
     const providerOptions =
-      !platformModel &&
-      step.provider === aiProviders.enum.openai &&
-      step.quality !== "auto"
+      step.provider === aiProviders.enum.openai && step.quality !== "auto"
         ? {
             openai: {
               quality: getOpenAIImageQuality(modelId, step.quality),

@@ -1,6 +1,5 @@
 import type { Readable } from "node:stream"
 import { TextDecoder } from "node:util"
-import { parsePlatformDocument } from "@chatbotx.io/ai/server"
 import { uploader } from "@chatbotx.io/filesystem"
 import {
   CSV_MIME_TYPES,
@@ -456,19 +455,6 @@ export async function extractTextFromFile(
 
   const { stream: fileStream } = await uploader.getObjectStream(remotePath)
   const buffer = await streamToBuffer(fileStream)
-
-  if (
-    isMimeType(finalMimeType, PDF_MIME_TYPES) ||
-    isMimeType(finalMimeType, DOCX_MIME_TYPES)
-  ) {
-    const platformText = await parsePlatformDocument({
-      content: buffer,
-      mimeType: finalMimeType,
-    })
-    if (platformText) {
-      return platformText
-    }
-  }
 
   if (isMimeType(finalMimeType, PDF_MIME_TYPES)) {
     return await extractTextFromPdf(buffer)

@@ -1,9 +1,5 @@
 import { aiTimeouts } from "@chatbotx.io/ai"
-import {
-  aiIntegrationService,
-  getAIModel,
-  synthesizePlatformSpeech,
-} from "@chatbotx.io/ai/server"
+import { aiIntegrationService, getAIModel } from "@chatbotx.io/ai/server"
 import type { AITextToSpeechSchema } from "@chatbotx.io/flow-config"
 import {
   experimental_generateSpeech as generateSpeech,
@@ -32,55 +28,43 @@ export async function handleAITextToSpeech({
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
 
   try {
-    const platformSpeech = await synthesizePlatformSpeech({
-      text: step.message,
-      signal: controller.signal,
+    const aiConfig = await aiIntegrationService.findBy({
+      workspaceId: conversation.workspaceId,
+      provider: step.provider,
     })
 
-    let audioData: string | Uint8Array
-    let mediaType: string
-
-    if (platformSpeech) {
-      audioData = platformSpeech.audio
-      mediaType = platformSpeech.mediaType
-    } else {
-      const aiConfig = await aiIntegrationService.findBy({
-        workspaceId: conversation.workspaceId,
-        provider: step.provider,
-      })
-      if (!aiConfig) {
-        logger.warn(
-          { workspaceId: conversation.workspaceId, provider: step.provider },
-          "[ai-text-to-speech] AI configuration not found",
-        )
-        return {
-          status: "error",
-          errorMessage: "AI integration not found",
-          result: null,
-        }
+    if (!aiConfig) {
+      logger.warn(
+        { workspaceId: conversation.workspaceId, provider: step.provider },
+        "[ai-text-to-speech] AI configuration not found",
+      )
+      return {
+        status: "error",
+        errorMessage: "AI integration not found",
+        result: null,
       }
-
-      const openaiProvider = getAIModel(aiConfig, "openai")
-      if (!("speech" in openaiProvider)) {
-        throw new Error(
-          `Provider ${step.provider} does not support text-to-speech`,
-        )
-      }
-
-      const result = await generateSpeech({
-        model: openaiProvider.speech(step.model),
-        text: step.message,
-        voice: step.voiceType,
-        abortSignal: controller.signal,
-        instructions: step.voiceTone || undefined,
-      })
-
-      audioData =
-        result.audio.uint8Array && result.audio.uint8Array.byteLength > 0
-          ? result.audio.uint8Array
-          : result.audio.base64
-      mediaType = result.audio.mediaType
     }
+
+    const openaiProvider = getAIModel(aiConfig, "openai")
+
+    if (!("speech" in openaiProvider)) {
+      throw new Error(
+        `Provider ${step.provider} does not support text-to-speech`,
+      )
+    }
+
+    const result = await generateSpeech({
+      model: openaiProvider.speech(step.model),
+      text: step.message,
+      voice: step.voiceType,
+      abortSignal: controller.signal,
+      instructions: step.voiceTone || undefined,
+    })
+
+    const audioData =
+      result.audio.uint8Array && result.audio.uint8Array.byteLength > 0
+        ? result.audio.uint8Array
+        : result.audio.base64
 
     if (!audioData) {
       throw new Error("[ai-text-to-speech] Empty audio payload from provider")
@@ -91,7 +75,7 @@ export async function handleAITextToSpeech({
       conversationId: conversation.id,
       executionId: getExecutionId(metadata?.stepId, step.id),
       audioData,
-      mediaType,
+      mediaType: result.audio.mediaType,
     })
 
     if (step.outputFieldId) {

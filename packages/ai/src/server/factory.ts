@@ -1,4 +1,3 @@
-import type { GoogleVertexProvider } from "@ai-sdk/google-vertex"
 import { db } from "@chatbotx.io/database/client"
 import type {
   IntegrationClaudeModel,
@@ -27,9 +26,9 @@ export type AIIntegrationModel =
 export type OpenaiCompatibleAIIntegrationModel =
   IntegrationOpenaiCompatibleModel
 
-export type AIProviderInstance =
-  | GoogleVertexProvider
-  | ReturnType<(typeof providerSdkFactories)[keyof typeof providerSdkFactories]>
+export type AIProviderInstance = ReturnType<
+  (typeof providerSdkFactories)[keyof typeof providerSdkFactories]
+>
 
 export async function getAIIntegrationInDB(props: {
   workspaceId: string

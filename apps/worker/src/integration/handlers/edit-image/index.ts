@@ -2,7 +2,6 @@ import { aiProviders, aiTimeouts } from "@chatbotx.io/ai"
 import {
   aiIntegrationService,
   createAIImageModelInstance,
-  getPlatformCapabilityImageModel,
 } from "@chatbotx.io/ai/server"
 import { assertPublicUrl, resolveTenantSettings } from "@chatbotx.io/business"
 import { getPublicFileUrl } from "@chatbotx.io/business/utils"
@@ -94,51 +93,47 @@ export async function handleAIEditImage({
       }
     }
 
-    const platformModel = await getPlatformCapabilityImageModel("imageEditing")
+    const aiConfig = await aiIntegrationService.findBy({
+      workspaceId: conversation.workspaceId,
+      provider: step.provider,
+    })
+
+    if (!aiConfig) {
+      return {
+        status: "error",
+        errorMessage: "AI integration not found",
+        result: null,
+      }
+    }
+
     let model: ImageModel
 
-    if (platformModel) {
-      model = platformModel
-    } else {
-      const aiConfig = await aiIntegrationService.findBy({
-        workspaceId: conversation.workspaceId,
+    try {
+      model = createAIImageModelInstance({
+        model: aiConfig,
         provider: step.provider,
+        modelId: step.model,
       })
-      if (!aiConfig) {
-        return {
-          status: "error",
-          errorMessage: "AI integration not found",
-          result: null,
-        }
-      }
-
-      try {
+    } catch (modelError) {
+      logger.warn(
+        {
+          err: modelError,
+          modelId: step.model,
+          provider: step.provider,
+          conversationId: conversation.id,
+        },
+        "[ai-edit-image] Failed to create model, attempting fallback",
+      )
+      if (step.provider === aiProviders.enum.openai) {
         model = createAIImageModelInstance({
           model: aiConfig,
           provider: step.provider,
-          modelId: step.model,
+          modelId: AI_EDIT_IMAGE_FALLBACK_OPENAI_MODEL,
         })
-      } catch (modelError) {
-        logger.warn(
-          {
-            err: modelError,
-            modelId: step.model,
-            provider: step.provider,
-            conversationId: conversation.id,
-          },
-          "[ai-edit-image] Failed to create model, attempting fallback",
+      } else {
+        throw new Error(
+          `[ai-edit-image] Cannot create image model for provider: ${step.provider}`,
         )
-        if (step.provider === aiProviders.enum.openai) {
-          model = createAIImageModelInstance({
-            model: aiConfig,
-            provider: step.provider,
-            modelId: AI_EDIT_IMAGE_FALLBACK_OPENAI_MODEL,
-          })
-        } else {
-          throw new Error(
-            `[ai-edit-image] Cannot create image model for provider: ${step.provider}`,
-          )
-        }
       }
     }
 
@@ -156,19 +151,17 @@ export async function handleAIEditImage({
     }
 
     const size =
-      !platformModel && step.provider === aiProviders.enum.openai
+      step.provider === aiProviders.enum.openai
         ? (step.size as `${number}x${number}`)
         : undefined
 
     const aspectRatio =
-      platformModel || step.provider === aiProviders.enum.gemini
+      step.provider === aiProviders.enum.gemini
         ? (step.size as `${number}:${number}`)
         : undefined
 
     const providerOptions =
-      !platformModel &&
-      step.provider === aiProviders.enum.openai &&
-      step.quality !== "auto"
+      step.provider === aiProviders.enum.openai && step.quality !== "auto"
         ? {
             openai: {
               quality: step.quality === "hd" ? "hd" : "standard",

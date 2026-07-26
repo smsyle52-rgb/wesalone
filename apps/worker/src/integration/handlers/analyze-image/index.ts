@@ -25,7 +25,6 @@ export async function handleAIAnalyzeImage({
       integrationId:
         step.provider === "openaiCompatible" ? step.integrationId : undefined,
       modelId: step.model,
-      capability: "vision",
       conversationId: conversation.id,
     })
 
