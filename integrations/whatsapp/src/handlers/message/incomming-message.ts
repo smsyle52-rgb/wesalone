@@ -296,16 +296,15 @@ const fetchMedia = async (
         },
       })
       if (response.ok && response.body) {
-        const result: ExternalMediaResult = {
-          originPath: `${ctx.storagePrefix}/${createId()}`,
-          size: Number.parseInt(
-            response.headers.get("content-length") ?? "0",
-            10,
-          ),
-        }
-
         const bytes = await response.arrayBuffer()
         const arrayBytes = new Uint8Array(bytes)
+        const result: ExternalMediaResult = {
+          originPath: `${ctx.storagePrefix}/${createId()}`,
+          // Meta's content-length can be absent or differ from the decoded
+          // response body. GCS validates ContentLength against the bytes sent
+          // and deletes the object when they do not match.
+          size: arrayBytes.byteLength,
+        }
 
         const mimeType = mediaResponse.mime_type
         if (mimeType.startsWith("image/")) {
