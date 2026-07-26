@@ -86,7 +86,11 @@ export class Uploader {
       if (typeof body === "string" || body instanceof Uint8Array) {
         await file.save(body, {
           metadata,
-          resumable: false,
+          // Simple uploads use multipart/related. In the current Cloud
+          // Run/Node runtime that envelope can be persisted as object data,
+          // corrupting images and audio. Resumable uploads send media bytes
+          // separately and preserve the original file contents.
+          resumable: true,
           // Native GCS checksum validation is unreliable in the current
           // Cloud Run/Node runtime (both CRC32C and MD5 have deleted valid
           // WhatsApp media after upload). The caller already supplies the
@@ -100,7 +104,7 @@ export class Uploader {
       await new Promise<void>((resolve, reject) => {
         const writeStream = file.createWriteStream({
           metadata,
-          resumable: false,
+          resumable: true,
           validation: false,
         })
         body.on("error", reject)
