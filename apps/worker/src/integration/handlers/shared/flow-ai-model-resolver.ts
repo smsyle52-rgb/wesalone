@@ -3,6 +3,7 @@ import {
   aiIntegrationService,
   createAIModelInstance,
   createOpenaiCompatibleModelInstance,
+  getPlatformCapabilityLanguageModel,
 } from "@chatbotx.io/ai/server"
 import { integrationOpenaiCompatibleService } from "@chatbotx.io/business"
 import type { IntegrationOpenaiCompatibleModel } from "@chatbotx.io/database/types"
@@ -17,6 +18,7 @@ export type FlowAIModelConfig = {
   provider: NativeFlowAIProvider | OpenaiCompatibleFlowAIProvider
   modelId: string
   integrationId?: string
+  capability?: "extraction" | "summarization" | "vision"
 }
 
 export type ResolveFlowAIModelResult =
@@ -36,6 +38,15 @@ export type ResolveFlowAIModelResult =
 export async function resolveFlowAIModel(
   props: FlowAIModelConfig,
 ): Promise<ResolveFlowAIModelResult> {
+  if (props.capability) {
+    const platformModel = await getPlatformCapabilityLanguageModel(
+      props.capability,
+    )
+    if (platformModel) {
+      return { ok: true, model: platformModel }
+    }
+  }
+
   if (props.provider === "openaiCompatible") {
     if (!props.integrationId) {
       return {

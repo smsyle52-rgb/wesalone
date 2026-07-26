@@ -1,3 +1,4 @@
+import { getPlatformEmbeddingProviderOptions } from "@chatbotx.io/ai/server"
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { aiEmbeddingStatuses } from "@chatbotx.io/database/partials"
 import { aiConversationEmbeddingModel } from "@chatbotx.io/database/schema"
@@ -42,6 +43,8 @@ export async function processConversationSourceEmbedding(
     const { embedding } = await embed({
       model: embeddingModel,
       value: embeddingItem.content,
+      providerOptions:
+        await getPlatformEmbeddingProviderOptions("RETRIEVAL_DOCUMENT"),
     })
 
     await db

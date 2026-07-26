@@ -1,6 +1,19 @@
-import { createVertex } from "@ai-sdk/google-vertex"
-import { platformAiSettingService } from "@chatbotx.io/business"
-import type { EmbeddingModel, LanguageModel } from "ai"
+import { createVertex, type GoogleVertexProvider } from "@ai-sdk/google-vertex"
+import {
+  DEFAULT_PLATFORM_AI_CAPABILITIES,
+  platformAiSettingService,
+} from "@chatbotx.io/business"
+import type {
+  PlatformAiCapabilities,
+  PlatformAiCapability,
+} from "@chatbotx.io/database/partials"
+import type {
+  EmbeddingModel,
+  ImageModel,
+  LanguageModel,
+  TranscriptionModel,
+} from "ai"
+import { generateText } from "ai"
 import { env } from "../keys"
 import { logger } from "../logger"
 
@@ -9,6 +22,7 @@ export type PlatformAiOverride = {
   fallbackModel: string | null
   location: string
   projectId: string
+  capabilities: PlatformAiCapabilities
 }
 
 /**
@@ -60,6 +74,37 @@ export async function getActivePlatformAiOverride(): Promise<PlatformAiOverride 
     fallbackModel: active.fallbackModel,
     location: env.VERTEX_AI_LOCATION ?? active.location,
     projectId,
+    capabilities: active.capabilities ?? DEFAULT_PLATFORM_AI_CAPABILITIES,
+  }
+}
+
+export type PlatformAiCapabilityName = keyof PlatformAiCapabilities
+
+export type ResolvedPlatformAiCapability = PlatformAiCapability & {
+  projectId: string
+  location: string
+}
+
+/** Resolve one independently configurable platform capability. */
+export async function getActivePlatformAiCapability(
+  name: PlatformAiCapabilityName,
+): Promise<ResolvedPlatformAiCapability | null> {
+  const override = await getActivePlatformAiOverride()
+  if (!override) {
+    return null
+  }
+
+  const capability =
+    override.capabilities[name] ?? DEFAULT_PLATFORM_AI_CAPABILITIES[name]
+  if (capability.provider === "workspace" || capability.provider === "local") {
+    return null
+  }
+
+  return {
+    ...capability,
+    projectId: override.projectId,
+    location:
+      capability.location ?? env.VERTEX_AI_LOCATION ?? override.location,
   }
 }
 
@@ -91,7 +136,18 @@ export async function getPlatformEmbeddingModel(): Promise<EmbeddingModel | null
     return null
   }
 
-  if (!active?.embeddingModel) {
+  if (!active) {
+    return null
+  }
+
+  const capability =
+    active.capabilities?.embedding ?? DEFAULT_PLATFORM_AI_CAPABILITIES.embedding
+  if (capability.provider !== "vertex") {
+    return null
+  }
+
+  const embeddingModel = capability.model || active.embeddingModel
+  if (!embeddingModel) {
     return null
   }
 
@@ -105,10 +161,32 @@ export async function getPlatformEmbeddingModel(): Promise<EmbeddingModel | null
 
   const vertex = createVertex({
     project: projectId,
-    location: env.VERTEX_AI_LOCATION ?? active.location,
+    location: capability.location ?? env.VERTEX_AI_LOCATION ?? active.location,
   })
 
-  return vertex.textEmbeddingModel(active.embeddingModel)
+  return vertex.textEmbeddingModel(embeddingModel)
+}
+
+export async function getPlatformEmbeddingProviderOptions(
+  taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY",
+) {
+  const capability = await getActivePlatformAiCapability("embedding")
+  if (
+    capability?.provider !== "vertex" ||
+    !capability.model.startsWith("gemini-embedding")
+  ) {
+    return
+  }
+
+  // The existing pgvector columns are vector(1536). Gemini embeddings support
+  // an explicit output size, which lets us upgrade models without a disruptive
+  // vector-column migration.
+  return {
+    googleVertex: {
+      outputDimensionality: 1536,
+      taskType,
+    },
+  }
 }
 
 export type PlatformAiEnvStatus = {
@@ -167,9 +245,9 @@ export function buildPlatformOverrideCandidates(
   return candidates
 }
 
-function getPlatformVertexProvider(
+export function getPlatformVertexProvider(
   override: Pick<PlatformAiOverride, "location" | "projectId">,
-) {
+): GoogleVertexProvider {
   // No apiKey passed → the provider skips "express mode" and authenticates
   // via googleAuthOptions, which defaults to google-auth-library's normal ADC
   // chain (Cloud Run service account in production). Never a stored secret.
@@ -179,9 +257,74 @@ function getPlatformVertexProvider(
   })
 }
 
+export async function getPlatformCapabilityLanguageModel(
+  name: "extraction" | "summarization" | "vision" | "webSearch",
+): Promise<LanguageModel | null> {
+  const capability = await getActivePlatformAiCapability(name)
+  if (capability?.provider !== "vertex") {
+    return null
+  }
+  return getPlatformVertexProvider(capability)(capability.model)
+}
+
+export async function getPlatformCapabilityImageModel(
+  name: "imageEditing" | "imageGeneration",
+): Promise<ImageModel | null> {
+  const capability = await getActivePlatformAiCapability(name)
+  if (capability?.provider !== "vertex") {
+    return null
+  }
+  return getPlatformVertexProvider(capability).image(capability.model)
+}
+
+export async function getPlatformTranscriptionModel(): Promise<{
+  model: TranscriptionModel
+  modelId: string
+  region: string
+} | null> {
+  const capability = await getActivePlatformAiCapability("speechToText")
+  if (capability?.provider !== "vertex") {
+    return null
+  }
+  return {
+    model: getPlatformVertexProvider(capability).transcription(
+      capability.model,
+    ),
+    modelId: capability.model,
+    region: capability.location,
+  }
+}
+
+export async function getPlatformTextToSpeechConfig(): Promise<ResolvedPlatformAiCapability | null> {
+  const capability = await getActivePlatformAiCapability("textToSpeech")
+  return capability?.provider === "googleCloud" ? capability : null
+}
+
 export function getPlatformVertexChatModel(
   modelId: string,
   override: Pick<PlatformAiOverride, "location" | "projectId">,
 ): LanguageModel {
   return getPlatformVertexProvider(override)(modelId)
+}
+
+/** A real inference probe used by the super-admin validation action. */
+export async function probePlatformVertexChatModel(props: {
+  location: string
+  modelId: string
+}): Promise<void> {
+  const projectId = env.VERTEX_AI_PROJECT_ID
+  if (!projectId) {
+    throw new Error("VERTEX_AI_PROJECT_ID is not configured")
+  }
+
+  await generateText({
+    model: getPlatformVertexProvider({
+      projectId,
+      location: props.location,
+    })(props.modelId),
+    prompt: "Reply with OK.",
+    maxOutputTokens: 4,
+    temperature: 0,
+    timeout: { totalMs: 20_000 },
+  })
 }

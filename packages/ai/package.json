@@ -26,6 +26,7 @@
     "@openrouter/ai-sdk-provider": "^2.9.1",
     "@t3-oss/env-core": "^0.13.11",
     "ai": "^6.0.170",
+    "google-auth-library": "^10.7.0",
     "ky": "^2.0.2",
     "mime-types": "^3.0.2",
     "universal-error-normalizer": "^1.0.0",

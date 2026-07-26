@@ -28,6 +28,12 @@ const getActivePlatformAiOverrideMock = vi.hoisted(() =>
 const getPlatformVertexChatModelMock = vi.hoisted(() =>
   vi.fn((modelId: string) => ({ type: "vertex-model", modelId })),
 )
+const getPlatformVertexProviderMock = vi.hoisted(() =>
+  vi.fn(() => Object.assign(vi.fn(), { tools: {} })),
+)
+const getPlatformCapabilityLanguageModelMock = vi.hoisted(() =>
+  vi.fn(async () => null),
+)
 
 function isPlatformVertexModelCandidateImpl(value: unknown): boolean {
   return (
@@ -90,7 +96,9 @@ vi.mock("@chatbotx.io/ai/server", () => ({
     cleanup: undefined,
     webSearchOmitReason: undefined,
   })),
+  getPlatformCapabilityLanguageModel: getPlatformCapabilityLanguageModelMock,
   getPlatformVertexChatModel: getPlatformVertexChatModelMock,
+  getPlatformVertexProvider: getPlatformVertexProviderMock,
   isPlatformVertexModelCandidate: isPlatformVertexModelCandidateImpl,
   McpClient: vi.fn(),
   normalizeAuthorizedWebSearchDomains: vi.fn(() => []),
