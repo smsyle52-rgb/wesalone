@@ -29,6 +29,7 @@ describe("resolveIncomingTextRouting", () => {
       resolveIncomingTextRouting({
         conversation: challengeConversation as never,
         hasActionableInput: true,
+        hasAttachment: false,
         hasText: true,
         isConversationActive,
       }),
@@ -44,6 +45,7 @@ describe("resolveIncomingTextRouting", () => {
       resolveIncomingTextRouting({
         conversation: challengeConversation as never,
         hasActionableInput: true,
+        hasAttachment: false,
         hasText: true,
         isConversationActive,
       }),
@@ -62,6 +64,7 @@ describe("resolveIncomingTextRouting", () => {
         conversation: challengeConversation as never,
         // An uploaded image/file/voice carries actionable input but no text.
         hasActionableInput: true,
+        hasAttachment: true,
         hasText: false,
         isConversationActive,
       }),
@@ -79,6 +82,7 @@ describe("resolveIncomingTextRouting", () => {
       resolveIncomingTextRouting({
         conversation: conversation as never,
         hasActionableInput: true,
+        hasAttachment: false,
         hasText: true,
         isConversationActive,
       }),
@@ -88,19 +92,21 @@ describe("resolveIncomingTextRouting", () => {
     })
   })
 
-  test("does not route attachment-only messages to automated response without a challenge", async () => {
+  test("routes attachment-only messages to automated response without a challenge", async () => {
     const isConversationActive = vi.fn(async () => true)
 
-    // No challenge is pending, so an attachment with no text has nothing to
-    // drive: automated (AI) replies stay text-only.
     await expect(
       resolveIncomingTextRouting({
         conversation: conversation as never,
         hasActionableInput: true,
+        hasAttachment: true,
         hasText: false,
         isConversationActive,
       }),
-    ).resolves.toEqual({ type: "none" })
+    ).resolves.toEqual({
+      type: "automatedResponse",
+      conversation,
+    })
   })
 
   test("skips messages with no actionable input without checking bot automation", async () => {
@@ -110,6 +116,7 @@ describe("resolveIncomingTextRouting", () => {
       resolveIncomingTextRouting({
         conversation: conversation as never,
         hasActionableInput: false,
+        hasAttachment: false,
         hasText: false,
         isConversationActive,
       }),

@@ -89,6 +89,7 @@ async function startIntegrationWorker() {
               hasActionableInput: Boolean(
                 isFromContact && (message.text || hasAttachment || isLocation),
               ),
+              hasAttachment: Boolean(isFromContact && hasAttachment),
               hasText: Boolean(isFromContact && message.text),
               isConversationActive: (conversation) =>
                 conversationService.ensureActive(conversation),

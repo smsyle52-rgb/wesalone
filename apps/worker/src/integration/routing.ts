@@ -15,7 +15,8 @@ export async function resolveIncomingTextRouting(props: {
   // A pending challenge (e.g. Get User Data) accepts any actionable reply —
   // text, an uploaded attachment, or a shared location.
   hasActionableInput: boolean
-  // Automated (AI) responses stay text-driven only.
+  // Automated AI responses accept text and supported attachments.
+  hasAttachment: boolean
   hasText: boolean
   isConversationActive: (conversation: ConversationModel) => Promise<boolean>
 }): Promise<IncomingRoutingDecision> {
@@ -35,7 +36,7 @@ export async function resolveIncomingTextRouting(props: {
     return { type: "challenge", conversation, challenge }
   }
 
-  if (!props.hasText) {
+  if (!(props.hasText || props.hasAttachment)) {
     return { type: "none" }
   }
 
