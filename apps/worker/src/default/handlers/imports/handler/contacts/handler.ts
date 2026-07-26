@@ -1,7 +1,10 @@
 import {
+  contactCustomFieldService,
   contactInboxService,
   messageCleanupService,
+  quotaEnforcementService,
   workspaceService,
+  workspaceUsageService,
 } from "@chatbotx.io/business"
 import { db, inArray } from "@chatbotx.io/database/client"
 import {
@@ -11,7 +14,6 @@ import {
   contactSources,
 } from "@chatbotx.io/database/partials"
 import {
-  contactCustomFieldModel,
   contactInboxModel,
   contactModel,
   contactsToTagsModel,
@@ -32,6 +34,7 @@ import { type ContactRow, extractRowData } from "./extractor"
 type ContactDeps = {
   customFieldTypes: Map<string, CustomFieldType>
   inbox: typeof inboxModel.$inferSelect
+  ownerId: string
 }
 
 type AcceptedContact = {
@@ -88,7 +91,7 @@ const prepareContacts = async ({
 
   return {
     ok: true,
-    deps: { customFieldTypes, inbox },
+    deps: { customFieldTypes, inbox, ownerId: workspace.ownerId },
   }
 }
 
@@ -111,7 +114,11 @@ const processContactRow = (
       return []
     }
 
-    const normalized = validateCustomFieldValue(type, field.value)
+    const normalized = validateCustomFieldValue(
+      type,
+      field.value,
+      meta.timezone,
+    )
     if (normalized === null) {
       return []
     }
@@ -122,9 +129,9 @@ const processContactRow = (
   return { ...mapped, customFields: safeCustomFields }
 }
 
-// Import only creates contact records. MAC is counted later when a real
-// interaction occurs, so this path dedups and inserts all fresh eligible rows
-// without reserving quota.
+// Import only creates contact records: the info-only `contacts` metric is
+// counted (see processContactBatch), but MAC is never reserved here — MAC is
+// counted later only when a real interaction occurs.
 const insertContactBatch = async (
   deps: ContactDeps,
   eligible: ContactRow[],
@@ -237,17 +244,14 @@ const insertContactBatch = async (
       })),
     )
 
-    const customFieldValues = survivors.flatMap(({ contactId, row }) =>
-      row.customFields.map((field) => ({
-        id: createId(),
+    await contactCustomFieldService.insertNormalizedValuesForNewContacts({
+      workspaceId: ctx.row.workspaceId,
+      entries: survivors.map(({ contactId, row }) => ({
         contactId,
-        customFieldId: field.customFieldId,
-        value: field.value,
+        fields: row.customFields,
       })),
-    )
-    if (customFieldValues.length) {
-      await tx.insert(contactCustomFieldModel).values(customFieldValues)
-    }
+      tx,
+    })
 
     if (ctx.meta.tagId) {
       const tagId = ctx.meta.tagId
@@ -298,6 +302,22 @@ const processContactBatch = async (
     }
 
     const inserted = await insertContactBatch(deps, eligible, ctx)
+
+    if (inserted > 0) {
+      await quotaEnforcementService.incrementBy({
+        userId: deps.ownerId,
+        metric: "contacts",
+        count: inserted,
+      })
+      await workspaceUsageService
+        .increment(ctx.row.workspaceId, "contacts", inserted)
+        .catch((err) => {
+          logger.warn(
+            { err, workspaceId: ctx.row.workspaceId },
+            "workspace usage contact increment failed",
+          )
+        })
+    }
 
     return { success: inserted, failed: total - inserted }
   } catch (error) {

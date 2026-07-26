@@ -1,6 +1,7 @@
 import {
   isPlatformAdmin,
   isSuperAdmin,
+  isWorkspaceScheduledForDeletion,
   quotaEnforcementService,
   userQuotaService,
   workspaceMemberService,
@@ -18,14 +19,15 @@ import { ExpiredBanner } from "@/components/expired-banner"
 import type { QuotaSummary } from "@/components/nav-usage"
 import { RefreshOnNavigation } from "@/components/refresh-on-navigation"
 import { ScheduledDeletionBanner } from "@/components/scheduled-deletion-banner"
+import { WorkspaceDeletionTabSync } from "@/components/workspace-deletion-tab-sync"
 import { isCloud } from "@/env"
 import { getTenantSettings } from "@/features/tenant/utils"
 import { hasWorkspacePermission } from "@/lib/auth/permission-routes"
 import { enforcePasswordCurrent } from "@/lib/auth/require-password-current"
 import { getCurrentUser } from "@/lib/auth/utils"
 import {
-  buildQuotaMetrics,
-  isBlockedFromPlan,
+  buildWorkspaceQuotaMetrics,
+  resolveBlockReason,
   resolveTrialEndsAt,
 } from "@/lib/quota-metrics"
 import { enforceWorkspaceNotScheduledForDeletionFromRequest } from "@/lib/workspace/require-not-scheduled-for-deletion"
@@ -54,14 +56,26 @@ export default async function WorkspaceLayout({
   const cloud = isCloud()
 
   // Check if user is a member of the workspace
-  const [allWorkspaceMembers, { storageUrl }, platformAdmin, quota, usage] =
-    await Promise.all([
-      workspaceMemberService.listByUserId({ userId: user.id }),
-      getTenantSettings(),
-      isPlatformAdmin(user),
-      cloud ? userQuotaService.getForUser(user.id) : Promise.resolve(null),
-      cloud ? quotaEnforcementService.getUsageSummary(user.id) : null,
-    ])
+  const [
+    allWorkspaceMembers,
+    { storageUrl },
+    platformAdmin,
+    quota,
+    usage,
+    atLimit,
+  ] = await Promise.all([
+    workspaceMemberService.listByUserId({ userId: user.id }),
+    getTenantSettings(),
+    isPlatformAdmin(user),
+    cloud ? userQuotaService.getForUser(user.id) : Promise.resolve(null),
+    cloud
+      ? quotaEnforcementService.getWorkspaceUsageSummary({
+          userId: user.id,
+          workspaceId,
+        })
+      : null,
+    cloud ? quotaEnforcementService.getAtLimitMap(user.id) : null,
+  ])
   const targetWorkspaceMember = allWorkspaceMembers.find(
     (workspaceMember) => workspaceMember.workspace.id === workspaceId,
   )
@@ -82,20 +96,25 @@ export default async function WorkspaceLayout({
   }))
 
   const trialEndsAt = resolveTrialEndsAt(quota)
-  const blocked = isBlockedFromPlan(quota?.planStatus ?? null, trialEndsAt)
+  const blockReason = resolveBlockReason(
+    quota?.planStatus ?? null,
+    trialEndsAt,
+    atLimit?.mac ?? false,
+  )
+  const blocked = blockReason !== null
 
   const quotaSummary: QuotaSummary = {
     planName: quota?.planName ?? null,
     planStatus: quota?.planStatus ?? null,
     trialEndsAt,
-    metrics: buildQuotaMetrics(usage),
+    metrics: buildWorkspaceQuotaMetrics(usage),
   }
 
   const cookieStore = await cookies()
   const defaultOpen = cookieStore.get("sidebar_state")?.value === "true"
 
-  const scheduledForDeletion = Boolean(
-    targetWorkspaceMember.workspace.scheduledDeletionAt,
+  const scheduledForDeletion = isWorkspaceScheduledForDeletion(
+    targetWorkspaceMember.workspace,
   )
 
   return (
@@ -111,9 +130,15 @@ export default async function WorkspaceLayout({
       />
       <SidebarInset>
         <main className="flex min-w-0 flex-1 flex-col gap-4 p-6">
+          <WorkspaceDeletionTabSync
+            scheduledForDeletion={scheduledForDeletion}
+            workspaceId={workspaceId}
+          />
           <ScheduledDeletionBanner scheduled={scheduledForDeletion} />
-          {!scheduledForDeletion && <RefreshOnNavigation />}
-          <ExpiredBanner blocked={cloud && blocked} />
+          {!scheduledForDeletion && (
+            <RefreshOnNavigation workspaceId={workspaceId} />
+          )}
+          <ExpiredBanner blocked={cloud && blocked} reason={blockReason} />
           {children}
         </main>
         <SidebarTrigger className="absolute top-3 -right-2 z-10 border" />

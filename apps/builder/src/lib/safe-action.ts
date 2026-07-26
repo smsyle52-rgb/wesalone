@@ -1,6 +1,7 @@
 import {
   isPlatformAdmin,
   isSuperAdmin,
+  isWorkspaceScheduledForDeletion,
   userQuotaService,
 } from "@chatbotx.io/business"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
@@ -103,7 +104,7 @@ export const workspaceActionClient = workspaceActionClientAllowExpired.use(
     // Server-side deletion gate: a workspace pending deletion must block every
     // mutation regardless of trial status, so this runs before the trial check
     // below. Mirrors the RSC-side redirect in enforceWorkspaceNotScheduledForDeletion.
-    if (ctx.workspace.scheduledDeletionAt) {
+    if (isWorkspaceScheduledForDeletion(ctx.workspace)) {
       throw new ChatbotXException(
         "Workspace deletion scheduled",
         "workspaceScheduledDeletion",
@@ -117,6 +118,29 @@ export const workspaceActionClient = workspaceActionClientAllowExpired.use(
     // self-hosted editions have no quota row and stay unrestricted. The quota
     // read is cached, so this adds no per-action DB round-trip in the hot path.
     if (isCloud()) {
+      const { blocked, reason } = await userQuotaService.getAccessState(
+        ctx.user.id,
+      )
+      if (blocked) {
+        throw reason === "mac"
+          ? new ChatbotXException(
+              "Monthly active contact limit reached",
+              "macLimitReached",
+              403,
+            )
+          : new ChatbotXException("Trial expired", "trialExpired", 403)
+      }
+    }
+
+    return next({ ctx })
+  },
+)
+
+// Settings/general remains editable during the deletion grace window so admins
+// can correct workspace metadata before undoing or before the purge deadline.
+export const workspaceActionClientAllowScheduledDeletion =
+  workspaceActionClientAllowExpired.use(async ({ ctx, next }) => {
+    if (isCloud()) {
       const { blocked } = await userQuotaService.getAccessState(ctx.user.id)
       if (blocked) {
         throw new ChatbotXException("Trial expired", "trialExpired", 403)
@@ -124,5 +148,4 @@ export const workspaceActionClient = workspaceActionClientAllowExpired.use(
     }
 
     return next({ ctx })
-  },
-)
+  })

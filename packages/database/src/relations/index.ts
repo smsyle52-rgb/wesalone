@@ -42,7 +42,9 @@ import { customDomainRelations } from "./enterprise/custom-domain"
 import { tenantRelations } from "./enterprise/tenant"
 import { tenantHelpItemRelations } from "./enterprise/tenant-help-item"
 import { userQuotaRelations } from "./enterprise/user-quota"
+import { workspaceUsageRelations } from "./enterprise/workspace-usage"
 import { errorLogRelations } from "./error-log"
+import { externalWebhookRelations } from "./external-webhook"
 import { fbCommentAutomationRelations } from "./fb-comment-automation"
 import { fbCommentAutomationReplyRelations } from "./fb-comment-automation-reply"
 import { fileRelations } from "./file"
@@ -148,6 +150,7 @@ export const relations = {
   ...tenantHelpItemRelations,
   ...platformCredentialRelations,
   ...userQuotaRelations,
+  ...workspaceUsageRelations,
   ...contactCustomFieldRelations,
   ...customFieldRelations,
   ...broadcastRelations,
@@ -202,6 +205,7 @@ export const relations = {
   ...triggerRelations,
   ...webhookRelations,
   ...webhookExecutionRelations,
+  ...externalWebhookRelations,
   ...conditionRelations,
   ...triggerStatsRelations,
   ...triggerContactHistoryRelations,
