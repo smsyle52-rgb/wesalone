@@ -730,15 +730,29 @@ async function runAIReply(
     let toolResultsCount = 0
     let toolErrorsCount = 0
 
-    const hasTools = Object.keys(tools).length > 0
+    const runtimeTools: ToolSet = tools
+    const hasTools = Object.keys(runtimeTools).length > 0
+    const hasKnowledgeBase = "search_knowledge_base" in runtimeTools
     const result = await streamText({
       model: modelConfig.model,
       system: systemPrompt,
       messages,
       maxOutputTokens: aiAgent.maxOutputTokens,
       temperature: aiAgent.temperature,
-      tools,
+      tools: runtimeTools,
       toolChoice: hasTools ? "auto" : "none",
+      prepareStep: hasKnowledgeBase
+        ? ({ stepNumber }) =>
+            stepNumber === 0
+              ? {
+                  activeTools: ["search_knowledge_base"],
+                  toolChoice: {
+                    type: "tool",
+                    toolName: "search_knowledge_base",
+                  },
+                }
+              : undefined
+        : undefined,
       stopWhen: stepCountIs(5),
       timeout: {
         totalMs: aiTimeouts.aiTotal,

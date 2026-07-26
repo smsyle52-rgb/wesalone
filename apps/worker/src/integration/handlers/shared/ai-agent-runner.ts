@@ -181,6 +181,7 @@ async function runAIReplyInternal(
     let toolErrorsCount = 0
 
     const hasTools = Object.keys(tools).length > 0
+    const hasKnowledgeBase = "search_knowledge_base" in tools
     const result = await streamText({
       model,
       system: systemPrompt,
@@ -189,6 +190,18 @@ async function runAIReplyInternal(
       temperature: aiAgent.temperature,
       tools,
       toolChoice: hasTools ? "auto" : "none",
+      prepareStep: hasKnowledgeBase
+        ? ({ stepNumber }) =>
+            stepNumber === 0
+              ? {
+                  activeTools: ["search_knowledge_base"],
+                  toolChoice: {
+                    type: "tool",
+                    toolName: "search_knowledge_base",
+                  },
+                }
+              : undefined
+        : undefined,
       stopWhen: stepCountIs(5),
       timeout: {
         totalMs: aiTimeouts.aiTotal,
