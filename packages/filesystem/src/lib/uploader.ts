@@ -87,10 +87,12 @@ export class Uploader {
         await file.save(body, {
           metadata,
           resumable: false,
-          // CRC32C validation is unreliable in the current Cloud Run/Node
-          // runtime and causes GCS to delete valid WhatsApp media uploads.
-          // MD5 still provides end-to-end integrity validation.
-          validation: "md5",
+          // Native GCS checksum validation is unreliable in the current
+          // Cloud Run/Node runtime (both CRC32C and MD5 have deleted valid
+          // WhatsApp media after upload). The caller already supplies the
+          // exact buffered bytes and ContentLength, so do not let the client
+          // delete a successfully stored object during post-upload checking.
+          validation: false,
         })
         return {}
       }
@@ -99,7 +101,7 @@ export class Uploader {
         const writeStream = file.createWriteStream({
           metadata,
           resumable: false,
-          validation: "md5",
+          validation: false,
         })
         body.on("error", reject)
         writeStream.on("error", reject)

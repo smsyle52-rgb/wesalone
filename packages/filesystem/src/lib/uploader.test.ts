@@ -37,7 +37,7 @@ describe("isGoogleCloudStorageEndpoint", () => {
     ).toBe(false)
   })
 
-  test("uses MD5 validation for native GCS byte uploads", async () => {
+  test("disables unreliable native GCS checksum validation for byte uploads", async () => {
     const audio = new Uint8Array([1, 2, 3])
 
     await uploader.putObject("audio/test.ogg", audio, {
@@ -47,7 +47,7 @@ describe("isGoogleCloudStorageEndpoint", () => {
     expect(fileSaveMock).toHaveBeenCalledWith(audio, {
       metadata: { contentType: "audio/ogg" },
       resumable: false,
-      validation: "md5",
+      validation: false,
     })
   })
 })
