@@ -39,6 +39,8 @@ export default async function AdminAiSettingsPage() {
           fallbackModel: setting.fallbackModel
             ? toVertexModel(setting.fallbackModel)
             : null,
+          location: setting.location,
+          capabilities: setting.capabilities,
           enabled: setting.enabled,
         }}
       />

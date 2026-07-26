@@ -16,12 +16,16 @@ export const updatePlatformAiSettingsAction = superAdminActionClient
     const setting = await platformAiSettingService.upsert({
       chatModel: parsedInput.chatModel,
       fallbackModel: parsedInput.fallbackModel || null,
+      location: parsedInput.location,
+      capabilities: parsedInput.capabilities,
       enabled: parsedInput.enabled,
       updatedByUserId: ctx.user.id,
     })
     return {
       chatModel: setting.chatModel,
       fallbackModel: setting.fallbackModel,
+      location: setting.location,
+      capabilities: setting.capabilities,
       enabled: setting.enabled,
     }
   })

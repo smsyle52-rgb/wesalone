@@ -1,25 +1,48 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
-const { getActiveMock, createVertexMock, vertexProviderMock, envMock } =
-  vi.hoisted(() => {
-    const vertexProviderMock = vi.fn((modelId: string) => ({
-      type: "vertex-chat",
-      modelId,
-    }))
-    return {
-      getActiveMock: vi.fn(),
-      createVertexMock: vi.fn(() => vertexProviderMock),
-      vertexProviderMock,
-      envMock: {
-        VERTEX_AI_PROJECT_ID: undefined as string | undefined,
-        VERTEX_AI_LOCATION: undefined as string | undefined,
-        AI_INTEGRATION_CACHE_TTL_SECONDS: 3600,
-      },
-    }
-  })
+const {
+  getActiveMock,
+  createVertexMock,
+  vertexProviderMock,
+  envMock,
+  defaultCapabilities,
+} = vi.hoisted(() => {
+  const vertexProviderMock = vi.fn((modelId: string) => ({
+    type: "vertex-chat",
+    modelId,
+  }))
+  const defaultCapabilities = {
+    vision: { provider: "vertex", model: "gemini-2.5-pro" },
+    embedding: { provider: "vertex", model: "text-embedding-005" },
+    summarization: { provider: "vertex", model: "gemini-3.1-flash-lite" },
+    extraction: { provider: "vertex", model: "gemini-2.5-pro" },
+    imageGeneration: {
+      provider: "vertex",
+      model: "imagen-4.0-ultra-generate-001",
+    },
+    imageEditing: { provider: "vertex", model: "gemini-3.1-flash-image" },
+    speechToText: { provider: "vertex", model: "chirp_3" },
+    textToSpeech: { provider: "googleCloud", model: "chirp3-hd" },
+    webSearch: { provider: "vertex", model: "gemini-2.5-flash" },
+    documentParsing: { provider: "local", model: "builtin-layout-parser" },
+    translation: { provider: "googleCloud", model: "translation-llm" },
+  }
+  return {
+    getActiveMock: vi.fn(),
+    createVertexMock: vi.fn(() => vertexProviderMock),
+    vertexProviderMock,
+    envMock: {
+      VERTEX_AI_PROJECT_ID: undefined as string | undefined,
+      VERTEX_AI_LOCATION: undefined as string | undefined,
+      AI_INTEGRATION_CACHE_TTL_SECONDS: 3600,
+    },
+    defaultCapabilities,
+  }
+})
 
 vi.mock("@ai-sdk/google-vertex", () => ({ createVertex: createVertexMock }))
 vi.mock("@chatbotx.io/business", () => ({
+  DEFAULT_PLATFORM_AI_CAPABILITIES: defaultCapabilities,
   platformAiSettingService: { getActive: getActiveMock },
 }))
 vi.mock("../src/keys", () => ({ env: envMock }))
@@ -82,6 +105,7 @@ describe("getActivePlatformAiOverride — fail-closed by construction", () => {
       fallbackModel: "gemini-2.5-flash",
       location: "europe-west1",
       projectId: "my-project",
+      capabilities: defaultCapabilities,
     })
   })
 

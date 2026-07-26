@@ -8,6 +8,7 @@ const platformAiSettingModel = {
   embeddingModel: "embeddingModel-column",
   location: "location-column",
   fallbackModel: "fallbackModel-column",
+  capabilities: "capabilities-column",
   enabled: "enabled-column",
   updatedByUserId: "updatedByUserId-column",
 }
@@ -49,6 +50,7 @@ vi.mock("@chatbotx.io/redis", () => ({
 const {
   platformAiSettingService,
   DEFAULT_PLATFORM_AI_CHAT_MODEL,
+  DEFAULT_PLATFORM_AI_CAPABILITIES,
   DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
   DEFAULT_PLATFORM_AI_LOCATION,
   PLATFORM_AI_PROVIDER,
@@ -81,6 +83,7 @@ describe("platformAiSettingService — fixed provider + safe defaults", () => {
       embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
       location: DEFAULT_PLATFORM_AI_LOCATION,
       fallbackModel: null,
+      capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
       enabled: false,
       updatedByUserId: null,
       updatedAt: null,
@@ -122,6 +125,8 @@ describe("platformAiSettingService.getActive — the one check the AI runtime ne
       chatModel: "gemini-3.1-pro-preview",
       fallbackModel: "gemini-2.5-flash",
       location: "us-central1",
+      embeddingModel: "text-embedding-005",
+      capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
     })
   })
 
@@ -156,6 +161,8 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     await platformAiSettingService.upsert({
       chatModel: "gemini-3.1-flash-lite",
       fallbackModel: null,
+      location: DEFAULT_PLATFORM_AI_LOCATION,
+      capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
       enabled: true,
       updatedByUserId: "admin-1",
     })
@@ -193,6 +200,8 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     await platformAiSettingService.upsert({
       chatModel: "gemini-2.5-flash",
       fallbackModel: null,
+      location: DEFAULT_PLATFORM_AI_LOCATION,
+      capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
       enabled: false,
       updatedByUserId: "admin-2",
     })
@@ -220,6 +229,8 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     await platformAiSettingService.upsert({
       chatModel: "gemini-2.5-flash",
       fallbackModel: null,
+      location: DEFAULT_PLATFORM_AI_LOCATION,
+      capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
       enabled: false,
       updatedByUserId: "admin-2",
     })

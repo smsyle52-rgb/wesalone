@@ -10,6 +10,8 @@ export const keys = () =>
       // (override disabled), never fall back to some hardcoded project.
       VERTEX_AI_PROJECT_ID: z.string().trim().min(1).optional(),
       VERTEX_AI_LOCATION: z.string().trim().min(1).optional(),
+      GOOGLE_DOCUMENT_AI_PROCESSOR_ID: z.string().trim().min(1).optional(),
+      GOOGLE_DOCUMENT_AI_LOCATION: z.string().trim().min(1).optional(),
     },
     runtimeEnv: process.env,
     emptyStringAsUndefined: true,

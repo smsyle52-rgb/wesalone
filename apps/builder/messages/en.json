@@ -4009,9 +4009,35 @@
       "description": "Used only if the primary model fails. Optional.",
       "none": "None"
     },
+    "location": {
+      "label": "Reply model region",
+      "description": "Use global for Gemini preview models unless Google documents a regional endpoint."
+    },
     "embeddingModel": {
       "label": "Embeddings model",
-      "description": "Used for the knowledge base. Not editable here."
+      "description": "Legacy compatibility value. The active knowledge model is configured below."
+    },
+    "capabilities": {
+      "title": "Specialized AI services",
+      "description": "Configure every workload independently. Select Workspace to keep using the provider configured in the flow or agent.",
+      "provider": "Provider",
+      "model": "Model or service ID",
+      "fallbackModel": "Fallback model (optional)",
+      "location": "Region (optional)",
+      "voice": "Voice ID (optional)",
+      "items": {
+        "vision": "Image understanding",
+        "embedding": "Knowledge embeddings",
+        "summarization": "Conversation summarization",
+        "extraction": "Structured data extraction",
+        "imageGeneration": "Image generation",
+        "imageEditing": "Image editing",
+        "speechToText": "Speech to text",
+        "textToSpeech": "Text to speech",
+        "webSearch": "Google Search grounding",
+        "documentParsing": "Document parsing",
+        "translation": "Translation"
+      }
     },
     "agentModelManaged": "The AI provider and model are managed by the platform. Agents use the model selected by the platform admin.",
     "validate": {
@@ -4019,6 +4045,7 @@
       "success": "Configuration looks valid.",
       "error": "Could not validate the configuration.",
       "missingProjectId": "VERTEX_AI_PROJECT_ID is not set on this deployment.",
+      "modelUnavailable": "The selected primary model could not answer a live Vertex AI request in the configured region.",
       "invalidChatModel": "Primary model is not in the allowed list.",
       "invalidFallbackModel": "Fallback model is not in the allowed list."
     }
@@ -4289,9 +4316,7 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": [
-            "A unified inbox with assignment and permissions."
-          ]
+          "body": ["A unified inbox with assignment and permissions."]
         },
         {
           "title": "Agents and commerce",
@@ -4308,9 +4333,7 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": [
-            "WhatsApp, Instagram and Messenger in a unified inbox."
-          ]
+          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
         },
         {
           "title": "Telegram and web",
@@ -4327,9 +4350,7 @@
       "sections": [
         {
           "title": "Mission",
-          "body": [
-            "Give businesses a clear customer service and sales system."
-          ]
+          "body": ["Give businesses a clear customer service and sales system."]
         },
         {
           "title": "Commitment",
@@ -4346,15 +4367,11 @@
       "sections": [
         {
           "title": "Email",
-          "body": [
-            "support@wesal.one"
-          ]
+          "body": ["support@wesal.one"]
         },
         {
           "title": "WhatsApp",
-          "body": [
-            "+967 775 324 950"
-          ]
+          "body": ["+967 775 324 950"]
         }
       ]
     },

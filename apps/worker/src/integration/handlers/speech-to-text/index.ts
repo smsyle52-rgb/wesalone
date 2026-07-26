@@ -1,5 +1,9 @@
 import { aiTimeouts } from "@chatbotx.io/ai"
-import { aiIntegrationService, getAIModel } from "@chatbotx.io/ai/server"
+import {
+  aiIntegrationService,
+  getAIModel,
+  getPlatformTranscriptionModel,
+} from "@chatbotx.io/ai/server"
 import type { AISpeechToTextSchema } from "@chatbotx.io/flow-config"
 import { experimental_transcribe as transcribe } from "ai"
 import ky from "ky"
@@ -32,20 +36,7 @@ export async function handleAISpeechToText({
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
 
   try {
-    const aiConfig = await aiIntegrationService.findBy({
-      workspaceId: conversation.workspaceId,
-      provider: step.provider,
-    })
-
-    if (!aiConfig) {
-      return {
-        status: "error",
-        errorMessage: "AI integration not found",
-        result: null,
-      }
-    }
-
-    const openaiProvider = getAIModel(aiConfig, "openai")
+    const platformTranscription = await getPlatformTranscriptionModel()
 
     // Resolve Audio URL
     const audioUrl = await readCustomFieldValue({
@@ -59,12 +50,6 @@ export async function handleAISpeechToText({
         errorMessage: "No audio URL provided",
         result: null,
       }
-    }
-
-    if (!("transcription" in openaiProvider)) {
-      throw new Error(
-        `Provider ${step.provider} does not support transcription`,
-      )
     }
 
     const audioResponse = await ky.get(audioUrl, {
@@ -89,10 +74,41 @@ export async function handleAISpeechToText({
 
     const audioBuffer = await audioResponse.arrayBuffer()
 
+    let transcriptionModel = platformTranscription?.model
+    if (!transcriptionModel) {
+      const aiConfig = await aiIntegrationService.findBy({
+        workspaceId: conversation.workspaceId,
+        provider: step.provider,
+      })
+      if (!aiConfig) {
+        return {
+          status: "error",
+          errorMessage: "AI integration not found",
+          result: null,
+        }
+      }
+      const openaiProvider = getAIModel(aiConfig, "openai")
+      if (!("transcription" in openaiProvider)) {
+        throw new Error(
+          `Provider ${step.provider} does not support transcription`,
+        )
+      }
+      transcriptionModel = openaiProvider.transcription(step.model)
+    }
+
     const transcript = await transcribe({
-      model: openaiProvider.transcription(step.model),
+      model: transcriptionModel,
       audio: new Uint8Array(audioBuffer),
       abortSignal: controller.signal,
+      providerOptions: platformTranscription
+        ? {
+            googleVertex: {
+              languageCodes: ["auto"],
+              region: platformTranscription.region,
+              enableAutomaticPunctuation: true,
+            },
+          }
+        : undefined,
     })
 
     if (step.outputFieldId) {

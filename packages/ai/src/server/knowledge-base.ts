@@ -7,7 +7,10 @@ import { z } from "zod"
 import { logger } from "../logger"
 import { openaiEmbeddingModels } from "../models"
 import { rankSearchResults } from "./knowledge-ranking"
-import { getPlatformEmbeddingModel } from "./platform-provider"
+import {
+  getPlatformEmbeddingModel,
+  getPlatformEmbeddingProviderOptions,
+} from "./platform-provider"
 
 const REGEX_NUMERIC_ID = /^\d+$/
 
@@ -76,7 +79,12 @@ async function createQueryEmbedding(
 ): Promise<number[]> {
   const platformModel = await getPlatformEmbeddingModel()
   if (platformModel) {
-    const { embedding } = await embed({ model: platformModel, value: query })
+    const { embedding } = await embed({
+      model: platformModel,
+      value: query,
+      providerOptions:
+        await getPlatformEmbeddingProviderOptions("RETRIEVAL_QUERY"),
+    })
     return embedding
   }
 
