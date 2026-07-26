@@ -3,6 +3,8 @@
 import {
   buildContext,
   connectChannelIntegration,
+  inboxService,
+  integrationWhatsappService,
   platformCredentialService,
   workspaceService,
 } from "@chatbotx.io/business"
@@ -44,6 +46,8 @@ import {
   isCoexistOnboardingIntent,
   WHATSAPP_OAUTH_CALLBACK_PATH,
 } from "../libs/embedded-signup"
+import { buildWhatsappPhoneName } from "../libs/phone-name"
+import { toRegistrationOutcome } from "../libs/registration-outcome"
 import {
   type ConnectWhatsappResult,
   type ConnectWhatsappSchema,
@@ -254,6 +258,18 @@ async function persistIntegration(params: {
   const displayPhoneNumber = normalizeWhatsappDisplayPhoneNumber(
     phoneNumber.display_phone_number,
   )
+  const basePhoneName = phoneNumber.verified_name.trim() || displayPhoneNumber
+  const hasWorkspaceDuplicateName =
+    await inboxService.existsByWorkspaceIdAndName({
+      tx,
+      workspaceId: resolvedWorkspaceId,
+      name: basePhoneName,
+    })
+  const phoneName = buildWhatsappPhoneName({
+    verifiedName: basePhoneName,
+    displayPhoneNumber,
+    hasWorkspaceDuplicateName,
+  })
 
   let integrationRow: IntegrationWhatsappModel | undefined
 
@@ -265,7 +281,7 @@ async function persistIntegration(params: {
       workspaceId: resolvedWorkspaceId,
       channel: "whatsapp",
       sourceId: phoneNumber.id,
-      name: phoneNumber.verified_name,
+      name: phoneName,
     },
     insertIntegration: async (inboxId) => {
       const [row] = await tx
@@ -278,10 +294,11 @@ async function persistIntegration(params: {
           phoneNumberId: phoneNumber.id,
           wabaId,
           businessId,
-          name: phoneNumber.verified_name,
+          name: phoneName,
           displayPhoneNumber,
           isCoexist,
           platformType,
+          registrationStatus: "pending_verification",
         })
         .onConflictDoUpdate({
           target: [integrationWhatsappModel.inboxId],
@@ -492,17 +509,6 @@ export const connectWhatsappAction = authActionClient
           }
         }
 
-        // Register the phone number on Cloud API via /register.
-        // NOTE: we intentionally call this for coexist numbers too. Skipping it
-        // leaves the number "not verified" on Cloud API and outbound sends fail
-        // (verified empirically: phone-not-verified error disappears after /register).
-        // RISK: Meta docs warn /register may push a fresh 2FA PIN for numbers still
-        // active on the WhatsApp Business App. Validate on a real coexist number that
-        // this does not lock the user out before wide rollout.
-        if (!isCoexist) {
-          await registerPhoneNumber({ auth })
-        }
-
         const { workspaceId, integrationRow } = await db.transaction((tx) =>
           persistIntegration({
             tx,
@@ -518,6 +524,19 @@ export const connectWhatsappAction = authActionClient
             platformType,
           }),
         )
+
+        if (!isCoexist) {
+          const registrationResult = await registerPhoneNumber({
+            auth,
+            phoneNumberId: phoneNumber.id,
+          })
+          const outcome = toRegistrationOutcome(registrationResult)
+          await integrationWhatsappService.recordRegistrationOutcome({
+            id: integrationRow.id,
+            workspaceId,
+            outcome,
+          })
+        }
 
         const whatsappCtx = await buildContext({
           workspaceId,
