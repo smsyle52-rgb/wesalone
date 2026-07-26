@@ -6,6 +6,7 @@ import { embed } from "ai"
 import { z } from "zod"
 import { logger } from "../logger"
 import { openaiEmbeddingModels } from "../models"
+import { rankSearchResults } from "./knowledge-ranking"
 import { getPlatformEmbeddingModel } from "./platform-provider"
 
 const REGEX_NUMERIC_ID = /^\d+$/
@@ -131,7 +132,7 @@ async function searchSimilarEmbeddings(
       AND "status" = ${aiEmbeddingStatuses.enum.success}::"aiEmbeddingStatus"
       AND "embedding" IS NOT NULL
     ORDER BY "embedding" <=> ${embeddingLiteral}
-    LIMIT ${config.maxResults}
+    LIMIT ${Math.min(Math.max(config.maxResults * 10, config.maxResults), 50)}
   `)
 
   const parsed = similaritySearchResultsSchema.safeParse(results.rows)
@@ -159,7 +160,5 @@ export async function performFileSearch(
   )
   const searchResults = await searchSimilarEmbeddings(queryEmbedding, config)
 
-  return searchResults.filter(
-    (result) => result.distance > config.similarityThreshold,
-  )
+  return rankSearchResults(args.query, searchResults, config)
 }
