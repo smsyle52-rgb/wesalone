@@ -28,7 +28,7 @@ steps:
   - id: deploy-worker
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
-    args: [beta, run, worker-pools, update, wesal-one-next-worker, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/worker:$SHORT_SHA, --update-env-vars=S3_ENDPOINT=https://storage.googleapis.com,S3_BUCKET=wesal-one-next-uploads, --quiet]
+    args: [beta, run, worker-pools, update, wesal-one-next-worker, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/worker:$SHORT_SHA, "--update-env-vars=S3_ENDPOINT=https://storage.googleapis.com,S3_BUCKET=wesal-one-next-uploads", --quiet]
     waitFor: [push-worker]
 
   - id: build-realtime
