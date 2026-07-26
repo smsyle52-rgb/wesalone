@@ -84,7 +84,14 @@ export class Uploader {
         : undefined
 
       if (typeof body === "string" || body instanceof Uint8Array) {
-        await file.save(body, { metadata, resumable: false })
+        await file.save(body, {
+          metadata,
+          resumable: false,
+          // CRC32C validation is unreliable in the current Cloud Run/Node
+          // runtime and causes GCS to delete valid WhatsApp media uploads.
+          // MD5 still provides end-to-end integrity validation.
+          validation: "md5",
+        })
         return {}
       }
 
@@ -92,6 +99,7 @@ export class Uploader {
         const writeStream = file.createWriteStream({
           metadata,
           resumable: false,
+          validation: "md5",
         })
         body.on("error", reject)
         writeStream.on("error", reject)
