@@ -15,7 +15,7 @@ steps:
   - id: deploy-builder
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
-    args: [run, services, update, wesal-one-next-builder, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/builder:$SHORT_SHA, --quiet]
+    args: [run, services, update, wesal-one-next-builder, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/builder:$SHORT_SHA, "--update-env-vars=VERTEX_AI_PROJECT_ID=$PROJECT_ID,VERTEX_AI_LOCATION=global", --quiet]
     waitFor: [push-builder]
 
   - id: build-worker
@@ -28,7 +28,7 @@ steps:
   - id: deploy-worker
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
-    args: [beta, run, worker-pools, update, wesal-one-next-worker, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/worker:$SHORT_SHA, "--update-env-vars=S3_ENDPOINT=https://storage.googleapis.com,S3_BUCKET=wesal-one-next-uploads", --quiet]
+    args: [beta, run, worker-pools, update, wesal-one-next-worker, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/worker:$SHORT_SHA, "--update-env-vars=S3_ENDPOINT=https://storage.googleapis.com,S3_BUCKET=wesal-one-next-uploads,VERTEX_AI_PROJECT_ID=$PROJECT_ID,VERTEX_AI_LOCATION=global", --quiet]
     waitFor: [push-worker]
 
   - id: build-realtime
