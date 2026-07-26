@@ -28,6 +28,10 @@ import { normalizeError } from "universal-error-normalizer"
 import { sendTypingToChannel } from "../../../chat/handlers/send-message"
 import { detectConversationAndContactInbox } from "../../../lib/db"
 import { logger } from "../../../lib/logger"
+import {
+  isSupportedAudioAttachment,
+  transcribeAudioAttachments,
+} from "./audio-transcription"
 import { triggerDefaultReplyFlow } from "./default-reply"
 import { replyByAI } from "./replies"
 
@@ -105,6 +109,7 @@ export async function processAutomatedResponse(
   const hasTriggerDocument = triggerAttachments.some((attachment) =>
     isSupportedDocumentMimeType(attachment.mimeType),
   )
+  const hasTriggerAudio = triggerAttachments.some(isSupportedAudioAttachment)
 
   const repliedByAutomatedResponse = await automatedResponseService.process({
     conversation,
@@ -248,12 +253,29 @@ export async function processAutomatedResponse(
       messages = aiContextService.mapContextToModelMessages(aiHistory)
     }
 
+    const audioTranscripts = hasTriggerAudio
+      ? await transcribeAudioAttachments({
+          attachments: triggerAttachments,
+          conversationId: conversation.id,
+          workspaceId: conversation.workspaceId,
+        })
+      : []
+
+    for (const transcript of audioTranscripts) {
+      messages.push({
+        role: aiMessageRoles.enum.user,
+        content: `Transcription of the attached voice message:\n${transcript}`,
+      })
+    }
+
     if (isFileOnlyTrigger) {
       messages.push({
         role: aiMessageRoles.enum.user,
         content: getFileOnlyPrompt({
+          hasAudio: hasTriggerAudio,
           hasDocument: hasTriggerDocument,
           hasImage: hasTriggerImage,
+          audioTranscribed: audioTranscripts.length > 0,
         }),
       })
     }
@@ -410,9 +432,19 @@ function getFileOnlySystemFunctionIds(input: {
 }
 
 function getFileOnlyPrompt(input: {
+  hasAudio: boolean
+  audioTranscribed: boolean
   hasDocument: boolean
   hasImage: boolean
 }): string {
+  if (input.hasAudio && input.audioTranscribed) {
+    return "The attached voice message has been transcribed above. Answer the user's spoken request directly."
+  }
+
+  if (input.hasAudio) {
+    return "I uploaded a voice message, but it could not be transcribed. Ask me to resend it or write the request as text."
+  }
+
   if (input.hasImage && !input.hasDocument) {
     return "I uploaded an image. Please analyze it, provide a short summary, then ask what specific detail I want to know more about."
   }
