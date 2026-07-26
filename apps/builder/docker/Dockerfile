@@ -44,6 +44,7 @@ WORKDIR /app/migrate-runner
 COPY packages/database/package.json database-package.json
 COPY packages/database/scripts scripts
 COPY packages/database/drizzle drizzle
+COPY packages/database/drizzle-wesal drizzle-wesal
 RUN bash /app/migrate-runner/scripts/create-runner-package.sh migrate ./database-package.json > package.json \
   && npm install --omit=dev --ignore-scripts
 
