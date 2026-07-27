@@ -273,6 +273,8 @@
     "usage": {
       "contacts": "جهات الاتصال",
       "mac": "جهات الاتصال النشطة الشهرية",
+      "botMessages": "رسائل البوت",
+      "monthlyBotMessages": "رسائل البوت الشهرية",
       "workspaces": "مساحات العمل",
       "channels": "القنوات",
       "teamMembers": "أعضاء الفريق",

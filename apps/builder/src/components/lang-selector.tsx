@@ -35,7 +35,6 @@ export const LangSelector: React.FC = () => {
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="en">{t("fields.language.english")}</SelectItem>
-        <SelectItem value="vi">{t("fields.language.vietnamese")}</SelectItem>
         <SelectItem value="ar">{t("fields.language.arabic")}</SelectItem>
       </SelectContent>
     </Select>
