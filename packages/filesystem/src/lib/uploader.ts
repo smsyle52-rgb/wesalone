@@ -84,20 +84,7 @@ export class Uploader {
         : undefined
 
       if (typeof body === "string" || body instanceof Uint8Array) {
-        await file.save(body, {
-          metadata,
-          // Simple uploads use multipart/related. In the current Cloud
-          // Run/Node runtime that envelope can be persisted as object data,
-          // corrupting images and audio. Resumable uploads send media bytes
-          // separately and preserve the original file contents.
-          resumable: true,
-          // Native GCS checksum validation is unreliable in the current
-          // Cloud Run/Node runtime (both CRC32C and MD5 have deleted valid
-          // WhatsApp media after upload). The caller already supplies the
-          // exact buffered bytes and ContentLength, so do not let the client
-          // delete a successfully stored object during post-upload checking.
-          validation: false,
-        })
+        await this.#putRawGcsObject(path, body, options?.ContentType)
         return {}
       }
 
@@ -123,6 +110,43 @@ export class Uploader {
     })
 
     return await this.#client.send(command)
+  }
+
+  async #putRawGcsObject(
+    path: string,
+    body: string | Uint8Array,
+    contentType?: string,
+  ): Promise<void> {
+    if (!this.#gcs) {
+      throw new Error("Google Cloud Storage is not configured")
+    }
+
+    const accessToken = await this.#gcs.authClient.getAccessToken()
+    if (!accessToken) {
+      throw new Error("Unable to obtain Google Cloud Storage access token")
+    }
+
+    const url = new URL(
+      `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(this.#bucketName)}/o`,
+    )
+    url.searchParams.set("uploadType", "media")
+    url.searchParams.set("name", path)
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "content-type": contentType ?? "application/octet-stream",
+      },
+      body,
+    })
+
+    if (!response.ok) {
+      const details = await response.text()
+      throw new Error(
+        `Google Cloud Storage media upload failed (${response.status}): ${details.slice(0, 500)}`,
+      )
+    }
   }
 
   async getPresignedUpload(filePath: string): Promise<string> {
