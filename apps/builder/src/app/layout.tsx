@@ -47,7 +47,11 @@ export default async function RootLayout({ children }: Props) {
     domain === new URL(env.NEXT_PUBLIC_BUILDER_URL).hostname
   const pancakeChatPageId = env.NEXT_PUBLIC_PANCAKE_CHAT_PAGE_ID
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html
+      dir={locale === "ar" ? "rtl" : "ltr"}
+      lang={locale}
+      suppressHydrationWarning
+    >
       <head>
         <link href="https://fonts.googleapis.com" rel="preconnect" />
         <link
