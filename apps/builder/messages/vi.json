@@ -4030,10 +4030,10 @@
       "send": "Gửi để xem xét",
       "sending": "Đang gửi…",
       "methods": {
-        "bankTransfer": "Chuyển khoản ngân hàng",
-        "walletTransfer": "Chuyển qua ví điện tử",
-        "cash": "Tiền mặt",
-        "other": "Khác"
+        "kuraimi": "Kuraimi",
+        "jawali": "Jawali",
+        "bank_transfer": "Chuyển khoản ngân hàng",
+        "cash": "Tiền mặt"
       },
       "status": {
         "under_review": "Đang xem xét",

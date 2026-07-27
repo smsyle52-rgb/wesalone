@@ -45,12 +45,12 @@ type Props = {
   onOpenChange: (slug: string | null) => void
 }
 
-const PAYMENT_METHODS = [
-  "bank_transfer",
-  "wallet_transfer",
-  "cash",
-  "other",
-] as const
+// The canonical manual methods (packages/database/src/partials/manual-payment.ts),
+// same list the point-purchase panel offers. This previously listed
+// wallet_transfer/other — values no enum accepts — while omitting kuraimi and
+// jawali, so a merchant paying through either could not say so when
+// subscribing, only when buying points.
+const PAYMENT_METHODS = ["kuraimi", "jawali", "bank_transfer", "cash"] as const
 
 export function SubscriptionPaymentPanel({
   billingCycle,
@@ -131,7 +131,7 @@ export function SubscriptionPaymentPanel({
       const { fileId } = await upload(file)
       execute({
         billingCycle,
-        paymentMethod,
+        paymentMethod: paymentMethod as (typeof PAYMENT_METHODS)[number],
         planSlug: plan.slug as "starter" | "growth" | "professional",
         receiptFileId: fileId,
         receiptNote: note || undefined,

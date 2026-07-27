@@ -9,7 +9,9 @@ import { z } from "zod"
 export const submitSubscriptionPaymentRequest = z.object({
   planSlug: z.enum(["starter", "growth", "professional"]),
   billingCycle: z.enum(["monthly", "annual"]),
-  paymentMethod: z.string().trim().min(1).max(100),
+  // Was a free-form string, so the panel could submit values no enum
+  // recognises. Matches point-purchase-order-action.ts.
+  paymentMethod: z.enum(["kuraimi", "jawali", "bank_transfer", "cash"]),
   reference: z.string().trim().max(200).optional(),
   receiptFileId: zodBigintAsString(),
   receiptNote: z.string().trim().max(1000).optional(),

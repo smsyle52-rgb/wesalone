@@ -3949,10 +3949,10 @@
       "send": "إرسال للمراجعة",
       "sending": "جارٍ الإرسال…",
       "methods": {
-        "bankTransfer": "تحويل بنكي",
-        "walletTransfer": "تحويل عبر محفظة",
-        "cash": "نقدًا",
-        "other": "أخرى"
+        "kuraimi": "كريمي",
+        "jawali": "جوالي",
+        "bank_transfer": "تحويل بنكي",
+        "cash": "نقداً"
       },
       "status": {
         "under_review": "قيد المراجعة",

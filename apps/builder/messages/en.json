@@ -4143,10 +4143,10 @@
       "send": "Send for review",
       "sending": "Sending…",
       "methods": {
-        "bankTransfer": "Bank transfer",
-        "walletTransfer": "Wallet transfer",
-        "cash": "Cash",
-        "other": "Other"
+        "kuraimi": "Kuraimi",
+        "jawali": "Jawali",
+        "bank_transfer": "Bank transfer",
+        "cash": "Cash"
       },
       "status": {
         "under_review": "Under review",
