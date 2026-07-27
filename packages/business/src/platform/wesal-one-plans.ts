@@ -93,7 +93,12 @@ export const WESAL_ONE_PLANS: readonly WesalOnePlan[] = [
     agentsLimit: 1,
     knowledgeDocumentsLimit: 1,
     productsLimit: 20,
-    autoReply: false,
+    // Auto-reply is NOT withheld from the free plan. Gating it here took the
+    // agent offline for real merchants, including a paying one whose quota row
+    // had never been stamped with its plan and so read as free. The gate in
+    // the reply path stays — it is how a specific workspace gets suspended —
+    // but no tier withholds auto-reply.
+    autoReply: true,
     features: ["inbox", "ai_agent", "catalog"],
   },
   {

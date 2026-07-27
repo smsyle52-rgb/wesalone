@@ -41,7 +41,8 @@ describe("WESAL_ONE_PLANS", () => {
       priceMonthlyUsd: 0,
       monthlyPoints: 1000,
       limits: { channels: 1, contacts: 100, teamMembers: 1 },
-      autoReply: false,
+      // Every tier grants auto-reply; the free plan does not withhold it.
+      autoReply: true,
     })
   })
 
