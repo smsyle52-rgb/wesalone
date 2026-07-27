@@ -1,6 +1,9 @@
 "use server"
 
-import { platformAiSettingService } from "@chatbotx.io/business"
+import {
+  platformAiSettingService,
+  userQuotaService,
+} from "@chatbotx.io/business"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { db } from "@chatbotx.io/database/client"
 import { aiFileModel } from "@chatbotx.io/database/schema"
@@ -37,6 +40,11 @@ export const createAIFileAction = workspaceActionClient
       const t = await getTranslations("aiFiles")
       throw new ChatbotXException(t("noEmbeddingProvider"))
     }
+
+    await userQuotaService.assertPlanResourceCapacity(
+      workspaceId,
+      "knowledgeDocuments",
+    )
 
     const created = await db
       .insert(aiFileModel)

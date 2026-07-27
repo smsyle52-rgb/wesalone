@@ -21,6 +21,7 @@ import { expireStalePendingOrders } from "./handlers/expire-stale-pending-orders
 import { finalizeBroadcasts } from "./handlers/finalize-broadcasts"
 import { maintainMacPartitions } from "./handlers/maintain-mac-partitions"
 import { prepareBroadcast } from "./handlers/prepare-broadcast"
+import { processBillingLifecycle } from "./handlers/process-billing-lifecycle"
 import { processBroadcastContacts } from "./handlers/process-broadcast-contacts"
 import { purgeCoexistStaging } from "./handlers/purge-coexist-staging"
 import { purgeWorkspaces } from "./handlers/purge-workspaces"
@@ -135,6 +136,10 @@ async function startScheduleWorker() {
 
         case ScheduleJobData.expireStalePendingOrders:
           await expireStalePendingOrders()
+          return
+
+        case ScheduleJobData.processBillingLifecycle:
+          await processBillingLifecycle()
           return
 
         default:

@@ -4080,6 +4080,11 @@
     "selectPlan": "Select plan",
     "selectFree": "Start for free",
     "currentPlan": "Current plan",
+    "audience": {
+      "individual": "For individuals",
+      "business": "For businesses",
+      "enterprise": "Enterprise"
+    },
     "sandboxBadge": "Sandbox",
     "sandboxNotice": "Sandbox mode — selecting a plan applies its limits immediately with no real payment. There is no live billing yet.",
     "usage": {
@@ -4088,6 +4093,22 @@
       "monthly": "From monthly plan",
       "purchased": "Purchased points",
       "frozen": "Frozen points",
+      "reserved": "Reserved by running tasks",
+      "breakdown": "Usage by category (30 days)",
+      "categories": {
+        "language": "Text and agent replies",
+        "image_analysis": "Image analysis",
+        "image_generation": "Image generation",
+        "image_editing": "Image editing",
+        "transcription": "Audio transcription",
+        "speech": "Text to speech",
+        "embedding_document": "Knowledge indexing",
+        "embedding_query": "Knowledge searches",
+        "knowledge_search": "Knowledge search",
+        "summarization": "Conversation summaries",
+        "web_search": "Web searches",
+        "tool": "AI tools"
+      },
       "expiresOn": "Nearest expiry: {date}",
       "empty": "No points balance yet — select a plan below to get started."
     },

@@ -5,10 +5,12 @@ import {
   eq,
   gt,
   isNull,
+  lte,
   or,
   sql,
 } from "@chatbotx.io/database/client"
 import {
+  billableUsageEventModel,
   pointGrantModel,
   pointLedgerModel,
   pointWalletModel,
@@ -23,16 +25,19 @@ import { env } from "../keys"
 export const MICRO_POINTS_PER_POINT = 1_000_000n
 
 export const toMicroPoints = (visiblePoints: number): bigint =>
-  BigInt(Math.round(visiblePoints)) * MICRO_POINTS_PER_POINT
+  BigInt(Math.round(visiblePoints * Number(MICRO_POINTS_PER_POINT)))
 
 export const toVisiblePoints = (microPoints: bigint): number =>
-  Number(microPoints / MICRO_POINTS_PER_POINT)
+  Number(microPoints) / Number(MICRO_POINTS_PER_POINT)
 
 export type WalletBalance = {
   walletId: string
   walletStatus: string
   monthlyPoints: number
+  monthlyGrantedPoints: number
+  monthlyUsedPoints: number
   purchasedPoints: number
+  reservedPoints: number
   frozenPoints: number
   totalAvailablePoints: number
   nearestExpiry: Date | null
@@ -83,11 +88,13 @@ async function getWalletBalance(userId: string): Promise<WalletBalance> {
     where: {
       walletId: wallet.id,
       status: { in: ["active", "frozen"] },
+      startsAt: { lte: now },
       OR: [{ expiresAt: { isNull: true } }, { expiresAt: { gt: now } }],
     },
   })
 
   let monthlyMicro = 0n
+  let monthlyOriginalMicro = 0n
   let purchasedMicro = 0n
   let frozenMicro = 0n
   let nearestExpiry: Date | null = null
@@ -100,6 +107,7 @@ async function getWalletBalance(userId: string): Promise<WalletBalance> {
     }
     if (grant.grantType === "monthly_subscription") {
       monthlyMicro += remaining
+      monthlyOriginalMicro += BigInt(grant.originalMicroPoints)
     } else {
       purchasedMicro += remaining
       if (
@@ -111,13 +119,33 @@ async function getWalletBalance(userId: string): Promise<WalletBalance> {
     }
   }
 
+  const [reservedRow] = await db
+    .select({
+      total: sql<string>`coalesce(sum(${billableUsageEventModel.reservedMicroPoints}), 0)`,
+    })
+    .from(billableUsageEventModel)
+    .where(
+      and(
+        eq(billableUsageEventModel.walletId, wallet.id),
+        eq(billableUsageEventModel.status, "reserved"),
+      ),
+    )
+  const reservedMicro = BigInt(reservedRow?.total ?? "0")
+  const availableMicro =
+    monthlyMicro + purchasedMicro > reservedMicro
+      ? monthlyMicro + purchasedMicro - reservedMicro
+      : 0n
+
   return {
     walletId: wallet.id,
     walletStatus: wallet.status,
     monthlyPoints: toVisiblePoints(monthlyMicro),
+    monthlyGrantedPoints: toVisiblePoints(monthlyOriginalMicro),
+    monthlyUsedPoints: toVisiblePoints(monthlyOriginalMicro - monthlyMicro),
     purchasedPoints: toVisiblePoints(purchasedMicro),
+    reservedPoints: toVisiblePoints(reservedMicro),
     frozenPoints: toVisiblePoints(frozenMicro),
-    totalAvailablePoints: toVisiblePoints(monthlyMicro + purchasedMicro),
+    totalAvailablePoints: toVisiblePoints(availableMicro),
     nearestExpiry,
   }
 }
@@ -205,6 +233,10 @@ export type DebitPointsOptions = {
   actorId?: string | null
 }
 
+export type DebitMicroPointsOptions = Omit<DebitPointsOptions, "points"> & {
+  microPoints: bigint
+}
+
 export class InsufficientPointsError extends ChatbotXException {
   available: number
   required: number
@@ -222,26 +254,40 @@ export class InsufficientPointsError extends ChatbotXException {
  * first. Spans multiple grants atomically under row locks so two concurrent
  * debits can never double-spend the same remaining points.
  */
-function debitPointsFromWallet(
-  opts: DebitPointsOptions,
-): Promise<{ debited: boolean; points: number }> {
-  if (!Number.isFinite(opts.points) || opts.points <= 0) {
-    return Promise.resolve({ debited: false, points: 0 })
+function debitMicroPointsFromWallet(
+  opts: DebitMicroPointsOptions,
+  externalTx?: DatabaseClient,
+): Promise<{ debited: boolean; points: number; microPoints: bigint }> {
+  if (opts.microPoints <= 0n) {
+    return Promise.resolve({ debited: false, points: 0, microPoints: 0n })
   }
-  const points = Math.ceil(opts.points)
-  const debitMicro = toMicroPoints(points)
+  const debitMicro = opts.microPoints
+  const points = toVisiblePoints(debitMicro)
   const now = new Date()
   const markerKey = `debit:${opts.idempotencyKey}`
 
-  return db.transaction(async (tx) => {
+  const run = async (tx: DatabaseClient) => {
     const wallet = await getOrCreateWallet(opts.userId, tx)
+
+    const [lockedWallet] = await tx
+      .select({ status: pointWalletModel.status })
+      .from(pointWalletModel)
+      .where(eq(pointWalletModel.id, wallet.id))
+      .for("update")
+    if (lockedWallet?.status !== "active") {
+      throw new ChatbotXException(
+        "Point wallet is not active",
+        "walletInactive",
+        402,
+      )
+    }
 
     const existingMarker = await tx.query.pointLedgerModel.findFirst({
       where: { idempotencyKey: markerKey },
       columns: { id: true },
     })
     if (existingMarker) {
-      return { debited: false, points }
+      return { debited: false, points, microPoints: debitMicro }
     }
 
     const grants = await tx
@@ -252,6 +298,7 @@ function debitPointsFromWallet(
           eq(pointGrantModel.walletId, wallet.id),
           eq(pointGrantModel.status, "active"),
           gt(pointGrantModel.remainingMicroPoints, "0"),
+          lte(pointGrantModel.startsAt, now),
           or(
             isNull(pointGrantModel.expiresAt),
             gt(pointGrantModel.expiresAt, now),
@@ -322,8 +369,23 @@ function debitPointsFromWallet(
       metadata: { points, marker: true },
     })
 
-    return { debited: true, points }
-  })
+    return { debited: true, points, microPoints: debitMicro }
+  }
+
+  return externalTx ? run(externalTx) : db.transaction(run)
+}
+
+function debitPointsFromWallet(
+  opts: DebitPointsOptions,
+  externalTx?: DatabaseClient,
+): Promise<{ debited: boolean; points: number; microPoints: bigint }> {
+  if (!Number.isFinite(opts.points) || opts.points <= 0) {
+    return Promise.resolve({ debited: false, points: 0, microPoints: 0n })
+  }
+  return debitMicroPointsFromWallet(
+    { ...opts, microPoints: toMicroPoints(opts.points) },
+    externalTx,
+  )
 }
 
 export type DebitPointsForTokensOptions = {
@@ -423,6 +485,7 @@ export const pointWalletService = {
   getWalletBalance,
   createGrant,
   debitPointsFromWallet,
+  debitMicroPointsFromWallet,
   debitPointsForTokens,
   freezePurchasedGrants,
 }

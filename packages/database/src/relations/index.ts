@@ -20,6 +20,7 @@ import { accountRelations } from "./auth-account"
 import { invitationRelations } from "./auth-invitation"
 import { sessionRelations } from "./auth-session"
 import { automatedResponseRelations } from "./automated-response"
+import { billableUsageEventRelations } from "./billable-usage-event"
 import { botFieldRelations } from "./bot-field"
 import { broadcastRelations } from "./broadcast"
 import { coexistSyncRunRelations } from "./coexist-sync-run"
@@ -97,6 +98,7 @@ import { orderItemRelations } from "./order-item"
 import { paymentRelations } from "./payment"
 import { paymentWebhookEventRelations } from "./payment-webhook-event"
 import { platformAiSettingRelations } from "./platform-ai-setting"
+import { platformSubscriptionRelations } from "./platform-subscription"
 import { platformSubscriptionPaymentRelations } from "./platform-subscription-payment"
 import {
   pointGrantRelations,
@@ -147,6 +149,7 @@ export const relations = {
   ...conversationRelations,
   ...messageRelations,
   ...automatedResponseRelations,
+  ...billableUsageEventRelations,
   ...customDomainRelations,
   ...tenantRelations,
   ...tenantHelpItemRelations,
@@ -250,6 +253,7 @@ export const relations = {
   ...paymentRelations,
   ...paymentWebhookEventRelations,
   ...platformSubscriptionPaymentRelations,
+  ...platformSubscriptionRelations,
   ...platformAiSettingRelations,
   ...pointWalletRelations,
   ...pointGrantRelations,

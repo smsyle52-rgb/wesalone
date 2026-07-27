@@ -10,8 +10,10 @@ import { getTranslations } from "next-intl/server"
 
 export async function PointsUsageCard({
   balance,
+  usageSummary,
 }: {
   balance: WalletBalance | null
+  usageSummary: Array<{ category: string; points: number; operations: number }>
 }) {
   const t = await getTranslations()
 
@@ -19,11 +21,18 @@ export async function PointsUsageCard({
     return null
   }
 
-  const { monthlyPoints, purchasedPoints, frozenPoints, totalAvailablePoints } =
-    balance
+  const {
+    monthlyPoints,
+    monthlyGrantedPoints,
+    monthlyUsedPoints,
+    purchasedPoints,
+    reservedPoints,
+    frozenPoints,
+    totalAvailablePoints,
+  } = balance
   const usedShareOfMonthly =
-    monthlyPoints > 0
-      ? Math.min(100, (monthlyPoints / totalAvailablePoints) * 100)
+    monthlyGrantedPoints > 0
+      ? Math.min(100, (monthlyUsedPoints / monthlyGrantedPoints) * 100)
       : 0
 
   return (
@@ -43,6 +52,11 @@ export async function PointsUsageCard({
 
         <Progress value={usedShareOfMonthly} />
 
+        <p className="text-muted-foreground text-xs">
+          {monthlyUsedPoints.toLocaleString()} /{" "}
+          {monthlyGrantedPoints.toLocaleString()}
+        </p>
+
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
           <div>
             <div className="font-semibold">
@@ -52,6 +66,16 @@ export async function PointsUsageCard({
               {t("plans.usage.monthly")}
             </div>
           </div>
+          {reservedPoints > 0 && (
+            <div>
+              <div className="font-semibold">
+                {reservedPoints.toLocaleString()}
+              </div>
+              <div className="text-muted-foreground">
+                {t("plans.usage.reserved")}
+              </div>
+            </div>
+          )}
           <div>
             <div className="font-semibold">
               {purchasedPoints.toLocaleString()}
@@ -80,6 +104,27 @@ export async function PointsUsageCard({
               }).format(balance.nearestExpiry),
             })}
           </p>
+        )}
+
+        {usageSummary.length > 0 && (
+          <div className="space-y-2 border-t pt-4">
+            <p className="font-semibold text-sm">
+              {t("plans.usage.breakdown")}
+            </p>
+            {usageSummary.map((item) => (
+              <div
+                className="flex items-center justify-between text-sm"
+                key={item.category}
+              >
+                <span className="text-muted-foreground">
+                  {t(`plans.usage.categories.${item.category}`)}
+                </span>
+                <span className="font-medium">
+                  {item.points.toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>

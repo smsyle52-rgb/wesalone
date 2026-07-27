@@ -20,11 +20,23 @@ const sendMessageAndWaitMock = vi.hoisted(() => vi.fn(async () => undefined))
 const appendHistoryMock = vi.hoisted(() => vi.fn(async () => undefined))
 const warnMock = vi.hoisted(() => vi.fn())
 const errorMock = vi.hoisted(() => vi.fn())
+const isAutoReplyEnabledForWorkspaceMock = vi.hoisted(() => vi.fn())
+const usageMeteringReserveMock = vi.hoisted(() => vi.fn())
+const usageMeteringSettleLanguageMock = vi.hoisted(() => vi.fn())
+const usageMeteringReleaseMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@chatbotx.io/business", () => ({
   flowService: { findBy: findByFlowMock },
   integrationOpenaiCompatibleService: {
     findByWorkspaceIdAndId: vi.fn(),
+  },
+  userQuotaService: {
+    isAutoReplyEnabledForWorkspace: isAutoReplyEnabledForWorkspaceMock,
+  },
+  usageMeteringService: {
+    reserve: usageMeteringReserveMock,
+    settleLanguage: usageMeteringSettleLanguageMock,
+    release: usageMeteringReleaseMock,
   },
 }))
 
@@ -95,6 +107,7 @@ vi.mock("@chatbotx.io/ai/server", () => ({
     webSearchOmitReason: undefined,
   })),
   getActivePlatformAiOverride: vi.fn(async () => null),
+  getPlatformCapabilityLanguageModel: vi.fn(async () => null),
   getPlatformVertexChatModel: vi.fn(() => ({ type: "vertex-model" })),
   isPlatformVertexModelCandidate: vi.fn(() => false),
   McpClient: vi.fn(),
@@ -231,6 +244,13 @@ beforeEach(() => {
   appendHistoryMock.mockClear()
   warnMock.mockClear()
   errorMock.mockClear()
+  isAutoReplyEnabledForWorkspaceMock.mockResolvedValue(true)
+  usageMeteringReserveMock.mockResolvedValue({
+    enabled: false,
+    operationId: "op-1",
+  })
+  usageMeteringSettleLanguageMock.mockResolvedValue(undefined)
+  usageMeteringReleaseMock.mockResolvedValue(undefined)
   vi.mocked(streamText).mockClear()
   vi.mocked(contactVariableService.replaceAll).mockClear()
 })

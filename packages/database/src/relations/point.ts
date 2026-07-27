@@ -16,6 +16,10 @@ export const pointWalletRelations = defineRelationsPart(schema, (r) => ({
       from: r.pointWalletModel.id,
       to: r.pointLedgerModel.walletId,
     }),
+    usageEvents: r.many.billableUsageEventModel({
+      from: r.pointWalletModel.id,
+      to: r.billableUsageEventModel.walletId,
+    }),
   },
 }))
 

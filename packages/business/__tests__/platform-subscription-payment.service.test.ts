@@ -48,19 +48,14 @@ const userModel = {
   email: "user-email-column",
 }
 
-const { applyPlanEntitlements, findById, headObject, getPresignedDownload } =
-  vi.hoisted(() => ({
-    applyPlanEntitlements: vi.fn(async () => undefined),
-    findById: vi.fn(async () => ({ id: "workspace-1", ownerId: "owner-1" })),
-    headObject: vi.fn(async () => ({ ContentLength: 1024 })),
-    getPresignedDownload: vi.fn(async () => "https://storage.example/signed"),
-  }))
-
-vi.mock("../src/user-quota", () => ({
-  userQuotaService: { applyPlanEntitlements },
+const { activate, headObject, getPresignedDownload } = vi.hoisted(() => ({
+  activate: vi.fn(async () => ({ id: "subscription-1" })),
+  headObject: vi.fn(async () => ({ ContentLength: 1024 })),
+  getPresignedDownload: vi.fn(async () => "https://storage.example/signed"),
 }))
-vi.mock("../src/workspace", () => ({
-  workspaceService: { findById },
+
+vi.mock("../src/platform-subscription", () => ({
+  platformSubscriptionService: { activate },
 }))
 vi.mock("@chatbotx.io/filesystem", () => ({
   uploader: { headObject, getPresignedDownload },
@@ -90,6 +85,7 @@ let insertReturnRows: unknown[] = []
 let txSelectRows: unknown[] = []
 let txUpdateRows: unknown[] = []
 let plainUpdateRows: unknown[] = []
+let lastTxInsertChain: ReturnType<typeof makeChain> | undefined
 
 const dbMock = {
   select: vi.fn(() => makeChain(selectDuplicateRows)),
@@ -100,6 +96,15 @@ const dbMock = {
   },
   transaction: vi.fn(async (fn: (tx: unknown) => unknown) => {
     const tx = {
+      insert: vi.fn(() => {
+        lastTxInsertChain = makeChain(insertReturnRows)
+        return lastTxInsertChain
+      }),
+      query: {
+        workspaceModel: {
+          findFirst: vi.fn(async () => ({ ownerId: "owner-1" })),
+        },
+      },
       select: vi.fn(() => {
         const chain = makeChain(txSelectRows)
         chain.for = vi.fn(() => chain)
@@ -138,7 +143,8 @@ beforeEach(() => {
   txSelectRows = []
   txUpdateRows = []
   plainUpdateRows = []
-  findById.mockResolvedValue({ id: WORKSPACE, ownerId: "owner-1" })
+  lastTxInsertChain = undefined
+  activate.mockResolvedValue({ id: "subscription-1" })
   headObject.mockResolvedValue({ ContentLength: 1024 })
 })
 
@@ -263,8 +269,9 @@ describe("platformSubscriptionPaymentService.createSubmission — plan/duplicate
       })
 
     expect(submission).toEqual({ id: "sub-1", status: "under_review" })
-    const usedChain = dbMock.insert.mock.results.at(-1)?.value as {
-      values: ReturnType<typeof vi.fn>
+    const usedChain = lastTxInsertChain
+    if (!usedChain) {
+      throw new Error("Expected transactional insert")
     }
     const [values] = usedChain.values.mock.calls.at(-1) ?? []
     expect(values).not.toHaveProperty("amount")
@@ -298,10 +305,9 @@ describe("platformSubscriptionPaymentService.confirmSubmission", () => {
     })
 
     expect(result.status).toBe("confirmed")
-    expect(findById).toHaveBeenCalledWith({ id: WORKSPACE })
-    expect(applyPlanEntitlements).toHaveBeenCalledTimes(1)
-    expect(applyPlanEntitlements).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "owner-1" }),
+    expect(activate).toHaveBeenCalledTimes(1)
+    expect(activate).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "owner-1", workspaceId: WORKSPACE }),
     )
   })
 
@@ -322,7 +328,7 @@ describe("platformSubscriptionPaymentService.confirmSubmission", () => {
         reviewedByUserId: ADMIN,
       }),
     ).rejects.toThrow(NOT_UNDER_REVIEW_ERROR)
-    expect(applyPlanEntitlements).not.toHaveBeenCalled()
+    expect(activate).not.toHaveBeenCalled()
   })
 
   test("a concurrent duplicate confirm does not double-activate — conditional update returning 0 rows throws instead of re-granting", async () => {
@@ -354,7 +360,7 @@ describe("platformSubscriptionPaymentService.confirmSubmission", () => {
         reviewedByUserId: ADMIN,
       }),
     ).rejects.toThrow(NOT_FOUND_ERROR)
-    expect(applyPlanEntitlements).not.toHaveBeenCalled()
+    expect(activate).not.toHaveBeenCalled()
   })
 })
 
@@ -371,7 +377,7 @@ describe("platformSubscriptionPaymentService.rejectSubmission", () => {
     })
 
     expect(result.status).toBe("rejected")
-    expect(applyPlanEntitlements).not.toHaveBeenCalled()
+    expect(activate).not.toHaveBeenCalled()
   })
 
   test("rejects when the submission is no longer under review", async () => {

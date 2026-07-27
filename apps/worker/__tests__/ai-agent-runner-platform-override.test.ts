@@ -29,6 +29,9 @@ const findAIIntegrationMock = vi.hoisted(() =>
 const getActivePlatformAiOverrideMock = vi.hoisted(() =>
   vi.fn(async () => state.platformOverride),
 )
+const usageMeteringReserveMock = vi.hoisted(() => vi.fn())
+const usageMeteringSettleLanguageMock = vi.hoisted(() => vi.fn())
+const usageMeteringReleaseMock = vi.hoisted(() => vi.fn())
 const getPlatformVertexChatModelMock = vi.hoisted(() =>
   vi.fn((modelId: string) => ({ type: "vertex-model", modelId })),
 )
@@ -82,6 +85,11 @@ vi.mock("@chatbotx.io/ai/server", () => ({
 vi.mock("@chatbotx.io/business", () => ({
   integrationOpenaiCompatibleService: {
     findByWorkspaceIdAndId: vi.fn(),
+  },
+  usageMeteringService: {
+    reserve: usageMeteringReserveMock,
+    settleLanguage: usageMeteringSettleLanguageMock,
+    release: usageMeteringReleaseMock,
   },
 }))
 
@@ -138,6 +146,12 @@ describe("AI agent runner — platform Vertex override", () => {
     vi.clearAllMocks()
     state.aiResponseText = "Hello from Vertex"
     state.platformOverride = null
+    usageMeteringReserveMock.mockResolvedValue({
+      enabled: false,
+      operationId: "op-1",
+    })
+    usageMeteringSettleLanguageMock.mockResolvedValue(undefined)
+    usageMeteringReleaseMock.mockResolvedValue(undefined)
   })
 
   test("uses the platform Vertex model and never touches the agent's own stored BYOK integration when the override is enabled", async () => {

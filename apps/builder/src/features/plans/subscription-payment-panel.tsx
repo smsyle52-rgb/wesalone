@@ -37,6 +37,7 @@ export type SubscriptionPaymentSubmission = PlatformSubscriptionPaymentModel & {
 }
 
 type Props = {
+  billingCycle: "monthly" | "annual"
   workspaceId: string
   plans: readonly WesalOnePlan[]
   submissions: SubscriptionPaymentSubmission[]
@@ -52,6 +53,7 @@ const PAYMENT_METHODS = [
 ] as const
 
 export function SubscriptionPaymentPanel({
+  billingCycle,
   workspaceId,
   plans,
   submissions,
@@ -128,7 +130,7 @@ export function SubscriptionPaymentPanel({
     try {
       const { fileId } = await upload(file)
       execute({
-        billingCycle: "monthly",
+        billingCycle,
         paymentMethod,
         planSlug: plan.slug as "starter" | "growth" | "professional",
         receiptFileId: fileId,
@@ -225,6 +227,17 @@ export function SubscriptionPaymentPanel({
             </DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+              {t(`plans.${billingCycle === "annual" ? "yearly" : "monthly"}`)}
+              {plan && (
+                <span className="ms-2 font-semibold">
+                  $
+                  {billingCycle === "annual"
+                    ? plan.priceYearlyUsd
+                    : plan.priceMonthlyUsd}
+                </span>
+              )}
+            </div>
             <div className="space-y-2">
               <Label>{t("plans.subscriptionPayment.paymentMethod")}</Label>
               <Select onValueChange={setPaymentMethod} value={paymentMethod}>

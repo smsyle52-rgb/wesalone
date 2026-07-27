@@ -4,6 +4,10 @@ import {
   McpClient,
   normalizeMcpContent,
 } from "@chatbotx.io/ai/server"
+import {
+  type UsageReservation,
+  usageMeteringService,
+} from "@chatbotx.io/business"
 import { isMessageStorageError } from "@chatbotx.io/database/errors"
 import type { AIGenerateTextSchema } from "@chatbotx.io/flow-config"
 import { APICallError, streamText } from "ai"
@@ -21,12 +25,15 @@ const ERROR_INSUFFICIENT_CREDITS =
 export async function handleAIGenerateText({
   conversation,
   contactInbox,
+  flowVersion,
   step,
+  triggerMessageId,
 }: ExecuteStepProps<AIGenerateTextSchema>): Promise<ExecuteStepResult> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 120_000)
 
   let cleanupToolset: (() => Promise<void>) | undefined
+  let reservation: UsageReservation | undefined
 
   try {
     const messages = await buildAIMessages(conversation, contactInbox, step)
@@ -86,6 +93,15 @@ export async function handleAIGenerateText({
     })
     cleanupToolset = cleanup
 
+    reservation = await usageMeteringService.reserve({
+      workspaceId: conversation.workspaceId,
+      operationId: `flow:generate-text:${conversation.id}:${triggerMessageId ?? flowVersion.id}:${step.id}`,
+      category: "language",
+      provider: step.provider,
+      model: step.model,
+      metadata: { conversationId: conversation.id, stepId: step.id },
+    })
+
     const result = streamText({
       model: resolvedModel.model,
       system: step.system,
@@ -108,6 +124,14 @@ export async function handleAIGenerateText({
       { sendParts: false },
     )
 
+    const usage = await result.totalUsage
+    await usageMeteringService.settleLanguage(reservation, {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
+      reasoningTokens: usage.outputTokenDetails.reasoningTokens,
+    })
+
     await saveResultToCustomField({
       contactId: conversation.contactId,
       customFieldId: step.outputFieldId,
@@ -117,6 +141,9 @@ export async function handleAIGenerateText({
 
     return { status: "success", result: null }
   } catch (err) {
+    if (reservation) {
+      await usageMeteringService.release(reservation, err)
+    }
     if (isMessageStorageError(err)) {
       throw err
     }

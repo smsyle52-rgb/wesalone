@@ -1,4 +1,5 @@
 import { aiContextStore, summarizeConversation } from "@chatbotx.io/ai/server"
+import { usageMeteringService } from "@chatbotx.io/business"
 import { db } from "@chatbotx.io/database/client"
 import {
   AIJobAction,
@@ -80,11 +81,51 @@ export async function handleSummarizeConversation(
         return
       }
 
-      const newSummary = await summarizeConversation({
+      const reservation = await usageMeteringService.reserve({
         workspaceId: conversation.workspaceId,
-        messages: snapshot.messagesToSummarize,
-        existingSummary: snapshot.existingSummary,
+        operationId: `summarize:${conversationId}:${snapshot.messagesToSummarize.at(-1)?.createdAt ?? "batch"}`,
+        category: "summarization",
+        metadata: { conversationId },
       })
+      const usages: Array<{
+        inputTokens?: number
+        outputTokens?: number
+        cachedInputTokens?: number
+        reasoningTokens?: number
+      }> = []
+      let newSummary: string
+      try {
+        newSummary = await summarizeConversation({
+          workspaceId: conversation.workspaceId,
+          messages: snapshot.messagesToSummarize,
+          existingSummary: snapshot.existingSummary,
+          onUsage: (usage) => {
+            usages.push(usage)
+            return Promise.resolve()
+          },
+        })
+        await usageMeteringService.settleLanguage(reservation, {
+          inputTokens: usages.reduce(
+            (sum, usage) => sum + (usage.inputTokens ?? 0),
+            0,
+          ),
+          outputTokens: usages.reduce(
+            (sum, usage) => sum + (usage.outputTokens ?? 0),
+            0,
+          ),
+          cachedInputTokens: usages.reduce(
+            (sum, usage) => sum + (usage.cachedInputTokens ?? 0),
+            0,
+          ),
+          reasoningTokens: usages.reduce(
+            (sum, usage) => sum + (usage.reasoningTokens ?? 0),
+            0,
+          ),
+        })
+      } catch (error) {
+        await usageMeteringService.release(reservation, error)
+        throw error
+      }
 
       let shouldRequeue = false
       await aiContextStore.runExclusive(conversationId, async () => {

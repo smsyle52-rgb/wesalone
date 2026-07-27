@@ -1,5 +1,9 @@
 import { aiTimeouts } from "@chatbotx.io/ai"
-import { contactCustomFieldService } from "@chatbotx.io/business"
+import {
+  contactCustomFieldService,
+  type UsageReservation,
+  usageMeteringService,
+} from "@chatbotx.io/business"
 import type { AIExtractDataSchema } from "@chatbotx.io/flow-config"
 import { contactVariableService } from "@chatbotx.io/variables"
 import { APICallError, generateObject } from "ai"
@@ -108,7 +112,9 @@ const buildUserContent = (props: {
 export async function handleAIExtractData({
   contactInbox,
   conversation,
+  flowVersion,
   step,
+  triggerMessageId,
 }: ExecuteStepProps<AIExtractDataSchema>): Promise<ExecuteStepResult> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
@@ -119,6 +125,7 @@ export async function handleAIExtractData({
     stepId: step.id,
     toolName: "aiExtractData",
   }
+  let reservation: UsageReservation | undefined
 
   try {
     if (step.extractFields.length === 0) {
@@ -201,12 +208,28 @@ ${schemaDescription}`
       content: userContent,
     } as const
 
-    const { object: extractedData } = await generateObject({
+    reservation = await usageMeteringService.reserve({
+      workspaceId: conversation.workspaceId,
+      operationId: `flow:extract-data:${conversation.id}:${triggerMessageId ?? flowVersion.id}:${step.id}`,
+      category: step.inputType === "image" ? "image_analysis" : "language",
+      provider: step.provider,
+      model: step.model,
+      metadata: { conversationId: conversation.id, stepId: step.id },
+    })
+
+    const { object: extractedData, usage } = await generateObject({
       model: resolvedModel.model,
       system: systemPrompt,
       messages: [userMessage],
       abortSignal: controller.signal,
       schema: dynamicSchema,
+    })
+
+    await usageMeteringService.settleLanguage(reservation, {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
+      reasoningTokens: usage.outputTokenDetails.reasoningTokens,
     })
 
     await Promise.all(
@@ -230,6 +253,9 @@ ${schemaDescription}`
       result: extractedData,
     }
   } catch (error) {
+    if (reservation) {
+      await usageMeteringService.release(reservation, error)
+    }
     if (APICallError.isInstance(error) && error.statusCode === 402) {
       logger.error({ err: error }, "AI provider insufficient credits")
       return {

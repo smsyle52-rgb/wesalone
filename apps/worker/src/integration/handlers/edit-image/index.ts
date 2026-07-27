@@ -4,7 +4,12 @@ import {
   createAIImageModelInstance,
   getPlatformCapabilityImageModel,
 } from "@chatbotx.io/ai/server"
-import { assertPublicUrl, resolveTenantSettings } from "@chatbotx.io/business"
+import {
+  assertPublicUrl,
+  resolveTenantSettings,
+  type UsageReservation,
+  usageMeteringService,
+} from "@chatbotx.io/business"
 import { getPublicFileUrl } from "@chatbotx.io/business/utils"
 import {
   AI_EDIT_IMAGE_FALLBACK_OPENAI_MODEL,
@@ -49,6 +54,7 @@ export async function handleAIEditImage({
 }: ExecuteStepProps<AIEditImageSchema>): Promise<ExecuteStepResult> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
+  let reservation: UsageReservation | undefined
 
   try {
     const ctx = await getIntegrationContext({
@@ -176,6 +182,16 @@ export async function handleAIEditImage({
           }
         : undefined
 
+    const executionId = metadata?.stepId ?? step.id
+    reservation = await usageMeteringService.reserve({
+      workspaceId: conversation.workspaceId,
+      operationId: `flow:edit-image:${conversation.id}:${executionId}`,
+      category: "image_editing",
+      provider: platformModel ? "platform" : step.provider,
+      model: step.model,
+      metadata: { conversationId: conversation.id, stepId: step.id },
+    })
+
     const { images } = await generateImage({
       model,
       prompt: {
@@ -186,6 +202,12 @@ export async function handleAIEditImage({
       aspectRatio,
       providerOptions,
       abortSignal: controller.signal,
+    })
+
+    await usageMeteringService.settleUnits(reservation, "image_editing", 1, {
+      images: 1,
+      quality: step.quality,
+      size: step.size,
     })
 
     const image = images[0]
@@ -215,7 +237,6 @@ export async function handleAIEditImage({
       ? rawExt
       : IMAGE_DEFAULT_EXTENSION
 
-    const executionId = metadata?.stepId ?? step.id
     const fileName = `${executionId}.${extension}`
     const storagePath = getAIGeneratedImagePath({
       storagePrefix: ctx.storagePrefix,
@@ -243,6 +264,9 @@ export async function handleAIEditImage({
 
     return { status: "success", result: null }
   } catch (err) {
+    if (reservation) {
+      await usageMeteringService.release(reservation, err)
+    }
     const error = normalizeError(err)
     logger.error(
       {

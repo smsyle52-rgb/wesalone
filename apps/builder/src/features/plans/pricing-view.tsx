@@ -41,6 +41,9 @@ export function PricingView({
   const t = useTranslations()
   const locale = useLocale()
   const [openPlanSlug, setOpenPlanSlug] = useState<string | null>(null)
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">(
+    "monthly",
+  )
 
   const { execute, isPending } = useAction(
     applySandboxPlanAction.bind(null, workspaceId),
@@ -83,6 +86,7 @@ export function PricingView({
       monthlyPrice: isCustom ? t("plans.custom") : String(plan.priceMonthlyUsd),
       yearlyPrice: isCustom ? t("plans.custom") : String(plan.priceYearlyUsd),
       buttonText: getPlanButtonText(plan, t),
+      badge: t(`plans.audience.${plan.audience}`),
       highlight: plan.highlighted,
       features: plan.features.map((slug) => ({
         name: t(`plans.features.${slug}`),
@@ -95,6 +99,7 @@ export function PricingView({
     <div className="space-y-4">
       {paymentsEnabled ? (
         <SubscriptionPaymentPanel
+          billingCycle={billingCycle}
           onOpenChange={setOpenPlanSlug}
           openPlanSlug={openPlanSlug}
           plans={plans}
@@ -121,12 +126,13 @@ export function PricingView({
           perMonth: t("plans.perMonth"),
           perYear: t("plans.perYear"),
         }}
-        onPlanSelect={(planId) => {
+        onPlanSelect={(planId, selectedBillingCycle) => {
           const plan = plans.find((p) => p.slug === planId)
           if (!plan || plan.priceMonthlyUsd === null) {
             return
           }
           if (paymentsEnabled) {
+            setBillingCycle(selectedBillingCycle)
             setOpenPlanSlug(plan.slug)
             return
           }
@@ -136,7 +142,7 @@ export function PricingView({
           execute({ planSlug: plan.slug })
         }}
         plans={billingsdkPlans}
-        showBillingToggle={false}
+        showBillingToggle
         size="medium"
         subtitle={t("plans.subtitle")}
         theme="classic"

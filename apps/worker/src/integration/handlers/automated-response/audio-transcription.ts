@@ -1,5 +1,6 @@
 import { aiTimeouts } from "@chatbotx.io/ai"
 import { getPlatformTranscriptionModel } from "@chatbotx.io/ai/server"
+import { usageMeteringService } from "@chatbotx.io/business"
 import type { AttachmentModel } from "@chatbotx.io/database/types"
 import { uploader } from "@chatbotx.io/filesystem"
 import { experimental_transcribe as transcribe } from "ai"
@@ -56,6 +57,17 @@ export async function transcribeAudioAttachments(props: {
 
   const transcripts: string[] = []
   for (const attachment of audioAttachments) {
+    const reservation = await usageMeteringService.reserve({
+      workspaceId: props.workspaceId,
+      operationId: `auto-transcription:${props.conversationId}:${attachment.id}`,
+      category: "transcription",
+      provider: "platform",
+      model: platformTranscription.modelId,
+      metadata: {
+        conversationId: props.conversationId,
+        attachmentId: attachment.id,
+      },
+    })
     try {
       if (attachment.size > MAX_AUDIO_BYTES) {
         throw new Error("Audio attachment is too large for transcription")
@@ -82,6 +94,12 @@ export async function transcribeAudioAttachments(props: {
           },
         })
         const text = result.text.trim()
+        await usageMeteringService.settleUnits(
+          reservation,
+          "transcription",
+          result.durationInSeconds ?? 1,
+          { durationInSeconds: result.durationInSeconds },
+        )
         if (text) {
           transcripts.push(text)
         }
@@ -89,6 +107,7 @@ export async function transcribeAudioAttachments(props: {
         clearTimeout(timeoutId)
       }
     } catch (error) {
+      await usageMeteringService.release(reservation, error)
       logger.error(
         {
           err: normalizeError(error),

@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto"
 import { aiTimeouts, type systemFunctionNames } from "@chatbotx.io/ai"
 import type {
   ImageReaderInput,
   SystemToolExecutors,
 } from "@chatbotx.io/ai/server"
+import { usageMeteringService } from "@chatbotx.io/business"
 import type { AttachmentModel } from "@chatbotx.io/database/types"
 import { uploader } from "@chatbotx.io/filesystem"
 import { generateText, type LanguageModel } from "ai"
@@ -90,6 +92,9 @@ export function createImageReaderExecutor(options: {
       return "I can only read images when conversation context is available."
     }
 
+    let reservation:
+      | Awaited<ReturnType<typeof usageMeteringService.reserve>>
+      | undefined
     try {
       const attachment = await resolveImageAttachment({
         workspaceId: context.workspaceId,
@@ -108,6 +113,22 @@ export function createImageReaderExecutor(options: {
         attachment,
         fileOnlyTrigger: options.fileOnlyTrigger,
         input: args,
+      })
+
+      const queryHash = createHash("sha256")
+        .update(`${args.query}:${args.imageContext ?? ""}`)
+        .digest("hex")
+        .slice(0, 16)
+      reservation = await usageMeteringService.reserve({
+        workspaceId: context.workspaceId,
+        operationId: `image-reader:${context.conversationId}:${options.triggerMessageId ?? attachment.id}:${attachment.id}:${queryHash}`,
+        category: "image_analysis",
+        provider: options.provider,
+        model: options.modelId,
+        metadata: {
+          conversationId: context.conversationId,
+          attachmentId: attachment.id,
+        },
       })
 
       const result = await generateText({
@@ -138,6 +159,12 @@ export function createImageReaderExecutor(options: {
       })
 
       const analysis = result.text.trim()
+      await usageMeteringService.settleLanguage(reservation, {
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        cachedInputTokens: result.usage.inputTokenDetails.cacheReadTokens,
+        reasoningTokens: result.usage.outputTokenDetails.reasoningTokens,
+      })
       if (!analysis) {
         return "I found the image, but I couldn't extract a useful visual answer from it."
       }
@@ -148,6 +175,9 @@ export function createImageReaderExecutor(options: {
         fileOnlyTrigger: options.fileOnlyTrigger,
       })
     } catch (error) {
+      if (reservation) {
+        await usageMeteringService.release(reservation, error)
+      }
       const normalizedError = normalizeError(error)
       logger.error(
         {

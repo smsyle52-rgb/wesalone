@@ -22,7 +22,9 @@ const OPENAI_COMPATIBLE_INTEGRATION_MISSING_OR_DISABLED =
 export async function handleAIGenerateTextAgent({
   conversation,
   contactInbox,
+  flowVersion,
   step,
+  triggerMessageId,
 }: ExecuteStepProps<AIGenerateTextAgentSchema>): Promise<ExecuteStepResult> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
@@ -89,6 +91,7 @@ export async function handleAIGenerateTextAgent({
       messages,
       aiAgent,
       summary,
+      operationId: `flow:generate-text-agent:${conversation.id}:${triggerMessageId ?? flowVersion.id}:${step.id}`,
       ...(preferredModel
         ? { preferredModel }
         : { preferredProvider: preferredProvider?.data }),

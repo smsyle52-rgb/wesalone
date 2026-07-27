@@ -1,4 +1,13 @@
-import { index, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
+import {
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core"
 import { platformSubscriptionPaymentStatusTypes } from "../partials/platform-subscription-payment"
 import {
   bigintAsString,
@@ -7,6 +16,7 @@ import {
 } from "../partials/shared"
 import { userModel } from "./auth-user"
 import { fileModel } from "./file"
+import { platformSubscriptionModel } from "./platform-subscription"
 import { workspaceModel } from "./workspace"
 
 export const platformSubscriptionPaymentStatus = pgEnum(
@@ -31,6 +41,15 @@ export const platformSubscriptionPaymentModel = pgTable(
     // from the client past submission time.
     planSlug: text().notNull(),
     billingCycle: text().notNull(),
+    // Immutable commercial snapshot: catalog changes must never rewrite the
+    // amount/currency the customer submitted for review.
+    priceCentsSnapshot: integer().default(0).notNull(),
+    currencySnapshot: text().default("USD").notNull(),
+    priceVersion: text().default("legacy").notNull(),
+    subscriptionId: bigintAsString().references(
+      () => platformSubscriptionModel.id,
+      { onDelete: "set null" },
+    ),
     // Free-text description of how the customer says they paid (e.g. "bank
     // transfer"), not a gateway identifier — there is no gateway.
     paymentMethod: text().notNull(),
@@ -61,5 +80,11 @@ export const platformSubscriptionPaymentModel = pgTable(
       table.workspaceId.asc().nullsLast(),
       table.status.asc().nullsLast(),
     ),
+    index("PlatformSubscriptionPayment_subscriptionId_idx").on(
+      table.subscriptionId,
+    ),
+    uniqueIndex("PlatformSubscriptionPayment_one_under_review_key")
+      .on(table.workspaceId)
+      .where(sql`${table.status} = 'under_review'`),
   ],
 )

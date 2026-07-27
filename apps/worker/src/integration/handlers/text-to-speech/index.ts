@@ -4,6 +4,10 @@ import {
   getAIModel,
   synthesizePlatformSpeech,
 } from "@chatbotx.io/ai/server"
+import {
+  type UsageReservation,
+  usageMeteringService,
+} from "@chatbotx.io/business"
 import type { AITextToSpeechSchema } from "@chatbotx.io/flow-config"
 import {
   experimental_generateSpeech as generateSpeech,
@@ -30,8 +34,17 @@ export async function handleAITextToSpeech({
 }: ExecuteStepProps<AITextToSpeechSchema>): Promise<ExecuteStepResult> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
+  let reservation: UsageReservation | undefined
 
   try {
+    reservation = await usageMeteringService.reserve({
+      workspaceId: conversation.workspaceId,
+      operationId: `flow:text-to-speech:${conversation.id}:${getExecutionId(metadata?.stepId, step.id)}`,
+      category: "speech",
+      provider: step.provider,
+      model: step.model,
+      metadata: { conversationId: conversation.id, stepId: step.id },
+    })
     const platformSpeech = await synthesizePlatformSpeech({
       text: step.message,
       signal: controller.signal,
@@ -86,6 +99,13 @@ export async function handleAITextToSpeech({
       throw new Error("[ai-text-to-speech] Empty audio payload from provider")
     }
 
+    await usageMeteringService.settleUnits(
+      reservation,
+      "speech",
+      step.message.length,
+      { characters: step.message.length },
+    )
+
     const audioOutput = await textToSpeechStorageService.saveAudio({
       workspaceId: conversation.workspaceId,
       conversationId: conversation.id,
@@ -105,6 +125,9 @@ export async function handleAITextToSpeech({
 
     return { status: "success", result: null }
   } catch (err) {
+    if (reservation) {
+      await usageMeteringService.release(reservation, err)
+    }
     if (err instanceof NoSpeechGeneratedError) {
       logger.error(
         {

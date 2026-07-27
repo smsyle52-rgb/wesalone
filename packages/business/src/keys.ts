@@ -14,6 +14,15 @@ export const keys = () =>
       // point-wallet/service.ts. Configurable per environment without a
       // redeploy of the AI runtime itself.
       TOKENS_PER_POINT: z.coerce.number().int().min(1).default(1000),
+      AI_POINTS_ENFORCEMENT_MODE: z
+        .enum(["off", "shadow", "enforce"])
+        .default("off"),
+      AI_POINTS_RESERVATION_TTL_MINUTES: z.coerce
+        .number()
+        .int()
+        .min(5)
+        .max(1440)
+        .default(30),
     },
     runtimeEnv: process.env,
   })

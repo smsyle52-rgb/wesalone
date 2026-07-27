@@ -18,8 +18,8 @@ import {
 } from "@chatbotx.io/ai/server"
 import {
   integrationOpenaiCompatibleService,
-  pointWalletService,
-  workspaceService,
+  type UsageReservation,
+  usageMeteringService,
 } from "@chatbotx.io/business"
 import type {
   AIAgentModelConfig,
@@ -46,6 +46,7 @@ export type ReplyByAIProps = {
   summary?: string
   preferredProvider?: AIAgentProvider
   preferredModel?: AIAgentModelConfig
+  operationId: string
 }
 
 export type ReplyByAIExecutionResult = {
@@ -137,6 +138,7 @@ async function runAIReplyInternal(
 ): Promise<null | ReplyByAIExecutionResult> {
   const { conversation, messages, aiAgent } = props
   const provider = getProviderName(providerInfo)
+  let reservation: UsageReservation | undefined
   try {
     const selectedModelId = providerInfo.model
     const model = await createAgentModel({
@@ -148,6 +150,15 @@ async function runAIReplyInternal(
     if (!model) {
       return null
     }
+
+    reservation = await usageMeteringService.reserve({
+      workspaceId: conversation.workspaceId,
+      operationId: `${props.operationId}:${provider}:${selectedModelId}`,
+      category: "language",
+      provider,
+      model: selectedModelId,
+      metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
+    })
 
     const variables = await contactVariableService.getAll({
       contactId: conversation.contactId,
@@ -290,30 +301,23 @@ async function runAIReplyInternal(
     // merchant's customer still gets their answer, and the miss is logged
     // for reconciliation instead of surfacing as a user-facing error.
     try {
-      const usage = await result.usage
-      const totalTokens = usage.totalTokens ?? 0
-      if (totalTokens > 0) {
-        const workspace = await workspaceService.findById({
-          id: conversation.workspaceId,
-        })
-        await pointWalletService.debitPointsForTokens({
-          userId: workspace.ownerId,
-          tokens: totalTokens,
-          idempotencyKey: `ai-run:${conversation.id}:${Date.now()}`,
-          sourceType: "ai_run",
-          sourceId: conversation.id,
-          reason: "ai_usage",
-        })
-      }
-    } catch (billingError) {
+      const usage = await result.totalUsage
+      await usageMeteringService.settleLanguage(reservation, {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
+        reasoningTokens: usage.outputTokenDetails.reasoningTokens,
+      })
+    } catch (settleError) {
       logger.warn(
         {
-          err: normalizeError(billingError),
+          err: normalizeError(settleError),
           provider,
           conversationId: conversation.id,
           workspaceId: conversation.workspaceId,
+          operationId: reservation?.operationId,
         },
-        "[ai-agent-runner] points debit failed after a successful AI reply",
+        "[ai-agent-runner] usage settlement failed after a successful AI reply",
       )
     }
 
@@ -368,6 +372,19 @@ async function runAIReplyInternal(
 
     return null
   } catch (error) {
+    if (reservation) {
+      await usageMeteringService
+        .release(reservation, error)
+        .catch((releaseError) => {
+          logger.error(
+            {
+              err: normalizeError(releaseError),
+              operationId: reservation?.operationId,
+            },
+            "[ai-agent-runner] failed to release usage reservation",
+          )
+        })
+    }
     const normalizedError = normalizeError(error)
     logger.error(
       {

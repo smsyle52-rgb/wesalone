@@ -28,7 +28,12 @@ import {
   normalizeMcpContent,
   type PlatformVertexModelCandidate,
 } from "@chatbotx.io/ai/server"
-import { integrationOpenaiCompatibleService } from "@chatbotx.io/business"
+import {
+  integrationOpenaiCompatibleService,
+  type UsageReservation,
+  usageMeteringService,
+  userQuotaService,
+} from "@chatbotx.io/business"
 import type {
   AIAgentModelConfig,
   AIAgentOpenaiCompatibleProviderModel,
@@ -101,6 +106,17 @@ export async function replyByAI(
   props: ReplyByAIProps,
 ): Promise<null | ReplyByAIExecutionResult> {
   const { aiAgent } = props
+  if (
+    !(await userQuotaService.isAutoReplyEnabledForWorkspace(
+      aiAgent.workspaceId,
+    ))
+  ) {
+    logger.info(
+      { workspaceId: aiAgent.workspaceId, aiAgentId: aiAgent.id },
+      "[automated-response] skipped because the current plan disables auto reply",
+    )
+    return null
+  }
 
   // Platform-locked Vertex setting takes precedence over the agent's own
   // stored fallback chain — see packages/ai/src/server/platform-provider.ts.
@@ -133,6 +149,7 @@ export type GenerateAIReplyProps = {
   contactInbox: ContactInboxModel
   messages: ModelMessage[]
   aiAgent: AIAgentModel
+  operationId: string
 }
 
 export type GeneratedAIReply = {
@@ -155,6 +172,13 @@ export async function generateAIReplyText(
   props: GenerateAIReplyProps,
 ): Promise<GeneratedAIReply | null> {
   const { conversation, contactInbox, messages, aiAgent } = props
+  if (
+    !(await userQuotaService.isAutoReplyEnabledForWorkspace(
+      aiAgent.workspaceId,
+    ))
+  ) {
+    return null
+  }
 
   const platformOverride = await getActivePlatformAiOverride()
   const providers: (AIAgentModelConfig | PlatformVertexModelCandidate)[] =
@@ -164,6 +188,7 @@ export async function generateAIReplyText(
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
+  let activeReservation: UsageReservation | undefined
 
   try {
     const variables = await contactVariableService.getAll({
@@ -187,6 +212,15 @@ export async function generateAIReplyText(
         continue
       }
       const provider = getProviderName(providerInfo)
+
+      activeReservation = await usageMeteringService.reserve({
+        workspaceId: conversation.workspaceId,
+        operationId: `${props.operationId}:${provider}:${providerInfo.model}`,
+        category: "language",
+        provider,
+        model: providerInfo.model,
+        metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
+      })
 
       const result = await streamText({
         model: modelConfig.model,
@@ -225,6 +259,26 @@ export async function generateAIReplyText(
       })
 
       const text = fullText.trim()
+      try {
+        const usage = await result.totalUsage
+        await usageMeteringService.settleLanguage(activeReservation, {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
+          reasoningTokens: usage.outputTokenDetails.reasoningTokens,
+        })
+      } catch (settleError) {
+        logger.warn(
+          {
+            err: normalizeError(settleError),
+            provider,
+            conversationId: conversation.id,
+            operationId: activeReservation?.operationId,
+          },
+          "[comment-ai-reply] usage settlement failed after a successful AI reply",
+        )
+      }
+      activeReservation = undefined
       if (text) {
         return {
           text,
@@ -234,6 +288,15 @@ export async function generateAIReplyText(
       }
     }
 
+    return null
+  } catch (error) {
+    if (activeReservation) {
+      await usageMeteringService.release(activeReservation, error)
+    }
+    logger.error(
+      { err: normalizeError(error), operationId: props.operationId },
+      "[comment-ai-reply] generation failed",
+    )
     return null
   } finally {
     clearTimeout(timeoutId)
@@ -659,6 +722,7 @@ async function runAIReply(
   const { conversation, messages, aiAgent } = props
   const provider = getProviderName(providerInfo)
   let cleanup: (() => Promise<void>) | undefined
+  let reservation: UsageReservation | undefined
 
   try {
     const selectedModelId = providerInfo.model
@@ -670,6 +734,15 @@ async function runAIReply(
     if (!modelConfig) {
       return null
     }
+
+    reservation = await usageMeteringService.reserve({
+      workspaceId: conversation.workspaceId,
+      operationId: `auto-reply:${props.triggerMessageId ?? conversation.updatedAt.toISOString()}:${provider}:${selectedModelId}`,
+      category: "language",
+      provider,
+      model: selectedModelId,
+      metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
+    })
 
     const startTime = Date.now()
 
@@ -833,8 +906,40 @@ async function runAIReply(
       finishReasons: finishReasons.slice(0, 10),
     })
 
+    // Never let a settlement failure surface as a reply failure — by the
+    // time this runs, several call sites have already sent (or handed off
+    // rich actions for) the reply, so throwing here would make an
+    // already-delivered reply look like it never happened and risk a
+    // duplicate send from the caller's error handling.
+    const settleUsage = async () => {
+      try {
+        const usage = await result.totalUsage
+        await usageMeteringService.settleLanguage(
+          reservation as UsageReservation,
+          {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
+            reasoningTokens: usage.outputTokenDetails.reasoningTokens,
+          },
+        )
+      } catch (settleError) {
+        logger.warn(
+          {
+            err: normalizeError(settleError),
+            provider,
+            conversationId: conversation.id,
+            workspaceId: conversation.workspaceId,
+            operationId: (reservation as UsageReservation | undefined)
+              ?.operationId,
+          },
+          "[automated-response] usage settlement failed after a successful AI reply",
+        )
+      }
+    }
+
     if (richModeEnabled) {
-      return handleRichAIReply({
+      const richResult = await handleRichAIReply({
         props,
         textStream: result.textStream,
         directSendTracker,
@@ -843,6 +948,8 @@ async function runAIReply(
         startTime,
         buildToolStats,
       })
+      await settleUsage()
+      return richResult
     }
 
     const { messageCount, fullText } = await processStreamingText(
@@ -871,6 +978,7 @@ async function runAIReply(
     })
 
     if (directSendTracker.sent) {
+      await settleUsage()
       if (directSendTracker.sentText) {
         await aiContextService.appendHistory({
           conversationId: conversation.id,
@@ -895,6 +1003,7 @@ async function runAIReply(
     }
 
     if (messageCount > 0 && fullText) {
+      await settleUsage()
       await aiContextService.appendHistory({
         conversationId: conversation.id,
         newMessages: [
@@ -921,6 +1030,7 @@ async function runAIReply(
     // Do NOT leak raw tool outputs; prefer the workspace's configured default
     // reply flow, and only fall back to a clarifying question if none is set.
     if (toolCallsCount > 0 || toolResultsCount > 0) {
+      await settleUsage()
       const triggeredDefaultReplyFlow = await triggerDefaultReplyFlow({
         workspaceId: conversation.workspaceId,
         defaultReplyFlowId: props.defaultReplyFlowId,
@@ -950,8 +1060,12 @@ async function runAIReply(
       }
     }
 
+    await settleUsage()
     return null
   } catch (error) {
+    if (reservation) {
+      await usageMeteringService.release(reservation, error)
+    }
     const normalizedError = normalizeError(error)
     logger.error(
       {

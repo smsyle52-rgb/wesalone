@@ -198,7 +198,7 @@ export interface PricingTableFourProps
     percentOff?: string
     saveLabel?: string
   }
-  onPlanSelect?: (planId: string) => void
+  onPlanSelect?: (planId: string, billingCycle: "monthly" | "annual") => void
   plans: Plan[]
   showBillingToggle?: boolean
   subtitle?: string
@@ -265,7 +265,7 @@ export function PricingTableFour({
     : 0
 
   const handlePlanSelect = (planId: string) => {
-    onPlanSelect?.(planId)
+    onPlanSelect?.(planId, isAnnually ? "annual" : "monthly")
   }
 
   const getPlanIcon = (planId: string) =>

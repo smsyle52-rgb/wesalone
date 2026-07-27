@@ -1,5 +1,6 @@
 export type {
   CreateGrantOptions,
+  DebitMicroPointsOptions,
   DebitPointsForTokensOptions,
   DebitPointsOptions,
   WalletBalance,

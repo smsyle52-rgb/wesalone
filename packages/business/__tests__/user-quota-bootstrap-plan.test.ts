@@ -45,6 +45,7 @@ vi.mock("@chatbotx.io/database/client", () => ({
   db: {
     insert: dbInsert,
     query: { userQuotaModel: { findFirst: vi.fn(async () => null) } },
+    transaction: vi.fn(async (callback) => callback({ insert: dbInsert })),
   },
   eq: vi.fn(),
   sql: vi.fn(),
@@ -52,7 +53,12 @@ vi.mock("@chatbotx.io/database/client", () => ({
 
 vi.mock("@chatbotx.io/database/schema", () => ({
   ROOT_TENANT_ID: "1",
+  platformSubscriptionModel: { userId: "subscription-userId-column" },
   userQuotaModel,
+}))
+
+vi.mock("../src/point-wallet/service", () => ({
+  pointWalletService: { createGrant: vi.fn(async () => undefined) },
 }))
 
 vi.mock("@chatbotx.io/redis", () => ({
@@ -207,7 +213,7 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
     expect(insertBuilder.onConflictDoNothing).toHaveBeenCalledWith({
       target: userQuotaModel.userId,
     })
-    expect(dbInsert).toHaveBeenCalledTimes(1)
+    expect(dbInsert).toHaveBeenCalledTimes(2)
   })
 
   test("no-ops outside cloud edition", async () => {

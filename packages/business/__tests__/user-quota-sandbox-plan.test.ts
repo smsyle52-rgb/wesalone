@@ -76,7 +76,7 @@ describe("userQuotaService.applySandboxPlan", () => {
     limits: { channels: 3, contacts: 10_000, teamMembers: 5 },
   }
 
-  test("writes only the native-mappable limits (channels/contacts/teamMembers), never points or agents", async () => {
+  test("writes the plan's enforceable resource limits", async () => {
     await userQuotaService.applySandboxPlan({ userId: USER, plan })
 
     expect(dbInsert).toHaveBeenCalledWith(userQuotaModel)
@@ -91,7 +91,7 @@ describe("userQuotaService.applySandboxPlan", () => {
       periodEnd: null,
     })
     expect(values).not.toHaveProperty("monthlyPoints")
-    expect(values).not.toHaveProperty("agentsLimit")
+    expect(values).toHaveProperty("agentsLimit", null)
   })
 
   test("marks the plan active immediately — no trial, no Stripe, no payment step", async () => {

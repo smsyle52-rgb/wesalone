@@ -1,6 +1,7 @@
 import {
   pointPurchaseOrderService,
   pointWalletService,
+  usageMeteringService,
   WESAL_ONE_PLANS,
   workspaceService,
 } from "@chatbotx.io/business"
@@ -24,19 +25,22 @@ export default async function PricingPage(props: {
       : Promise.resolve([]),
     workspaceService.findById({ id: workspaceId }),
   ])
-  const [balance, pointProducts, pointOrders] = await Promise.all([
-    pointWalletService.getWalletBalance(workspace.ownerId),
-    isPointPurchasesEnabled()
-      ? pointPurchaseOrderService.listActiveProducts()
-      : Promise.resolve([]),
-    isPointPurchasesEnabled()
-      ? pointPurchaseOrderService.listForUser(workspace.ownerId)
-      : Promise.resolve([]),
-  ])
+  const [balance, pointProducts, pointOrders, usageSummary] = await Promise.all(
+    [
+      pointWalletService.getWalletBalance(workspace.ownerId),
+      isPointPurchasesEnabled()
+        ? pointPurchaseOrderService.listActiveProducts()
+        : Promise.resolve([]),
+      isPointPurchasesEnabled()
+        ? pointPurchaseOrderService.listForUser(workspace.ownerId)
+        : Promise.resolve([]),
+      usageMeteringService.getUsageSummary(workspaceId),
+    ],
+  )
 
   return (
     <div className="space-y-6">
-      <PointsUsageCard balance={balance} />
+      <PointsUsageCard balance={balance} usageSummary={usageSummary} />
       {isPointPurchasesEnabled() && (
         <PointPurchaseView
           orders={pointOrders}

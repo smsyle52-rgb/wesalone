@@ -28,6 +28,7 @@ export const ScheduleJobData = {
   unsubscribeExpiredTrials: "unsubscribeExpiredTrials",
   teardownExpiredTrial: "teardownExpiredTrial",
   expireStalePendingOrders: "expireStalePendingOrders",
+  processBillingLifecycle: "processBillingLifecycle",
 } as const
 
 export const broadcastSendJobId = (broadcastId: string) =>
@@ -147,6 +148,11 @@ export type ScheduleJobExpireStalePendingOrders = {
   data: Record<string, never>
 }
 
+export type ScheduleJobProcessBillingLifecycle = {
+  type: typeof ScheduleJobData.processBillingLifecycle
+  data: Record<string, never>
+}
+
 export type ScheduleJobData =
   | ScheduleJobBroadcast
   | ScheduleJobEnqueueBroadcast
@@ -169,6 +175,7 @@ export type ScheduleJobData =
   | ScheduleJobUnsubscribeExpiredTrials
   | ScheduleJobTeardownExpiredTrial
   | ScheduleJobExpireStalePendingOrders
+  | ScheduleJobProcessBillingLifecycle
 
 export const scheduleQueue =
   process.env.NEXT_PHASE === "phase-production-build"

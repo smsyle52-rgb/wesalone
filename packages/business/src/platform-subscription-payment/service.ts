@@ -1,7 +1,6 @@
 import { and, db, eq } from "@chatbotx.io/database/client"
 import {
   fileStatuses,
-  type PlatformSubscriptionBillingCycle,
   platformSubscriptionBillingCycles,
 } from "@chatbotx.io/database/partials"
 import {
@@ -15,10 +14,11 @@ import { uploader } from "@chatbotx.io/filesystem"
 import { ChatbotXException } from "../errors"
 import {
   findWesalOnePlan,
+  getPlanPriceCents,
+  WESAL_ONE_PRICE_VERSION,
   type WesalOnePlan,
 } from "../platform/wesal-one-plans"
-import { userQuotaService } from "../user-quota"
-import { workspaceService } from "../workspace"
+import { platformSubscriptionService } from "../platform-subscription"
 
 const UNDER_REVIEW = "under_review"
 const ALLOWED_RECEIPT_MIME_TYPES = new Set([
@@ -27,15 +27,6 @@ const ALLOWED_RECEIPT_MIME_TYPES = new Set([
   "image/webp",
 ])
 const MAX_RECEIPT_BYTES = 5 * 1024 * 1024
-
-function addBillingPeriod(
-  from: Date,
-  cycle: PlatformSubscriptionBillingCycle,
-): Date {
-  const next = new Date(from)
-  next.setMonth(next.getMonth() + (cycle === "annual" ? 12 : 1))
-  return next
-}
 
 function assertPayablePlan(plan: WesalOnePlan | undefined): WesalOnePlan {
   if (!plan) {
@@ -152,31 +143,35 @@ class PlatformSubscriptionPaymentService {
       )
     }
 
-    const [submission] = await db
-      .insert(platformSubscriptionPaymentModel)
-      .values({
-        workspaceId: props.workspaceId,
-        planSlug: plan.slug,
-        billingCycle: cycle,
-        paymentMethod: props.paymentMethod,
-        reference: props.reference ?? null,
-        receiptFileId: file.id,
-        receiptNote: props.receiptNote ?? null,
-        status: UNDER_REVIEW,
-      })
-      .returning()
+    return db.transaction(async (tx) => {
+      const [submission] = await tx
+        .insert(platformSubscriptionPaymentModel)
+        .values({
+          workspaceId: props.workspaceId,
+          planSlug: plan.slug,
+          billingCycle: cycle,
+          priceCentsSnapshot: getPlanPriceCents(plan, cycle) ?? 0,
+          currencySnapshot: "USD",
+          priceVersion: WESAL_ONE_PRICE_VERSION,
+          paymentMethod: props.paymentMethod,
+          reference: props.reference ?? null,
+          receiptFileId: file.id,
+          receiptNote: props.receiptNote ?? null,
+          status: UNDER_REVIEW,
+        })
+        .returning()
 
-    await db
-      .update(fileModel)
-      .set({ status: fileStatuses.enum.uploaded, uploadedAt: new Date() })
-      .where(
-        and(
-          eq(fileModel.id, file.id),
-          eq(fileModel.workspaceId, props.workspaceId),
-        ),
-      )
-
-    return submission
+      await tx
+        .update(fileModel)
+        .set({ status: fileStatuses.enum.uploaded, uploadedAt: new Date() })
+        .where(
+          and(
+            eq(fileModel.id, file.id),
+            eq(fileModel.workspaceId, props.workspaceId),
+          ),
+        )
+      return submission
+    })
   }
 
   async cancelSubmission(props: {
@@ -243,17 +238,22 @@ class PlatformSubscriptionPaymentService {
       const cycle = platformSubscriptionBillingCycles.parse(
         submission.billingCycle,
       )
-      const workspace = await workspaceService.findById({
-        id: submission.workspaceId,
+      const workspace = await tx.query.workspaceModel.findFirst({
+        where: { id: submission.workspaceId },
+        columns: { ownerId: true },
       })
+      if (!workspace) {
+        throw new ChatbotXException("Workspace not found", "notFound", 404)
+      }
       const now = new Date()
-      const periodEnd = addBillingPeriod(now, cycle)
-
-      await userQuotaService.applyPlanEntitlements({
+      const subscription = await platformSubscriptionService.activate({
         userId: workspace.ownerId,
-        plan,
-        periodStart: now,
-        periodEnd,
+        workspaceId: submission.workspaceId,
+        planSlug: plan.slug,
+        billingCycle: cycle,
+        source: "manual",
+        startsAt: now,
+        tx,
       })
 
       const [updated] = await tx
@@ -262,6 +262,7 @@ class PlatformSubscriptionPaymentService {
           status: "confirmed",
           reviewedBy: props.reviewedByUserId,
           reviewedAt: now,
+          subscriptionId: subscription.id,
         })
         .where(
           and(

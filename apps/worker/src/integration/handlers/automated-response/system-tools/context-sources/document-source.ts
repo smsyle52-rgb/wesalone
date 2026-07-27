@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto"
 import { getPlatformEmbeddingProviderOptions } from "@chatbotx.io/ai/server"
+import { usageMeteringService } from "@chatbotx.io/business"
 import {
   aiConversationSourceStatuses,
   aiConversationSourceTypes,
@@ -223,12 +225,35 @@ async function retrieveDocumentChunks(
     resolvedSource.source.workspaceId,
   )
 
-  const { embedding } = await embed({
-    model: embeddingModel,
-    value: input.query,
-    providerOptions:
-      await getPlatformEmbeddingProviderOptions("RETRIEVAL_QUERY"),
+  const queryHash = createHash("sha256")
+    .update(input.query)
+    .digest("hex")
+    .slice(0, 16)
+  const reservation = await usageMeteringService.reserve({
+    workspaceId: resolvedSource.source.workspaceId,
+    operationId: `document-query:${resolvedSource.source.id}:${queryHash}`,
+    category: "embedding_query",
+    metadata: { sourceId: resolvedSource.source.id },
   })
+  let embedding: number[]
+  try {
+    const result = await embed({
+      model: embeddingModel,
+      value: input.query,
+      providerOptions:
+        await getPlatformEmbeddingProviderOptions("RETRIEVAL_QUERY"),
+    })
+    embedding = result.embedding
+    await usageMeteringService.settleUnits(
+      reservation,
+      "embedding_query",
+      result.usage.tokens,
+      { tokens: result.usage.tokens },
+    )
+  } catch (error) {
+    await usageMeteringService.release(reservation, error)
+    throw error
+  }
 
   const queryEmbeddingVector = `[${embedding.join(",")}]`
 

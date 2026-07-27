@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm"
 import {
+  check,
   index,
   jsonb,
   pgEnum,
@@ -56,6 +58,18 @@ export const pointGrantModel = pgTable(
     metadata: jsonb().default({}),
   },
   (table) => [
+    check(
+      "PointGrant_originalMicroPoints_nonnegative",
+      sql`${table.originalMicroPoints} >= 0`,
+    ),
+    check(
+      "PointGrant_remainingMicroPoints_nonnegative",
+      sql`${table.remainingMicroPoints} >= 0`,
+    ),
+    check(
+      "PointGrant_remaining_not_above_original",
+      sql`${table.remainingMicroPoints} <= ${table.originalMicroPoints}`,
+    ),
     uniqueIndex("PointGrant_idempotencyKey_key").on(table.idempotencyKey),
     index("PointGrant_walletId_status_idx").on(table.walletId, table.status),
     index("PointGrant_walletId_expiresAt_idx").on(

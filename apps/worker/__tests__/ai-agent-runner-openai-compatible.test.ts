@@ -20,6 +20,9 @@ const findAIIntegrationMock = vi.hoisted(() =>
   vi.fn(async () => ({ id: "native-integration" })),
 )
 const findOpenaiCompatibleMock = vi.hoisted(() => vi.fn())
+const usageMeteringReserveMock = vi.hoisted(() => vi.fn())
+const usageMeteringSettleLanguageMock = vi.hoisted(() => vi.fn())
+const usageMeteringReleaseMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@chatbotx.io/ai", () => ({
   aiTimeouts: { aiTotal: 30_000, aiStep: 10_000, aiChunk: 5000 },
@@ -57,6 +60,11 @@ vi.mock("@chatbotx.io/ai/server", () => ({
 vi.mock("@chatbotx.io/business", () => ({
   integrationOpenaiCompatibleService: {
     findByWorkspaceIdAndId: findOpenaiCompatibleMock,
+  },
+  usageMeteringService: {
+    reserve: usageMeteringReserveMock,
+    settleLanguage: usageMeteringSettleLanguageMock,
+    release: usageMeteringReleaseMock,
   },
 }))
 
@@ -120,6 +128,12 @@ describe("AI agent runner OpenAI-compatible providers", () => {
       preset: "lmstudio",
       name: "Local",
     })
+    usageMeteringReserveMock.mockResolvedValue({
+      enabled: false,
+      operationId: "op-1",
+    })
+    usageMeteringSettleLanguageMock.mockResolvedValue(undefined)
+    usageMeteringReleaseMock.mockResolvedValue(undefined)
   })
 
   test("runs a configured OpenAI-compatible provider row", async () => {

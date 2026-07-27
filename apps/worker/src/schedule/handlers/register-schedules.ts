@@ -237,4 +237,16 @@ export const registerSchedules = async () => {
       },
     },
   )
+
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.processBillingLifecycle,
+    { pattern: "*/5 * * * *" },
+    {
+      name: ScheduleJobData.processBillingLifecycle,
+      data: {
+        type: ScheduleJobData.processBillingLifecycle,
+        data: {},
+      },
+    },
+  )
 }

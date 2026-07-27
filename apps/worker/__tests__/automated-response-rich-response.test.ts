@@ -40,6 +40,10 @@ const getAIIntegrationInDBMock = vi.hoisted(() =>
   })),
 )
 const findOpenaiCompatibleMock = vi.hoisted(() => vi.fn())
+const isAutoReplyEnabledForWorkspaceMock = vi.hoisted(() => vi.fn())
+const usageMeteringReserveMock = vi.hoisted(() => vi.fn())
+const usageMeteringSettleLanguageMock = vi.hoisted(() => vi.fn())
+const usageMeteringReleaseMock = vi.hoisted(() => vi.fn())
 const emitMock = vi.hoisted(() => vi.fn(async () => undefined))
 const warnMock = vi.hoisted(() => vi.fn())
 const errorMock = vi.hoisted(() => vi.fn())
@@ -109,6 +113,7 @@ vi.mock("@chatbotx.io/ai/server", () => ({
     cleanup: undefined,
     webSearchOmitReason: undefined,
   })),
+  getPlatformCapabilityLanguageModel: vi.fn(async () => null),
   getPlatformVertexChatModel: vi.fn(() => ({ type: "vertex-model" })),
   isPlatformVertexModelCandidate: vi.fn(() => false),
   McpClient: vi.fn(),
@@ -119,6 +124,14 @@ vi.mock("@chatbotx.io/ai/server", () => ({
 vi.mock("@chatbotx.io/business", () => ({
   integrationOpenaiCompatibleService: {
     findByWorkspaceIdAndId: findOpenaiCompatibleMock,
+  },
+  userQuotaService: {
+    isAutoReplyEnabledForWorkspace: isAutoReplyEnabledForWorkspaceMock,
+  },
+  usageMeteringService: {
+    reserve: usageMeteringReserveMock,
+    settleLanguage: usageMeteringSettleLanguageMock,
+    release: usageMeteringReleaseMock,
   },
 }))
 
@@ -283,6 +296,21 @@ const baseProps = {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+// `restoreMocks: true` (packages/vitest-config) wipes every vi.fn's
+// implementation before each test, so these — shared across both describe
+// blocks below — must be re-armed here rather than only in the per-block
+// beforeEach, or every test after the first would see stubs that return
+// undefined instead of a reservation.
+beforeEach(() => {
+  isAutoReplyEnabledForWorkspaceMock.mockResolvedValue(true)
+  usageMeteringReserveMock.mockResolvedValue({
+    enabled: false,
+    operationId: "op-1",
+  })
+  usageMeteringSettleLanguageMock.mockResolvedValue(undefined)
+  usageMeteringReleaseMock.mockResolvedValue(undefined)
+})
 
 describe("replyByAI — rich mode routing", () => {
   beforeEach(() => {

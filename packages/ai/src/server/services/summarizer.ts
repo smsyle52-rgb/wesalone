@@ -42,6 +42,12 @@ export async function summarizeConversation(props: {
   messages: Array<{ role: string; content: unknown }>
   existingSummary?: string
   preferredModels?: AIAgentProviderModels
+  onUsage?: (usage: {
+    inputTokens?: number
+    outputTokens?: number
+    cachedInputTokens?: number
+    reasoningTokens?: number
+  }) => Promise<void>
 }): Promise<string> {
   const { workspaceId, messages, existingSummary, preferredModels } = props
 
@@ -144,24 +150,37 @@ export async function summarizeConversation(props: {
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiStep)
 
   try {
-    const { text } = await generateText({
+    const { text, usage } = await generateText({
       model: aiModel,
       prompt,
       maxOutputTokens: 500,
       temperature: 0.3,
       abortSignal: controller.signal,
     })
+    await props.onUsage?.({
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
+      reasoningTokens: usage.outputTokenDetails.reasoningTokens,
+    })
 
     let finalSummary = text.trim()
 
     // 3. Compression if too long
     if (finalSummary.length > MAX_SUMMARY_LENGTH) {
-      const { text: compressedText } = await generateText({
-        model: aiModel,
-        prompt: helpTexts.summarizer.shortenPrompt(finalSummary),
-        maxOutputTokens: 400,
-        temperature: 0.2,
-        abortSignal: controller.signal,
+      const { text: compressedText, usage: compressionUsage } =
+        await generateText({
+          model: aiModel,
+          prompt: helpTexts.summarizer.shortenPrompt(finalSummary),
+          maxOutputTokens: 400,
+          temperature: 0.2,
+          abortSignal: controller.signal,
+        })
+      await props.onUsage?.({
+        inputTokens: compressionUsage.inputTokens,
+        outputTokens: compressionUsage.outputTokens,
+        cachedInputTokens: compressionUsage.inputTokenDetails.cacheReadTokens,
+        reasoningTokens: compressionUsage.outputTokenDetails.reasoningTokens,
       })
       finalSummary = compressedText.trim()
     }

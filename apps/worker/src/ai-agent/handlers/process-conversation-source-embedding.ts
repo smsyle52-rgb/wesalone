@@ -1,4 +1,5 @@
 import { getPlatformEmbeddingProviderOptions } from "@chatbotx.io/ai/server"
+import { usageMeteringService } from "@chatbotx.io/business"
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { aiEmbeddingStatuses } from "@chatbotx.io/database/partials"
 import { aiConversationEmbeddingModel } from "@chatbotx.io/database/schema"
@@ -40,17 +41,36 @@ export async function processConversationSourceEmbedding(
       embeddingItem.workspaceId,
     )
 
-    const { embedding } = await embed({
-      model: embeddingModel,
-      value: embeddingItem.content,
-      providerOptions:
-        await getPlatformEmbeddingProviderOptions("RETRIEVAL_DOCUMENT"),
+    const reservation = await usageMeteringService.reserve({
+      workspaceId: embeddingItem.workspaceId,
+      operationId: `conversation-embedding:${embeddingItem.id}`,
+      category: "embedding_document",
+      metadata: { conversationEmbeddingId: embeddingItem.id },
     })
+    let embedding: number[]
+    try {
+      const result = await embed({
+        model: embeddingModel,
+        value: embeddingItem.content,
+        providerOptions:
+          await getPlatformEmbeddingProviderOptions("RETRIEVAL_DOCUMENT"),
+      })
+      embedding = result.embedding
+      await usageMeteringService.settleUnits(
+        reservation,
+        "embedding_document",
+        result.usage.tokens,
+        { tokens: result.usage.tokens },
+      )
+    } catch (error) {
+      await usageMeteringService.release(reservation, error)
+      throw error
+    }
 
     await db
       .update(aiConversationEmbeddingModel)
       .set({
-        embedding: embedding as number[],
+        embedding,
         status: aiEmbeddingStatuses.enum.success,
         errorMessage: null,
         updatedAt: new Date(),

@@ -139,6 +139,7 @@ describe("handleAIGenerateTextAgent OpenAI-compatible provider", () => {
       conversation: makeConversation(),
       contactInbox: makeContactInbox(),
       step: makeStep(),
+      triggerMessageId: "msg-trigger-1",
     } as Parameters<typeof handleAIGenerateTextAgent>[0])
 
     expect(result).toEqual({ status: "success", result: null })
@@ -166,6 +167,7 @@ describe("handleAIGenerateTextAgent OpenAI-compatible provider", () => {
       conversation: makeConversation(),
       contactInbox: makeContactInbox(),
       step: makeStep(),
+      triggerMessageId: "msg-trigger-1",
     } as Parameters<typeof handleAIGenerateTextAgent>[0])
 
     expect(result).toEqual({

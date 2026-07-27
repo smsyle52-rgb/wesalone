@@ -79,6 +79,12 @@ vi.mock("@chatbotx.io/redis", () => ({
   withCache: mockWithCache,
 }))
 
+vi.mock("../src/user-quota/service", () => ({
+  userQuotaService: {
+    assertPlanResourceCapacity: vi.fn(async () => undefined),
+  },
+}))
+
 vi.mock("@chatbotx.io/utils", () => ({
   createId: () => "agent-1",
 }))

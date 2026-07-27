@@ -33,10 +33,21 @@ export type WesalOnePlanSlug =
   | "professional"
   | "business"
 
+export const WESAL_ONE_PRICE_VERSION = "2026-07-27.v1"
+
+export const getPlanPriceCents = (
+  plan: WesalOnePlan,
+  cycle: "monthly" | "annual",
+): number | null => {
+  const price = cycle === "annual" ? plan.priceYearlyUsd : plan.priceMonthlyUsd
+  return price === null ? null : Math.round(price * 100)
+}
+
 export type WesalOnePlan = {
   slug: WesalOnePlanSlug
   nameEn: string
   nameAr: string
+  audience: "individual" | "business" | "enterprise"
   /** USD, null = custom/contact sales. */
   priceMonthlyUsd: number | null
   priceYearlyUsd: number | null
@@ -46,8 +57,10 @@ export type WesalOnePlan = {
   monthlyPoints: number | null
   /** Enforced via native UserQuota columns once a plan is applied. */
   limits: {
+    workspaces: number | null
     channels: number | null
     contacts: number | null
+    monthlyActiveContacts: number | null
     teamMembers: number | null
   }
   /** Display-only — no native "agents" quota metric. null = custom. */
@@ -65,11 +78,18 @@ export const WESAL_ONE_PLANS: readonly WesalOnePlan[] = [
     slug: "free",
     nameEn: "Free",
     nameAr: "مجاني",
+    audience: "individual",
     priceMonthlyUsd: 0,
     priceYearlyUsd: 0,
     priceMonthlySar: 0,
     monthlyPoints: 1000,
-    limits: { channels: 1, contacts: 100, teamMembers: 1 },
+    limits: {
+      workspaces: 1,
+      channels: 1,
+      contacts: 100,
+      monthlyActiveContacts: 100,
+      teamMembers: 1,
+    },
     agentsLimit: 1,
     knowledgeDocumentsLimit: 1,
     productsLimit: 20,
@@ -80,11 +100,18 @@ export const WESAL_ONE_PLANS: readonly WesalOnePlan[] = [
     slug: "starter",
     nameEn: "Starter",
     nameAr: "البداية",
+    audience: "individual",
     priceMonthlyUsd: 19,
     priceYearlyUsd: 182,
     priceMonthlySar: 71.25,
     monthlyPoints: 10_000,
-    limits: { channels: 1, contacts: 1000, teamMembers: 2 },
+    limits: {
+      workspaces: 1,
+      channels: 1,
+      contacts: 1000,
+      monthlyActiveContacts: 1000,
+      teamMembers: 2,
+    },
     agentsLimit: 1,
     knowledgeDocumentsLimit: 1,
     productsLimit: 500,
@@ -95,11 +122,18 @@ export const WESAL_ONE_PLANS: readonly WesalOnePlan[] = [
     slug: "growth",
     nameEn: "Growth",
     nameAr: "النمو",
+    audience: "business",
     priceMonthlyUsd: 49,
     priceYearlyUsd: 470,
     priceMonthlySar: 183.75,
     monthlyPoints: 40_000,
-    limits: { channels: 3, contacts: 10_000, teamMembers: 5 },
+    limits: {
+      workspaces: 3,
+      channels: 3,
+      contacts: 10_000,
+      monthlyActiveContacts: 10_000,
+      teamMembers: 5,
+    },
     agentsLimit: 3,
     knowledgeDocumentsLimit: 5,
     productsLimit: 5000,
@@ -119,11 +153,18 @@ export const WESAL_ONE_PLANS: readonly WesalOnePlan[] = [
     slug: "professional",
     nameEn: "Professional",
     nameAr: "احترافي",
+    audience: "business",
     priceMonthlyUsd: 140,
     priceYearlyUsd: 1344,
     priceMonthlySar: 525,
     monthlyPoints: 100_000,
-    limits: { channels: 10, contacts: 50_000, teamMembers: 15 },
+    limits: {
+      workspaces: 10,
+      channels: 10,
+      contacts: 50_000,
+      monthlyActiveContacts: 50_000,
+      teamMembers: 15,
+    },
     agentsLimit: 10,
     knowledgeDocumentsLimit: 20,
     productsLimit: 25_000,
@@ -143,11 +184,18 @@ export const WESAL_ONE_PLANS: readonly WesalOnePlan[] = [
     slug: "business",
     nameEn: "Business",
     nameAr: "الأعمال",
+    audience: "enterprise",
     priceMonthlyUsd: null,
     priceYearlyUsd: null,
     priceMonthlySar: null,
     monthlyPoints: null,
-    limits: { channels: null, contacts: null, teamMembers: null },
+    limits: {
+      workspaces: null,
+      channels: null,
+      contacts: null,
+      monthlyActiveContacts: null,
+      teamMembers: null,
+    },
     agentsLimit: null,
     knowledgeDocumentsLimit: null,
     productsLimit: null,

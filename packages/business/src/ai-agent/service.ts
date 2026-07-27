@@ -19,6 +19,7 @@ import { createId } from "@chatbotx.io/utils"
 import { BaseService } from "../base.service"
 import { notFoundException } from "../errors"
 import type { PaginatedResult } from "../types"
+import { userQuotaService } from "../user-quota/service"
 
 const AI_AGENT_CACHE_TTL_SECONDS = 5 * 60
 
@@ -158,6 +159,7 @@ class AiAgentService extends BaseService {
     data: CreateAIAgentRequest,
     tx?: DatabaseClient,
   ): Promise<void> {
+    await userQuotaService.assertPlanResourceCapacity(workspaceId, "agents")
     const execute = async (client: DatabaseClient) => {
       if (data.isDefault) {
         await client

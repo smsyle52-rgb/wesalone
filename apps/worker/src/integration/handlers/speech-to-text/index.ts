@@ -4,6 +4,10 @@ import {
   getAIModel,
   getPlatformTranscriptionModel,
 } from "@chatbotx.io/ai/server"
+import {
+  type UsageReservation,
+  usageMeteringService,
+} from "@chatbotx.io/business"
 import type { AISpeechToTextSchema } from "@chatbotx.io/flow-config"
 import { experimental_transcribe as transcribe } from "ai"
 import ky from "ky"
@@ -30,10 +34,13 @@ const supportedAudioMimeTypes = z.enum([
 
 export async function handleAISpeechToText({
   conversation,
+  flowVersion,
   step,
+  triggerMessageId,
 }: ExecuteStepProps<AISpeechToTextSchema>): Promise<ExecuteStepResult> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
+  let reservation: UsageReservation | undefined
 
   try {
     const platformTranscription = await getPlatformTranscriptionModel()
@@ -96,6 +103,15 @@ export async function handleAISpeechToText({
       transcriptionModel = openaiProvider.transcription(step.model)
     }
 
+    reservation = await usageMeteringService.reserve({
+      workspaceId: conversation.workspaceId,
+      operationId: `flow:speech-to-text:${conversation.id}:${triggerMessageId ?? flowVersion.id}:${step.id}`,
+      category: "transcription",
+      provider: platformTranscription ? "platform" : step.provider,
+      model: step.model,
+      metadata: { conversationId: conversation.id, stepId: step.id },
+    })
+
     const transcript = await transcribe({
       model: transcriptionModel,
       audio: new Uint8Array(audioBuffer),
@@ -111,6 +127,13 @@ export async function handleAISpeechToText({
         : undefined,
     })
 
+    await usageMeteringService.settleUnits(
+      reservation,
+      "transcription",
+      transcript.durationInSeconds ?? 1,
+      { durationInSeconds: transcript.durationInSeconds },
+    )
+
     if (step.outputFieldId) {
       await saveResultToCustomField({
         contactId: conversation.contactId,
@@ -122,6 +145,9 @@ export async function handleAISpeechToText({
 
     return { status: "success", result: null }
   } catch (err) {
+    if (reservation) {
+      await usageMeteringService.release(reservation, err)
+    }
     const error = normalizeError(err)
     logger.error(error, "[ai-speech-to-text] Step failed")
     return { status: "error", errorMessage: error.message, result: null }

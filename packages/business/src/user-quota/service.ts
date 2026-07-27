@@ -2,6 +2,7 @@ import {
   and,
   count,
   countDistinct,
+  type DatabaseClient,
   db,
   eq,
   gt,
@@ -11,8 +12,12 @@ import {
 } from "@chatbotx.io/database/client"
 import { planStatuses } from "@chatbotx.io/database/partials"
 import {
+  aiAgentModel,
+  aiFileModel,
   contactModel,
   inboxModel,
+  platformSubscriptionModel,
+  productModel,
   ROOT_TENANT_ID,
   userQuotaModel,
   workspaceMacModel,
@@ -23,8 +28,13 @@ import type { UserQuotaModel } from "@chatbotx.io/database/types"
 import { cacheConnections, distributedStore } from "@chatbotx.io/redis"
 import { USER_QUOTA_LABEL } from "@chatbotx.io/utils"
 import { BaseService } from "../base.service"
+import { ChatbotXException } from "../errors"
 import { isCloud } from "../keys"
 import { logger } from "../logger"
+import {
+  findWesalOnePlan,
+  WESAL_ONE_PRICE_VERSION,
+} from "../platform/wesal-one-plans"
 import { pointWalletService } from "../point-wallet/service"
 import {
   LiveCounterStore,
@@ -224,6 +234,7 @@ class UserQuotaService extends BaseService {
     const snapshot: BootstrapPlanSnapshot =
       (await this.readDefaultPlanSnapshot(tenantId)) ?? BOOTSTRAP_TRIAL_FALLBACK
     const now = new Date()
+    const freePlan = findWesalOnePlan("free")
     // Distinguish a malformed snapshot (NaN → 1-day lockdown) from an
     // explicit `0`/negative trial length (a free-forever default plan →
     // `active`, never expires). Only the malformed case falls back.
@@ -236,32 +247,72 @@ class UserQuotaService extends BaseService {
       ? new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000)
       : null
 
-    const inserted = await db
-      .insert(userQuotaModel)
-      .values({
-        userId,
-        contactsLimit: snapshot.contactsLimit,
-        workspacesLimit: snapshot.workspacesLimit,
-        channelsLimit: snapshot.channelsLimit,
-        teamMembersLimit: snapshot.teamMembersLimit,
-        macLimit: snapshot.macLimit,
-        botMessagesLimit: snapshot.botMessagesLimit,
-        // Additive cross-repo field: an older snapshot omits it, which is
-        // deliberately unlimited (fail-open), never an implicit zero cap.
-        monthlyBotMessagesLimit: snapshot.monthlyBotMessagesLimit ?? null,
-        whiteLabel: false,
-        ssoSaml: false,
-        saasMode: false,
-        planName: snapshot.planName,
-        planStatus: isTrial
-          ? planStatuses.enum.trial
-          : planStatuses.enum.active,
-        periodStart: now,
-        periodEnd,
-        syncedAt: now,
-      })
-      .onConflictDoNothing({ target: userQuotaModel.userId })
-      .returning({ userId: userQuotaModel.userId })
+    const inserted = await db.transaction(async (tx) => {
+      const rows = await tx
+        .insert(userQuotaModel)
+        .values({
+          userId,
+          contactsLimit: snapshot.contactsLimit,
+          workspacesLimit: snapshot.workspacesLimit,
+          channelsLimit: snapshot.channelsLimit,
+          teamMembersLimit: snapshot.teamMembersLimit,
+          macLimit: snapshot.macLimit,
+          botMessagesLimit: snapshot.botMessagesLimit,
+          monthlyBotMessagesLimit: snapshot.monthlyBotMessagesLimit ?? null,
+          agentsLimit: freePlan?.agentsLimit ?? 1,
+          knowledgeDocumentsLimit: freePlan?.knowledgeDocumentsLimit ?? 1,
+          productsLimit: freePlan?.productsLimit ?? 20,
+          autoReplyEnabled: freePlan?.autoReply ?? false,
+          whiteLabel: false,
+          ssoSaml: false,
+          saasMode: false,
+          planName: snapshot.planName,
+          planStatus: isTrial
+            ? planStatuses.enum.trial
+            : planStatuses.enum.active,
+          periodStart: now,
+          periodEnd,
+          syncedAt: now,
+        })
+        .onConflictDoNothing({ target: userQuotaModel.userId })
+        .returning({ userId: userQuotaModel.userId })
+
+      if (rows.length > 0) {
+        const freePeriodEnd = new Date(now)
+        freePeriodEnd.setUTCMonth(freePeriodEnd.getUTCMonth() + 1)
+        await tx
+          .insert(platformSubscriptionModel)
+          .values({
+            userId,
+            planSlug: "free",
+            billingCycle: "monthly",
+            status: "active",
+            source: "free",
+            periodStart: now,
+            periodEnd: freePeriodEnd,
+            nextGrantAt: freePeriodEnd,
+            priceCents: 0,
+            currency: "USD",
+            priceVersion: WESAL_ONE_PRICE_VERSION,
+          })
+          .onConflictDoNothing({ target: platformSubscriptionModel.userId })
+        await pointWalletService.createGrant(
+          {
+            userId,
+            grantType: "monthly_subscription",
+            points: freePlan?.monthlyPoints ?? 1000,
+            startsAt: now,
+            expiresAt: freePeriodEnd,
+            sourceType: "subscription",
+            sourceId: "free",
+            idempotencyKey: `bootstrap-free:${userId}`,
+            reason: "free plan bootstrap grant",
+          },
+          tx,
+        )
+      }
+      return rows
+    })
 
     // Only bust the cache when we actually wrote a row. On a no-op conflict
     // (hook retry, re-signup, or the worker winning the race) there is
@@ -289,22 +340,45 @@ class UserQuotaService extends BaseService {
     plan: {
       nameEn: string
       limits: {
+        workspaces?: number | null
         channels: number | null
         contacts: number | null
+        monthlyActiveContacts?: number | null
         teamMembers: number | null
       }
       monthlyPoints?: number | null
+      agentsLimit?: number | null
+      knowledgeDocumentsLimit?: number | null
+      productsLimit?: number | null
+      autoReply?: boolean
     }
     periodStart: Date
     periodEnd: Date | null
+    grantStartsAt?: Date
+    grantExpiresAt?: Date | null
+    tx?: DatabaseClient
   }): Promise<void> {
-    const { userId, plan, periodStart, periodEnd } = props
+    const {
+      userId,
+      plan,
+      periodStart,
+      periodEnd,
+      grantStartsAt = periodStart,
+      grantExpiresAt = periodEnd,
+      tx = db,
+    } = props
 
-    await db
+    await tx
       .insert(userQuotaModel)
       .values({
         userId,
+        workspacesLimit: plan.limits.workspaces ?? null,
         contactsLimit: plan.limits.contacts,
+        macLimit: plan.limits.monthlyActiveContacts ?? plan.limits.contacts,
+        agentsLimit: plan.agentsLimit ?? null,
+        knowledgeDocumentsLimit: plan.knowledgeDocumentsLimit ?? null,
+        productsLimit: plan.productsLimit ?? null,
+        autoReplyEnabled: plan.autoReply ?? false,
         channelsLimit: plan.limits.channels,
         teamMembersLimit: plan.limits.teamMembers,
         planName: plan.nameEn,
@@ -316,7 +390,13 @@ class UserQuotaService extends BaseService {
       .onConflictDoUpdate({
         target: userQuotaModel.userId,
         set: {
+          workspacesLimit: plan.limits.workspaces ?? null,
           contactsLimit: plan.limits.contacts,
+          macLimit: plan.limits.monthlyActiveContacts ?? plan.limits.contacts,
+          agentsLimit: plan.agentsLimit ?? null,
+          knowledgeDocumentsLimit: plan.knowledgeDocumentsLimit ?? null,
+          productsLimit: plan.productsLimit ?? null,
+          autoReplyEnabled: plan.autoReply ?? false,
           channelsLimit: plan.limits.channels,
           teamMembersLimit: plan.limits.teamMembers,
           planName: plan.nameEn,
@@ -328,17 +408,20 @@ class UserQuotaService extends BaseService {
       })
 
     if (plan.monthlyPoints && plan.monthlyPoints > 0) {
-      await pointWalletService.createGrant({
-        userId,
-        grantType: "monthly_subscription",
-        points: plan.monthlyPoints,
-        startsAt: periodStart,
-        expiresAt: periodEnd,
-        sourceType: "subscription",
-        sourceId: plan.nameEn,
-        idempotencyKey: `monthly:${userId}:${periodStart.toISOString()}`,
-        reason: `monthly plan grant: ${plan.nameEn}`,
-      })
+      await pointWalletService.createGrant(
+        {
+          userId,
+          grantType: "monthly_subscription",
+          points: plan.monthlyPoints,
+          startsAt: grantStartsAt,
+          expiresAt: grantExpiresAt,
+          sourceType: "subscription",
+          sourceId: plan.nameEn,
+          idempotencyKey: `monthly:${userId}:${grantStartsAt.toISOString()}`,
+          reason: `monthly plan grant: ${plan.nameEn}`,
+        },
+        tx,
+      )
     }
 
     await this.store.invalidate(userId)
@@ -356,8 +439,10 @@ class UserQuotaService extends BaseService {
       slug: string
       nameEn: string
       limits: {
+        workspaces?: number | null
         channels: number | null
         contacts: number | null
+        monthlyActiveContacts?: number | null
         teamMembers: number | null
       }
     }
@@ -433,6 +518,10 @@ class UserQuotaService extends BaseService {
       botMessagesUsed: 0,
       monthlyBotMessagesLimit: null,
       monthlyBotMessagesUsed: 0,
+      agentsLimit: null,
+      knowledgeDocumentsLimit: null,
+      productsLimit: null,
+      autoReplyEnabled: false,
       whiteLabel: false,
       ssoSaml: false,
       saasMode: false,
@@ -521,14 +610,16 @@ class UserQuotaService extends BaseService {
       }
     }
 
-    const trialExpired =
-      quota.planStatus === planStatuses.enum.trial &&
+    const periodExpired =
+      (quota.planStatus === planStatuses.enum.trial ||
+        quota.planStatus === planStatuses.enum.active) &&
       quota.periodEnd !== null &&
       new Date(quota.periodEnd).getTime() <= Date.now()
     const trialActive =
-      quota.planStatus === planStatuses.enum.trial && !trialExpired
+      quota.planStatus === planStatuses.enum.trial && !periodExpired
     const statusAllowed =
-      quota.planStatus === planStatuses.enum.active || trialActive
+      (quota.planStatus === planStatuses.enum.active && !periodExpired) ||
+      trialActive
     const macLimitReached =
       quota.macLimit !== null && quota.macUsed >= quota.macLimit
 
@@ -628,6 +719,64 @@ class UserQuotaService extends BaseService {
       columns: { userId: true },
     })
     return rows.map((row) => row.userId)
+  }
+
+  async assertPlanResourceCapacity(
+    workspaceId: string,
+    resource: "agents" | "knowledgeDocuments" | "products",
+  ): Promise<void> {
+    const workspace = await db.query.workspaceModel.findFirst({
+      where: { id: workspaceId },
+      columns: { ownerId: true },
+    })
+    if (!workspace) {
+      throw new ChatbotXException("Workspace not found", "notFound", 404)
+    }
+    const quota = await this.getForUser(workspace.ownerId)
+    if (!quota) {
+      return
+    }
+
+    const config = {
+      agents: { table: aiAgentModel, limit: quota.agentsLimit },
+      knowledgeDocuments: {
+        table: aiFileModel,
+        limit: quota.knowledgeDocumentsLimit,
+      },
+      products: { table: productModel, limit: quota.productsLimit },
+    } as const
+    const selected = config[resource]
+    if (selected.limit === null) {
+      return
+    }
+
+    const [row] = await db
+      .select({ total: count() })
+      .from(selected.table)
+      .innerJoin(
+        workspaceModel,
+        eq(selected.table.workspaceId, workspaceModel.id),
+      )
+      .where(eq(workspaceModel.ownerId, workspace.ownerId))
+    if ((row?.total ?? 0) >= selected.limit) {
+      throw new ChatbotXException(
+        `Plan ${resource} limit reached`,
+        "planResourceLimitReached",
+        402,
+      )
+    }
+  }
+
+  async isAutoReplyEnabledForWorkspace(workspaceId: string): Promise<boolean> {
+    const workspace = await db.query.workspaceModel.findFirst({
+      where: { id: workspaceId },
+      columns: { ownerId: true },
+    })
+    if (!workspace) {
+      return false
+    }
+    const quota = await this.getForUser(workspace.ownerId)
+    return quota ? quota.autoReplyEnabled : true
   }
 
   async isLimitReached(userId: string, metric: QuotaMetric): Promise<boolean> {

@@ -194,6 +194,10 @@ export type PlatformAiSettingModel =
   typeof schema.platformAiSettingModel.$inferSelect
 export type PlatformSubscriptionPaymentModel =
   typeof schema.platformSubscriptionPaymentModel.$inferSelect
+export type PlatformSubscriptionModel =
+  typeof schema.platformSubscriptionModel.$inferSelect
+export type BillableUsageEventModel =
+  typeof schema.billableUsageEventModel.$inferSelect
 export type PointWalletModel = typeof schema.pointWalletModel.$inferSelect
 export type PointGrantModel = typeof schema.pointGrantModel.$inferSelect
 export type PointLedgerModel = typeof schema.pointLedgerModel.$inferSelect

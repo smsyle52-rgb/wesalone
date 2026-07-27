@@ -81,6 +81,7 @@ export async function processCommentAIReply(
     contactInbox,
     messages: [{ role: "user", content: data.message }],
     aiAgent: agent,
+    operationId: `comment-ai-reply:${data.commentId}`,
   })
   if (!generated?.text) {
     logger.info(

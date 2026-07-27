@@ -1,4 +1,5 @@
 import { getPlatformEmbeddingProviderOptions } from "@chatbotx.io/ai/server"
+import { usageMeteringService } from "@chatbotx.io/business"
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { aiEmbeddingStatuses } from "@chatbotx.io/database/partials"
 import { aiEmbeddingModel } from "@chatbotx.io/database/schema"
@@ -23,22 +24,40 @@ export async function processPendingEmbedding(
 
   try {
     const embeddingModel = await resolveEmbeddingModel(aiEmbedding.workspaceId)
-
-    const { embedding } = await embed({
-      model: embeddingModel,
-      value: aiEmbedding.content,
-      providerOptions:
-        await getPlatformEmbeddingProviderOptions("RETRIEVAL_DOCUMENT"),
+    const reservation = await usageMeteringService.reserve({
+      workspaceId: aiEmbedding.workspaceId,
+      operationId: `embedding-document:${aiEmbedding.id}`,
+      category: "embedding_document",
+      metadata: { aiEmbeddingId: aiEmbedding.id },
     })
 
-    await db
-      .update(aiEmbeddingModel)
-      .set({
-        embedding: embedding as number[],
-        updatedAt: new Date(),
-        status: aiEmbeddingStatuses.enum.success,
+    try {
+      const { embedding, usage } = await embed({
+        model: embeddingModel,
+        value: aiEmbedding.content,
+        providerOptions:
+          await getPlatformEmbeddingProviderOptions("RETRIEVAL_DOCUMENT"),
       })
-      .where(eq(aiEmbeddingModel.id, aiEmbedding.id))
+
+      await usageMeteringService.settleUnits(
+        reservation,
+        "embedding_document",
+        usage.tokens,
+        { tokens: usage.tokens },
+      )
+
+      await db
+        .update(aiEmbeddingModel)
+        .set({
+          embedding: embedding as number[],
+          updatedAt: new Date(),
+          status: aiEmbeddingStatuses.enum.success,
+        })
+        .where(eq(aiEmbeddingModel.id, aiEmbedding.id))
+    } catch (error) {
+      await usageMeteringService.release(reservation, error)
+      throw error
+    }
   } catch (error) {
     logger.error(
       error,

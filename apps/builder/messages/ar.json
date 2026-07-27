@@ -277,8 +277,7 @@
       "monthlyBotMessages": "رسائل البوت الشهرية",
       "workspaces": "مساحات العمل",
       "channels": "القنوات",
-      "teamMembers": "أعضاء الفريق",
-      "botMessages": "رسائل البوت"
+      "teamMembers": "أعضاء الفريق"
     },
     "limitReached": {
       "workspaces": "لقد وصلت إلى الحد الأقصى لمساحة العمل الخاصة بك. قم بترقية خطتك لإنشاء المزيد.",
@@ -3887,6 +3886,11 @@
     "selectPlan": "اختيار الباقة",
     "selectFree": "ابدأ مجانًا",
     "currentPlan": "الباقة الحالية",
+    "audience": {
+      "individual": "للأفراد",
+      "business": "للأعمال",
+      "enterprise": "للمنشآت"
+    },
     "sandboxBadge": "وضع تجريبي",
     "sandboxNotice": "وضع تجريبي (Sandbox) — اختيار باقة يطبّق حدودها فورًا دون أي دفع حقيقي. لا يوجد فوترة فعلية بعد.",
     "usage": {
@@ -3895,6 +3899,22 @@
       "monthly": "من الباقة الشهرية",
       "purchased": "نقاط مشتراة",
       "frozen": "نقاط مجمّدة",
+      "reserved": "محجوزة للمهام الجارية",
+      "breakdown": "الاستهلاك حسب النوع (30 يوماً)",
+      "categories": {
+        "language": "النصوص وردود الوكيل",
+        "image_analysis": "تحليل الصور",
+        "image_generation": "إنشاء الصور",
+        "image_editing": "تعديل الصور",
+        "transcription": "تفريغ الصوت",
+        "speech": "تحويل النص إلى صوت",
+        "embedding_document": "فهرسة المعرفة",
+        "embedding_query": "البحث في المعرفة",
+        "knowledge_search": "بحث المعرفة",
+        "summarization": "تلخيص المحادثات",
+        "web_search": "البحث في الويب",
+        "tool": "أدوات الذكاء الاصطناعي"
+      },
       "expiresOn": "أقرب انتهاء صلاحية: {date}",
       "empty": "ما فيه رصيد نقاط بعد — اختر باقة بالأسفل عشان تبدأ."
     },

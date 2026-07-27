@@ -18,6 +18,10 @@ export const platformSubscriptionPaymentRelations = defineRelationsPart(
         from: r.platformSubscriptionPaymentModel.reviewedBy,
         to: r.userModel.id,
       }),
+      subscription: r.one.platformSubscriptionModel({
+        from: r.platformSubscriptionPaymentModel.subscriptionId,
+        to: r.platformSubscriptionModel.id,
+      }),
     },
   }),
 )

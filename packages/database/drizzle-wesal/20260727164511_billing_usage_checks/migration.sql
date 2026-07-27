@@ -1,0 +1,3 @@
+ALTER TABLE "BillableUsageEvent" ADD CONSTRAINT "BillableUsageEvent_reservedMicroPoints_nonnegative" CHECK ("reservedMicroPoints" >= 0);--> statement-breakpoint
+ALTER TABLE "BillableUsageEvent" ADD CONSTRAINT "BillableUsageEvent_settledMicroPoints_nonnegative" CHECK ("settledMicroPoints" IS NULL OR "settledMicroPoints" >= 0);--> statement-breakpoint
+ALTER TABLE "BillableUsageEvent" ADD CONSTRAINT "BillableUsageEvent_actualCostMicroUsd_nonnegative" CHECK ("actualCostMicroUsd" IS NULL OR "actualCostMicroUsd" >= 0);

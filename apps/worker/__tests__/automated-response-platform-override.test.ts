@@ -31,6 +31,10 @@ const getPlatformVertexChatModelMock = vi.hoisted(() =>
 const getPlatformVertexProviderMock = vi.hoisted(() =>
   vi.fn(() => Object.assign(vi.fn(), { tools: {} })),
 )
+const isAutoReplyEnabledForWorkspaceMock = vi.hoisted(() => vi.fn())
+const usageMeteringReserveMock = vi.hoisted(() => vi.fn())
+const usageMeteringSettleLanguageMock = vi.hoisted(() => vi.fn())
+const usageMeteringReleaseMock = vi.hoisted(() => vi.fn())
 const getPlatformCapabilityLanguageModelMock = vi.hoisted(() =>
   vi.fn(async () => null),
 )
@@ -147,6 +151,14 @@ vi.mock("../src/trigger/services/handoff-executor.service", () => ({
 
 vi.mock("@chatbotx.io/business", () => ({
   integrationOpenaiCompatibleService: { findByWorkspaceIdAndId: vi.fn() },
+  userQuotaService: {
+    isAutoReplyEnabledForWorkspace: isAutoReplyEnabledForWorkspaceMock,
+  },
+  usageMeteringService: {
+    reserve: usageMeteringReserveMock,
+    settleLanguage: usageMeteringSettleLanguageMock,
+    release: usageMeteringReleaseMock,
+  },
 }))
 
 vi.mock("@chatbotx.io/event-bus", () => ({
@@ -234,6 +246,13 @@ describe("replyByAI (DM auto-reply) — platform Vertex override", () => {
     vi.mocked(contactVariableService.replaceAll).mockImplementation(
       async ({ text }) => text,
     )
+    isAutoReplyEnabledForWorkspaceMock.mockResolvedValue(true)
+    usageMeteringReserveMock.mockResolvedValue({
+      enabled: false,
+      operationId: "op-1",
+    })
+    usageMeteringSettleLanguageMock.mockResolvedValue(undefined)
+    usageMeteringReleaseMock.mockResolvedValue(undefined)
   })
 
   test("uses the platform Vertex model and never looks up the workspace's own BYOK integration when enabled", async () => {
