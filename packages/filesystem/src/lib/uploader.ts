@@ -132,13 +132,16 @@ export class Uploader {
     url.searchParams.set("uploadType", "media")
     url.searchParams.set("name", path)
 
+    const requestBody =
+      typeof body === "string" ? body : Uint8Array.from(body).buffer
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
         authorization: `Bearer ${accessToken}`,
         "content-type": contentType ?? "application/octet-stream",
       },
-      body,
+      body: requestBody,
     })
 
     if (!response.ok) {

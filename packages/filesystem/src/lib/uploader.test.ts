@@ -64,13 +64,13 @@ describe("isGoogleCloudStorageEndpoint", () => {
     expect(String(url)).toBe(
       "https://storage.googleapis.com/upload/storage/v1/b/test-bucket/o?uploadType=media&name=audio%2Ftest.ogg",
     )
-    expect(init).toEqual({
+    expect(init).toMatchObject({
       method: "POST",
       headers: {
         authorization: "Bearer test-access-token",
         "content-type": "audio/ogg",
       },
-      body: audio,
     })
+    expect(new Uint8Array(init?.body as ArrayBuffer)).toEqual(audio)
   })
 })
