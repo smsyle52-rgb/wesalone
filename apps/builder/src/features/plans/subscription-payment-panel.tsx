@@ -1,7 +1,10 @@
 "use client"
 
 import type { WesalOnePlan } from "@chatbotx.io/business"
-import type { PlatformSubscriptionPaymentModel } from "@chatbotx.io/database/types"
+import type {
+  PlatformSubscriptionModel,
+  PlatformSubscriptionPaymentModel,
+} from "@chatbotx.io/database/types"
 import { Badge } from "@chatbotx.io/ui/components/ui/badge"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import {
@@ -21,11 +24,14 @@ import {
   SelectValue,
 } from "@chatbotx.io/ui/components/ui/select"
 import { Textarea } from "@chatbotx.io/ui/components/ui/textarea"
+import { useRouter } from "next/navigation"
 import { useLocale, useTranslations } from "next-intl"
 import { useAction } from "next-safe-action/hooks"
 import { type FormEvent, useState } from "react"
 import { toast } from "sonner"
 import { cancelSubscriptionPaymentAction } from "./actions/cancel-subscription-payment.action"
+import { resumeSubscriptionAction } from "./actions/resume-subscription.action"
+import { scheduleSubscriptionCancellationAction } from "./actions/schedule-subscription-cancellation.action"
 import { submitSubscriptionPaymentAction } from "./actions/submit-subscription-payment.action"
 import {
   ReceiptUploadError,
@@ -41,6 +47,7 @@ type Props = {
   workspaceId: string
   plans: readonly WesalOnePlan[]
   submissions: SubscriptionPaymentSubmission[]
+  subscription: PlatformSubscriptionModel | null
   openPlanSlug: string | null
   onOpenChange: (slug: string | null) => void
 }
@@ -57,11 +64,13 @@ export function SubscriptionPaymentPanel({
   workspaceId,
   plans,
   submissions,
+  subscription,
   openPlanSlug,
   onOpenChange,
 }: Props) {
   const t = useTranslations()
   const locale = useLocale()
+  const router = useRouter()
   const { upload } = useReceiptUpload(workspaceId)
   const [paymentMethod, setPaymentMethod] = useState<string>("bank_transfer")
   const [reference, setReference] = useState("")
@@ -94,6 +103,35 @@ export function SubscriptionPaymentPanel({
       onError: ({ error }) =>
         toast.error(
           error.serverError ?? t("plans.subscriptionPayment.toast.cancelError"),
+        ),
+    },
+  )
+
+  const { execute: scheduleCancellation, isPending: isSchedulingCancellation } =
+    useAction(scheduleSubscriptionCancellationAction.bind(null, workspaceId), {
+      onSuccess: () => {
+        toast.success(
+          t("plans.subscriptionPayment.toast.cancellationScheduled"),
+        )
+        router.refresh()
+      },
+      onError: ({ error }) =>
+        toast.error(
+          error.serverError ??
+            t("plans.subscriptionPayment.toast.cancellationScheduleError"),
+        ),
+    })
+
+  const { execute: resumeSubscription, isPending: isResuming } = useAction(
+    resumeSubscriptionAction.bind(null, workspaceId),
+    {
+      onSuccess: () => {
+        toast.success(t("plans.subscriptionPayment.toast.resumed"))
+        router.refresh()
+      },
+      onError: ({ error }) =>
+        toast.error(
+          error.serverError ?? t("plans.subscriptionPayment.toast.resumeError"),
         ),
     },
   )
@@ -147,6 +185,58 @@ export function SubscriptionPaymentPanel({
 
   return (
     <div className="space-y-4">
+      {subscription && (
+        <div className="rounded-xl border p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-bold text-sm">
+                {t("plans.subscriptionPayment.currentSubscription")}
+              </p>
+              <p className="text-sm">
+                {planName(subscription.planSlug)}
+                {" · "}
+                {t(
+                  `plans.subscriptionPayment.subscriptionStatus.${subscription.status}`,
+                )}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {t(
+                  subscription.status === "cancel_at_period_end"
+                    ? "plans.subscriptionPayment.endsOn"
+                    : "plans.subscriptionPayment.renewsOn",
+                  {
+                    date: new Date(subscription.periodEnd).toLocaleDateString(
+                      locale,
+                    ),
+                  },
+                )}
+              </p>
+            </div>
+            {subscription.source !== "free" &&
+              subscription.status === "cancel_at_period_end" && (
+                <Button
+                  disabled={isResuming}
+                  onClick={() => resumeSubscription()}
+                  size="sm"
+                  variant="outline"
+                >
+                  {t("plans.subscriptionPayment.resumeSubscription")}
+                </Button>
+              )}
+            {subscription.source !== "free" &&
+              subscription.status === "active" && (
+                <Button
+                  disabled={isSchedulingCancellation}
+                  onClick={() => scheduleCancellation()}
+                  size="sm"
+                  variant="outline"
+                >
+                  {t("plans.subscriptionPayment.cancelSubscription")}
+                </Button>
+              )}
+          </div>
+        </div>
+      )}
       {activeReview && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
           <div className="flex flex-wrap items-center justify-between gap-3">

@@ -3,6 +3,7 @@ import { join } from "node:path"
 import { describe, expect, test } from "vitest"
 
 const root = join(import.meta.dirname, "..")
+const dynamicModelPathPattern = /models\.\$\{index\}\.model/
 
 function source(path: string) {
   return readFileSync(join(root, path), "utf8")
@@ -15,7 +16,7 @@ describe("platform AI guardrails", () => {
 
     for (const file of [createAgent, updateAgent]) {
       expect(file).toContain("platformAiSettings.agentModelManaged")
-      expect(file).not.toMatch(/models\.\$\{index\}\.model/)
+      expect(file).not.toMatch(dynamicModelPathPattern)
       expect(file).not.toContain("openaiCompatiblePresetConfigs")
       expect(file).not.toContain("getOpenaiCompatibleIntegrationLabel")
       expect(file).not.toContain("shouldUseCustomOpenaiCompatibleModelInput")

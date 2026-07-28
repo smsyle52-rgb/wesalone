@@ -3938,6 +3938,18 @@
       "business": "للأعمال",
       "enterprise": "للمنشآت"
     },
+    "audienceDescription": {
+      "individual": "مصممة للأفراد والفرق الصغيرة.",
+      "business": "مصممة للفرق النامية التي تدير عدة قنوات.",
+      "enterprise": "مصممة للمنشآت التي تحتاج سعة ودعماً مخصصين."
+    },
+    "capacity": {
+      "unlimited": "مخصص",
+      "points": "{count} نقطة ذكاء كل شهر",
+      "agents": "{count} وكلاء ذكاء اصطناعي",
+      "knowledgeDocuments": "{count} مستندات معرفة",
+      "products": "{count} منتجات في الكتالوج"
+    },
     "sandboxBadge": "وضع تجريبي",
     "sandboxNotice": "وضع تجريبي (Sandbox) — اختيار باقة يطبّق حدودها فورًا دون أي دفع حقيقي. لا يوجد فوترة فعلية بعد.",
     "usage": {
@@ -3947,6 +3959,7 @@
       "purchased": "نقاط مشتراة",
       "frozen": "نقاط مجمّدة",
       "reserved": "محجوزة للمهام الجارية",
+      "consumed": "تم استهلاك {used} من أصل {total} نقطة مشمولة",
       "breakdown": "الاستهلاك حسب النوع (30 يوماً)",
       "categories": {
         "language": "النصوص وردود الوكيل",
@@ -3984,6 +3997,18 @@
       "everything": "كل الميزات مشمولة"
     },
     "subscriptionPayment": {
+      "currentSubscription": "الاشتراك الحالي",
+      "renewsOn": "يتجدد في {date}",
+      "endsOn": "ينتهي في {date}",
+      "cancelSubscription": "الإلغاء في نهاية الفترة",
+      "resumeSubscription": "الإبقاء على الاشتراك",
+      "subscriptionStatus": {
+        "active": "نشط",
+        "past_due": "الدفع متأخر",
+        "cancel_at_period_end": "ينتهي بنهاية الفترة",
+        "cancelled": "ملغي",
+        "expired": "منتهي"
+      },
       "underReview": "الدفع قيد المراجعة",
       "cancelRequest": "إلغاء الطلب",
       "viewReceipt": "عرض الإيصال",
@@ -4017,7 +4042,11 @@
         "submitted": "تم إرسال الدفع للمراجعة",
         "submitError": "تعذّر إرسال الدفع",
         "cancelled": "تم إلغاء الطلب",
-        "cancelError": "تعذّر إلغاء الطلب"
+        "cancelError": "تعذّر إلغاء الطلب",
+        "cancellationScheduled": "سينتهي الاشتراك عند نهاية الفترة الحالية",
+        "cancellationScheduleError": "تعذّر جدولة إلغاء الاشتراك",
+        "resumed": "سيستمر الاشتراك",
+        "resumeError": "تعذّر استئناف الاشتراك"
       }
     },
     "pointPurchase": {
