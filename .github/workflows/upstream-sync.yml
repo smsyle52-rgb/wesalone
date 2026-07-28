@@ -181,7 +181,6 @@ jobs:
               stop_sha="$sha"
               break
             fi
-            fi
 
             git push origin "HEAD:$BASE_BRANCH"
             push_status=$?
