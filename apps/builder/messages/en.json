@@ -4085,6 +4085,18 @@
       "business": "For businesses",
       "enterprise": "Enterprise"
     },
+    "audienceDescription": {
+      "individual": "Built for individual operators and small teams.",
+      "business": "Built for growing teams with multiple channels.",
+      "enterprise": "Built for organizations that need custom scale and support."
+    },
+    "capacity": {
+      "unlimited": "Custom",
+      "points": "{count} AI points each month",
+      "agents": "{count} AI agents",
+      "knowledgeDocuments": "{count} knowledge documents",
+      "products": "{count} catalog products"
+    },
     "sandboxBadge": "Sandbox",
     "sandboxNotice": "Sandbox mode — selecting a plan applies its limits immediately with no real payment. There is no live billing yet.",
     "usage": {
@@ -4094,6 +4106,7 @@
       "purchased": "Purchased points",
       "frozen": "Frozen points",
       "reserved": "Reserved by running tasks",
+      "consumed": "{used} of {total} included points consumed",
       "breakdown": "Usage by category (30 days)",
       "categories": {
         "language": "Text and agent replies",
@@ -4131,6 +4144,18 @@
       "everything": "Everything included"
     },
     "subscriptionPayment": {
+      "currentSubscription": "Current subscription",
+      "renewsOn": "Renews on {date}",
+      "endsOn": "Ends on {date}",
+      "cancelSubscription": "Cancel at period end",
+      "resumeSubscription": "Keep subscription",
+      "subscriptionStatus": {
+        "active": "Active",
+        "past_due": "Payment overdue",
+        "cancel_at_period_end": "Ends at period close",
+        "cancelled": "Cancelled",
+        "expired": "Expired"
+      },
       "underReview": "Payment under review",
       "cancelRequest": "Cancel request",
       "viewReceipt": "View receipt",
@@ -4164,7 +4189,11 @@
         "submitted": "Payment submitted for review",
         "submitError": "Could not submit the payment",
         "cancelled": "Request cancelled",
-        "cancelError": "Could not cancel the request"
+        "cancelError": "Could not cancel the request",
+        "cancellationScheduled": "Subscription will end at the close of the current period",
+        "cancellationScheduleError": "Could not schedule subscription cancellation",
+        "resumed": "Subscription will continue",
+        "resumeError": "Could not resume the subscription"
       }
     },
     "pointPurchase": {

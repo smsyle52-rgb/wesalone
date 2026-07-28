@@ -810,6 +810,7 @@ async function runAIReply(
     }> = []
     let stepCount = 0
     let toolCallsCount = 0
+    let webSearchesCount = 0
     let toolResultsCount = 0
     let toolErrorsCount = 0
 
@@ -860,6 +861,9 @@ async function runAIReply(
         for (const call of toolCalls) {
           if (call?.toolName) {
             toolNamesSet.add(call.toolName)
+            if (call.toolName === systemFunctionNames.webSearch) {
+              webSearchesCount += 1
+            }
           }
         }
 
@@ -921,6 +925,7 @@ async function runAIReply(
             outputTokens: usage.outputTokens,
             cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
             reasoningTokens: usage.outputTokenDetails.reasoningTokens,
+            webSearches: webSearchesCount,
           },
         )
       } catch (settleError) {
