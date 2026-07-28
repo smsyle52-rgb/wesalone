@@ -23,6 +23,7 @@ export type TiptapEditorFieldProps = {
   formItemClassName?: string
   showEmojiPicker?: boolean
   channels?: ChannelType[]
+  includeCouponVariables?: boolean
   description?: string
 }
 
@@ -34,6 +35,7 @@ export const TiptapEditorField = ({
   formItemClassName,
   placeholder,
   channels,
+  includeCouponVariables = false,
   showEmojiPicker = true,
 }: TiptapEditorFieldProps) => {
   const { control, getValues } = useFormContext()
@@ -65,6 +67,7 @@ export const TiptapEditorField = ({
           <FormControl>
             <TiptapEditor
               channels={channels}
+              includeCouponVariables={includeCouponVariables}
               initValue={initValue}
               onChange={field.onChange}
               placeholder={placeholder}

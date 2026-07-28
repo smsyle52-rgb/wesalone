@@ -23,6 +23,7 @@ export type PlainTextEditorFieldProps = {
   formItemClassName?: string
   showEmojiPicker?: boolean
   channels?: ChannelType[]
+  includeCouponVariables?: boolean
   description?: string
   /** Single-line layout with the variable picker inline (e.g. filter value inputs). */
   inline?: boolean
@@ -36,6 +37,7 @@ export const PlainTextEditorField = ({
   formItemClassName,
   placeholder,
   channels,
+  includeCouponVariables = false,
   showEmojiPicker = true,
   inline = false,
 }: PlainTextEditorFieldProps) => {
@@ -68,6 +70,7 @@ export const PlainTextEditorField = ({
           <FormControl>
             <PlainTextTiptapEditor
               channels={channels}
+              includeCouponVariables={includeCouponVariables}
               initValue={initValue}
               inline={inline}
               onChange={field.onChange}
