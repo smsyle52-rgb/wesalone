@@ -165,14 +165,22 @@ jobs:
               git cherry-pick --continue
             fi
 
-            pnpm install --frozen-lockfile
-            pnpm --filter builder check-types
-            typecheck_status=$?
+            pnpm install --frozen-lockfile 2>&1 | tee /tmp/upstream-sync-install.log
+            install_status=${PIPESTATUS[0]}
+            if [ "$install_status" -ne 0 ]; then
+              stop_reason="install"
+              stop_sha="$sha"
+              break
+            fi
+
+            pnpm --filter builder check-types 2>&1 | tee /tmp/upstream-sync-typecheck.log
+            typecheck_status=${PIPESTATUS[0]}
 
             if [ "$typecheck_status" -ne 0 ]; then
               stop_reason="typecheck"
               stop_sha="$sha"
               break
+            fi
             fi
 
             git push origin "HEAD:$BASE_BRANCH"
@@ -190,7 +198,18 @@ jobs:
           new_migrations=$(git diff --name-status "$start_point"..HEAD -- packages/database/drizzle/ | awk '$1=="A"{print $2}')
           deployed_count=$(printf '%s' "$deployed" | grep -c .)
 
-          if [ "$stop_reason" = "typecheck" ] || [ "$stop_reason" = "push" ]; then
+          if [ "$stop_reason" = "install" ] || [ "$stop_reason" = "typecheck" ]; then
+            {
+              echo "install:"
+              cat /tmp/upstream-sync-install.log 2>/dev/null || true
+              echo ""
+              echo "typecheck:"
+              cat /tmp/upstream-sync-typecheck.log 2>/dev/null || true
+            } > upstream-sync-ci-failure.log
+            git add upstream-sync-ci-failure.log
+            git commit -m "chore(ci): capture upstream sync failure"
+          fi
+          if [ "$stop_reason" = "install" ] || [ "$stop_reason" = "typecheck" ] || [ "$stop_reason" = "push" ]; then
             git push origin "$branch"
           fi
 
