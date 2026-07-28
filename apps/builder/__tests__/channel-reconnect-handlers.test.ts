@@ -49,11 +49,19 @@ vi.mock("@chatbotx.io/integration-messenger", () => ({
   exchangeCodeForToken: mockExchangeMessengerCode,
   getFacebookUser: mockGetMessengerFacebookUser,
   getUserPages: mockGetUserPages,
+  // The handler reads granted scopes from this to decide which page fields to
+  // subscribe to. It already tolerates a failure (.catch(() => undefined)), so
+  // an empty result keeps these tests on the path they actually assert.
+  debugToken: vi.fn(async () => ({ scopes: [] })),
 }))
 
 vi.mock("@chatbotx.io/integration-messenger/apis/page", () => ({
   exchangeLongLivedToken: mockExchangeMessengerLongLivedToken,
   subscribePageToAppWebhook: mockSubscribePageToAppWebhook,
+  // Maps granted scopes to the page fields to subscribe. These tests assert
+  // token/identity handling, not field selection, so a fixed list keeps the
+  // subscribe call well-formed without pinning them to the real scope table.
+  scopesToPageSubscribeFields: vi.fn(() => ["messages"]),
 }))
 
 vi.mock("@chatbotx.io/integration-instagram", () => ({
@@ -69,6 +77,29 @@ vi.mock("@chatbotx.io/integration-instagram-facebook", () => ({
 
 vi.mock("@chatbotx.io/sdk", () => ({
   AuthType: { oauth2: "oauth2" },
+  // integrations/messenger/src/exception.ts subclasses this at module load,
+  // so the mock has to provide a real constructor or importing the messenger
+  // auth API throws before any test body runs.
+  SdkException: class SdkException extends Error {
+    code: string | number
+    httpStatusCode: number
+    subCode?: string | number | null
+    type?: string
+    constructor(
+      message: string,
+      code: string | number = -1,
+      httpStatusCode = 400,
+      subCode: string | number | null = null,
+      type?: string,
+    ) {
+      super(message)
+      this.name = "SdkException"
+      this.code = code
+      this.httpStatusCode = httpStatusCode
+      this.subCode = subCode
+      this.type = type
+    }
+  },
 }))
 
 vi.mock("@/lib/log", () => ({
@@ -197,6 +228,9 @@ describe("reconnectMessengerHandler", () => {
       pageId: "page-1",
       accessToken: "long-page-token",
       version: "v23.0",
+      // Added with lead-ads support: the fields subscribed depend on the
+      // scopes the token was actually granted.
+      subscribedFields: "messages",
     })
     expect(mockUpdateMessengerIntegrationAuth).toHaveBeenCalledWith({
       id: "im-1",

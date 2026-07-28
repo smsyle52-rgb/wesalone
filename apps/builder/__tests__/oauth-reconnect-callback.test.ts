@@ -123,6 +123,29 @@ vi.mock("@chatbotx.io/integration-messenger/apis/page", () => ({
 
 vi.mock("@chatbotx.io/sdk", () => ({
   AuthType: { oauth2: "oauth2", custom: "custom" },
+  // integrations/messenger/src/exception.ts subclasses this at module load,
+  // so the mock has to provide a real constructor or importing the messenger
+  // auth API throws before any test body runs.
+  SdkException: class SdkException extends Error {
+    code: string | number
+    httpStatusCode: number
+    subCode?: string | number | null
+    type?: string
+    constructor(
+      message: string,
+      code: string | number = -1,
+      httpStatusCode = 400,
+      subCode: string | number | null = null,
+      type?: string,
+    ) {
+      super(message)
+      this.name = "SdkException"
+      this.code = code
+      this.httpStatusCode = httpStatusCode
+      this.subCode = subCode
+      this.type = type
+    }
+  },
 }))
 
 vi.mock("@chatbotx.io/utils", async (importOriginal) => {

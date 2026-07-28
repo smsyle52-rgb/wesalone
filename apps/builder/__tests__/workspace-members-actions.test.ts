@@ -62,6 +62,10 @@ vi.mock("@/lib/auth/utils", () => ({
   getCurrentUserAndTargetWorkspace: mockGetCurrentUserAndTargetWorkspace,
 }))
 
+// The member row is removed through workspaceMemberService, not a raw
+// db.delete — see .agents/rules/data-access.md. The assertions below watch the
+// service for the same reason.
+const mockWorkspaceMemberDelete = vi.fn()
 vi.mock("@chatbotx.io/business", () => ({
   workspaceMemberCacheTag: (userId: string) =>
     `users:${userId}:workspace-members`,
@@ -70,6 +74,9 @@ vi.mock("@chatbotx.io/business", () => ({
   },
   workspaceService: {
     findById: mockWorkspaceFindById,
+  },
+  workspaceMemberService: {
+    delete: mockWorkspaceMemberDelete,
   },
 }))
 
@@ -358,7 +365,7 @@ describe("deleteWorkspaceMemberAction", () => {
       ),
     ).rejects.toThrow("You cannot delete the owner of the workspace")
 
-    expect(mockDbDelete).not.toHaveBeenCalled()
+    expect(mockWorkspaceMemberDelete).not.toHaveBeenCalled()
   })
 
   test("rejects non-super-admin members before deleting", async () => {
@@ -372,7 +379,7 @@ describe("deleteWorkspaceMemberAction", () => {
       "You are not authorized to delete this workspace member. You need to be a super admin to do this.",
     )
 
-    expect(mockDbDelete).not.toHaveBeenCalled()
+    expect(mockWorkspaceMemberDelete).not.toHaveBeenCalled()
   })
 
   test("invalidates the removed member's cached workspace list", async () => {
@@ -380,7 +387,7 @@ describe("deleteWorkspaceMemberAction", () => {
       deleteActionCtx(),
     )
 
-    expect(mockDbDelete).toHaveBeenCalled()
+    expect(mockWorkspaceMemberDelete).toHaveBeenCalled()
     expect(mockInvalidateCacheByTags).toHaveBeenCalledWith([
       `users:${MEMBER_USER_ID}:workspace-members`,
     ])
@@ -391,7 +398,7 @@ describe("deleteWorkspaceMemberAction", () => {
       deleteActionCtx(),
     )
 
-    expect(mockDbDelete).toHaveBeenCalledOnce()
+    expect(mockWorkspaceMemberDelete).toHaveBeenCalledOnce()
     expect(mockInvalidateCacheByTags).toHaveBeenCalledWith([
       `users:${MEMBER_USER_ID}:workspace-members`,
     ])

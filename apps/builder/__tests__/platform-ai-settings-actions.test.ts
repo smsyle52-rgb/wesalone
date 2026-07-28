@@ -58,6 +58,33 @@ describe("platform-ai actions — trust boundary (only the real platform admin c
   })
 })
 
+// The region and the per-capability provider matrix became required when
+// configurable capability providers landed. Only the positive case needs them:
+// the rejection cases below must still fail on the model itself, so they
+// deliberately leave these out.
+function requiredSettingsFields() {
+  const capability = {
+    provider: "vertex" as const,
+    model: "gemini-3.1-flash-lite",
+  }
+  return {
+    location: "global",
+    capabilities: {
+      vision: capability,
+      embedding: capability,
+      summarization: capability,
+      extraction: capability,
+      imageGeneration: capability,
+      imageEditing: capability,
+      speechToText: capability,
+      textToSpeech: capability,
+      webSearch: capability,
+      documentParsing: capability,
+      translation: capability,
+    },
+  }
+}
+
 describe("platform-ai update schema — the client can only ever submit a model choice + on/off, never a provider", () => {
   test("has no `provider` field at all — Vertex is fixed, not client-selectable", async () => {
     const { updatePlatformAiSettingsSchema } = await import(
@@ -65,10 +92,15 @@ describe("platform-ai update schema — the client can only ever submit a model 
     )
     expect(updatePlatformAiSettingsSchema.shape).not.toHaveProperty("provider")
     expect(updatePlatformAiSettingsSchema.shape).not.toHaveProperty("projectId")
-    expect(updatePlatformAiSettingsSchema.shape).not.toHaveProperty("location")
     expect(updatePlatformAiSettingsSchema.shape).not.toHaveProperty(
       "embeddingModel",
     )
+    // `location` used to be forbidden here too. The configurable-capability
+    // work made the Vertex region an explicit super-admin setting, so it is
+    // now a legitimate field — this action is super-admin-only (asserted
+    // above). The invariant that still matters is that the top-level chat
+    // provider is not selectable: Vertex is fixed.
+    expect(updatePlatformAiSettingsSchema.shape).toHaveProperty("location")
   })
 
   test("rejects a chatModel that is not in the Vertex allowlist", async () => {
@@ -91,6 +123,7 @@ describe("platform-ai update schema — the client can only ever submit a model 
       chatModel: "gemini-3.1-flash-lite",
       fallbackModel: "",
       enabled: false,
+      ...requiredSettingsFields(),
     })
     expect(result.success).toBe(true)
   })

@@ -32,6 +32,15 @@ const config: ViteUserConfig = defineConfig({
     setupFiles: [setupEnvPath, setupMswPath],
     clearMocks: true,
     restoreMocks: true,
+    // Vitest's 5s default is spent on the transform, not the assertion: the
+    // FIRST `await import()` in a file cold-loads a large module graph, which
+    // on a slower machine alone exceeded it — every later import in the same
+    // file is cached and returns instantly. That made the first test in
+    // several suites fail while the rest passed, which reads like flakiness
+    // rather than the environment being slow. Long enough to absorb a cold
+    // load, still short enough to catch a genuine hang.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],

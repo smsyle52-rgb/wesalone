@@ -10,6 +10,14 @@ const SCRIPT = join(
   "../docker/rootfs/usr/local/bin/docker-entrypoint.sh",
 )
 
+// The script echoes "$DIST_DIR/<worker>/<file>": the base is reproduced exactly
+// as handed in, and only the segments it appends use "/". On Windows `join()`
+// would render those appended segments with "\", so build the expectation the
+// same way the script does instead. Identical to join() on Linux/CI.
+function expectedPath(base: string, ...segments: string[]): string {
+  return [base, ...segments].join("/")
+}
+
 // Mirrors the real dist/ layout: one worker*.mjs per tsdown entry, plus a
 // `foo` worker that exists in no hardcoded list — proving auto-discovery.
 const STANDARD_WORKERS = [
@@ -68,22 +76,22 @@ describe("docker-entrypoint worker discovery", () => {
   test("resolves a standard worker to its dist bundle", () => {
     const { stdout, status } = run("worker", "chat")
     expect(status).toBe(0)
-    expect(stdout.trim()).toBe(join(distDir, "chat", "worker.mjs"))
+    expect(stdout.trim()).toBe(expectedPath(distDir, "chat", "worker.mjs"))
   })
 
   test("aliases sequence variants to their historical CLI names", () => {
     expect(run("worker", "sequence-producer").stdout.trim()).toBe(
-      join(distDir, "sequence-scheduler", "worker-producer.mjs"),
+      expectedPath(distDir, "sequence-scheduler", "worker-producer.mjs"),
     )
     expect(run("worker", "sequence-consumer").stdout.trim()).toBe(
-      join(distDir, "sequence-scheduler", "worker-consumer.mjs"),
+      expectedPath(distDir, "sequence-scheduler", "worker-consumer.mjs"),
     )
   })
 
   test("auto-discovers a new worker with no script edit", () => {
     const { stdout, status } = run("worker", "foo")
     expect(status).toBe(0)
-    expect(stdout.trim()).toBe(join(distDir, "foo", "worker.mjs"))
+    expect(stdout.trim()).toBe(expectedPath(distDir, "foo", "worker.mjs"))
   })
 
   test("rejects a worker that was not built (e.g. removed analytics)", () => {
