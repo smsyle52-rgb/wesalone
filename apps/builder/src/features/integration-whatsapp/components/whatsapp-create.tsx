@@ -1,6 +1,7 @@
 "use client"
 
 import type { WhatsappCredentialPublic } from "@chatbotx.io/database/partials"
+import type { IntegrationWhatsappRegistrationError } from "@chatbotx.io/database/schema"
 import type {
   WhatsappPhoneNumber,
   WhatsappPhoneNumberResponse,
@@ -38,7 +39,14 @@ import {
   WA_OAUTH_RESULT,
   type WhatsappOAuthRelayResult,
 } from "../libs/embedded-signup"
-import { connectWhatsappSchema, type ManualOnboardingResult } from "../schemas"
+import {
+  CONNECT_WHATSAPP_RESULT_TYPES,
+  type ConnectWhatsappSchema,
+  connectWhatsappSchema,
+  type ManualOnboardingResult,
+  type WhatsappPhoneNumberOption,
+} from "../schemas"
+import { WhatsappPhoneVerificationPanel } from "../verification/whatsapp-phone-verification-panel"
 import { WhatsappOnboardingResult } from "./whatsapp-onboarding-result"
 
 // Constants
@@ -113,6 +121,17 @@ export default function WhatsappCreate({
   const router = useRouter()
   const [manualResult, setManualResult] =
     useState<ManualOnboardingResult | null>(null)
+  const [phoneSelection, setPhoneSelection] = useState<{
+    phoneNumbers: WhatsappPhoneNumberOption[]
+  } | null>(null)
+  const [phoneVerification, setPhoneVerification] = useState<{
+    integrationId: string
+    workspaceId: string
+    redirectUrl: string
+    displayPhoneNumber: string
+    verifiedName: string
+    registrationError: IntegrationWhatsappRegistrationError | null
+  } | null>(null)
   const [showCoexist, setShowCoexist] = useState<{
     integrationId: string
     workspaceId: string
@@ -131,8 +150,50 @@ export default function WhatsappCreate({
           }
         },
         onSuccess: ({ data }) => {
+          if (
+            data.type === CONNECT_WHATSAPP_RESULT_TYPES.PHONE_NUMBER_SELECTION
+          ) {
+            form.setValue(FORM_FIELDS.SIGNUP_SESSION_ID, data.signupSessionId)
+            form.setValue(FORM_FIELDS.PHONE_NUMBER_ID, "")
+            form.setValue(FORM_FIELDS.CODE, "")
+            setPhoneSelection({ phoneNumbers: data.phoneNumbers })
+            return
+          }
+          if (
+            data.type ===
+            CONNECT_WHATSAPP_RESULT_TYPES.NO_PHONE_NUMBER_CANDIDATES
+          ) {
+            toast.error(t("fields.phoneNumberId.noPhoneNumbersFound"))
+            form.setValue(FORM_FIELDS.CODE, "")
+            return
+          }
+          if (
+            data.type ===
+            CONNECT_WHATSAPP_RESULT_TYPES.PHONE_NUMBERS_ALREADY_CONNECTED
+          ) {
+            toast.error(t("channels.duplicated.whatsapp"))
+            form.setValue(FORM_FIELDS.CODE, "")
+            return
+          }
+          if (
+            data.type ===
+            CONNECT_WHATSAPP_RESULT_TYPES.PHONE_NUMBER_VERIFICATION_REQUIRED
+          ) {
+            setPhoneSelection(null)
+            setPhoneVerification({
+              integrationId: data.integrationId,
+              workspaceId: data.workspaceId,
+              redirectUrl: data.redirectUrl,
+              displayPhoneNumber: data.displayPhoneNumber,
+              verifiedName: data.verifiedName,
+              registrationError: data.registrationError,
+            })
+            form.setValue(FORM_FIELDS.CODE, "")
+            return
+          }
+
           toast.success(t("messages.connectSuccess", { feature: "Whatsapp" }))
-          if (data.type === "manualResult") {
+          if (data.type === CONNECT_WHATSAPP_RESULT_TYPES.MANUAL_RESULT) {
             setManualResult(data.data)
             return
           }
@@ -163,6 +224,7 @@ export default function WhatsappCreate({
           phoneNumberId: "",
           accessToken: "",
           code: "",
+          signupSessionId: "",
         },
       },
     },
@@ -203,6 +265,29 @@ export default function WhatsappCreate({
     }
   }, [watchTransferPhoneNumber, setValue, updateVisibility])
 
+  const renderConnectSection = () => {
+    if (phoneSelection) {
+      return (
+        <PhoneNumberSelectionSection
+          phoneNumbers={phoneSelection.phoneNumbers}
+        />
+      )
+    }
+
+    if (watchManualConnect) {
+      return <ManualConnectSection watchManualConnect={watchManualConnect} />
+    }
+
+    return (
+      <SdkConnectSection
+        settings={settings}
+        submitForm={handleSubmitWithAction}
+        visibility={visibility}
+        watchManualConnect={watchManualConnect}
+      />
+    )
+  }
+
   if (showCoexist) {
     return (
       <CoexistPopup
@@ -214,6 +299,33 @@ export default function WhatsappCreate({
     )
   }
 
+  const renderCardContent = () => {
+    if (phoneVerification) {
+      return (
+        <WhatsappPhoneVerificationPanel
+          displayPhoneNumber={phoneVerification.displayPhoneNumber}
+          integrationId={phoneVerification.integrationId}
+          onVerified={() => router.push(phoneVerification.redirectUrl)}
+          registrationError={phoneVerification.registrationError}
+          verifiedName={phoneVerification.verifiedName}
+          workspaceId={phoneVerification.workspaceId}
+        />
+      )
+    }
+
+    if (manualResult) {
+      return <WhatsappOnboardingResult result={manualResult} />
+    }
+
+    return (
+      <Form {...form}>
+        <form className="space-y-4" onSubmit={handleSubmitWithAction}>
+          {renderConnectSection()}
+        </form>
+      </Form>
+    )
+  }
+
   return (
     <Card className={`${CARD_MARGIN} ${MAX_CARD_WIDTH}`}>
       <CardHeader>
@@ -222,26 +334,7 @@ export default function WhatsappCreate({
         </CardTitle>
         <CardDescription />
       </CardHeader>
-      <CardContent>
-        {manualResult ? (
-          <WhatsappOnboardingResult result={manualResult} />
-        ) : (
-          <Form {...form}>
-            <form className="space-y-4" onSubmit={handleSubmitWithAction}>
-              {watchManualConnect ? (
-                <ManualConnectSection watchManualConnect={watchManualConnect} />
-              ) : (
-                <SdkConnectSection
-                  settings={settings}
-                  submitForm={handleSubmitWithAction}
-                  visibility={visibility}
-                  watchManualConnect={watchManualConnect}
-                />
-              )}
-            </form>
-          </Form>
-        )}
-      </CardContent>
+      <CardContent>{renderCardContent()}</CardContent>
     </Card>
   )
 }
@@ -423,6 +516,47 @@ function SdkConnectSection({
             </Button>
           </div>
         )}
+      </div>
+    </>
+  )
+}
+
+type PhoneNumberSelectionSectionProps = {
+  phoneNumbers: WhatsappPhoneNumberOption[]
+}
+
+function PhoneNumberSelectionSection({
+  phoneNumbers,
+}: PhoneNumberSelectionSectionProps) {
+  const t = useTranslations()
+  const { formState } = useFormContext<ConnectWhatsappSchema>()
+
+  return (
+    <>
+      <RadioGroupField
+        label={t("fields.phoneNumberId.label")}
+        name={FORM_FIELDS.PHONE_NUMBER_ID}
+        options={phoneNumbers.map((phoneNumber) => ({
+          value: phoneNumber.id,
+          label:
+            phoneNumber.displayPhoneNumber &&
+            phoneNumber.displayPhoneNumber !== phoneNumber.label
+              ? `${phoneNumber.label} (${phoneNumber.displayPhoneNumber})`
+              : phoneNumber.label,
+        }))}
+        required
+      />
+
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          disabled={!formState.isValid || formState.isSubmitting}
+          size="sm"
+          type="submit"
+          variant="secondary"
+        >
+          {formState.isSubmitting && <Loader2Icon className="animate-spin" />}
+          {t("actions.connect")}
+        </Button>
       </div>
     </>
   )

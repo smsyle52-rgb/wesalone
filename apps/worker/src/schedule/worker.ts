@@ -25,6 +25,7 @@ import { prepareBroadcast } from "./handlers/prepare-broadcast"
 import { processBillingLifecycle } from "./handlers/process-billing-lifecycle"
 import { processBroadcastContacts } from "./handlers/process-broadcast-contacts"
 import { purgeCoexistStaging } from "./handlers/purge-coexist-staging"
+import { purgeWhatsappSignupSessions } from "./handlers/purge-whatsapp-signup-sessions"
 import { purgeWorkspaces } from "./handlers/purge-workspaces"
 import { reconcileBroadcasts } from "./handlers/reconcile-broadcasts"
 import { reconcileTenants } from "./handlers/reconcile-tenants"
@@ -117,6 +118,10 @@ async function startScheduleWorker() {
 
         case ScheduleJobData.purgeCoexistStaging:
           await purgeCoexistStaging()
+          return
+
+        case ScheduleJobData.purgeWhatsappSignupSessions:
+          await purgeWhatsappSignupSessions()
           return
 
         case ScheduleJobData.purgeWorkspaces:
