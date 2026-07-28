@@ -39,6 +39,7 @@ import {
   type CoexistActivityUpdate,
   type ContactImportLink,
   createHistoricalIdFactory,
+  isNewerMessageId,
 } from "./bulk-historical-import"
 import {
   fetchConvMessages,
@@ -479,6 +480,7 @@ async function runMessagesPhase(ctx: SyncContext): Promise<PhaseResult> {
             let convNewest: Date | null = null
             let convOldest: Date | null = null
             let convNewestIncoming: Date | null = null
+            let convNewestMessageId: string | null = null
 
             try {
               await fetchConvMessages({
@@ -528,6 +530,17 @@ async function runMessagesPhase(ctx: SyncContext): Promise<PhaseResult> {
                   ) {
                     convNewestIncoming = result.newestIncomingMessageAt
                   }
+                  // Highest id across the conversation's pages — pages arrive
+                  // newest-first, so this must not simply take the last one.
+                  if (
+                    result.newestMessageId &&
+                    isNewerMessageId(
+                      result.newestMessageId,
+                      convNewestMessageId,
+                    )
+                  ) {
+                    convNewestMessageId = result.newestMessageId
+                  }
                 },
               })
 
@@ -544,6 +557,7 @@ async function runMessagesPhase(ctx: SyncContext): Promise<PhaseResult> {
                   newestMessageAt: convNewest,
                   oldestMessageAt,
                   newestIncomingMessageAt: convNewestIncoming,
+                  newestMessageId: convNewestMessageId,
                 })
               }
 

@@ -171,6 +171,11 @@ export type BulkImportMessagesResult = {
   /** Newest API-provided incoming message createdAt in this call (null when
    *  none). Used only for ContactInbox.lastIncomingMessageAt. */
   newestIncomingMessageAt: Date | null
+  /** Id of the newest API-timestamped message this call actually INSERTED
+   *  (null when it inserted none). Ordering by id is equivalent to ordering by
+   *  createdAt for these rows — see the ID-layout note at the top of this file
+   *  — so a batching caller can use it as the AI-context marker. */
+  newestMessageId: string | null
 }
 
 /** One contact's activity-timestamp bump, collected by a batching caller. */
@@ -182,6 +187,10 @@ export type CoexistActivityUpdate = {
   newestMessageAt: Date
   oldestMessageAt: Date
   newestIncomingMessageAt: Date | null
+  /** Newest imported message id, or null when this bulk inserted no
+   *  API-timestamped row for the conversation. Drives
+   *  Conversation.aiContextLastMessageId. */
+  newestMessageId: string | null
 }
 
 /**
@@ -194,6 +203,23 @@ export type CoexistActivityUpdate = {
  *   - ContactInbox.lastIncomingMessageAt: advance from the newest incoming
  *     message only; outgoing history must not move this field.
  *   - Conversation.lastActivityAt: set from the newest message.
+ *   - Conversation.aiContextLastMessageId: set from the newest imported message
+ *     id, so the AI agent treats imported history as "before my time".
+ *
+ * Without that marker the agent reads up to MAX_CONVERSATION_HISTORY rows from
+ * the last AI_MESSAGE_HISTORY_LOOKBACK_MS (365d) — which covers the whole 180d
+ * window Meta replays — and, because the role mapper folds every non-`contact`
+ * senderType into `assistant`, it reads the merchant's own past human replies
+ * as its own prior turns. It then answers from stale prices and promises it
+ * never made. Stamping the marker is exactly what the aiDeleteMessageHistory
+ * flow step does; history import is simply the other place that needs it.
+ *
+ * The marker only ever moves FORWARD. Meta replays history newest-first
+ * (phase 0 = day 0–1, phase 1 = day 1–90, phase 2 = day 90–180), so a later
+ * batch carries OLDER messages; letting it win would re-expose the history the
+ * first batch just hid. Live and imported ids share one epoch and shift, so the
+ * numeric comparison is a valid time comparison against a marker set by any
+ * other path.
  *
  * Each UPDATE joins a VALUES table of the deduped rows. This keeps the write
  * batched while avoiding pg array-parameter casting differences. Failures must
@@ -220,7 +246,10 @@ export const applyCoexistActivityUpdates = async (
       workspaceId: string
     }
   >()
-  const newestByConversation = new Map<string, Date>()
+  const newestByConversation = new Map<
+    string,
+    { newestMessageAt: Date; newestMessageId: string | null }
+  >()
   for (const u of updates) {
     const ci = newestByContactInbox.get(u.contactInboxId)
     if (ci) {
@@ -247,8 +276,24 @@ export const applyCoexistActivityUpdates = async (
       })
     }
     const cv = newestByConversation.get(u.conversationId)
-    if (!cv || cv < u.newestMessageAt) {
-      newestByConversation.set(u.conversationId, u.newestMessageAt)
+    if (cv) {
+      if (cv.newestMessageAt < u.newestMessageAt) {
+        cv.newestMessageAt = u.newestMessageAt
+      }
+      // Tracked independently of the timestamp: a bulk can carry the newest
+      // message time while having inserted nothing (all duplicates), so the
+      // marker must come from whichever entry actually has the highest id.
+      if (
+        u.newestMessageId &&
+        isNewerMessageId(u.newestMessageId, cv.newestMessageId)
+      ) {
+        cv.newestMessageId = u.newestMessageId
+      }
+    } else {
+      newestByConversation.set(u.conversationId, {
+        newestMessageAt: u.newestMessageAt,
+        newestMessageId: u.newestMessageId,
+      })
     }
   }
 
@@ -267,7 +312,8 @@ export const applyCoexistActivityUpdates = async (
 
   if (newestByConversation.size > 0) {
     const conversationRows = [...newestByConversation.entries()].map(
-      ([id, ts]) => sql`(${id}::int8, ${ts}::timestamptz)`,
+      ([id, u]) =>
+        sql`(${id}::int8, ${u.newestMessageAt}::timestamptz, ${u.newestMessageId}::int8)`,
     )
 
     await db.execute(sql`
@@ -275,8 +321,17 @@ export const applyCoexistActivityUpdates = async (
       SET "lastActivityAt" = CASE
         WHEN t."lastActivityAt" IS NULL OR t."lastActivityAt" < u.ts THEN u.ts
         ELSE t."lastActivityAt"
+      END,
+      "aiContextLastMessageId" = CASE
+        WHEN u.marker IS NOT NULL
+         AND (
+           t."aiContextLastMessageId" IS NULL
+           OR t."aiContextLastMessageId" < u.marker
+         )
+        THEN u.marker
+        ELSE t."aiContextLastMessageId"
       END
-      FROM (VALUES ${sql.join(conversationRows, sql`, `)}) AS u(id, ts)
+      FROM (VALUES ${sql.join(conversationRows, sql`, `)}) AS u(id, ts, marker)
       WHERE t."id" = u.id
     `)
   }
@@ -284,6 +339,36 @@ export const applyCoexistActivityUpdates = async (
 
 const isValidDate = (date: Date | undefined): date is Date =>
   date instanceof Date && Number.isFinite(date.getTime())
+
+/**
+ * Is `candidate` a newer message id than `current`?
+ *
+ * Ids are numeric snowflakes of varying length, so a lexicographic compare
+ * would order them wrongly ("900" > "1000"); compare as BigInt instead. A
+ * non-numeric id is only reachable from a stubbed repository, and `BigInt()`
+ * THROWS on one — a marker comparison must never take down a history import,
+ * so an unparseable candidate simply loses.
+ */
+export const isNewerMessageId = (
+  candidate: string,
+  current: string | null,
+): boolean => {
+  let candidateValue: bigint
+  try {
+    candidateValue = BigInt(candidate)
+  } catch {
+    return false
+  }
+  if (current === null) {
+    return true
+  }
+  try {
+    return candidateValue > BigInt(current)
+  } catch {
+    // Unparseable incumbent: a real id should replace it.
+    return true
+  }
+}
 
 /**
  * Legacy combined contact+messages entry used by WhatsApp coexist flush. New
@@ -730,6 +815,7 @@ export const bulkImportMessages = async (props: {
     newestMessageAt: null,
     oldestMessageAt: null,
     newestIncomingMessageAt: null,
+    newestMessageId: null,
   }
 
   const hasEnrichment =
@@ -819,10 +905,29 @@ export const bulkImportMessages = async (props: {
   const importedMessages = insertedRows.length
   const skippedMessages = messages.length - importedMessages
 
+  // AI-context marker candidate, restricted to rows that (a) the DB actually
+  // returned — so the PK-collision retry above, which re-mints ids, cannot
+  // leave a stale value here — and (b) carried a real API timestamp. Rows that
+  // fell back to wall-clock time are excluded for the same reason they never
+  // drive the activity columns: their id encodes "now", and stamping that as
+  // the marker would hide the entire conversation from the agent. Rows skipped
+  // as duplicates need no marker: the run that first inserted them set it.
+  const apiTimedSourceIds = new Set(
+    messagesWithApiTime.map((msg) => msg.sourceId),
+  )
+  let newestMessageId: string | null = null
+
   const insertedMessageBySourceId = new Map<string, string>()
   for (const row of insertedRows) {
-    if (row.sourceId) {
-      insertedMessageBySourceId.set(row.sourceId, row.id)
+    if (!row.sourceId) {
+      continue
+    }
+    insertedMessageBySourceId.set(row.sourceId, row.id)
+    if (
+      apiTimedSourceIds.has(row.sourceId) &&
+      isNewerMessageId(row.id, newestMessageId)
+    ) {
+      newestMessageId = row.id
     }
   }
 
@@ -918,6 +1023,7 @@ export const bulkImportMessages = async (props: {
     newestMessageAt,
     oldestMessageAt,
     newestIncomingMessageAt,
+    newestMessageId,
   }
 }
 
@@ -998,6 +1104,7 @@ export const bulkImportHistorical = async (props: {
               newestMessageAt: res.newestMessageAt,
               oldestMessageAt,
               newestIncomingMessageAt: res.newestIncomingMessageAt,
+              newestMessageId: res.newestMessageId,
             })
           }
         } catch (error) {

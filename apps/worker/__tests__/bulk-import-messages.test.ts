@@ -547,6 +547,7 @@ describe("applyCoexistActivityUpdates", () => {
         newestMessageAt: newerMessage,
         oldestMessageAt: olderMessage,
         newestIncomingMessageAt: olderIncoming,
+        newestMessageId: "500",
       },
       {
         contactInboxId: "ci-1",
@@ -556,6 +557,7 @@ describe("applyCoexistActivityUpdates", () => {
         newestMessageAt: olderMessage,
         oldestMessageAt: oldestMessage,
         newestIncomingMessageAt: newerIncoming,
+        newestMessageId: "400",
       },
     ])
 
@@ -585,7 +587,155 @@ describe("applyCoexistActivityUpdates", () => {
     expect(conversationRows?.__join?.[0]?.values).toEqual([
       "conv-1",
       newerMessage,
+      "500",
     ])
+  })
+
+  test("stamps the newest imported message id as the AI-context marker", async () => {
+    const at = new Date("2026-06-20T10:00:00.000Z")
+    await applyCoexistActivityUpdates([
+      {
+        contactInboxId: "ci-1",
+        contactId: "contact-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        newestMessageAt: at,
+        oldestMessageAt: at,
+        newestIncomingMessageAt: null,
+        newestMessageId: "900",
+      },
+    ])
+
+    const conversationSql = mockDbExecute.mock.calls[1]?.[0] as
+      | { strings?: TemplateStringsArray; values?: unknown[] }
+      | undefined
+
+    // Without this column the agent replays imported history as its own prior
+    // turns — the whole point of the marker.
+    expect(conversationSql?.strings?.join("")).toContain(
+      '"aiContextLastMessageId"',
+    )
+    const conversationRows = conversationSql?.values?.[0] as
+      | { __join?: Array<{ values?: unknown[] }> }
+      | undefined
+    expect(conversationRows?.__join?.[0]?.values).toEqual(["conv-1", at, "900"])
+  })
+
+  test("never moves the AI-context marker backward when a later batch carries older history", async () => {
+    // Meta replays newest-first (day 0-1, then 1-90, then 90-180), so the
+    // second batch here is the OLDER one. If it won, the history the first
+    // batch just hid would be re-exposed to the agent.
+    const newer = new Date("2026-06-20T10:00:00.000Z")
+    const older = new Date("2026-04-01T10:00:00.000Z")
+
+    await applyCoexistActivityUpdates([
+      {
+        contactInboxId: "ci-1",
+        contactId: "contact-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        newestMessageAt: newer,
+        oldestMessageAt: newer,
+        newestIncomingMessageAt: null,
+        newestMessageId: "900",
+      },
+      {
+        contactInboxId: "ci-1",
+        contactId: "contact-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        newestMessageAt: older,
+        oldestMessageAt: older,
+        newestIncomingMessageAt: null,
+        newestMessageId: "100",
+      },
+    ])
+
+    const conversationSql = mockDbExecute.mock.calls[1]?.[0] as
+      | { strings?: TemplateStringsArray; values?: unknown[] }
+      | undefined
+    const conversationRows = conversationSql?.values?.[0] as
+      | { __join?: Array<{ values?: unknown[] }> }
+      | undefined
+    expect(conversationRows?.__join?.[0]?.values).toEqual([
+      "conv-1",
+      newer,
+      "900",
+    ])
+
+    // The row already in the DB must win too when it is ahead of this batch.
+    expect(conversationSql?.strings?.join("")).toContain(
+      't."aiContextLastMessageId" < u.marker',
+    )
+  })
+
+  test("takes the marker from whichever entry inserted rows, even if another carries the newer timestamp", async () => {
+    // A bulk whose rows were all duplicates reports newestMessageAt but no id.
+    // The marker must still come from the entry that actually inserted.
+    const newer = new Date("2026-06-20T10:00:00.000Z")
+    const older = new Date("2026-06-19T10:00:00.000Z")
+
+    await applyCoexistActivityUpdates([
+      {
+        contactInboxId: "ci-1",
+        contactId: "contact-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        newestMessageAt: newer,
+        oldestMessageAt: newer,
+        newestIncomingMessageAt: null,
+        newestMessageId: null,
+      },
+      {
+        contactInboxId: "ci-1",
+        contactId: "contact-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        newestMessageAt: older,
+        oldestMessageAt: older,
+        newestIncomingMessageAt: null,
+        newestMessageId: "700",
+      },
+    ])
+
+    const conversationSql = mockDbExecute.mock.calls[1]?.[0] as
+      | { values?: unknown[] }
+      | undefined
+    const conversationRows = conversationSql?.values?.[0] as
+      | { __join?: Array<{ values?: unknown[] }> }
+      | undefined
+    expect(conversationRows?.__join?.[0]?.values).toEqual([
+      "conv-1",
+      newer,
+      "700",
+    ])
+  })
+
+  test("leaves the AI-context marker untouched when the bulk inserted nothing", async () => {
+    const at = new Date("2026-06-20T10:00:00.000Z")
+    await applyCoexistActivityUpdates([
+      {
+        contactInboxId: "ci-1",
+        contactId: "contact-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        newestMessageAt: at,
+        oldestMessageAt: at,
+        newestIncomingMessageAt: null,
+        newestMessageId: null,
+      },
+    ])
+
+    const conversationSql = mockDbExecute.mock.calls[1]?.[0] as
+      | { strings?: TemplateStringsArray; values?: unknown[] }
+      | undefined
+    const conversationRows = conversationSql?.values?.[0] as
+      | { __join?: Array<{ values?: unknown[] }> }
+      | undefined
+    expect(conversationRows?.__join?.[0]?.values).toEqual(["conv-1", at, null])
+
+    // A null marker must not blank an existing one.
+    expect(conversationSql?.strings?.join("")).toContain("u.marker IS NOT NULL")
   })
 
   test("is a no-op (no query) when there are no updates", async () => {
