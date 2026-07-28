@@ -9,7 +9,10 @@ substitutions:
   # read-only integrity audit are explicitly approved and completed. Release
   # with `_AI_POINTS_ENFORCEMENT_MODE=shadow` first, then `enforce` only after
   # shadow totals have been reconciled against provider usage.
-  _AI_POINTS_ENFORCEMENT_MODE: off
+  # Quoted: bare `off` is a YAML boolean, and Cloud Build rejects a non-string
+  # substitution value ("cannot unmarshal bool into Go value of type string"),
+  # which fails the whole config before any step runs.
+  _AI_POINTS_ENFORCEMENT_MODE: "off"
 
 steps:
   - id: build-builder
