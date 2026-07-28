@@ -6,7 +6,12 @@ import {
   db,
   eq,
   gt,
+  gte,
+  isNotNull,
+  isNull,
+  lt,
   lte,
+  or,
   sql,
   sum,
 } from "@chatbotx.io/database/client"
@@ -531,6 +536,7 @@ class UserQuotaService extends BaseService {
       periodStart: null,
       periodEnd: null,
       channelsTornDownAt: null,
+      macBlockedNotifiedAt: null,
       syncedAt: now,
     }
 
@@ -663,6 +669,61 @@ class UserQuotaService extends BaseService {
       nextCursor:
         rows.length === params.limit ? rows.at(-1)?.userId : undefined,
     }
+  }
+
+  /**
+   * Owners whose monthly-active-contact allowance is spent and who have not
+   * been told about it yet in the current billing period.
+   *
+   * "Not told yet" is `macBlockedNotifiedAt IS NULL OR < periodStart` rather
+   * than a boolean flag, so a period rollover re-arms the notice by itself and
+   * no reset path has to exist — the private quota-worker owns period resets
+   * and cannot be edited from this repo.
+   */
+  async listOwnersNeedingMacBlockedNotice(
+    limit: number,
+  ): Promise<Array<{ userId: string; macLimit: number; planName: string | null }>> {
+    const rows = await db
+      .select({
+        userId: userQuotaModel.userId,
+        macLimit: userQuotaModel.macLimit,
+        planName: userQuotaModel.planName,
+      })
+      .from(userQuotaModel)
+      .where(
+        and(
+          isNotNull(userQuotaModel.macLimit),
+          gte(userQuotaModel.macUsed, userQuotaModel.macLimit),
+          or(
+            isNull(userQuotaModel.macBlockedNotifiedAt),
+            and(
+              isNotNull(userQuotaModel.periodStart),
+              lt(
+                userQuotaModel.macBlockedNotifiedAt,
+                userQuotaModel.periodStart,
+              ),
+            ),
+          ),
+        ),
+      )
+      .limit(limit)
+
+    return rows.flatMap((row) =>
+      row.macLimit === null
+        ? []
+        : [{ userId: row.userId, macLimit: row.macLimit, planName: row.planName }],
+    )
+  }
+
+  /**
+   * Stamped only after the email is actually accepted by the SMTP server, so a
+   * send failure leaves the notice due and the next sweep retries it.
+   */
+  async markMacBlockedNotified(userId: string): Promise<void> {
+    await db
+      .update(userQuotaModel)
+      .set({ macBlockedNotifiedAt: new Date() })
+      .where(eq(userQuotaModel.userId, userId))
   }
 
   async markChannelsTornDown(userId: string): Promise<void> {

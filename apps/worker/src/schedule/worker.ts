@@ -20,6 +20,7 @@ import { enqueueBroadcast } from "./handlers/enqueue-broadcast"
 import { expireStalePendingOrders } from "./handlers/expire-stale-pending-orders"
 import { finalizeBroadcasts } from "./handlers/finalize-broadcasts"
 import { maintainMacPartitions } from "./handlers/maintain-mac-partitions"
+import { notifyMacLimitReached } from "./handlers/notify-mac-limit-reached"
 import { prepareBroadcast } from "./handlers/prepare-broadcast"
 import { processBillingLifecycle } from "./handlers/process-billing-lifecycle"
 import { processBroadcastContacts } from "./handlers/process-broadcast-contacts"
@@ -140,6 +141,10 @@ async function startScheduleWorker() {
 
         case ScheduleJobData.processBillingLifecycle:
           await processBillingLifecycle()
+          return
+
+        case ScheduleJobData.notifyMacLimitReached:
+          await notifyMacLimitReached()
           return
 
         default:

@@ -17,6 +17,10 @@ import {
   buildSignUpVerificationMjml,
   type SignUpVerificationProps,
 } from "./emails/sign-up-verification"
+import {
+  buildUsageLimitReachedMjml,
+  type UsageLimitReachedProps,
+} from "./emails/usage-limit-reached"
 import { keys } from "./keys"
 import { createSmtpTransporter, type SmtpTransportOptions } from "./transport"
 
@@ -213,5 +217,22 @@ export const sendAccountCredentials = async (
       from: formatFrom(transport),
       transport,
     },
+  )
+}
+
+/**
+ * Tells a merchant their agent stopped replying because the plan's
+ * monthly-active-contact allowance ran out. Platform mail, so it uses the
+ * platform transport (SMTP_SERVER/SMTP_FROM) rather than the merchant's own
+ * SMTP integration.
+ */
+export const sendUsageLimitReached = async (
+  email: string,
+  props: UsageLimitReachedProps,
+) => {
+  await sendMail(
+    email,
+    props.subject,
+    await compileMjml(buildUsageLimitReachedMjml(props)),
   )
 }

@@ -249,4 +249,16 @@ export const registerSchedules = async () => {
       },
     },
   )
+
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.notifyMacLimitReached,
+    { pattern: "*/10 * * * *" },
+    {
+      name: ScheduleJobData.notifyMacLimitReached,
+      data: {
+        type: ScheduleJobData.notifyMacLimitReached,
+        data: {},
+      },
+    },
+  )
 }

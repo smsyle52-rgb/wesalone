@@ -54,6 +54,10 @@ export const userQuotaModel = pgTable(
     periodStart: timestamp(timestampConfig),
     periodEnd: timestamp(timestampConfig),
     channelsTornDownAt: timestamp(timestampConfig),
+    // When the "monthly active contacts used up, workspace frozen" email was
+    // last sent. Compared against periodStart, so a new billing period re-arms
+    // the notice without anything having to clear this column.
+    macBlockedNotifiedAt: timestamp(timestampConfig),
     syncedAt: timestamp(timestampConfig).notNull().defaultNow(),
   },
   (table) => [
@@ -61,5 +65,8 @@ export const userQuotaModel = pgTable(
     index("UserQuota_due_expired_trial_idx")
       .on(table.userId)
       .where(sql`"channelsTornDownAt" IS NULL AND "planStatus" = 'trial'`),
+    index("UserQuota_mac_blocked_notify_idx")
+      .on(table.macBlockedNotifiedAt)
+      .where(sql`"macLimit" IS NOT NULL`),
   ],
 )

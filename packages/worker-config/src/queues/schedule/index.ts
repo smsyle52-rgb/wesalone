@@ -29,6 +29,7 @@ export const ScheduleJobData = {
   teardownExpiredTrial: "teardownExpiredTrial",
   expireStalePendingOrders: "expireStalePendingOrders",
   processBillingLifecycle: "processBillingLifecycle",
+  notifyMacLimitReached: "notifyMacLimitReached",
 } as const
 
 export const broadcastSendJobId = (broadcastId: string) =>
@@ -153,6 +154,11 @@ export type ScheduleJobProcessBillingLifecycle = {
   data: Record<string, never>
 }
 
+export type ScheduleJobNotifyMacLimitReached = {
+  type: typeof ScheduleJobData.notifyMacLimitReached
+  data: Record<string, never>
+}
+
 export type ScheduleJobData =
   | ScheduleJobBroadcast
   | ScheduleJobEnqueueBroadcast
@@ -176,6 +182,7 @@ export type ScheduleJobData =
   | ScheduleJobTeardownExpiredTrial
   | ScheduleJobExpireStalePendingOrders
   | ScheduleJobProcessBillingLifecycle
+  | ScheduleJobNotifyMacLimitReached
 
 export const scheduleQueue =
   process.env.NEXT_PHASE === "phase-production-build"

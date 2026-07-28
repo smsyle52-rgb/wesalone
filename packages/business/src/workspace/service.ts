@@ -314,6 +314,40 @@ class WorkspaceService extends BaseService {
    * them. A sub-account inherits its own tenant; a reseller (a root user who owns
    * a tenant) gets that tenant; a plain platform user gets the root tenant.
    */
+  /**
+   * The address to reach an owner on, plus a workspace name to identify which
+   * store the message is about. Returns null when the user is gone or has no
+   * workspace left, so callers can skip rather than guess.
+   */
+  async findNotifiableOwner(ownerId: string): Promise<{
+    email: string
+    name: string | null
+    workspaceName: string
+  } | null> {
+    const user = await db.query.userModel.findFirst({
+      where: { id: ownerId },
+      columns: { email: true, name: true },
+    })
+    if (!user?.email) {
+      return null
+    }
+
+    const workspace = await db.query.workspaceModel.findFirst({
+      where: { ownerId },
+      columns: { name: true },
+      orderBy: { createdAt: "asc" },
+    })
+    if (!workspace) {
+      return null
+    }
+
+    return {
+      email: user.email,
+      name: user.name,
+      workspaceName: workspace.name ?? "",
+    }
+  }
+
   async resolveTenantForOwner(creatorId: string): Promise<string> {
     const creator = await db.query.userModel.findFirst({
       where: { id: creatorId },
