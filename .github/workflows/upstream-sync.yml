@@ -106,6 +106,7 @@ jobs:
         if: steps.check.outputs.count != '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           set +e
           branch="upstream-sync/$(date -u +%Y-%m-%d-%H%M%S)"
