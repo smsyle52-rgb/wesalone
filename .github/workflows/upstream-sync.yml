@@ -28,6 +28,11 @@ on:
   schedule:
     - cron: "*/10 * * * *" # every 10 minutes — GitHub's practical floor for "close to real-time" without a webhook
   workflow_dispatch: {}
+  push:
+    branches:
+      - release/wesal-one-next
+    paths:
+      - ".github/workflows/upstream-sync.yml"
 
 concurrency:
   group: upstream-sync
@@ -40,6 +45,16 @@ permissions:
 env:
   UPSTREAM_URL: https://github.com/ChatbotXIO/ChatbotX.git
   BASE_BRANCH: release/wesal-one-next
+  # These six ChatbotX commits were already integrated into Wesal One with
+  # rewritten SHAs, so Git cannot recognize them as ancestors. Skip only their
+  # upstream identities; their patches are already present on BASE_BRANCH.
+  ALREADY_INTEGRATED_UPSTREAM_SHAS: |
+    56bd7f6dd739e046b731db9cba617bd2dbf488d2
+    be79b4773ae285b3f302c469ebcae8bb2467a2ce
+    a8fc33d713affff59d3ad5b804f25921573e56fa
+    f1ef58c22e17db452c1992f742cefd4322e2959b
+    0df65b6bd5fa3dc0d033e89cd65727cc3dab8f4c
+    c73ef2a318c11af6965d0a354b6ddd40d4907c97
   KNOWN_CONFLICT_FILES: |
     packages/database/drizzle/20260517074023_migrate_analytics_to_timescaledb_table/migration.sql
     packages/database/drizzle/20260622040000_align_message_attachment_to_shard_schema/migration.sql
@@ -67,9 +82,10 @@ jobs:
       - name: Check for new commits
         id: check
         run: |
-          count=$(git rev-list --count HEAD..upstream/main)
+          printf '%s\n' "$ALREADY_INTEGRATED_UPSTREAM_SHAS" | sed '/^$/d' | sort -u > /tmp/already-integrated-upstream-shas
+          count=$(git rev-list HEAD..upstream/main | awk 'NR==FNR { skip[$1]=1; next } !($1 in skip) { n++ } END { print n+0 }' /tmp/already-integrated-upstream-shas -)
           echo "count=$count" >> "$GITHUB_OUTPUT"
-          echo "Found $count new upstream commit(s)."
+          echo "Found $count genuinely new upstream commit(s)."
 
       - uses: pnpm/action-setup@v4
         if: steps.check.outputs.count != '0'
@@ -95,6 +111,10 @@ jobs:
           unexpected=""
 
           for sha in $(git rev-list --reverse "$start_point"..upstream/main); do
+            if grep -qxF "$sha" /tmp/already-integrated-upstream-shas; then
+              echo "Skipping already-integrated upstream commit ${sha:0:7}."
+              continue
+            fi
             subject=$(git log -1 --format=%s "$sha")
 
             git merge "$sha" --no-edit
