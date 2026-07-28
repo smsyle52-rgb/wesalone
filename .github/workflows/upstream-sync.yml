@@ -2,7 +2,7 @@ name: Upstream Sync (ChatbotX)
 
 # Polls ChatbotXIO/ChatbotX main every 10 minutes (schedule) or on-demand
 # (workflow_dispatch) and processes any new commits ONE AT A TIME, in
-# commit order: merge -> typecheck -> push straight to release/wesal-one-next,
+# commit order: cherry-pick -> typecheck -> push straight to release/wesal-one-next,
 # which auto-deploys to production at 100% traffic per commit (no canary,
 # no human review gate). This is a deliberate choice, made with the risk
 # spelled out: the same no-canary deploy path already broke prod once
@@ -55,6 +55,10 @@ env:
     f1ef58c22e17db452c1992f742cefd4322e2959b
     0df65b6bd5fa3dc0d033e89cd65727cc3dab8f4c
     c73ef2a318c11af6965d0a354b6ddd40d4907c97
+  # This upstream change adds three database migrations. Hold its code until
+  # those migrations can be reviewed and applied safely.
+  MANUAL_MIGRATION_UPSTREAM_SHAS: |
+    33635c5b6f44aa8129e766282e34aed487f1a461
   KNOWN_CONFLICT_FILES: |
     packages/database/drizzle/20260517074023_migrate_analytics_to_timescaledb_table/migration.sql
     packages/database/drizzle/20260622040000_align_message_attachment_to_shard_schema/migration.sql
@@ -83,9 +87,12 @@ jobs:
         id: check
         run: |
           printf '%s\n' "$ALREADY_INTEGRATED_UPSTREAM_SHAS" | sed '/^$/d' | sort -u > /tmp/already-integrated-upstream-shas
-          count=$(git rev-list HEAD..upstream/main | awk 'NR==FNR { skip[$1]=1; next } !($1 in skip) { n++ } END { print n+0 }' /tmp/already-integrated-upstream-shas -)
+          printf '%s\n' "$MANUAL_MIGRATION_UPSTREAM_SHAS" | sed '/^$/d' | sort -u > /tmp/manual-migration-upstream-shas
+          git cherry HEAD upstream/main | awk '$1 == "+" { print $2 }' > /tmp/upstream-cherry-candidates
+          cat /tmp/already-integrated-upstream-shas /tmp/manual-migration-upstream-shas | sort -u > /tmp/non-deployable-upstream-shas
+          count=$(awk 'NR==FNR { skip[$1]=1; next } !($1 in skip) { n++ } END { print n+0 }' /tmp/non-deployable-upstream-shas /tmp/upstream-cherry-candidates)
           echo "count=$count" >> "$GITHUB_OUTPUT"
-          echo "Found $count genuinely new upstream commit(s)."
+          echo "Found $count deployable upstream commit(s)."
 
       - uses: pnpm/action-setup@v4
         if: steps.check.outputs.count != '0'
@@ -106,31 +113,46 @@ jobs:
           git checkout -b "$branch"
 
           deployed=""
+          held=""
           stop_reason=""
           stop_sha=""
           unexpected=""
 
           for sha in $(git rev-list --reverse "$start_point"..upstream/main); do
+            if ! grep -qxF "$sha" /tmp/upstream-cherry-candidates; then
+              continue
+            fi
             if grep -qxF "$sha" /tmp/already-integrated-upstream-shas; then
               echo "Skipping already-integrated upstream commit ${sha:0:7}."
               continue
             fi
             subject=$(git log -1 --format=%s "$sha")
+            if grep -qxF "$sha" /tmp/manual-migration-upstream-shas; then
+              echo "Holding migration-dependent upstream commit ${sha:0:7}."
+              held="${held}${sha:0:7} ${subject}"$'\n'
+              continue
+            fi
 
-            git merge "$sha" --no-edit
-            merge_status=$?
+            git cherry-pick "$sha"
+            apply_status=$?
 
-            if [ "$merge_status" -ne 0 ]; then
+            if [ "$apply_status" -ne 0 ]; then
               conflicted=$(git diff --name-only --diff-filter=U | sort -u)
               known=$(echo "$KNOWN_CONFLICT_FILES" | sed '/^$/d' | sort -u)
               unexpected=$(comm -23 <(echo "$conflicted") <(echo "$known"))
 
               if [ -n "$unexpected" ]; then
-                git merge --abort
+                git cherry-pick --abort
                 stop_reason="conflict"
                 stop_sha="$sha"
                 break
               fi
+              if [ -z "$conflicted" ]; then
+                echo "Patch ${sha:0:7} is already represented; skipping empty cherry-pick."
+                git cherry-pick --skip
+                continue
+              fi
+
 
               # Only the known, permanently-accepted TimescaleDB files conflicted.
               # Resolution is fixed: keep our Cloud-SQL-compatible version.
@@ -140,7 +162,7 @@ jobs:
                   git add "$f"
                 fi
               done
-              git commit --no-edit
+              git cherry-pick --continue
             fi
 
             pnpm install --frozen-lockfile
@@ -182,9 +204,17 @@ jobs:
               echo "Nothing was deployed this run."
             fi
             echo ""
+            if [ -n "$held" ]; then
+              echo ""
+              echo "**Held for manual database migration review (not deployed):**"
+              echo '```'
+              printf '%s' "$held"
+              echo '```'
+              echo ""
+            fi
             case "$stop_reason" in
               conflict)
-                echo "**Stopped at \`${stop_sha:0:7}\`** — merge conflict outside the two known TimescaleDB files. Nothing after this commit was attempted; prod is unchanged from this commit onward."
+                echo "**Stopped at \`${stop_sha:0:7}\`** — cherry-pick conflict outside the two known TimescaleDB files. Nothing after this commit was attempted; prod is unchanged from this commit onward."
                 echo ""
                 echo "Conflicted files:"
                 echo '```'
@@ -194,12 +224,12 @@ jobs:
                 echo "Resolve manually: \`bash scripts/update-from-upstream.sh --merge\`, fix conflicts, then push."
                 ;;
               typecheck)
-                echo "**Stopped at \`${stop_sha:0:7}\`** — \`pnpm --filter builder check-types\` failed after merging this commit. This commit was NOT pushed to \`$BASE_BRANCH\`, and nothing after it was attempted."
+                echo "**Stopped at \`${stop_sha:0:7}\`** — \`pnpm --filter builder check-types\` failed after applying this commit. This commit was NOT pushed to \`$BASE_BRANCH\`, and nothing after it was attempted."
                 echo ""
                 echo "Broken state pushed for review: \`$branch\`. Fix the type errors there and push to \`$BASE_BRANCH\` by hand when ready."
                 ;;
               push)
-                echo "**Stopped at \`${stop_sha:0:7}\`** — merged and typechecked cleanly, but the push to \`$BASE_BRANCH\` was rejected (likely a concurrent push). Nothing after it was attempted."
+                echo "**Stopped at \`${stop_sha:0:7}\`** — applied and typechecked cleanly, but the push to \`$BASE_BRANCH\` was rejected (likely a concurrent push). Nothing after it was attempted."
                 echo ""
                 echo "State pushed for review: \`$branch\`."
                 ;;
@@ -224,4 +254,8 @@ jobs:
             title="Upstream sync: deployed $deployed_count commit(s) ($(date -u +%Y-%m-%d\ %H:%M) UTC)"
           fi
 
-          gh issue create --title "$title" --body-file /tmp/upstream-sync-issue-body.md
+          cat /tmp/upstream-sync-issue-body.md >> "$GITHUB_STEP_SUMMARY"
+          gh issue create --title "$title" --body-file /tmp/upstream-sync-issue-body.md || echo "::warning::Could not create summary issue."
+          if [ -n "$stop_reason" ]; then
+            exit 1
+          fi
