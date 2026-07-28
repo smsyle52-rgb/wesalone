@@ -11,19 +11,13 @@
  * - `channelsLimit` / `contactsLimit` / `teamMembersLimit` map onto
  *   ChatbotX's native `UserQuota` columns and ARE enforced by the existing
  *   quota-enforcement service once a plan is applied.
- * - `agentsLimit`, `knowledgeDocumentsLimit`, `productsLimit`, and
- *   `monthlyPoints` are part of the documented plan but have no matching
- *   native UserQuota column (no "agents"/"points" metric exists in this
- *   OSS repo) — they are DISPLAY-ONLY here, not enforced. Enforcing
- *   `monthlyPoints` specifically would mean metering AI/agent token usage,
- *   which (a) has no native quota metric to hook into and (b) is explicitly
- *   deferred post-launch even in Wesal One's own live product (see its
- *   launch-readiness-plan.md §5.8) and would require touching AI agent
- *   code, which is out of scope here. Documented for provenance only:
- *   1 point = 1,000 tokens (env `TOKENS_PER_POINT`, default 1000).
- * - `workspacesLimit` / `macLimit` (native UserQuota columns) have no
- *   corresponding concept in Wesal One's plan model and are intentionally
- *   left unset (null = unlimited) rather than invented.
+ * - `agentsLimit`, `knowledgeDocumentsLimit`, and `productsLimit` map to
+ *   UserQuota and are enforced at their creation boundaries.
+ * - `monthlyPoints` issues an expiring monthly PointGrant. AI, voice, image,
+ *   embedding, knowledge, search, and tool call sites reserve and settle
+ *   usage through usageMeteringService using the versioned rates catalog.
+ * - `workspacesLimit` and monthly active contacts map to the native
+ *   UserQuota workspaces/mac columns and share the same enforcement layer.
  */
 
 export type WesalOnePlanSlug =
@@ -53,7 +47,7 @@ export type WesalOnePlan = {
   priceYearlyUsd: number | null
   /** SAR, monthly only — not documented for yearly billing. */
   priceMonthlySar: number | null
-  /** Display-only, see module doc — not metered. null = custom. */
+  /** Included monthly metered allowance. null = custom contract. */
   monthlyPoints: number | null
   /** Enforced via native UserQuota columns once a plan is applied. */
   limits: {
@@ -63,7 +57,7 @@ export type WesalOnePlan = {
     monthlyActiveContacts: number | null
     teamMembers: number | null
   }
-  /** Display-only — no native "agents" quota metric. null = custom. */
+  /** Enforced through UserQuota. null = custom contract. */
   agentsLimit: number | null
   knowledgeDocumentsLimit: number | null
   productsLimit: number | null

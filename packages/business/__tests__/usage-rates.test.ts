@@ -34,6 +34,16 @@ describe("usage rate catalog", () => {
     expect(unitUsageMicroPoints("transcription", 30)).toBe(500_000n)
   })
 
+  it("adds the external web-search charge to the same language event", () => {
+    const withoutSearch = languageUsageMicroPoints({ inputTokens: 1000 })
+    const withTwoSearches = languageUsageMicroPoints({
+      inputTokens: 1000,
+      webSearches: 2,
+    })
+
+    expect(withTwoSearches - withoutSearch).toBe(10_000_000n)
+  })
+
   it("anchors month-end billing without skipping a month", () => {
     expect(
       addMonthsUtc(new Date("2026-01-31T12:00:00.000Z"), 1).toISOString(),

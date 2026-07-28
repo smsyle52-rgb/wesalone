@@ -87,7 +87,10 @@ async function getWalletBalance(userId: string): Promise<WalletBalance> {
   const grants = await db.query.pointGrantModel.findMany({
     where: {
       walletId: wallet.id,
-      status: { in: ["active", "frozen"] },
+      // Keep exhausted grants in the current-period calculation. Omitting
+      // them made a fully consumed monthly allowance disappear from the UI
+      // (0 granted / 0 used) exactly when it should show 100% consumed.
+      status: { in: ["active", "frozen", "exhausted"] },
       startsAt: { lte: now },
       OR: [{ expiresAt: { isNull: true } }, { expiresAt: { gt: now } }],
     },
@@ -172,6 +175,15 @@ export type CreateGrantOptions = {
 }
 
 function createGrant(opts: CreateGrantOptions, externalTx?: DatabaseClient) {
+  if (!Number.isFinite(opts.points) || opts.points <= 0) {
+    return Promise.reject(
+      new ChatbotXException(
+        "Point grant must be a positive finite number",
+        "invalidPointGrant",
+        400,
+      ),
+    )
+  }
   const microPoints = toMicroPoints(opts.points)
   const now = new Date()
 
@@ -185,7 +197,7 @@ function createGrant(opts: CreateGrantOptions, externalTx?: DatabaseClient) {
       return existing
     }
 
-    const [grant] = await tx
+    const [created] = await tx
       .insert(pointGrantModel)
       .values({
         walletId: wallet.id,
@@ -200,11 +212,29 @@ function createGrant(opts: CreateGrantOptions, externalTx?: DatabaseClient) {
         idempotencyKey: opts.idempotencyKey,
         metadata: opts.metadata ?? {},
       })
+      // The pre-read above is only a fast path. Two workers can still both
+      // miss it, so the unique idempotency key must also be handled at the
+      // write boundary instead of leaking a constraint error to the retry.
+      .onConflictDoNothing({ target: pointGrantModel.idempotencyKey })
       .returning()
+
+    if (!created) {
+      const concurrent = await tx.query.pointGrantModel.findFirst({
+        where: { idempotencyKey: opts.idempotencyKey },
+      })
+      if (!concurrent) {
+        throw new ChatbotXException(
+          "Point grant creation lost its idempotency race",
+          "pointGrantCreationFailed",
+          500,
+        )
+      }
+      return concurrent
+    }
 
     await tx.insert(pointLedgerModel).values({
       walletId: wallet.id,
-      grantId: grant.id,
+      grantId: created.id,
       transactionType: "credit",
       microPoints: microPoints.toString(),
       sourceType: opts.sourceType ?? null,
@@ -215,7 +245,7 @@ function createGrant(opts: CreateGrantOptions, externalTx?: DatabaseClient) {
       actorId: opts.actorId ?? null,
     })
 
-    return grant
+    return created
   }
 
   return externalTx ? run(externalTx) : db.transaction(run)

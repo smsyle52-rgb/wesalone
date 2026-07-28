@@ -8,6 +8,7 @@ export type LanguageUsage = {
   outputTokens?: number
   cachedInputTokens?: number
   reasoningTokens?: number
+  webSearches?: number
 }
 
 const safeUnits = (value: number | undefined) =>
@@ -22,9 +23,14 @@ export const languageUsageMicroPoints = (usage: LanguageUsage): bigint => {
   const output = safeUnits(usage.outputTokens)
   const reasoning = Math.min(output, safeUnits(usage.reasoningTokens))
   const textOutput = output - reasoning
+  const webSearches = safeUnits(usage.webSearches)
   const weightedQuarterUnits =
     uncached * 4 + cached + textOutput * 12 + reasoning * 20
-  return BigInt(Math.max(1, Math.ceil(weightedQuarterUnits * 250)))
+  const languageMicroPoints = Math.max(1, Math.ceil(weightedQuarterUnits * 250))
+  return (
+    BigInt(languageMicroPoints) +
+    BigInt(webSearches) * 5n * MICRO_POINTS_PER_POINT
+  )
 }
 
 export const unitUsageMicroPoints = (

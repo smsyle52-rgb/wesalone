@@ -212,9 +212,18 @@ const settleMicroPoints = async (props: {
     return
   }
   await db.transaction(async (tx) => {
-    const event = await tx.query.billableUsageEventModel.findFirst({
-      where: { operationId: props.reservation.operationId },
-    })
+    // Lock the event before the wallet. A retry, stale-reservation release,
+    // and the original settlement can otherwise all observe `reserved` and
+    // race to write different terminal states. SELECT ... FOR UPDATE makes
+    // the state transition serial and the ledger debit remains in the same
+    // transaction.
+    const [event] = await tx
+      .select()
+      .from(billableUsageEventModel)
+      .where(
+        eq(billableUsageEventModel.operationId, props.reservation.operationId),
+      )
+      .for("update")
     if (!event || event.status === "settled" || event.status === "released") {
       return null
     }
@@ -286,16 +295,31 @@ const settleMicroPoints = async (props: {
   })
 }
 
-const settleLanguage = (reservation: UsageReservation, usage: LanguageUsage) =>
-  settleMicroPoints({
+const settleLanguage = (
+  reservation: UsageReservation,
+  usage: LanguageUsage,
+) => {
+  const webSearches =
+    Number.isFinite(usage.webSearches) && (usage.webSearches ?? 0) > 0
+      ? Math.ceil(usage.webSearches ?? 0)
+      : 0
+  const webSearchMicroPoints =
+    webSearches > 0 ? unitUsageMicroPoints("web_search", webSearches) : 0n
+  return settleMicroPoints({
     reservation,
     microPoints: languageUsageMicroPoints(usage),
-    usage,
+    usage: {
+      ...usage,
+      // Persist the priced component, not only the unit count, so historical
+      // usage remains explainable after a future rate-version change.
+      webSearchMicroPoints: webSearchMicroPoints.toString(),
+    },
     inputUnits: usage.inputTokens,
     outputUnits: usage.outputTokens,
     cachedInputUnits: usage.cachedInputTokens,
     reasoningUnits: usage.reasoningTokens,
   })
+}
 
 const settleUnits = (
   reservation: UsageReservation,
@@ -396,6 +420,8 @@ const getUsageSummary = async (workspaceId: string, days = 30) => {
       category: billableUsageEventModel.category,
       microPoints: sql<string>`coalesce(sum(${billableUsageEventModel.settledMicroPoints}), 0)`,
       operations: sql<number>`count(*)::int`,
+      webSearchMicroPoints: sql<string>`coalesce(sum(coalesce((${billableUsageEventModel.usage}->>'webSearchMicroPoints')::numeric, 0)), 0)`,
+      webSearches: sql<number>`coalesce(sum(coalesce((${billableUsageEventModel.usage}->>'webSearches')::int, 0)), 0)::int`,
     })
     .from(billableUsageEventModel)
     .where(
@@ -407,11 +433,32 @@ const getUsageSummary = async (workspaceId: string, days = 30) => {
     )
     .groupBy(billableUsageEventModel.category)
     .orderBy(sql`sum(${billableUsageEventModel.settledMicroPoints}) desc`)
-  return rows.map((row) => ({
-    category: row.category,
-    points: toVisiblePoints(BigInt(row.microPoints)),
-    operations: row.operations,
-  }))
+  return rows.flatMap((row) => {
+    const totalMicroPoints = BigInt(row.microPoints)
+    const webSearchMicroPoints = BigInt(row.webSearchMicroPoints)
+    let categoryMicroPoints = totalMicroPoints
+    if (row.category === "language") {
+      categoryMicroPoints =
+        totalMicroPoints > webSearchMicroPoints
+          ? totalMicroPoints - webSearchMicroPoints
+          : 0n
+    }
+    const summaries = [
+      {
+        category: row.category,
+        points: toVisiblePoints(categoryMicroPoints),
+        operations: row.operations,
+      },
+    ]
+    if (row.category === "language" && webSearchMicroPoints > 0n) {
+      summaries.push({
+        category: "web_search",
+        points: toVisiblePoints(webSearchMicroPoints),
+        operations: row.webSearches,
+      })
+    }
+    return summaries
+  })
 }
 
 export const usageMeteringService = {

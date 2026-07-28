@@ -4,6 +4,13 @@ options:
   machineType: E2_HIGHCPU_32
   logging: CLOUD_LOGGING_ONLY
 
+substitutions:
+  # Keep production charging disabled until the billing migrations and the
+  # read-only integrity audit are explicitly approved and completed. Release
+  # with `_AI_POINTS_ENFORCEMENT_MODE=shadow` first, then `enforce` only after
+  # shadow totals have been reconciled against provider usage.
+  _AI_POINTS_ENFORCEMENT_MODE: off
+
 steps:
   - id: build-builder
     name: gcr.io/cloud-builders/docker
@@ -32,7 +39,7 @@ steps:
     # SMTP_FROM was still a placeholder (noreply@wesal-one-next-staging.example)
     # and SMTP_SERVER was absent — so any platform email sent from a scheduled
     # job would have failed silently. Mirrors the builder's own wiring.
-    args: [beta, run, worker-pools, update, wesal-one-next-worker, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/worker:$SHORT_SHA, "--update-env-vars=S3_ENDPOINT=https://storage.googleapis.com,S3_BUCKET=wesal-one-next-uploads,VERTEX_AI_PROJECT_ID=$PROJECT_ID,VERTEX_AI_LOCATION=global,SMTP_FROM=Wesal One <support@wesal.one>", "--update-secrets=SMTP_SERVER=BREVO_SMTP_SERVER:latest", --quiet]
+    args: [beta, run, worker-pools, update, wesal-one-next-worker, --project=$PROJECT_ID, --region=us-central1, --image=us-central1-docker.pkg.dev/$PROJECT_ID/chatbotx/worker:$SHORT_SHA, "--update-env-vars=S3_ENDPOINT=https://storage.googleapis.com,S3_BUCKET=wesal-one-next-uploads,VERTEX_AI_PROJECT_ID=$PROJECT_ID,VERTEX_AI_LOCATION=global,SMTP_FROM=Wesal One <support@wesal.one>,AI_POINTS_ENFORCEMENT_MODE=${_AI_POINTS_ENFORCEMENT_MODE},TOKENS_PER_POINT=1000,AI_POINTS_RESERVATION_TTL_MINUTES=30", "--update-secrets=SMTP_SERVER=BREVO_SMTP_SERVER:latest", --quiet]
     waitFor: [push-worker]
 
   - id: build-realtime

@@ -17,7 +17,7 @@ export async function PointsUsageCard({
 }) {
   const t = await getTranslations()
 
-  if (!balance || balance.totalAvailablePoints <= 0) {
+  if (!balance) {
     return null
   }
 
@@ -50,12 +50,24 @@ export async function PointsUsageCard({
           </div>
         </div>
 
-        <Progress value={usedShareOfMonthly} />
-
-        <p className="text-muted-foreground text-xs">
-          {monthlyUsedPoints.toLocaleString()} /{" "}
-          {monthlyGrantedPoints.toLocaleString()}
-        </p>
+        {monthlyGrantedPoints > 0 && (
+          <>
+            <Progress value={usedShareOfMonthly} />
+            <p className="text-muted-foreground text-xs">
+              {t("plans.usage.consumed", {
+                used: monthlyUsedPoints.toLocaleString(),
+                total: monthlyGrantedPoints.toLocaleString(),
+              })}
+            </p>
+          </>
+        )}
+        {monthlyGrantedPoints <= 0 &&
+          totalAvailablePoints <= 0 &&
+          usageSummary.length === 0 && (
+            <p className="text-muted-foreground text-sm">
+              {t("plans.usage.empty")}
+            </p>
+          )}
 
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
           <div>

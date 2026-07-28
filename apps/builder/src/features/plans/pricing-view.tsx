@@ -1,6 +1,7 @@
 "use client"
 
 import type { WesalOnePlan } from "@chatbotx.io/business"
+import type { PlatformSubscriptionModel } from "@chatbotx.io/database/types"
 import { PricingTableFour } from "@chatbotx.io/ui/components/billingsdk/pricing-table-four"
 import { Badge } from "@chatbotx.io/ui/components/ui/badge"
 import type { Plan } from "@chatbotx.io/ui/lib/billingsdk-config"
@@ -17,6 +18,7 @@ type PricingViewProps = {
   workspaceId: string
   paymentsEnabled: boolean
   submissions: SubscriptionPaymentSubmission[]
+  subscription: PlatformSubscriptionModel | null
 }
 
 function getPlanButtonText(
@@ -37,6 +39,7 @@ export function PricingView({
   workspaceId,
   paymentsEnabled,
   submissions,
+  subscription,
 }: PricingViewProps) {
   const t = useTranslations()
   const locale = useLocale()
@@ -65,6 +68,10 @@ export function PricingView({
   const billingsdkPlans: Plan[] = plans.map((plan) => {
     const name = locale === "ar" ? plan.nameAr : plan.nameEn
     const isCustom = plan.priceMonthlyUsd === null
+    const formatLimit = (value: number | null) =>
+      value === null
+        ? t("plans.capacity.unlimited")
+        : new Intl.NumberFormat(locale).format(value)
     const summary = isCustom
       ? t("plans.summaryCustom")
       : t("plans.summary", {
@@ -77,7 +84,7 @@ export function PricingView({
     return {
       id: plan.slug,
       title: name,
-      description: summary,
+      description: `${t(`plans.audienceDescription.${plan.audience}`)} ${summary}`,
       currency: "$",
       // A non-numeric string here (any locale) already suppresses the
       // currency-prefix in PricingTableFour via its `Number.parseFloat(...)
@@ -88,10 +95,36 @@ export function PricingView({
       buttonText: getPlanButtonText(plan, t),
       badge: t(`plans.audience.${plan.audience}`),
       highlight: plan.highlighted,
-      features: plan.features.map((slug) => ({
-        name: t(`plans.features.${slug}`),
-        icon: "check",
-      })),
+      features: [
+        {
+          name: t("plans.capacity.points", {
+            count: formatLimit(plan.monthlyPoints),
+          }),
+          icon: "check",
+        },
+        {
+          name: t("plans.capacity.agents", {
+            count: formatLimit(plan.agentsLimit),
+          }),
+          icon: "check",
+        },
+        {
+          name: t("plans.capacity.knowledgeDocuments", {
+            count: formatLimit(plan.knowledgeDocumentsLimit),
+          }),
+          icon: "check",
+        },
+        {
+          name: t("plans.capacity.products", {
+            count: formatLimit(plan.productsLimit),
+          }),
+          icon: "check",
+        },
+        ...plan.features.map((slug) => ({
+          name: t(`plans.features.${slug}`),
+          icon: "check" as const,
+        })),
+      ],
     }
   })
 
@@ -104,6 +137,7 @@ export function PricingView({
           openPlanSlug={openPlanSlug}
           plans={plans}
           submissions={submissions}
+          subscription={subscription}
           workspaceId={workspaceId}
         />
       ) : (

@@ -1,4 +1,4 @@
-import { type DatabaseClient, db, eq } from "@chatbotx.io/database/client"
+import { and, type DatabaseClient, db, eq } from "@chatbotx.io/database/client"
 import type {
   PlatformSubscriptionBillingCycle,
   PlatformSubscriptionSource,
@@ -16,19 +16,133 @@ import {
 } from "../platform/wesal-one-plans"
 import { userQuotaService } from "../user-quota"
 
-export const addMonthsUtc = (from: Date, months: number): Date => {
+export const addMonthsUtc = (
+  from: Date,
+  months: number,
+  anchorDay = from.getUTCDate(),
+): Date => {
   const next = new Date(from)
-  const day = next.getUTCDate()
   next.setUTCDate(1)
   next.setUTCMonth(next.getUTCMonth() + months)
   const lastDay = new Date(
     Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0),
   ).getUTCDate()
-  next.setUTCDate(Math.min(day, lastDay))
+  next.setUTCDate(Math.min(anchorDay, lastDay))
   return next
 }
 
+export const currentMonthlyPeriod = (
+  firstStart: Date,
+  now: Date,
+  anchorDay = firstStart.getUTCDate(),
+): { periodStart: Date; periodEnd: Date } => {
+  let periodStart = firstStart
+  let monthOffset = 1
+  let periodEnd = addMonthsUtc(firstStart, monthOffset, anchorDay)
+  while (periodEnd <= now) {
+    periodStart = periodEnd
+    monthOffset += 1
+    // Always calculate from the original anchor. Chaining Feb 28 -> Mar 28
+    // would permanently move a subscription that began on Jan 31 forward by
+    // three days; Jan 31 + 2 months correctly lands on Mar 31.
+    periodEnd = addMonthsUtc(firstStart, monthOffset, anchorDay)
+  }
+  return { periodStart, periodEnd }
+}
+
 class PlatformSubscriptionService {
+  async getForWorkspace(
+    workspaceId: string,
+  ): Promise<PlatformSubscriptionModel | null> {
+    const workspace = await db.query.workspaceModel.findFirst({
+      where: { id: workspaceId },
+      columns: { ownerId: true },
+    })
+    if (!workspace) {
+      throw new ChatbotXException("Workspace not found", "notFound", 404)
+    }
+    return (
+      (await db.query.platformSubscriptionModel.findFirst({
+        where: { userId: workspace.ownerId },
+      })) ?? null
+    )
+  }
+
+  async scheduleCancellationForWorkspace(
+    workspaceId: string,
+  ): Promise<PlatformSubscriptionModel> {
+    const subscription = await this.getForWorkspace(workspaceId)
+    if (!subscription) {
+      throw new ChatbotXException(
+        "Subscription not found",
+        "subscriptionNotFound",
+        404,
+      )
+    }
+    if (subscription.source === "free") {
+      throw new ChatbotXException(
+        "The free plan cannot be cancelled",
+        "freePlanNotCancellable",
+        409,
+      )
+    }
+    if (subscription.status === "cancel_at_period_end") {
+      return subscription
+    }
+    const [updated] = await db
+      .update(platformSubscriptionModel)
+      .set({ status: "cancel_at_period_end", cancelAtPeriodEnd: true })
+      .where(
+        and(
+          eq(platformSubscriptionModel.id, subscription.id),
+          eq(platformSubscriptionModel.status, "active"),
+        ),
+      )
+      .returning()
+    if (!updated) {
+      throw new ChatbotXException(
+        "Subscription can no longer be cancelled",
+        "subscriptionNotCancellable",
+        409,
+      )
+    }
+    return updated
+  }
+
+  async resumeForWorkspace(
+    workspaceId: string,
+  ): Promise<PlatformSubscriptionModel> {
+    const subscription = await this.getForWorkspace(workspaceId)
+    if (!subscription) {
+      throw new ChatbotXException(
+        "Subscription not found",
+        "subscriptionNotFound",
+        404,
+      )
+    }
+    if (subscription.status === "active") {
+      return subscription
+    }
+    const [updated] = await db
+      .update(platformSubscriptionModel)
+      .set({ status: "active", cancelAtPeriodEnd: false })
+      .where(
+        and(
+          eq(platformSubscriptionModel.id, subscription.id),
+          eq(platformSubscriptionModel.status, "cancel_at_period_end"),
+        ),
+      )
+      .returning()
+    if (!updated) {
+      throw new ChatbotXException(
+        "Subscription can no longer be resumed",
+        "subscriptionNotResumable",
+        409,
+      )
+    }
+    return updated
+  }
+
   async activate(props: {
     userId: string
     workspaceId?: string | null
@@ -100,25 +214,73 @@ class PlatformSubscriptionService {
 
   processDueMonthlyGrant(subscriptionId: string): Promise<boolean> {
     return db.transaction(async (tx) => {
+      const now = new Date()
       const [subscription] = await tx
         .select()
         .from(platformSubscriptionModel)
         .where(eq(platformSubscriptionModel.id, subscriptionId))
         .for("update")
       if (
-        subscription?.status !== "active" ||
-        subscription.nextGrantAt > new Date()
+        !(
+          subscription &&
+          ["active", "cancel_at_period_end"].includes(subscription.status)
+        ) ||
+        subscription.nextGrantAt > now
       ) {
         return false
       }
-      if (subscription.periodEnd <= new Date()) {
+      if (subscription.periodEnd <= now) {
+        if (subscription.status === "cancel_at_period_end") {
+          const plan = findWesalOnePlan("free")
+          if (!plan) {
+            throw new ChatbotXException("Free plan not found")
+          }
+          // Never issue retroactive, already-expired free grants when the
+          // scheduler catches up after downtime. Start the new free period
+          // at processing time and grant exactly once for that live period.
+          const nextPeriodStart = now
+          const nextPeriodEnd = addMonthsUtc(nextPeriodStart, 1)
+          await userQuotaService.applyPlanEntitlements({
+            userId: subscription.userId,
+            plan,
+            periodStart: nextPeriodStart,
+            periodEnd: nextPeriodEnd,
+            grantStartsAt: nextPeriodStart,
+            grantExpiresAt: nextPeriodEnd,
+            tx,
+          })
+          await tx
+            .update(platformSubscriptionModel)
+            .set({
+              planSlug: plan.slug,
+              billingCycle: "monthly",
+              status: "active",
+              source: "free",
+              periodStart: nextPeriodStart,
+              periodEnd: nextPeriodEnd,
+              nextGrantAt: nextPeriodEnd,
+              cancelAtPeriodEnd: false,
+              priceCents: 0,
+              currency: "USD",
+              priceVersion: WESAL_ONE_PRICE_VERSION,
+            })
+            .where(eq(platformSubscriptionModel.id, subscription.id))
+          return true
+        }
         if (subscription.source === "free") {
           const plan = findWesalOnePlan("free")
           if (!plan) {
             throw new ChatbotXException("Free plan not found")
           }
-          const nextPeriodStart = subscription.periodEnd
-          const nextPeriodEnd = addMonthsUtc(nextPeriodStart, 1)
+          const { periodStart: nextPeriodStart, periodEnd: nextPeriodEnd } =
+            currentMonthlyPeriod(
+              subscription.periodEnd,
+              now,
+              Math.max(
+                subscription.periodStart.getUTCDate(),
+                subscription.periodEnd.getUTCDate(),
+              ),
+            )
           await userQuotaService.applyPlanEntitlements({
             userId: subscription.userId,
             plan,
@@ -156,7 +318,10 @@ class PlatformSubscriptionService {
       const grantStart = subscription.nextGrantAt
       const grantEnd = new Date(
         Math.min(
-          addMonthsUtc(grantStart, 1).getTime(),
+          currentMonthlyPeriod(
+            subscription.periodStart,
+            grantStart,
+          ).periodEnd.getTime(),
           subscription.periodEnd.getTime(),
         ),
       )
@@ -179,7 +344,10 @@ class PlatformSubscriptionService {
 
   async listDue(limit = 100): Promise<string[]> {
     const rows = await db.query.platformSubscriptionModel.findMany({
-      where: { status: "active", nextGrantAt: { lte: new Date() } },
+      where: {
+        status: { in: ["active", "cancel_at_period_end"] },
+        nextGrantAt: { lte: new Date() },
+      },
       columns: { id: true },
       orderBy: { nextGrantAt: "asc" },
       limit,

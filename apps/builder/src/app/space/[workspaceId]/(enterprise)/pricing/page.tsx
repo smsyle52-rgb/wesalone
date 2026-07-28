@@ -1,4 +1,5 @@
 import {
+  platformSubscriptionService,
   pointPurchaseOrderService,
   pointWalletService,
   usageMeteringService,
@@ -19,10 +20,11 @@ export default async function PricingPage(props: {
   params: Promise<{ workspaceId: string }>
 }) {
   const workspaceId = getIdFromParams(await props.params, "workspaceId")
-  const [submissions, workspace] = await Promise.all([
+  const [submissions, subscription, workspace] = await Promise.all([
     isPlatformSubscriptionPaymentsEnabled()
       ? listSubscriptionPaymentsForWorkspace(workspaceId)
       : Promise.resolve([]),
+    platformSubscriptionService.getForWorkspace(workspaceId),
     workspaceService.findById({ id: workspaceId }),
   ])
   const [balance, pointProducts, pointOrders, usageSummary] = await Promise.all(
@@ -52,6 +54,7 @@ export default async function PricingPage(props: {
         paymentsEnabled={isPlatformSubscriptionPaymentsEnabled()}
         plans={WESAL_ONE_PLANS}
         submissions={submissions}
+        subscription={subscription}
         workspaceId={workspaceId}
       />
     </div>
