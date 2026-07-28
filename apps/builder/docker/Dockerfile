@@ -34,6 +34,13 @@ COPY --from=pre /app/out/full/ .
 ENV BETTER_AUTH_SECRET="docker-build-time-placeholder-not-used-at-runtime-0"
 ENV BETTER_AUTH_URL="http://localhost:3000"
 
+# A key present in en.json but missing from ar.json makes next-intl throw
+# MISSING_MESSAGE and take down the whole Arabic page — and Arabic is the
+# default locale here, so it reaches merchants first. This has recurred after
+# several upstream syncs. Failing the image build costs half a second and stops
+# it before anything is pushed or deployed.
+RUN pnpm --filter builder i18n:check
+
 RUN SKIP_ENV_CHECK=true pnpm turbo run build --filter=builder
 
 # Standalone image has no pnpm workspace; bundle a tiny migration runner (drizzle-orm + pg only).

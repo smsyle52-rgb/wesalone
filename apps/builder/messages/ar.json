@@ -305,14 +305,21 @@
       "bannerCta": "ترقية",
       "createDisabled": "تم تعطيل إنشاء {feature} جديد. الترقية للمتابعة."
     },
-    "navTitle": "الفوترة والاشتراك"
+    "navTitle": "الفوترة والاشتراك",
+    "macLimitReached": {
+      "bannerTitle": "بلغت الحد الأقصى لجهات الاتصال النشطة",
+      "bannerDescription": "إرسال الرسائل واستقبالها متوقف حتى ترقّي باقتك.",
+      "bannerCta": "ترقية الباقة",
+      "createDisabled": "إضافة {feature} معطّلة حتى ترقّي باقتك."
+    }
   },
   "broadcasts": {
     "title": "الرسائل الجماعية",
     "status": {
       "scheduled": "المقرر",
       "sent": "تم الإرسال",
-      "sending": "إرسال"
+      "sending": "إرسال",
+      "cancelled": "ملغاة"
     },
     "stats": {
       "sent": "تم الإرسال",
@@ -565,7 +572,8 @@
     },
     "valuePlaceholder": "...",
     "datetimePlaceholder": "YYYY-MM-DD HH:mm",
-    "datetimeInvalid": "أدخل التاريخ بصيغة YYYY-MM-DD HH:mm أو متغيّرًا"
+    "datetimeInvalid": "أدخل التاريخ بصيغة YYYY-MM-DD HH:mm أو متغيّرًا",
+    "datePlaceholder": "YYYY-MM-DD"
   },
   "channels": {
     "title": "القنوات",
@@ -1976,6 +1984,15 @@
       "audio": "صوت",
       "gif": "GIF",
       "file": "ملف"
+    },
+    "make": {
+      "inviteUrl": "رابط الدعوة",
+      "inviteUrlHint": "رابط الدعوة لتطبيق Make المنشور الخاص بك (مثال: https://eu2.make.com/app/invite/...)."
+    },
+    "makeEvents": {
+      "label": "الأحداث",
+      "placeholder": "اكتب اسم الحدث ثم اضغط Enter",
+      "description": "أضف اسم حدث واحداً أو أكثر. عند ربط Make لخطّاف ويب بأحد هذه الأحداث، تُرسَل البيانات إليه عند تنفيذ هذه الخطوة."
     }
   },
   "flows": {
@@ -2100,7 +2117,9 @@
       "whatsappFlow": "تدفق WhatsApp",
       "questionnaires": "الاستبيانات",
       "condition": "شرط",
-      "updateMessengerContactData": "تحديث بيانات جهة الاتصال"
+      "updateMessengerContactData": "تحديث بيانات جهة الاتصال",
+      "make": "Make",
+      "triggers": "المشغّلات"
     },
     "splitTraffic": {
       "balanceHint": "يجب أن يساوي المبلغ الإجمالي 100%.",
@@ -2196,6 +2215,9 @@
       "durationLabel": "المدة",
       "waitAndContinue": "انتظر <value>{duration} {unit}</value> ثم تابع",
       "cancelOnReplyHint": "لن تُرسل المتابعة إذا رد جهة الاتصال قبل انتهاء الوقت."
+    },
+    "setCustomField": {
+      "temporalHint": "اتركه فارغاً لحفظ التاريخ/الوقت الحالي."
     }
   },
   "folders": {
@@ -3171,7 +3193,10 @@
     "templateHeader": {
       "label": "رأس القالب"
     },
-    "transferPhoneNumber": "نقل الهاتف من مزود Whatsapp آخر"
+    "transferPhoneNumber": "نقل الهاتف من مزود Whatsapp آخر",
+    "autoConnect": {
+      "inProgress": "جارٍ الربط…"
+    }
   },
   "zalo": {
     "title": "زالو الزراعة العضوية",
@@ -3488,6 +3513,13 @@
       "cancelled": "ملغى",
       "failed": "فشل",
       "timeout": "انتهت المهلة"
+    },
+    "defaultRetryMessages": {
+      "text": "ما أدخلته ليس نصاً صالحاً. الرجاء المحاولة مرة أخرى",
+      "number": "ما أدخلته ليس رقماً صالحاً. الرجاء المحاولة مرة أخرى",
+      "email": "ما أدخلته ليس بريداً إلكترونياً صالحاً. الرجاء المحاولة مرة أخرى",
+      "phone": "ما أدخلته ليس رقم هاتف صالحاً. الرجاء المحاولة مرة أخرى",
+      "multipleChoice": "ما أدخلته ليس خياراً صالحاً. الرجاء المحاولة مرة أخرى"
     }
   },
   "facebookCommentAutomation": {
@@ -3594,7 +3626,20 @@
   },
   "facebookLeadAdsAutomation": {
     "title": "أتمتة إعلانات جذب العملاء على فيسبوك",
-    "description": "أتمتة إعلانات جذب العملاء من فيسبوك مباشرة إلى جهات اتصالك."
+    "description": "أتمتة إعلانات جذب العملاء من فيسبوك مباشرة إلى جهات اتصالك.",
+    "create": "إنشاء جديد",
+    "leads": "العملاء المحتملون",
+    "facebookPage": "صفحة فيسبوك",
+    "leadForm": "نموذج العملاء المحتملين",
+    "allForms": "كل النماذج",
+    "allFormsNote": "ستُلتقط بيانات العملاء من كل نموذج في هذه الصفحة. تُحفظ الحقول القياسية (البريد، الهاتف، الاسم، الجنس) في حقول جهة الاتصال المطابقة تلقائياً.",
+    "leadData": "بيانات العميل المحتمل",
+    "whatFlow": "المسار الذي سيُشغَّل",
+    "none": "بدون",
+    "addNewPage": "إضافة جديدة",
+    "noEligiblePages": "لا توجد صفحات مؤهلة. استخدم «إضافة جديدة» لمنح صلاحية الوصول للعملاء المحتملين.",
+    "duplicateError": "توجد أتمتة بالفعل لهذه الصفحة وهذا النموذج.",
+    "subscribeError": "تعذّر اشتراك هذه الصفحة في إشعارات العملاء المحتملين من فيسبوك، فلم تُنشأ الأتمتة. أعد ربط الصفحة عبر «إضافة جديدة» ثم حاول مجدداً."
   },
   "ecommerce": {
     "title": "التجارة الإلكترونية",
@@ -3780,7 +3825,9 @@
     "title": "لقد تم إلغاء اشتراكك.",
     "description": "لن تتلقى رسائل بريد إلكتروني من هذا المرسل بعد الآن.",
     "invalidTitle": "رابط إلغاء الاشتراك غير صالح.",
-    "invalidDescription": "هذا الرابط غير صالح أو انتهت صلاحيته."
+    "invalidDescription": "هذا الرابط غير صالح أو انتهت صلاحيته.",
+    "unavailableTitle": "إلغاء الاشتراك غير متاح.",
+    "unavailableDescription": "مساحة العمل هذه لم تعد متاحة."
   },
   "extensionsMe": {
     "actions": {
@@ -4453,6 +4500,15 @@
       "seen": "شوهدت",
       "clicked": "تم النقر",
       "waiting": "قيد الانتظار"
+    }
+  },
+  "make": {
+    "title": "Make",
+    "setting": {
+      "label": "Make",
+      "description": "اربط حسابك في Make.com لإرسال الأحداث من مساراتك واستقبال بيانات جهات الاتصال عبر سيناريوهات Make. يُنسخ رمز الوصول التطويري لمساحة عملك إلى الحافظة عند الضغط على «ربط» — الصقه عند إنشاء الاتصال في Make.",
+      "notConfigured": "لا يوجد رابط دعوة لـMake. الرجاء إضافته في إعدادات المنصة.",
+      "noWorkspaceToken": "لا يوجد رمز وصول تطويري لمساحة العمل هذه. أنشئ واحداً من قسم رمز مساحة العمل أعلاه ثم اضغط «ربط» مرة أخرى."
     }
   }
 }

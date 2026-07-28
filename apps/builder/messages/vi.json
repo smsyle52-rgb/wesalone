@@ -323,7 +323,8 @@
       "bannerDescription": "Gửi và nhận tin nhắn đã tạm dừng cho đến khi bạn nâng cấp gói.",
       "bannerCta": "Nâng cấp",
       "createDisabled": "Tạo {feature} mới đã bị vô hiệu hóa cho đến khi bạn nâng cấp gói."
-    }
+    },
+    "navTitle": "Billing & Subscription"
   },
   "broadcasts": {
     "title": "Phát sóng",
@@ -2005,7 +2006,22 @@
       "label": "Sự kiện",
       "placeholder": "Nhập tên sự kiện rồi nhấn Enter",
       "description": "Thêm một hoặc nhiều tên sự kiện. Khi Make gắn webhook cho một trong các sự kiện này, dữ liệu sẽ được gửi đến đó khi step này chạy."
-    }
+    },
+    "attribute": {
+      "label": "Attribute"
+    },
+    "header": {
+      "label": "Header"
+    },
+    "aiProvider": {
+      "label": "Provider"
+    },
+    "transcriptionModel": {
+      "label": "Model",
+      "placeholder": "Select a model"
+    },
+    "optionalHint": "(optional)",
+    "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
     "title": "Luồng",
@@ -2924,7 +2940,34 @@
     "signUpTitle": "Đăng ký vào {name}",
     "changePasswordTitle": "Đổi mật khẩu",
     "changePasswordDescription": "Đặt mật khẩu mới trước khi tiếp tục.",
-    "passwordChangeSuccess": "Đã đổi mật khẩu"
+    "passwordChangeSuccess": "Đã đổi mật khẩu",
+    "signInVisual": {
+      "title": "A unified platform for your customers' conversations.",
+      "subtitle": "Manage WhatsApp, Instagram, Messenger, and Telegram from one dashboard.",
+      "bullets": {
+        "0": "Unified inbox",
+        "1": "Live, exportable reports",
+        "2": "Top-tier security and privacy"
+      }
+    },
+    "signUpVisual": {
+      "trialBadge": "14-day free trial",
+      "title": "Start with a 14-day free trial - no card required.",
+      "subtitle": "Create your workspace and connect your channels in one unified Arabic experience.",
+      "bullets": {
+        "0": "Fast setup, no code",
+        "1": "Connects with your channels",
+        "2": "Full control over your workspace data"
+      }
+    },
+    "passwordStrength": {
+      "veryWeak": "Very weak",
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong",
+      "veryStrong": "Very strong",
+      "label": "Password strength: {level}"
+    }
   },
   "emailTopics": {
     "title": "Chủ đề Email"
@@ -3436,7 +3479,8 @@
     "claude": "Claude",
     "deepseek": "DeepSeek",
     "openrouter": "OpenRouter",
-    "openaiCompatible": "OpenAI Compatible"
+    "openaiCompatible": "OpenAI Compatible",
+    "google": "Google Cloud"
   },
   "smtp": {
     "setting": {
@@ -3669,6 +3713,10 @@
     },
     "queues": {
       "title": "Hàng chờ"
+    },
+    "aiSettings": {
+      "title": "AI Settings",
+      "description": "Central Vertex AI configuration every workspace's AI agents inherit."
     }
   },
   "platformCredentials": {
@@ -4000,7 +4048,7 @@
     "sandboxBadge": "Chế độ thử nghiệm",
     "sandboxNotice": "Chế độ thử nghiệm (Sandbox) — chọn một gói sẽ áp dụng giới hạn của gói đó ngay lập tức, không có thanh toán thực. Chưa có tính phí thực tế.",
     "summaryCustom": "Giới hạn tùy chỉnh theo nhu cầu của bạn",
-    "summary": "Tối đa {channels} kênh · {contacts} liên hệ · {teamMembers} thành viên nhóm",
+    "summary": "Tối đa {channels} kênh · {contacts} liên hệ · {teamMembers} thành viên nhóm · {points} điểm AI/tháng",
     "toast": {
       "success": "Đã áp dụng gói {plan} (chế độ thử nghiệm)",
       "error": "Không thể áp dụng gói"
@@ -4093,7 +4141,83 @@
         "rejectError": "Không thể từ chối thanh toán"
       }
     },
-    "recommended": "Recommended"
+    "recommended": "Recommended",
+    "audience": {
+      "individual": "For individuals",
+      "business": "For businesses",
+      "enterprise": "Enterprise"
+    },
+    "usage": {
+      "title": "Points usage",
+      "available": "Available points",
+      "monthly": "From monthly plan",
+      "purchased": "Purchased points",
+      "frozen": "Frozen points",
+      "reserved": "Reserved by running tasks",
+      "breakdown": "Usage by category (30 days)",
+      "categories": {
+        "language": "Text and agent replies",
+        "image_analysis": "Image analysis",
+        "image_generation": "Image generation",
+        "image_editing": "Image editing",
+        "transcription": "Audio transcription",
+        "speech": "Text to speech",
+        "embedding_document": "Knowledge indexing",
+        "embedding_query": "Knowledge searches",
+        "knowledge_search": "Knowledge search",
+        "summarization": "Conversation summaries",
+        "web_search": "Web searches",
+        "tool": "AI tools"
+      },
+      "expiresOn": "Nearest expiry: {date}",
+      "empty": "No points balance yet — select a plan below to get started."
+    },
+    "pointPurchase": {
+      "title": "Buy more points",
+      "pointsLabel": "points",
+      "buyButton": "Buy",
+      "dialogTitle": "Pay for {product}",
+      "underReview": "Order under review",
+      "history": "Order history",
+      "methods": {
+        "kuraimi": "Kuraimi",
+        "jawali": "Jawali",
+        "bank_transfer": "Bank transfer",
+        "cash": "Cash"
+      },
+      "status": {
+        "pending_payment": "Pending payment",
+        "under_review": "Under review",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "expired": "Expired",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded",
+        "chargeback": "Chargeback"
+      },
+      "toast": {
+        "submitted": "Order submitted for review",
+        "submitError": "Could not submit the order",
+        "cancelled": "Order cancelled",
+        "cancelError": "Could not cancel the order"
+      }
+    },
+    "pointPurchaseAdmin": {
+      "navLabel": "Point purchases",
+      "title": "Point purchases",
+      "subtitle": "Review manual point top-up orders and credit points after verifying the receipt.",
+      "table": {
+        "buyer": "Buyer",
+        "bundle": "Bundle",
+        "points": "Points"
+      },
+      "toast": {
+        "confirmed": "Order confirmed and points credited",
+        "confirmError": "Could not confirm the order",
+        "rejected": "Order rejected",
+        "rejectError": "Could not reject the order"
+      }
+    }
   },
   "marketing": {
     "brandName": "Wesal One",
@@ -4353,5 +4477,65 @@
         }
       ]
     }
+  },
+  "platformAiSettings": {
+    "validate": {
+      "button": "Validate configuration",
+      "success": "Configuration looks valid.",
+      "error": "Could not validate the configuration.",
+      "missingProjectId": "VERTEX_AI_PROJECT_ID is not set on this deployment.",
+      "modelUnavailable": "The selected primary model could not answer a live Vertex AI request in the configured region.",
+      "invalidChatModel": "Primary model is not in the allowed list.",
+      "invalidFallbackModel": "Fallback model is not in the allowed list."
+    },
+    "title": "AI Settings",
+    "description": "Vertex AI is the platform's internal AI provider. Workspaces and their AI agents never choose a provider directly — when enabled, every AI agent automatically uses the model configured here instead of its own connected provider.",
+    "provider": {
+      "label": "Provider",
+      "value": "Vertex AI (Google Cloud)"
+    },
+    "enabled": {
+      "label": "Enabled",
+      "description": "When on, every AI agent in every workspace uses this configuration instead of its own connected provider."
+    },
+    "chatModel": {
+      "label": "Primary model"
+    },
+    "fallbackModel": {
+      "label": "Fallback model",
+      "description": "Used only if the primary model fails. Optional.",
+      "none": "None"
+    },
+    "location": {
+      "label": "Reply model region",
+      "description": "Use global for Gemini preview models unless Google documents a regional endpoint."
+    },
+    "embeddingModel": {
+      "label": "Embeddings model",
+      "description": "Legacy compatibility value. The active knowledge model is configured below."
+    },
+    "capabilities": {
+      "title": "Specialized AI services",
+      "description": "Configure every workload independently. Select Workspace to keep using the provider configured in the flow or agent.",
+      "provider": "Provider",
+      "model": "Model or service ID",
+      "fallbackModel": "Fallback model (optional)",
+      "location": "Region (optional)",
+      "voice": "Voice ID (optional)",
+      "items": {
+        "vision": "Image understanding",
+        "embedding": "Knowledge embeddings",
+        "summarization": "Conversation summarization",
+        "extraction": "Structured data extraction",
+        "imageGeneration": "Image generation",
+        "imageEditing": "Image editing",
+        "speechToText": "Speech to text",
+        "textToSpeech": "Text to speech",
+        "webSearch": "Google Search grounding",
+        "documentParsing": "Document parsing",
+        "translation": "Translation"
+      }
+    },
+    "agentModelManaged": "The AI provider and model are managed by the platform. Agents use the model selected by the platform admin."
   }
 }
