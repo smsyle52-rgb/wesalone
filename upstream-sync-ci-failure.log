@@ -1,0 +1,96 @@
+install:
+Scope: all 54 workspace projects
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +1444
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 1444, reused 0, downloaded 15, added 0
+Progress: resolved 1444, reused 0, downloaded 79, added 24
+Progress: resolved 1444, reused 0, downloaded 209, added 72
+Progress: resolved 1444, reused 0, downloaded 328, added 124
+Progress: resolved 1444, reused 0, downloaded 336, added 126
+Progress: resolved 1444, reused 0, downloaded 337, added 126
+Progress: resolved 1444, reused 0, downloaded 405, added 152
+Progress: resolved 1444, reused 0, downloaded 406, added 152
+Progress: resolved 1444, reused 0, downloaded 407, added 152
+Progress: resolved 1444, reused 0, downloaded 511, added 193
+Progress: resolved 1444, reused 0, downloaded 560, added 210
+Progress: resolved 1444, reused 0, downloaded 576, added 217
+Progress: resolved 1444, reused 0, downloaded 614, added 229
+Progress: resolved 1444, reused 0, downloaded 681, added 253
+Progress: resolved 1444, reused 0, downloaded 803, added 292
+Progress: resolved 1444, reused 0, downloaded 858, added 308
+Progress: resolved 1444, reused 0, downloaded 936, added 334
+Progress: resolved 1444, reused 0, downloaded 956, added 339
+Progress: resolved 1444, reused 0, downloaded 987, added 351
+Progress: resolved 1444, reused 0, downloaded 1021, added 364
+Progress: resolved 1444, reused 0, downloaded 1031, added 368
+Progress: resolved 1444, reused 0, downloaded 1032, added 368
+Progress: resolved 1444, reused 0, downloaded 1133, added 406
+Progress: resolved 1444, reused 0, downloaded 1300, added 493
+Progress: resolved 1444, reused 0, downloaded 1406, added 528
+Progress: resolved 1444, reused 0, downloaded 1442, added 587
+Progress: resolved 1444, reused 0, downloaded 1442, added 1013
+Progress: resolved 1444, reused 0, downloaded 1442, added 1419
+Progress: resolved 1444, reused 0, downloaded 1442, added 1444, done
+.../lefthook@2.1.9/node_modules/lefthook postinstall$ node postinstall.js
+.../esbuild@0.28.1/node_modules/esbuild postinstall$ node install.js
+.../esbuild@0.27.7/node_modules/esbuild postinstall$ node install.js
+.../esbuild@0.21.5/node_modules/esbuild postinstall$ node install.js
+.../lefthook@2.1.9/node_modules/lefthook postinstall: Done
+.../esbuild@0.25.12/node_modules/esbuild postinstall$ node install.js
+.../esbuild@0.28.1/node_modules/esbuild postinstall: Done
+.../esbuild@0.27.7/node_modules/esbuild postinstall: Done
+.../esbuild@0.21.5/node_modules/esbuild postinstall: Done
+.../esbuild@0.25.12/node_modules/esbuild postinstall: Done
+
+devDependencies:
++ @biomejs/biome 2.4.16
++ @chatbotx.io/vitest-config 0.0.0 <- packages/vitest-config
++ @types/node 24.13.1
++ dependency-cruiser 17.4.3
++ knip 6.25.0
++ lefthook 2.1.9
++ tsx 4.23.0
++ turbo 2.10.4
++ typescript 5.9.3
++ ultracite 7.8.3
++ vitest 4.1.8
++ zod 4.4.3
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: @parcel/watcher@2.5.6, @swc/core@1.15.40,           │
+│   msgpackr-extract@3.0.4, msw@2.14.6, sharp@0.34.5, workerd@1.20240718.0.    │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 32.5s using pnpm v10.33.2
+
+typecheck:
+
+> builder@0.1.0 check-types /home/runner/work/wesalone/wesalone/apps/builder
+> tsc --noEmit
+
+
+<--- Last few GCs --->
+
+[2239:0x1f774000]    26894 ms: Scavenge 2034.2 (2048.0) -> 2029.0 (2049.0) MB, pooled: 0 MB, 3.25 / 0.00 ms  (average mu = 0.272, current mu = 0.233) allocation failure; 
+[2239:0x1f774000]    28140 ms: Mark-Compact (reduce) 2029.2 (2049.0) -> 2029.0 (2036.0) MB, pooled: 0 MB, 1234.09 / 0.00 ms  (+ 8.9 ms in 3 steps since start of marking, biggest step 6.1 ms, walltime since start of marking 1245 ms) (average mu = 0.236, cu
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 0x74eae8 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [node]
+ 2: 0xc42680  [node]
+ 3: 0xc4276f  [node]
+ 4: 0xee5fc5  [node]
+ 5: 0xee5ff2  [node]
+ 6: 0xee62ea  [node]
+ 7: 0xef6fea  [node]
+ 8: 0xefb390  [node]
+ 9: 0x198d931  [node]
+Aborted (core dumped)
+/home/runner/work/wesalone/wesalone/apps/builder:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  builder@0.1.0 check-types: `tsc --noEmit`
+Exit status 134
