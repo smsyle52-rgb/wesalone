@@ -6,6 +6,7 @@ import {
 import { getSessionCookie } from "better-auth/cookies"
 import { headers } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
+import { LOCALE_COOKIE, LOCALE_QUERY_PARAM, parseLocale } from "@/i18n/config"
 import { auth } from "@/lib/auth/auth"
 import { httpLogger } from "./lib/log"
 
@@ -79,6 +80,37 @@ export async function proxy(request: NextRequest) {
   return attachProxyUrl(request)
 }
 
+/**
+ * `?lang=en` pins the UI language and remembers the choice.
+ *
+ * The locale otherwise lives only in the NEXT_LOCALE cookie, so a link cannot
+ * carry it: every visitor lands on the Arabic default and has to find the
+ * switcher. That leaves no URL you can hand to someone who does not read
+ * Arabic — a reviewer, a partner — and have the page open in a language they
+ * understand.
+ *
+ * Only an explicit `?lang` does anything here. Visitors who do not pass one,
+ * and anyone who has already chosen a language, are unaffected — in
+ * particular this does NOT sniff Accept-Language, which would have flipped
+ * Arabic-speaking merchants on English-language browsers to English.
+ */
+function applyLocaleOverride(
+  request: NextRequest,
+  response: NextResponse,
+): void {
+  const requested = parseLocale(
+    request.nextUrl.searchParams.get(LOCALE_QUERY_PARAM),
+  )
+  if (!requested || request.cookies.get(LOCALE_COOKIE)?.value === requested) {
+    return
+  }
+
+  response.cookies.set(LOCALE_COOKIE, requested, {
+    path: "/",
+    sameSite: "lax",
+  })
+}
+
 function attachProxyUrl(request: NextRequest): NextResponse {
   const originUrl = new URL(request.url)
   originUrl.host = getPublicHostFromRequest(request)
@@ -89,11 +121,14 @@ function attachProxyUrl(request: NextRequest): NextResponse {
   requestHeaders.set("x-url", originUrl.toString())
   requestHeaders.set("x-domain", originUrl.hostname)
 
-  return NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: requestHeaders,
     },
   })
+  applyLocaleOverride(request, response)
+
+  return response
 }
 
 function buildSigninUrl(
