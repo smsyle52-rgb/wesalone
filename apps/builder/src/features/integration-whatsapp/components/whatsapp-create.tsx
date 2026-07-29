@@ -39,6 +39,7 @@ import {
   WA_OAUTH_RESULT,
   type WhatsappOAuthRelayResult,
 } from "../libs/embedded-signup"
+import { FORM_FIELDS } from "../libs/form-fields"
 import {
   CONNECT_WHATSAPP_RESULT_TYPES,
   type ConnectWhatsappSchema,
@@ -53,19 +54,6 @@ import { WhatsappOnboardingResult } from "./whatsapp-onboarding-result"
 const API_ENDPOINT = "/api/whatsapp/phone-numbers/list"
 const MAX_CARD_WIDTH = "max-w-md"
 const CARD_MARGIN = "mx-auto mt-40"
-
-// Form field names
-const FORM_FIELDS = {
-  WABA_ID: "wabaId",
-  ACCESS_TOKEN: "accessToken",
-  CONNECT_EXISTING: "connectExisting",
-  TRANSFER_PHONE_NUMBER: "transferPhoneNumber",
-  MANUAL_CONNECT: "manualConnect",
-  MARKETING_MESSAGE_LITE: "marketingMessageLite",
-  PHONE_NUMBER_ID: "phoneNumberId",
-  BUSINESS_ID: "businessId",
-  CODE: "code",
-} as const
 
 type FormVisibility = {
   connectExisting: boolean

@@ -137,7 +137,8 @@
     "getMessengerAdPayload": "الحصول على حمولة إعلان ماسنجر",
     "moveUp": "نقل لأعلى",
     "moveDown": "نقل لأسفل",
-    "followUp": "متابعة"
+    "followUp": "متابعة",
+    "reset": "إعادة تعيين"
   },
   "states": {
     "success": "النجاح",
@@ -520,7 +521,8 @@
         "audio": "صوت",
         "gif": "GIF",
         "file": "ملف"
-      }
+      },
+      "couponTopic": "الكوبون"
     },
     "fieldGroups": {
       "opportunity": "فرصة",
@@ -533,7 +535,8 @@
       "systemFields": "مجالات النظام",
       "customFields": "الحقول المخصصة",
       "email": "البريد الإلكتروني",
-      "sms": "الرسائل القصيرة"
+      "sms": "الرسائل القصيرة",
+      "topicCoupon": "كوبون الموضوع"
     },
     "languages": {
       "ar": "العربية",
@@ -723,7 +726,8 @@
       "startsWith": "يبدأ ب",
       "endsWith": "ينتهي ب",
       "isBetween": "الفاصل الزمني",
-      "notBetween": "ليس الفاصل"
+      "notBetween": "ليس الفاصل",
+      "used": "مستخدم"
     },
     "contactFilter": {
       "allConditions": "جميع الشروط التالية",
@@ -2120,7 +2124,9 @@
       "condition": "شرط",
       "updateMessengerContactData": "تحديث بيانات جهة الاتصال",
       "make": "Make",
-      "triggers": "المشغّلات"
+      "triggers": "المشغّلات",
+      "setUpCoupon": "إعداد كوبون",
+      "markCouponUsed": "تعليم الكوبون كمُستخدم"
     },
     "splitTraffic": {
       "balanceHint": "يجب أن يساوي المبلغ الإجمالي 100%.",
@@ -3189,6 +3195,10 @@
           "MESSAGE_TEMPLATE": "قالب الرسالة",
           "APP": "التطبيق"
         }
+      },
+      "unavailable": {
+        "title": "حالة الحساب غير متاحة مؤقتًا",
+        "description": "تعذّر تحميل رقم هاتف واتساب هذا من Meta الآن. إجراءات الاسترداد الأخرى في هذه الصفحة ما زالت متاحة."
       }
     },
     "templateFooter": {
@@ -3200,7 +3210,52 @@
     "transferPhoneNumber": "نقل الهاتف من مزود Whatsapp آخر",
     "autoConnect": {
       "inProgress": "جارٍ الربط…"
-    }
+    },
+    "phoneVerification": {
+      "title": "تحقق من رقم واتساب",
+      "description": "اطلب رمز تحقق من Meta، أدخله هنا، وسيتم تسجيل رقم الهاتف تلقائيًا.",
+      "errorTitle": "التحقق من رقم الهاتف مطلوب",
+      "methods": {
+        "sms": "رسالة نصية",
+        "voice": "مكالمة صوتية"
+      },
+      "actions": {
+        "sendCode": "إرسال الرمز",
+        "resendIn": "إعادة الإرسال خلال {seconds} ثانية",
+        "verify": "تحقق وسجّل"
+      },
+      "fields": {
+        "code": {
+          "label": "رمز التحقق",
+          "placeholder": "أدخل رمز Meta"
+        }
+      },
+      "messages": {
+        "codeSent": "تم إرسال رمز التحقق عبر {method}.",
+        "cooldown": "الرجاء الانتظار {seconds} ثانية قبل طلب رمز آخر.",
+        "verified": "تم التحقق من رقم الهاتف وتسجيله بنجاح."
+      },
+      "errors": {
+        "integrationNotFound": "لم يتم العثور على تكامل واتساب.",
+        "codeNotSent": "تعذّر إرسال رمز التحقق من واتساب.",
+        "codeNotVerified": "تعذّر التحقق من رمز واتساب.",
+        "registrationFailed": "فشل التحقق من رقم هاتف واتساب."
+      }
+    },
+    "connect": {
+      "errors": {
+        "accessTokenRequired": "رمز الوصول لواتساب مطلوب.",
+        "appSettingsNotFound": "لم يتم العثور على إعدادات تطبيق واتساب.",
+        "failedToPersistIntegration": "فشل حفظ تكامل واتساب.",
+        "noPhoneNumberFound": "لم يتم العثور على رقم هاتف واتساب.",
+        "noPhoneNumbersFound": "لم يتم العثور على أي أرقام هواتف لحساب واتساب للأعمال هذا.",
+        "phoneNumberNotFound": "لم يتم العثور على رقم هاتف واتساب المحدد.",
+        "unableToVerifyToken": "تعذّر التحقق من رمز واتساب.",
+        "wabaMismatch": "حساب واتساب للأعمال المحدد لا يطابق التفويض.",
+        "wabaResolveFailed": "تعذّر تحديد حساب واتساب للأعمال من التفويض."
+      }
+    },
+    "signupSessionExpired": "انتهت صلاحية جلسة تسجيل واتساب. يرجى بدء الاتصال مرة أخرى."
   },
   "zalo": {
     "title": "زالو الزراعة العضوية",
@@ -4542,6 +4597,70 @@
       "description": "اربط حسابك في Make.com لإرسال الأحداث من مساراتك واستقبال بيانات جهات الاتصال عبر سيناريوهات Make. يُنسخ رمز الوصول التطويري لمساحة عملك إلى الحافظة عند الضغط على «ربط» — الصقه عند إنشاء الاتصال في Make.",
       "notConfigured": "لا يوجد رابط دعوة لـMake. الرجاء إضافته في إعدادات المنصة.",
       "noWorkspaceToken": "لا يوجد رمز وصول تطويري لمساحة العمل هذه. أنشئ واحداً من قسم رمز مساحة العمل أعلاه ثم اضغط «ربط» مرة أخرى."
+    }
+  },
+  "coupons": {
+    "title": "الكوبونات",
+    "description": "إدارة مواضيع كوبونات الحملات، والاستيراد، والتصدير، وأكواد الكوبونات الجاهزة للتدفقات.",
+    "singular": "كوبون",
+    "topicCouponsTitle": "كوبونات الموضوع",
+    "tabs": {
+      "topicCoupon": "كوبون الموضوع",
+      "coupon": "كوبون",
+      "listTopic": "قائمة المواضيع",
+      "archive": "الأرشيف"
+    },
+    "topic": {
+      "create": "إنشاء جديد",
+      "edit": "تعديل الموضوع"
+    },
+    "actions": {
+      "import": "استيراد كوبونات",
+      "export": "تنزيل قائمة الكوبونات",
+      "downloadImportTemplate": "تنزيل قالب الاستيراد"
+    },
+    "fields": {
+      "topic": "الموضوع",
+      "selectTopic": "اختر الموضوع",
+      "importCsvOnly": "انقر أو اسحب ملف .csv إلى هذه المنطقة للرفع",
+      "allTopics": "كل المواضيع",
+      "couponCount": "الكوبونات",
+      "validity": "فترة الصلاحية",
+      "unlimited": "غير محدود",
+      "code": "الكود",
+      "issueStatus": "الحالة",
+      "usageStatus": "الاستخدام",
+      "allIssueStatuses": "كل الحالات",
+      "allUsageStatuses": "كل حالات الاستخدام",
+      "searchCode": "بحث بالكود"
+    },
+    "issueStatuses": {
+      "published": "منشور",
+      "unpublished": "غير منشور"
+    },
+    "usageStatuses": {
+      "used": "مُستخدم",
+      "notUsed": "لم يُستخدم بعد"
+    },
+    "variables": {
+      "group": "الكوبونات"
+    },
+    "messages": {
+      "topicSaved": "تم حفظ موضوع الكوبون.",
+      "editLocked": "الاسم والوصف مقفلان بعد إنشاء الكوبونات أو استيرادها.",
+      "archiveTitle": "أرشفة موضوع الكوبون",
+      "archiveConfirm": "أرشفة \"{name}\"؟ سينتقل إلى قائمة الأرشيف.",
+      "archiveBulkConfirm": "أرشفة {count} مواضيع محددة؟ ستنتقل إلى قائمة الأرشيف.",
+      "restoreTitle": "استعادة موضوع الكوبون",
+      "unarchiveConfirm": "استعادة \"{name}\"؟ سيعود إلى قائمة المواضيع.",
+      "unarchiveBulkConfirm": "استعادة {count} مواضيع محددة؟ ستعود إلى قائمة المواضيع.",
+      "deleteTitle": "حذف موضوع الكوبون",
+      "deleteConfirm": "حذف هذا الموضوع المؤرشف؟ سيتم الاحتفاظ بسجل الكوبونات.",
+      "empty": "لا توجد كوبونات.",
+      "importStarted": "بدأ استيراد الكوبونات.",
+      "exportStarted": "بدأ تصدير الكوبونات.",
+      "exportFailed": "فشل تصدير الكوبونات.",
+      "exportCount": "سيتم تصدير {count} صف من الكوبونات."
     }
   }
 }
