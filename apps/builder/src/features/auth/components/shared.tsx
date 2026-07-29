@@ -72,14 +72,15 @@ export const AcceptTermsAndPolicy = ({
   )
 }
 
-export const OrSeparator = () => {
+/** `label` overrides the default "or continue with" wording. */
+export const OrSeparator = ({ label }: { label?: string } = {}) => {
   const t = useTranslations()
 
   return (
     <div className="relative flex h-4 w-full items-center justify-center text-center text-sm">
       <hr className="w-full" />
       <span className="absolute bg-card px-2 font-medium text-foreground/60 text-sm">
-        {t("auth.orContinueWith")}
+        {label ?? t("auth.orContinueWith")}
       </span>
     </div>
   )

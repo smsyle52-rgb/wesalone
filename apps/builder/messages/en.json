@@ -2896,6 +2896,9 @@
   },
   "auth": {
     "orContinueWith": "Or continue with",
+    "continueWithGoogle": "Continue with Google",
+    "orSignInWithEmail": "Or sign in with email",
+    "orSignUpWithEmail": "Or sign up with email",
     "continueWithFacebook": "Continue with Facebook",
     "dontHaveAnAccount": "Don't have an account?",
     "alreadyHaveAnAccount": "Already have an account?",

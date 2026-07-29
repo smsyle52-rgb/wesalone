@@ -2875,6 +2875,9 @@
   },
   "auth": {
     "orContinueWith": "أو الاستمرار مع",
+    "continueWithGoogle": "المتابعة بحساب Google",
+    "orSignInWithEmail": "أو سجّل الدخول بالبريد",
+    "orSignUpWithEmail": "أو سجّل بالبريد",
     "continueWithFacebook": "تواصل مع Facebook",
     "dontHaveAnAccount": "ليس لديك حساب؟",
     "alreadyHaveAnAccount": "هل لديك حساب بالفعل؟",

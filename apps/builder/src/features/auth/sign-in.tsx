@@ -42,18 +42,20 @@ export const SignInForm = ({
 
         <CardContent>
           <div className="grid gap-6">
+            {/* Social first, then one separator, then the email form — the
+                order the product's own sign-up visual has always used. The
+                previous layout put the password form first and then repeated
+                an identical "or continue with" rule twice, once before the
+                magic link and again before the social buttons. */}
+            {!isCommunity() && enabledProviders.length > 0 && (
+              <SSOSignIn providers={enabledProviders} />
+            )}
+
+            <OrSeparator label={t("auth.orSignInWithEmail")} />
+
             <EmailPasswordSignIn />
 
-            <OrSeparator />
-
             <MagicLinkSignIn />
-
-            {!isCommunity() && enabledProviders.length > 0 && (
-              <>
-                <OrSeparator />
-                <SSOSignIn providers={enabledProviders} />
-              </>
-            )}
 
             <div className="text-center font-medium text-foreground/60 text-sm">
               {t("auth.dontHaveAnAccount")}{" "}

@@ -41,14 +41,15 @@ export const SignUpForm = ({
 
         <CardContent>
           <div className="grid gap-6">
-            <EmailPasswordSignUp />
-
+            {/* Mirrors sign-in: social first, then the email form. */}
             {!isCommunity() && enabledProviders.length > 0 && (
               <>
-                <OrSeparator />
                 <SSOSignUp providers={enabledProviders} />
+                <OrSeparator label={t("auth.orSignUpWithEmail")} />
               </>
             )}
+
+            <EmailPasswordSignUp />
 
             <div className="text-center font-medium text-foreground/60 text-sm">
               {t("auth.alreadyHaveAnAccount")}{" "}
