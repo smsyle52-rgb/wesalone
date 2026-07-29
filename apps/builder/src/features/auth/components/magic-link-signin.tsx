@@ -4,7 +4,7 @@ import { InputField } from "@chatbotx.io/ui/components/form/input-field"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import { Form } from "@chatbotx.io/ui/components/ui/form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { LinkIcon, Loader2Icon } from "lucide-react"
+import { LinkIcon, Loader2Icon, MailIcon } from "lucide-react"
 import { redirect, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useForm } from "react-hook-form"
@@ -45,6 +45,7 @@ export const MagicLinkSignIn = () => {
         onSubmit={magicLinkForm.handleSubmit(onSubmitMagicLinkForm)}
       >
         <InputField
+          icon={<MailIcon className="size-4" />}
           name="email"
           placeholder={t("fields.email.label")}
           required

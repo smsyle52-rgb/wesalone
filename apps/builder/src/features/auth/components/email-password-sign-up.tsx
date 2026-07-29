@@ -4,7 +4,7 @@ import { InputField } from "@chatbotx.io/ui/components/form/input-field"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import { Form } from "@chatbotx.io/ui/components/ui/form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, LockIcon, MailIcon, UserIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useForm } from "react-hook-form"
@@ -105,6 +105,7 @@ export const EmailPasswordSignUp = () => {
         onSubmit={emailPasswordForm.handleSubmit(onSubmitEmailPasswordForm)}
       >
         <InputField
+          icon={<UserIcon className="size-4" />}
           label={t("fields.name.label")}
           name="name"
           placeholder={t("fields.name.label")}
@@ -112,6 +113,7 @@ export const EmailPasswordSignUp = () => {
         />
 
         <InputField
+          icon={<MailIcon className="size-4" />}
           label={t("fields.email.label")}
           name="email"
           placeholder={t("fields.email.label")}
@@ -121,6 +123,7 @@ export const EmailPasswordSignUp = () => {
 
         <div>
           <InputField
+            icon={<LockIcon className="size-4" />}
             label={t("fields.password.label")}
             name="password"
             placeholder="********"
@@ -133,6 +136,7 @@ export const EmailPasswordSignUp = () => {
         </div>
 
         <InputField
+          icon={<LockIcon className="size-4" />}
           label={t("fields.passwordConfirmation.label")}
           name="passwordConfirmation"
           placeholder="********"

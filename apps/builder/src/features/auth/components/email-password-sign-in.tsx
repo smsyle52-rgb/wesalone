@@ -10,7 +10,7 @@ import {
 } from "@chatbotx.io/ui/components/ui/form"
 import { Input } from "@chatbotx.io/ui/components/ui/input"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, LockIcon, MailIcon } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { useTranslations } from "next-intl"
@@ -57,6 +57,7 @@ export const EmailPasswordSignIn = () => {
         onSubmit={emailPasswordForm.handleSubmit(onSubmitEmailPasswordForm)}
       >
         <InputField
+          icon={<MailIcon className="size-4" />}
           label={t("fields.email.label")}
           name="email"
           placeholder={t("fields.email.label")}
@@ -81,12 +82,21 @@ export const EmailPasswordSignIn = () => {
                 </Link>
               </div>
               <FormControl>
-                <Input
-                  placeholder="********"
-                  required
-                  type="password"
-                  {...field}
-                />
+                <div className="relative">
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-muted-foreground"
+                  >
+                    <LockIcon className="size-4" />
+                  </span>
+                  <Input
+                    className="ps-10"
+                    placeholder="********"
+                    required
+                    type="password"
+                    {...field}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>

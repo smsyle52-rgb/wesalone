@@ -1,4 +1,5 @@
-import type { ComponentProps } from "react"
+import { cn } from "@chatbotx.io/ui/lib/utils"
+import type { ComponentProps, ReactNode } from "react"
 import type { FieldPath, FieldValues } from "react-hook-form"
 import { Input } from "../ui/input"
 import { FormFieldWrapper } from "./field-wrapper"
@@ -9,6 +10,12 @@ type InputFieldProps<T extends FieldValues> = ComponentProps<"input"> & {
   description?: string
   descriptionType?: "inline" | "tooltip"
   formItemClassName?: string
+  /**
+   * Optional leading glyph rendered inside the field. Purely decorative, so it
+   * is hidden from assistive tech and does not swallow clicks — the label still
+   * carries the meaning.
+   */
+  icon?: ReactNode
 }
 
 export function InputField<T extends FieldValues>({
@@ -18,6 +25,8 @@ export function InputField<T extends FieldValues>({
   description,
   descriptionType = "inline",
   formItemClassName,
+  icon,
+  className,
   ...props
 }: InputFieldProps<T>) {
   return (
@@ -29,7 +38,21 @@ export function InputField<T extends FieldValues>({
       name={name}
       required={required}
     >
-      {(field) => <Input {...props} {...field} />}
+      {(field) =>
+        icon ? (
+          <div className="relative">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-muted-foreground"
+            >
+              {icon}
+            </span>
+            <Input {...props} {...field} className={cn("ps-10", className)} />
+          </div>
+        ) : (
+          <Input {...props} {...field} className={className} />
+        )
+      }
     </FormFieldWrapper>
   )
 }
