@@ -7,7 +7,7 @@ import {
 import { ExpiredBanner } from "@/components/expired-banner"
 import { WorkspaceDeletionPendingToast } from "@/components/workspace-deletion-pending-toast"
 import { isCloud } from "@/env"
-import { MarketingHome } from "@/features/marketing/marketing-home"
+import { HomePage } from "@/features/public-website/home-page"
 import { AccountRail } from "@/features/workspaces/components/account-rail"
 import WorkspacesList from "@/features/workspaces/components/workspaces-list"
 import { hasWorkspacePermission } from "@/lib/auth/permission-routes"
@@ -22,7 +22,7 @@ import {
 export default async function MainPage() {
   const userAndWorkspaces = await getCurrentUserAndAllLinkedWorkspaces()
   if (!userAndWorkspaces) {
-    return <MarketingHome />
+    return <HomePage />
   }
 
   const { user, allWorkspaces, allWorkspaceMembers } = userAndWorkspaces

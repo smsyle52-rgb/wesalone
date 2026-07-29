@@ -1,5 +1,5 @@
-import { PublicContentPage } from "@/features/marketing/public-content-page"
+import { ContentPage } from "@/features/public-website/content-page"
 
 export default function PrivacyPage() {
-  return <PublicContentPage kind="privacy" />
+  return <ContentPage kind="privacy" />
 }

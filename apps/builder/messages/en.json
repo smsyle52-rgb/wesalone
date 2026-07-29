@@ -4412,6 +4412,7 @@
       "features": "Features",
       "channels": "Channels",
       "pricing": "Pricing",
+      "docs": "Documentation",
       "about": "About",
       "contact": "Contact"
     },
@@ -4490,6 +4491,7 @@
     "footer": {
       "description": "An Arabic-first platform for customer conversations, teams, products and automation.",
       "product": "Product",
+      "company": "Company & legal",
       "legal": "Legal",
       "privacy": "Privacy policy",
       "dataDeletion": "Data deletion",
@@ -4497,22 +4499,164 @@
       "copyright": "© 2026 Wesal One. All rights reserved."
     }
   },
+  "productDocs": {
+    "eyebrow": "Wesal One knowledge center",
+    "title": "Documentation that takes you from first login to advanced automation",
+    "intro": "Practical, product-focused guides for connecting channels, managing conversations, building AI agents, automating journeys and integrating your systems.",
+    "allDocs": "All documentation",
+    "previous": "Previous",
+    "next": "Next",
+    "groups": [
+      {
+        "id": "start",
+        "title": "Getting started",
+        "description": "Set up the account, workspace and first customer channel.",
+        "articles": [
+          { "slug": "getting-started/overview", "title": "Platform overview", "summary": "Wesal One combines customer channels, a shared inbox, automation and AI agents in one workspace.", "sections": [
+            { "title": "How the platform is organized", "body": "Each business works inside an isolated workspace. Channels deliver conversations to the inbox, while flows, agents and team rules decide how every conversation is handled.", "bullets": ["Connect approved customer channels", "Invite team members and assign permissions", "Create agents, knowledge and automation", "Track usage, delivery and outcomes"] },
+            { "title": "Recommended order", "body": "Start with one channel and one clear use case. Test the complete customer journey, then add more channels and automation after the first workflow is stable." }
+          ] },
+          { "slug": "getting-started/quickstart", "title": "Quick start", "summary": "Launch a controlled first experience without over-configuring the workspace.", "sections": [
+            { "title": "Create the foundation", "body": "Create a workspace, confirm its language and time zone, then connect the channel where your customers are most active." },
+            { "title": "Publish safely", "body": "Add a welcome flow, define a human handoff rule and test with an internal contact before sharing the channel publicly.", "bullets": ["Verify inbound and outbound messages", "Confirm contact creation", "Test assignment and handoff", "Review point usage"] }
+          ] }
+        ]
+      },
+      {
+        "id": "inbox",
+        "title": "Inbox and contacts",
+        "description": "Operate conversations, customer records and teamwork from one place.",
+        "articles": [
+          { "slug": "inbox/conversations", "title": "Manage conversations", "summary": "Use the unified inbox to review context, reply, assign ownership and move between automation and human support.", "sections": [
+            { "title": "Conversation controls", "body": "Filter by channel, status, assignee or team. The conversation timeline keeps customer messages, staff replies and automated actions together." },
+            { "title": "Human handoff", "body": "Assign a conversation or switch to human handling when a case needs judgment. Define when automation may resume so customers never receive overlapping replies." }
+          ] },
+          { "slug": "contacts/manage", "title": "Manage contacts", "summary": "Keep customer identity, tags, fields and interaction history in a reusable profile.", "sections": [
+            { "title": "Customer records", "body": "A contact can contain channel identifiers, phone, email, tags, custom fields and the history needed for personalization." },
+            { "title": "Import and export", "body": "Use CSV import for authorized customer data, map every column deliberately and review duplicates before campaigns. Export only data your team is allowed to process." }
+          ] }
+        ]
+      },
+      {
+        "id": "ai",
+        "title": "AI agents and knowledge",
+        "description": "Create useful agents that answer from approved business information.",
+        "articles": [
+          { "slug": "ai-agents/create", "title": "Create an AI agent", "summary": "Define an agent's responsibility, tone, model and escalation boundaries before enabling it on a channel.", "sections": [
+            { "title": "Agent instructions", "body": "Describe the job in measurable terms: what the agent may answer, what it must never invent and when it must hand the conversation to a person." },
+            { "title": "Tools and limits", "body": "Give the agent only the tools required for its role. Start with read-only actions, review the results and add write actions with explicit confirmation rules." }
+          ] },
+          { "slug": "ai-agents/knowledge", "title": "Build a knowledge base", "summary": "Ground answers in your own documents, policies, products and frequently asked questions.", "sections": [
+            { "title": "Source quality", "body": "Upload current, authoritative material and split conflicting policies. Clear titles and focused documents improve retrieval and reduce ambiguous answers." },
+            { "title": "Maintain accuracy", "body": "Test common and difficult questions, inspect cited sources and replace outdated documents. Knowledge should support the agent, not override safety or handoff rules." }
+          ] },
+          { "slug": "ai-agents/usage", "title": "AI points and usage", "summary": "Understand how text, audio, images, research and model work consume the workspace point balance.", "sections": [
+            { "title": "What consumes points", "body": "Consumption varies by model and task size. Longer prompts and answers, audio transcription, image analysis, knowledge retrieval and tool-heavy work require more processing." },
+            { "title": "Control cost", "body": "Use concise instructions, limit unnecessary context, select the appropriate model and monitor usage from billing. The platform checks the balance before billable AI work begins." }
+          ] }
+        ]
+      },
+      {
+        "id": "automation",
+        "title": "Flows and automation",
+        "description": "Design reliable customer journeys with triggers, conditions and actions.",
+        "articles": [
+          { "slug": "automation/flows", "title": "Build a conversation flow", "summary": "Create structured journeys with content, questions, branches, delays and actions.", "sections": [
+            { "title": "Design the journey", "body": "Start with the customer goal, then draw the shortest successful path. Add recovery paths for missing data, unsupported requests and human escalation." },
+            { "title": "Test before publish", "body": "Preview every branch with realistic contact data. Confirm variable values, channel restrictions, wait periods and the final state before publishing a new version." }
+          ] },
+          { "slug": "automation/triggers", "title": "Triggers, conditions and actions", "summary": "Respond to customer or system events and route each contact according to verified data.", "sections": [
+            { "title": "Triggers", "body": "Triggers start work when a message, keyword, contact update, schedule or connected event matches the configured scope." },
+            { "title": "Conditions and actions", "body": "Conditions divide the journey using contact data. Actions update records, assign work, call integrations or send approved content. Always include a fallback branch." }
+          ] },
+          { "slug": "automation/webhooks", "title": "Webhooks and external requests", "summary": "Exchange events and data with external systems without placing secrets in flows.", "sections": [
+            { "title": "Outbound requests", "body": "Choose the method, endpoint, headers and mapped values. Use short timeouts and handle non-success responses so a third-party outage does not break the customer journey." },
+            { "title": "Security", "body": "Store credentials in the integration settings, verify incoming signatures and keep customer data to the minimum required by the destination system." }
+          ] }
+        ]
+      },
+      {
+        "id": "channels",
+        "title": "Customer channels",
+        "description": "Connect and operate every supported channel with its own delivery rules.",
+        "articles": [
+          { "slug": "channels/whatsapp", "title": "WhatsApp Business", "summary": "Connect WhatsApp Cloud API and manage sessions, templates, lists, buttons and approved business messaging.", "sections": [
+            { "title": "Connection", "body": "Use embedded signup when available, or provide the required Meta application, business account, phone and permanent token values. Confirm the webhook before going live." },
+            { "title": "Messaging rules", "body": "Inside the customer-service window you can send supported free-form content. Outside it, use an approved template and respect Meta quality, consent and opt-out requirements." }
+          ] },
+          { "slug": "channels/meta", "title": "Instagram and Messenger", "summary": "Bring professional Instagram and Facebook Page conversations and comment automation into the inbox.", "sections": [
+            { "title": "Permissions", "body": "Connect an authorized Meta business account and grant only the pages and professional accounts the workspace should manage." },
+            { "title": "Operational limits", "body": "Follow platform response windows and message-type rules. Reconnect the channel when permissions, passwords or business ownership change." }
+          ] },
+          { "slug": "channels/other", "title": "Telegram, Webchat, Email, TikTok and Zalo", "summary": "Use the channel that matches the audience while retaining one customer-service workflow.", "sections": [
+            { "title": "Channel setup", "body": "Each channel requires its own credentials and verification. Webchat also provides appearance and website installation settings." },
+            { "title": "Shared behavior", "body": "Assignment, contacts, automation and reporting are unified, while delivery capabilities remain limited by each channel provider." }
+          ] }
+        ]
+      },
+      {
+        "id": "growth",
+        "title": "Campaigns and growth",
+        "description": "Reach opted-in contacts with broadcasts, sequences and trackable entry points.",
+        "articles": [
+          { "slug": "growth/broadcasts", "title": "Broadcast messages", "summary": "Send a controlled campaign to a filtered audience through supported channel message types.", "sections": [
+            { "title": "Audience and content", "body": "Build a narrow, consented audience and preview personalization fields. Use approved templates when the channel requires them." },
+            { "title": "Launch and measure", "body": "Schedule for the audience time zone, monitor delivery and failures, and stop campaigns whose quality or opt-out signals indicate a problem." }
+          ] },
+          { "slug": "growth/sequences", "title": "Sequences and follow-up", "summary": "Enroll contacts into timed, multi-step follow-up without sending duplicate messages.", "sections": [
+            { "title": "Sequence design", "body": "Use purposeful waits and a clear exit condition. Remove contacts after purchase, opt-out or human resolution." },
+            { "title": "Entry points", "body": "Keywords, QR codes, tracked links and ads can start an appropriate flow while preserving source attribution." }
+          ] }
+        ]
+      },
+      {
+        "id": "operations",
+        "title": "Analytics, team and billing",
+        "description": "Measure performance, govern access and keep resource usage predictable.",
+        "articles": [
+          { "slug": "operations/analytics", "title": "Analytics and reporting", "summary": "Review conversation volume, new contacts, channel distribution and response performance.", "sections": [
+            { "title": "Read the dashboard", "body": "Compare trends over a consistent period and segment by channel. Use response time and assignment data to find operational bottlenecks." },
+            { "title": "Improve with evidence", "body": "Treat a metric as a starting signal. Review the related conversations and flow paths before changing staff rules or automation." }
+          ] },
+          { "slug": "operations/team", "title": "Teams and permissions", "summary": "Give every member the minimum access needed for their responsibility.", "sections": [
+            { "title": "Role design", "body": "Separate platform administration, workspace configuration, conversation handling and reporting. Review access whenever responsibilities change." },
+            { "title": "Account safety", "body": "Use individual accounts, strong authentication and prompt removal of former members. Never share channel or provider secrets in conversations." }
+          ] },
+          { "slug": "operations/billing", "title": "Plans, subscriptions and points", "summary": "Choose limits for the workspace and monitor the shared AI point balance.", "sections": [
+            { "title": "Plan limits", "body": "Plans define available channels, contacts, members, workspaces and monthly AI points. The billing page shows the active plan and current consumption." },
+            { "title": "Renewal and upgrades", "body": "Monthly and annual subscriptions follow the confirmed payment state. Upgrade before reaching operational limits; failed or pending payments never grant unconfirmed entitlements." }
+          ] }
+        ]
+      },
+      {
+        "id": "developers",
+        "title": "Developers and integrations",
+        "description": "Connect external systems through tokens, APIs, webhooks, CLI and MCP.",
+        "articles": [
+          { "slug": "developers/api", "title": "Public API", "summary": "Use a workspace token to integrate contacts, conversations, flows, tags, broadcasts and other supported resources.", "sections": [
+            { "title": "Authentication", "body": "Create a workspace token, store it only on the server and send it through the documented authorization header. Rotate exposed tokens immediately." },
+            { "title": "Reliable clients", "body": "Validate inputs, handle pagination and rate limits, use idempotent patterns for retries and log request identifiers without logging secrets." }
+          ] },
+          { "slug": "developers/mcp-cli", "title": "MCP and CLI", "summary": "Let approved AI tools or operators perform workspace actions through governed interfaces.", "sections": [
+            { "title": "MCP", "body": "Connect an MCP client with a scoped workspace token. Keep confirmation enabled for destructive or externally visible actions." },
+            { "title": "Command line", "body": "Use the CLI for repeatable administration and data operations. Test scripts against a non-production workspace and avoid printing tokens in command history." }
+          ] }
+        ]
+      }
+    ]
+  },
   "publicPages": {
     "features": {
       "eyebrow": "Features",
       "title": "One platform for customer service and sales",
       "intro": "Conversations, agents, teams, products, orders and campaigns in one place.",
       "sections": [
-        {
-          "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
-        },
-        {
-          "title": "Agents and commerce",
-          "body": [
-            "AI agents use products and orders with controlled human handoff."
-          ]
-        }
+        { "title": "Unified inbox", "body": ["Manage conversations from every connected channel with statuses, assignment, teams, notes and full customer context."] },
+        { "title": "AI agents", "body": ["Build specialized agents grounded in your knowledge, equipped with approved tools and governed by human-handoff rules."] },
+        { "title": "Visual automation", "body": ["Design flows with messages, questions, conditions, delays, actions, APIs and reusable content."] },
+        { "title": "Contacts and segmentation", "body": ["Organize customer identity, tags, custom fields, history and consent for precise service and campaigns."] },
+        { "title": "Broadcasts and sequences", "body": ["Send compliant broadcasts and timed follow-up sequences to filtered, opted-in audiences."] },
+        { "title": "Analytics and governance", "body": ["Measure performance, control permissions, monitor plan usage and keep every workspace isolated."] }
       ]
     },
     "channels": {
@@ -4520,16 +4664,12 @@
       "title": "Customer channels in one place",
       "intro": "Connect approved channels and retain customer context in the workspace.",
       "sections": [
-        {
-          "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
-        },
-        {
-          "title": "Telegram and web",
-          "body": [
-            "Telegram, Webchat and other integrations from one dashboard."
-          ]
-        }
+        { "title": "WhatsApp Business", "body": ["Cloud API, embedded signup, templates, reply buttons, lists and supported WhatsApp Flows."] },
+        { "title": "Instagram", "body": ["Professional direct messages, story interactions and comment-to-message automation through supported Meta access."] },
+        { "title": "Facebook Messenger", "body": ["Page conversations, comment automation and supported utility messaging in the same team inbox."] },
+        { "title": "Telegram and TikTok", "body": ["Connect business messaging audiences while preserving shared contact, assignment and automation behavior."] },
+        { "title": "Webchat and Email", "body": ["Add a branded website widget and bring email conversations into the workspace."] },
+        { "title": "Zalo and API", "body": ["Support Zalo Official Accounts and custom channels or systems through the public API and webhooks."] }
       ]
     },
     "about": {
