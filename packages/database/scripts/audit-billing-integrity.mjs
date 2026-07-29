@@ -6,11 +6,21 @@
  *
  * Usage:
  *   DATABASE_URL=postgres://... node ./scripts/audit-billing-integrity.mjs
+ *   BILLING_AUDIT_CREATED_AFTER=2026-07-29T00:00:00Z ...
  */
 import pg from "pg"
 
 const databaseUrl = process.env.DATABASE_URL
-if (databaseUrl) {
+const createdAfterRaw = process.env.BILLING_AUDIT_CREATED_AFTER
+const createdAfter = createdAfterRaw ? new Date(createdAfterRaw) : null
+if (createdAfter && Number.isNaN(createdAfter.getTime())) {
+  console.error("BILLING_AUDIT_CREATED_AFTER must be a valid ISO timestamp.")
+  process.exitCode = 1
+}
+if (!databaseUrl) {
+  console.error("DATABASE_URL is required.")
+  process.exitCode = 1
+} else if (process.exitCode !== 1) {
   const client = new pg.Client({ connectionString: databaseUrl })
   const requiredTables = [
     "UserQuota",
@@ -55,45 +65,60 @@ if (databaseUrl) {
       )
       process.exitCode = 2
     } else {
+      const scopedValues = createdAfter ? [createdAfter] : []
+      const userScope = createdAfter ? `AND u."createdAt" >= $1` : ""
+      const subscriptionScope = createdAfter
+        ? `AND s."createdAt" >= $1`
+        : ""
+      const grantScope = createdAfter ? `AND g."createdAt" >= $1` : ""
+      const usageScope = createdAfter ? `AND "createdAt" >= $1` : ""
       const checks = {
         workspaceOwnersMissingQuota: await scalar(`
           SELECT count(DISTINCT w."ownerId")
           FROM "Workspace" w
+          JOIN "User" u ON u.id = w."ownerId"
           LEFT JOIN "UserQuota" q ON q."userId" = w."ownerId"
           WHERE q.id IS NULL
-        `),
+          ${userScope}
+        `, scopedValues),
         workspaceOwnersMissingSubscription: await scalar(`
           SELECT count(DISTINCT w."ownerId")
           FROM "Workspace" w
+          JOIN "User" u ON u.id = w."ownerId"
           LEFT JOIN "PlatformSubscription" s ON s."userId" = w."ownerId"
           WHERE s.id IS NULL
-        `),
+          ${userScope}
+        `, scopedValues),
         subscriptionsMissingWallet: await scalar(`
           SELECT count(*)
           FROM "PlatformSubscription" s
           LEFT JOIN "PointWallet" w ON w."userId" = s."userId"
           WHERE w.id IS NULL
-        `),
+          ${subscriptionScope}
+        `, scopedValues),
         activeSubscriptionQuotaMismatch: await scalar(`
           SELECT count(*)
           FROM "PlatformSubscription" s
           JOIN "UserQuota" q ON q."userId" = s."userId"
           WHERE s.status IN ('active', 'cancel_at_period_end')
             AND (q."planStatus" <> 'active' OR q."planName" IS NULL)
-        `),
+          ${subscriptionScope}
+        `, scopedValues),
         overdueSubscriptions: await scalar(`
           SELECT count(*)
-          FROM "PlatformSubscription"
-          WHERE status IN ('active', 'cancel_at_period_end')
-            AND "nextGrantAt" <= now()
-        `),
+          FROM "PlatformSubscription" s
+          WHERE s.status IN ('active', 'cancel_at_period_end')
+            AND s."nextGrantAt" <= now()
+          ${subscriptionScope}
+        `, scopedValues),
         invalidGrantBalances: await scalar(`
           SELECT count(*)
-          FROM "PointGrant"
-          WHERE "originalMicroPoints" < 0
-             OR "remainingMicroPoints" < 0
-             OR "remainingMicroPoints" > "originalMicroPoints"
-        `),
+          FROM "PointGrant" g
+          WHERE (g."originalMicroPoints" < 0
+             OR g."remainingMicroPoints" < 0
+             OR g."remainingMicroPoints" > g."originalMicroPoints")
+          ${grantScope}
+        `, scopedValues),
         grantLedgerDrift: await scalar(`
           SELECT count(*)
           FROM "PointGrant" g
@@ -103,22 +128,26 @@ if (databaseUrl) {
             WHERE l."grantId" = g.id
           ) ledger ON true
           WHERE g."remainingMicroPoints" <> ledger.ledger_total
-        `),
+          ${grantScope}
+        `, scopedValues),
         staleReservations: await scalar(`
           SELECT count(*)
           FROM "BillableUsageEvent"
           WHERE status = 'reserved'
             AND "updatedAt" < now() - interval '30 minutes'
-        `),
+          ${usageScope}
+        `, scopedValues),
         pendingSettlements: await scalar(`
           SELECT count(*)
           FROM "BillableUsageEvent"
           WHERE status = 'settlement_pending'
-        `),
+          ${usageScope}
+        `, scopedValues),
       }
 
       const criticalKeys = [
         "workspaceOwnersMissingQuota",
+        "workspaceOwnersMissingSubscription",
         "subscriptionsMissingWallet",
         "activeSubscriptionQuotaMismatch",
         "invalidGrantBalances",
@@ -135,6 +164,7 @@ if (databaseUrl) {
             ok: criticalIssues === 0,
             checkedAt: new Date().toISOString(),
             readOnly: true,
+            createdAfter: createdAfter?.toISOString() ?? null,
             checks,
           },
           null,
@@ -158,7 +188,4 @@ if (databaseUrl) {
   } finally {
     await client.end()
   }
-} else {
-  console.error("DATABASE_URL is required.")
-  process.exitCode = 1
 }

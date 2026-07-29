@@ -25,15 +25,23 @@ export async function onUserCreated(user: AuthCreatedUser): Promise<void> {
     return
   }
 
-  try {
-    await userQuotaService.ensureBootstrapPlan({
-      userId: user.id,
-      tenantId: user.tenantId,
-    })
-  } catch (err) {
+  let bootstrapError: unknown
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await userQuotaService.ensureBootstrapPlan({
+        userId: user.id,
+        tenantId: user.tenantId,
+      })
+      bootstrapError = undefined
+      break
+    } catch (err) {
+      bootstrapError = err
+    }
+  }
+  if (bootstrapError) {
     logger.warn(
-      { err, userId: user.id },
-      "Failed to stamp bootstrap quota on sign-up",
+      { err: bootstrapError, userId: user.id, attempts: 3 },
+      "Failed to stamp bootstrap billing state on sign-up",
     )
   }
 

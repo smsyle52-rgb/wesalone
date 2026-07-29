@@ -102,6 +102,19 @@ type BootstrapPlanSnapshot = Pick<
   | "workspacesLimit"
 >
 
+/** Advance one UTC month without letting month-end dates overflow. */
+const nextMonthlyBoundary = (from: Date): Date => {
+  const next = new Date(from)
+  const anchorDay = next.getUTCDate()
+  next.setUTCDate(1)
+  next.setUTCMonth(next.getUTCMonth() + 1)
+  const lastDay = new Date(
+    Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0),
+  ).getUTCDate()
+  next.setUTCDate(Math.min(anchorDay, lastDay))
+  return next
+}
+
 /**
  * Result of evaluating whether a user may access the app. `blocked` is the only
  * field the gate needs; the rest drive the "trial ended / X days left" UI.
@@ -247,13 +260,19 @@ class UserQuotaService extends BaseService {
     const trialDays = Number.isFinite(rawTrialDays)
       ? Math.max(0, rawTrialDays)
       : BOOTSTRAP_TRIAL_FALLBACK.trialDays
-    const isTrial = trialDays > 0
+    // The root Wesal One catalog has a permanent Free tier. A legacy root
+    // entitlement snapshot may still advertise a 14-day trial; honoring it
+    // here creates an active `PlatformSubscription` alongside a trial quota,
+    // so the same new account has two contradictory billing states. Tenant
+    // snapshots remain allowed to define a white-label trial.
+    const isTenantSignup = Boolean(tenantId && tenantId !== ROOT_TENANT_ID)
+    const isTrial = isTenantSignup && trialDays > 0
     const periodEnd = isTrial
       ? new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000)
       : null
 
     const inserted = await db.transaction(async (tx) => {
-      const rows = await tx
+      const quotaRows = await tx
         .insert(userQuotaModel)
         .values({
           userId,
@@ -282,25 +301,31 @@ class UserQuotaService extends BaseService {
         .onConflictDoNothing({ target: userQuotaModel.userId })
         .returning({ userId: userQuotaModel.userId })
 
-      if (rows.length > 0) {
-        const freePeriodEnd = new Date(now)
-        freePeriodEnd.setUTCMonth(freePeriodEnd.getUTCMonth() + 1)
-        await tx
-          .insert(platformSubscriptionModel)
-          .values({
-            userId,
-            planSlug: "free",
-            billingCycle: "monthly",
-            status: "active",
-            source: "free",
-            periodStart: now,
-            periodEnd: freePeriodEnd,
-            nextGrantAt: freePeriodEnd,
-            priceCents: 0,
-            currency: "USD",
-            priceVersion: WESAL_ONE_PRICE_VERSION,
-          })
-          .onConflictDoNothing({ target: platformSubscriptionModel.userId })
+      // Provision subscription independently because the entitlement worker
+      // can win the UserQuota race for a brand-new signup.
+      const freePeriodEnd = nextMonthlyBoundary(now)
+      const subscriptionRows = await tx
+        .insert(platformSubscriptionModel)
+        .values({
+          userId,
+          planSlug: "free",
+          billingCycle: "monthly",
+          status: "active",
+          source: "free",
+          periodStart: now,
+          periodEnd: freePeriodEnd,
+          nextGrantAt: freePeriodEnd,
+          priceCents: 0,
+          currency: "USD",
+          priceVersion: WESAL_ONE_PRICE_VERSION,
+        })
+        .onConflictDoNothing({ target: platformSubscriptionModel.userId })
+        .returning({ userId: platformSubscriptionModel.userId })
+
+      // Only the creator of the free subscription issues the initial grant.
+      // createGrant also provides a final idempotency guard and creates the
+      // wallet in this same transaction.
+      if (subscriptionRows.length > 0) {
         await pointWalletService.createGrant(
           {
             userId,
@@ -316,14 +341,14 @@ class UserQuotaService extends BaseService {
           tx,
         )
       }
-      return rows
+      return { quotaInserted: quotaRows.length > 0 }
     })
 
     // Only bust the cache when we actually wrote a row. On a no-op conflict
     // (hook retry, re-signup, or the worker winning the race) there is
     // nothing new to invalidate — and skipping it preserves any freshly
     // cached authoritative row the worker just wrote.
-    if (inserted.length > 0) {
+    if (inserted.quotaInserted) {
       await this.store.invalidate(userId)
     }
   }

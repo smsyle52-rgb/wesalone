@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, test, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 const DEFAULT_PLAN_ENTITLEMENT_KEY = "entitlements:default-plan"
 const USER = "user-1"
 
 const {
   dbInsert,
+  createGrant,
   distributedStore,
   insertBuilder,
   isCloud,
@@ -28,6 +29,7 @@ const {
   insertBuilder.onConflictDoNothing.mockReturnValue(insertBuilder)
 
   return {
+    createGrant: vi.fn(async () => undefined),
     dbInsert: vi.fn(() => insertBuilder),
     distributedStore: {
       get: vi.fn(async () => null as unknown),
@@ -58,7 +60,7 @@ vi.mock("@chatbotx.io/database/schema", () => ({
 }))
 
 vi.mock("../src/point-wallet/service", () => ({
-  pointWalletService: { createGrant: vi.fn(async () => undefined) },
+  pointWalletService: { createGrant },
 }))
 
 vi.mock("@chatbotx.io/redis", () => ({
@@ -98,10 +100,15 @@ beforeEach(() => {
   insertBuilder.values.mockClear().mockReturnValue(insertBuilder)
   insertBuilder.onConflictDoNothing.mockClear().mockReturnValue(insertBuilder)
   insertBuilder.returning.mockClear().mockResolvedValue([{ userId: USER }])
+  createGrant.mockResolvedValue(undefined)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe("userQuotaService.ensureBootstrapPlan", () => {
-  test("stamps a trial row from the default-plan snapshot", async () => {
+  test("stamps an active Free row for a root Wesal One signup", async () => {
     distributedStore.get.mockImplementation(async (key: string) =>
       key === DEFAULT_PLAN_ENTITLEMENT_KEY ? snapshot : null,
     )
@@ -121,7 +128,7 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
         ssoSaml: false,
         saasMode: false,
         planName: "Free",
-        planStatus: "trial",
+        planStatus: "active",
       }),
     )
     expect(insertBuilder.onConflictDoNothing).toHaveBeenCalledWith({
@@ -129,8 +136,7 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
     })
     const [values] = insertBuilder.values.mock.calls[0]
     expect(values.periodStart).toBeInstanceOf(Date)
-    expect(values.periodEnd).toBeInstanceOf(Date)
-    expect(values.periodEnd.getTime()).toBeGreaterThan(Date.now())
+    expect(values.periodEnd).toBeNull()
     expect(distributedStore.delete).toHaveBeenCalledWith(`user-quota:${USER}`)
   })
 
@@ -185,6 +191,50 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
       target: userQuotaModel.userId,
     })
     expect(distributedStore.delete).not.toHaveBeenCalled()
+  })
+
+  test("creates the free subscription grant when quota already won the race", async () => {
+    insertBuilder.returning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ userId: USER }])
+
+    await userQuotaService.ensureBootstrapPlan({ userId: USER })
+
+    expect(createGrant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: USER,
+        grantType: "monthly_subscription",
+        points: 1000,
+        idempotencyKey: `bootstrap-free:${USER}`,
+      }),
+      expect.anything(),
+    )
+    expect(distributedStore.delete).not.toHaveBeenCalled()
+  })
+
+  test("clamps a month-end signup to the last day of the next month", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-01-31T12:30:00.000Z"))
+
+    await userQuotaService.ensureBootstrapPlan({ userId: USER })
+
+    expect(createGrant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startsAt: new Date("2026-01-31T12:30:00.000Z"),
+        expiresAt: new Date("2026-02-28T12:30:00.000Z"),
+      }),
+      expect.anything(),
+    )
+  })
+
+  test("does not grant free points when a subscription already exists", async () => {
+    insertBuilder.returning
+      .mockResolvedValueOnce([{ userId: USER }])
+      .mockResolvedValueOnce([])
+
+    await userQuotaService.ensureBootstrapPlan({ userId: USER })
+
+    expect(createGrant).not.toHaveBeenCalled()
   })
 
   test("stamps the usable free fallback when the snapshot is absent", async () => {
@@ -271,6 +321,7 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
         userId: USER,
         macLimit: 250,
         planName: "Tenant Free",
+        planStatus: "trial",
       }),
     )
   })

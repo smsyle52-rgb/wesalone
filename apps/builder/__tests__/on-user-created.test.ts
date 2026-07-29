@@ -81,20 +81,33 @@ describe("onUserCreated quota bootstrap", () => {
     expect(quotaQueueAdd).not.toHaveBeenCalled()
   })
 
-  test("continues enqueueing when bootstrap stamping fails", async () => {
+  test("retries bootstrap and continues enqueueing after repeated failure", async () => {
     const err = new Error("db down")
     ensureBootstrapPlan.mockRejectedValue(err)
 
     await expect(onUserCreated(user())).resolves.toBeUndefined()
 
+    expect(ensureBootstrapPlan).toHaveBeenCalledTimes(3)
     expect(quotaQueueAdd).toHaveBeenCalledWith("publishEntitlements", {
       type: "publishEntitlements",
       data: { userId: "user-1" },
     })
     expect(loggerWarn).toHaveBeenCalledWith(
-      { err, userId: "user-1" },
-      "Failed to stamp bootstrap quota on sign-up",
+      { err, userId: "user-1", attempts: 3 },
+      "Failed to stamp bootstrap billing state on sign-up",
     )
+  })
+
+  test("stops retrying after bootstrap recovers", async () => {
+    ensureBootstrapPlan
+      .mockRejectedValueOnce(new Error("serialization failure"))
+      .mockResolvedValueOnce(undefined)
+
+    await onUserCreated(user())
+
+    expect(ensureBootstrapPlan).toHaveBeenCalledTimes(2)
+    expect(loggerWarn).not.toHaveBeenCalled()
+    expect(quotaQueueAdd).toHaveBeenCalledTimes(1)
   })
 
   test("passes tenant id to the bootstrap stamp", async () => {

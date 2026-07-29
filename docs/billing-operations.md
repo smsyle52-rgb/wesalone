@@ -15,6 +15,17 @@ rows directly.
    pnpm --filter @chatbotx.io/database audit:billing
    ```
 
+   To gate only accounts created after a new-account rollout, pin the rollout
+   timestamp and keep it unchanged across every comparison:
+
+   ```bash
+   BILLING_AUDIT_CREATED_AFTER=2026-07-29T00:00:00Z \
+     pnpm --filter @chatbotx.io/database audit:billing
+   ```
+
+   This scope intentionally ignores legacy owners, but it never changes or
+   repairs them. The unscoped audit remains the source for historical cleanup.
+
 4. Repair every critical issue reported by the audit with a separately reviewed,
    idempotent backfill. Re-run the audit until `ok` is `true`.
 5. Deploy the worker with the Cloud Build substitution
