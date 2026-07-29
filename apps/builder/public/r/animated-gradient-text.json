@@ -1,0 +1,46 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "animated-gradient-text",
+  "title": "Animated Gradient Text",
+  "description": "Brand gradient sweeping continuously through text.",
+  "files": [
+    {
+      "path": "src/components/velora/animated-gradient-text.tsx",
+      "content": "import { cn } from \"@/lib/utils\";\n\ninterface AnimatedGradientTextProps\n  extends React.HTMLAttributes<HTMLSpanElement> {\n  children: React.ReactNode;\n}\n\nexport function AnimatedGradientText({\n  className,\n  children,\n  ...props\n}: AnimatedGradientTextProps) {\n  return (\n    <span\n      data-slot=\"animated-gradient-text\"\n      className={cn(\n        \"animate-gradient inline-block bg-gradient-to-r from-brand-from via-brand-via to-brand-to bg-[length:300%_auto] bg-clip-text text-transparent\",\n        className\n      )}\n      {...props}\n    >\n      {children}\n    </span>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/animated-gradient-text.tsx"
+    }
+  ],
+  "cssVars": {
+    "theme": {
+      "color-brand": "var(--brand)",
+      "color-brand-from": "var(--brand-from)",
+      "color-brand-via": "var(--brand-via)",
+      "color-brand-to": "var(--brand-to)",
+      "animate-gradient": "gradient 6s ease infinite"
+    },
+    "light": {
+      "brand": "oklch(0.546 0.245 263)",
+      "brand-from": "oklch(0.546 0.245 263)",
+      "brand-via": "oklch(0.623 0.214 260)",
+      "brand-to": "oklch(0.685 0.169 237)"
+    },
+    "dark": {
+      "brand": "oklch(0.623 0.214 260)",
+      "brand-from": "oklch(0.623 0.214 260)",
+      "brand-via": "oklch(0.707 0.165 255)",
+      "brand-to": "oklch(0.746 0.16 233)"
+    }
+  },
+  "css": {
+    "@keyframes gradient": {
+      "0%, 100%": {
+        "background-position": "0% 50%"
+      },
+      "50%": {
+        "background-position": "100% 50%"
+      }
+    }
+  },
+  "type": "registry:ui"
+}

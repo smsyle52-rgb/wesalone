@@ -1,0 +1,39 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "marquee",
+  "title": "Marquee",
+  "description": "Seamless scrolling loop — horizontal, vertical, hover-pause.",
+  "files": [
+    {
+      "path": "src/components/velora/marquee.tsx",
+      "content": "import { cn } from \"@/lib/utils\";\n\ninterface MarqueeProps extends React.HTMLAttributes<HTMLDivElement> {\n  /** Reverse the scroll direction */\n  reverse?: boolean;\n  /** Pause the animation while hovered */\n  pauseOnHover?: boolean;\n  /** Scroll vertically instead of horizontally */\n  vertical?: boolean;\n  /** Number of content copies (keep >=2 for a seamless loop) */\n  repeat?: number;\n  /** Fade the edges with a mask */\n  fade?: boolean;\n  children: React.ReactNode;\n}\n\nexport function Marquee({\n  className,\n  reverse = false,\n  pauseOnHover = false,\n  vertical = false,\n  repeat = 4,\n  fade = true,\n  children,\n  ...props\n}: MarqueeProps) {\n  return (\n    <div\n      {...props}\n      data-slot=\"marquee\"\n      className={cn(\n        \"group flex gap-(--gap) overflow-hidden [--duration:40s] [--gap:1rem]\",\n        vertical ? \"flex-col\" : \"flex-row\",\n        fade &&\n          (vertical\n            ? \"[mask-image:linear-gradient(to_bottom,transparent,black_12%,black_88%,transparent)]\"\n            : \"[mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]\"),\n        className\n      )}\n    >\n      {Array.from({ length: repeat }).map((_, i) => (\n        <div\n          key={i}\n          aria-hidden={i > 0 || undefined}\n          className={cn(\n            \"flex shrink-0 justify-around gap-(--gap)\",\n            vertical\n              ? \"animate-marquee-vertical flex-col\"\n              : \"animate-marquee flex-row\",\n            reverse && \"[animation-direction:reverse]\",\n            pauseOnHover && \"group-hover:[animation-play-state:paused]\"\n          )}\n        >\n          {children}\n        </div>\n      ))}\n    </div>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/marquee.tsx"
+    }
+  ],
+  "cssVars": {
+    "theme": {
+      "animate-marquee": "marquee var(--duration, 40s) linear infinite",
+      "animate-marquee-vertical": "marquee-vertical var(--duration, 40s) linear infinite"
+    }
+  },
+  "css": {
+    "@keyframes marquee": {
+      "from": {
+        "transform": "translateX(0)"
+      },
+      "to": {
+        "transform": "translateX(calc(-100% - var(--gap)))"
+      }
+    },
+    "@keyframes marquee-vertical": {
+      "from": {
+        "transform": "translateY(0)"
+      },
+      "to": {
+        "transform": "translateY(calc(-100% - var(--gap)))"
+      }
+    }
+  },
+  "type": "registry:ui"
+}

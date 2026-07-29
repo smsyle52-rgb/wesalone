@@ -1,0 +1,15 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "browser-mockup",
+  "title": "Browser Mockup",
+  "description": "Browser window frame for product screenshots.",
+  "files": [
+    {
+      "path": "src/components/velora/browser-mockup.tsx",
+      "content": "import { cn } from \"@/lib/utils\";\n\ninterface BrowserMockupProps extends React.HTMLAttributes<HTMLDivElement> {\n  url?: string;\n  children: React.ReactNode;\n}\n\n/**\n * Browser window frame — traffic lights, URL bar, your content inside.\n */\nexport function BrowserMockup({\n  url = \"velora.dev\",\n  className,\n  children,\n  ...props\n}: BrowserMockupProps) {\n  return (\n    <div\n      data-slot=\"browser-mockup\"\n      className={cn(\n        \"overflow-hidden rounded-2xl border bg-card/80 shadow-2xl backdrop-blur\",\n        className\n      )}\n      {...props}\n    >\n      <div className=\"flex items-center gap-3 border-b border-border/60 px-4 py-3\">\n        <div className=\"flex gap-1.5\">\n          <span className=\"size-3 rounded-full bg-red-500/70\" />\n          <span className=\"size-3 rounded-full bg-yellow-500/70\" />\n          <span className=\"size-3 rounded-full bg-green-500/70\" />\n        </div>\n        <div className=\"mx-auto flex h-7 w-64 items-center justify-center rounded-md bg-muted/60 text-xs text-muted-foreground\">\n          {url}\n        </div>\n        <div className=\"w-14\" />\n      </div>\n      {children}\n    </div>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/browser-mockup.tsx"
+    }
+  ],
+  "type": "registry:ui"
+}

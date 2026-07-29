@@ -1,10 +1,10 @@
 import VeloraRawHome from "./velora-raw-home"
-import "./velora-template.css"
+import { VeloraLayout } from "./velora-layout"
 
 export async function MarketingHome() {
   return (
-    <div className="velora-template" dir="ltr">
+    <VeloraLayout>
       <VeloraRawHome />
-    </div>
+    </VeloraLayout>
   )
 }

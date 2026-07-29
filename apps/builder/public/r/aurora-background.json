@@ -1,0 +1,73 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "aurora-background",
+  "title": "Aurora Background",
+  "description": "Velora's signature drifting aurora gradient backdrop.",
+  "files": [
+    {
+      "path": "src/components/velora/aurora-background.tsx",
+      "content": "import { cn } from \"@/lib/utils\";\n\ninterface AuroraBackgroundProps extends React.HTMLAttributes<HTMLDivElement> {\n  /** Overall opacity of the aurora blobs */\n  intensity?: \"subtle\" | \"medium\" | \"vivid\";\n}\n\nconst intensityClass = {\n  subtle: \"opacity-25 dark:opacity-20\",\n  medium: \"opacity-40 dark:opacity-30\",\n  vivid: \"opacity-60 dark:opacity-45\",\n};\n\n/**\n * Velora's signature animated aurora backdrop. Absolutely positioned —\n * place inside a `relative overflow-hidden` section.\n */\nexport function AuroraBackground({\n  className,\n  intensity = \"medium\",\n  ...props\n}: AuroraBackgroundProps) {\n  return (\n    <div\n      aria-hidden\n      data-slot=\"aurora-background\"\n      className={cn(\n        \"pointer-events-none absolute inset-0 overflow-hidden\",\n        intensityClass[intensity],\n        className\n      )}\n      {...props}\n    >\n      <div className=\"animate-aurora-1 absolute -top-1/4 left-[10%] size-[44rem] rounded-full bg-brand-from blur-[120px] will-change-transform\" />\n      <div className=\"animate-aurora-2 absolute top-[5%] right-[5%] size-[38rem] rounded-full bg-brand-via blur-[130px] will-change-transform\" />\n      <div className=\"animate-aurora-3 absolute -bottom-1/4 left-[35%] size-[40rem] rounded-full bg-brand-to blur-[140px] will-change-transform\" />\n    </div>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/aurora-background.tsx"
+    }
+  ],
+  "cssVars": {
+    "theme": {
+      "color-brand": "var(--brand)",
+      "color-brand-from": "var(--brand-from)",
+      "color-brand-via": "var(--brand-via)",
+      "color-brand-to": "var(--brand-to)",
+      "animate-aurora-1": "aurora-1 14s ease-in-out infinite alternate",
+      "animate-aurora-2": "aurora-2 18s ease-in-out infinite alternate",
+      "animate-aurora-3": "aurora-3 22s ease-in-out infinite alternate"
+    },
+    "light": {
+      "brand": "oklch(0.546 0.245 263)",
+      "brand-from": "oklch(0.546 0.245 263)",
+      "brand-via": "oklch(0.623 0.214 260)",
+      "brand-to": "oklch(0.685 0.169 237)"
+    },
+    "dark": {
+      "brand": "oklch(0.623 0.214 260)",
+      "brand-from": "oklch(0.623 0.214 260)",
+      "brand-via": "oklch(0.707 0.165 255)",
+      "brand-to": "oklch(0.746 0.16 233)"
+    }
+  },
+  "css": {
+    "@keyframes aurora-1": {
+      "0%": {
+        "transform": "translate(-10%, -12%) scale(1)"
+      },
+      "50%": {
+        "transform": "translate(12%, 8%) scale(1.25)"
+      },
+      "100%": {
+        "transform": "translate(-6%, 14%) scale(0.95)"
+      }
+    },
+    "@keyframes aurora-2": {
+      "0%": {
+        "transform": "translate(12%, 10%) scale(1.1)"
+      },
+      "50%": {
+        "transform": "translate(-14%, -6%) scale(0.9)"
+      },
+      "100%": {
+        "transform": "translate(8%, -12%) scale(1.2)"
+      }
+    },
+    "@keyframes aurora-3": {
+      "0%": {
+        "transform": "translate(0%, 16%) scale(0.95)"
+      },
+      "50%": {
+        "transform": "translate(10%, -10%) scale(1.15)"
+      },
+      "100%": {
+        "transform": "translate(-12%, 4%) scale(1)"
+      }
+    }
+  },
+  "type": "registry:ui"
+}

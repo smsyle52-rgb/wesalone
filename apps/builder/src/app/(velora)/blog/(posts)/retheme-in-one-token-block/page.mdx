@@ -1,0 +1,58 @@
+import { PostMeta } from "@/components/template/post-meta";
+
+export const metadata = {
+  title: "Rebrand your landing page in one token block",
+  description:
+    "We moved Velora's entire visual identity from violet to blue by editing seven CSS variables.",
+};
+
+# Rebrand your landing page in one token block
+
+<PostMeta date="July 16, 2026" category="Design" readingTime="3 min read" />
+
+Last week Velora's brand color was violet. Today it's blue. The diff that
+did it touches exactly seven CSS variables:
+
+```css
+:root {
+  --primary: oklch(0.546 0.245 263);
+  --brand: oklch(0.546 0.245 263);
+  --brand-from: oklch(0.546 0.245 263);
+  --brand-via: oklch(0.623 0.214 260);
+  --brand-to: oklch(0.685 0.169 237);
+}
+.dark {
+  --primary: oklch(0.623 0.214 260);
+  /* … */
+}
+```
+
+Every gradient text, border beam, aurora blob, scroll-progress bar and
+button glow on the site followed automatically. No component files changed.
+
+## The rule that makes this work
+
+Velora components never contain a color. They reference three brand ramp
+tokens — `--brand-from`, `--brand-via`, `--brand-to` — plus the standard
+shadcn variables. The aurora background is three blurred circles filled with
+the ramp; the gradient text is a `background-clip` across the same ramp; the
+beams sample it for their strokes.
+
+This sounds obvious, but it's the exception in the animated-component
+world. The most popular libraries hardcode their signature hues into every
+snippet, which is why so many landing pages ship someone else's brand.
+
+## Restraint is a feature
+
+While rebranding, we also cut back where the gradient appears at all: it now
+lives only in the hero. Section headings use a solid primary color, avatars
+use flat tones, and the CTA dropped two of its three stacked background
+effects.
+
+A narrower hue range (blue to sky, about 30° of hue) reads as a brand. A
+107° sweep from violet through fuchsia to cyan reads as a template — and in
+2026, as AI-generated filler.
+
+Want to try your own ramp? The [themes page](/themes) has ready-made presets
+you can preview live and copy into `globals.css`.
+

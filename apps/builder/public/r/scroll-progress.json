@@ -1,0 +1,38 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "scroll-progress",
+  "title": "Scroll Progress",
+  "description": "Gradient page-progress bar pinned to the top.",
+  "dependencies": [
+    "motion"
+  ],
+  "files": [
+    {
+      "path": "src/components/velora/scroll-progress.tsx",
+      "content": "\"use client\";\n\nimport { motion, useReducedMotion, useScroll, useSpring } from \"motion/react\";\n\nimport { cn } from \"@/lib/utils\";\n\ninterface ScrollProgressProps {\n  className?: string;\n}\n\nexport function ScrollProgress({ className }: ScrollProgressProps) {\n  const { scrollYProgress } = useScroll();\n  const scaleX = useSpring(scrollYProgress, {\n    stiffness: 180,\n    damping: 32,\n    restDelta: 0.001,\n  });\n  const reducedMotion = useReducedMotion();\n\n  return (\n    <motion.div\n      aria-hidden\n      data-slot=\"scroll-progress\"\n      className={cn(\n        \"fixed inset-x-0 top-0 z-[60] h-0.75 origin-left bg-gradient-to-r from-brand-from via-brand-via to-brand-to\",\n        className\n      )}\n      style={{ scaleX: reducedMotion ? scrollYProgress : scaleX }}\n    />\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/scroll-progress.tsx"
+    }
+  ],
+  "cssVars": {
+    "theme": {
+      "color-brand": "var(--brand)",
+      "color-brand-from": "var(--brand-from)",
+      "color-brand-via": "var(--brand-via)",
+      "color-brand-to": "var(--brand-to)"
+    },
+    "light": {
+      "brand": "oklch(0.546 0.245 263)",
+      "brand-from": "oklch(0.546 0.245 263)",
+      "brand-via": "oklch(0.623 0.214 260)",
+      "brand-to": "oklch(0.685 0.169 237)"
+    },
+    "dark": {
+      "brand": "oklch(0.623 0.214 260)",
+      "brand-from": "oklch(0.623 0.214 260)",
+      "brand-via": "oklch(0.707 0.165 255)",
+      "brand-to": "oklch(0.746 0.16 233)"
+    }
+  },
+  "type": "registry:ui"
+}

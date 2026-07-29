@@ -1,0 +1,18 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "animated-list",
+  "title": "Animated List",
+  "description": "Looping feed that springs each item in, newest on top.",
+  "dependencies": [
+    "motion"
+  ],
+  "files": [
+    {
+      "path": "src/components/velora/animated-list.tsx",
+      "content": "\"use client\";\n\nimport React, { useEffect, useMemo, useState } from \"react\";\nimport { AnimatePresence, motion } from \"motion/react\";\n\nimport { cn } from \"@/lib/utils\";\n\ninterface AnimatedListProps {\n  children: React.ReactNode;\n  className?: string;\n  /** ms between items appearing */\n  delay?: number;\n}\n\n/**\n * Reveals children one by one, newest on top, then loops.\n * Wrap in a fixed-height container with a bottom mask for a feed effect.\n */\nexport function AnimatedList({\n  children,\n  className,\n  delay = 2000,\n}: AnimatedListProps) {\n  const [index, setIndex] = useState(0);\n  const items = useMemo(() => React.Children.toArray(children), [children]);\n\n  useEffect(() => {\n    const interval = setInterval(\n      () => setIndex((i) => (i + 1) % items.length),\n      delay\n    );\n    return () => clearInterval(interval);\n  }, [items.length, delay]);\n\n  const visible = useMemo(\n    () => items.slice(0, index + 1).reverse(),\n    [items, index]\n  );\n\n  return (\n    <div\n      data-slot=\"animated-list\"\n      className={cn(\"flex flex-col gap-3\", className)}\n    >\n      <AnimatePresence>\n        {visible.map((item) => (\n          <motion.div\n            key={(item as React.ReactElement).key}\n            layout\n            initial={{ scale: 0, opacity: 0 }}\n            animate={{ scale: 1, opacity: 1, originY: 0 }}\n            exit={{ scale: 0, opacity: 0 }}\n            transition={{ type: \"spring\", stiffness: 350, damping: 40 }}\n            className=\"w-full\"\n          >\n            {item}\n          </motion.div>\n        ))}\n      </AnimatePresence>\n    </div>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/animated-list.tsx"
+    }
+  ],
+  "type": "registry:ui"
+}

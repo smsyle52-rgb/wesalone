@@ -1,0 +1,30 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "text-shimmer",
+  "title": "Text Shimmer",
+  "description": "A soft light sweep — great for AI loading states.",
+  "files": [
+    {
+      "path": "src/components/velora/text-shimmer.tsx",
+      "content": "import { cn } from \"@/lib/utils\";\n\ninterface TextShimmerProps extends React.HTMLAttributes<HTMLSpanElement> {\n  children: React.ReactNode;\n}\n\n/**\n * A soft light sweep across the text — great for \"AI thinking\"\n * states and subtle emphasis.\n */\nexport function TextShimmer({ className, children, ...props }: TextShimmerProps) {\n  return (\n    <span\n      data-slot=\"text-shimmer\"\n      className={cn(\n        \"animate-shimmer inline-block bg-[linear-gradient(110deg,var(--color-muted-foreground)_35%,var(--color-foreground)_50%,var(--color-muted-foreground)_65%)] bg-[length:250%_100%] bg-clip-text text-transparent\",\n        className\n      )}\n      {...props}\n    >\n      {children}\n    </span>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/text-shimmer.tsx"
+    }
+  ],
+  "cssVars": {
+    "theme": {
+      "animate-shimmer": "shimmer 2.5s linear infinite"
+    }
+  },
+  "css": {
+    "@keyframes shimmer": {
+      "from": {
+        "background-position": "200% 0"
+      },
+      "to": {
+        "background-position": "-200% 0"
+      }
+    }
+  },
+  "type": "registry:ui"
+}

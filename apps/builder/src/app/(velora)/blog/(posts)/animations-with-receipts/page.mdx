@@ -1,0 +1,57 @@
+import { PostMeta } from "@/components/template/post-meta";
+
+export const metadata = {
+  title: "Animations with receipts: publishing the cost of every component",
+  description:
+    "Every Velora docs page shows gzipped size, dependency count and reduced-motion behavior. Here's why.",
+};
+
+# Animations with receipts: publishing the cost of every component
+
+<PostMeta
+  date="July 16, 2026"
+  category="Engineering"
+  readingTime="3 min read"
+/>
+
+The most common complaint about animated component libraries isn't about the
+animations. It's about what they smuggle in: a hero effect that quietly ships
+hundreds of kilobytes of 3D runtime, a text reveal that janks the main
+thread, a "subtle" background that ignores `prefers-reduced-motion`
+entirely.
+
+The demos never show any of that. Demos are free; costs are hidden.
+
+## What we publish
+
+Starting today, every component page in the Velora docs shows three numbers
+before you install:
+
+- **Gzipped source size** — measured from the actual file that lands in your
+  project, not the minified library bundle.
+- **Dependency count** — most Velora components depend on nothing at all;
+  the rest declare Motion and nothing else.
+- **Reduced-motion behavior** — every component is covered by a global CSS
+  kill switch, and the badge is a contract, not a claim.
+
+The numbers are generated at build time by the same script that builds the
+registry, so they can't drift from the code:
+
+```bash
+pnpm registry:build
+# -> public/r/*.json + component stats + llms.txt
+```
+
+## Why this matters more in 2026
+
+AI agents now install components on your behalf. When an agent picks a hero
+section from a registry, nobody eyeballs the import list first — the cost
+shows up later, in the Lighthouse report of a page you shipped.
+
+Machine-readable receipts fix the incentive: if every registry item declared
+its weight, agents could optimize for it, and "looks great in the demo"
+would stop being the only selection pressure.
+
+We'd love for this to become boring, standard practice. Until then, the
+receipts are on every [component page](/components).
+

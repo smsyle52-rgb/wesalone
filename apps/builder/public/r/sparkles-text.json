@@ -1,0 +1,38 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "sparkles-text",
+  "title": "Sparkles Text",
+  "description": "Twinkling stars orbiting your headline.",
+  "dependencies": [
+    "motion"
+  ],
+  "files": [
+    {
+      "path": "src/components/velora/sparkles-text.tsx",
+      "content": "\"use client\";\n\nimport { motion, useReducedMotion } from \"motion/react\";\n\nimport { cn } from \"@/lib/utils\";\n\ninterface SparklesTextProps extends React.HTMLAttributes<HTMLSpanElement> {\n  children: React.ReactNode;\n  /** Number of sparkles */\n  count?: number;\n}\n\nconst colors = [\"var(--brand-from)\", \"var(--brand-via)\", \"var(--brand-to)\"];\n\n/**\n * Text with twinkling stars around it. Positions are derived from the\n * index so server and client markup match.\n */\nexport function SparklesText({\n  children,\n  className,\n  count = 9,\n  ...props\n}: SparklesTextProps) {\n  const reducedMotion = useReducedMotion();\n\n  const sparkles = Array.from({ length: count }, (_, i) => ({\n    top: `${(i * 41 + 7) % 100}%`,\n    left: `${(i * 67 + 13) % 100}%`,\n    size: 8 + ((i * 29) % 8),\n    delay: ((i * 53) % 30) / 10,\n    color: colors[i % colors.length],\n  }));\n\n  return (\n    <span\n      data-slot=\"sparkles-text\"\n      className={cn(\"relative inline-block\", className)}\n      {...props}\n    >\n      {!reducedMotion &&\n        sparkles.map((s, i) => (\n          <motion.svg\n            key={i}\n            aria-hidden\n            viewBox=\"0 0 24 24\"\n            className=\"pointer-events-none absolute z-10\"\n            style={{\n              top: s.top,\n              left: s.left,\n              width: s.size,\n              height: s.size,\n              fill: s.color,\n            }}\n            initial={{ scale: 0, rotate: 0, opacity: 0 }}\n            animate={{ scale: [0, 1, 0], rotate: [0, 120], opacity: [0, 1, 0] }}\n            transition={{\n              duration: 1.4,\n              delay: s.delay,\n              repeat: Infinity,\n              repeatDelay: 1.8,\n              ease: \"easeInOut\",\n            }}\n          >\n            <path d=\"M12 0 L14.8 9.2 L24 12 L14.8 14.8 L12 24 L9.2 14.8 L0 12 L9.2 9.2 Z\" />\n          </motion.svg>\n        ))}\n      <span className=\"relative\">{children}</span>\n    </span>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/sparkles-text.tsx"
+    }
+  ],
+  "cssVars": {
+    "theme": {
+      "color-brand": "var(--brand)",
+      "color-brand-from": "var(--brand-from)",
+      "color-brand-via": "var(--brand-via)",
+      "color-brand-to": "var(--brand-to)"
+    },
+    "light": {
+      "brand": "oklch(0.546 0.245 263)",
+      "brand-from": "oklch(0.546 0.245 263)",
+      "brand-via": "oklch(0.623 0.214 260)",
+      "brand-to": "oklch(0.685 0.169 237)"
+    },
+    "dark": {
+      "brand": "oklch(0.623 0.214 260)",
+      "brand-from": "oklch(0.623 0.214 260)",
+      "brand-via": "oklch(0.707 0.165 255)",
+      "brand-to": "oklch(0.746 0.16 233)"
+    }
+  },
+  "type": "registry:ui"
+}

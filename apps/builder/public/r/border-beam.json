@@ -1,0 +1,38 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "border-beam",
+  "title": "Border Beam",
+  "description": "A beam of light traveling around any border.",
+  "dependencies": [
+    "motion"
+  ],
+  "files": [
+    {
+      "path": "src/components/velora/border-beam.tsx",
+      "content": "\"use client\";\n\nimport { motion, useReducedMotion } from \"motion/react\";\n\nimport { cn } from \"@/lib/utils\";\n\ninterface BorderBeamProps {\n  className?: string;\n  /** Size of the beam in px */\n  size?: number;\n  /** Seconds for one full loop */\n  duration?: number;\n  /** Seconds of delay before starting */\n  delay?: number;\n  reverse?: boolean;\n  colorFrom?: string;\n  colorTo?: string;\n}\n\n/**\n * Animated beam that travels around the border of its nearest\n * positioned ancestor. Parent needs `position: relative` and a border.\n */\nexport function BorderBeam({\n  className,\n  size = 64,\n  duration = 6,\n  delay = 0,\n  reverse = false,\n  colorFrom = \"var(--brand-from)\",\n  colorTo = \"var(--brand-to)\",\n}: BorderBeamProps) {\n  // Hide via CSS + skip the animation under reduced motion; never branch the\n  // rendered tree on it — the server can't know the preference and would\n  // mismatch on hydration.\n  const reducedMotion = useReducedMotion();\n\n  return (\n    <div\n      aria-hidden\n      data-slot=\"border-beam\"\n      className=\"pointer-events-none absolute inset-0 rounded-[inherit] border border-transparent [mask-clip:padding-box,border-box] [mask-composite:intersect] [mask-image:linear-gradient(transparent,transparent),linear-gradient(#000,#000)] motion-reduce:hidden\"\n    >\n      <motion.div\n        className={cn(\n          \"absolute aspect-square bg-gradient-to-l from-(--beam-from) via-(--beam-to) to-transparent\",\n          className\n        )}\n        style={\n          {\n            width: size,\n            offsetPath: `rect(0 auto auto 0 round ${size}px)`,\n            \"--beam-from\": colorFrom,\n            \"--beam-to\": colorTo,\n          } as React.CSSProperties\n        }\n        initial={{ offsetDistance: reverse ? \"100%\" : \"0%\" }}\n        animate={\n          reducedMotion\n            ? undefined\n            : { offsetDistance: reverse ? \"0%\" : \"100%\" }\n        }\n        transition={{\n          repeat: Infinity,\n          ease: \"linear\",\n          duration,\n          delay: -delay,\n        }}\n      />\n    </div>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/border-beam.tsx"
+    }
+  ],
+  "cssVars": {
+    "theme": {
+      "color-brand": "var(--brand)",
+      "color-brand-from": "var(--brand-from)",
+      "color-brand-via": "var(--brand-via)",
+      "color-brand-to": "var(--brand-to)"
+    },
+    "light": {
+      "brand": "oklch(0.546 0.245 263)",
+      "brand-from": "oklch(0.546 0.245 263)",
+      "brand-via": "oklch(0.623 0.214 260)",
+      "brand-to": "oklch(0.685 0.169 237)"
+    },
+    "dark": {
+      "brand": "oklch(0.623 0.214 260)",
+      "brand-from": "oklch(0.623 0.214 260)",
+      "brand-via": "oklch(0.707 0.165 255)",
+      "brand-to": "oklch(0.746 0.16 233)"
+    }
+  },
+  "type": "registry:ui"
+}

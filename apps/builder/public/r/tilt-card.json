@@ -1,0 +1,18 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "tilt-card",
+  "title": "Tilt Card",
+  "description": "3D perspective tilt that tracks the cursor.",
+  "dependencies": [
+    "motion"
+  ],
+  "files": [
+    {
+      "path": "src/components/velora/tilt-card.tsx",
+      "content": "\"use client\";\n\nimport { useRef } from \"react\";\nimport {\n  motion,\n  useMotionValue,\n  useReducedMotion,\n  useSpring,\n} from \"motion/react\";\n\nimport { cn } from \"@/lib/utils\";\n\ninterface TiltCardProps {\n  children: React.ReactNode;\n  className?: string;\n  /** Maximum tilt in degrees */\n  maxTilt?: number;\n}\n\n/**\n * 3D perspective tilt that follows the cursor.\n */\nexport function TiltCard({ children, className, maxTilt = 8 }: TiltCardProps) {\n  const ref = useRef<HTMLDivElement>(null);\n  const reducedMotion = useReducedMotion();\n\n  const rotateX = useMotionValue(0);\n  const rotateY = useMotionValue(0);\n  const springX = useSpring(rotateX, { stiffness: 220, damping: 18 });\n  const springY = useSpring(rotateY, { stiffness: 220, damping: 18 });\n\n  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {\n    if (reducedMotion) return;\n    const rect = ref.current?.getBoundingClientRect();\n    if (!rect) return;\n    const px = (e.clientX - rect.left) / rect.width - 0.5;\n    const py = (e.clientY - rect.top) / rect.height - 0.5;\n    rotateY.set(px * maxTilt * 2);\n    rotateX.set(-py * maxTilt * 2);\n  };\n\n  const handleMouseLeave = () => {\n    rotateX.set(0);\n    rotateY.set(0);\n  };\n\n  return (\n    <motion.div\n      ref={ref}\n      data-slot=\"tilt-card\"\n      onMouseMove={handleMouseMove}\n      onMouseLeave={handleMouseLeave}\n      style={{\n        rotateX: springX,\n        rotateY: springY,\n        transformPerspective: 800,\n      }}\n      className={cn(\"will-change-transform\", className)}\n    >\n      {children}\n    </motion.div>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/tilt-card.tsx"
+    }
+  ],
+  "type": "registry:ui"
+}

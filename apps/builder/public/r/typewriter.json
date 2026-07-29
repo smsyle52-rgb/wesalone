@@ -1,0 +1,18 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "typewriter",
+  "title": "Typewriter",
+  "description": "Types, holds and deletes through a list of words.",
+  "dependencies": [
+    "motion"
+  ],
+  "files": [
+    {
+      "path": "src/components/velora/typewriter.tsx",
+      "content": "\"use client\";\n\nimport { useEffect, useState } from \"react\";\nimport { useReducedMotion } from \"motion/react\";\n\nimport { cn } from \"@/lib/utils\";\n\ninterface TypewriterProps extends React.HTMLAttributes<HTMLSpanElement> {\n  words: string[];\n  /** ms per typed character */\n  typeSpeed?: number;\n  /** ms per deleted character */\n  deleteSpeed?: number;\n  /** ms to hold a completed word */\n  holdTime?: number;\n  loop?: boolean;\n  cursor?: boolean;\n}\n\nexport function Typewriter({\n  words,\n  typeSpeed = 70,\n  deleteSpeed = 40,\n  holdTime = 1800,\n  loop = true,\n  cursor = true,\n  className,\n  ...props\n}: TypewriterProps) {\n  const reducedMotion = useReducedMotion();\n  const [wordIndex, setWordIndex] = useState(0);\n  const [text, setText] = useState(\"\");\n  const [deleting, setDeleting] = useState(false);\n\n  useEffect(() => {\n    if (reducedMotion || words.length === 0) return;\n    const word = words[wordIndex % words.length];\n\n    let timeout: ReturnType<typeof setTimeout>;\n    if (!deleting && text.length < word.length) {\n      timeout = setTimeout(() => setText(word.slice(0, text.length + 1)), typeSpeed);\n    } else if (!deleting && text.length === word.length) {\n      const isLast = wordIndex === words.length - 1;\n      if (loop || !isLast) {\n        timeout = setTimeout(() => setDeleting(true), holdTime);\n      }\n    } else if (deleting && text.length > 0) {\n      timeout = setTimeout(() => setText(word.slice(0, text.length - 1)), deleteSpeed);\n    } else if (deleting) {\n      timeout = setTimeout(() => {\n        setDeleting(false);\n        setWordIndex((i) => (i + 1) % words.length);\n      }, deleteSpeed);\n    }\n    return () => clearTimeout(timeout);\n  }, [text, deleting, wordIndex, words, typeSpeed, deleteSpeed, holdTime, loop, reducedMotion]);\n\n  if (reducedMotion) {\n    return (\n      <span className={cn(className)} {...props}>\n        {words[0]}\n      </span>\n    );\n  }\n\n  const longest = words.reduce((a, b) => (b.length > a.length ? b : a), \"\");\n\n  // Both spans share one grid cell: the invisible longest word reserves\n  // the final size, so typing never shifts surrounding layout.\n  return (\n    <span\n      data-slot=\"typewriter\"\n      className={cn(\"inline-grid text-left\", className)}\n      {...props}\n    >\n      <span className=\"sr-only\">{words[0]}</span>\n      <span aria-hidden className=\"invisible col-start-1 row-start-1\">\n        {longest}\n        {cursor && <span className=\"font-light\">|</span>}\n      </span>\n      <span aria-hidden className=\"col-start-1 row-start-1\">\n        {text}\n        {cursor && (\n          <span className=\"animate-pulse font-light\">|</span>\n        )}\n      </span>\n    </span>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/typewriter.tsx"
+    }
+  ],
+  "type": "registry:ui"
+}

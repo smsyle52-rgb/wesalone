@@ -1,0 +1,15 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "iphone-mockup",
+  "title": "iPhone Mockup",
+  "description": "iPhone frame with dynamic island — pure CSS.",
+  "files": [
+    {
+      "path": "src/components/velora/iphone-mockup.tsx",
+      "content": "import { cn } from \"@/lib/utils\";\n\ninterface IphoneMockupProps extends React.HTMLAttributes<HTMLDivElement> {\n  children: React.ReactNode;\n}\n\n/**\n * iPhone frame with dynamic island and side buttons — drop any\n * screen content inside.\n */\nexport function IphoneMockup({\n  className,\n  children,\n  ...props\n}: IphoneMockupProps) {\n  return (\n    <div\n      data-slot=\"iphone-mockup\"\n      className={cn(\"relative mx-auto w-70\", className)}\n      {...props}\n    >\n      {/* Side buttons */}\n      <span className=\"absolute top-24 -left-0.75 h-8 w-1 rounded-l-md bg-neutral-700\" />\n      <span className=\"absolute top-36 -left-0.75 h-12 w-1 rounded-l-md bg-neutral-700\" />\n      <span className=\"absolute top-52 -left-0.75 h-12 w-1 rounded-l-md bg-neutral-700\" />\n      <span className=\"absolute top-32 -right-0.75 h-16 w-1 rounded-r-md bg-neutral-700\" />\n\n      <div className=\"relative aspect-[9/19] overflow-hidden rounded-[3rem] border-10 border-neutral-800 bg-background shadow-2xl\">\n        {/* Dynamic island */}\n        <span className=\"absolute top-2.5 left-1/2 z-20 h-6.5 w-24 -translate-x-1/2 rounded-full bg-neutral-900\" />\n        <div className=\"absolute inset-0\">{children}</div>\n      </div>\n    </div>\n  );\n}\n",
+      "type": "registry:ui",
+      "target": "components/velora/iphone-mockup.tsx"
+    }
+  ],
+  "type": "registry:ui"
+}

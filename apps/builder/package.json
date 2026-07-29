@@ -15,6 +15,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mdx-js/loader": "^3.1.1",
+    "@mdx-js/react": "^3.1.1",
+    "@next/mdx": "^16.2.10",
     "@ai-sdk/mcp": "^1.0.37",
     "@bull-board/api": "^8.1.2",
     "@bull-board/hono": "^8.1.2",
@@ -102,6 +105,7 @@
     "date-fns": "^4.1.0",
     "dot-prop": "^10.1.0",
     "emoji-picker-react": "^4.19.1",
+    "embla-carousel-react": "^8.6.0",
     "hono": "^4.12.28",
     "html-to-text": "^9.0.5",
     "ky": "^2.0.2",
@@ -130,6 +134,7 @@
     "recharts": "^3.10.1",
     "remeda": "^2.34.0",
     "server-only": "^0.0.1",
+    "shiki": "^4.3.1",
     "sonner": "^2.0.7",
     "stripe": "^22.1.0",
     "swr": "^2.4.1",
@@ -141,6 +146,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@types/mdx": "^2.0.14",
     "@aws-sdk/client-s3": "^3.1039.0",
     "@chatbotx.io/typescript-config": "workspace:*",
     "@chatbotx.io/vitest-config": "workspace:*",
