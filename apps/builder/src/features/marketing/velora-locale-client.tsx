@@ -65,7 +65,7 @@ export function VeloraLocaleClient({
           translateTextNode(mutation.target as Text)
           continue
         }
-        for (const addedNode of mutation.addedNodes) {
+        for (const addedNode of Array.from(mutation.addedNodes)) {
           if (addedNode.nodeType === Node.TEXT_NODE) {
             translateTextNode(addedNode as Text)
           } else if (addedNode instanceof HTMLElement) {
