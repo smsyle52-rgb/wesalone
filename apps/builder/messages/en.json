@@ -598,6 +598,7 @@
       "whatsapp": "This WhatsApp number is already connected to another workspace.",
       "zalo": "This Zalo OA is already connected to another workspace."
     },
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
     "reconnect": {
       "success": "Channel reconnected successfully.",
       "errors": {

@@ -228,6 +228,11 @@ export const selectFacebookAccountAction = authActionClient
               `/space/${parsedInput.workspaceId}/settings/channels?channel=instagram&error=duplicated`,
             )
           }
+          if (error.code === "channelLimitReached" && parsedInput.workspaceId) {
+            redirect(
+              `/space/${parsedInput.workspaceId}/settings/channels?channel=instagram&error=channelLimit`,
+            )
+          }
           throw error
         }
         if (error instanceof SdkException) {

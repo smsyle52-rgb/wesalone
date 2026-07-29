@@ -19,6 +19,7 @@ import type {
 import { getPaginationWithDefaults } from "@chatbotx.io/database/utils"
 import { createId } from "@chatbotx.io/utils"
 import { BaseService } from "../base.service"
+import { ChatbotXException } from "../errors"
 import { logger } from "../logger"
 import { quotaEnforcementService } from "../quota-enforcement/service"
 import { workspaceUsageService } from "../workspace-usage/service"
@@ -208,7 +209,16 @@ class InboxService extends BaseService {
       metric: "channels",
     })
     if (!consumed.ok) {
-      throw new Error("Channel limit reached for this plan")
+      // Typed, not a bare Error: every channel-connect action catches unknown
+      // errors and rethrows a generic "failed to connect" message, and
+      // handleServerError only forwards the message of a ChatbotXException. A
+      // bare Error here reached the merchant as a technical failure, hiding the
+      // fact that they had simply run out of channels on their plan.
+      throw new ChatbotXException(
+        "Channel limit reached for this plan",
+        "channelLimitReached",
+        403,
+      )
     }
 
     const [inbox] = await tx

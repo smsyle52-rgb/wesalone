@@ -256,6 +256,11 @@ export const selectPageAction = authActionClient
               `/space/${parsedInput.workspaceId}/settings/channels?channel=messenger&error=duplicated`,
             )
           }
+          if (error.code === "channelLimitReached" && parsedInput.workspaceId) {
+            redirect(
+              `/space/${parsedInput.workspaceId}/settings/channels?channel=messenger&error=channelLimit`,
+            )
+          }
           throw error
         }
         if (error instanceof SdkException) {

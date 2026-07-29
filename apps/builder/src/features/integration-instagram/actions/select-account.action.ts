@@ -209,6 +209,11 @@ export const selectAccountAction = authActionClient
               `/space/${parsedInput.workspaceId}/settings/channels?channel=instagram&error=duplicated`,
             )
           }
+          if (error.code === "channelLimitReached" && parsedInput.workspaceId) {
+            redirect(
+              `/space/${parsedInput.workspaceId}/settings/channels?channel=instagram&error=channelLimit`,
+            )
+          }
           throw error
         }
         if (isDatabaseError(error) && error.cause.code === "23505") {
