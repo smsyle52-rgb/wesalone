@@ -110,12 +110,18 @@ function buildSigninUrl(
   return signinUrl
 }
 
-function isPublicRoute(pathname: string) {
+/** Exported for tests — the auth gate depends on this matching exactly. */
+export function isPublicRoute(pathname: string) {
   if (pathname === "/") {
     return true
   }
   for (const route of publicRoutes) {
-    if (pathname.startsWith(route)) {
+    // Match whole path segments only. A bare startsWith() let the short-link
+    // prefixes "/r" and "/l" open up every path beginning with those letters —
+    // "/register" and "/login" were already reaching the app unauthenticated
+    // (they 404 today only because no such page exists). Any future /reports
+    // or /leads page would have been served with no auth check at all.
+    if (pathname === route || pathname.startsWith(`${route}/`)) {
       return true
     }
   }
