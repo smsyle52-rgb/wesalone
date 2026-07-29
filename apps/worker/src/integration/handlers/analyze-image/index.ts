@@ -96,6 +96,11 @@ export async function handleAIAnalyzeImage({
       maxOutputTokens: step.maxOutputTokens,
       temperature: step.temperature,
       abortSignal: controller.signal,
+      // Provider failures are emitted into the stream, not thrown. Rethrow so
+      // they surface as real errors instead of an empty result.
+      onError: ({ error }) => {
+        throw error
+      },
     })
 
     const { fullText } = await processStreamingText(

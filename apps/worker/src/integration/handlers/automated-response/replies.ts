@@ -237,6 +237,11 @@ export async function generateAIReplyText(
           chunkMs: aiTimeouts.aiChunk,
         },
         abortSignal: controller.signal,
+        // Provider failures are emitted into the stream, not thrown. Rethrow
+        // so they surface as real errors instead of an empty reply.
+        onError: ({ error }) => {
+          throw error
+        },
       })
 
       const { fullText } = await processStreamingText(
@@ -899,6 +904,13 @@ async function runAIReply(
         }
       },
       abortSignal,
+      // Provider failures are emitted into the stream, not thrown. Without
+      // this the stream ends with zero steps and the customer gets silence,
+      // while the only trace is a "usage settlement failed" warning — a reply
+      // outage disguised as a billing problem.
+      onError: ({ error }) => {
+        throw error
+      },
     })
 
     const buildToolStats = () => ({

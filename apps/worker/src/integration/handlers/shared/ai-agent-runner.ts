@@ -277,6 +277,17 @@ async function runAIReplyInternal(
         }
       },
       abortSignal,
+      // The SDK does not throw provider failures out of streamText — it emits
+      // them into the stream and hands them here. Without this the stream just
+      // ends with zero steps: the customer gets silence, and the only trace is
+      // `result.totalUsage` rejecting with NoOutputGeneratedError inside the
+      // billing block below, which logs it as a settlement warning. A total
+      // reply failure was being reported as a billing hiccup. Rethrow so it
+      // reaches the catch that releases the reservation and logs the real
+      // provider error, matching what generate-text already does.
+      onError: ({ error }) => {
+        throw error
+      },
     })
 
     const { fullText } = await processStreamingText(
@@ -315,16 +326,35 @@ async function runAIReplyInternal(
         webSearches: webSearchesCount,
       })
     } catch (settleError) {
-      logger.warn(
-        {
-          err: normalizeError(settleError),
-          provider,
-          conversationId: conversation.id,
-          workspaceId: conversation.workspaceId,
-          operationId: reservation?.operationId,
-        },
-        "[ai-agent-runner] usage settlement failed after a successful AI reply",
+      // `result.totalUsage` rejects with NoOutputGeneratedError when the model
+      // produced no steps at all. That is a REPLY failure, not a billing one:
+      // the customer got silence. Logging it as a settlement warning is what
+      // kept this invisible — report it for what it is, at error level, so it
+      // shows up in an outage search instead of a billing one.
+      const normalizedError = normalizeError(settleError)
+      const producedNoOutput = normalizedError.message.includes(
+        "No output generated",
       )
+      const context = {
+        err: normalizedError,
+        provider,
+        modelId: selectedModelId,
+        conversationId: conversation.id,
+        workspaceId: conversation.workspaceId,
+        operationId: reservation?.operationId,
+      }
+
+      if (producedNoOutput) {
+        logger.error(
+          context,
+          "[ai-agent-runner] model returned no output — customer received no reply",
+        )
+      } else {
+        logger.warn(
+          context,
+          "[ai-agent-runner] usage settlement failed after a successful AI reply",
+        )
+      }
     }
 
     if (fullText) {
