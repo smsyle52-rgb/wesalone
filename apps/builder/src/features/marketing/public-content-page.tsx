@@ -24,30 +24,31 @@ export async function PublicContentPage({ kind }: { kind: PublicPageKind }) {
 
   return (
     <PublicShell>
-      <section className="relative overflow-hidden bg-[#05142b] px-5 py-20 lg:px-8">
-        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_65%_80%_at_50%_0%,rgba(8,190,221,.28),transparent_70%)]" />
-        <div className="relative mx-auto max-w-5xl text-center">
-          <p className="font-bold text-cyan-200 text-sm">{page.eyebrow}</p>
-          <h1 className="mt-4 text-balance font-black text-4xl leading-tight sm:text-6xl">{page.title}</h1>
-          <p className="mx-auto mt-6 max-w-3xl text-base text-slate-300 leading-8">{page.intro}</p>
-          {page.updated && <p className="mt-3 text-slate-400 text-sm">{page.updated}</p>}
-        </div>
-      </section>
-      <section className="bg-slate-50 px-5 py-16 text-slate-950 lg:px-8">
-        <div className="mx-auto grid max-w-5xl gap-5 md:grid-cols-2">
+      <section className="mx-auto max-w-5xl px-5 py-20 lg:px-8">
+        <p className="font-bold text-cyan-300 text-sm">{page.eyebrow}</p>
+        <h1 className="mt-4 text-balance font-black text-4xl leading-tight sm:text-5xl">
+          {page.title}
+        </h1>
+        <p className="mt-6 max-w-3xl text-base text-slate-300 leading-8">
+          {page.intro}
+        </p>
+        {page.updated && (
+          <p className="mt-3 text-slate-500 text-sm">{page.updated}</p>
+        )}
+        <div className="mt-12 grid gap-5 md:grid-cols-2">
           {page.sections.map((section) => (
             <article
-              className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm"
+              className="rounded-3xl border border-white/10 bg-white/[.035] p-6"
               key={section.title}
             >
               <h2 className="font-bold text-xl">{section.title}</h2>
-              <div className="mt-4 space-y-3 text-slate-600 text-sm leading-7">
+              <div className="mt-4 space-y-3 text-slate-400 text-sm leading-7">
                 {section.body.map((paragraph) => (
                   <p key={paragraph}>{paragraph}</p>
                 ))}
               </div>
               {section.bullets && (
-                <ul className="mt-4 list-inside list-disc space-y-2 text-slate-600 text-sm leading-7">
+                <ul className="mt-4 list-inside list-disc space-y-2 text-slate-400 text-sm leading-7">
                   {section.bullets.map((item) => (
                     <li key={item}>{item}</li>
                   ))}

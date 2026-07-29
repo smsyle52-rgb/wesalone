@@ -4,7 +4,6 @@ import {
   quotaEnforcementService,
   userQuotaService,
 } from "@chatbotx.io/business"
-import type { Metadata } from "next"
 import { ExpiredBanner } from "@/components/expired-banner"
 import { WorkspaceDeletionPendingToast } from "@/components/workspace-deletion-pending-toast"
 import { isCloud } from "@/env"
@@ -14,14 +13,11 @@ import WorkspacesList from "@/features/workspaces/components/workspaces-list"
 import { hasWorkspacePermission } from "@/lib/auth/permission-routes"
 import { enforcePasswordCurrent } from "@/lib/auth/require-password-current"
 import { getCurrentUserAndAllLinkedWorkspaces } from "@/lib/auth/utils"
-import { publicMetadata } from "@/lib/public-site"
 import {
   buildQuotaMetrics,
   resolveBlockReason,
   resolveTrialEndsAt,
 } from "@/lib/quota-metrics"
-
-export const metadata: Metadata = publicMetadata({ title: "وصال ون | منصة محادثات أعمالك", description: "اجمع قنوات أعمالك والفريق والذكاء الاصطناعي في مساحة عمل واحدة.", path: "/" })
 
 export default async function MainPage() {
   const userAndWorkspaces = await getCurrentUserAndAllLinkedWorkspaces()

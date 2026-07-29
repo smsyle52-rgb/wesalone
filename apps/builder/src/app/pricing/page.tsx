@@ -1,9 +1,10 @@
-import type { Metadata } from "next"
-import { PublicPricing } from "@/features/marketing/public-pricing"
-import { publicMetadata } from "@/lib/public-site"
-
-export const metadata: Metadata = publicMetadata({ title: "باقات وأسعار وصال ون", description: "قارن باقات وصال ون وحدود القنوات والفريق والنقاط الشهرية.", path: "/pricing" })
+import VeloraRawPricing from "@/features/marketing/velora-raw-pricing"
+import "@/features/marketing/velora-template.css"
 
 export default function PricingPage() {
-  return <PublicPricing />
+  return (
+    <div className="velora-template" dir="ltr">
+      <VeloraRawPricing />
+    </div>
+  )
 }
