@@ -1,6 +1,8 @@
 import { Geist, Geist_Mono } from "next/font/google"
+import { getLocale } from "next-intl/server"
 import type { ReactNode } from "react"
 import { ThemeProvider } from "@/components/theme-provider"
+import { VeloraLocaleClient } from "./velora-locale-client"
 import "./velora-template.css"
 
 const geistSans = Geist({
@@ -13,19 +15,20 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 })
 
-export function VeloraLayout({ children }: { children: ReactNode }) {
+export async function VeloraLayout({ children }: { children: ReactNode }) {
+  const locale = await getLocale()
   return (
     <ThemeProvider
       attribute="class"
       defaultTheme="dark"
       disableTransitionOnChange
     >
-      <div
+      <VeloraLocaleClient
         className={`velora-template ${geistSans.variable} ${geistMono.variable} min-h-full flex flex-col antialiased`}
-        dir="ltr"
+        locale={locale}
       >
         {children}
-      </div>
+      </VeloraLocaleClient>
     </ThemeProvider>
   )
 }

@@ -146,6 +146,12 @@
     @apply bg-background text-foreground font-sans;
     min-height: 100dvh;
   }
+  .velora-template[data-velora-locale="ar"] {
+    font-family: "IBM Plex Sans Arabic", "Tajawal", var(--font-sans), sans-serif;
+  }
+  .velora-template[data-velora-locale="ar"] .text-left {
+    text-align: right;
+  }
   html:has(.velora-template) {
     scroll-behavior: smooth;
   }
@@ -273,4 +279,3 @@
     animation: none;
   }
 }
-

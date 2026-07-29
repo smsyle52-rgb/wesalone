@@ -3,6 +3,7 @@ import { SparklesIcon, StarIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { VeloraLanguageToggle } from "@/components/velora-language-toggle";
 import { siteConfig } from "@/lib/site-config";
 
 export function SiteHeader() {
@@ -31,6 +32,7 @@ export function SiteHeader() {
           </Link>
         </nav>
         <div className="flex items-center gap-2">
+          <VeloraLanguageToggle />
           <ThemeToggle />
           <Button variant="outline" size="sm" asChild>
             <a href={siteConfig.github} rel="noopener" target="_blank">
