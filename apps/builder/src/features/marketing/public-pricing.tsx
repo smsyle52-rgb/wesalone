@@ -2,17 +2,18 @@ import { WESAL_ONE_PLANS } from "@chatbotx.io/business"
 import { Check } from "lucide-react"
 import Link from "next/link"
 import { getLocale, getTranslations } from "next-intl/server"
-import { SiteShell } from "./site-shell"
+import { PublicShell } from "./public-shell"
 
-export async function PricingPage() {
+export async function PublicPricing() {
   const locale = await getLocale()
   const t = await getTranslations("plans")
+
   return (
-    <SiteShell>
+    <PublicShell>
       <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <p className="font-bold text-cyan-300 text-sm">{t("subtitle")}</p>
-          <h1 className="mt-4 font-black text-4xl sm:text-6xl">{t("title")}</h1>
+          <h1 className="mt-4 font-black text-4xl sm:text-5xl">{t("title")}</h1>
           <p className="mt-5 text-slate-400 leading-8">{t("description")}</p>
         </div>
         <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-5">
@@ -39,7 +40,8 @@ export async function PricingPage() {
                 ) : (
                   <>
                     <span className="font-black text-4xl">
-                      ${plan.priceMonthlyUsd}
+                      {"$"}
+                      {plan.priceMonthlyUsd}
                     </span>
                     <span className="text-slate-400 text-sm">
                       {t("perMonth")}
@@ -52,9 +54,15 @@ export async function PricingPage() {
                   ? t("summaryCustom")
                   : t("summary", {
                       channels: plan.limits.channels,
-                      contacts: plan.limits.contacts ?? "∞",
-                      teamMembers: plan.limits.teamMembers ?? "∞",
-                      points: plan.monthlyPoints ?? "∞",
+                      contacts:
+                        plan.limits.contacts ?? String.fromCharCode(8734),
+                      teamMembers:
+                        plan.limits.teamMembers ?? String.fromCharCode(8734),
+                      // Omitting this threw FORMATTING_ERROR and took down the
+                      // whole public pricing page — the string has always had
+                      // {points}; only the in-app pricing view was passing it.
+                      points:
+                        plan.monthlyPoints ?? String.fromCharCode(8734),
                     })}
               </p>
               <ul className="mt-6 flex-1 space-y-3 text-sm">
@@ -71,16 +79,16 @@ export async function PricingPage() {
                   plan.priceMonthlyUsd === null ? "/contact" : "/auth/sign-up"
                 }
               >
-                {plan.priceMonthlyUsd === null
-                  ? t("contactSales")
-                  : plan.priceMonthlyUsd === 0
-                    ? t("selectFree")
-                    : t("selectPlan")}
+                {plan.priceMonthlyUsd === null && t("contactSales")}
+                {plan.priceMonthlyUsd === 0 && t("selectFree")}
+                {typeof plan.priceMonthlyUsd === "number" &&
+                  plan.priceMonthlyUsd > 0 &&
+                  t("selectPlan")}
               </Link>
             </article>
           ))}
         </div>
       </section>
-    </SiteShell>
+    </PublicShell>
   )
 }

@@ -1,5 +1,5 @@
-import { PricingPage as PublicPricingPage } from "@/features/public-website/pricing-page"
+import { PublicPricing } from "@/features/marketing/public-pricing"
 
 export default function PricingPage() {
-  return <PublicPricingPage />
+  return <PublicPricing />
 }

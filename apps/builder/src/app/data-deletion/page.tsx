@@ -1,5 +1,5 @@
-import { ContentPage } from "@/features/public-website/content-page"
+import { PublicContentPage } from "@/features/marketing/public-content-page"
 
 export default function DataDeletionPage() {
-  return <ContentPage kind="dataDeletion" />
+  return <PublicContentPage kind="dataDeletion" />
 }

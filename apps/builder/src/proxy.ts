@@ -30,7 +30,6 @@ const publicRoutes = [
   "/terms",
   "/data-deletion",
   "/pricing",
-  "/docs",
 ]
 const signinPath = "/auth/sign-in"
 
