@@ -25,7 +25,10 @@ function translateTextNode(node: Text): void {
 }
 
 function translateTree(root: HTMLElement): void {
-  for (const element of [root, ...root.querySelectorAll<HTMLElement>("*")]) {
+  for (const element of [
+    root,
+    ...Array.from(root.querySelectorAll<HTMLElement>("*")),
+  ]) {
     for (const attribute of ["aria-label", "placeholder", "title"]) {
       const value = element.getAttribute(attribute)
       if (!value) continue
