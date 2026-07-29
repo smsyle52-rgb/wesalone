@@ -1,13 +1,5 @@
-import { getLocale } from "next-intl/server"
-import { MarketingHome as DefaultMarketingHome } from "./marketing-home-default"
-import WesalSourceMarketingPage from "./wesal-source-marketing-page"
+import { WesalVeloraHome } from "./wesal-velora-home"
 
 export async function MarketingHome() {
-  const locale = await getLocale()
-
-  if (locale === "ar") {
-    return <WesalSourceMarketingPage />
-  }
-
-  return <DefaultMarketingHome />
+  return <WesalVeloraHome />
 }
