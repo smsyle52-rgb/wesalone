@@ -12,6 +12,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { memo, useCallback, useMemo } from "react"
+import { isHiddenChannel } from "@/lib/channel-visibility"
 import { InboxIcon } from "./inbox-icon"
 
 type InboxSelectCardProps = {
@@ -24,15 +25,18 @@ function InboxSelectCard({ configuredChannels }: InboxSelectCardProps) {
   const searchParams = useSearchParams()
 
   const inboxOptions: ChannelType[] = useMemo(
-    () => [
-      "whatsapp",
-      "messenger",
-      "instagram",
-      "zalo",
-      "tiktok",
-      "telegram",
-      "webchat",
-    ],
+    () =>
+      (
+        [
+          "whatsapp",
+          "messenger",
+          "instagram",
+          "zalo",
+          "tiktok",
+          "telegram",
+          "webchat",
+        ] as ChannelType[]
+      ).filter((channel) => !isHiddenChannel(channel)),
     [],
   )
 

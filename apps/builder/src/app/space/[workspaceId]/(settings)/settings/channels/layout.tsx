@@ -10,6 +10,7 @@ import {
 import { useSearchParams } from "next/navigation"
 import type { ReactNode } from "react"
 import { InboxIcon } from "@/features/inboxes/components/inbox-icon"
+import { isHiddenChannel } from "@/lib/channel-visibility"
 
 type SettingsChannelsPageProps = {
   readonly children?: ReactNode
@@ -41,7 +42,7 @@ export default function SettingsChannelsPage({
   const queriesParams = useSearchParams()
   const selectedChannel = queriesParams.get("channel") ?? ""
 
-  const integrationItems: IntegrationItem[] = [
+  const allIntegrationItems: IntegrationItem[] = [
     {
       value: "whatsapp",
       content: whatsapp,
@@ -75,6 +76,10 @@ export default function SettingsChannelsPage({
       content: smtp,
     },
   ]
+
+  const integrationItems = allIntegrationItems.filter(
+    (integration) => !isHiddenChannel(integration.value),
+  )
 
   return (
     <Accordion

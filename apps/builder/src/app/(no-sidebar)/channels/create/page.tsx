@@ -17,6 +17,7 @@ import WhatsappCreate from "@/features/integration-whatsapp/components/whatsapp-
 import { generateZaloRedirectUri } from "@/features/integration-zalo/libs/zalo"
 import { requireWorkspacePermission } from "@/lib/auth/require-workspace-permission"
 import { getCurrentUserId } from "@/lib/auth/utils"
+import { isHiddenChannel } from "@/lib/channel-visibility"
 
 export const dynamic = "force-dynamic"
 
@@ -120,7 +121,7 @@ export default async function CreateChannelPage(props: CreateChannelPageProps) {
     redirect(redirectUri)
   }
 
-  if (selectedChannel === "zalo" && zalo) {
+  if (selectedChannel === "zalo" && zalo && !isHiddenChannel("zalo")) {
     const redirectUri = await generateZaloRedirectUri(
       zalo.publicConfig,
       workspaceId,
@@ -146,7 +147,7 @@ export default async function CreateChannelPage(props: CreateChannelPageProps) {
   if (instagram) {
     configuredChannels.push("instagram")
   }
-  if (zalo) {
+  if (zalo && !isHiddenChannel("zalo")) {
     configuredChannels.push("zalo")
   }
   if (tiktok) {
