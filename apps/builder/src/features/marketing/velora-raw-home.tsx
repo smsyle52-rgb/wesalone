@@ -176,7 +176,7 @@ export default function Home() {
 
           <BlurFade delay={0.5}>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              <ShimmerButton>
+              <ShimmerButton href="/auth/sign-up">
                 <RocketIcon className="size-4" />
                 Get started — it&apos;s free
               </ShimmerButton>
@@ -527,8 +527,8 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                <Button variant="outline" size="lg" className="mt-8 w-full rounded-full">
-                  Get started
+                <Button variant="outline" size="lg" className="mt-8 w-full rounded-full" asChild>
+                  <a href="/auth/sign-up">Get started</a>
                 </Button>
               </div>
             </BlurFade>
@@ -611,7 +611,7 @@ export default function Home() {
               production-ready — for free.
             </p>
             <div className="mt-10">
-              <ShimmerButton className="h-14 px-10 text-base">
+              <ShimmerButton className="h-14 px-10 text-base" href="/auth/sign-up">
                 <RocketIcon className="size-5" />
                 Start building now
               </ShimmerButton>

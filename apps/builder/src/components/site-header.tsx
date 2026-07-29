@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { SparklesIcon, StarIcon } from "lucide-react";
+import { LogInIcon, SparklesIcon, UserPlusIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VeloraLanguageToggle } from "@/components/velora-language-toggle";
-import { siteConfig } from "@/lib/site-config";
 
 export function SiteHeader() {
   return (
@@ -34,11 +33,17 @@ export function SiteHeader() {
         <div className="flex items-center gap-2">
           <VeloraLanguageToggle />
           <ThemeToggle />
-          <Button variant="outline" size="sm" asChild>
-            <a href={siteConfig.github} rel="noopener" target="_blank">
-              <StarIcon />
-              Star on GitHub
-            </a>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/auth/sign-in">
+              <LogInIcon />
+              <span className="hidden xl:inline">Log in</span>
+            </Link>
+          </Button>
+          <Button size="sm" asChild>
+            <Link href="/auth/sign-up">
+              <UserPlusIcon />
+              <span className="hidden lg:inline">Sign up</span>
+            </Link>
           </Button>
         </div>
       </div>
