@@ -17,6 +17,13 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { PublicShell } from "./public-shell"
+import { AuroraBackground } from "./velora/aurora-background"
+import { BlurFade } from "./velora/blur-fade"
+import { BorderBeam } from "./velora/border-beam"
+import { GridPattern } from "./velora/grid-pattern"
+import { Marquee } from "./velora/marquee"
+import { ScrollProgress } from "./velora/scroll-progress"
+import { SpotlightCard } from "./velora/spotlight-card"
 
 const capabilities = [
   {
@@ -75,6 +82,7 @@ const faqs = [
 function InboxMockup() {
   return (
     <div className="relative mx-auto mt-12 max-w-5xl overflow-hidden rounded-[1.75rem] border border-white/15 bg-slate-950/80 p-2 shadow-2xl shadow-cyan-950/40 backdrop-blur">
+      <BorderBeam colorFrom="#67e8f9" colorTo="#2563eb" duration={8} size={110} />
       <div className="flex items-center gap-2 border-white/10 border-b px-4 py-3 text-slate-400 text-xs">
         <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
@@ -130,29 +138,23 @@ export function WesalVeloraHome() {
 
   return (
     <PublicShell>
+      <ScrollProgress />
       <script dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} type="application/ld+json" />
       <section className="relative isolate overflow-hidden bg-[#05142b] pb-14 pt-20 sm:pb-20 sm:pt-28">
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_70%_55%_at_50%_-5%,rgba(11,204,232,.35),transparent_68%)]" />
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-full opacity-20 [background-image:linear-gradient(rgba(255,255,255,.09)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.09)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(ellipse_75%_60%_at_50%_20%,black,transparent)]" />
+        <AuroraBackground intensity="vivid" />
+        <GridPattern className="stroke-white/10 [mask-image:radial-gradient(ellipse_75%_60%_at_50%_20%,black,transparent)]" height={44} width={44} />
         <div className="mx-auto max-w-7xl px-5 text-center lg:px-8">
-          <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200/25 bg-white/[.06] px-4 py-2 font-semibold text-cyan-100 text-sm backdrop-blur"><Sparkles className="h-4 w-4" />منصة تشغيل محادثات الأعمال</span>
-          <h1 className="mx-auto mt-7 max-w-4xl text-balance font-black text-4xl leading-[1.22] text-white sm:text-6xl">كل محادثات أعمالك في مكان واحد</h1>
-          <p className="mx-auto mt-6 max-w-2xl text-pretty text-base text-slate-300 leading-8 sm:text-lg">وصال ون يجمع القنوات والفريق والأتمتة والذكاء الاصطناعي في مساحة عمل واحدة، لتبقى كل محادثة واضحة وقابلة للمتابعة.</p>
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-300 px-6 py-3.5 font-bold text-slate-950 shadow-lg shadow-cyan-400/20 transition hover:bg-cyan-200" href="/auth/sign-up">ابدأ مجانًا <ArrowLeft className="h-4 w-4" /></Link>
-            <Link className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/[.06] px-6 py-3.5 font-bold text-white transition hover:bg-white/10" href="/features">استكشف المزايا <ChevronLeft className="h-4 w-4" /></Link>
-          </div>
-          <p className="mt-4 text-slate-400 text-xs">الخطة المجانية تشمل 1,000 نقطة شهرية.</p>
-          <InboxMockup />
+          <BlurFade direction="down"><span className="inline-flex items-center gap-2 rounded-full border border-cyan-200/25 bg-white/[.06] px-4 py-2 font-semibold text-cyan-100 text-sm backdrop-blur"><Sparkles className="h-4 w-4" />منصة تشغيل محادثات الأعمال</span></BlurFade>
+          <BlurFade delay={0.08}><h1 className="mx-auto mt-7 max-w-4xl text-balance font-black text-4xl leading-[1.22] text-white sm:text-6xl">كل محادثات أعمالك في مكان واحد</h1></BlurFade>
+          <BlurFade delay={0.16}><p className="mx-auto mt-6 max-w-2xl text-pretty text-base text-slate-300 leading-8 sm:text-lg">وصال ون يجمع القنوات والفريق والأتمتة والذكاء الاصطناعي في مساحة عمل واحدة، لتبقى كل محادثة واضحة وقابلة للمتابعة.</p><div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Link className="relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl bg-cyan-300 px-6 py-3.5 font-bold text-slate-950 shadow-lg shadow-cyan-400/20 transition hover:bg-cyan-200" href="/auth/sign-up"><span aria-hidden className="animate-shimmer absolute inset-0 bg-[linear-gradient(110deg,transparent_30%,rgba(255,255,255,.45)_50%,transparent_70%)] bg-[length:250%_100%]" />ابدأ مجانًا <ArrowLeft className="h-4 w-4" /></Link><Link className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/[.06] px-6 py-3.5 font-bold text-white transition hover:bg-white/10" href="/features">استكشف المزايا <ChevronLeft className="h-4 w-4" /></Link></div><p className="mt-4 text-slate-400 text-xs">الخطة المجانية تشمل 1,000 نقطة شهرية.</p></BlurFade>
+          <BlurFade delay={0.25} offset={28}><InboxMockup /></BlurFade>
         </div>
       </section>
 
       <section className="bg-white py-18 text-slate-950 sm:py-24">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <p className="text-center font-bold text-cyan-700 text-sm">قنواتك في واجهة واحدة</p>
-          <div className="mx-auto mt-6 flex max-w-5xl flex-wrap items-center justify-center gap-3" dir="ltr">
-            {channels.map((channel) => <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 font-bold text-slate-700 text-sm shadow-sm" key={channel}>{channel}</span>)}
-          </div>
+          <Marquee className="mx-auto mt-6 max-w-5xl [--duration:28s]" pauseOnHover repeat={3}>{channels.map((channel) => <span className="rounded-full border border-slate-200 bg-slate-50 px-5 py-2 font-bold text-slate-700 text-sm shadow-sm" dir="ltr" key={channel}>{channel}</span>)}</Marquee>
         </div>
       </section>
 
@@ -161,11 +163,11 @@ export function WesalVeloraHome() {
           <div className="mx-auto max-w-3xl text-center"><p className="font-bold text-cyan-700 text-sm">تشغيل منظم، لا محادثات متفرقة</p><h2 className="mt-4 text-balance font-black text-3xl sm:text-5xl">الأدوات التي يحتاجها فريق المحادثات في مكانها الصحيح</h2><p className="mt-5 text-slate-600 leading-8">كل جزء مصمم ليكمل الآخر: من أول رسالة، إلى الرد، إلى إدارة المعرفة وسياق العميل.</p></div>
           <div className="mt-12 grid gap-4 md:grid-cols-3">
             {capabilities.map(({ title, description, icon: Icon, className }, index) => (
-              <article className={`group relative min-h-64 overflow-hidden rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl ${className}`} key={title}>
+              <SpotlightCard className={`min-h-64 rounded-3xl border-slate-200 bg-white p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl ${className}`} key={title}>
                 <div aria-hidden className="absolute -left-16 -top-16 h-40 w-40 rounded-full bg-cyan-200/45 blur-3xl transition group-hover:bg-cyan-300/55" />
                 <div className="relative"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-950 text-cyan-300"><Icon className="h-6 w-6" /></span><h3 className="mt-16 font-black text-xl">{title}</h3><p className="mt-3 max-w-xl text-slate-600 text-sm leading-7">{description}</p></div>
                 {index === 0 && <div className="absolute bottom-0 left-0 right-0 flex gap-2 border-slate-100 border-t bg-slate-50/80 px-5 py-3 text-slate-500 text-xs"><MessageCircleMore className="h-4 w-4 text-cyan-700" />رسائل منظمة حسب الفريق والقناة</div>}
-              </article>
+              </SpotlightCard>
             ))}
           </div>
         </div>
