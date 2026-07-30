@@ -5,14 +5,29 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 substitutions:
-  # Keep production charging disabled until the billing migrations and the
-  # read-only integrity audit are explicitly approved and completed. Release
-  # with `_AI_POINTS_ENFORCEMENT_MODE=shadow` first, then `enforce` only after
-  # shadow totals have been reconciled against provider usage.
-  # Quoted: bare `off` is a YAML boolean, and Cloud Build rejects a non-string
-  # substitution value ("cannot unmarshal bool into Go value of type string"),
-  # which fails the whole config before any step runs.
-  _AI_POINTS_ENFORCEMENT_MODE: "off"
+  # `shadow` records real usage on BillableUsageEvent and settles it, but never
+  # debits a wallet — the debit and the insufficient-balance refusal are both
+  # gated on `enforce` in packages/business/src/usage-metering/service.ts. It
+  # was pinned to `off` until the billing migrations and the read-only audit
+  # were done: the migrations went in on 27 Jul and the audit ran on 30 Jul
+  # (ok:false, on subscription coverage, not on ledger integrity).
+  #
+  # Pinned here rather than left as a manual env-var edit on the worker-pool,
+  # because every deploy re-applies this value: setting it by hand meant the
+  # next deploy silently stopped the metering with no error and no sign, and
+  # the usage numbers we are collecting to price the plans would just quietly
+  # stop.
+  #
+  # Do NOT move this to `enforce` yet. 31 of 35 workspace owners have no
+  # PlatformSubscription and so no monthly grant, and there is still no
+  # merchant notice or customer-facing message when a reply is refused for
+  # lack of points — enforcing today reads to a merchant as the agent going
+  # silent. See docs/billing-operations.md.
+  #
+  # Quoted: bare `off`/`on` is a YAML boolean, and Cloud Build rejects a
+  # non-string substitution value ("cannot unmarshal bool into Go value of
+  # type string"), which fails the whole config before any step runs.
+  _AI_POINTS_ENFORCEMENT_MODE: "shadow"
 
 steps:
   - id: build-builder
