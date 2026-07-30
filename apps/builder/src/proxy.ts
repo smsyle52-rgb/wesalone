@@ -177,7 +177,12 @@ export function isPublicRoute(pathname: string) {
 
 export const config = {
   matcher: [
-    "/((?!webchat|zalo_verifier|pricing|chat-widget|assets|ws|storage|_next/static|_next/image|favicon.ico|avatars|.*.svg|brand|openapi.json).*)",
+    // `pricing` used to sit in this exclusion list, inherited from upstream.
+    // Skipping the middleware also skipped `?lang=`, so /pricing?lang=en served
+    // Arabic while every other public page honoured the parameter — and that
+    // link is what we hand to reviewers who cannot read Arabic. It is in
+    // publicRoutes, so running the middleware here costs no auth redirect.
+    "/((?!webchat|zalo_verifier|chat-widget|assets|ws|storage|_next/static|_next/image|favicon.ico|avatars|.*.svg|brand|openapi.json).*)",
     "/api/presigned-upload",
     "/api/whatsapp/:path*",
   ],
