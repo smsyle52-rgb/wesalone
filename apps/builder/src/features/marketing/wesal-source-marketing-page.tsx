@@ -4519,7 +4519,7 @@ function Pricing() {
               "دعم أولوية",
               "تهيئة تناسب الفريق",
             ]}
-            href="/contact"
+            href="mailto:support@wesal.one?subject=%D8%A7%D8%B3%D8%AA%D9%81%D8%B3%D8%A7%D8%B1%20%D8%B9%D9%86%20%D8%A8%D8%A7%D9%82%D8%A9%20%D8%A7%D9%84%D8%A3%D8%B9%D9%85%D8%A7%D9%84"
             name="الأعمال"
             priceLabel="سعر مخصص"
             priceNote="الحدود النهائية تحدد حسب حجم الفريق وطريقة الاستخدام."
@@ -4676,7 +4676,10 @@ function FinalCTABig() {
                   <path d="M19 12H5M12 5l-7 7 7 7" />
                 </svg>
               </a>
-              <a className="final-cta-btn-ghost" href="/contact">
+              <a
+                className="final-cta-btn-ghost"
+                href="mailto:support@wesal.one?subject=%D8%AA%D9%88%D8%A7%D8%B5%D9%84%20%D9%85%D8%B9%20%D9%88%D8%B5%D8%A7%D9%84%20%D9%88%D9%86"
+              >
                 تواصل معنا
               </a>
             </div>

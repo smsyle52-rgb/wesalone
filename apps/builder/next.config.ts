@@ -1,5 +1,4 @@
 import type { NextConfig } from "next"
-import createMDX from "@next/mdx"
 import createNextIntlPlugin from "next-intl/plugin"
 import { env } from "@/env"
 
@@ -11,12 +10,10 @@ const withNextIntl = createNextIntlPlugin({
 
 const appUrl = env.NEXT_PUBLIC_BUILDER_URL.replace(/\/$/, "")
 const storageUrl = env.NEXT_PUBLIC_STORAGE_URL ?? `${appUrl}/storage`
-const withMDX = createMDX({})
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
-  pageExtensions: ["ts", "tsx", "md", "mdx"],
+  pageExtensions: ["ts", "tsx"],
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
@@ -126,4 +123,4 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default withNextIntl(withMDX(nextConfig))
+export default withNextIntl(nextConfig)

@@ -4,15 +4,13 @@
  * repo are wired up.
  */
 export const siteConfig = {
-  name: "Velora UI",
-  url: (
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://velora.colorlib.com"
-  ).replace(/\/$/, ""),
-  github:
-    process.env.NEXT_PUBLIC_GITHUB_URL ??
-    "https://github.com/ColorlibHQ/velora-ui",
-  tagline: "Free animated React components & landing templates",
+  name: "وصال ون",
+  url: (process.env.NEXT_PUBLIC_SITE_URL ?? "https://wesal.one").replace(
+    /\/$/,
+    "",
+  ),
+  tagline: "منصة موحّدة لمحادثات عملائك",
   description:
-    "A free, MIT-licensed library of animated shadcn/ui components and complete landing page templates. Built with Next.js 16, Tailwind CSS 4 and Motion — accessible, reduced-motion friendly and tuned for perfect Lighthouse scores.",
+    "وصال ون منصة أعمال متصلة توحّد محادثات عملائك من واتساب وإنستغرام وماسنجر وتيليجرام في صندوق وارد واحد، مع وكلاء ذكاء اصطناعي يردّون على الاستفسارات ويتابعون الطلبات.",
 } as const;
 

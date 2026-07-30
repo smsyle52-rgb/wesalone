@@ -30,10 +30,8 @@ const publicRoutes = [
   "/terms",
   "/data-deletion",
   "/pricing",
-  "/components",
-  "/themes",
-  "/blog",
-  "/changelog",
+  // `/login` and `/signup` are redirects to the canonical `/auth/*` routes,
+  // kept because the removed marketing template published them publicly.
   "/login",
   "/signup",
 ]
