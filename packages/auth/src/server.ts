@@ -14,6 +14,8 @@ import {
   DEFAULT_FORGOT_PASSWORD_SUBJECT,
   DEFAULT_MAGIC_LINK_SUBJECT,
   DEFAULT_SIGNUP_SUBJECT,
+  FORGOT_PASSWORD_SUBJECT_AR,
+  MAGIC_LINK_SUBJECT_AR,
   SIGNUP_SUBJECT_AR,
   sendMagicLink,
   sendResetPassword,
@@ -425,11 +427,18 @@ export function createAuth(config: AuthConfig) {
           forgotPasswordEmailTemplate,
         } = platformInfo
 
+        // See the locale note in sendVerificationEmail below.
+        const isArabic =
+          getLocaleFromRequest(request as unknown as Request) === "ar"
+
         const props = {
           brandName,
           brandLogoUrl: logoLightUrl,
           brandUrl: new URL("/", originUrl).toString(),
-          subject: DEFAULT_FORGOT_PASSWORD_SUBJECT,
+          subject: isArabic
+            ? FORGOT_PASSWORD_SUBJECT_AR
+            : DEFAULT_FORGOT_PASSWORD_SUBJECT,
+          dir: isArabic ? ("rtl" as const) : ("ltr" as const),
           userName: user.name ?? user.email,
           resetPasswordUrl: resetPasswordUrl.toString(),
           customTemplate: forgotPasswordEmailTemplate,
@@ -550,11 +559,18 @@ export function createAuth(config: AuthConfig) {
             })
           }
 
+          // See the locale note in sendVerificationEmail above.
+          const isArabic =
+            getLocaleFromRequest(request as unknown as Request) === "ar"
+
           const props = {
             brandName,
             brandLogoUrl: logoLightUrl,
             brandUrl: new URL("/", originUrl).toString(),
-            subject: DEFAULT_MAGIC_LINK_SUBJECT,
+            subject: isArabic
+              ? MAGIC_LINK_SUBJECT_AR
+              : DEFAULT_MAGIC_LINK_SUBJECT,
+            dir: isArabic ? ("rtl" as const) : ("ltr" as const),
             userName: user.name ?? email,
             magicUrl: magicUrl.toString(),
             customTemplate: magicLinkEmailTemplate,

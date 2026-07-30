@@ -110,6 +110,33 @@ export const DEFAULT_FORGOT_PASSWORD_TEMPLATE = buildDefaultMjml(
   FORGOT_PASSWORD_BODY_MJML,
 )
 
+// Arabic runtime default — see the note on SIGNUP_SUBJECT_AR above.
+export const FORGOT_PASSWORD_SUBJECT_AR = "إعادة تعيين كلمة المرور"
+
+export const FORGOT_PASSWORD_BODY_MJML_AR = `<mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-text padding="0 0 8px 0" align="right">مرحبًا {{userName}}،</mj-text>
+        <mj-text padding="0" align="right">
+          وصلنا طلب لإعادة تعيين كلمة مرور حسابك. اضغط على الزر أدناه لتعيين كلمة مرور جديدة.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-button href="{{resetPasswordUrl}}" align="right">إعادة تعيين كلمة المرور</mj-button>
+        <mj-text padding="8px 0 0 0" font-size="13px" color="#888888" align="right">
+          أو استخدم هذا الرابط: <a href="{{resetPasswordUrl}}" style="color:#3b82f6">{{resetPasswordUrl}}</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-text padding="0" font-size="14px" color="#888888" align="right">
+          سينتهي هذا الرابط خلال ساعة واحدة. إذا لم تطلب إعادة التعيين، يمكنك تجاهل هذه الرسالة ولن تتغيّر كلمة مرورك.
+        </mj-text>
+      </mj-column>
+    </mj-section>`
+
 export const DEFAULT_MAGIC_LINK_SUBJECT = "Sign in to {{brandName}}"
 
 export const MAGIC_LINK_BODY_MJML = `<mj-section padding="0 0 16px 0">
@@ -141,6 +168,34 @@ export const DEFAULT_MAGIC_LINK_TEMPLATE = buildDefaultMjml(
   DEFAULT_MAGIC_LINK_SUBJECT,
   MAGIC_LINK_BODY_MJML,
 )
+
+// Arabic runtime default — see the note on SIGNUP_SUBJECT_AR above.
+// {{brandName}} is substituted by sendEmailWithTemplate, same as the English one.
+export const MAGIC_LINK_SUBJECT_AR = "تسجيل الدخول إلى {{brandName}}"
+
+export const MAGIC_LINK_BODY_MJML_AR = `<mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-text padding="0 0 8px 0" align="right">مرحبًا {{userName}}،</mj-text>
+        <mj-text padding="0" align="right">
+          اضغط على الزر أدناه لتسجيل الدخول بأمان إلى حسابك في {{brandName}}. ينتهي هذا الرابط خلال 15 دقيقة ويُستخدم مرة واحدة فقط.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-button href="{{magicUrl}}" align="right">تسجيل الدخول إلى {{brandName}}</mj-button>
+        <mj-text padding="8px 0 0 0" font-size="13px" color="#888888" align="right">
+          أو استخدم هذا الرابط: <a href="{{magicUrl}}" style="color:#3b82f6">{{magicUrl}}</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-text padding="0" font-size="14px" color="#888888" align="right">
+          إذا لم تطلب هذا، يمكنك تجاهل هذه الرسالة بأمان.
+        </mj-text>
+      </mj-column>
+    </mj-section>`
 
 export const DEFAULT_ACCOUNT_CREDENTIALS_TEMPLATE = buildAccountCredentialsMjml(
   {
