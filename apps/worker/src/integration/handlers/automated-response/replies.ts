@@ -60,6 +60,7 @@ import {
 } from "ai"
 import { normalizeError } from "universal-error-normalizer"
 import { logger } from "../../../lib/logger"
+import { reserveUsageOrUnmetered } from "../shared/reserve-usage"
 import { handoffExecutorService } from "../../../trigger/services/handoff-executor.service"
 import { sendMessageAndWait, sendMessageWithRender } from "../../utils/message"
 import { triggerDefaultReplyFlow } from "./default-reply"
@@ -213,14 +214,21 @@ export async function generateAIReplyText(
       }
       const provider = getProviderName(providerInfo)
 
-      activeReservation = await usageMeteringService.reserve({
-        workspaceId: conversation.workspaceId,
-        operationId: `${props.operationId}:${provider}:${providerInfo.model}`,
-        category: "language",
-        provider,
-        model: providerInfo.model,
-        metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
-      })
+      activeReservation = await reserveUsageOrUnmetered(
+        {
+          workspaceId: conversation.workspaceId,
+          operationId: `${props.operationId}:${provider}:${providerInfo.model}`,
+          category: "language",
+          provider,
+          model: providerInfo.model,
+          metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
+        },
+        {
+          provider,
+          modelId: providerInfo.model,
+          conversationId: conversation.id,
+        },
+      )
 
       const result = await streamText({
         model: modelConfig.model,
@@ -265,13 +273,18 @@ export async function generateAIReplyText(
 
       const text = fullText.trim()
       try {
+        // Awaited even without a reservation: `totalUsage` rejecting is how a
+        // total reply failure surfaces, and that signal must not disappear
+        // just because metering was skipped.
         const usage = await result.totalUsage
-        await usageMeteringService.settleLanguage(activeReservation, {
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
-          reasoningTokens: usage.outputTokenDetails.reasoningTokens,
-        })
+        if (activeReservation) {
+          await usageMeteringService.settleLanguage(activeReservation, {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
+            reasoningTokens: usage.outputTokenDetails.reasoningTokens,
+          })
+        }
       } catch (settleError) {
         logger.warn(
           {
@@ -740,14 +753,21 @@ async function runAIReply(
       return null
     }
 
-    reservation = await usageMeteringService.reserve({
-      workspaceId: conversation.workspaceId,
-      operationId: `auto-reply:${props.triggerMessageId ?? conversation.updatedAt.toISOString()}:${provider}:${selectedModelId}`,
-      category: "language",
-      provider,
-      model: selectedModelId,
-      metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
-    })
+    reservation = await reserveUsageOrUnmetered(
+      {
+        workspaceId: conversation.workspaceId,
+        operationId: `auto-reply:${props.triggerMessageId ?? conversation.updatedAt.toISOString()}:${provider}:${selectedModelId}`,
+        category: "language",
+        provider,
+        model: selectedModelId,
+        metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
+      },
+      {
+        provider,
+        modelId: selectedModelId,
+        conversationId: conversation.id,
+      },
+    )
 
     const startTime = Date.now()
 
@@ -929,17 +949,19 @@ async function runAIReply(
     // duplicate send from the caller's error handling.
     const settleUsage = async () => {
       try {
+        // Awaited even without a reservation: `totalUsage` rejecting is how a
+        // total reply failure surfaces, and that signal must not disappear
+        // just because metering was skipped.
         const usage = await result.totalUsage
-        await usageMeteringService.settleLanguage(
-          reservation as UsageReservation,
-          {
+        if (reservation) {
+          await usageMeteringService.settleLanguage(reservation, {
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,
             cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
             reasoningTokens: usage.outputTokenDetails.reasoningTokens,
             webSearches: webSearchesCount,
-          },
-        )
+          })
+        }
       } catch (settleError) {
         logger.warn(
           {
@@ -947,8 +969,7 @@ async function runAIReply(
             provider,
             conversationId: conversation.id,
             workspaceId: conversation.workspaceId,
-            operationId: (reservation as UsageReservation | undefined)
-              ?.operationId,
+            operationId: reservation?.operationId,
           },
           "[automated-response] usage settlement failed after a successful AI reply",
         )

@@ -38,6 +38,7 @@ import { contactVariableService } from "@chatbotx.io/variables"
 import { type ModelMessage, stepCountIs, streamText, type ToolSet } from "ai"
 import { normalizeError } from "universal-error-normalizer"
 import { logger } from "../../../lib/logger"
+import { reserveUsageOrUnmetered } from "./reserve-usage"
 
 export type ReplyByAIProps = {
   conversation: ConversationModel
@@ -152,14 +153,21 @@ async function runAIReplyInternal(
       return null
     }
 
-    reservation = await usageMeteringService.reserve({
-      workspaceId: conversation.workspaceId,
-      operationId: `${props.operationId}:${provider}:${selectedModelId}`,
-      category: "language",
-      provider,
-      model: selectedModelId,
-      metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
-    })
+    reservation = await reserveUsageOrUnmetered(
+      {
+        workspaceId: conversation.workspaceId,
+        operationId: `${props.operationId}:${provider}:${selectedModelId}`,
+        category: "language",
+        provider,
+        model: selectedModelId,
+        metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
+      },
+      {
+        provider,
+        modelId: selectedModelId,
+        conversationId: conversation.id,
+      },
+    )
 
     const variables = await contactVariableService.getAll({
       contactId: conversation.contactId,
@@ -317,14 +325,19 @@ async function runAIReplyInternal(
     // merchant's customer still gets their answer, and the miss is logged
     // for reconciliation instead of surfacing as a user-facing error.
     try {
+      // Awaited even without a reservation: `totalUsage` rejecting is how a
+      // total reply failure surfaces, and that signal must not disappear just
+      // because metering was skipped.
       const usage = await result.totalUsage
-      await usageMeteringService.settleLanguage(reservation, {
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
-        reasoningTokens: usage.outputTokenDetails.reasoningTokens,
-        webSearches: webSearchesCount,
-      })
+      if (reservation) {
+        await usageMeteringService.settleLanguage(reservation, {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          cachedInputTokens: usage.inputTokenDetails.cacheReadTokens,
+          reasoningTokens: usage.outputTokenDetails.reasoningTokens,
+          webSearches: webSearchesCount,
+        })
+      }
     } catch (settleError) {
       // `result.totalUsage` rejects with NoOutputGeneratedError when the model
       // produced no steps at all. That is a REPLY failure, not a billing one:
