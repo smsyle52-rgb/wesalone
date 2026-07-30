@@ -91,3 +91,22 @@ function normalizeHost(host: string | null | undefined): string | null {
 
   return host.trim().toLowerCase()
 }
+
+// Mirrors LOCALE_COOKIE ("NEXT_LOCALE") in apps/builder/src/i18n/config.ts.
+// Duplicated as a literal because this package sits below the app layer and
+// cannot import from it; keep both in sync if the cookie name ever changes.
+const LOCALE_COOKIE_NAME = "NEXT_LOCALE"
+
+/**
+ * Reads the UI locale from the request's cookie header, for callbacks (auth
+ * email hooks, webhooks) that receive a plain `Request` outside any
+ * next-intl/App Router context. Defaults to "ar" to match
+ * apps/builder/src/i18n/config.ts's defaultLocale.
+ */
+export function getLocaleFromRequest(request: Request): "ar" | "en" {
+  const cookieHeader = request.headers.get("cookie") ?? ""
+  const match = cookieHeader.match(
+    new RegExp(`(?:^|;\\s*)${LOCALE_COOKIE_NAME}=([^;]+)`),
+  )
+  return match?.[1] === "en" ? "en" : "ar"
+}

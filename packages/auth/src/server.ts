@@ -14,12 +14,17 @@ import {
   DEFAULT_FORGOT_PASSWORD_SUBJECT,
   DEFAULT_MAGIC_LINK_SUBJECT,
   DEFAULT_SIGNUP_SUBJECT,
+  SIGNUP_SUBJECT_AR,
   sendMagicLink,
   sendResetPassword,
   sendSignUpVerification,
 } from "@chatbotx.io/mail"
 import type { SmtpTransportOptions } from "@chatbotx.io/mail/transport"
-import { createId, getPublicOriginFromRequest } from "@chatbotx.io/utils"
+import {
+  createId,
+  getLocaleFromRequest,
+  getPublicOriginFromRequest,
+} from "@chatbotx.io/utils"
 import { APIError, betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { nextCookies } from "better-auth/next-js"
@@ -463,11 +468,20 @@ export function createAuth(config: AuthConfig) {
           signupEmailTemplate,
         } = platformInfo
 
+        // The root tenant (wesal.one) has no admin-configurable template
+        // (signupEmailTemplate is null — that override is enterprise-only),
+        // so it always fell through to this English default regardless of
+        // the site's locale. Pick the Arabic default the same way a
+        // white-label tenant would supply its own.
+        const locale = getLocaleFromRequest(request as unknown as Request)
+        const isArabic = locale === "ar"
+
         const props = {
           brandName,
           brandLogoUrl: logoLightUrl,
           brandUrl: new URL("/", originUrl).toString(),
-          subject: DEFAULT_SIGNUP_SUBJECT,
+          subject: isArabic ? SIGNUP_SUBJECT_AR : DEFAULT_SIGNUP_SUBJECT,
+          dir: isArabic ? ("rtl" as const) : ("ltr" as const),
           userName: user.name ?? user.email,
           verificationUrl: verificationUrl.toString(),
           customTemplate: signupEmailTemplate,

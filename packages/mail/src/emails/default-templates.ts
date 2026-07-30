@@ -47,6 +47,36 @@ export const DEFAULT_SIGNUP_TEMPLATE = buildDefaultMjml(
   SIGNUP_BODY_MJML,
 )
 
+// Arabic runtime default for the root tenant (wesal.one), selected by locale
+// in packages/auth/src/server.ts. Kept separate from DEFAULT_SIGNUP_SUBJECT /
+// DEFAULT_SIGNUP_TEMPLATE above, which also feed the enterprise white-label
+// admin's "reset to default" email-template editor and must stay untouched.
+export const SIGNUP_SUBJECT_AR = "تحقّق من بريدك الإلكتروني"
+
+export const SIGNUP_BODY_MJML_AR = `<mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-text padding="0 0 8px 0" align="right">مرحبًا {{userName}}،</mj-text>
+        <mj-text padding="0" align="right">
+          شكرًا لتسجيلك! يرجى تأكيد بريدك الإلكتروني بالضغط على الزر أدناه.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-button href="{{verificationUrl}}" align="right">تأكيد البريد الإلكتروني</mj-button>
+        <mj-text padding="8px 0 0 0" font-size="13px" color="#888888" align="right">
+          أو استخدم هذا الرابط: <a href="{{verificationUrl}}" style="color:#3b82f6">{{verificationUrl}}</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-text padding="0" font-size="14px" color="#888888" align="right">
+          سينتهي هذا الرابط خلال 24 ساعة. إذا لم تُنشئ حسابًا، يمكنك تجاهل هذه الرسالة.
+        </mj-text>
+      </mj-column>
+    </mj-section>`
+
 export const DEFAULT_FORGOT_PASSWORD_SUBJECT = "Reset your password"
 
 export const FORGOT_PASSWORD_BODY_MJML = `<mj-section padding="0 0 16px 0">

@@ -33,6 +33,7 @@ export {
   DEFAULT_MAGIC_LINK_TEMPLATE,
   DEFAULT_SIGNUP_SUBJECT,
   DEFAULT_SIGNUP_TEMPLATE,
+  SIGNUP_SUBJECT_AR,
 } from "./emails/default-templates"
 export { DEFAULT_ACCOUNT_CREDENTIALS_SUBJECT } from "./emails/sign-up-credentials"
 
