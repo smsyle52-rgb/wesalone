@@ -2960,7 +2960,21 @@
       "strong": "Strong",
       "veryStrong": "Very strong",
       "label": "Password strength: {level}"
-    }
+    },
+    "errorInvalidEmailOrPassword": "The email or password is incorrect. Please check and try again.",
+    "errorEmailNotVerified": "Your email is not verified yet. We just sent you a new verification link — check your inbox.",
+    "errorUserNotFound": "No account exists with this email.",
+    "errorUserAlreadyExists": "An account already exists with this email. Sign in instead.",
+    "errorInvalidEmail": "This email address is not valid.",
+    "errorPasswordTooShort": "The password is too short.",
+    "errorPasswordTooLong": "The password is too long.",
+    "errorInvalidToken": "This link is invalid or has already been used.",
+    "errorTokenExpired": "This link has expired. Please request a new one.",
+    "errorSessionExpired": "Your session has expired. Please sign in again.",
+    "errorGeneric": "Something went wrong. Please try again.",
+    "resendVerification": "Resend verification email",
+    "verificationResent": "Verification email sent. Check your inbox.",
+    "signedInSuccessfully": "Signed in successfully"
   },
   "emailTopics": {
     "title": "Email Topics"
@@ -4505,7 +4519,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -4522,7 +4538,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -4539,7 +4557,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -4556,11 +4576,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },

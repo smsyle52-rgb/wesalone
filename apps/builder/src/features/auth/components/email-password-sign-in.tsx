@@ -14,9 +14,14 @@ import { Loader2Icon, LockIcon, MailIcon } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { useTranslations } from "next-intl"
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { authClient } from "@/lib/auth/auth-client"
+import {
+  authErrorMessage,
+  isEmailNotVerified,
+} from "../lib/auth-error-message"
 import {
   type EmailPasswordSignInRequest,
   emailPasswordSignInRequest,
@@ -24,6 +29,12 @@ import {
 
 export const EmailPasswordSignIn = () => {
   const t = useTranslations()
+  const tAuth = useTranslations("auth")
+  // Shown only after a sign-in fails specifically because the address is
+  // unverified. Without it a merchant who lost the original email has no way
+  // to ask for another one and is simply locked out.
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
+  const [isResending, setIsResending] = useState(false)
 
   const emailPasswordForm = useForm<EmailPasswordSignInRequest>({
     resolver: zodResolver(emailPasswordSignInRequest),
@@ -44,11 +55,29 @@ export const EmailPasswordSignIn = () => {
     })
 
     if (data) {
-      toast.success("Signed in successfully")
+      toast.success(tAuth("signedInSuccessfully"))
       redirect("/")
     } else {
-      toast.error(error.message)
+      setUnverifiedEmail(isEmailNotVerified(error) ? input.email : null)
+      toast.error(authErrorMessage(error, tAuth))
     }
+  }
+
+  const onResendVerification = async () => {
+    if (!unverifiedEmail) {
+      return
+    }
+    setIsResending(true)
+    const { error } = await authClient.sendVerificationEmail({
+      email: unverifiedEmail,
+      callbackURL: "/",
+    })
+    setIsResending(false)
+    if (error) {
+      toast.error(authErrorMessage(error, tAuth))
+      return
+    }
+    toast.success(tAuth("verificationResent"))
   }
   return (
     <Form {...emailPasswordForm}>
@@ -116,6 +145,19 @@ export const EmailPasswordSignIn = () => {
           )}
           {t("actions.continue")}
         </Button>
+
+        {unverifiedEmail && (
+          <Button
+            className="w-full"
+            disabled={isResending}
+            onClick={onResendVerification}
+            type="button"
+            variant="outline"
+          >
+            {isResending && <Loader2Icon className="animate-spin" />}
+            {tAuth("resendVerification")}
+          </Button>
+        )}
       </form>
     </Form>
   )

@@ -451,6 +451,13 @@ export function createAuth(config: AuthConfig) {
       },
     },
     emailVerification: {
+      // `requireEmailVerification` blocks sign-in until the address is
+      // confirmed, but better-auth only re-sends the link on a sign-in attempt
+      // when this is on (see sign-in.mjs: `if (options.emailVerification
+      // ?.sendOnSignIn)`). Without it, anyone who lost or never received the
+      // original email is permanently locked out with no way to request
+      // another — they just get "Email not verified" forever.
+      sendOnSignIn: true,
       sendVerificationEmail: async ({ user, url }, request) => {
         if (!request) {
           throw new APIError(400, {

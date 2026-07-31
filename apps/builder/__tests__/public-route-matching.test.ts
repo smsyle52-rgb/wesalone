@@ -25,6 +25,12 @@ describe("isPublicRoute", () => {
       "/r/123/my-link",
       "/l/123/456",
       "/data-deletion",
+      // Deliberately public: both are plain redirects to the canonical
+      // /auth/* routes, kept because the removed marketing template published
+      // them and the links reached customers. They must NOT sit behind the
+      // auth gate, or the redirect itself bounces to sign-in.
+      "/login",
+      "/signup",
     ]) {
       expect(isPublicRoute(pathname), pathname).toBe(true)
     }
@@ -34,9 +40,14 @@ describe("isPublicRoute", () => {
     // "/r" and "/l" are short-link roots. A bare startsWith() matched these
     // too, so they reached the app with no auth check — harmless only because
     // no such page exists yet.
+    //
+    // "/login" is no longer listed here: it is now an explicit publicRoutes
+    // entry (see the case above), so asserting it private would test the
+    // opposite of the intended behaviour. The prefix guard is still proven by
+    // the remaining paths — none of them is a publicRoutes entry, so any one
+    // of them turning public again means the bare-prefix bug is back.
     for (const pathname of [
       "/register",
-      "/login",
       "/reports",
       "/leads",
       "/rules",
