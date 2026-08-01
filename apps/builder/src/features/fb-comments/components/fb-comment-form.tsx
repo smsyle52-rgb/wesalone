@@ -33,7 +33,7 @@ import { useWatch } from "react-hook-form"
 import { useAIAgentStore } from "@/features/ai-agents/provider/ai-agent-store-context"
 import { useFlowSelectOptions } from "@/features/flows/provider/flow-hook"
 import type { CreateFbCommentRequest } from "../schema/action"
-import { SelectPostsDialog } from "./select-posts-dialog"
+import { SelectFacebookPostsDialog } from "./select-facebook-posts-dialog"
 
 type FbCommentFormValues = CreateFbCommentRequest
 
@@ -221,7 +221,7 @@ export function FbCommentForm({
                 {t("facebookCommentAutomation.chooseSpecificPosts")}
                 {postValue.length > 0 && ` (${postValue.length})`}
               </Button>
-              <SelectPostsDialog
+              <SelectFacebookPostsDialog
                 onChange={(ids) =>
                   form.setValue("post.value", ids, { shouldValidate: true })
                 }
@@ -371,9 +371,11 @@ export function FbCommentForm({
                 <FormLabel className="flex items-center gap-1">
                   {t("facebookCommentAutomation.excludeKeywords")}
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <InfoIcon className="size-3.5 cursor-help text-muted-foreground" />
-                    </TooltipTrigger>
+                    <TooltipTrigger
+                      render={
+                        <InfoIcon className="size-3.5 cursor-help text-muted-foreground" />
+                      }
+                    />
                     <TooltipContent className="max-w-sm">
                       {t(
                         "facebookCommentAutomation.excludeKeywordsDescription",

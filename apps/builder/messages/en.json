@@ -91,6 +91,10 @@
     "getMessengerAdsJson": "Get JSON for Messenger Ads",
     "getMessengerAdPayload": "Get payload for Messenger Ad",
     "ok": "OK",
+    "next": "Next",
+    "prev": "Prev",
+    "moveEarlier": "Move Earlier",
+    "moveLater": "Move Later",
     "analytics": "Analytics",
     "deleteAnalytics": "Delete Analytics",
     "flowVersions": "Flow Versions",
@@ -318,13 +322,13 @@
       "bannerCta": "Upgrade",
       "createDisabled": "Creating new {feature} is disabled. Upgrade to continue."
     },
-    "navTitle": "Billing & Subscription",
     "macLimitReached": {
       "bannerTitle": "Monthly active contact limit reached",
       "bannerDescription": "Sending and receiving messages is paused until you upgrade your plan.",
       "bannerCta": "Upgrade",
       "createDisabled": "Creating new {feature} is disabled until you upgrade your plan."
-    }
+    },
+    "navTitle": "Billing & Subscription"
   },
   "broadcasts": {
     "title": "Broadcasts",
@@ -601,7 +605,6 @@
       "whatsapp": "This WhatsApp number is already connected to another workspace.",
       "zalo": "This Zalo OA is already connected to another workspace."
     },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
     "reconnect": {
       "success": "Channel reconnected successfully.",
       "errors": {
@@ -611,7 +614,8 @@
         "cancelled": "Reconnect was cancelled. Please try again and grant the requested permissions.",
         "failed": "Reconnect failed. Please try again."
       }
-    }
+    },
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
   },
   "workspace": {
     "schedule": {
@@ -651,6 +655,9 @@
   },
   "workspaceToken": {
     "title": "Workspace token"
+  },
+  "dialog": {
+    "deleteConfirmation": "Are you absolutely sure?\nThis action cannot be undone.\nThis will permanently delete your {feature} from our servers."
   },
   "fields": {
     "omnichannel": {
@@ -1114,9 +1121,9 @@
     },
     "language": {
       "description": "Contacts are assigned the default language when the contact language is unknown.",
-      "english": "English",
       "label": "Language",
       "placeholder": "Select language",
+      "english": "English",
       "vietnamese": "Tiếng Việt",
       "arabic": "Arabic"
     },
@@ -1379,6 +1386,8 @@
       "label": "Status",
       "pending": "Pending",
       "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
       "success": "Success",
       "error": "Error"
     },
@@ -1829,12 +1838,19 @@
     "import": {
       "label": "Import",
       "uploading": "Uploading…",
+      "fileTooLarge": "The file exceeds the {size} MB limit.",
+      "unsupportedFileType": "This file type is not supported.",
+      "unableToReadHeaders": "Unable to read the import headers.",
+      "uploadError": "The file could not be uploaded.",
       "histories": {
         "title": "Import history",
+        "recent": "Recent imports",
         "progress": "Progress",
         "success": "Success",
         "failed": "Failed",
-        "completedAt": "Completed at"
+        "completedAt": "Completed at",
+        "errorDetails": "Import errors",
+        "row": "Row {row}"
       }
     },
     "line": {
@@ -1987,6 +2003,15 @@
     "webchatParentUrl": {
       "label": "Webchat Parent URL"
     },
+    "make": {
+      "inviteUrl": "Invite Link",
+      "inviteUrlHint": "The invite link for your published Make custom app (e.g. https://eu2.make.com/app/invite/...)."
+    },
+    "makeEvents": {
+      "label": "Events",
+      "placeholder": "Type an event name and press Enter",
+      "description": "Add one or more event names. When Make attaches a webhook for one of these events, data is sent to it when this step runs."
+    },
     "attribute": {
       "label": "Attribute"
     },
@@ -2001,16 +2026,7 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
-    "make": {
-      "inviteUrl": "Invite Link",
-      "inviteUrlHint": "The invite link for your published Make custom app (e.g. https://eu2.make.com/app/invite/...)."
-    },
-    "makeEvents": {
-      "label": "Events",
-      "placeholder": "Type an event name and press Enter",
-      "description": "Add one or more event names. When Make attaches a webhook for one of these events, data is sent to it when this step runs."
-    }
+    "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
     "title": "Flows",
@@ -2170,6 +2186,11 @@
       "selectCustomFieldPlaceholder": "Select custom field",
       "addMapping": "Add Mapping",
       "addCustomField": "Add New"
+    },
+    "sendCarousel": {
+      "addSlide": "Add slide",
+      "removeSlide": "Remove slide",
+      "whatsappLinkButtonIgnored": "On WhatsApp, this card's link won't work: a card with a link button cannot have other buttons. It will be sent as a reply instead."
     },
     "additionalSteps": "Additional steps",
     "delayType": {
@@ -2687,6 +2708,8 @@
     "noVersionsFound": "No published versions found",
     "publishVersionSuccess": "A new version has been published",
     "flowConfigIncomplete": "Some configurations are incomplete",
+    "whatsappCarouselButtonsMismatch": "On WhatsApp, a carousel needs the same buttons on every card: either a single link button on each card, or the same number of reply buttons on each card",
+    "whatsappCarouselLinkButtonNotAlone": "On WhatsApp, a carousel card with a link button cannot have any other buttons. Remove the other buttons on that card, or change the link button to another action.",
     "duplicateNodeError": "Could not duplicate the block. Please try again.",
     "deleteNodeError": "Could not delete the block. Please try again.",
     "redoHistoryCleared": "Redo history cleared",
@@ -2902,9 +2925,6 @@
   },
   "auth": {
     "orContinueWith": "Or continue with",
-    "continueWithGoogle": "Continue with Google",
-    "orSignInWithEmail": "Or sign in with email",
-    "orSignUpWithEmail": "Or sign up with email",
     "continueWithFacebook": "Continue with Facebook",
     "dontHaveAnAccount": "Don't have an account?",
     "alreadyHaveAnAccount": "Already have an account?",
@@ -2961,6 +2981,9 @@
       "veryStrong": "Very strong",
       "label": "Password strength: {level}"
     },
+    "continueWithGoogle": "Continue with Google",
+    "orSignInWithEmail": "Or sign in with email",
+    "orSignUpWithEmail": "Or sign up with email",
     "errorInvalidEmailOrPassword": "The email or password is incorrect. Please check and try again.",
     "errorEmailNotVerified": "Your email is not verified yet. We just sent you a new verification link — check your inbox.",
     "errorUserNotFound": "No account exists with this email.",
@@ -3712,10 +3735,116 @@
       "none": "Never"
     },
     "selectPosts": "Select Posts",
+    "selectPageAll": "All pages",
     "chooseSpecificPosts": "Choose posts...",
     "postIdTab": "Post ID",
     "postIdPlaceholder": "Enter post IDs, one per line...",
     "noPostsFound": "No posts found"
+  },
+  "instagramCommentAutomation": {
+    "title": "Instagram Comment Automation",
+    "description": "Automate Instagram comments for your contacts.",
+    "create": "Create Automation",
+    "replies": "Replies",
+    "activated": "Automation activated",
+    "deactivated": "Automation deactivated",
+    "trackCommentsOn": "Track comments on",
+    "trackCommentsOnDescription": "Apply this automation to all posts on your connected account, or narrow it to specific posts you select.",
+    "privateReply": "Private reply (inbox)",
+    "privateReplyDescription": "Send a private message to the commenter's inbox. Choose AI Agent, a fixed text template (spintax supported), a chatbot flow, or disable.",
+    "publicReply": "Public reply to comment",
+    "publicReplyDescription": "Post a public reply directly under the comment. Supports up to 10 text templates (spintax supported), AI Agent, a chatbot flow, or no reply.",
+    "replyMessage": "Reply message",
+    "replyMessagePlaceholder": "Enter reply message...",
+    "includeKeywordsType": "Reply to",
+    "includeKeywordsTypeDescription": "Choose which comments this automation responds to.",
+    "includeKeywords": "Keywords to match",
+    "excludeKeywords": "Exclude comments with these keywords",
+    "excludeKeywordsDescription": "Comments containing any of these keywords will be ignored by both inbox and public reply automation.",
+    "keywordsPlaceholder": "Type and press Enter...",
+    "replyAfter": "Reply after",
+    "replyAfterValue": "Value",
+    "schedule": {
+      "title": "Set active hours",
+      "description": "Choose a start and end time. If the end time is earlier than the start time, the schedule runs overnight.",
+      "startTime": "Start time",
+      "endTime": "End time",
+      "alwaysRun": "Always run",
+      "save": "Save",
+      "invalidTimeRange": "Start and end time must be different",
+      "timeRequired": "Please select both start and end time"
+    },
+    "card": {
+      "targeting": "Targeting & Reply",
+      "filters": "Filters & Options",
+      "replyTiming": "Reply Timing",
+      "hideComments": "Hide Comments"
+    },
+    "postType": {
+      "all": "All posts",
+      "published": "Published posts",
+      "reels": "Reels",
+      "specificPosts": "Specific posts"
+    },
+    "replyType": {
+      "text": "Text message",
+      "flow": "Flow",
+      "AIAgent": "AI Agent",
+      "none": "No reply"
+    },
+    "keywordsType": {
+      "all": "All comments",
+      "equal": "Exact match",
+      "contain": "Contains"
+    },
+    "replyAfterType": {
+      "immediately": "Immediately",
+      "seconds": "After X seconds",
+      "minutes": "After X minutes",
+      "hours": "After X hours",
+      "randomWithin3Minutes": "Random within 3 minutes",
+      "randomWithin5Minutes": "Random within 5 minutes",
+      "randomWithin10Minutes": "Random within 10 minutes",
+      "randomWithin20Minutes": "Random within 20 minutes",
+      "randomWithin30Minutes": "Random within 30 minutes",
+      "randomWithin60Minutes": "Random within 60 minutes"
+    },
+    "options": {
+      "replyToNewContactsOnly": "Only reply to new contacts",
+      "replyToNewContactsOnlyDescription": "Only auto-reply to people who have never been a contact in your workspace before.",
+      "replyOncePerUserPerPost": "Reply only once to each user per post",
+      "replyOncePerUserPerPostDescription": "Each user will receive at most one automated reply per post.",
+      "likeUserComment": "Like the user comment",
+      "likeUserCommentDescription": "Automatically react with a like to the commenter's comment.",
+      "replyToUsersWhoCommentedOnOtherPosts": "Reply to users who commented on other posts",
+      "replyToUsersWhoCommentedOnOtherPostsDescription": "Continue replying to users who have already commented on your other posts.",
+      "ignoreCommentReplies": "Don't reply to replies to comments",
+      "ignoreCommentRepliesDescription": "Skip automation for comments that are replies to other comments, not top-level comments."
+    },
+    "hideComments": {
+      "all": "Hide all comments",
+      "hasPhoneNumber": "Contains phone number",
+      "hasLink": "Contains link",
+      "hasKeywords": "Contains keywords",
+      "keywords": "Keywords",
+      "showCommentsAfter": "Show comments after"
+    },
+    "showCommentsAfter": {
+      "none": "Never"
+    },
+    "selectPosts": "Select Posts",
+    "selectPageAll": "All accounts",
+    "chooseSpecificPosts": "Choose posts...",
+    "postIdTab": "Post ID",
+    "postIdPlaceholder": "Enter post IDs, one per line...",
+    "noPostsFound": "No posts found",
+    "connectionType": {
+      "title": "Choose Instagram connection type",
+      "instagramTitle": "Instagram Business",
+      "instagramDescription": "Instagram Login connection. Supports public reply, private reply, and hiding comments. Liking comments is not supported.",
+      "instagramFacebookTitle": "Instagram Login with Facebook",
+      "instagramFacebookDescription": "Instagram connected via a Facebook Page. Supports public reply, private reply, hiding comments, and liking comments."
+    }
   },
   "facebookLeadAdsAutomation": {
     "title": "Facebook Lead Ads Automation",
@@ -3985,6 +4114,14 @@
       "discount": {
         "label": "Discount (0-100%)"
       },
+      "currency": {
+        "label": "Currency"
+      },
+      "productUrl": {
+        "label": "Product URL",
+        "placeholder": "https://store.example.com/products/123",
+        "description": "The page customers open from Messenger Shopping. Products without a URL are skipped when syncing to Meta Catalog."
+      },
       "sku": {
         "label": "Content ID/Retailer ID/SKU",
         "placeholder": "Optional"
@@ -4005,10 +4142,12 @@
         "label": "Rank"
       },
       "category": {
-        "label": "Category"
+        "label": "Category",
+        "placeholder": "Uncategorized"
       },
       "subcategory": {
-        "label": "Subcategory"
+        "label": "Subcategory",
+        "placeholder": "None"
       },
       "isSearchable": {
         "label": "This product is searchable inside the bot"
@@ -4046,7 +4185,10 @@
         "label": "Products",
         "placeholder": "Select products..."
       },
-      "variantsDescription": "Add variants if this product comes in multiple versions, like different sizes or colors"
+      "variantsDescription": "Add variants if this product comes in multiple versions, like different sizes or colors",
+      "metaCatalogId": {
+        "label": "Meta Catalog ID"
+      }
     },
     "inventoryPolicy": {
       "dont_track": "Don't track inventory",
@@ -4120,6 +4262,207 @@
       "exportStarted": "Coupon export started.",
       "exportFailed": "Coupon export failed.",
       "exportCount": "{count} coupon rows will be exported."
+    }
+  },
+  "productCategories": {
+    "title": "Categories",
+    "loadError": "Unable to load product categories.",
+    "all": "All products",
+    "create": "Create category",
+    "edit": "Rename category",
+    "name": "Category name",
+    "namePlaceholder": "e.g. Summer collection",
+    "parent": "Parent category",
+    "noParent": "None (top level)",
+    "save": "Save",
+    "created": "Category created.",
+    "updated": "Category updated.",
+    "deleted": "Category deleted.",
+    "saveError": "Unable to save this category.",
+    "deleteError": "Unable to delete this category.",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "actions": "Category actions",
+    "deleteTitle": "Delete “{name}”?",
+    "deleteDescription": "{count, plural, =0 {No products are assigned to this category.} one {# product will move to Uncategorized.} other {# products will move to Uncategorized.}}",
+    "createSub": "Create subcategory",
+    "empty": "No categories yet. Create one to group your products.",
+    "columns": {
+      "name": "Name",
+      "products": "Products",
+      "subcategories": "Subcategories"
+    },
+    "expand": "Show subcategories",
+    "collapse": "Hide subcategories",
+    "productCount": "{count, plural, =0 {No products} one {# product} other {# products}}",
+    "deleteChildrenWarning": "{count, plural, one {Its # subcategory will be deleted too.} other {Its # subcategories will be deleted too.}}"
+  },
+  "productImport": {
+    "title": "Import",
+    "mapColumns": "Column mapping",
+    "mapColumnsHint": "Match each product field to a column from your file. Leave a field unmapped to skip it.",
+    "downloadTemplate": "Download template",
+    "upload": "Upload a .csv or .xlsx file",
+    "confirm": "Start import",
+    "started": "Product import started.",
+    "error": "Product import failed.",
+    "notMapped": "Not mapped",
+    "createMissingCategories": "Create categories that do not exist",
+    "fields": {
+      "name": "Product name",
+      "sku": "SKU",
+      "price": "Price",
+      "discount": "Discount",
+      "shortDescription": "Short description",
+      "category": "Category",
+      "vendor": "Vendor",
+      "inventoryQuantity": "Inventory quantity",
+      "imageUrl": "Image URL",
+      "productUrl": "Product URL"
+    },
+    "template": {
+      "sheetName": "Products",
+      "name": "Product name",
+      "sku": "SKU",
+      "price": "Price",
+      "discount": "Discount",
+      "shortDescription": "Short description",
+      "category": "Category",
+      "vendor": "Vendor",
+      "inventoryQuantity": "Inventory quantity",
+      "imageUrl": "Image URL",
+      "productUrl": "Product URL",
+      "exampleOne": {
+        "name": "Classic T-shirt",
+        "description": "Soft cotton T-shirt",
+        "category": "Clothing",
+        "vendor": "Example Brand"
+      },
+      "exampleTwo": {
+        "name": "Canvas tote",
+        "description": "Reusable canvas tote bag",
+        "category": "Accessories",
+        "vendor": "Example Brand"
+      }
+    }
+  },
+  "metaCatalog": {
+    "title": "Sync Meta Catalog",
+    "connect": "Connect Meta",
+    "connectDescription": "Connect a Meta Business account to push your products to an existing catalog.",
+    "tabs": {
+      "sync": "Sync to Meta",
+      "import": "Sync from Meta",
+      "history": "History",
+      "connection": "Connection"
+    },
+    "catalogId": "Meta Catalog ID",
+    "catalogIdPlaceholder": "Enter a Catalog ID from Commerce Manager",
+    "createCatalog": {
+      "trigger": "Create a new catalog",
+      "description": "An empty commerce catalog will be created in your Business Manager and used for this workspace.",
+      "business": "Business Manager",
+      "businessPlaceholder": "Select a Business Manager",
+      "noBusinesses": "This Meta account does not manage any Business Manager, so a catalog cannot be created here.",
+      "name": "Catalog name",
+      "confirm": "Create catalog",
+      "created": "Catalog created.",
+      "errors": {
+        "businesses": "Unable to load your Business Managers.",
+        "create": "Unable to create the catalog."
+      }
+    },
+    "importDescription": "Pull products from a Meta catalog into your workspace. Find the ID in Commerce Manager.",
+    "importCatalogAction": "Import",
+    "importProgress": "Importing Meta products: {imported}/{total}",
+    "importQueued": "Waiting for the import to start…",
+    "importResult": "Imported {imported} of {total} Meta products",
+    "retryImport": "Retry import",
+    "syncNow": "Sync now",
+    "syncSelectionRequired": "Select the products you want to push, then run the sync.",
+    "syncSelectionCount": "{count} selected products will be pushed to Meta Catalog.",
+    "connectionInfo": {
+      "heading": "Connected Meta catalog",
+      "noCatalog": "No catalog selected yet",
+      "lastCatalogId": "Last Meta Catalog ID",
+      "businessId": "Business ID",
+      "authMode": "Authorization",
+      "tokenExpiresAt": "Token expires",
+      "lastImportedAt": "Last import",
+      "unknown": "Not available",
+      "never": "Never",
+      "noExpiry": "Does not expire",
+      "authModes": {
+        "oauth": "OAuth",
+        "fbe": "Facebook Business Extension"
+      },
+      "connectionStatuses": {
+        "active": "Active",
+        "invalid": "Needs reconnect"
+      }
+    },
+    "disconnect": "Disconnect",
+    "reconnect": "Reconnect",
+    "reconnectWarning": "The Meta token is invalid or expires within seven days.",
+    "requirements": {
+      "intro": "Products synced to Messenger Shopping must meet these requirements:",
+      "description": {
+        "label": "Detailed description",
+        "value": "Beyond the title, cover specifications, materials, use cases, and standout features."
+      },
+      "image": {
+        "label": "Product image",
+        "value": "High resolution of at least 500px × 500px, file size up to 8MB."
+      },
+      "video": {
+        "label": "Product video",
+        "value": "File size up to 200MB."
+      },
+      "price": {
+        "label": "Price",
+        "value": "Every product must carry a price."
+      },
+      "minimumItems": "Publish at least 6 items so customers have enough to choose from."
+    },
+    "historyEmpty": "No sync or import has run yet.",
+    "historyFailures": "{failed} failed · {skipped} skipped",
+    "historyCatalog": "Catalog {id}",
+    "diagnostics": "Error and skipped-item details",
+    "itemError": "Item {id}: {reason}",
+    "itemSkipped": "Item {id}: skipped — {reason}",
+    "skipReasons": {
+      "missingImage": "missing image",
+      "missingDescription": "missing description",
+      "missingStoreUrl": "store URL is not configured",
+      "hasVariants": "variants are not supported yet"
+    },
+    "statuses": {
+      "queued": "Queued",
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "partial": "Partially completed",
+      "failed": "Failed"
+    },
+    "directions": {
+      "push": "Pushed to Meta",
+      "import": "Imported from Meta"
+    },
+    "messages": {
+      "catalogSelected": "Catalog import started.",
+      "syncStarted": "Meta Catalog sync started.",
+      "disconnected": "Meta Catalog disconnected."
+    },
+    "errors": {
+      "load": "Unable to load Meta Catalog settings.",
+      "connect": "Unable to connect Meta Catalog.",
+      "catalog": "Unable to select this catalog.",
+      "sync": "Unable to start catalog sync.",
+      "disconnect": "Unable to disconnect Meta Catalog.",
+      "invalidAppSettings": "Meta app settings are not configured.",
+      "emptyScope": "The selected sync scope has no products.",
+      "alreadyRunning": "A Meta Catalog sync or import is already running. Wait for it to finish.",
+      "queueImport": "Unable to queue the Meta Catalog import.",
+      "queueSync": "Unable to queue the Meta Catalog sync."
     }
   },
   "helpMenu": {
@@ -4222,18 +4565,6 @@
       "business": "For businesses",
       "enterprise": "Enterprise"
     },
-    "audienceDescription": {
-      "individual": "Built for individual operators and small teams.",
-      "business": "Built for growing teams with multiple channels.",
-      "enterprise": "Built for organizations that need custom scale and support."
-    },
-    "capacity": {
-      "unlimited": "Custom",
-      "points": "{count} AI points each month",
-      "agents": "{count} AI agents",
-      "knowledgeDocuments": "{count} knowledge documents",
-      "products": "{count} catalog products"
-    },
     "sandboxBadge": "Sandbox",
     "sandboxNotice": "Sandbox mode — selecting a plan applies its limits immediately with no real payment. There is no live billing yet.",
     "usage": {
@@ -4243,7 +4574,6 @@
       "purchased": "Purchased points",
       "frozen": "Frozen points",
       "reserved": "Reserved by running tasks",
-      "consumed": "{used} of {total} included points consumed",
       "breakdown": "Usage by category (30 days)",
       "categories": {
         "language": "Text and agent replies",
@@ -4260,7 +4590,8 @@
         "tool": "AI tools"
       },
       "expiresOn": "Nearest expiry: {date}",
-      "empty": "No points balance yet — select a plan below to get started."
+      "empty": "No points balance yet — select a plan below to get started.",
+      "consumed": "{used} of {total} included points consumed"
     },
     "summaryCustom": "Custom limits, tailored to your needs",
     "summary": "Up to {channels} channels · {contacts} contacts · {teamMembers} team members · {points} AI points/month",
@@ -4281,18 +4612,6 @@
       "everything": "Everything included"
     },
     "subscriptionPayment": {
-      "currentSubscription": "Current subscription",
-      "renewsOn": "Renews on {date}",
-      "endsOn": "Ends on {date}",
-      "cancelSubscription": "Cancel at period end",
-      "resumeSubscription": "Keep subscription",
-      "subscriptionStatus": {
-        "active": "Active",
-        "past_due": "Payment overdue",
-        "cancel_at_period_end": "Ends at period close",
-        "cancelled": "Cancelled",
-        "expired": "Expired"
-      },
       "underReview": "Payment under review",
       "cancelRequest": "Cancel request",
       "viewReceipt": "View receipt",
@@ -4331,6 +4650,18 @@
         "cancellationScheduleError": "Could not schedule subscription cancellation",
         "resumed": "Subscription will continue",
         "resumeError": "Could not resume the subscription"
+      },
+      "currentSubscription": "Current subscription",
+      "renewsOn": "Renews on {date}",
+      "endsOn": "Ends on {date}",
+      "cancelSubscription": "Cancel at period end",
+      "resumeSubscription": "Keep subscription",
+      "subscriptionStatus": {
+        "active": "Active",
+        "past_due": "Payment overdue",
+        "cancel_at_period_end": "Ends at period close",
+        "cancelled": "Cancelled",
+        "expired": "Expired"
       }
     },
     "pointPurchase": {
@@ -4418,7 +4749,19 @@
         "rejectError": "Could not reject the order"
       }
     },
-    "recommended": "Recommended"
+    "recommended": "Recommended",
+    "audienceDescription": {
+      "individual": "Built for individual operators and small teams.",
+      "business": "Built for growing teams with multiple channels.",
+      "enterprise": "Built for organizations that need custom scale and support."
+    },
+    "capacity": {
+      "unlimited": "Custom",
+      "points": "{count} AI points each month",
+      "agents": "{count} AI agents",
+      "knowledgeDocuments": "{count} knowledge documents",
+      "products": "{count} catalog products"
+    }
   },
   "marketing": {
     "brandName": "Wesal One",
@@ -4519,9 +4862,7 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": [
-            "A unified inbox with assignment and permissions."
-          ]
+          "body": ["A unified inbox with assignment and permissions."]
         },
         {
           "title": "Agents and commerce",
@@ -4538,9 +4879,7 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": [
-            "WhatsApp, Instagram and Messenger in a unified inbox."
-          ]
+          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
         },
         {
           "title": "Telegram and web",
@@ -4557,9 +4896,7 @@
       "sections": [
         {
           "title": "Mission",
-          "body": [
-            "Give businesses a clear customer service and sales system."
-          ]
+          "body": ["Give businesses a clear customer service and sales system."]
         },
         {
           "title": "Commitment",
@@ -4576,15 +4913,11 @@
       "sections": [
         {
           "title": "Email",
-          "body": [
-            "support@wesal.one"
-          ]
+          "body": ["support@wesal.one"]
         },
         {
           "title": "WhatsApp",
-          "body": [
-            "+967 775 324 950"
-          ]
+          "body": ["+967 775 324 950"]
         }
       ]
     },

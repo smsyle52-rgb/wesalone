@@ -22,9 +22,11 @@ import {
   RectangleVerticalIcon,
   TrashIcon,
 } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { useState } from "react"
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form"
 import SendCardStepEditor from "@/features/flows/react-flow/steps/send-card/editor"
+import { CarouselCardLinkNotice } from "./card-link-notice"
 
 type SendCarouselStepEditorProps = {
   parentName: string
@@ -32,6 +34,7 @@ type SendCarouselStepEditorProps = {
 
 const SendCarouselStepEditor = (props: SendCarouselStepEditorProps) => {
   const { parentName } = props
+  const t = useTranslations()
 
   const [api, setApi] = useState<CarouselApi>()
   const { selectedSnap, snapCount } = useSelectedSnapDisplay(api)
@@ -68,8 +71,8 @@ const SendCarouselStepEditor = (props: SendCarouselStepEditorProps) => {
   }
 
   return (
-    <div className="relative pr-3">
-      <div className="absolute top-2 left-3 z-1 flex items-center gap-1 rounded-full bg-white px-2 py-1 dark:bg-neutral-500!">
+    <div className="relative pe-3">
+      <div className="absolute start-3 top-2 z-1 flex items-center gap-1 rounded-full bg-white px-2 py-1 dark:bg-neutral-500!">
         <Button
           className={cn(
             "size-6 p-0!",
@@ -103,11 +106,14 @@ const SendCarouselStepEditor = (props: SendCarouselStepEditorProps) => {
           {fields.map((field, index) => (
             <CarouselItem key={field.id}>
               <SendCardStepEditor parentName={`${parentName}.cards.${index}`} />
+              <CarouselCardLinkNotice
+                cardName={`${parentName}.cards.${index}`}
+              />
             </CarouselItem>
           ))}
         </CarouselContent>
 
-        <div className="absolute top-1/2 -right-3 flex -translate-y-1/2 flex-col gap-2">
+        <div className="absolute -end-3 top-1/2 flex -translate-y-1/2 flex-col gap-2">
           <Button
             className="size-6 cursor-pointer rounded-full"
             data-slot="carousel-add"
@@ -116,7 +122,7 @@ const SendCarouselStepEditor = (props: SendCarouselStepEditorProps) => {
             type="button"
           >
             <PlusIcon />
-            <span className="sr-only">Add slide</span>
+            <span className="sr-only">{t("flows.sendCarousel.addSlide")}</span>
           </Button>
 
           <Button
@@ -128,7 +134,9 @@ const SendCarouselStepEditor = (props: SendCarouselStepEditorProps) => {
             variant="destructive"
           >
             <TrashIcon />
-            <span className="sr-only">Remove slide</span>
+            <span className="sr-only">
+              {t("flows.sendCarousel.removeSlide")}
+            </span>
           </Button>
         </div>
 

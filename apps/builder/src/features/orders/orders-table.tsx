@@ -161,7 +161,10 @@ export function OrdersTable({
             placeholder={t("orders.filters.customerPlaceholder")}
             value={customerInput}
           />
-          <Select onValueChange={handleStatusChange} value={status ?? "all"}>
+          <Select
+            onValueChange={(value) => handleStatusChange(value as string)}
+            value={status ?? "all"}
+          >
             <SelectTrigger className="sm:w-52">
               <SelectValue
                 placeholder={t("orders.filters.statusPlaceholder")}

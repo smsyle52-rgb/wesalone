@@ -19,6 +19,7 @@ import { useFlowSelectOptions } from "../flows/provider/flow-hook"
 import { updateWorkspaceAdvancedAction } from "./actions/update-workspace-action"
 import {
   allCountryOptions,
+  allSupportedLanguages,
   allTimezoneOptions,
   UNKNOWN_COUNTRY,
 } from "./schema/types"
@@ -143,13 +144,12 @@ export function UpdateWorkspaceAdvancedForm({
               description={t("fields.language.description")}
               label={t("fields.language.label")}
             >
-              <SelectField
+              <ComboboxField
+                emptyText={t("actions.noRecordFound")}
                 name="language"
-                options={[
-                  { value: "en", label: t("fields.language.english") },
-                  { value: "vi", label: t("fields.language.vietnamese") },
-                ]}
+                options={allSupportedLanguages}
                 placeholder={t("actions.pleaseSelect")}
+                searchPlaceholder={t("actions.search")}
               />
             </SettingRow>
 

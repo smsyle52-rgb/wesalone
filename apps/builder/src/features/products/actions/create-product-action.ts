@@ -1,19 +1,12 @@
 "use server"
 
-import { userQuotaService } from "@chatbotx.io/business"
-import { db } from "@chatbotx.io/database/client"
+import { productService, userQuotaService } from "@chatbotx.io/business"
 import {
   type WorkspaceIdRequestParams,
   workspaceIdrequestParams,
 } from "@/features/common/schemas"
 import { workspaceActionClient } from "@/lib/safe-action"
 import { type ProductFormRequest, productFormRequest } from "../schema/action"
-import {
-  productAddonService,
-  productService,
-  productVariantOptionService,
-  productVariantService,
-} from "../services"
 
 export const createProductAction = workspaceActionClient
   .bindArgsSchemas(workspaceIdrequestParams)
@@ -35,31 +28,7 @@ export const createProduct = async (
     input.workspaceId,
     "products",
   )
-  const { variantOptions, variants, addons, ...productData } = input
-
-  const product = await db.transaction(async (tx) => {
-    const created = await productService.create({ data: productData, tx })
-
-    await Promise.all([
-      productVariantOptionService.createBulk({
-        productId: created.id,
-        options: variantOptions,
-        tx,
-      }),
-      productVariantService.createBulk({
-        productId: created.id,
-        variants,
-        tx,
-      }),
-      productAddonService.createBulk({
-        productId: created.id,
-        addons,
-        tx,
-      }),
-    ])
-
-    return created
-  })
+  const product = await productService.createFull(input)
 
   return { data: product }
 }

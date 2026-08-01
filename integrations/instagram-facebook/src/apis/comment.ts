@@ -57,6 +57,33 @@ export const hideComment = (
   )
 }
 
+/** Sends a private DM reply via the connected Instagram account. */
+export const sendPrivateReply = (
+  auth: InstagramAuthValue,
+  commentId: string,
+  message: string,
+): Promise<{ message_id?: string; recipient_id: string }> => {
+  const version = auth.metadata.version ?? DEFAULT_API_VERSION
+  const endpoint = `${version}/${auth.metadata.igId}/messages`
+
+  return rescue(endpoint, () =>
+    instagramGraphClient.post<{
+      message_id?: string
+      recipient_id: string
+    }>(endpoint, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${auth.tokens.accessToken}`,
+      },
+      json: {
+        recipient: { comment_id: commentId },
+        message: { text: message },
+      },
+      retry: 0,
+    }),
+  )
+}
+
 export const likeComment = (
   auth: InstagramAuthValue,
   commentId: string,

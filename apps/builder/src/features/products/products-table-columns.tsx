@@ -12,7 +12,8 @@ import {
 import { Switch } from "@chatbotx.io/ui/components/ui/switch"
 import type { DataTableRowAction } from "@chatbotx.io/ui/types/data-table"
 import type { ColumnDef } from "@tanstack/react-table"
-import { EllipsisVerticalIcon, Trash } from "lucide-react"
+import { EllipsisVerticalIcon, PencilIcon, Trash } from "lucide-react"
+import Link from "next/link"
 import type { useTranslations } from "next-intl"
 import {
   type Dispatch,
@@ -64,11 +65,9 @@ export function getProductColumns({
       header: ({ table }) => (
         <Checkbox
           aria-label={t("actions.selectAll")}
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
-          }
+          checked={table.getIsAllPageRowsSelected()}
           className="translate-y-0.5"
+          indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) =>
             table.toggleAllPageRowsSelected(Boolean(value))
           }
@@ -184,21 +183,33 @@ export function getProductColumns({
     },
     {
       id: "actions",
-      header: t("fields.actions.label"),
+      header: t("actions.actions"),
       cell: ({ row }) => (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              aria-label="Open menu"
-              className="flex size-8 p-0 data-[state=open]:bg-muted"
-              variant="ghost"
-            >
-              <EllipsisVerticalIcon aria-hidden="true" className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                aria-label="Open menu"
+                className="flex size-8 p-0 data-[state=open]:bg-muted"
+                variant="ghost"
+              >
+                <EllipsisVerticalIcon aria-hidden="true" className="size-4" />
+              </Button>
+            }
+          />
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem
-              onSelect={() => setRowAction({ row, variant: "delete" })}
+              render={
+                <Link
+                  href={`/space/${row.original.workspaceId}/products/${row.original.id}/edit`}
+                >
+                  <PencilIcon />
+                  {t("actions.edit")}
+                </Link>
+              }
+            />
+            <DropdownMenuItem
+              onClick={() => setRowAction({ row, variant: "delete" })}
               variant="destructive"
             >
               <Trash />

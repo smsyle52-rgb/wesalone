@@ -19,7 +19,7 @@ import type {
 import { getPaginationWithDefaults } from "@chatbotx.io/database/utils"
 import { createId } from "@chatbotx.io/utils"
 import { BaseService } from "../base.service"
-import { ChatbotXException } from "../errors"
+import { channelLimitReachedException } from "../errors"
 import { logger } from "../logger"
 import { quotaEnforcementService } from "../quota-enforcement/service"
 import { workspaceUsageService } from "../workspace-usage/service"
@@ -99,23 +99,6 @@ class InboxService extends BaseService {
       where: { id: props.id },
       with: InboxService.withIntegrations,
     })
-  }
-
-  async existsByWorkspaceIdAndName(props: {
-    workspaceId: string
-    name: string
-    tx?: DatabaseClient
-  }): Promise<boolean> {
-    const client = props.tx ?? db
-    const row = await client.query.inboxModel.findFirst({
-      where: {
-        workspaceId: props.workspaceId,
-        name: props.name,
-      },
-      columns: { id: true },
-    })
-
-    return row !== undefined
   }
 
   async resolveBroadcastInboxIds(input: {
@@ -209,16 +192,7 @@ class InboxService extends BaseService {
       metric: "channels",
     })
     if (!consumed.ok) {
-      // Typed, not a bare Error: every channel-connect action catches unknown
-      // errors and rethrows a generic "failed to connect" message, and
-      // handleServerError only forwards the message of a ChatbotXException. A
-      // bare Error here reached the merchant as a technical failure, hiding the
-      // fact that they had simply run out of channels on their plan.
-      throw new ChatbotXException(
-        "Channel limit reached for this plan",
-        "channelLimitReached",
-        403,
-      )
+      throw channelLimitReachedException()
     }
 
     const [inbox] = await tx

@@ -79,11 +79,15 @@ export function OrderDetail({ order, contact, workspaceId }: OrderDetailProps) {
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-6">
       <div className="flex items-center gap-3">
-        <Button asChild size="icon" variant="ghost">
-          <Link href={`/space/${workspaceId}/orders`}>
-            <ArrowLeft className="rtl:-scale-x-100" />
-          </Link>
-        </Button>
+        <Button
+          render={
+            <Link href={`/space/${workspaceId}/orders`}>
+              <ArrowLeft className="rtl:-scale-x-100" />
+            </Link>
+          }
+          size="icon"
+          variant="ghost"
+        />
         <h1 className="font-semibold text-lg">
           {t("orders.detail.title", { id: order.id.slice(-8) })}
         </h1>

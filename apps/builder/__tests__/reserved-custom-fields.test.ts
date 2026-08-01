@@ -1,7 +1,7 @@
 import { systemFieldTypes } from "@chatbotx.io/database/partials"
 import { describe, expect, test } from "vitest"
+import arMessages from "../messages/ar.json"
 import enMessages from "../messages/en.json"
-import viMessages from "../messages/vi.json"
 import { reservedCustomFieldIds } from "../src/features/custom-fields/provider/custom-field-hook"
 
 const expectedReservedSystemFieldIds = [
@@ -57,12 +57,12 @@ describe("reservedCustomFieldIds", () => {
     }
   })
 
-  test("has English and Vietnamese labels for every picker field", () => {
+  test("has English and Arabic labels for every picker field", () => {
     for (const field of reservedCustomFieldIds) {
       expect(getMessageValue(enMessages, field.labelKey)).toEqual(
         expect.any(String),
       )
-      expect(getMessageValue(viMessages, field.labelKey)).toEqual(
+      expect(getMessageValue(arMessages, field.labelKey)).toEqual(
         expect.any(String),
       )
     }

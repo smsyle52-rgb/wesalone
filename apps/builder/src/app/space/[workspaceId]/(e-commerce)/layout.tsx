@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import { type ReactNode, Suspense } from "react"
+import { EcommerceTabs } from "@/features/products/components/ecommerce-tabs"
 import { withWorkspaceIdSchema } from "@/features/workspaces/schema/resource"
-import { EcommerceTabs } from "./ecommerce-tabs"
 
 export default async function ProductsPage({
   params,

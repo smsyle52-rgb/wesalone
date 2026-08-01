@@ -94,6 +94,7 @@ import { inventoryStockRelations } from "./inventory-stock"
 import { magicLinkRelations } from "./magic-link"
 import { messageRelations } from "./message"
 import { messengerMessageTemplateRelations } from "./messenger-message-template"
+import { metaCatalogRelations } from "./meta-catalog"
 import { orderRelations } from "./order"
 import { orderItemRelations } from "./order-item"
 import { paymentRelations } from "./payment"
@@ -109,6 +110,7 @@ import {
   pointWalletRelations,
 } from "./point"
 import { productRelations } from "./product"
+import { productCategoryRelations } from "./product-category"
 import { questionnaireRelations } from "./questionnaire"
 import { reflinkRelations } from "./reflink"
 import { savedReplyRelations } from "./save-reply"
@@ -245,6 +247,8 @@ export const relations = {
   ...analyticsSequenceEventRelations,
   ...analyticsFlowNodeEventRelations,
   ...productRelations,
+  ...productCategoryRelations,
+  ...metaCatalogRelations,
   ...questionnaireRelations,
   ...coexistSyncRunRelations,
   ...userPersistentMenuRelations,

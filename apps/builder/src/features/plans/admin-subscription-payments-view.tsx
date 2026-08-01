@@ -241,15 +241,19 @@ export function AdminSubscriptionPaymentsView({ status, submissions }: Props) {
                 />
               )}
               {selected.receiptUrl ? (
-                <Button asChild size="sm" variant="outline">
-                  <a
-                    href={selected.receiptUrl}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    {t("plans.admin.detail.receipt")}
-                  </a>
-                </Button>
+                <Button
+                  render={
+                    <a
+                      href={selected.receiptUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {t("plans.admin.detail.receipt")}
+                    </a>
+                  }
+                  size="sm"
+                  variant="outline"
+                />
               ) : (
                 <p className="text-muted-foreground text-sm">
                   {t("plans.admin.detail.noReceipt")}

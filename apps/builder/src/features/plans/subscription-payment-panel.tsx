@@ -252,15 +252,19 @@ export function SubscriptionPaymentPanel({
             </div>
             <div className="flex gap-2">
               {activeReview.receiptUrl && (
-                <Button asChild size="sm" variant="outline">
-                  <a
-                    href={activeReview.receiptUrl}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    {t("plans.subscriptionPayment.viewReceipt")}
-                  </a>
-                </Button>
+                <Button
+                  render={
+                    <a
+                      href={activeReview.receiptUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {t("plans.subscriptionPayment.viewReceipt")}
+                    </a>
+                  }
+                  size="sm"
+                  variant="outline"
+                />
               )}
               <Button
                 disabled={isCancelling}
@@ -330,7 +334,10 @@ export function SubscriptionPaymentPanel({
             </div>
             <div className="space-y-2">
               <Label>{t("plans.subscriptionPayment.paymentMethod")}</Label>
-              <Select onValueChange={setPaymentMethod} value={paymentMethod}>
+              <Select
+                onValueChange={(value) => setPaymentMethod(value as string)}
+                value={paymentMethod}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>

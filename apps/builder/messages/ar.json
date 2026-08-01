@@ -34,6 +34,7 @@
     "connect": "الاتصال",
     "continue": "متابعة",
     "create": "إنشاء",
+    "loading": "جارٍ التحميل...",
     "createFeature": "إنشاء {feature}",
     "delete": "حذف",
     "deleteContact": "حذف جهة الاتصال",
@@ -64,6 +65,7 @@
     "openWebchat": "افتح الدردشة عبر الإنترنت",
     "removeTag": "إزالة العلامة",
     "rename": "إعادة تسمية",
+    "reset": "إعادة تعيين",
     "save": "حفظ",
     "selectAll": "حدد الكل",
     "selectRow": "حدد الصف",
@@ -87,7 +89,12 @@
     "getDraftLink": "الحصول على رابط المسودة",
     "getPublishedLink": "الحصول على رابط النشر",
     "getMessengerAdsJson": "احصل على JSON لإعلانات Messenger",
+    "getMessengerAdPayload": "الحصول على حمولة إعلان ماسنجر",
     "ok": "حسنًا",
+    "next": "التالي",
+    "prev": "السابق",
+    "moveEarlier": "نقل إلى الأمام",
+    "moveLater": "نقل إلى الخلف",
     "analytics": "التحليلات",
     "deleteAnalytics": "حذف التحليلات",
     "flowVersions": "إصدارات التدفق",
@@ -116,9 +123,12 @@
     "unsetDefaultAgent": "إلغاء الضبط الافتراضي",
     "clickToEdit": "انقر للتحرير",
     "move": "تحرك",
+    "moveUp": "نقل لأعلى",
+    "moveDown": "نقل لأسفل",
     "removeAssignee": "إزالة المكلف",
     "sendMail": "إرسال البريد",
     "wait": "انتظر",
+    "followUp": "متابعة",
     "landingPage": "الصفحة المقصودة",
     "generate": "إنشاء",
     "regenerate": "تجديد",
@@ -132,13 +142,7 @@
     "onSuccess": "على النجاح",
     "clone": "استنساخ",
     "remove": "إزالة",
-    "restore": "استعادة",
-    "loading": "جارٍ التحميل...",
-    "getMessengerAdPayload": "الحصول على حمولة إعلان ماسنجر",
-    "moveUp": "نقل لأعلى",
-    "moveDown": "نقل لأسفل",
-    "followUp": "متابعة",
-    "reset": "إعادة تعيين"
+    "restore": "استعادة"
   },
   "states": {
     "success": "النجاح",
@@ -247,6 +251,19 @@
     "sessionsThroughTheRef": "الجلسات من خلال المرجع \"{ref}\" يوميًا",
     "sessionsThroughTheMagicLink": "جلسات من خلال الرابط السحري \"{ref}\" يوميا"
   },
+  "flowAnalytics": {
+    "nodes": {
+      "start": "البداية",
+      "notFound": "العقدة غير موجودة"
+    },
+    "stats": {
+      "sent": "أُرسلت",
+      "delivered": "تم التسليم",
+      "seen": "شوهدت",
+      "clicked": "تم النقر",
+      "waiting": "قيد الانتظار"
+    }
+  },
   "autoAssignConversation": {
     "rule": {
       "allTime": "التوزيع المتساوي للمحادثة (كل الأوقات)",
@@ -285,8 +302,7 @@
       "channels": "لقد وصلت إلى الحد الأقصى لقناتك. قم بترقية خطتك للاتصال أكثر.",
       "teamMembers": "لقد وصلت إلى الحد الأقصى لعدد أعضاء فريقك. قم بترقية خطتك لدعوة المزيد.",
       "contacts": "لقد وصلت إلى حد الاتصال الخاص بك. قم بترقية خطتك لإضافة المزيد.",
-      "mac": "لقد وصلت إلى حد الاتصال النشط الشهري. قم بترقية خطتك للوصول إلى المزيد.",
-      "botMessages": "لقد وصلت إلى حد رسائل البوت. قم بترقية باقتك لإرسال المزيد."
+      "mac": "لقد وصلت إلى حد الاتصال النشط الشهري. قم بترقية خطتك للوصول إلى المزيد."
     },
     "pastDue": {
       "message": "فشلت دفعتك الأخيرة. قم بتحديث طريقة الدفع الخاصة بك لتبقى مساحة العمل الخاصة بك نشطة."
@@ -306,13 +322,13 @@
       "bannerCta": "ترقية",
       "createDisabled": "تم تعطيل إنشاء {feature} جديد. الترقية للمتابعة."
     },
-    "navTitle": "الفوترة والاشتراك",
     "macLimitReached": {
       "bannerTitle": "بلغت الحد الأقصى لجهات الاتصال النشطة",
       "bannerDescription": "إرسال الرسائل واستقبالها متوقف حتى ترقّي باقتك.",
       "bannerCta": "ترقية الباقة",
       "createDisabled": "إضافة {feature} معطّلة حتى ترقّي باقتك."
-    }
+    },
+    "navTitle": "الفوترة والاشتراك"
   },
   "broadcasts": {
     "title": "الرسائل الجماعية",
@@ -376,6 +392,18 @@
       "title": "اتصالات نشطة خلال 24 ساعة",
       "description": "قد تحتوي على عروض ترويجية وسيتم إرسالها فقط إلى المستخدمين الذين أرسلوا رسالة إلى وكيلك الذكي خلال الـ 24 ساعة الماضية."
     },
+    "instagramActiveContacts": {
+      "title": "إنستغرام",
+      "description": "قد يحتوي على عروض ترويجية وسيُرسل فقط للمستخدمين الذين راسلوا بوتك خلال آخر 24 ساعة."
+    },
+    "telegramAllContacts": {
+      "title": "تيليجرام",
+      "description": "استخدم هذا النوع من الرسائل إذا كنت تريد إرسال بث إلى جهات اتصال تيليجرام."
+    },
+    "tiktokActiveContacts": {
+      "title": "تيك توك",
+      "description": "قد يحتوي على عروض ترويجية وسيُرسل فقط للمستخدمين الذين راسلوا بوتك خلال آخر 24 ساعة. يدعم بث تيك توك النصوص والصور فقط."
+    },
     "flowType": {
       "flow": {
         "title": "التدفق",
@@ -394,23 +422,15 @@
       "template": "القالب",
       "noTemplate": "لا يوجد قالب",
       "integration": "التكامل"
-    },
-    "instagramActiveContacts": {
-      "title": "إنستغرام",
-      "description": "قد يحتوي على عروض ترويجية وسيُرسل فقط للمستخدمين الذين راسلوا بوتك خلال آخر 24 ساعة."
-    },
-    "telegramAllContacts": {
-      "title": "تيليجرام",
-      "description": "استخدم هذا النوع من الرسائل إذا كنت تريد إرسال بث إلى جهات اتصال تيليجرام."
-    },
-    "tiktokActiveContacts": {
-      "title": "تيك توك",
-      "description": "قد يحتوي على عروض ترويجية وسيُرسل فقط للمستخدمين الذين راسلوا بوتك خلال آخر 24 ساعة. يدعم بث تيك توك النصوص والصور فقط."
     }
   },
   "condition": {
     "yes": "نعم",
     "no": "لا",
+    "valuePlaceholder": "...",
+    "datePlaceholder": "YYYY-MM-DD",
+    "datetimePlaceholder": "YYYY-MM-DD HH:mm",
+    "datetimeInvalid": "أدخل التاريخ بصيغة YYYY-MM-DD HH:mm أو متغيّرًا",
     "operator": {
       "and": "جميع الشروط",
       "or": "أي شرط"
@@ -471,6 +491,7 @@
       "questionnaireStarted": "بدأ الاستبيان",
       "questionnaireInProgress": "الاستبيان قيد التقدم",
       "questionnaireFinished": "انتهى الاستبيان",
+      "couponTopic": "الكوبون",
       "votedOnPoll": "صوتوا على الاستطلاع",
       "lastComment": "التعليق الأخير",
       "commentedOnPost": "تم التعليق على المنشور",
@@ -521,8 +542,7 @@
         "audio": "صوت",
         "gif": "GIF",
         "file": "ملف"
-      },
-      "couponTopic": "الكوبون"
+      }
     },
     "fieldGroups": {
       "opportunity": "فرصة",
@@ -533,10 +553,10 @@
       "systemTime": "وقت النظام",
       "ecommerce": "التجارة الإلكترونية",
       "systemFields": "مجالات النظام",
+      "topicCoupon": "موضوع الكوبون",
       "customFields": "الحقول المخصصة",
       "email": "البريد الإلكتروني",
-      "sms": "الرسائل القصيرة",
-      "topicCoupon": "كوبون الموضوع"
+      "sms": "الرسائل القصيرة"
     },
     "languages": {
       "ar": "العربية",
@@ -572,11 +592,7 @@
       "webchat": "دردشة عبر الإنترنت",
       "botLink": "رابط البوت",
       "chatPlugin": "ج- البرنامج المساعد للدردشة"
-    },
-    "valuePlaceholder": "...",
-    "datetimePlaceholder": "YYYY-MM-DD HH:mm",
-    "datetimeInvalid": "أدخل التاريخ بصيغة YYYY-MM-DD HH:mm أو متغيّرًا",
-    "datePlaceholder": "YYYY-MM-DD"
+    }
   },
   "channels": {
     "title": "القنوات",
@@ -589,7 +605,6 @@
       "whatsapp": "رقم WhatsApp هذا متصل بالفعل بمساحة عمل أخرى.",
       "zalo": "إن Zalo OA متصل بالفعل بمساحة عمل أخرى."
     },
-    "channelLimit": "لقد بلغت عدد القنوات المسموح به في باقتك الحالية. احذف قناة متصلة أو رقِّ باقتك لإضافة قناة جديدة.",
     "reconnect": {
       "success": "تمت إعادة الاتصال بالقناة بنجاح.",
       "errors": {
@@ -599,7 +614,8 @@
         "cancelled": "تم إلغاء إعادة الاتصال. الرجاء المحاولة مرة أخرى ومنح الأذونات المطلوبة.",
         "failed": "فشلت إعادة الاتصال. يرجى المحاولة مرة أخرى."
       }
-    }
+    },
+    "channelLimit": "لقد بلغت عدد القنوات المسموح به في باقتك الحالية. احذف قناة متصلة أو رقِّ باقتك لإضافة قناة جديدة."
   },
   "workspace": {
     "schedule": {
@@ -639,6 +655,9 @@
   },
   "workspaceToken": {
     "title": "رمز مساحة العمل"
+  },
+  "dialog": {
+    "deleteConfirmation": "هل أنت متأكد تمامًا؟\nلا يمكن التراجع عن هذا الإجراء.\nسيؤدي هذا إلى حذف {feature} نهائيًا من خوادمنا."
   },
   "fields": {
     "omnichannel": {
@@ -727,7 +746,7 @@
       "endsWith": "ينتهي ب",
       "isBetween": "الفاصل الزمني",
       "notBetween": "ليس الفاصل",
-      "used": "مستخدم"
+      "used": "مستخدَم"
     },
     "contactFilter": {
       "allConditions": "جميع الشروط التالية",
@@ -788,14 +807,8 @@
     "apiKey": {
       "label": "مفتاح واجهة برمجة التطبيقات"
     },
-    "attribute": {
-      "label": "الخاصية"
-    },
     "auth": {
       "label": "مصادقة"
-    },
-    "header": {
-      "label": "الترويسة"
     },
     "authorizedDomain": {
       "description": "النطاقات أو النطاقات الفرعية المصرح لها بالوصول إلى دردشة الويب الخاصة بك.",
@@ -1107,12 +1120,12 @@
       "label": "استجابة غنية"
     },
     "language": {
-      "arabic": "العربية",
       "description": "يتم تعيين اللغة الافتراضية لجهات الاتصال عندما تكون لغة جهة الاتصال غير معروفة.",
-      "english": "الإنجليزية",
       "label": "اللغة",
       "placeholder": "اختر اللغة",
-      "vietnamese": "تينغ فيت"
+      "english": "الإنجليزية",
+      "vietnamese": "تينغ فيت",
+      "arabic": "العربية"
     },
     "lastName": {
       "label": "الاسم الأخير",
@@ -1126,6 +1139,16 @@
     },
     "lastInput": {
       "label": "الإدخال الأخير"
+    },
+    "lastUserInputTypes": {
+      "text": "نص",
+      "location": "موقع",
+      "refLink": "رابط مرجعي",
+      "image": "صورة",
+      "video": "فيديو",
+      "audio": "صوت",
+      "gif": "GIF",
+      "file": "ملف"
     },
     "lastMonth": {
       "label": "الشهر الماضي"
@@ -1363,6 +1386,8 @@
       "label": "الحالة",
       "pending": "في انتظار",
       "processing": "المعالجة",
+      "completed": "مكتمل",
+      "failed": "فاشل",
       "success": "النجاح",
       "error": "خطأ"
     },
@@ -1613,13 +1638,6 @@
       "label": "نغمة الصوت (اختياري)",
       "placeholder": "تحدث بنبرة مبهجة."
     },
-    "aiProvider": {
-      "label": "المزوّد"
-    },
-    "transcriptionModel": {
-      "label": "الموديل",
-      "placeholder": "اختر موديلًا"
-    },
     "jsonPath": {
       "placeholder": "أدخل مسار JSON",
       "targetThisRow": "املأ هذا الصف من JSON"
@@ -1820,12 +1838,19 @@
     "import": {
       "label": "استيراد",
       "uploading": "جارٍ التحميل…",
+      "fileTooLarge": "الملف يتجاوز الحد الأقصى البالغ {size} ميجابايت.",
+      "unsupportedFileType": "نوع الملف هذا غير مدعوم.",
+      "unableToReadHeaders": "تعذّرت قراءة رؤوس الاستيراد.",
+      "uploadError": "تعذّر رفع الملف.",
       "histories": {
         "title": "تاريخ الاستيراد",
+        "recent": "الاستيرادات الأخيرة",
         "progress": "التقدم",
         "success": "النجاح",
         "failed": "فشل",
-        "completedAt": "اكتمل في"
+        "completedAt": "اكتمل في",
+        "errorDetails": "أخطاء الاستيراد",
+        "row": "الصف {row}"
       }
     },
     "line": {
@@ -1978,18 +2003,6 @@
     "webchatParentUrl": {
       "label": "عنوان URL الخاص بوالد الدردشة عبر الويب"
     },
-    "optionalHint": "(اختياري)",
-    "selectOptionsPlaceholder": "اختر من القائمة",
-    "lastUserInputTypes": {
-      "text": "نص",
-      "location": "موقع",
-      "refLink": "رابط مرجعي",
-      "image": "صورة",
-      "video": "فيديو",
-      "audio": "صوت",
-      "gif": "GIF",
-      "file": "ملف"
-    },
     "make": {
       "inviteUrl": "رابط الدعوة",
       "inviteUrlHint": "رابط الدعوة لتطبيق Make المنشور الخاص بك (مثال: https://eu2.make.com/app/invite/...)."
@@ -1998,7 +2011,22 @@
       "label": "الأحداث",
       "placeholder": "اكتب اسم الحدث ثم اضغط Enter",
       "description": "أضف اسم حدث واحداً أو أكثر. عند ربط Make لخطّاف ويب بأحد هذه الأحداث، تُرسَل البيانات إليه عند تنفيذ هذه الخطوة."
-    }
+    },
+    "attribute": {
+      "label": "الخاصية"
+    },
+    "header": {
+      "label": "الترويسة"
+    },
+    "aiProvider": {
+      "label": "المزوّد"
+    },
+    "transcriptionModel": {
+      "label": "الموديل",
+      "placeholder": "اختر موديلًا"
+    },
+    "optionalHint": "(اختياري)",
+    "selectOptionsPlaceholder": "اختر من القائمة"
   },
   "flows": {
     "title": "مسارات المحادثة",
@@ -2044,8 +2072,14 @@
       "blockContact": "حظر جهة الاتصال",
       "broadcastActions": "إجراءات البث",
       "callApi": "طلب واجهة برمجة التطبيقات الخارجية",
+      "make": "Make",
+      "triggers": "المشغّلات",
+      "questionnaires": "الاستبيانات",
+      "setUpCoupon": "إعداد كوبون",
+      "markCouponUsed": "تحديد الكوبون كمستخدم",
       "chooseChannel": "اختر القناة",
       "clearCustomField": "مسح الحقل المخصص",
+      "condition": "شرط",
       "contactActions": "إجراءات الاتصال",
       "countCharacters": "عد الشخصيات",
       "deleteContact": "حذف جهة الاتصال",
@@ -2076,6 +2110,7 @@
       "enableMessengerComposer": "تمكين الملحن Messenger",
       "disableMessengerComposer": "تعطيل الملحن Messenger",
       "setMessengerPersona": "تعيين شخصية",
+      "updateMessengerContactData": "تحديث بيانات جهة الاتصال",
       "sendAudio": "إرسال الصوت",
       "sendCard": "إرسال البطاقة",
       "sendExternalFlow": "ابدأ التدفق الخارجي",
@@ -2119,18 +2154,16 @@
       "unsubscribeSequence": "تسلسل إلغاء الاشتراك",
       "splitTraffic": "تقسيم حركة المرور",
       "aiEditImage": "تحرير الصورة بالذكاء الاصطناعي",
-      "whatsappFlow": "تدفق WhatsApp",
-      "questionnaires": "الاستبيانات",
-      "condition": "شرط",
-      "updateMessengerContactData": "تحديث بيانات جهة الاتصال",
-      "make": "Make",
-      "triggers": "المشغّلات",
-      "setUpCoupon": "إعداد كوبون",
-      "markCouponUsed": "تعليم الكوبون كمُستخدم"
+      "whatsappFlow": "تدفق WhatsApp"
     },
     "splitTraffic": {
       "balanceHint": "يجب أن يساوي المبلغ الإجمالي 100%.",
       "addVariation": "الاختلاف الجديد"
+    },
+    "condition": {
+      "addCase": "التحقق من شرط جديد",
+      "caseTitle": "الحالة {index}",
+      "otherwise": "المستخدم لا يطابق هذه الشروط"
     },
     "whatsappOptionList": {
       "buttonLabel": "تسمية الزر",
@@ -2153,6 +2186,11 @@
       "selectCustomFieldPlaceholder": "حدد الحقل المخصص",
       "addMapping": "إضافة رسم الخرائط",
       "addCustomField": "أضف جديد"
+    },
+    "sendCarousel": {
+      "addSlide": "إضافة بطاقة",
+      "removeSlide": "إزالة البطاقة",
+      "whatsappLinkButtonIgnored": "في واتساب، لن يعمل رابط هذه البطاقة: لا يمكن أن تحتوي البطاقة التي تتضمن زر رابط على أزرار أخرى. سيتم إرسال الزر كزر رد بدلًا من ذلك."
     },
     "additionalSteps": "خطوات إضافية",
     "delayType": {
@@ -2212,11 +2250,6 @@
       "specific": "محددة",
       "dynamic": "ديناميكي",
       "selectTimePlaceholder": "حدد الوقت"
-    },
-    "condition": {
-      "addCase": "التحقق من شرط جديد",
-      "caseTitle": "الحالة {index}",
-      "otherwise": "المستخدم لا يطابق هذه الشروط"
     },
     "followUp": {
       "durationLabel": "المدة",
@@ -2534,6 +2567,15 @@
       "missingScopes": "يجب أن يتمتع مفتاح API هذا بإمكانية الوصول للقراءة التسويقية. يرجى التأكد من أن مفتاح SendGrid API الخاص بك يتضمن أذونات التسويق."
     }
   },
+  "make": {
+    "title": "Make",
+    "setting": {
+      "label": "Make",
+      "description": "اربط حسابك في Make.com لإرسال الأحداث من مساراتك واستقبال بيانات جهات الاتصال عبر سيناريوهات Make. يُنسخ رمز الوصول التطويري لمساحة عملك إلى الحافظة عند الضغط على «ربط» — الصقه عند إنشاء الاتصال في Make.",
+      "notConfigured": "لا يوجد رابط دعوة لـMake. الرجاء إضافته في إعدادات المنصة.",
+      "noWorkspaceToken": "لا يوجد رمز وصول تطويري لمساحة العمل هذه. أنشئ واحداً من قسم رمز مساحة العمل أعلاه ثم اضغط «ربط» مرة أخرى."
+    }
+  },
   "integrations": {
     "title": "التكامل"
   },
@@ -2657,18 +2699,20 @@
     "messagingWindowClosed": "لا يمكن إرسال الرسالة خارج النافذة المسموح بها",
     "sendHumanAgentTag": "أرسل رسالة واحدة تحمل علامة HUMAN_AGENT",
     "warning": "تحذير!",
-    "humanAgentWarningDescription": "لا يجوز لك الرد على رسالة المستخدم خلال 7 أيام إلا عندما لا يمكن حل المشكلة بشكل معقول خلال 24 ساعة. تشمل الأمثلة عطلات نهاية الأسبوع أو العطلات الرسمية أو الحالات التي تتطلب أكثر من يوم واحد لإكمالها. لا تستخدم هذا الخيار لأي سبب آخر، لأنه قد يعرض صفحتك Facebook أو حسابك Instagram للخطر. إذا لم تكن متأكدًا، فلا تستمر.",
-    "humanAgentWindowExpired": "انتهت صلاحية نافذة الرسائل. يجب على جهة الاتصال إرسال رسالة أولاً لإعادة فتح المحادثة.",
-    "restoreVersionSuccess": "تمت استعادة التدفق إلى الإصدار المحدد",
-    "revertToPublishedSuccess": "تم إرجاع المسودة إلى النسخة المنشورة",
-    "revertToPublishedConfirmTitle": "العودة إلى النسخة المنشورة؟",
-    "revertToPublishedConfirmDescription": "سيؤدي هذا إلى تجاهل مسودة التغييرات الحالية واستعادة محتوى التدفق المنشور.",
-    "noVersionsFound": "لم يتم العثور على الإصدارات المنشورة",
-    "publishVersionSuccess": "تم نشر نسخة جديدة",
-    "flowConfigIncomplete": "بعض التكوينات غير مكتملة",
-    "duplicateNodeError": "لا يمكن تكرار الكتلة. يرجى المحاولة مرة أخرى.",
-    "deleteNodeError": "لا يمكن حذف الكتلة. يرجى المحاولة مرة أخرى.",
-    "redoHistoryCleared": "تم محو سجل الإعادة",
+    "humanAgentWarningDescription": "لا يجوز لك الرد على رسالة المستخدم خلال 7 أيام إلا عندما يتعذر حل المشكلة بشكل معقول خلال 24 ساعة. تشمل الأمثلة عطلات نهاية الأسبوع والعطلات الرسمية والحالات التي تتطلب أكثر من يوم لإكمالها. لا تستخدم هذا الخيار لأي سبب آخر، فقد يعرّض صفحة Facebook أو حساب Instagram الخاص بك للخطر. إذا لم تكن متأكدًا، فلا تتابع.",
+    "humanAgentWindowExpired": "انتهت نافذة المراسلة. يجب أن ترسل جهة الاتصال رسالة أولًا لإعادة فتح المحادثة.",
+    "restoreVersionSuccess": "تمت استعادة المسار إلى الإصدار المحدد",
+    "revertToPublishedSuccess": "تمت إعادة المسودة إلى الإصدار المنشور",
+    "revertToPublishedConfirmTitle": "هل تريد الرجوع إلى الإصدار المنشور؟",
+    "revertToPublishedConfirmDescription": "سيؤدي هذا إلى تجاهل تغييرات المسودة الحالية واستعادة محتوى المسار المنشور.",
+    "noVersionsFound": "لم يتم العثور على إصدارات منشورة",
+    "publishVersionSuccess": "تم نشر إصدار جديد",
+    "flowConfigIncomplete": "بعض الإعدادات غير مكتملة",
+    "whatsappCarouselButtonsMismatch": "في واتساب، يجب أن يحتوي العرض الدوّار على الأزرار نفسها في كل بطاقة: إما زر رابط واحد في كل بطاقة، أو العدد نفسه من أزرار الرد في كل بطاقة",
+    "whatsappCarouselLinkButtonNotAlone": "في واتساب، لا يمكن أن تحتوي بطاقة العرض الدوّار التي تتضمن زر رابط على أي أزرار أخرى. أزل الأزرار الأخرى من تلك البطاقة، أو غيّر زر الرابط إلى إجراء آخر.",
+    "duplicateNodeError": "تعذّر تكرار الكتلة. يُرجى المحاولة مرة أخرى.",
+    "deleteNodeError": "تعذّر حذف الكتلة. يُرجى المحاولة مرة أخرى.",
+    "redoHistoryCleared": "تم مسح سجل الإعادة",
     "historyDepth": "({count})"
   },
   "instagram": {
@@ -2881,9 +2925,6 @@
   },
   "auth": {
     "orContinueWith": "أو الاستمرار مع",
-    "continueWithGoogle": "المتابعة بحساب Google",
-    "orSignInWithEmail": "أو سجّل الدخول بالبريد",
-    "orSignUpWithEmail": "أو سجّل بالبريد",
     "continueWithFacebook": "تواصل مع Facebook",
     "dontHaveAnAccount": "ليس لديك حساب؟",
     "alreadyHaveAnAccount": "هل لديك حساب بالفعل؟",
@@ -2940,6 +2981,9 @@
       "veryStrong": "قوية جداً",
       "label": "قوة كلمة المرور: {level}"
     },
+    "continueWithGoogle": "المتابعة بحساب Google",
+    "orSignInWithEmail": "أو سجّل الدخول بالبريد",
+    "orSignUpWithEmail": "أو سجّل بالبريد",
     "errorInvalidEmailOrPassword": "البريد الإلكتروني أو كلمة المرور غير صحيحة. تأكد منهما وحاول مرة أخرى.",
     "errorEmailNotVerified": "بريدك الإلكتروني غير مفعّل بعد. أرسلنا لك رابط تفعيل جديد — تحقّق من بريدك.",
     "errorUserNotFound": "لا يوجد حساب بهذا البريد الإلكتروني.",
@@ -2976,15 +3020,15 @@
     "maxMustBeGreaterThanMin": "يجب أن يكون {maxField} أكبر من أو يساوي {minField}"
   },
   "webchat": {
+    "chatUnavailable": "هذه المحادثة غير متاحة حاليًا.",
     "description": "اسمح لعملائك بالحصول على ردود آلية فورية من عملك مباشرة من موقع الويب الخاص بك",
     "rateLimitExceeded": "طلبات كثيرة جدًا. الرجاء المحاولة مرة أخرى في لحظة.",
     "title": "دردشة الويب",
+    "workspaceUnavailable": "مساحة العمل هذه لم تعد متاحة.",
     "unauthorizedDomain": {
       "description": "موقع الويب هذا غير مصرح له بتحميل أداة الدردشة هذه.",
       "title": "الدردشة على شبكة الإنترنت غير متاحة"
-    },
-    "chatUnavailable": "هذه المحادثة غير متاحة حاليًا.",
-    "workspaceUnavailable": "مساحة العمل هذه لم تعد متاحة."
+    }
   },
   "whatsapp": {
     "category": {
@@ -3000,6 +3044,9 @@
     "commands": {
       "description": "هذه كلمات رئيسية خاصة تخبر روبوت WhatsApp بما يجب عليه فعله",
       "label": "الأوامر"
+    },
+    "autoConnect": {
+      "inProgress": "جارٍ الربط…"
     },
     "connectExisting": "قم بتوصيل حساب أعمال WhatsApp موجود",
     "embeddedSignupDone": "اكتمل التسجيل — يمكنك إغلاق علامة التبويب هذه.",
@@ -3019,6 +3066,50 @@
       "qrCodeHint": "امسح رمز الاستجابة السريعة ضوئيًا لفتح عنوان URL للويب هوك",
       "moreSettings": "المزيد من الإعدادات",
       "goToInbox": "خذني إلى هناك"
+    },
+    "phoneVerification": {
+      "title": "التحقق من رقم هاتف WhatsApp",
+      "description": "اطلب رمز تحقق من Meta وأدخله هنا، وسيتم تسجيل رقم الهاتف تلقائيًا.",
+      "errorTitle": "يلزم التحقق من رقم الهاتف",
+      "methods": {
+        "sms": "الرسائل النصية",
+        "voice": "مكالمة صوتية"
+      },
+      "actions": {
+        "sendCode": "إرسال الرمز",
+        "resendIn": "إعادة الإرسال خلال {seconds} ث",
+        "verify": "التحقق والتسجيل"
+      },
+      "fields": {
+        "code": {
+          "label": "رمز التحقق",
+          "placeholder": "أدخل رمز Meta لمرة واحدة"
+        }
+      },
+      "messages": {
+        "codeSent": "تم إرسال رمز التحقق عبر {method}.",
+        "cooldown": "يُرجى الانتظار {seconds} ثانية قبل طلب رمز آخر.",
+        "verified": "تم التحقق من رقم الهاتف وتسجيله بنجاح."
+      },
+      "errors": {
+        "integrationNotFound": "لم يتم العثور على تكامل WhatsApp.",
+        "codeNotSent": "تعذّر إرسال رمز تحقق WhatsApp.",
+        "codeNotVerified": "تعذّر التحقق من رمز WhatsApp.",
+        "registrationFailed": "فشل التحقق من رقم هاتف WhatsApp."
+      }
+    },
+    "connect": {
+      "errors": {
+        "accessTokenRequired": "رمز وصول WhatsApp مطلوب.",
+        "appSettingsNotFound": "لم يتم العثور على إعدادات تطبيق WhatsApp.",
+        "failedToPersistIntegration": "تعذّر حفظ تكامل WhatsApp.",
+        "noPhoneNumberFound": "لم يتم العثور على رقم هاتف WhatsApp.",
+        "noPhoneNumbersFound": "لم يتم العثور على أرقام هاتف لحساب WhatsApp Business هذا.",
+        "phoneNumberNotFound": "لم يتم العثور على رقم هاتف WhatsApp المحدد.",
+        "unableToVerifyToken": "تعذّر التحقق من رمز WhatsApp.",
+        "wabaMismatch": "حساب WhatsApp Business المحدد لا يطابق التفويض.",
+        "wabaResolveFailed": "تعذّر تحديد حساب WhatsApp Business من التفويض."
+      }
     },
     "marketingMessageLite": "رسالة التسويق لايت",
     "messageTemplate": {
@@ -3098,6 +3189,10 @@
       "title": "إدارة حساب WhatsApp الخاص بك",
       "description": "قم بمراجعة حالة حساب WhatsApp وحدود المراسلة والجودة. قم بتحديث الإعدادات أو حل المشكلات إذا لزم الأمر",
       "goToBusinessManager": "انتقل إلى مدير الأعمال Meta",
+      "unavailable": {
+        "title": "حالة الحساب غير متاحة مؤقتًا",
+        "description": "تعذّر تحميل رقم هاتف WhatsApp هذا من Meta حاليًا. لا تزال إجراءات الاسترداد الأخرى في هذه الصفحة متاحة."
+      },
       "fields": {
         "displayPhoneNumber": {
           "label": "عرض رقم الهاتف",
@@ -3209,10 +3304,6 @@
           "MESSAGE_TEMPLATE": "قالب الرسالة",
           "APP": "التطبيق"
         }
-      },
-      "unavailable": {
-        "title": "حالة الحساب غير متاحة مؤقتًا",
-        "description": "تعذّر تحميل رقم هاتف واتساب هذا من Meta الآن. إجراءات الاسترداد الأخرى في هذه الصفحة ما زالت متاحة."
       }
     },
     "templateFooter": {
@@ -3222,54 +3313,7 @@
       "label": "رأس القالب"
     },
     "transferPhoneNumber": "نقل الهاتف من مزود Whatsapp آخر",
-    "autoConnect": {
-      "inProgress": "جارٍ الربط…"
-    },
-    "phoneVerification": {
-      "title": "تحقق من رقم واتساب",
-      "description": "اطلب رمز تحقق من Meta، أدخله هنا، وسيتم تسجيل رقم الهاتف تلقائيًا.",
-      "errorTitle": "التحقق من رقم الهاتف مطلوب",
-      "methods": {
-        "sms": "رسالة نصية",
-        "voice": "مكالمة صوتية"
-      },
-      "actions": {
-        "sendCode": "إرسال الرمز",
-        "resendIn": "إعادة الإرسال خلال {seconds} ثانية",
-        "verify": "تحقق وسجّل"
-      },
-      "fields": {
-        "code": {
-          "label": "رمز التحقق",
-          "placeholder": "أدخل رمز Meta"
-        }
-      },
-      "messages": {
-        "codeSent": "تم إرسال رمز التحقق عبر {method}.",
-        "cooldown": "الرجاء الانتظار {seconds} ثانية قبل طلب رمز آخر.",
-        "verified": "تم التحقق من رقم الهاتف وتسجيله بنجاح."
-      },
-      "errors": {
-        "integrationNotFound": "لم يتم العثور على تكامل واتساب.",
-        "codeNotSent": "تعذّر إرسال رمز التحقق من واتساب.",
-        "codeNotVerified": "تعذّر التحقق من رمز واتساب.",
-        "registrationFailed": "فشل التحقق من رقم هاتف واتساب."
-      }
-    },
-    "connect": {
-      "errors": {
-        "accessTokenRequired": "رمز الوصول لواتساب مطلوب.",
-        "appSettingsNotFound": "لم يتم العثور على إعدادات تطبيق واتساب.",
-        "failedToPersistIntegration": "فشل حفظ تكامل واتساب.",
-        "noPhoneNumberFound": "لم يتم العثور على رقم هاتف واتساب.",
-        "noPhoneNumbersFound": "لم يتم العثور على أي أرقام هواتف لحساب واتساب للأعمال هذا.",
-        "phoneNumberNotFound": "لم يتم العثور على رقم هاتف واتساب المحدد.",
-        "unableToVerifyToken": "تعذّر التحقق من رمز واتساب.",
-        "wabaMismatch": "حساب واتساب للأعمال المحدد لا يطابق التفويض.",
-        "wabaResolveFailed": "تعذّر تحديد حساب واتساب للأعمال من التفويض."
-      }
-    },
-    "signupSessionExpired": "انتهت صلاحية جلسة تسجيل واتساب. يرجى بدء الاتصال مرة أخرى."
+    "signupSessionExpired": "انتهت صلاحية جلسة تسجيل WhatsApp. يُرجى بدء الاتصال من جديد."
   },
   "zalo": {
     "title": "زالو الزراعة العضوية",
@@ -3553,7 +3597,13 @@
     "responseType": "نوع الرد",
     "points": "النقاط",
     "retryMessage": "رسالة إعادة المحاولة إذا كان الرد غير صالح",
-    "defaultRetryMessage": "ما أدخلته ليس نصًا صالحًا. يرجى المحاولة مرة أخرى",
+    "defaultRetryMessages": {
+      "text": "ما أدخلته ليس نصاً صالحاً. الرجاء المحاولة مرة أخرى",
+      "number": "ما أدخلته ليس رقماً صالحاً. الرجاء المحاولة مرة أخرى",
+      "email": "ما أدخلته ليس بريداً إلكترونياً صالحاً. الرجاء المحاولة مرة أخرى",
+      "phone": "ما أدخلته ليس رقم هاتف صالحاً. الرجاء المحاولة مرة أخرى",
+      "multipleChoice": "ما أدخلته ليس خياراً صالحاً. الرجاء المحاولة مرة أخرى"
+    },
     "customField": "حفظ الرد في حقل مخصص أو حقل نظام",
     "options": "الخيارات",
     "mode": "الوضع",
@@ -3586,13 +3636,6 @@
       "cancelled": "ملغى",
       "failed": "فشل",
       "timeout": "انتهت المهلة"
-    },
-    "defaultRetryMessages": {
-      "text": "ما أدخلته ليس نصاً صالحاً. الرجاء المحاولة مرة أخرى",
-      "number": "ما أدخلته ليس رقماً صالحاً. الرجاء المحاولة مرة أخرى",
-      "email": "ما أدخلته ليس بريداً إلكترونياً صالحاً. الرجاء المحاولة مرة أخرى",
-      "phone": "ما أدخلته ليس رقم هاتف صالحاً. الرجاء المحاولة مرة أخرى",
-      "multipleChoice": "ما أدخلته ليس خياراً صالحاً. الرجاء المحاولة مرة أخرى"
     }
   },
   "facebookCommentAutomation": {
@@ -3692,10 +3735,116 @@
       "none": "أبدا"
     },
     "selectPosts": "حدد المشاركات",
+    "selectPageAll": "جميع الصفحات",
     "chooseSpecificPosts": "اختيار المشاركات...",
     "postIdTab": "معرف المشاركة",
     "postIdPlaceholder": "أدخل معرفات النشر، واحدة في كل سطر...",
     "noPostsFound": "لم يتم العثور على أي مشاركات"
+  },
+  "instagramCommentAutomation": {
+    "title": "أتمتة تعليقات إنستغرام",
+    "description": "أتمتة تعليقات إنستغرام لجهات الاتصال الخاصة بك.",
+    "create": "إنشاء أتمتة",
+    "replies": "الردود",
+    "activated": "تم تفعيل الأتمتة",
+    "deactivated": "تم إيقاف الأتمتة",
+    "trackCommentsOn": "تتبع التعليقات على",
+    "trackCommentsOnDescription": "طبّق هذه الأتمتة على جميع المنشورات في حسابك المتصل، أو حدّدها بمنشورات معينة تختارها.",
+    "privateReply": "رد خاص (البريد الوارد)",
+    "privateReplyDescription": "إرسال رسالة خاصة إلى صندوق وارد المعلّق. اختر وكيل الذكاء الاصطناعي، أو نموذج نصي ثابت (مع دعم spintax)، أو مسار روبوت محادثة، أو التعطيل.",
+    "publicReply": "رد علني على التعليق",
+    "publicReplyDescription": "نشر رد علني مباشرة أسفل التعليق. يدعم حتى 10 نماذج نصية (مع دعم spintax)، أو وكيل الذكاء الاصطناعي، أو مسار روبوت محادثة، أو بدون رد.",
+    "replyMessage": "رسالة الرد",
+    "replyMessagePlaceholder": "أدخل رسالة الرد...",
+    "includeKeywordsType": "الرد على",
+    "includeKeywordsTypeDescription": "اختر التعليقات التي تستجيب لها هذه الأتمتة.",
+    "includeKeywords": "الكلمات المفتاحية للمطابقة",
+    "excludeKeywords": "استبعاد التعليقات التي تحتوي على هذه الكلمات المفتاحية",
+    "excludeKeywordsDescription": "سيتم تجاهل التعليقات التي تحتوي على أي من هذه الكلمات المفتاحية من قبل أتمتة الرد الخاص والعلني.",
+    "keywordsPlaceholder": "اكتب واضغط على Enter...",
+    "replyAfter": "الرد بعد",
+    "replyAfterValue": "القيمة",
+    "schedule": {
+      "title": "تعيين ساعات النشاط",
+      "description": "اختر وقت البدء والانتهاء. إذا كان وقت الانتهاء أقبل من وقت البدء، يعمل الجدول بين عشية وضحاها.",
+      "startTime": "وقت البدء",
+      "endTime": "وقت الانتهاء",
+      "alwaysRun": "التشغيل دائمًا",
+      "save": "حفظ",
+      "invalidTimeRange": "يجب أن يختلف وقت البدء عن وقت الانتهاء",
+      "timeRequired": "يرجى تحديد وقت البدء والانتهاء"
+    },
+    "card": {
+      "targeting": "الاستهداف والرد",
+      "filters": "المرشحات والخيارات",
+      "replyTiming": "توقيت الرد",
+      "hideComments": "إخفاء التعليقات"
+    },
+    "postType": {
+      "all": "جميع المنشورات",
+      "published": "المنشورات المنشورة",
+      "reels": "ريلز",
+      "specificPosts": "منشورات محددة"
+    },
+    "replyType": {
+      "text": "رسالة نصية",
+      "flow": "مسار",
+      "AIAgent": "وكيل الذكاء الاصطناعي",
+      "none": "بدون رد"
+    },
+    "keywordsType": {
+      "all": "جميع التعليقات",
+      "equal": "تطابق تام",
+      "contain": "يحتوي على"
+    },
+    "replyAfterType": {
+      "immediately": "فورًا",
+      "seconds": "بعد X ثوانٍ",
+      "minutes": "بعد X دقائق",
+      "hours": "بعد X ساعات",
+      "randomWithin3Minutes": "عشوائيًا في غضون 3 دقائق",
+      "randomWithin5Minutes": "عشوائيًا في غضون 5 دقائق",
+      "randomWithin10Minutes": "عشوائيًا في غضون 10 دقائق",
+      "randomWithin20Minutes": "عشوائيًا في غضون 20 دقيقة",
+      "randomWithin30Minutes": "عشوائيًا في غضون 30 دقيقة",
+      "randomWithin60Minutes": "عشوائيًا في غضون 60 دقيقة"
+    },
+    "options": {
+      "replyToNewContactsOnly": "الرد فقط على جهات الاتصال الجديدة",
+      "replyToNewContactsOnlyDescription": "الرد التلقائي فقط على الأشخاص الذين لم يكونوا جهة اتصال في مساحة عملك من قبل.",
+      "replyOncePerUserPerPost": "الرد مرة واحدة فقط على كل مستخدم لكل منشور",
+      "replyOncePerUserPerPostDescription": "سيحصل كل مستخدم على رد تلقائي واحد كحد أقصى لكل منشور.",
+      "likeUserComment": "الإعجاب بتعليق المستخدم",
+      "likeUserCommentDescription": "التفاعل تلقائيًا بإعجاب على تعليق المعلّق.",
+      "replyToUsersWhoCommentedOnOtherPosts": "الرد على المستخدمين الذين علّقوا على منشورات أخرى",
+      "replyToUsersWhoCommentedOnOtherPostsDescription": "الاستمرار في الرد على المستخدمين الذين علّقوا سابقًا على منشوراتك الأخرى.",
+      "ignoreCommentReplies": "عدم الرد على الردود على التعليقات",
+      "ignoreCommentRepliesDescription": "تجاوز الأتمتة للتعليقات التي هي ردود على تعليقات أخرى، وليست تعليقات من المستوى الأعلى."
+    },
+    "hideComments": {
+      "all": "إخفاء جميع التعليقات",
+      "hasPhoneNumber": "يحتوي على رقم هاتف",
+      "hasLink": "يحتوي على رابط",
+      "hasKeywords": "يحتوي على كلمات مفتاحية",
+      "keywords": "الكلمات المفتاحية",
+      "showCommentsAfter": "إظهار التعليقات بعد"
+    },
+    "showCommentsAfter": {
+      "none": "أبدًا"
+    },
+    "selectPosts": "تحديد المنشورات",
+    "selectPageAll": "جميع الحسابات",
+    "chooseSpecificPosts": "اختر منشورات...",
+    "postIdTab": "معرّف المنشور",
+    "postIdPlaceholder": "أدخل معرّفات المنشورات، واحدًا في كل سطر...",
+    "noPostsFound": "لم يتم العثور على منشورات",
+    "connectionType": {
+      "title": "اختر نوع اتصال إنستغرام",
+      "instagramTitle": "إنستغرام للأعمال",
+      "instagramDescription": "اتصال تسجيل الدخول عبر إنستغرام. يدعم الرد العلني، والرد الخاص، وإخفاء التعليقات. الإعجاب بالتعليقات غير مدعوم.",
+      "instagramFacebookTitle": "تسجيل الدخول إلى إنستغرام عبر فيسبوك",
+      "instagramFacebookDescription": "إنستغرام متصل عبر صفحة فيسبوك. يدعم الرد العلني، والرد الخاص، وإخفاء التعليقات، والإعجاب بالتعليقات."
+    }
   },
   "facebookLeadAdsAutomation": {
     "title": "أتمتة إعلانات جذب العملاء على فيسبوك",
@@ -3735,16 +3884,16 @@
       "title": "بيانات اعتماد النظام الأساسي",
       "description": "تطبيقات المطورين الافتراضية العامة التي تستخدمها جميع مساحات العمل التي لا تحتوي على بيانات اعتماد ذات علامة بيضاء خاصة بها."
     },
-    "aiSettings": {
-      "title": "إعدادات الذكاء الاصطناعي",
-      "description": "إعداد Vertex AI المركزي الذي يرثه وكلاء الذكاء الاصطناعي في جميع مساحات العمل."
-    },
     "helpItems": {
       "title": "روابط المساعدة",
       "description": "روابط المساعدة المعروضة في الشريط الجانبي لجميع مساحات العمل التي لا تنتمي إلى مستأجر ذو تسمية بيضاء."
     },
     "queues": {
       "title": "قوائم الانتظار"
+    },
+    "aiSettings": {
+      "title": "إعدادات الذكاء الاصطناعي",
+      "description": "إعداد Vertex AI المركزي الذي يرثه وكلاء الذكاء الاصطناعي في جميع مساحات العمل."
     }
   },
   "platformCredentials": {
@@ -3753,66 +3902,6 @@
     "usingPlatformDefaultHint": "تعمل هذه القناة خارج الصندوق مع التطبيق المشترك للمنصة. أضف إعداداتك الخاصة في أي وقت لتجاوزها.",
     "notConfigured": "لم يتم إعداده بعد",
     "notConfiguredHint": "أضف إعداداتك لبدء استخدام هذا التكامل."
-  },
-  "platformAiSettings": {
-    "title": "إعدادات الذكاء الاصطناعي",
-    "description": "Vertex AI هو مزوّد الذكاء الاصطناعي الداخلي الثابت للمنصة. لا تختار مساحات العمل ولا وكلاؤها المزوّد مباشرة — عند التفعيل، يستخدم كل وكيل ذكاء اصطناعي تلقائيًا الموديل المُعدّ هنا بدلاً من مزوّده المتصل الخاص به.",
-    "provider": {
-      "label": "المزوّد",
-      "value": "Vertex AI (Google Cloud)"
-    },
-    "enabled": {
-      "label": "مفعّل",
-      "description": "عند التفعيل، يستخدم كل وكيل ذكاء اصطناعي في جميع مساحات العمل هذا الإعداد بدلاً من مزوّده المتصل الخاص به."
-    },
-    "chatModel": {
-      "label": "الموديل الرئيسي"
-    },
-    "fallbackModel": {
-      "label": "الموديل الاحتياطي",
-      "description": "يُستخدم فقط عند فشل الموديل الرئيسي. اختياري.",
-      "none": "بلا"
-    },
-    "location": {
-      "label": "منطقة موديل الرد",
-      "description": "استخدم global لموديلات Gemini التجريبية ما لم تحدد Google منطقة أخرى."
-    },
-    "embeddingModel": {
-      "label": "موديل embeddings",
-      "description": "قيمة توافق قديمة. يتم ضبط موديل المعرفة الفعلي أدناه."
-    },
-    "capabilities": {
-      "title": "خدمات الذكاء المتخصصة",
-      "description": "اضبط كل وظيفة بشكل مستقل. اختر مساحة العمل للاستمرار باستخدام المزود المحدد داخل المسار أو الوكيل.",
-      "provider": "المزود",
-      "model": "معرّف الموديل أو الخدمة",
-      "fallbackModel": "الموديل الاحتياطي (اختياري)",
-      "location": "المنطقة (اختياري)",
-      "voice": "معرّف الصوت (اختياري)",
-      "items": {
-        "vision": "فهم الصور",
-        "embedding": "تضمين المعرفة",
-        "summarization": "تلخيص المحادثات",
-        "extraction": "استخراج البيانات المنظمة",
-        "imageGeneration": "توليد الصور",
-        "imageEditing": "تعديل الصور",
-        "speechToText": "تحويل الصوت إلى نص",
-        "textToSpeech": "تحويل النص إلى صوت",
-        "webSearch": "البحث المؤسس على Google",
-        "documentParsing": "تحليل المستندات",
-        "translation": "الترجمة"
-      }
-    },
-    "agentModelManaged": "تتم إدارة مزوّد الذكاء الاصطناعي والموديل بواسطة المنصة. يستخدم الوكلاء الموديل الذي يحدده مشرف المنصة.",
-    "validate": {
-      "button": "تحقق من الإعداد",
-      "success": "الإعداد يبدو صحيحًا.",
-      "error": "تعذّر التحقق من الإعداد.",
-      "missingProjectId": "متغيّر VERTEX_AI_PROJECT_ID غير مضبوط على هذا النشر.",
-      "modelUnavailable": "تعذر على الموديل الرئيسي المحدد الرد على طلب Vertex AI حقيقي في المنطقة المضبوطة.",
-      "invalidChatModel": "الموديل الرئيسي غير موجود ضمن القائمة المسموحة.",
-      "invalidFallbackModel": "الموديل الاحتياطي غير موجود ضمن القائمة المسموحة."
-    }
   },
   "platformBranding": {
     "title": "العلامة التجارية للمنصة",
@@ -3992,6 +4081,471 @@
       "paymentReviewDescription": "وصلت إشارة دفع بعد أن كان هذا الطلب منتهي الصلاحية بالفعل أو تمت تسويته بطريقة أخرى. لم يُطبَّق أي مبلغ تلقائيًا — راجع سجل الدفع أدناه قبل اتخاذ أي إجراء."
     }
   },
+  "products": {
+    "title": "المنتجات",
+    "create": {
+      "title": "إنشاء المنتج"
+    },
+    "edit": {
+      "title": "تحرير المنتج"
+    },
+    "sections": {
+      "pricing": "التسعير",
+      "images": "الصور",
+      "inventory": "المخزون",
+      "variants": "المتغيرات",
+      "addons": "الإضافات",
+      "tags": "العلامات",
+      "moreOptions": "المزيد من الخيارات"
+    },
+    "fields": {
+      "shortDescription": {
+        "label": "وصف قصير"
+      },
+      "longDescription": {
+        "label": "وصف طويل"
+      },
+      "price": {
+        "label": "السعر $"
+      },
+      "taxes": {
+        "label": "الضرائب (0-100%)"
+      },
+      "discount": {
+        "label": "الخصم (0-100%)"
+      },
+      "currency": {
+        "label": "العملة"
+      },
+      "productUrl": {
+        "label": "رابط المنتج",
+        "placeholder": "https://store.example.com/products/123",
+        "description": "الصفحة التي يفتحها العملاء من ميسنجر شوبينغ. يتم تخطي المنتجات التي لا تحتوي على رابط عند المزامنة مع كتالوج ميتا."
+      },
+      "sku": {
+        "label": "معرف المحتوى/معرف بائع التجزئة/SKU",
+        "placeholder": "اختياري"
+      },
+      "inventoryPolicy": {
+        "label": "سياسة المخزون"
+      },
+      "inventoryQuantity": {
+        "label": "الكمية"
+      },
+      "allowOutOfStockPurchase": {
+        "label": "السماح للعملاء بشراء هذا المنتج عند نفاد المخزون"
+      },
+      "vendor": {
+        "label": "بائع"
+      },
+      "rank": {
+        "label": "رتبة"
+      },
+      "category": {
+        "label": "الفئة",
+        "placeholder": "غير مصنّف"
+      },
+      "subcategory": {
+        "label": "فئة فرعية",
+        "placeholder": "بدون"
+      },
+      "isSearchable": {
+        "label": "هذا المنتج قابل للبحث داخل البوت"
+      },
+      "allowSpecialRequest": {
+        "label": "السماح للمستخدم بطلب طلب خاص (مرفق ملاحظات)"
+      },
+      "isActive": {
+        "label": "نشط"
+      },
+      "isAddonOnly": {
+        "label": "استخدم هذا المنتج فقط كملحق لمنتجات الآخرين"
+      },
+      "optionName": {
+        "label": "اسم الخيار"
+      },
+      "optionValue": {
+        "label": "قيمة الخيار"
+      },
+      "variant": {
+        "label": "البديل"
+      },
+      "addImageFromLink": "إضافة صورة",
+      "uploadImage": "تحميل الصورة",
+      "tagsDescription": "العلامات قابلة للبحث.",
+      "addonsDescription": "أضف المنتجات التي يمكن للعملاء شراؤها كإضافة. يمكنك أيضًا تقديم منتجات مجانية هنا. على سبيل المثال، قد يقدم أحد المطاعم خيارات مشروبات مجانية هنا. يجب عليك إنشاء منتج قبل استخدامه كوظيفة إضافية.",
+      "addonName": {
+        "label": "الاسم",
+        "placeholder": "اسم"
+      },
+      "addonMaxSelections": {
+        "label": "التحديدات القصوى"
+      },
+      "addonProducts": {
+        "label": "المنتجات",
+        "placeholder": "حدد المنتجات..."
+      },
+      "variantsDescription": "أضف صيغًا إذا كان هذا المنتج متوفرًا بإصدارات متعددة، مثل أحجام أو ألوان مختلفة",
+      "metaCatalogId": {
+        "label": "معرّف كتالوج ميتا"
+      }
+    },
+    "inventoryPolicy": {
+      "dont_track": "لا تتبع المخزون",
+      "track": "تتبع المخزون"
+    }
+  },
+  "tiktok": {
+    "title": "TikTok",
+    "description": "قم بتوصيل حساب TikTok الخاص بك للرد على الرسائل المباشرة.",
+    "refreshToken": "تحديث الرمز المميز"
+  },
+  "coupons": {
+    "title": "القسائم",
+    "description": "إدارة موضوعات قسائم الحملات وعمليات الاستيراد والتصدير وأكواد القسائم الجاهزة للمسارات.",
+    "singular": "الكوبون",
+    "topicCouponsTitle": "قسائم الموضوع",
+    "tabs": {
+      "topicCoupon": "قسيمة الموضوع",
+      "coupon": "الكوبون",
+      "listTopic": "قائمة الموضوعات",
+      "archive": "أرشفة"
+    },
+    "topic": {
+      "create": "إنشاء جديد",
+      "edit": "تعديل الموضوع"
+    },
+    "actions": {
+      "import": "استيراد القسائم",
+      "export": "تنزيل قائمة القسائم",
+      "downloadImportTemplate": "تنزيل قالب الاستيراد"
+    },
+    "fields": {
+      "topic": "الموضوع",
+      "selectTopic": "اختر الموضوع",
+      "importCsvOnly": "انقر أو اسحب ملف .csv إلى هذه المنطقة لرفعه",
+      "allTopics": "جميع الموضوعات",
+      "couponCount": "القسائم",
+      "validity": "مدة الصلاحية",
+      "unlimited": "غير محدود",
+      "code": "الكود",
+      "issueStatus": "الحالة",
+      "usageStatus": "الاستخدام",
+      "allIssueStatuses": "جميع الحالات",
+      "allUsageStatuses": "جميع حالات الاستخدام",
+      "searchCode": "البحث عن كود"
+    },
+    "issueStatuses": {
+      "published": "منشور",
+      "unpublished": "غير منشور"
+    },
+    "usageStatuses": {
+      "used": "مستخدَم",
+      "notUsed": "لم يُستخدم بعد"
+    },
+    "variables": {
+      "group": "القسائم"
+    },
+    "messages": {
+      "topicSaved": "تم حفظ موضوع القسيمة.",
+      "editLocked": "يُقفل الاسم والوصف بعد إنشاء القسائم أو استيرادها.",
+      "archiveTitle": "أرشفة موضوع القسيمة",
+      "archiveConfirm": "هل تريد أرشفة «{name}»؟ سيتم نقله إلى قائمة الأرشيف.",
+      "archiveBulkConfirm": "هل تريد أرشفة {count} من الموضوعات المحددة؟ سيتم نقلها إلى قائمة الأرشيف.",
+      "restoreTitle": "استعادة موضوع القسيمة",
+      "unarchiveConfirm": "هل تريد استعادة «{name}»؟ سيتم نقله إلى قائمة الموضوعات.",
+      "unarchiveBulkConfirm": "هل تريد استعادة {count} من الموضوعات المحددة؟ سيتم نقلها إلى قائمة الموضوعات.",
+      "deleteTitle": "حذف موضوع القسيمة",
+      "deleteConfirm": "هل تريد حذف هذا الموضوع المؤرشف؟ سيبقى سجل القسائم محفوظًا.",
+      "empty": "لم يتم العثور على قسائم.",
+      "importStarted": "بدأ استيراد القسائم.",
+      "exportStarted": "بدأ تصدير القسائم.",
+      "exportFailed": "فشل تصدير القسائم.",
+      "exportCount": "سيتم تصدير {count} من صفوف القسائم."
+    }
+  },
+  "productCategories": {
+    "title": "الفئات",
+    "loadError": "تعذّر تحميل فئات المنتجات.",
+    "all": "جميع المنتجات",
+    "create": "إنشاء فئة",
+    "edit": "إعادة تسمية الفئة",
+    "name": "اسم الفئة",
+    "namePlaceholder": "مثال: تشكيلة الصيف",
+    "parent": "الفئة الأصل",
+    "noParent": "بدون (المستوى الأعلى)",
+    "save": "حفظ",
+    "created": "تم إنشاء الفئة.",
+    "updated": "تم تحديث الفئة.",
+    "deleted": "تم حذف الفئة.",
+    "saveError": "تعذّر حفظ هذه الفئة.",
+    "deleteError": "تعذّر حذف هذه الفئة.",
+    "delete": "حذف",
+    "cancel": "إلغاء",
+    "actions": "إجراءات الفئة",
+    "deleteTitle": "حذف “{name}”؟",
+    "deleteDescription": "{count, plural, =0 {لا توجد منتجات مخصصة لهذه الفئة.} one {سينتقل # منتج إلى غير مصنّف.} other {سينتقل # منتجات إلى غير مصنّف.}}",
+    "createSub": "إنشاء فئة فرعية",
+    "empty": "لا توجد فئات حتى الآن. أنشئ فئة لتجميع منتجاتك.",
+    "columns": {
+      "name": "الاسم",
+      "products": "المنتجات",
+      "subcategories": "الفئات الفرعية"
+    },
+    "expand": "إظهار الفئات الفرعية",
+    "collapse": "إخفاء الفئات الفرعية",
+    "productCount": "{count, plural, =0 {لا توجد منتجات} one {# منتج} other {# منتجات}}",
+    "deleteChildrenWarning": "{count, plural, one {سيتم حذف # فئة فرعية أيضًا.} other {سيتم حذف # فئات فرعية أيضًا.}}"
+  },
+  "productImport": {
+    "title": "استيراد",
+    "mapColumns": "تخطيط الأعمدة",
+    "mapColumnsHint": "طابق كل حقل من حقول المنتج بعمود من ملفك. اترك الحقل بدون تخطيط لتخطّيه.",
+    "downloadTemplate": "تنزيل القالب",
+    "upload": "رفع ملف .csv أو .xlsx",
+    "confirm": "بدء الاستيراد",
+    "started": "بدأ استيراد المنتجات.",
+    "error": "فشل استيراد المنتجات.",
+    "notMapped": "غير مخطط",
+    "createMissingCategories": "إنشاء الفئات غير الموجودة",
+    "fields": {
+      "name": "اسم المنتج",
+      "sku": "رمز المنتج (SKU)",
+      "price": "السعر",
+      "discount": "الخصم",
+      "shortDescription": "وصف مختصر",
+      "category": "الفئة",
+      "vendor": "المورّد",
+      "inventoryQuantity": "كمية المخزون",
+      "imageUrl": "رابط الصورة",
+      "productUrl": "رابط المنتج"
+    },
+    "template": {
+      "sheetName": "المنتجات",
+      "name": "اسم المنتج",
+      "sku": "رمز المنتج (SKU)",
+      "price": "السعر",
+      "discount": "الخصم",
+      "shortDescription": "وصف مختصر",
+      "category": "الفئة",
+      "vendor": "المورّد",
+      "inventoryQuantity": "كمية المخزون",
+      "imageUrl": "رابط الصورة",
+      "productUrl": "رابط المنتج",
+      "exampleOne": {
+        "name": "تي شيرت كلاسيكي",
+        "description": "تي شيرت قطني ناعم",
+        "category": "ملابس",
+        "vendor": "العلامة التجارية النموذجية"
+      },
+      "exampleTwo": {
+        "name": "حقيبة قماشية",
+        "description": "حقيبة قماشية قابلة لإعادة الاستخدام",
+        "category": "إكسسوارات",
+        "vendor": "العلامة التجارية النموذجية"
+      }
+    }
+  },
+  "metaCatalog": {
+    "title": "مزامنة كتالوج ميتا",
+    "connect": "ربط ميتا",
+    "connectDescription": "اربط حساب ميتا للأعمال لدفع منتجاتك إلى كتالوج موجود.",
+    "tabs": {
+      "sync": "مزامنة إلى ميتا",
+      "import": "مزامنة من ميتا",
+      "history": "السجل",
+      "connection": "الاتصال"
+    },
+    "catalogId": "معرّف كتالوج ميتا",
+    "catalogIdPlaceholder": "أدخل معرّف كتالوج من مدير التجارة",
+    "createCatalog": {
+      "trigger": "إنشاء كتالوج جديد",
+      "description": "سيتم إنشاء كتالوج تجاري فارغ في مدير الأعمال الخاص بك واستخدامه لهذه مساحة العمل.",
+      "business": "مدير الأعمال",
+      "businessPlaceholder": "اختر مدير أعمال",
+      "noBusinesses": "لا يدير حساب ميتا هذا أي مدير أعمال، لذا لا يمكن إنشاء كتالوج هنا.",
+      "name": "اسم الكتالوج",
+      "confirm": "إنشاء الكتالوج",
+      "created": "تم إنشاء الكتالوج.",
+      "errors": {
+        "businesses": "تعذّر تحميل مديري الأعمال الخاصين بك.",
+        "create": "تعذّر إنشاء الكتالوج."
+      }
+    },
+    "importDescription": "استيراد المنتجات من كتالوج ميتا إلى مساحة عملك. يمكنك العثور على المعرّف في مدير التجارة.",
+    "importCatalogAction": "استيراد",
+    "importProgress": "جارٍ استيراد منتجات ميتا: {imported}/{total}",
+    "importQueued": "في انتظار بدء الاستيراد…",
+    "importResult": "تم استيراد {imported} من {total} منتجات ميتا",
+    "retryImport": "إعادة محاولة الاستيراد",
+    "syncNow": "مزامنة الآن",
+    "syncSelectionRequired": "حدد المنتجات التي تريد دفعها، ثم شغّل المزامنة.",
+    "syncSelectionCount": "سيتم دفع {count} من المنتجات المحددة إلى كتالوج ميتا.",
+    "connectionInfo": {
+      "heading": "كتالوج ميتا المتصل",
+      "noCatalog": "لم يتم تحديد كتالوج حتى الآن",
+      "lastCatalogId": "آخر معرّف كتالوج ميتا",
+      "businessId": "معرّف الأعمال",
+      "authMode": "التفويض",
+      "tokenExpiresAt": "انتهاء صلاحية الرمز",
+      "lastImportedAt": "آخر استيراد",
+      "unknown": "غير متوفر",
+      "never": "أبدًا",
+      "noExpiry": "لا تنتهي صلاحيته",
+      "authModes": {
+        "oauth": "OAuth",
+        "fbe": "امتداد فيسبوك للأعمال"
+      },
+      "connectionStatuses": {
+        "active": "نشط",
+        "invalid": "يحتاج إلى إعادة الاتصال"
+      }
+    },
+    "disconnect": "قطع الاتصال",
+    "reconnect": "إعادة الاتصال",
+    "reconnectWarning": "رمز ميتا غير صالح أو ستنتهي صلاحيته في غضون سبعة أيام.",
+    "requirements": {
+      "intro": "يجب أن تستوفي المنتجات المزامنة مع ميسنجر شوبينغ هذه المتطلبات:",
+      "description": {
+        "label": "وصف تفصيلي",
+        "value": "بالإضافة إلى العنوان، غطِّ المواصفات والمواد وحالات الاستخدام والميزات البارزة."
+      },
+      "image": {
+        "label": "صورة المنتج",
+        "value": "دقة عالية لا تقل عن 500 × 500 بكسل، بحجم ملف يصل إلى 8 ميجابايت."
+      },
+      "video": {
+        "label": "فيديو المنتج",
+        "value": "بحجم ملف يصل إلى 200 ميجابايت."
+      },
+      "price": {
+        "label": "السعر",
+        "value": "يجب أن يحمل كل منتج سعرًا."
+      },
+      "minimumItems": "نشر ما لا يقل عن 6 عناصر ليكون لدى العملاء ما يكفي للاختيار من بينه."
+    },
+    "historyEmpty": "لم تُشغَّل أي مزامنة أو استيراد حتى الآن.",
+    "historyFailures": "{failed} فاشل · {skipped} متخطى",
+    "historyCatalog": "الكتالوج {id}",
+    "diagnostics": "تفاصيل الأخطاء والعناصر المتخطاة",
+    "itemError": "العنصر {id}: {reason}",
+    "itemSkipped": "العنصر {id}: تم التخطي — {reason}",
+    "skipReasons": {
+      "missingImage": "صورة مفقودة",
+      "missingDescription": "وصف مفقود",
+      "missingStoreUrl": "لم يتم تكوين رابط المتجر",
+      "hasVariants": "المتغيرات غير مدعومة حاليًا"
+    },
+    "statuses": {
+      "queued": "في الانتظار",
+      "running": "قيد التشغيل",
+      "succeeded": "نجح",
+      "partial": "اكتمل جزئيًا",
+      "failed": "فشل"
+    },
+    "directions": {
+      "push": "تم الدفع إلى ميتا",
+      "import": "تم الاستيراد من ميتا"
+    },
+    "messages": {
+      "catalogSelected": "بدأ استيراد الكتالوج.",
+      "syncStarted": "بدأت مزامنة كتالوج ميتا.",
+      "disconnected": "تم قطع اتصال كتالوج ميتا."
+    },
+    "errors": {
+      "load": "تعذّر تحميل إعدادات كتالوج ميتا.",
+      "connect": "تعذّر ربط كتالوج ميتا.",
+      "catalog": "تعذّر تحديد هذا الكتالوج.",
+      "sync": "تعذّر بدء مزامنة الكتالوج.",
+      "disconnect": "تعذّر قطع اتصال كتالوج ميتا.",
+      "invalidAppSettings": "لم يتم تكوين إعدادات تطبيق ميتا.",
+      "emptyScope": "نطاق المزامنة المحدد لا يحتوي على منتجات.",
+      "alreadyRunning": "توجد مزامنة أو استيراد لكتالوج ميتا قيد التشغيل حاليًا. انتظر حتى ينتهي.",
+      "queueImport": "تعذّر جدولة استيراد كتالوج ميتا.",
+      "queueSync": "تعذّر جدولة مزامنة كتالوج ميتا."
+    }
+  },
+  "helpMenu": {
+    "title": "مساعدة",
+    "ariaLabel": "فتح قائمة المساعدة"
+  },
+  "helpItems": {
+    "title": "روابط المساعدة",
+    "addTitle": "أضف رابط المساعدة",
+    "editTitle": "تعديل رابط المساعدة",
+    "addButton": "إضافة رابط",
+    "empty": "لم يتم تكوين روابط المساعدة حتى الآن.",
+    "fields": {
+      "name": "الاسم",
+      "namePlaceholder": "على سبيل المثال التوثيق",
+      "url": "عنوان URL",
+      "urlPlaceholder": "https://docs.example.com",
+      "icon": "أيقونة",
+      "iconPlaceholder": "على سبيل المثال كتاب مفتوح، نجمة، دائرة، علامة استفهام",
+      "position": "النظام",
+      "iconSearchLink": "تصفح أيقونات لوسيدي →"
+    }
+  },
+  "platformAiSettings": {
+    "title": "إعدادات الذكاء الاصطناعي",
+    "description": "Vertex AI هو مزوّد الذكاء الاصطناعي الداخلي الثابت للمنصة. لا تختار مساحات العمل ولا وكلاؤها المزوّد مباشرة — عند التفعيل، يستخدم كل وكيل ذكاء اصطناعي تلقائيًا الموديل المُعدّ هنا بدلاً من مزوّده المتصل الخاص به.",
+    "provider": {
+      "label": "المزوّد",
+      "value": "Vertex AI (Google Cloud)"
+    },
+    "enabled": {
+      "label": "مفعّل",
+      "description": "عند التفعيل، يستخدم كل وكيل ذكاء اصطناعي في جميع مساحات العمل هذا الإعداد بدلاً من مزوّده المتصل الخاص به."
+    },
+    "chatModel": {
+      "label": "الموديل الرئيسي"
+    },
+    "fallbackModel": {
+      "label": "الموديل الاحتياطي",
+      "description": "يُستخدم فقط عند فشل الموديل الرئيسي. اختياري.",
+      "none": "بلا"
+    },
+    "location": {
+      "label": "منطقة موديل الرد",
+      "description": "استخدم global لموديلات Gemini التجريبية ما لم تحدد Google منطقة أخرى."
+    },
+    "embeddingModel": {
+      "label": "موديل embeddings",
+      "description": "قيمة توافق قديمة. يتم ضبط موديل المعرفة الفعلي أدناه."
+    },
+    "capabilities": {
+      "title": "خدمات الذكاء المتخصصة",
+      "description": "اضبط كل وظيفة بشكل مستقل. اختر مساحة العمل للاستمرار باستخدام المزود المحدد داخل المسار أو الوكيل.",
+      "provider": "المزود",
+      "model": "معرّف الموديل أو الخدمة",
+      "fallbackModel": "الموديل الاحتياطي (اختياري)",
+      "location": "المنطقة (اختياري)",
+      "voice": "معرّف الصوت (اختياري)",
+      "items": {
+        "vision": "فهم الصور",
+        "embedding": "تضمين المعرفة",
+        "summarization": "تلخيص المحادثات",
+        "extraction": "استخراج البيانات المنظمة",
+        "imageGeneration": "توليد الصور",
+        "imageEditing": "تعديل الصور",
+        "speechToText": "تحويل الصوت إلى نص",
+        "textToSpeech": "تحويل النص إلى صوت",
+        "webSearch": "البحث المؤسس على Google",
+        "documentParsing": "تحليل المستندات",
+        "translation": "الترجمة"
+      }
+    },
+    "agentModelManaged": "تتم إدارة مزوّد الذكاء الاصطناعي والموديل بواسطة المنصة. يستخدم الوكلاء الموديل الذي يحدده مشرف المنصة.",
+    "validate": {
+      "button": "تحقق من الإعداد",
+      "success": "الإعداد يبدو صحيحًا.",
+      "error": "تعذّر التحقق من الإعداد.",
+      "missingProjectId": "متغيّر VERTEX_AI_PROJECT_ID غير مضبوط على هذا النشر.",
+      "modelUnavailable": "تعذر على الموديل الرئيسي المحدد الرد على طلب Vertex AI حقيقي في المنطقة المضبوطة.",
+      "invalidChatModel": "الموديل الرئيسي غير موجود ضمن القائمة المسموحة.",
+      "invalidFallbackModel": "الموديل الاحتياطي غير موجود ضمن القائمة المسموحة."
+    }
+  },
   "plans": {
     "navLabel": "الأسعار",
     "title": "اختر باقتك",
@@ -4011,18 +4565,6 @@
       "business": "للأعمال",
       "enterprise": "للمنشآت"
     },
-    "audienceDescription": {
-      "individual": "مصممة للأفراد والفرق الصغيرة.",
-      "business": "مصممة للفرق النامية التي تدير عدة قنوات.",
-      "enterprise": "مصممة للمنشآت التي تحتاج سعة ودعماً مخصصين."
-    },
-    "capacity": {
-      "unlimited": "مخصص",
-      "points": "{count} نقطة ذكاء كل شهر",
-      "agents": "{count} وكلاء ذكاء اصطناعي",
-      "knowledgeDocuments": "{count} مستندات معرفة",
-      "products": "{count} منتجات في الكتالوج"
-    },
     "sandboxBadge": "وضع تجريبي",
     "sandboxNotice": "وضع تجريبي (Sandbox) — اختيار باقة يطبّق حدودها فورًا دون أي دفع حقيقي. لا يوجد فوترة فعلية بعد.",
     "usage": {
@@ -4032,7 +4574,6 @@
       "purchased": "نقاط مشتراة",
       "frozen": "نقاط مجمّدة",
       "reserved": "محجوزة للمهام الجارية",
-      "consumed": "تم استهلاك {used} من أصل {total} نقطة مشمولة",
       "breakdown": "الاستهلاك حسب النوع (30 يوماً)",
       "categories": {
         "language": "النصوص وردود الوكيل",
@@ -4049,7 +4590,8 @@
         "tool": "أدوات الذكاء الاصطناعي"
       },
       "expiresOn": "أقرب انتهاء صلاحية: {date}",
-      "empty": "ما فيه رصيد نقاط بعد — اختر باقة بالأسفل عشان تبدأ."
+      "empty": "ما فيه رصيد نقاط بعد — اختر باقة بالأسفل عشان تبدأ.",
+      "consumed": "تم استهلاك {used} من أصل {total} نقطة مشمولة"
     },
     "summaryCustom": "حدود مخصصة تناسب احتياجك",
     "summary": "حتى {channels} قناة · {contacts} جهة اتصال · {teamMembers} أعضاء فريق · {points} نقطة ذكاء شهريًا",
@@ -4070,18 +4612,6 @@
       "everything": "كل الميزات مشمولة"
     },
     "subscriptionPayment": {
-      "currentSubscription": "الاشتراك الحالي",
-      "renewsOn": "يتجدد في {date}",
-      "endsOn": "ينتهي في {date}",
-      "cancelSubscription": "الإلغاء في نهاية الفترة",
-      "resumeSubscription": "الإبقاء على الاشتراك",
-      "subscriptionStatus": {
-        "active": "نشط",
-        "past_due": "الدفع متأخر",
-        "cancel_at_period_end": "ينتهي بنهاية الفترة",
-        "cancelled": "ملغي",
-        "expired": "منتهي"
-      },
       "underReview": "الدفع قيد المراجعة",
       "cancelRequest": "إلغاء الطلب",
       "viewReceipt": "عرض الإيصال",
@@ -4120,6 +4650,18 @@
         "cancellationScheduleError": "تعذّر جدولة إلغاء الاشتراك",
         "resumed": "سيستمر الاشتراك",
         "resumeError": "تعذّر استئناف الاشتراك"
+      },
+      "currentSubscription": "الاشتراك الحالي",
+      "renewsOn": "يتجدد في {date}",
+      "endsOn": "ينتهي في {date}",
+      "cancelSubscription": "الإلغاء في نهاية الفترة",
+      "resumeSubscription": "الإبقاء على الاشتراك",
+      "subscriptionStatus": {
+        "active": "نشط",
+        "past_due": "الدفع متأخر",
+        "cancel_at_period_end": "ينتهي بنهاية الفترة",
+        "cancelled": "ملغي",
+        "expired": "منتهي"
       }
     },
     "pointPurchase": {
@@ -4207,133 +4749,18 @@
         "rejectError": "تعذّر رفض الطلب"
       }
     },
-    "recommended": "موصى به"
-  },
-  "products": {
-    "title": "المنتجات",
-    "create": {
-      "title": "إنشاء المنتج"
+    "recommended": "موصى به",
+    "audienceDescription": {
+      "individual": "مصممة للأفراد والفرق الصغيرة.",
+      "business": "مصممة للفرق النامية التي تدير عدة قنوات.",
+      "enterprise": "مصممة للمنشآت التي تحتاج سعة ودعماً مخصصين."
     },
-    "edit": {
-      "title": "تحرير المنتج"
-    },
-    "sections": {
-      "pricing": "التسعير",
-      "images": "الصور",
-      "inventory": "المخزون",
-      "variants": "المتغيرات",
-      "addons": "الإضافات",
-      "tags": "العلامات",
-      "moreOptions": "المزيد من الخيارات"
-    },
-    "fields": {
-      "shortDescription": {
-        "label": "وصف قصير"
-      },
-      "longDescription": {
-        "label": "وصف طويل"
-      },
-      "price": {
-        "label": "السعر $"
-      },
-      "taxes": {
-        "label": "الضرائب (0-100%)"
-      },
-      "discount": {
-        "label": "الخصم (0-100%)"
-      },
-      "sku": {
-        "label": "معرف المحتوى/معرف بائع التجزئة/SKU",
-        "placeholder": "اختياري"
-      },
-      "inventoryPolicy": {
-        "label": "سياسة المخزون"
-      },
-      "inventoryQuantity": {
-        "label": "الكمية"
-      },
-      "allowOutOfStockPurchase": {
-        "label": "السماح للعملاء بشراء هذا المنتج عند نفاد المخزون"
-      },
-      "vendor": {
-        "label": "بائع"
-      },
-      "rank": {
-        "label": "رتبة"
-      },
-      "category": {
-        "label": "الفئة"
-      },
-      "subcategory": {
-        "label": "فئة فرعية"
-      },
-      "isSearchable": {
-        "label": "هذا المنتج قابل للبحث داخل البوت"
-      },
-      "allowSpecialRequest": {
-        "label": "السماح للمستخدم بطلب طلب خاص (مرفق ملاحظات)"
-      },
-      "isActive": {
-        "label": "نشط"
-      },
-      "isAddonOnly": {
-        "label": "استخدم هذا المنتج فقط كملحق لمنتجات الآخرين"
-      },
-      "optionName": {
-        "label": "اسم الخيار"
-      },
-      "optionValue": {
-        "label": "قيمة الخيار"
-      },
-      "variant": {
-        "label": "البديل"
-      },
-      "addImageFromLink": "إضافة صورة",
-      "uploadImage": "تحميل الصورة",
-      "tagsDescription": "العلامات قابلة للبحث.",
-      "addonsDescription": "أضف المنتجات التي يمكن للعملاء شراؤها كإضافة. يمكنك أيضًا تقديم منتجات مجانية هنا. على سبيل المثال، قد يقدم أحد المطاعم خيارات مشروبات مجانية هنا. يجب عليك إنشاء منتج قبل استخدامه كوظيفة إضافية.",
-      "addonName": {
-        "label": "الاسم",
-        "placeholder": "اسم"
-      },
-      "addonMaxSelections": {
-        "label": "التحديدات القصوى"
-      },
-      "addonProducts": {
-        "label": "المنتجات",
-        "placeholder": "حدد المنتجات..."
-      },
-      "variantsDescription": "أضف صيغًا إذا كان هذا المنتج متوفرًا بإصدارات متعددة، مثل أحجام أو ألوان مختلفة"
-    },
-    "inventoryPolicy": {
-      "dont_track": "لا تتبع المخزون",
-      "track": "تتبع المخزون"
-    }
-  },
-  "tiktok": {
-    "title": "TikTok",
-    "description": "قم بتوصيل حساب TikTok الخاص بك للرد على الرسائل المباشرة.",
-    "refreshToken": "تحديث الرمز المميز"
-  },
-  "helpMenu": {
-    "title": "مساعدة",
-    "ariaLabel": "فتح قائمة المساعدة"
-  },
-  "helpItems": {
-    "title": "روابط المساعدة",
-    "addTitle": "أضف رابط المساعدة",
-    "editTitle": "تعديل رابط المساعدة",
-    "addButton": "إضافة رابط",
-    "empty": "لم يتم تكوين روابط المساعدة حتى الآن.",
-    "fields": {
-      "name": "الاسم",
-      "namePlaceholder": "على سبيل المثال التوثيق",
-      "url": "عنوان URL",
-      "urlPlaceholder": "https://docs.example.com",
-      "icon": "أيقونة",
-      "iconPlaceholder": "على سبيل المثال كتاب مفتوح، نجمة، دائرة، علامة استفهام",
-      "position": "النظام",
-      "iconSearchLink": "تصفح أيقونات لوسيدي →"
+    "capacity": {
+      "unlimited": "مخصص",
+      "points": "{count} نقطة ذكاء كل شهر",
+      "agents": "{count} وكلاء ذكاء اصطناعي",
+      "knowledgeDocuments": "{count} مستندات معرفة",
+      "products": "{count} منتجات في الكتالوج"
     }
   },
   "marketing": {
@@ -4435,9 +4862,7 @@
       "sections": [
         {
           "title": "المحادثات والفريق",
-          "body": [
-            "صندوق وارد موحد مع توزيع المحادثات والصلاحيات."
-          ]
+          "body": ["صندوق وارد موحد مع توزيع المحادثات والصلاحيات."]
         },
         {
           "title": "الوكلاء والتجارة",
@@ -4454,15 +4879,11 @@
       "sections": [
         {
           "title": "قنوات Meta",
-          "body": [
-            "واتساب وإنستغرام وماسنجر في صندوق وارد موحد."
-          ]
+          "body": ["واتساب وإنستغرام وماسنجر في صندوق وارد موحد."]
         },
         {
           "title": "تيليجرام والويب",
-          "body": [
-            "تيليجرام وWebchat والتكاملات الأخرى من لوحة واحدة."
-          ]
+          "body": ["تيليجرام وWebchat والتكاملات الأخرى من لوحة واحدة."]
         }
       ]
     },
@@ -4473,9 +4894,7 @@
       "sections": [
         {
           "title": "رسالتنا",
-          "body": [
-            "منح صاحب النشاط نظامًا واضحًا لخدمة العملاء والمبيعات."
-          ]
+          "body": ["منح صاحب النشاط نظامًا واضحًا لخدمة العملاء والمبيعات."]
         },
         {
           "title": "التزامنا",
@@ -4492,15 +4911,11 @@
       "sections": [
         {
           "title": "البريد",
-          "body": [
-            "support@wesal.one"
-          ]
+          "body": ["support@wesal.one"]
         },
         {
           "title": "واتساب",
-          "body": [
-            "+967 775 324 950"
-          ]
+          "body": ["+967 775 324 950"]
         }
       ]
     },
@@ -4592,9 +5007,7 @@
         },
         {
           "title": "النسخ الاحتياطية",
-          "body": [
-            "قد تبقى نسخ مؤقتة حتى انتهاء دورة النسخ الاحتياطي."
-          ]
+          "body": ["قد تبقى نسخ مؤقتة حتى انتهاء دورة النسخ الاحتياطي."]
         },
         {
           "title": "بعد الحذف",
@@ -4603,92 +5016,6 @@
           ]
         }
       ]
-    }
-  },
-  "flowAnalytics": {
-    "nodes": {
-      "start": "البداية",
-      "notFound": "العقدة غير موجودة"
-    },
-    "stats": {
-      "sent": "أُرسلت",
-      "delivered": "تم التسليم",
-      "seen": "شوهدت",
-      "clicked": "تم النقر",
-      "waiting": "قيد الانتظار"
-    }
-  },
-  "make": {
-    "title": "Make",
-    "setting": {
-      "label": "Make",
-      "description": "اربط حسابك في Make.com لإرسال الأحداث من مساراتك واستقبال بيانات جهات الاتصال عبر سيناريوهات Make. يُنسخ رمز الوصول التطويري لمساحة عملك إلى الحافظة عند الضغط على «ربط» — الصقه عند إنشاء الاتصال في Make.",
-      "notConfigured": "لا يوجد رابط دعوة لـMake. الرجاء إضافته في إعدادات المنصة.",
-      "noWorkspaceToken": "لا يوجد رمز وصول تطويري لمساحة العمل هذه. أنشئ واحداً من قسم رمز مساحة العمل أعلاه ثم اضغط «ربط» مرة أخرى."
-    }
-  },
-  "coupons": {
-    "title": "الكوبونات",
-    "description": "إدارة مواضيع كوبونات الحملات، والاستيراد، والتصدير، وأكواد الكوبونات الجاهزة للتدفقات.",
-    "singular": "كوبون",
-    "topicCouponsTitle": "كوبونات الموضوع",
-    "tabs": {
-      "topicCoupon": "كوبون الموضوع",
-      "coupon": "كوبون",
-      "listTopic": "قائمة المواضيع",
-      "archive": "الأرشيف"
-    },
-    "topic": {
-      "create": "إنشاء جديد",
-      "edit": "تعديل الموضوع"
-    },
-    "actions": {
-      "import": "استيراد كوبونات",
-      "export": "تنزيل قائمة الكوبونات",
-      "downloadImportTemplate": "تنزيل قالب الاستيراد"
-    },
-    "fields": {
-      "topic": "الموضوع",
-      "selectTopic": "اختر الموضوع",
-      "importCsvOnly": "انقر أو اسحب ملف .csv إلى هذه المنطقة للرفع",
-      "allTopics": "كل المواضيع",
-      "couponCount": "الكوبونات",
-      "validity": "فترة الصلاحية",
-      "unlimited": "غير محدود",
-      "code": "الكود",
-      "issueStatus": "الحالة",
-      "usageStatus": "الاستخدام",
-      "allIssueStatuses": "كل الحالات",
-      "allUsageStatuses": "كل حالات الاستخدام",
-      "searchCode": "بحث بالكود"
-    },
-    "issueStatuses": {
-      "published": "منشور",
-      "unpublished": "غير منشور"
-    },
-    "usageStatuses": {
-      "used": "مُستخدم",
-      "notUsed": "لم يُستخدم بعد"
-    },
-    "variables": {
-      "group": "الكوبونات"
-    },
-    "messages": {
-      "topicSaved": "تم حفظ موضوع الكوبون.",
-      "editLocked": "الاسم والوصف مقفلان بعد إنشاء الكوبونات أو استيرادها.",
-      "archiveTitle": "أرشفة موضوع الكوبون",
-      "archiveConfirm": "أرشفة \"{name}\"؟ سينتقل إلى قائمة الأرشيف.",
-      "archiveBulkConfirm": "أرشفة {count} مواضيع محددة؟ ستنتقل إلى قائمة الأرشيف.",
-      "restoreTitle": "استعادة موضوع الكوبون",
-      "unarchiveConfirm": "استعادة \"{name}\"؟ سيعود إلى قائمة المواضيع.",
-      "unarchiveBulkConfirm": "استعادة {count} مواضيع محددة؟ ستعود إلى قائمة المواضيع.",
-      "deleteTitle": "حذف موضوع الكوبون",
-      "deleteConfirm": "حذف هذا الموضوع المؤرشف؟ سيتم الاحتفاظ بسجل الكوبونات.",
-      "empty": "لا توجد كوبونات.",
-      "importStarted": "بدأ استيراد الكوبونات.",
-      "exportStarted": "بدأ تصدير الكوبونات.",
-      "exportFailed": "فشل تصدير الكوبونات.",
-      "exportCount": "سيتم تصدير {count} صف من الكوبونات."
     }
   }
 }

@@ -134,12 +134,16 @@ export function CreateAIAgentDialog({
 
   return (
     <Dialog onOpenChange={setOpen} open={open}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <PlusIcon />
-          {t("actions.createFeature", { feature: t("fields.aiAgent.label") })}
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button size="sm">
+            <PlusIcon />
+            {t("actions.createFeature", {
+              feature: t("fields.aiAgent.label"),
+            })}
+          </Button>
+        }
+      />
       <DialogContent className="max-h-screen overflow-y-scroll lg:max-w-5xl">
         <DialogHeader>
           <DialogTitle>
@@ -186,18 +190,18 @@ export function CreateAIAgentDialog({
                   className="relative rounded-md border border-input"
                   key={item.id}
                 >
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute start-3 top-3">
                     <SelectField
                       name={`messages.${index}.role`}
                       options={messageRoleOptions}
                     />
                   </div>
-                  <div className="pt-14 pr-12 pb-3 pl-3">
+                  <div className="ps-3 pe-12 pt-14 pb-3">
                     <PlainTextEditorField name={`messages.${index}.content`} />
                   </div>
                   <Button
                     aria-label={t("actions.delete")}
-                    className="absolute top-1 right-1"
+                    className="absolute end-1 top-1"
                     onClick={() => removeMessage(index)}
                     size="icon"
                     type="button"
