@@ -39,6 +39,7 @@ jobs:
   build:
     name: Build and push ${{ matrix.service }}
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -52,6 +53,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Allocate temporary swap for builder build
+        if: matrix.service == 'builder'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile >/dev/null
+          sudo swapon /swapfile
+          free -h
 
       - name: Sign in to Azure using OIDC
         uses: azure/login@v2
@@ -84,6 +96,13 @@ jobs:
             ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/wesal/${{ matrix.service }}:candidate
           cache-from: type=gha,scope=wesal-${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=wesal-${{ matrix.service }}
+
+      - name: Remove temporary builder swap
+        if: ${{ always() && matrix.service == 'builder' }}
+        shell: bash
+        run: |
+          sudo swapoff /swapfile || true
+          sudo rm -f /swapfile
 
   deploy:
     name: Deploy verified staging revision

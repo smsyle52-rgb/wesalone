@@ -39,10 +39,12 @@ const nextConfig: NextConfig = {
     webpackBuildWorker: true,
     webpackMemoryOptimizations: true,
     serverSourceMaps: false,
-    enablePrerenderSourceMaps: false,
   },
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
+  enablePrerenderSourceMaps: false,
+  // Next.js 16.3 supported static-generation limit: lower peak memory in CI.
+  staticGenerationMaxConcurrency: 1,
   async rewrites() {
     const alwaysRewrites = [
       {

@@ -17,7 +17,7 @@ RUN turbo prune builder --docker
 
 # Install dependencies
 FROM base AS deps
-ENV NODE_OPTIONS="--max-old-space-size=5120"
+ENV NODE_OPTIONS="--max-old-space-size=6144"
 
 WORKDIR /app
 COPY --from=pre /app/out/json/ .
