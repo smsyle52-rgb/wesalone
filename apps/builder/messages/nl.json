@@ -335,7 +335,8 @@
       "bannerDescription": "Het verzenden en ontvangen van berichten is gepauzeerd totdat je je abonnement upgradet.",
       "bannerCta": "Upgraden",
       "createDisabled": "Het maken van een nieuwe {feature} is uitgeschakeld totdat je je abonnement upgradet."
-    }
+    },
+    "navTitle": "Billing & Subscription"
   },
   "broadcasts": {
     "title": "Broadcasts",
@@ -596,7 +597,8 @@
     },
     "authType": {
       "headers": "Aangepaste header",
-      "token": "Token"
+      "token": "Token",
+      "none": "None"
     },
     "automatedResponse": {
       "label": "Automatisch antwoord"
@@ -717,7 +719,8 @@
       "description": "Stel in hoelang de bot na het laatste bericht van de gebruiker wacht voordat hij antwoordt. Als de gebruiker nog een bericht stuurt, wordt de timer opnieuw gestart en worden de berichten in één antwoord samengevoegd.",
       "label": "Vertraging van botantwoord",
       "minutes": "{count, plural, one {# minuut} other {# minuten}}",
-      "seconds": "{count, plural, one {# seconde} other {# seconden}}"
+      "seconds": "{count, plural, one {# seconde} other {# seconden}}",
+      "none": "None"
     },
     "delayType": {
       "label": "Vertragingstype",
@@ -892,7 +895,10 @@
     "language": {
       "description": "Contacten krijgen de standaardtaal toegewezen wanneer hun taal onbekend is.",
       "label": "Taal",
-      "placeholder": "Selecteer een taal"
+      "placeholder": "Selecteer een taal",
+      "english": "English",
+      "vietnamese": "Tiếng Việt",
+      "arabic": "Arabic"
     },
     "lastName": {
       "label": "Achternaam",
@@ -1783,7 +1789,22 @@
       "label": "Gebeurtenissen",
       "placeholder": "Typ een gebeurtenisnaam en druk op Enter",
       "description": "Voeg een of meer gebeurtenisnamen toe. Wanneer n8n een webhook aan een van deze gebeurtenissen koppelt, worden er gegevens naartoe gestuurd wanneer deze stap wordt uitgevoerd."
-    }
+    },
+    "attribute": {
+      "label": "Attribute"
+    },
+    "header": {
+      "label": "Header"
+    },
+    "aiProvider": {
+      "label": "Provider"
+    },
+    "transcriptionModel": {
+      "label": "Model",
+      "placeholder": "Select a model"
+    },
+    "optionalHint": "(optional)",
+    "selectOptionsPlaceholder": "Select options"
   },
   "condition": {
     "yes": "Ja",
@@ -1996,7 +2017,8 @@
     },
     "openaiCompatible": {
       "empty": "Koppel een OpenAI-compatibele provider in de integratie-instellingen voordat je deze stap gebruikt.",
-      "integration": "OpenAI-compatibele provider"
+      "integration": "OpenAI-compatibele provider",
+      "none": "None"
     },
     "actions": {
       "addContactNotes": "Contactnotities toevoegen",
@@ -2729,7 +2751,15 @@
     "title": "Platforminstellingen",
     "errors": {
       "giphyApiKeyRequired": "Een API-sleutel is vereist om GIPHY te configureren.",
-      "giphyApiKeyInvalid": "Ongeldige GIPHY-API-sleutel"
+      "giphyApiKeyInvalid": "Ongeldige GIPHY-API-sleutel",
+      "googleClientSecretRequired": "Client Secret is required to configure Google.",
+      "googleVerifyTokenRequired": "Verify Token is required to configure Google.",
+      "messengerAppSecretRequired": "App Secret is required to configure Messenger.",
+      "zaloAppSecretRequired": "App Secret is required to configure Zalo.",
+      "stripeSecretKeyRequired": "Secret Key is required to configure Stripe.",
+      "whatsappAppSecretRequired": "App Secret is required to configure WhatsApp.",
+      "whatsappSystemUserTokenRequired": "System User Token is required to configure WhatsApp.",
+      "tiktokAppSecretRequired": "App Secret is required to configure TikTok."
     }
   },
   "home": {
@@ -2771,7 +2801,8 @@
       "button": "Alle machtigingen vernieuwen",
       "resultSuccess": "{refreshed} kanaal/kanalen vernieuwd.",
       "resultWithFailures": "{refreshed} kanaal/kanalen vernieuwd, {failed} mislukt."
-    }
+    },
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
   },
   "workspace": {
     "schedule": {
@@ -3180,7 +3211,50 @@
     "signUpTitle": "Registreren bij {name}",
     "changePasswordTitle": "Je wachtwoord wijzigen",
     "changePasswordDescription": "Stel een nieuw wachtwoord in voordat je verdergaat.",
-    "passwordChangeSuccess": "Wachtwoord gewijzigd"
+    "passwordChangeSuccess": "Wachtwoord gewijzigd",
+    "signInVisual": {
+      "title": "A unified platform for your customers' conversations.",
+      "subtitle": "Manage WhatsApp, Instagram, Messenger, and Telegram from one dashboard.",
+      "bullets": {
+        "0": "Unified inbox",
+        "1": "Live, exportable reports",
+        "2": "Top-tier security and privacy"
+      }
+    },
+    "signUpVisual": {
+      "trialBadge": "14-day free trial",
+      "title": "Start with a 14-day free trial - no card required.",
+      "subtitle": "Create your workspace and connect your channels in one unified Arabic experience.",
+      "bullets": {
+        "0": "Fast setup, no code",
+        "1": "Connects with your channels",
+        "2": "Full control over your workspace data"
+      }
+    },
+    "passwordStrength": {
+      "veryWeak": "Very weak",
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong",
+      "veryStrong": "Very strong",
+      "label": "Password strength: {level}"
+    },
+    "orSignInWithEmail": "Or sign in with email",
+    "orSignUpWithEmail": "Or sign up with email",
+    "errorInvalidEmailOrPassword": "The email or password is incorrect. Please check and try again.",
+    "errorEmailNotVerified": "Your email is not verified yet. We just sent you a new verification link — check your inbox.",
+    "errorUserNotFound": "No account exists with this email.",
+    "errorUserAlreadyExists": "An account already exists with this email. Sign in instead.",
+    "errorInvalidEmail": "This email address is not valid.",
+    "errorPasswordTooShort": "The password is too short.",
+    "errorPasswordTooLong": "The password is too long.",
+    "errorInvalidToken": "This link is invalid or has already been used.",
+    "errorTokenExpired": "This link has expired. Please request a new one.",
+    "errorSessionExpired": "Your session has expired. Please sign in again.",
+    "errorGeneric": "Something went wrong. Please try again.",
+    "resendVerification": "Resend verification email",
+    "verificationResent": "Verification email sent. Check your inbox.",
+    "signedInSuccessfully": "Signed in successfully"
   },
   "emailTopics": {
     "title": "E-mailonderwerpen"
@@ -3761,7 +3835,8 @@
     "claude": "Claude",
     "deepseek": "DeepSeek",
     "openrouter": "OpenRouter",
-    "openaiCompatible": "OpenAI-compatibel"
+    "openaiCompatible": "OpenAI-compatibel",
+    "google": "Google Cloud"
   },
   "smtp": {
     "setting": {
@@ -4126,7 +4201,8 @@
     "addNewPage": "Nieuwe toevoegen",
     "noEligiblePages": "Geen geschikte pagina's. Gebruik 'Nieuwe toevoegen' om toegang tot leads te verlenen.",
     "duplicateError": "Er bestaat al een automatisering voor deze pagina en dit formulier.",
-    "subscribeError": "Deze pagina kon niet worden geabonneerd op Facebook-leadmeldingen, waardoor de automatisering niet is gemaakt. Koppel de pagina opnieuw via 'Nieuwe toevoegen' en probeer het opnieuw."
+    "subscribeError": "Deze pagina kon niet worden geabonneerd op Facebook-leadmeldingen, waardoor de automatisering niet is gemaakt. Koppel de pagina opnieuw via 'Nieuwe toevoegen' en probeer het opnieuw.",
+    "none": "None"
   },
   "ecommerce": {
     "title": "E-commerce",
@@ -4155,6 +4231,10 @@
     },
     "queues": {
       "title": "Wachtrijen"
+    },
+    "aiSettings": {
+      "title": "AI Settings",
+      "description": "Central Vertex AI configuration every workspace's AI agents inherit."
     }
   },
   "platformCredentials": {
@@ -4281,7 +4361,68 @@
     "unknown": "Onbekend"
   },
   "orders": {
-    "title": "Bestellingen"
+    "title": "Bestellingen",
+    "emptyState": "No orders yet",
+    "noCustomer": "No customer",
+    "status": {
+      "draft": "Draft",
+      "pending_payment": "Pending payment",
+      "paid": "Paid",
+      "payment_review": "Needs review",
+      "refunded": "Refunded",
+      "cancelled": "Cancelled",
+      "expired": "Expired"
+    },
+    "paymentStatus": {
+      "pending": "Pending",
+      "paid": "Paid",
+      "failed": "Failed",
+      "refunded": "Refunded"
+    },
+    "columns": {
+      "orderNumber": "Order #",
+      "customer": "Customer",
+      "status": "Status",
+      "amount": "Amount",
+      "paymentStatus": "Payment status",
+      "createdAt": "Created"
+    },
+    "filters": {
+      "customerPlaceholder": "Search by customer name",
+      "statusPlaceholder": "Status",
+      "allStatuses": "All statuses"
+    },
+    "pagination": {
+      "previous": "Previous page",
+      "next": "Next page"
+    },
+    "detail": {
+      "title": "Order #{id}",
+      "itemsTitle": "Items",
+      "columns": {
+        "product": "Product",
+        "quantity": "Qty",
+        "unitPrice": "Unit price",
+        "lineTotal": "Line total",
+        "reservation": "Reservation",
+        "provider": "Provider",
+        "confirmedAt": "Confirmed",
+        "failureReason": "Failure reason"
+      },
+      "reservationReleased": "Released",
+      "reservedAt": "Reserved {date}",
+      "subtotal": "Subtotal",
+      "tax": "Tax",
+      "discount": "Discount",
+      "total": "Total",
+      "paymentHistoryTitle": "Payment history",
+      "noPayments": "No payment attempts yet",
+      "customerTitle": "Customer",
+      "datesTitle": "Dates",
+      "expiresAt": "Checkout expires",
+      "paymentReviewTitle": "This order needs manual review",
+      "paymentReviewDescription": "A payment event arrived after this order had already expired or was otherwise resolved. No money has been silently applied — check the payment history below before taking any action."
+    }
   },
   "products": {
     "title": "Producten",
@@ -4782,6 +4923,542 @@
     },
     "whatsapp": {
       "connect": "Connect"
+    }
+  },
+  "platformAiSettings": {
+    "title": "AI Settings",
+    "description": "Vertex AI is the platform's internal AI provider. Workspaces and their AI agents never choose a provider directly — when enabled, every AI agent automatically uses the model configured here instead of its own connected provider.",
+    "provider": {
+      "label": "Provider",
+      "value": "Vertex AI (Google Cloud)"
+    },
+    "enabled": {
+      "label": "Enabled",
+      "description": "When on, every AI agent in every workspace uses this configuration instead of its own connected provider."
+    },
+    "chatModel": {
+      "label": "Primary model"
+    },
+    "fallbackModel": {
+      "label": "Fallback model",
+      "description": "Used only if the primary model fails. Optional.",
+      "none": "None"
+    },
+    "location": {
+      "label": "Reply model region",
+      "description": "Use global for Gemini preview models unless Google documents a regional endpoint."
+    },
+    "embeddingModel": {
+      "label": "Embeddings model",
+      "description": "Legacy compatibility value. The active knowledge model is configured below."
+    },
+    "capabilities": {
+      "title": "Specialized AI services",
+      "description": "Configure every workload independently. Select Workspace to keep using the provider configured in the flow or agent.",
+      "provider": "Provider",
+      "model": "Model or service ID",
+      "fallbackModel": "Fallback model (optional)",
+      "location": "Region (optional)",
+      "voice": "Voice ID (optional)",
+      "items": {
+        "vision": "Image understanding",
+        "embedding": "Knowledge embeddings",
+        "summarization": "Conversation summarization",
+        "extraction": "Structured data extraction",
+        "imageGeneration": "Image generation",
+        "imageEditing": "Image editing",
+        "speechToText": "Speech to text",
+        "textToSpeech": "Text to speech",
+        "webSearch": "Google Search grounding",
+        "documentParsing": "Document parsing",
+        "translation": "Translation"
+      }
+    },
+    "agentModelManaged": "The AI provider and model are managed by the platform. Agents use the model selected by the platform admin.",
+    "validate": {
+      "button": "Validate configuration",
+      "success": "Configuration looks valid.",
+      "error": "Could not validate the configuration.",
+      "missingProjectId": "VERTEX_AI_PROJECT_ID is not set on this deployment.",
+      "modelUnavailable": "The selected primary model could not answer a live Vertex AI request in the configured region.",
+      "invalidChatModel": "Primary model is not in the allowed list.",
+      "invalidFallbackModel": "Fallback model is not in the allowed list."
+    }
+  },
+  "plans": {
+    "navLabel": "Pricing",
+    "title": "Choose Your Plan",
+    "subtitle": "Pricing",
+    "description": "Wesal One plans for your workspace — pick the tier that fits your channels and team.",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "perMonth": "/month",
+    "perYear": "/year",
+    "custom": "Custom",
+    "contactSales": "Contact sales",
+    "selectPlan": "Select plan",
+    "selectFree": "Start for free",
+    "currentPlan": "Current plan",
+    "audience": {
+      "individual": "For individuals",
+      "business": "For businesses",
+      "enterprise": "Enterprise"
+    },
+    "sandboxBadge": "Sandbox",
+    "sandboxNotice": "Sandbox mode — selecting a plan applies its limits immediately with no real payment. There is no live billing yet.",
+    "usage": {
+      "title": "Points usage",
+      "available": "Available points",
+      "monthly": "From monthly plan",
+      "purchased": "Purchased points",
+      "frozen": "Frozen points",
+      "reserved": "Reserved by running tasks",
+      "breakdown": "Usage by category (30 days)",
+      "categories": {
+        "language": "Text and agent replies",
+        "image_analysis": "Image analysis",
+        "image_generation": "Image generation",
+        "image_editing": "Image editing",
+        "transcription": "Audio transcription",
+        "speech": "Text to speech",
+        "embedding_document": "Knowledge indexing",
+        "embedding_query": "Knowledge searches",
+        "knowledge_search": "Knowledge search",
+        "summarization": "Conversation summaries",
+        "web_search": "Web searches",
+        "tool": "AI tools"
+      },
+      "expiresOn": "Nearest expiry: {date}",
+      "empty": "No points balance yet — select a plan below to get started.",
+      "consumed": "{used} of {total} included points consumed"
+    },
+    "summaryCustom": "Custom limits, tailored to your needs",
+    "summary": "Up to {channels} channels · {contacts} contacts · {teamMembers} team members · {points} AI points/month",
+    "toast": {
+      "success": "{plan} plan applied (sandbox)",
+      "error": "Could not apply the plan"
+    },
+    "features": {
+      "inbox": "Shared inbox",
+      "ai_agent": "AI sales agent",
+      "catalog": "Product catalog",
+      "basic_automation": "Basic automation",
+      "automation": "Advanced automation",
+      "campaigns": "Broadcast campaigns",
+      "advanced_analytics": "Advanced analytics",
+      "vision_voice": "Vision & voice replies",
+      "priority_support": "Priority support",
+      "everything": "Everything included"
+    },
+    "subscriptionPayment": {
+      "underReview": "Payment under review",
+      "cancelRequest": "Cancel request",
+      "viewReceipt": "View receipt",
+      "history": "Payment history",
+      "dialogTitle": "Pay for {plan}",
+      "paymentMethod": "Payment method",
+      "reference": "Transfer reference (optional)",
+      "receipt": "Payment receipt",
+      "note": "Note (optional)",
+      "send": "Send for review",
+      "sending": "Sending…",
+      "methods": {
+        "kuraimi": "Kuraimi",
+        "jawali": "Jawali",
+        "bank_transfer": "Bank transfer",
+        "cash": "Cash"
+      },
+      "status": {
+        "under_review": "Under review",
+        "confirmed": "Confirmed",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled"
+      },
+      "receiptErrors": {
+        "unsupportedType": "Unsupported file type — use JPG, PNG, or WebP",
+        "tooLarge": "File is larger than 5MB",
+        "presignFailed": "Could not start the upload, try again",
+        "uploadFailed": "Upload failed, try again"
+      },
+      "toast": {
+        "submitted": "Payment submitted for review",
+        "submitError": "Could not submit the payment",
+        "cancelled": "Request cancelled",
+        "cancelError": "Could not cancel the request",
+        "cancellationScheduled": "Subscription will end at the close of the current period",
+        "cancellationScheduleError": "Could not schedule subscription cancellation",
+        "resumed": "Subscription will continue",
+        "resumeError": "Could not resume the subscription"
+      },
+      "currentSubscription": "Current subscription",
+      "renewsOn": "Renews on {date}",
+      "endsOn": "Ends on {date}",
+      "cancelSubscription": "Cancel at period end",
+      "resumeSubscription": "Keep subscription",
+      "subscriptionStatus": {
+        "active": "Active",
+        "past_due": "Payment overdue",
+        "cancel_at_period_end": "Ends at period close",
+        "cancelled": "Cancelled",
+        "expired": "Expired"
+      }
+    },
+    "pointPurchase": {
+      "title": "Buy more points",
+      "pointsLabel": "points",
+      "buyButton": "Buy",
+      "dialogTitle": "Pay for {product}",
+      "underReview": "Order under review",
+      "history": "Order history",
+      "methods": {
+        "kuraimi": "Kuraimi",
+        "jawali": "Jawali",
+        "bank_transfer": "Bank transfer",
+        "cash": "Cash"
+      },
+      "status": {
+        "pending_payment": "Pending payment",
+        "under_review": "Under review",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "expired": "Expired",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded",
+        "chargeback": "Chargeback"
+      },
+      "toast": {
+        "submitted": "Order submitted for review",
+        "submitError": "Could not submit the order",
+        "cancelled": "Order cancelled",
+        "cancelError": "Could not cancel the order"
+      }
+    },
+    "admin": {
+      "navLabel": "Subscription payments",
+      "title": "Subscription payments",
+      "subtitle": "Review manual payment submissions and activate plans after verifying the receipt.",
+      "statusFilter": "Status",
+      "statusAll": "All",
+      "stats": {
+        "underReview": "Awaiting review",
+        "confirmedToday": "Confirmed today",
+        "rejected": "Rejected"
+      },
+      "table": {
+        "workspace": "Workspace",
+        "owner": "Owner",
+        "plan": "Plan",
+        "price": "Price",
+        "status": "Status"
+      },
+      "empty": "No submissions with this status",
+      "detail": {
+        "paymentMethod": "Payment method",
+        "reference": "Reference",
+        "submittedAt": "Submitted",
+        "note": "Customer note",
+        "rejectionReason": "Rejection reason",
+        "receipt": "View receipt",
+        "noReceipt": "No receipt on file",
+        "confirm": "Confirm payment",
+        "reject": "Reject",
+        "rejectReasonPlaceholder": "Reason for rejection (required)",
+        "close": "Close"
+      },
+      "toast": {
+        "confirmed": "Payment confirmed and plan activated",
+        "confirmError": "Could not confirm the payment",
+        "rejected": "Payment rejected",
+        "rejectError": "Could not reject the payment"
+      }
+    },
+    "pointPurchaseAdmin": {
+      "navLabel": "Point purchases",
+      "title": "Point purchases",
+      "subtitle": "Review manual point top-up orders and credit points after verifying the receipt.",
+      "table": {
+        "buyer": "Buyer",
+        "bundle": "Bundle",
+        "points": "Points"
+      },
+      "toast": {
+        "confirmed": "Order confirmed and points credited",
+        "confirmError": "Could not confirm the order",
+        "rejected": "Order rejected",
+        "rejectError": "Could not reject the order"
+      }
+    },
+    "recommended": "Recommended",
+    "audienceDescription": {
+      "individual": "Built for individual operators and small teams.",
+      "business": "Built for growing teams with multiple channels.",
+      "enterprise": "Built for organizations that need custom scale and support."
+    },
+    "capacity": {
+      "unlimited": "Custom",
+      "points": "{count} AI points each month",
+      "agents": "{count} AI agents",
+      "knowledgeDocuments": "{count} knowledge documents",
+      "products": "{count} catalog products"
+    }
+  },
+  "marketing": {
+    "brandName": "Wesal One",
+    "nav": {
+      "features": "Features",
+      "channels": "Channels",
+      "pricing": "Pricing",
+      "about": "About",
+      "contact": "Contact"
+    },
+    "actions": {
+      "signIn": "Sign in",
+      "start": "Get started"
+    },
+    "hero": {
+      "badge": "Arabic-first customer service and sales platform",
+      "titleBefore": "AI agents that run",
+      "titleHighlight": "sales and conversations",
+      "titleAfter": "professionally",
+      "description": "Wesal One brings customer channels, teams, products and orders into one platform, with clear human control whenever a conversation needs an employee.",
+      "learnMore": "Explore the platform",
+      "trial": "Free trial",
+      "noCard": "No payment card",
+      "fastSetup": "Fast setup"
+    },
+    "demo": {
+      "title": "Live sales conversation",
+      "subtitle": "WhatsApp · Demo store",
+      "active": "Agent active",
+      "customer": "I need four units of the available product. What is the price?",
+      "agent": "The product is available. I will use the approved price and help confirm the order.",
+      "handoffTitle": "Controlled human handoff",
+      "handoffDescription": "The agent pauses only when an employee takes over or an explicit handoff rule matches."
+    },
+    "features": {
+      "eyebrow": "Everything your team needs",
+      "title": "Customer service and sales in one workspace",
+      "description": "From the first conversation through ordering and follow-up, with clear team tools and agents governed by your business rules.",
+      "items": [
+        {
+          "title": "Unified inbox",
+          "description": "WhatsApp, Instagram, Messenger and Telegram in one interface."
+        },
+        {
+          "title": "AI sales agents",
+          "description": "Understand requests, search products and reply using platform settings."
+        },
+        {
+          "title": "Clear human handoff",
+          "description": "The agent pauses when an employee takes over, preventing overlapping replies."
+        },
+        {
+          "title": "Products and orders",
+          "description": "Read inventory and create orders through trusted platform services."
+        },
+        {
+          "title": "Automation and campaigns",
+          "description": "Flows, scheduled messages and campaigns that help you grow."
+        },
+        {
+          "title": "Reports and permissions",
+          "description": "Track performance, manage teams and isolate every workspace."
+        }
+      ]
+    },
+    "control": {
+      "eyebrow": "Human control",
+      "title": "AI accelerates the work while your team owns the decision",
+      "description": "Clear rules prevent overlap and preserve human review for sensitive situations.",
+      "items": [
+        "Pause automation when staff take over",
+        "Separate team-member permissions",
+        "Conversation and action history",
+        "Strong workspace isolation"
+      ],
+      "cardTitle": "Built for sales and support",
+      "cardDescription": "Agents use your products and rules to complete conversations and orders without changing channel logic or blocking manual work."
+    },
+    "cta": {
+      "title": "Run every customer conversation from one place",
+      "description": "Create your account, connect channels, and prepare your team and agents in Wesal One."
+    },
+    "footer": {
+      "description": "An Arabic-first platform for customer conversations, teams, products and automation.",
+      "product": "Product",
+      "legal": "Legal",
+      "privacy": "Privacy policy",
+      "dataDeletion": "Data deletion",
+      "terms": "Terms of use",
+      "copyright": "© 2026 Wesal One. All rights reserved."
+    }
+  },
+  "publicPages": {
+    "features": {
+      "eyebrow": "Features",
+      "title": "One platform for customer service and sales",
+      "intro": "Conversations, agents, teams, products, orders and campaigns in one place.",
+      "sections": [
+        {
+          "title": "Conversations and teams",
+          "body": ["A unified inbox with assignment and permissions."]
+        },
+        {
+          "title": "Agents and commerce",
+          "body": [
+            "AI agents use products and orders with controlled human handoff."
+          ]
+        }
+      ]
+    },
+    "channels": {
+      "eyebrow": "Channels",
+      "title": "Customer channels in one place",
+      "intro": "Connect approved channels and retain customer context in the workspace.",
+      "sections": [
+        {
+          "title": "Meta channels",
+          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+        },
+        {
+          "title": "Telegram and web",
+          "body": [
+            "Telegram, Webchat and other integrations from one dashboard."
+          ]
+        }
+      ]
+    },
+    "about": {
+      "eyebrow": "About",
+      "title": "Wesal One for businesses in Yemen and the region",
+      "intro": "We bring conversations, follow-up, knowledge and products into one Arabic-first workspace.",
+      "sections": [
+        {
+          "title": "Mission",
+          "body": ["Give businesses a clear customer service and sales system."]
+        },
+        {
+          "title": "Commitment",
+          "body": [
+            "Data isolation, permissions and transparency while humans retain control."
+          ]
+        }
+      ]
+    },
+    "contact": {
+      "eyebrow": "Contact",
+      "title": "We would love to hear from you",
+      "intro": "For questions, trial requests or plan guidance.",
+      "sections": [
+        {
+          "title": "Email",
+          "body": ["support@wesal.one"]
+        },
+        {
+          "title": "WhatsApp",
+          "body": ["+967 775 324 950"]
+        }
+      ]
+    },
+    "privacy": {
+      "eyebrow": "Privacy",
+      "title": "Wesal One privacy policy",
+      "intro": "The data we process and how it is used and protected.",
+      "updated": "Last updated: July 18, 2026",
+      "sections": [
+        {
+          "title": "Data and use",
+          "body": [
+            "We process account, workspace, channel, conversation, file, product and order data to operate, authenticate, automate and support the service."
+          ]
+        },
+        {
+          "title": "Channels and providers",
+          "body": [
+            "Channel data may pass through the channel provider and cloud infrastructure according to your configuration."
+          ]
+        },
+        {
+          "title": "Security and retention",
+          "body": [
+            "We use access controls and workspace isolation and retain data as needed to operate the service."
+          ]
+        },
+        {
+          "title": "Your rights",
+          "body": [
+            "Request access, correction or deletion through support@wesal.one."
+          ]
+        }
+      ]
+    },
+    "terms": {
+      "eyebrow": "Terms",
+      "title": "Wesal One terms of use",
+      "intro": "Using the platform means accepting the account, trial and subscription terms.",
+      "updated": "Last updated: July 18, 2026",
+      "sections": [
+        {
+          "title": "Service use",
+          "body": [
+            "Use the platform lawfully. Account owners are responsible for members, content and channels."
+          ]
+        },
+        {
+          "title": "Subscriptions",
+          "body": [
+            "Features and limits follow the plan. Payments activate only after confirmation."
+          ]
+        },
+        {
+          "title": "Content and data",
+          "body": [
+            "You must have the right to use data and content entered or sent through the platform."
+          ]
+        },
+        {
+          "title": "Artificial intelligence",
+          "body": [
+            "AI assists teams and does not replace human review for sensitive decisions."
+          ]
+        }
+      ]
+    },
+    "dataDeletion": {
+      "eyebrow": "Data deletion",
+      "title": "How to delete your data",
+      "intro": "Request deletion of an account, workspace or specific channel data.",
+      "updated": "Last updated: July 18, 2026",
+      "sections": [
+        {
+          "title": "How to request",
+          "body": [
+            "Email support@wesal.one from the owner's address with the workspace name and scope."
+          ],
+          "bullets": [
+            "Subject: Wesal One data deletion request",
+            "Specify full account, channel or selected data."
+          ]
+        },
+        {
+          "title": "Verification and time",
+          "body": [
+            "We verify authority and usually process requests within 7 to 30 days."
+          ]
+        },
+        {
+          "title": "Backups",
+          "body": [
+            "Temporary backups may remain until their backup cycle completes."
+          ]
+        },
+        {
+          "title": "After deletion",
+          "body": [
+            "Access to channels, conversations and reports may be lost and recovery is not guaranteed."
+          ]
+        }
+      ]
     }
   }
 }
