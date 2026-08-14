@@ -52,8 +52,11 @@ jobs:
       - name: Set up Turbo cache
         uses: rharkor/caching-for-turbo@v2.5.1
 
-      # --concurrency=4 matches the runner's vCPU count: tsc and vitest tasks
-      # are all CPU-bound, so turbo's default of 10 concurrent tasks only adds
-      # contention (and test timeouts) on a 4-core box.
-      - name: Type-check, lint, and test
-        run: pnpm turbo run check-types lint test --concurrency=4
+      # Large application TypeScript graphs peak above the memory available when
+      # turbo runs them beside tests. Check them serially; then run lint/tests
+      # with restrained concurrency so the gate remains complete and deterministic.
+      - name: Type-check
+        run: pnpm turbo run check-types --concurrency=1
+
+      - name: Lint and test
+        run: pnpm turbo run lint test --concurrency=2
