@@ -299,13 +299,18 @@ const runInstagramCoexistPull = async <
                 pageSkipped += imported.skippedMessages
                 attachmentIds.push(...imported.insertedAttachmentIds)
 
-                if (imported.newestMessageAt && imported.oldestMessageAt) {
+                if (
+                  imported.newestMessageAt &&
+                  imported.oldestMessageAt &&
+                  imported.newestMessageId
+                ) {
                   activityUpdates.push({
                     contactInboxId: contactLink.contactInboxId,
                     contactId: contactLink.contactId,
                     workspaceId,
                     conversationId: contactLink.conversationId,
                     newestMessageAt: imported.newestMessageAt,
+                    newestMessageId: imported.newestMessageId,
                     oldestMessageAt: imported.oldestMessageAt,
                     newestIncomingMessageAt: imported.newestIncomingMessageAt,
                   })

@@ -73,6 +73,7 @@ async function dispatchAIAgentReply(props: {
   workspaceId: string
   conversationId: string
   contactInbox: ContactInboxModel
+  messageId: string
   message: string | undefined
   onSkipped: (reason: string) => void
 }): Promise<boolean> {
@@ -93,6 +94,7 @@ async function dispatchAIAgentReply(props: {
     contactInbox: props.contactInbox,
     messages: [{ role: "user", content: props.message ?? "" }],
     aiAgent: agent,
+    operationId: `story-ai-reply:${props.messageId}:${agent.id}`,
   })
   if (!generated?.text) {
     props.onSkipped("AI agent produced no text")
@@ -243,6 +245,7 @@ export async function processStoryReplyAutomation(
           workspaceId,
           conversationId,
           contactInbox,
+          messageId,
           message,
           onSkipped: (reason) =>
             logAutomationSkipped({
