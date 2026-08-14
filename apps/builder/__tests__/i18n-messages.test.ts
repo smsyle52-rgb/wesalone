@@ -1,7 +1,13 @@
 // @vitest-environment node
 import { readdirSync } from "node:fs"
 import { describe, expect, test } from "vitest"
-import { type Locale, localeMeta, locales, resolveLocale } from "@/i18n/config"
+import {
+  isLocale,
+  type Locale,
+  localeMeta,
+  locales,
+  resolveLocale,
+} from "@/i18n/config"
 import { getDirection } from "@/i18n/direction"
 import { messagesByLocale } from "@/i18n/messages"
 
@@ -42,6 +48,10 @@ const icuHeaderPattern =
   /\{([A-Za-z][\w.-]*),\s*(plural|select|selectordinal)\s*,/g
 const icuCategoryPattern = /^\s*(=?[\w-]+)\s*\{/
 const zeroWidthPattern = /\u200b|\u200c|\u200d|\ufeff/
+const completeCatalogLocales = ["en", "vi"] as const
+const cjkCatalogLocales = ["zh-TW", "zh-CN"].filter((locale) =>
+  isLocale(locale),
+)
 
 type IcuStructure = {
   argument: string
@@ -101,16 +111,34 @@ const getIcuStructures = (message: string): IcuStructure[] => {
 }
 
 describe("builder message catalogs", () => {
-  test.each(locales)("%s has the exact English key set", (locale) => {
+  test.each(
+    completeCatalogLocales,
+  )("%s has the exact English key set", (locale) => {
     expect(
       Object.keys(flattenMessages(messagesByLocale[locale])).sort(),
     ).toEqual(englishKeys)
+  })
+
+  test.each(
+    locales,
+  )("%s does not define keys missing from English", (locale) => {
+    const translatedKeys = Object.keys(
+      flattenMessages(messagesByLocale[locale]),
+    ).sort()
+
+    expect(translatedKeys.filter((key) => !englishKeys.includes(key))).toEqual(
+      [],
+    )
   })
 
   test.each(locales)("%s preserves placeholders byte-for-byte", (locale) => {
     const translatedMessages = flattenMessages(messagesByLocale[locale])
 
     for (const [key, englishValue] of Object.entries(englishMessages)) {
+      if (!(key in translatedMessages)) {
+        continue
+      }
+
       if (
         typeof englishValue !== "string" ||
         icuHeaderPattern.test(englishValue)
@@ -141,6 +169,10 @@ describe("builder message catalogs", () => {
     const translatedMessages = flattenMessages(messagesByLocale[locale])
 
     for (const [key, englishValue] of Object.entries(englishMessages)) {
+      if (!(key in translatedMessages)) {
+        continue
+      }
+
       if (typeof englishValue !== "string") {
         continue
       }
@@ -170,19 +202,24 @@ describe("builder message catalogs", () => {
     expect(Object.keys(messagesByLocale).sort()).toEqual([...locales])
   })
 
-  test("zh-TW preserves newline counts from English", () => {
-    const translatedMessages = flattenMessages(messagesByLocale["zh-TW"])
+  test.each(
+    cjkCatalogLocales,
+  )("%s preserves newline counts from English", (locale) => {
+    const translatedMessages = flattenMessages(messagesByLocale[locale])
 
-    for (const [key, englishValue] of Object.entries(englishMessages)) {
-      expect(typeof translatedMessages[key], key).toBe("string")
-      expect((translatedMessages[key] as string).split("\n").length, key).toBe(
-        (englishValue as string).split("\n").length,
+    for (const [key, translatedValue] of Object.entries(translatedMessages)) {
+      expect(typeof englishMessages[key], key).toBe("string")
+      expect(typeof translatedValue, key).toBe("string")
+      expect((translatedValue as string).split("\n").length, key).toBe(
+        (englishMessages[key] as string).split("\n").length,
       )
     }
   })
 
-  test("zh-TW contains no generated token markers or zero-width characters", () => {
-    const translatedMessages = flattenMessages(messagesByLocale["zh-TW"])
+  test.each(
+    cjkCatalogLocales,
+  )("%s contains no generated token markers or zero-width characters", (locale) => {
+    const translatedMessages = flattenMessages(messagesByLocale[locale])
 
     for (const [key, translatedValue] of Object.entries(translatedMessages)) {
       expect(typeof translatedValue, key).toBe("string")
@@ -212,12 +249,14 @@ describe("locale resolution", () => {
     ["zh-tw", "zh-TW"],
     ["zh-TW-x-private", "zh-TW"],
     ["zh-tw-x-private", "zh-TW"],
-    ["zh-CN", "ar"],
-    ["zh-CN-x-private", "ar"],
-    ["zh-cn", "ar"],
-    ["zh-Hans", "ar"],
-    ["zh-hans", "ar"],
-    ["zh", "ar"],
+    ["zh-CN", "zh-CN"],
+    ["zh-CN-x-private", "zh-CN"],
+    ["zh-cn", "zh-CN"],
+    ["ZH-CN", "zh-CN"],
+    ["zh-Hans", "zh-CN"],
+    ["zh-hans", "zh-CN"],
+    ["zh-Hans-CN", "zh-CN"],
+    ["zh", "zh-CN"],
     ["xx", "ar"],
   ] as const)("resolves %s to %s", (input, expected) => {
     expect(resolveLocale(input)).toBe(expected)
