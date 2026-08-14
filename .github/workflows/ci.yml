@@ -56,6 +56,8 @@ jobs:
       # turbo runs them beside tests. Check them serially; then run lint/tests
       # with restrained concurrency so the gate remains complete and deterministic.
       - name: Type-check
+        env:
+          NODE_OPTIONS: --max-old-space-size=6000
         run: pnpm turbo run check-types --concurrency=1
 
       - name: Lint and test
