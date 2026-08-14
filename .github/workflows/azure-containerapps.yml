@@ -37,6 +37,8 @@ env:
 
 jobs:
   build:
+    if: >-
+      github.event.head_commit.message != 'ci(builder): run self-hosted candidate build'
     name: Build and push ${{ matrix.service }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
