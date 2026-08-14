@@ -33,9 +33,16 @@ const nextConfig: NextConfig = {
     // per-file subpaths and its root export is not a re-export barrel, so
     // there is nothing for this optimization to rewrite.
     optimizePackageImports: ["@icons-pack/react-simple-icons"],
-    // turbopackServerFastRefresh: false,
+    // Keep the production image build inside standard GitHub runner memory.
+    // These official options trade a small amount of compilation time for lower
+    // peak Webpack memory without changing rendered application behavior.
+    webpackBuildWorker: true,
+    webpackMemoryOptimizations: true,
+    serverSourceMaps: false,
+    enablePrerenderSourceMaps: false,
   },
   poweredByHeader: false,
+  productionBrowserSourceMaps: false,
   async rewrites() {
     const alwaysRewrites = [
       {
