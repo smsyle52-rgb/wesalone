@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - release/wesal-one-next
+      - chore/chatbotx-azure-20260814
   workflow_dispatch:
     inputs:
       deploy:
