@@ -12,7 +12,18 @@ const flattenMessages = (
   prefix = "",
   result: FlatMessages = {},
 ): FlatMessages => {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+  if (Array.isArray(value)) {
+    for (const [index, child] of value.entries()) {
+      flattenMessages(
+        child,
+        prefix ? `${prefix}.${index}` : String(index),
+        result,
+      )
+    }
+    return result
+  }
+
+  if (typeof value !== "object" || value === null) {
     result[prefix] = value
     return result
   }
@@ -201,13 +212,13 @@ describe("locale resolution", () => {
     ["zh-tw", "zh-TW"],
     ["zh-TW-x-private", "zh-TW"],
     ["zh-tw-x-private", "zh-TW"],
-    ["zh-CN", "en"],
-    ["zh-CN-x-private", "en"],
-    ["zh-cn", "en"],
-    ["zh-Hans", "en"],
-    ["zh-hans", "en"],
-    ["zh", "en"],
-    ["xx", "en"],
+    ["zh-CN", "ar"],
+    ["zh-CN-x-private", "ar"],
+    ["zh-cn", "ar"],
+    ["zh-Hans", "ar"],
+    ["zh-hans", "ar"],
+    ["zh", "ar"],
+    ["xx", "ar"],
   ] as const)("resolves %s to %s", (input, expected) => {
     expect(resolveLocale(input)).toBe(expected)
   })

@@ -11,7 +11,13 @@ import { auth } from "@/lib/auth/auth"
 import { httpLogger } from "./lib/log"
 
 const publicRoutes = [
+  "/about",
+  "/channels/create",
+  "/data-deletion",
   "/integrations",
+  "/login",
+  "/pricing",
+  "/signup",
   "/r",
   "/l",
   "/auth",
