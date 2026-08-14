@@ -23,7 +23,7 @@ permissions:
 
 concurrency:
   group: wesal-azure-containerapps
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   AZURE_CLIENT_ID: 02b98259-3e80-4cf5-87b3-6cc6968d06f0
