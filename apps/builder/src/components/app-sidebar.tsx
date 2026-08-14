@@ -12,9 +12,9 @@ import {
   BrainIcon,
   ChartPieIcon,
   ChevronsRight,
-  CreditCardIcon,
   LightbulbIcon,
   type LucideIcon,
+  MegaphoneIcon,
   MessageCircleMoreIcon,
   RadioIcon,
   SlidersHorizontalIcon,
@@ -140,9 +140,9 @@ export function AppSidebar({
         icon: WrenchIcon,
       },
       {
-        title: t("billing.navTitle"),
-        url: `/space/${workspaceId}/pricing`,
-        icon: CreditCardIcon,
+        title: t("ads.title"),
+        url: `/space/${workspaceId}/ads`,
+        icon: MegaphoneIcon,
         permission: "superAdmin",
       },
       {

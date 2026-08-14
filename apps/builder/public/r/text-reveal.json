@@ -3,9 +3,7 @@
   "name": "text-reveal",
   "title": "Text Reveal",
   "description": "Word-by-word blur reveal on scroll.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/text-reveal.tsx",

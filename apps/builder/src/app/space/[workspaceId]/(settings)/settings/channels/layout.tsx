@@ -1,105 +1,33 @@
-"use client"
-
-import type { ChannelType } from "@chatbotx.io/database/partials"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@chatbotx.io/ui/components/ui/accordion"
-import { useSearchParams } from "next/navigation"
+import { getIdFromParams } from "@chatbotx.io/utils"
+import { notFound } from "next/navigation"
 import type { ReactNode } from "react"
-import { InboxIcon } from "@/features/inboxes/components/inbox-icon"
-import { isHiddenChannel } from "@/lib/channel-visibility"
+import { resolveVisibleChannels } from "@/lib/workspace/resolve-visible-channels"
+import { ChannelsAccordionShell } from "./channels-accordion-shell"
 
-type SettingsChannelsPageProps = {
+type SettingsChannelsLayoutProps = {
   readonly children?: ReactNode
-  readonly whatsapp?: ReactNode
-  readonly messenger?: ReactNode
-  readonly instagram?: ReactNode
-  readonly zalo?: ReactNode
-  readonly telegram?: ReactNode
-  readonly tiktok?: ReactNode
-  readonly webchat?: ReactNode
-  readonly smtp?: ReactNode
+  readonly params: Promise<{ workspaceId: string }>
 }
 
-type IntegrationItem = {
-  readonly value: ChannelType
-  readonly content: ReactNode
-}
+export default async function SettingsChannelsLayout(
+  props: SettingsChannelsLayoutProps,
+) {
+  const workspaceId = getIdFromParams(await props.params, "workspaceId")
+  if (!workspaceId) {
+    return notFound()
+  }
 
-export default function SettingsChannelsPage({
-  whatsapp,
-  messenger,
-  instagram,
-  zalo,
-  telegram,
-  tiktok,
-  webchat,
-  smtp,
-}: SettingsChannelsPageProps) {
-  const queriesParams = useSearchParams()
-  const selectedChannel = queriesParams.get("channel") ?? ""
-
-  const allIntegrationItems: IntegrationItem[] = [
-    {
-      value: "whatsapp",
-      content: whatsapp,
-    },
-    {
-      value: "messenger",
-      content: messenger,
-    },
-    {
-      value: "instagram",
-      content: instagram,
-    },
-    {
-      value: "zalo",
-      content: zalo,
-    },
-    {
-      value: "telegram",
-      content: telegram,
-    },
-    {
-      value: "tiktok",
-      content: tiktok,
-    },
-    {
-      value: "webchat",
-      content: webchat,
-    },
-    {
-      value: "smtp",
-      content: smtp,
-    },
-  ]
-
-  const integrationItems = allIntegrationItems.filter(
-    (integration) => !isHiddenChannel(integration.value),
-  )
+  // Visibility policy + grandfathering live in `resolveVisibleChannels` —
+  // shared with each `settings/channels/<channel>/page.tsx` so the rendered
+  // rows and the directly-addressable routes can never disagree.
+  const visibleChannels = await resolveVisibleChannels(workspaceId)
+  if (!visibleChannels) {
+    return notFound()
+  }
 
   return (
-    <Accordion
-      className="w-full"
-      defaultValue={selectedChannel ? [selectedChannel] : []}
-    >
-      {integrationItems.map((integration) => (
-        <AccordionItem
-          className="transition-all hover:data-[state=open]:rounded-none"
-          key={integration.value}
-          value={integration.value}
-        >
-          <AccordionTrigger className="rounded-none px-4 transition-all hover:bg-muted hover:no-underline data-[state=open]:bg-muted">
-            <InboxIcon channel={integration.value} />
-          </AccordionTrigger>
-          <AccordionContent className="p-4">
-            {integration.content}
-          </AccordionContent>
-        </AccordionItem>
-      ))}
-    </Accordion>
+    <ChannelsAccordionShell visibleChannels={visibleChannels}>
+      {props.children}
+    </ChannelsAccordionShell>
   )
 }

@@ -169,18 +169,29 @@ function sortConnectableFirst(
 
 const FACEBOOK_OAUTH_BASE = "https://www.facebook.com"
 
-// Only permissions this Meta app is actually approved for (App Review page).
-// Requesting unapproved scopes (email, pages_manage_ads, pages_read_user_content,
-// pages_manage_posts, pages_manage_engagement, pages_utility_messaging) makes the
-// Facebook OAuth dialog fail with "Invalid Scopes" for the app admin.
-const MESSENGER_SCOPES = [
+export const MESSENGER_SCOPES = [
+  "email",
   "public_profile",
   "pages_manage_metadata",
   "pages_read_engagement",
   "pages_messaging",
   "pages_show_list",
   "business_management",
+  "pages_utility_messaging",
+  "page_events",
 ]
+
+/**
+ * `MESSENGER_SCOPES` minus the two identity-only scopes (`email`,
+ * `public_profile` are not Graph permissions and are implicitly present on
+ * every token). Used to decide whether a Facebook SSO token already carries
+ * every permission the Messenger connect flow would otherwise request, so the
+ * page-connect step can reuse it instead of re-running OAuth.
+ */
+export const MESSENGER_REUSE_REQUIRED_SCOPES = MESSENGER_SCOPES.filter(
+  (scope) =>
+    scope !== "email" && scope !== "public_profile" && scope !== "page_events",
+)
 
 /**
  * Scopes requested by the Facebook Lead Ads "Add New" re-auth. Granting these
@@ -196,6 +207,7 @@ export const LEAD_ADS_SCOPES = [
 ]
 
 export const LEADS_RETRIEVAL_SCOPE = "leads_retrieval"
+export const PAGE_EVENTS_SCOPE = "page_events"
 
 export function generateAuthUrl({
   clientId,
@@ -253,17 +265,43 @@ export type DebugTokenData = {
   is_valid?: boolean
 }
 
+/** App access token (`APP_ID|APP_SECRET`) for the app these credentials identify. */
+export function toAppAccessToken(credentials: {
+  clientId: string
+  clientSecret: string
+}): string {
+  return `${credentials.clientId}|${credentials.clientSecret}`
+}
+
 /**
  * Inspect a token's granted scopes via `GET /debug_token`. Used to check
  * whether a page's access token carries `leads_retrieval` before offering the
- * page as a lead source. `debugAccessToken` defaults to the inspected token
- * (Facebook allows a token to debug itself).
+ * page as a lead source.
+ *
+ * Named arguments on purpose: `appAccessToken` and `version` are both plain
+ * strings, so a positional signature let callers pass the version where the app
+ * token belongs — silently, with no type error.
+ *
+ * `appAccessToken` is REQUIRED and must belong to the app that minted
+ * `inputToken` (build it with `toAppAccessToken`). Facebook does NOT let a page
+ * token inspect itself — it answers "(#100) You must provide an app access
+ * token, or a user access token that is an owner or developer of the app" — so a
+ * caller that passes the inspected token here gets no scopes back at all.
+ *
+ * It travels in the `Authorization` header, NOT as an `access_token` query
+ * param: the client logs the full request URL on any HTTP error
+ * (`lib/http-client.ts` `beforeError`), which would write the Facebook app
+ * secret into the logs in plaintext on every rate-limit or invalid-token reply.
  */
-export function debugToken(
-  inputToken: string,
-  version: string = DEFAULT_API_VERSION,
-  debugAccessToken: string = inputToken,
-): Promise<DebugTokenData> {
+export function debugToken({
+  inputToken,
+  appAccessToken,
+  version = DEFAULT_API_VERSION,
+}: {
+  inputToken: string
+  appAccessToken: string
+  version?: string
+}): Promise<DebugTokenData> {
   const endpoint = `${version}/debug_token`
 
   return rescue(endpoint, async () => {
@@ -272,7 +310,9 @@ export function debugToken(
       {
         searchParams: {
           input_token: inputToken,
-          access_token: debugAccessToken,
+        },
+        headers: {
+          Authorization: `Bearer ${appAccessToken}`,
         },
       },
     )
@@ -282,6 +322,10 @@ export function debugToken(
 
 export function hasLeadsRetrieval(scopes: string[] | undefined): boolean {
   return Boolean(scopes?.includes(LEADS_RETRIEVAL_SCOPE))
+}
+
+export function hasPageEventsScope(scopes: string[] | undefined): boolean {
+  return Boolean(scopes?.includes(PAGE_EVENTS_SCOPE))
 }
 
 export function exchangeCodeForToken(

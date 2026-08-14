@@ -1,7 +1,7 @@
 "use client"
 
 import type { MessengerCredentialPublic } from "@chatbotx.io/database/partials"
-import { Button, buttonVariants } from "@chatbotx.io/ui/components/ui/button"
+import { Button } from "@chatbotx.io/ui/components/ui/button"
 import {
   Table,
   TableBody,
@@ -10,10 +10,11 @@ import {
   TableHeader,
   TableRow,
 } from "@chatbotx.io/ui/components/ui/table"
-import { PlusCircleIcon } from "lucide-react"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
 import { use } from "react"
+import { TokenRefreshErrorIcon } from "@/components/token-refresh-error-icon"
+import { AddChannelButton } from "@/features/inboxes/components/add-channel-button"
 import { useChannelDuplicatedError } from "@/hooks/use-channel-duplicated-error"
 import { useChannelReconnectResult } from "@/hooks/use-channel-reconnect-result"
 import { MessengerDisconnect } from "./components/messenger-disconnect"
@@ -21,12 +22,14 @@ import { MessengerReconnect } from "./components/messenger-reconnect"
 import type { listIntegrationMessengers } from "./queries"
 
 type MessengerManageProps = {
+  canCreate?: boolean
   publicConfig: MessengerCredentialPublic | null
   workspaceId: string
   promises: Promise<[Awaited<ReturnType<typeof listIntegrationMessengers>>]>
 }
 
 export function MessengerManage({
+  canCreate = true,
   publicConfig,
   workspaceId,
   promises,
@@ -49,15 +52,11 @@ export function MessengerManage({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex justify-end gap-2">
-        <Link
-          className={buttonVariants({ variant: "secondary" })}
+        <AddChannelButton
+          canCreate={canCreate}
           href={`/channels/create?workspaceId=${workspaceId}&channel=messenger`}
-        >
-          <PlusCircleIcon className="h-4 w-4" />
-          {t("actions.addFeature", {
-            feature: t("fields.messenger.label"),
-          })}
-        </Link>
+          label={t("fields.messenger.label")}
+        />
       </div>
 
       <div className="overflow-hidden rounded-md border">
@@ -71,7 +70,16 @@ export function MessengerManage({
           <TableBody>
             {integrationMessengers.map((integrationMessenger) => (
               <TableRow key={integrationMessenger.id}>
-                <TableCell>{integrationMessenger.name}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {integrationMessenger.tokenRefreshError && (
+                      <TokenRefreshErrorIcon
+                        message={integrationMessenger.tokenRefreshError}
+                      />
+                    )}
+                    {integrationMessenger.name}
+                  </div>
+                </TableCell>
                 <TableCell className="flex w-50 justify-end gap-2">
                   <MessengerReconnect
                     integrationMessenger={integrationMessenger}

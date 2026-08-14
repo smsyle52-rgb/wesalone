@@ -22,26 +22,7 @@ const publicRoutes = [
   "/unsubscribe",
   "/email-topic",
   "/extensions",
-  "/features",
-  "/channels",
-  "/about",
-  "/contact",
-  "/privacy",
-  "/terms",
-  "/data-deletion",
-  "/pricing",
-  // `/login` and `/signup` are redirects to the canonical `/auth/*` routes,
-  // kept because the removed marketing template published them publicly.
-  "/login",
-  "/signup",
-  // These pages are gone with that template, but they were in the sitemap and
-  // are indexed. Listing them keeps the middleware from treating them as
-  // protected: a removed page must answer 404 so a crawler drops it, not 200
-  // with the sign-in screen, which reads as a live page and keeps it indexed.
-  "/blog",
-  "/components",
-  "/themes",
-  "/changelog",
+  "/portal/redeem",
 ]
 const signinPath = "/auth/sign-in"
 
@@ -72,6 +53,7 @@ export async function proxy(request: NextRequest) {
   // await logRequest(request)
 
   const { pathname, search } = request.nextUrl
+
   if (isPublicRoute(pathname)) {
     return attachProxyUrl(request)
   }

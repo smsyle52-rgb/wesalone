@@ -70,10 +70,14 @@ const {
 }))
 
 vi.mock("@chatbotx.io/business", () => ({
-  findMessengerIntegrationByIdForWorkspace: mockFindMessengerIntegration,
-  updateMessengerIntegrationAuth: mockUpdateMessengerIntegrationAuth,
-  findInstagramIntegrationByIdForWorkspace: mockFindInstagramIntegration,
-  updateInstagramIntegrationAuth: mockUpdateInstagramIntegrationAuth,
+  messengerIntegrationService: {
+    findByIdForWorkspace: mockFindMessengerIntegration,
+    updateAuth: mockUpdateMessengerIntegrationAuth,
+  },
+  instagramIntegrationService: {
+    findByIdForWorkspace: mockFindInstagramIntegration,
+    updateAuth: mockUpdateInstagramIntegrationAuth,
+  },
   integrationFacebookAdsService: { upsert: mockUpsertFacebookAds },
   platformCredentialService: { resolveForOwner: mockResolveForOwner },
   workspaceMemberService: { isMember: mockIsMember },
@@ -90,6 +94,7 @@ vi.mock("@chatbotx.io/database/client", () => ({
 vi.mock("@chatbotx.io/database/schema", () => ({
   integrationGoogleSheetsModel: {},
   integrationModel: {},
+  ROOT_TENANT_ID: "1",
 }))
 
 vi.mock("@chatbotx.io/integration-facebook-ads", () => ({
@@ -123,29 +128,7 @@ vi.mock("@chatbotx.io/integration-messenger/apis/page", () => ({
 
 vi.mock("@chatbotx.io/sdk", () => ({
   AuthType: { oauth2: "oauth2", custom: "custom" },
-  // integrations/messenger/src/exception.ts subclasses this at module load,
-  // so the mock has to provide a real constructor or importing the messenger
-  // auth API throws before any test body runs.
-  SdkException: class SdkException extends Error {
-    code: string | number
-    httpStatusCode: number
-    subCode?: string | number | null
-    type?: string
-    constructor(
-      message: string,
-      code: string | number = -1,
-      httpStatusCode = 400,
-      subCode: string | number | null = null,
-      type?: string,
-    ) {
-      super(message)
-      this.name = "SdkException"
-      this.code = code
-      this.httpStatusCode = httpStatusCode
-      this.subCode = subCode
-      this.type = type
-    }
-  },
+  SdkException: class SdkException extends Error {},
 }))
 
 vi.mock("@chatbotx.io/utils", async (importOriginal) => {
@@ -252,7 +235,11 @@ describe("handleCallback OAuth reconnect", () => {
       name: "FB User",
       avatarUrl: "https://fb.example/avatar.jpg",
     })
-    mockFindWorkspaceById.mockResolvedValue({ id: "1", ownerId: "owner-1" })
+    mockFindWorkspaceById.mockResolvedValue({
+      id: "1",
+      ownerId: "owner-1",
+      tenantId: "1",
+    })
     mockIsMember.mockResolvedValue(true)
     mockResolveForOwner.mockResolvedValue({
       config: {

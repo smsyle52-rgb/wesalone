@@ -3,9 +3,7 @@
   "name": "animated-list",
   "title": "Animated List",
   "description": "Looping feed that springs each item in, newest on top.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/animated-list.tsx",

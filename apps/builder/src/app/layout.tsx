@@ -5,7 +5,6 @@ import { getLocale } from "next-intl/server"
 import type { ReactNode } from "react"
 import { PublicEnvScript } from "@/components/public-env-script"
 import { SupportChatScript } from "@/components/support-chat-script"
-import { ZodLocale } from "@/components/zod-locale"
 import { env } from "@/env"
 import { TenantProvider } from "@/features/tenant"
 import { getTenantSettings } from "@/features/tenant/utils"
@@ -79,10 +78,7 @@ export default async function RootLayout({ children }: Props) {
         <TenantProvider settings={tenantSettings}>
           <DirectionProvider direction={dir}>
             <UiProvider>
-              <NextIntlClientProvider>
-                <ZodLocale />
-                {children}
-              </NextIntlClientProvider>
+              <NextIntlClientProvider>{children}</NextIntlClientProvider>
             </UiProvider>
           </DirectionProvider>
         </TenantProvider>

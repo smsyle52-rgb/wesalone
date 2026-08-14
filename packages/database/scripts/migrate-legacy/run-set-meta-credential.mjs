@@ -13,7 +13,9 @@ const readTrim = (path) => readFileSync(path, "utf8").trim()
 
 const rawDbUrl = readTrim(`${SP}/chatbotx-url.txt`)
 const m = rawDbUrl.match(/^postgresql:\/\/([^:]+):([^@]+)@[^/]*\/([^?]+)/)
-if (!m) throw new Error("could not parse chatbotx-url.txt")
+if (!m) {
+  throw new Error("could not parse chatbotx-url.txt")
+}
 const [, user, pass, db] = m
 const tcpDatabaseUrl = `postgresql://${user}:${pass}@127.0.0.1:5435/${db}`
 
@@ -25,8 +27,8 @@ const env = {
   META_SYSTEM_USER_TOKEN: readTrim(`${SP}/msut.txt`),
 }
 
-execFileSync(
-  "npx",
-  ["tsx", "scripts/migrate-legacy/set-meta-credential.ts"],
-  { stdio: "inherit", env, shell: true },
-)
+execFileSync("npx", ["tsx", "scripts/migrate-legacy/set-meta-credential.ts"], {
+  stdio: "inherit",
+  env,
+  shell: true,
+})

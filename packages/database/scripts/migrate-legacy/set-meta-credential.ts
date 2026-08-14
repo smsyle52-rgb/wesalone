@@ -8,7 +8,9 @@ import { platformCredentialService } from "../../../business/src/platform-creden
 
 const required = (name: string): string => {
   const v = process.env[name]
-  if (!v) throw new Error(`${name} is required`)
+  if (!v) {
+    throw new Error(`${name} is required`)
+  }
   return v
 }
 

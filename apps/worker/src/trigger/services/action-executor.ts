@@ -1,6 +1,8 @@
 import {
+  adsConversionService,
   contactCustomFieldService,
   conversationService,
+  metaConversionsService,
   tagSyncService,
 } from "@chatbotx.io/business"
 import { and, db, eq, inArray } from "@chatbotx.io/database/client"
@@ -12,12 +14,14 @@ import {
   FieldOperationType,
   type SpreadsheetClearRowSchema,
   type SpreadsheetColumnFilterSchema,
+  type SpreadsheetContactToSheetMappingSchema,
   type SpreadsheetGetRandomRowSchema,
   type SpreadsheetGetRowSchema,
-  type SpreadsheetMappingSchema,
   type SpreadsheetSendDataSchema,
+  type SpreadsheetSheetToContactMappingSchema,
   type SpreadsheetUpdateRowSchema,
   type StepType,
+  spreadsheetStepVersions,
   stepTypes,
   successStateDefaultFn,
 } from "@chatbotx.io/flow-config"
@@ -39,7 +43,7 @@ import type { ActionExecutionContext } from "../types"
 
 export class ActionExecutor {
   async execute(context: ActionExecutionContext): Promise<void> {
-    const { action, contactId, workspaceId } = context
+    const { action, contactId, triggerId, workspaceId } = context
     const actionType = action.type
 
     const conversation = await db.query.conversationModel.findFirst({
@@ -95,6 +99,11 @@ export class ActionExecutor {
 
           for (const link of newlyLinked) {
             await tagSyncService.enqueueAttach({
+              workspaceId,
+              contactId: conversation.contactId,
+              tagId: link.tagId,
+            })
+            await adsConversionService.enqueueTagAppliedEvaluations({
               workspaceId,
               contactId: conversation.contactId,
               tagId: link.tagId,
@@ -311,12 +320,52 @@ export class ActionExecutor {
         }
         break
 
+      case triggerActions.enum.sendMetaCapiEvent: {
+        if (
+          recentContactInbox.channel !== "messenger" &&
+          recentContactInbox.channel !== "instagram" &&
+          recentContactInbox.channel !== "whatsapp"
+        ) {
+          baseLogger.warn(
+            `Unsupported Meta CAPI trigger channel: ${recentContactInbox.channel}`,
+          )
+          break
+        }
+
+        const value =
+          typeof action.value === "string" ? action.value : undefined
+        const currency =
+          typeof action.currency === "string" ? action.currency : undefined
+        const contentCategory =
+          typeof action.contentCategory === "string"
+            ? action.contentCategory
+            : undefined
+        const contentName =
+          typeof action.contentName === "string"
+            ? action.contentName
+            : undefined
+
+        await metaConversionsService.enqueueLeadEvent({
+          workspaceId,
+          channel: recentContactInbox.channel,
+          contactInboxId: recentContactInbox.id,
+          inboxId: recentContactInbox.inboxId,
+          source: "triggerAction",
+          sourceKey: `trigger:${triggerId}:${recentContactInbox.id}:${metaConversionsService.formatUtcDay(new Date())}`,
+          value,
+          currency,
+          contentCategory,
+          contentName,
+        })
+        break
+      }
+
       case triggerActions.enum.runGoogleSheet: {
         const spreadsheetAction = action.action as StepType
         const spreadsheetId = action.spreadsheetId as string
         const sheetName = action.sheetName as string
         const lookup = action.lookup as SpreadsheetColumnFilterSchema
-        const map = (action.map as SpreadsheetMappingSchema[]) ?? []
+        const map = action.map ?? []
 
         const baseProps = {
           conversation,
@@ -331,7 +380,7 @@ export class ActionExecutor {
               spreadsheetId,
               sheetName,
               lookup,
-              map,
+              map: map as SpreadsheetSheetToContactMappingSchema[],
               states: [successStateDefaultFn(), errorStateDefaultFn()],
             }
             await getSpreadsheetRow({ ...baseProps, step })
@@ -347,10 +396,7 @@ export class ActionExecutor {
               lookup,
               states: [successStateDefaultFn(), errorStateDefaultFn()],
             }
-            await clearSpreadsheetRow({
-              ...baseProps,
-              step: step as unknown as SpreadsheetGetRowSchema,
-            })
+            await clearSpreadsheetRow({ ...baseProps, step })
             break
           }
 
@@ -361,13 +407,10 @@ export class ActionExecutor {
               spreadsheetId,
               sheetName,
               lookup,
-              map,
+              map: map as SpreadsheetSheetToContactMappingSchema[],
               states: [successStateDefaultFn(), errorStateDefaultFn()],
             }
-            await getSpreadsheetRandomRow({
-              ...baseProps,
-              step: step as unknown as SpreadsheetGetRowSchema,
-            })
+            await getSpreadsheetRandomRow({ ...baseProps, step })
             break
           }
 
@@ -375,15 +418,13 @@ export class ActionExecutor {
             const step: SpreadsheetSendDataSchema = {
               id: createId(),
               stepType: stepTypes.enum.spreadsheetSendData,
+              version: spreadsheetStepVersions.enum.v2,
               spreadsheetId,
               sheetName,
-              map,
+              map: map as SpreadsheetContactToSheetMappingSchema[],
               states: [successStateDefaultFn(), errorStateDefaultFn()],
             }
-            await sendSpreadsheetData({
-              ...baseProps,
-              step: step as unknown as SpreadsheetGetRowSchema,
-            })
+            await sendSpreadsheetData({ ...baseProps, step })
             break
           }
 
@@ -391,16 +432,14 @@ export class ActionExecutor {
             const step: SpreadsheetUpdateRowSchema = {
               id: createId(),
               stepType: stepTypes.enum.spreadsheetUpdateRow,
+              version: spreadsheetStepVersions.enum.v2,
               spreadsheetId,
               sheetName,
               lookup,
-              map,
+              map: map as SpreadsheetContactToSheetMappingSchema[],
               states: [successStateDefaultFn(), errorStateDefaultFn()],
             }
-            await updateSpreadsheetRow({
-              ...baseProps,
-              step: step as unknown as SpreadsheetGetRowSchema,
-            })
+            await updateSpreadsheetRow({ ...baseProps, step })
             break
           }
 

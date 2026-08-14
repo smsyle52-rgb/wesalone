@@ -49,12 +49,13 @@ import { getTranslations } from "next-intl/server"
 import { updateWorkspaceLogo } from "@/features/workspaces/actions/upload-logo"
 import { logger } from "@/lib/log"
 import { buildBrokerCallbackUrl, getBrokerOrigin } from "@/lib/oauth-broker"
+import { resolvePlatformOwnerId } from "@/lib/platform-credential-owner"
 import { authActionClient } from "@/lib/safe-action"
+import { hasWhatsappCapiScope } from "../libs/capi-scope"
 import {
   isCoexistOnboardingIntent,
   WHATSAPP_OAUTH_CALLBACK_PATH,
 } from "../libs/embedded-signup"
-import { buildWhatsappPhoneName } from "../libs/phone-name"
 import { toRegistrationOutcome } from "../libs/registration-outcome"
 import {
   CONNECT_WHATSAPP_RESULT_TYPES,
@@ -110,7 +111,7 @@ async function deriveSignupTargets(
 
   const waba = await findWaba({
     wabaId,
-    acessToken: accessToken,
+    accessToken,
     version,
     fields: "owner_business_info",
   })
@@ -601,10 +602,7 @@ async function persistIntegration(params: {
   const displayPhoneNumber = normalizeWhatsappDisplayPhoneNumber(
     phoneNumber.display_phone_number,
   )
-  const phoneName = buildWhatsappPhoneName({
-    verifiedName: phoneNumber.verified_name,
-    displayPhoneNumber,
-  })
+  const phoneName = phoneNumber.verified_name.trim() || displayPhoneNumber
 
   let integrationRow: IntegrationWhatsappModel | undefined
 
@@ -638,6 +636,7 @@ async function persistIntegration(params: {
         .onConflictDoUpdate({
           target: [integrationWhatsappModel.inboxId],
           set: {
+            name: phoneName,
             displayPhoneNumber,
             isCoexist,
             platformType,
@@ -797,13 +796,10 @@ export const connectWhatsappAction = authActionClient
       }
 
       try {
-        const ownerId = parsedInput.workspaceId
-          ? ((
-              await workspaceService.find({
-                where: { id: parsedInput.workspaceId },
-              })
-            )?.ownerId ?? ctx.user.id)
-          : ctx.user.id
+        const ownerId = await resolvePlatformOwnerId({
+          userId: ctx.user.id,
+          workspaceId: parsedInput.workspaceId,
+        })
         const whatsappCredential =
           await platformCredentialService.resolveForOwner({
             ownerId,
@@ -907,6 +903,17 @@ export const connectWhatsappAction = authActionClient
           auth,
           isCoexist,
           platformType,
+        })
+
+        await integrationWhatsappService.refreshCapiScopeCache({
+          id: integrationRow.id,
+          workspaceId,
+          maxAgeMs: 0,
+          checkScope: (scopeInput) =>
+            hasWhatsappCapiScope({
+              ...scopeInput,
+              appAccessToken: `${whatsappSettings.clientId}|${whatsappSettings.clientSecret}`,
+            }),
         })
 
         let registrationError:

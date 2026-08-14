@@ -61,8 +61,7 @@ export async function PublicPricing() {
                       // Omitting this threw FORMATTING_ERROR and took down the
                       // whole public pricing page — the string has always had
                       // {points}; only the in-app pricing view was passing it.
-                      points:
-                        plan.monthlyPoints ?? String.fromCharCode(8734),
+                      points: plan.monthlyPoints ?? String.fromCharCode(8734),
                     })}
               </p>
               <ul className="mt-6 flex-1 space-y-3 text-sm">

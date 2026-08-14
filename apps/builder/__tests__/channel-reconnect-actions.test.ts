@@ -46,11 +46,21 @@ vi.mock("@/lib/safe-action", () => ({
 }))
 
 vi.mock("@chatbotx.io/business", () => ({
-  findMessengerIntegrationByIdForWorkspace: mockFindMessengerIntegration,
-  findInstagramIntegrationByIdForWorkspace: mockFindInstagramIntegration,
+  messengerIntegrationService: {
+    findByIdForWorkspace: mockFindMessengerIntegration,
+  },
+  instagramIntegrationService: {
+    findByIdForWorkspace: mockFindInstagramIntegration,
+  },
   platformCredentialService: {
     resolveForOwner: mockResolveForOwner,
   },
+}))
+
+vi.mock("@/lib/platform-credential-owner", () => ({
+  resolveOwnerForWorkspace: vi.fn(
+    async (workspace: { ownerId: string }) => workspace.ownerId,
+  ),
 }))
 
 vi.mock("@chatbotx.io/business/errors", () => ({

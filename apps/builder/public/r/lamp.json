@@ -3,9 +3,7 @@
   "name": "lamp",
   "title": "Lamp",
   "description": "A glowing lamp-line header that expands into view.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/lamp.tsx",

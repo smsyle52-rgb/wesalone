@@ -3,9 +3,7 @@
   "name": "bento-grid",
   "title": "Bento Grid",
   "description": "Feature bento with hover-reveal CTAs and rich backgrounds.",
-  "dependencies": [
-    "lucide-react"
-  ],
+  "dependencies": ["lucide-react"],
   "files": [
     {
       "path": "src/components/velora/bento-grid.tsx",

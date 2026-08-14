@@ -26,9 +26,11 @@ const flattenMessages = (
 const englishMessages = flattenMessages(messagesByLocale.en)
 const englishKeys = Object.keys(englishMessages).sort()
 const placeholderPattern = /\{[A-Za-z][\w.-]*\}/g
+const forbiddenGeneratedTokenPattern = /⟪TK\d+⟫|\bTK\d+\b|ROW_/
 const icuHeaderPattern =
   /\{([A-Za-z][\w.-]*),\s*(plural|select|selectordinal)\s*,/g
 const icuCategoryPattern = /^\s*(=?[\w-]+)\s*\{/
+const zeroWidthPattern = /\u200b|\u200c|\u200d|\ufeff/
 
 type IcuStructure = {
   argument: string
@@ -156,18 +158,61 @@ describe("builder message catalogs", () => {
     expect(messageFilenames).toEqual([...locales])
     expect(Object.keys(messagesByLocale).sort()).toEqual([...locales])
   })
+
+  test("zh-TW preserves newline counts from English", () => {
+    const translatedMessages = flattenMessages(messagesByLocale["zh-TW"])
+
+    for (const [key, englishValue] of Object.entries(englishMessages)) {
+      expect(typeof translatedMessages[key], key).toBe("string")
+      expect((translatedMessages[key] as string).split("\n").length, key).toBe(
+        (englishValue as string).split("\n").length,
+      )
+    }
+  })
+
+  test("zh-TW contains no generated token markers or zero-width characters", () => {
+    const translatedMessages = flattenMessages(messagesByLocale["zh-TW"])
+
+    for (const [key, translatedValue] of Object.entries(translatedMessages)) {
+      expect(typeof translatedValue, key).toBe("string")
+      expect(translatedValue as string, key).not.toMatch(
+        forbiddenGeneratedTokenPattern,
+      )
+      expect(translatedValue as string, key).not.toMatch(zeroWidthPattern)
+    }
+  })
 })
 
 describe("locale resolution", () => {
   test.each([
-    ["ar-SA", "ar"],
+    ["pt", "pt-BR"],
     ["en-US", "en"],
+    ["zh-Hant", "zh-TW"],
+    ["zh-hant", "zh-TW"],
+    ["ZH-HANT", "zh-TW"],
+    ["zh-Hant-TW", "zh-TW"],
+    ["zh-HK", "zh-TW"],
+    ["zh-hk", "zh-TW"],
+    ["zh-HK-x-private", "zh-TW"],
+    ["zh-MO", "zh-TW"],
+    ["zh-mo", "zh-TW"],
+    ["zh-MO-x-private", "zh-TW"],
+    ["zh-TW", "zh-TW"],
+    ["zh-tw", "zh-TW"],
+    ["zh-TW-x-private", "zh-TW"],
+    ["zh-tw-x-private", "zh-TW"],
+    ["zh-CN", "en"],
+    ["zh-CN-x-private", "en"],
+    ["zh-cn", "en"],
+    ["zh-Hans", "en"],
+    ["zh-hans", "en"],
+    ["zh", "en"],
     ["xx", "en"],
   ] as const)("resolves %s to %s", (input, expected) => {
     expect(resolveLocale(input)).toBe(expected)
   })
 
-  test("Arabic uses right-to-left direction", () => {
-    expect(getDirection("ar" satisfies Locale)).toBe("rtl")
+  test("Hebrew uses right-to-left direction", () => {
+    expect(getDirection("he" satisfies Locale)).toBe("rtl")
   })
 })

@@ -3,9 +3,7 @@
   "name": "sparkles-text",
   "title": "Sparkles Text",
   "description": "Twinkling stars orbiting your headline.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/sparkles-text.tsx",

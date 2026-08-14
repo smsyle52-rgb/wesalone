@@ -18,7 +18,9 @@ export function buildSignInMagicLinkMjml(props: SignInMagicLinkProps): string {
     .replace(/\{\{magicUrl\}\}/g, esc(magicUrl))
     .replace(/\{\{brandName\}\}/g, esc(brandName))
   return buildSystemEmail(
-    isArabic ? { ...props, signOff: "مع التحية،", signature: brandName } : props,
+    isArabic
+      ? { ...props, signOff: "مع التحية،", signature: brandName }
+      : props,
     body,
   )
 }

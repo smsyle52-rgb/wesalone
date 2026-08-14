@@ -2,6 +2,7 @@ import { anchoredPeriod, macRepository } from "@chatbotx.io/analytics"
 import {
   type DatabaseClient,
   db,
+  describeDatabaseError,
   eq,
   inArray,
   sql,
@@ -13,11 +14,12 @@ import {
   workspaceModel,
 } from "@chatbotx.io/database/schema"
 import type { WorkspaceModel } from "@chatbotx.io/database/types"
-import { withCache } from "@chatbotx.io/redis"
+import { distributedLock, withCache } from "@chatbotx.io/redis"
 import { formatInTimeZone } from "date-fns-tz"
 import { BaseService } from "../base.service"
 import { tenantService } from "../enterprise/tenant/service"
 import { notFoundException, workspaceLimitReachedException } from "../errors"
+import { isCommunity } from "../keys"
 import { logger } from "../logger"
 import { quotaEnforcementService } from "../quota-enforcement/service"
 import { userQuotaService } from "../user-quota/service"
@@ -29,11 +31,17 @@ import {
   workspaceMemberCacheTag,
   workspaceMemberService,
 } from "../workspace-member/service"
+import { nextScheduledDeletionAt } from "./deletion-schedule"
 
 type WorkspaceWhere = Partial<{ id: string; ownerId: string; token: string }>
+type DueWorkspace = Pick<WorkspaceModel, "id" | "ownerId" | "tenantId">
 
 const stableKey = (where: WorkspaceWhere) =>
   JSON.stringify(Object.fromEntries(Object.entries(where).sort()))
+
+const PURGE_WORKSPACE_TEARDOWN_CONCURRENCY = 5
+const COMMUNITY_MAX_WORKSPACES = 1
+const WORKSPACE_LIMIT_LOCK_TIMEOUT_SECONDS = 30
 
 class WorkspaceService extends BaseService {
   async findOrFail(props: {
@@ -131,7 +139,7 @@ class WorkspaceService extends BaseService {
       id: props.id,
       tx,
       data: {
-        scheduledDeletionAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        scheduledDeletionAt: nextScheduledDeletionAt(),
       },
     })
   }
@@ -213,63 +221,27 @@ class WorkspaceService extends BaseService {
         break
       }
 
-      for (const workspace of claimed.rows) {
-        await workspaceLifecycleService.freezeWorkspaceRuntime(workspace.id)
+      // Per-workspace guard: a teardown failure on one workspace must not abort
+      // the whole cron (BullMQ would retry the entire batch forever). Only
+      // workspaces that tear down cleanly are deleted below; a failed one keeps
+      // its `scheduledDeletionAt` and is retried on the next tick.
+      const teardownResults = await mapWithConcurrency(
+        claimed.rows,
+        PURGE_WORKSPACE_TEARDOWN_CONCURRENCY,
+        async (workspace) =>
+          await this.teardownDueWorkspace(workspace, props?.integrations),
+      )
+      const deleted = teardownResults.filter(isNonNull)
 
-        await workspaceLifecycleService
-          .disconnectWorkspaceIntegrations(workspace.id)
-          .catch((err) => {
-            logger.error(
-              { err, workspaceId: workspace.id },
-              "workspace-purge: failed to disconnect workspace integrations",
-            )
-          })
-
-        await workspaceLifecycleService.disconnectWorkspaceChannels({
-          integrations: props?.integrations,
-          teardownLevel: "disconnect",
-          workspaceId: workspace.id,
-          ownerId: workspace.ownerId,
-        })
-
-        // Drain high-volume child tables in small self-committing batches
-        // before the FK cascade, so no single statement deletes millions of
-        // rows under lock.
-        await workspaceLifecycleService.purgeWorkspaceHeavyData({
-          workspaceId: workspace.id,
-        })
-
-        // Best-effort: never block/roll back the purge if release fails —
-        // `reconcileOwnerPoolUsage` below re-derives `workspaces` from source
-        // for every affected owner regardless.
-        await quotaEnforcementService
-          .release({ userId: workspace.ownerId, metric: "workspaces" })
-          .catch((err) => {
-            logger.warn(
-              { err, workspaceId: workspace.id, ownerId: workspace.ownerId },
-              "workspace-purge: workspace quota release failed",
-            )
-          })
-      }
-
-      const workspaceIds = claimed.rows.map((row) => row.id)
-      const result = await db.transaction(async (tx) => {
-        await tx
-          .delete(workspaceModel)
-          .where(inArray(workspaceModel.id, workspaceIds))
-
-        return {
-          deleted: claimed.rows,
-          memberUserIds: claimed.memberUserIds,
-        }
-      })
-
-      if (result.deleted.length === 0) {
+      // A full chunk that tore down nothing is a systemic failure (e.g. the DB
+      // is unhealthy): stop instead of spinning through maxChunks re-claiming
+      // the same rows. The next scheduled tick retries.
+      if (deleted.length === 0) {
         break
       }
 
-      totalDeleted += result.deleted.length
-      for (const workspace of result.deleted) {
+      totalDeleted += deleted.length
+      for (const workspace of deleted) {
         reconciles.set(`${workspace.ownerId}:${workspace.tenantId}`, {
           ownerId: workspace.ownerId,
           tenantId: workspace.tenantId,
@@ -277,17 +249,22 @@ class WorkspaceService extends BaseService {
       }
 
       const cacheTags = [
-        ...result.deleted.map((workspace) => `workspaces:${workspace.id}`),
-        ...result.memberUserIds.map(workspaceMemberCacheTag),
+        ...deleted.map((workspace) => `workspaces:${workspace.id}`),
+        ...claimed.memberUserIds.map(workspaceMemberCacheTag),
       ]
       await this.invalidateCacheTags(cacheTags)
 
       logger.info(
-        { deleted: result.deleted.length },
+        { deleted: deleted.length },
         "workspace-purge: workspaces purged",
       )
 
-      if (result.deleted.length < chunkSize) {
+      // Stop when this chunk claimed fewer than a full batch — no more due
+      // workspaces remain. Keyed off *claimed* (not *succeeded*) so a single
+      // failing workspace can't cut the run short while others are still due;
+      // failed ones are re-attempted on later chunks (bounded by maxChunks) and
+      // on the next tick.
+      if (claimed.rows.length < chunkSize) {
         break
       }
     }
@@ -306,6 +283,63 @@ class WorkspaceService extends BaseService {
     )
 
     return totalDeleted
+  }
+
+  private async teardownDueWorkspace(
+    workspace: DueWorkspace,
+    integrations?: WorkspaceTeardownIntegrations,
+  ): Promise<DueWorkspace | null> {
+    try {
+      await workspaceLifecycleService.freezeWorkspaceRuntime(workspace.id)
+
+      await workspaceLifecycleService
+        .disconnectWorkspaceIntegrations(workspace.id)
+        .catch((err) => {
+          logger.error(
+            { err, workspaceId: workspace.id },
+            "workspace-purge: failed to disconnect workspace integrations",
+          )
+        })
+
+      await workspaceLifecycleService.disconnectWorkspaceChannels({
+        integrations,
+        teardownLevel: "disconnect",
+        workspaceId: workspace.id,
+        ownerId: workspace.ownerId,
+      })
+
+      // Drain high-volume child tables in small self-committing batches before
+      // the FK cascade, so no single statement deletes millions of rows under lock.
+      await workspaceLifecycleService.purgeWorkspaceHeavyData({
+        workspaceId: workspace.id,
+      })
+
+      // Best-effort: never block/roll back the purge if release fails —
+      // `reconcileOwnerPoolUsage` below re-derives `workspaces` from source
+      // for every affected owner regardless.
+      await quotaEnforcementService
+        .release({ userId: workspace.ownerId, metric: "workspaces" })
+        .catch((err) => {
+          logger.warn(
+            { err, workspaceId: workspace.id, ownerId: workspace.ownerId },
+            "workspace-purge: workspace quota release failed",
+          )
+        })
+
+      await db.delete(workspaceModel).where(eq(workspaceModel.id, workspace.id))
+
+      return workspace
+    } catch (err) {
+      logger.error(
+        {
+          err,
+          dbCause: describeDatabaseError(err),
+          workspaceId: workspace.id,
+        },
+        "workspace-purge: teardown failed, deferring to next run",
+      )
+      return null
+    }
   }
 
   /**
@@ -361,6 +395,35 @@ class WorkspaceService extends BaseService {
   }
 
   async create(props: {
+    data: typeof workspaceModel.$inferInsert
+    createdBy: string
+    tx?: DatabaseClient
+  }): Promise<WorkspaceModel> {
+    if (isCommunity()) {
+      // Community edition allows exactly one workspace per owner. Serialize
+      // the count-then-insert so concurrent create requests cannot both pass.
+      const ownerId = props.data.ownerId ?? props.createdBy
+      return await distributedLock.runExclusive({
+        key: `workspace-limit:${ownerId}`,
+        timeoutInSeconds: WORKSPACE_LIMIT_LOCK_TIMEOUT_SECONDS,
+        fn: async (): Promise<WorkspaceModel> => {
+          // Workspaces awaiting purge still count — conservative on purpose.
+          const owned = await db.$count(
+            workspaceModel,
+            eq(workspaceModel.ownerId, ownerId),
+          )
+          if (owned >= COMMUNITY_MAX_WORKSPACES) {
+            throw workspaceLimitReachedException()
+          }
+          return this.insertWorkspace(props)
+        },
+      })
+    }
+
+    return await this.insertWorkspace(props)
+  }
+
+  private async insertWorkspace(props: {
     data: typeof workspaceModel.$inferInsert
     createdBy: string
     tx?: DatabaseClient
@@ -463,3 +526,37 @@ class WorkspaceService extends BaseService {
 }
 
 export const workspaceService = new WorkspaceService()
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) {
+    return []
+  }
+
+  const indexedItems = items.map((item, index) => ({ index, item }))
+  const results = new Array<R>(indexedItems.length)
+  let nextIndex = 0
+  const workerCount = Math.min(Math.max(1, concurrency), indexedItems.length)
+
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < indexedItems.length) {
+      const currentIndex = nextIndex
+      const entry = indexedItems[currentIndex]
+      nextIndex += 1
+
+      if (entry) {
+        results[entry.index] = await mapper(entry.item)
+      }
+    }
+  })
+
+  await Promise.all(workers)
+  return results
+}
+
+function isNonNull<T>(value: T | null): value is T {
+  return value !== null
+}

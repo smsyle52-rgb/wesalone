@@ -1,6 +1,7 @@
 import { automatedResponseService } from "@chatbotx.io/automated-response"
 import { conversationService } from "@chatbotx.io/business"
 import { emit } from "@chatbotx.io/event-bus"
+import { getStoryReply } from "@chatbotx.io/sdk"
 import {
   defaultWorkerOptions,
   getRedisConnection,
@@ -15,9 +16,12 @@ import { ensureBootstrapped } from "../lib/bootstrap"
 import { isBlockedWorkspace } from "../lib/is-blocked-workspace"
 import { logger } from "../lib/logger"
 import { resolveWorkspaceId } from "../lib/resolve-workspace-id"
+import { handleAdsAutomaticEvent } from "./handlers/ads-automatic-event"
+import { dispatchAdsConversionJob } from "./handlers/ads-conversion/registry"
 import { processAutomatedResponse } from "./handlers/automated-response"
 import { runChallenge } from "./handlers/challenge"
 import { coexistAttachmentDownload } from "./handlers/coexist/attachment-download"
+import { coexistInstagramSync } from "./handlers/coexist/instagram-sync"
 import { coexistMessengerSync } from "./handlers/coexist/messenger-sync"
 import { coexistWhatsappBuffer } from "./handlers/coexist/whatsapp-buffer"
 import { coexistWhatsappFlush } from "./handlers/coexist/whatsapp-flush"
@@ -34,6 +38,7 @@ import { runFollowUpResume } from "./handlers/follow-up"
 import { handleChannelLabelWebhook } from "./handlers/inbox_labels"
 import { processLeadgen } from "./handlers/lead-ads"
 import { handleMessageStatus } from "./handlers/message-status"
+import { handleSendMetaCapiEvent } from "./handlers/meta-conversions/send-meta-capi-event"
 import {
   deleteIncomingComment,
   receiveComment,
@@ -42,6 +47,8 @@ import {
 } from "./handlers/received-message"
 import { runRef } from "./handlers/ref"
 import { handleSendSequenceFlow } from "./handlers/sequence-flow"
+import { processStoryReplyAutomation } from "./handlers/story-reply-automation"
+import { captureTemplateFlowResponse } from "./handlers/template-flow-response"
 import { runWaitResume } from "./handlers/wait-resume"
 import { runIntegrationJobWithWebhookContext } from "./job-context"
 import { resolveIncomingTextRouting } from "./routing"
@@ -66,8 +73,13 @@ async function startIntegrationWorker() {
       return await runIntegrationJobWithWebhookContext(job.data, async () => {
         switch (job.data.type) {
           case IntegrationJobAction.incomingMessage: {
-            const { message, postbackAction, quickReplyAction, conversation } =
-              await receiveMessage(job.data.data)
+            const {
+              message,
+              postbackAction,
+              quickReplyAction,
+              conversation,
+              channelType,
+            } = await receiveMessage(job.data.data)
 
             if (!message) {
               return
@@ -84,6 +96,29 @@ async function startIntegrationWorker() {
               isNotPostbackOrQuickReply && message.senderType === "contact"
             const hasAttachment = message.attachments.length > 0
             const isLocation = message.contentType === "location"
+
+            const storyReply = getStoryReply(message.contentAttributes)
+
+            if (isFromContact && storyReply) {
+              await integrationQueue.add(
+                IntegrationJobAction.processStoryReplyAutomation,
+                {
+                  type: IntegrationJobAction.processStoryReplyAutomation,
+                  data: {
+                    workspaceId: conversation.workspaceId,
+                    conversationId: conversation.id,
+                    contactInboxId: message.contactInboxId,
+                    messageId: message.id,
+                    storyId: storyReply.id,
+                    storyUrl: storyReply.url,
+                    message: message.text ?? undefined,
+                    channelType,
+                  },
+                },
+                { jobId: `story-reply-auto-${message.id}` },
+              )
+              return
+            }
 
             const routing = await resolveIncomingTextRouting({
               conversation,
@@ -221,8 +256,27 @@ async function startIntegrationWorker() {
             await coexistMessengerSync(job.data.data)
             return
           }
+          case IntegrationJobAction.coexistInstagramSync: {
+            await coexistInstagramSync(job.data.data)
+            return
+          }
           case IntegrationJobAction.coexistAttachmentDownload: {
             await coexistAttachmentDownload(job.data.data)
+            return
+          }
+          case IntegrationJobAction.adsAutomaticEvent: {
+            await handleAdsAutomaticEvent(job.data.data)
+            return
+          }
+          case IntegrationJobAction.evaluateTemplateSent:
+          case IntegrationJobAction.evaluateConversionTrigger:
+          case IntegrationJobAction.sendConversionEvent:
+          case IntegrationJobAction.syncRetargetAudience: {
+            await dispatchAdsConversionJob(job.data)
+            return
+          }
+          case IntegrationJobAction.sendMetaCapiEvent: {
+            await handleSendMetaCapiEvent(job.data.data)
             return
           }
           case IntegrationJobAction.updateContactAvatar: {
@@ -235,6 +289,14 @@ async function startIntegrationWorker() {
           }
           case IntegrationJobAction.commentAIReply: {
             await processCommentAIReply(job.data.data)
+            return
+          }
+          case IntegrationJobAction.processStoryReplyAutomation: {
+            await processStoryReplyAutomation(job.data.data)
+            return
+          }
+          case IntegrationJobAction.captureTemplateFlowResponse: {
+            await captureTemplateFlowResponse(job.data.data)
             return
           }
           case IntegrationJobAction.processLeadgen: {

@@ -30,7 +30,9 @@ export async function notifyMacLimitReached(): Promise<void> {
       let sent = 0
       for (const owner of owners) {
         try {
-          const target = await workspaceService.findNotifiableOwner(owner.userId)
+          const target = await workspaceService.findNotifiableOwner(
+            owner.userId,
+          )
           if (!target?.email) {
             // No address to reach them on. Stamp it anyway so the sweep does
             // not reconsider this owner every two minutes for the whole period.

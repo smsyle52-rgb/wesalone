@@ -17,10 +17,22 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
+  // Type-checking is NOT part of `next build`: the in-build tsc pass duplicated
+  // `check-types` and OOMs a default 4GB heap. The type gate lives in
+  // .github/workflows/ci.yml (`turbo run check-types lint test`) — keep that
+  // workflow green before trusting a build.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "20mb",
     },
+    // Additive to Next's built-in default list, which already covers
+    // lucide-react. `@chatbotx.io/ui` doesn't belong here: it's imported via
+    // per-file subpaths and its root export is not a re-export barrel, so
+    // there is nothing for this optimization to rewrite.
+    optimizePackageImports: ["@icons-pack/react-simple-icons"],
     // turbopackServerFastRefresh: false,
   },
   poweredByHeader: false,
@@ -40,7 +52,8 @@ const nextConfig: NextConfig = {
       return alwaysRewrites
     }
 
-    // Local dev: production routes /ws, /storage, and /manage/* via load balancer / Caddy
+    // Local dev: production routes /ws, /storage, /manage/*, and /portal/*
+    // via load balancer / Caddy
     const wsUrl = env.NEXT_PUBLIC_INTERNAL_WS_URL
     const s3Bucket = process.env.S3_BUCKET ?? "chatbotx"
     const s3Endpoint = process.env.S3_ENDPOINT ?? "http://localhost:9000"
@@ -66,6 +79,15 @@ const nextConfig: NextConfig = {
         {
           source: "/api/checkout/:path*",
           destination: `${portalUrl}/portal/api/checkout/:path*`,
+        },
+        {
+          // Top-up-pack checkout (buy more botMessages credit) — same public
+          // authenticated-buyer surface as /api/checkout/*, kept as its own
+          // path so it isn't mistaken for a plan checkout by anything reading
+          // the URL (the request body/session metadata is what actually
+          // disambiguates server-side, but the path stays self-describing).
+          source: "/api/top-ups/:path*",
+          destination: `${portalUrl}/portal/api/top-ups/:path*`,
         },
         {
           source: "/api/billing/webhook",

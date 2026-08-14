@@ -11,12 +11,15 @@ const FACEBOOK_OAUTH_BASE = "https://www.facebook.com"
 const INSTAGRAM_SCOPES = [
   "instagram_basic",
   "instagram_manage_messages",
+  "instagram_manage_events",
   "pages_manage_metadata",
   "pages_show_list",
   "pages_messaging",
   "pages_read_engagement",
   "business_management",
 ]
+
+export const INSTAGRAM_MANAGE_EVENTS_SCOPE = "instagram_manage_events"
 
 export type InstagramAccount = {
   id: string
@@ -60,6 +63,51 @@ export function generateAuthUrl({
     state: btoa(JSON.stringify(stateParams ?? {})),
   })
   return `${FACEBOOK_OAUTH_BASE}/${version}/dialog/oauth?${params.toString()}`
+}
+
+export type DebugTokenData = {
+  scopes?: string[]
+  is_valid?: boolean
+}
+
+export function toAppAccessToken(credentials: {
+  clientId: string
+  clientSecret: string
+}): string {
+  return `${credentials.clientId}|${credentials.clientSecret}`
+}
+
+export function debugToken({
+  inputToken,
+  appAccessToken,
+  version = DEFAULT_API_VERSION,
+}: {
+  inputToken: string
+  appAccessToken: string
+  version?: string
+}): Promise<DebugTokenData> {
+  const endpoint = `${version}/debug_token`
+
+  return rescue(endpoint, async () => {
+    const res: { data?: DebugTokenData } = await instagramGraphClient.get(
+      endpoint,
+      {
+        searchParams: {
+          input_token: inputToken,
+        },
+        headers: {
+          Authorization: `Bearer ${appAccessToken}`,
+        },
+      },
+    )
+    return res.data ?? {}
+  })
+}
+
+export function hasInstagramManageEventsScope(
+  scopes: string[] | undefined,
+): boolean {
+  return Boolean(scopes?.includes(INSTAGRAM_MANAGE_EVENTS_SCOPE))
 }
 
 export function exchangeCodeForToken(

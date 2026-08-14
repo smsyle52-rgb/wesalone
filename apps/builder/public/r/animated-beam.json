@@ -3,9 +3,7 @@
   "name": "animated-beam",
   "title": "Animated Beam",
   "description": "Draws an animated connection between any two elements.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/animated-beam.tsx",

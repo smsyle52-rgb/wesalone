@@ -24,9 +24,9 @@ import {
 } from "@chatbotx.io/ui/components/ui/popover"
 import { cn } from "@chatbotx.io/ui/lib/utils"
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react"
-import { htmlToText } from "html-to-text"
 import { CodeXml, Smile } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { htmlToPlainTextWithBlocks } from "./html-to-plain-text"
 import { usePromptVariableOptions } from "./use-prompt-variable-options"
 
 type PlainTextTiptapEditorProps = {
@@ -35,117 +35,10 @@ type PlainTextTiptapEditorProps = {
   showEmojiPicker?: boolean
   channels?: ChannelType[]
   includeCouponVariables?: boolean
+  includeRawCustomFieldVariables?: boolean
   onChange?: (content: string) => void
   /** Single-line height with the variable picker rendered inside on the right. */
   inline?: boolean
-}
-
-const LINE_BREAK_REGEX = /\r\n?|\n/
-const COLLAPSED_LINE_BREAK_REGEX = /\n{3,}/g
-
-const BLOCK_TAG_NAMES = new Set([
-  "ADDRESS",
-  "ARTICLE",
-  "ASIDE",
-  "BLOCKQUOTE",
-  "BR",
-  "DD",
-  "DIV",
-  "DL",
-  "DT",
-  "FIELDSET",
-  "FIGCAPTION",
-  "FIGURE",
-  "FOOTER",
-  "FORM",
-  "H1",
-  "H2",
-  "H3",
-  "H4",
-  "H5",
-  "H6",
-  "HEADER",
-  "HR",
-  "LI",
-  "MAIN",
-  "NAV",
-  "OL",
-  "P",
-  "PRE",
-  "SECTION",
-  "TABLE",
-  "TBODY",
-  "TD",
-  "TFOOT",
-  "TH",
-  "THEAD",
-  "TR",
-  "UL",
-])
-
-const htmlToPlainTextWithBlocks = (html: string) => {
-  if (typeof DOMParser === "undefined") {
-    return htmlToText(html, { wordwrap: false })
-  }
-
-  const document = new DOMParser().parseFromString(html, "text/html")
-  const parts: string[] = []
-
-  const appendLineBreak = () => {
-    if (parts.at(-1) !== "\n") {
-      parts.push("\n")
-    }
-  }
-
-  const walk = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      parts.push(node.textContent ?? "")
-      return
-    }
-
-    if (node.nodeType !== Node.ELEMENT_NODE) {
-      return
-    }
-
-    const element = node as Element
-    const tagName = element.tagName
-
-    if (tagName === "BR") {
-      appendLineBreak()
-      return
-    }
-
-    const isBlock = BLOCK_TAG_NAMES.has(tagName)
-
-    if (isBlock && parts.length > 0) {
-      appendLineBreak()
-    }
-
-    if (tagName === "LI") {
-      parts.push("- ")
-    }
-
-    for (const child of Array.from(element.childNodes)) {
-      walk(child)
-    }
-
-    if (isBlock) {
-      appendLineBreak()
-    }
-  }
-
-  for (const child of Array.from(document.body.childNodes)) {
-    walk(child)
-  }
-
-  return parts
-    .join("")
-    .replace(/\xA0/g, " ")
-    .replace(COLLAPSED_LINE_BREAK_REGEX, "\n\n")
-    .split(LINE_BREAK_REGEX)
-    .map((line) => line.trimEnd())
-    .join("\n")
-    .trim()
 }
 
 export const PlainTextTiptapEditor = ({
@@ -153,6 +46,7 @@ export const PlainTextTiptapEditor = ({
   onChange,
   channels,
   includeCouponVariables = false,
+  includeRawCustomFieldVariables = false,
   placeholder = "Type a message...",
   showEmojiPicker = true,
   inline = false,
@@ -163,6 +57,7 @@ export const PlainTextTiptapEditor = ({
   const promptVariableOptions = usePromptVariableOptions({
     channels,
     includeCouponVariables,
+    includeRawCustomFieldVariables,
   })
   const promptVariableOptionsRef = useRef(promptVariableOptions)
 
@@ -208,11 +103,11 @@ export const PlainTextTiptapEditor = ({
           : "tiptap-plain-text",
       },
       handlePaste(view, event) {
-        const clipboardText = event.clipboardData?.getData("text/plain")
         const clipboardHtml = event.clipboardData?.getData("text/html")
-        const text =
-          clipboardText ??
-          (clipboardHtml ? htmlToPlainTextWithBlocks(clipboardHtml) : "")
+        const clipboardText = event.clipboardData?.getData("text/plain")
+        const text = clipboardHtml
+          ? htmlToPlainTextWithBlocks(clipboardHtml)
+          : (clipboardText ?? "")
 
         if (!text) {
           return false

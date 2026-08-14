@@ -5,7 +5,6 @@ import {
   type SetCustomFieldStepSchema,
   setCustomFieldStepSchema,
 } from "@chatbotx.io/flow-config"
-import { InputField } from "@chatbotx.io/ui/components/form/input-field"
 import { SelectField } from "@chatbotx.io/ui/components/form/select-field"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import {
@@ -21,13 +20,16 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
 import { useForm, useFormContext } from "react-hook-form"
+import { PlainTextEditorField } from "@/components/tiptap/plain-text-editor-field"
 import { getBrowserTimezone } from "@/features/contact-filter/lib/timezone"
 import { CustomFieldSelect } from "@/features/custom-fields/custom-field-select"
 import { useCustomFieldStore } from "@/features/custom-fields/provider/custom-field-store-context"
+import { useParentStepCommit } from "../base/use-parent-step-commit"
 
 const SetCustomFieldStepEditor = ({ parentName }: { parentName: string }) => {
   const t = useTranslations()
-  const { setValue, getValues } = useFormContext()
+  const { getValues } = useFormContext()
+  const commitStep = useParentStepCommit<SetCustomFieldStepSchema>(parentName)
   const defaultValues: SetCustomFieldStepSchema = getValues(parentName)
 
   const [open, setOpen] = useState<boolean>(false)
@@ -54,12 +56,14 @@ const SetCustomFieldStepEditor = ({ parentName }: { parentName: string }) => {
     selectedFieldType === "date" || selectedFieldType === "datetime"
 
   function onSubmit(values: SetCustomFieldStepSchema) {
-    setValue(`${parentName}.inputFieldId`, values.inputFieldId)
-    setValue(`${parentName}.operation`, values.operation)
-    setValue(`${parentName}.value`, values.value)
-    // Freeze the editor's browser zone so the worker (no browser context) can
-    // anchor a naive date/datetime value and render "now" for a blank one.
-    setValue(`${parentName}.timezone`, getBrowserTimezone())
+    commitStep({
+      inputFieldId: values.inputFieldId,
+      operation: values.operation,
+      value: values.value,
+      // Freeze the editor's browser zone so the worker (no browser context) can
+      // anchor a naive date/datetime value and render "now" for a blank one.
+      timezone: getBrowserTimezone(),
+    })
 
     setOpen(false)
   }
@@ -96,7 +100,13 @@ const SetCustomFieldStepEditor = ({ parentName }: { parentName: string }) => {
               required
             />
             <div className="flex flex-col gap-1.5">
-              <InputField label={t("fields.value.label")} name="value" />
+              <PlainTextEditorField
+                includeRawCustomFieldVariables
+                inline
+                label={t("fields.value.label")}
+                name="value"
+                showEmojiPicker={false}
+              />
               {isTemporalField ? (
                 <p className="text-muted-foreground text-xs">
                   {t("flows.setCustomField.temporalHint")}

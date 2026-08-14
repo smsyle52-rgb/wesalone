@@ -1,9 +1,10 @@
 "use client"
 
-import { aiChatProviders } from "@chatbotx.io/ai"
+import { aiChatProviders, openaiCompatiblePresetConfigs } from "@chatbotx.io/ai"
 import { aiMessageRoles } from "@chatbotx.io/database/partials"
 import { InputField } from "@chatbotx.io/ui/components/form/input-field"
 import { SelectField } from "@chatbotx.io/ui/components/form/select-field"
+import { SliderField } from "@chatbotx.io/ui/components/form/slider-field"
 import { SwitchField } from "@chatbotx.io/ui/components/form/switch-field"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import {
@@ -17,15 +18,26 @@ import {
 } from "@chatbotx.io/ui/components/ui/dialog"
 import { Form } from "@chatbotx.io/ui/components/ui/form"
 import { Label } from "@chatbotx.io/ui/components/ui/label"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@chatbotx.io/ui/components/ui/popover"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks"
-import { Loader2Icon, PlusIcon, XIcon } from "lucide-react"
+import {
+  Loader2Icon,
+  PlusIcon,
+  SlidersHorizontalIcon,
+  XIcon,
+} from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useMemo, useState } from "react"
 import { useFieldArray } from "react-hook-form"
 import { toast } from "sonner"
 import { PlainTextEditorField } from "@/components/tiptap/plain-text-editor-field"
 import { createAIAgentAction } from "@/features/ai-agents/actions/create.action"
+import { getAiProviderLabelKey } from "@/features/ai-agents/lib/ai-provider-label"
 import {
   type CreateAIAgentRequest,
   createAIAgentRequest,
@@ -33,7 +45,11 @@ import {
 import { AIToolMultiSelect } from "@/features/ai-tools/components/ai-tool-multi-select"
 import type { IntegrationOpenaiCompatibleResource } from "@/features/integration-openai-compatible/schemas/resource"
 import { WebSearchAuthorizedDomainsField } from "./components/web-search-authorized-domains-field"
-import { buildOpenaiCompatibleAgentModels } from "./openai-compatible-models"
+import {
+  buildOpenaiCompatibleAgentModels,
+  getOpenaiCompatibleIntegrationLabel,
+  shouldUseCustomOpenaiCompatibleModelInput,
+} from "./openai-compatible-models"
 
 type CreateAIAgentDialogProps = {
   workspaceId: string
@@ -112,6 +128,11 @@ export function CreateAIAgentDialog({
     control,
     name: "messages",
   })
+  const { fields: modelFields } = useFieldArray({
+    control,
+    name: "models",
+  })
+
   const messageRoleOptions = useMemo(
     () => [
       { label: "User", value: aiMessageRoles.enum.user },
@@ -161,20 +182,107 @@ export function CreateAIAgentDialog({
           >
             <InputField label={t("fields.name.label")} name="name" required />
 
-            {/* Model/provider selection and model tuning (temperature / max
-                output tokens) are deliberately not exposed to merchants — the
-                platform manages the model and its parameters. The form still
-                submits the sane defaults set in defaultValues.
-                The note says so out loud: the copy already existed in every
-                locale but was never rendered, so merchants met a missing
-                setting with no explanation. */}
-            <p className="text-muted-foreground text-xs">
-              {t("platformAiSettings.agentModelManaged")}
-            </p>
-
             <div>
-              <div className="min-w-0 flex-1 font-medium text-sm">
-                {t("fields.instructions.label")}
+              <div className="flex items-center gap-4">
+                <div className="min-w-0 flex-1 font-medium text-sm">
+                  {t("fields.instructions.label")}
+                </div>
+                <Popover>
+                  <PopoverTrigger
+                    render={
+                      <Button
+                        aria-label={t("actions.moreSettings")}
+                        className="shrink-0"
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <SlidersHorizontalIcon aria-hidden className="size-4" />
+                      </Button>
+                    }
+                  />
+                  <PopoverContent
+                    align="start"
+                    className="flex w-[340px] flex-col gap-6 overflow-y-auto overscroll-contain p-4"
+                    side="right"
+                    style={{
+                      maxHeight:
+                        "min(calc(var(--available-height) - 1rem), calc(100vh - 2rem))",
+                    }}
+                  >
+                    {modelFields.map((field, index) => {
+                      if ("kind" in field) {
+                        const integration = openaiCompatibleIntegrations.find(
+                          (item) => item.id === field.integrationId,
+                        )
+                        const presetConfig = integration
+                          ? openaiCompatiblePresetConfigs[
+                              integration.preset as keyof typeof openaiCompatiblePresetConfigs
+                            ]
+                          : undefined
+                        const providerLabel = integration
+                          ? getOpenaiCompatibleIntegrationLabel(integration)
+                          : t("openaiCompatible.provider")
+                        const label = `${providerLabel} ${t("fields.model.label")}`
+                        if (
+                          shouldUseCustomOpenaiCompatibleModelInput(
+                            presetConfig,
+                          )
+                        ) {
+                          return (
+                            <InputField
+                              key={field.id}
+                              label={label}
+                              name={`models.${index}.model`}
+                              required
+                            />
+                          )
+                        }
+                        return (
+                          <SelectField
+                            key={field.id}
+                            label={label}
+                            name={`models.${index}.model`}
+                            options={presetConfig?.modelOptions ?? []}
+                            required
+                          />
+                        )
+                      }
+
+                      const provider = aiChatProviders.find(
+                        (item) => item.provider === field.provider,
+                      )
+                      if (!provider) {
+                        return null
+                      }
+                      return (
+                        <SelectField
+                          key={field.id}
+                          label={`${t(getAiProviderLabelKey(provider.provider))} ${t("fields.model.label")}`}
+                          name={`models.${index}.model`}
+                          options={provider.modelOptions}
+                          required
+                        />
+                      )
+                    })}
+
+                    <SliderField
+                      label={t("fields.temperature.label")}
+                      max={2}
+                      min={0}
+                      name="temperature"
+                      step={0.1}
+                    />
+
+                    <SliderField
+                      label={t("fields.maxOutputTokens.label")}
+                      max={32_768}
+                      min={1}
+                      name="maxOutputTokens"
+                      step={1}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <PlainTextEditorField name="prompt" />

@@ -139,11 +139,7 @@ export const migrateWorkspaces = async (): Promise<
     const workspaceMemberId =
       existingWorkspaceMember?.id ?? mappedWorkspaceMemberId
     if (existingWorkspaceMember) {
-      setId(
-        "workspaceMember",
-        membershipMapKey,
-        workspaceMemberId,
-      )
+      setId("workspaceMember", membershipMapKey, workspaceMemberId)
     }
 
     await db

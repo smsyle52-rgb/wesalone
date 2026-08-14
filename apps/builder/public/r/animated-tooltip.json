@@ -3,9 +3,7 @@
   "name": "animated-tooltip",
   "title": "Animated Tooltip",
   "description": "Avatar row with springy name tooltips on hover.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/animated-tooltip.tsx",

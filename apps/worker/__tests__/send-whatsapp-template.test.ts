@@ -20,6 +20,7 @@ const {
   mockParseSdkError,
   mockRecordSendFailure,
   mockDbSet,
+  mockEnqueueIntegrationJob,
 } = vi.hoisted(() => {
   const mockDbSet = vi.fn()
   const updateChain = { set: mockDbSet, where: vi.fn() }
@@ -65,6 +66,7 @@ const {
     mockBroadcast: vi.fn(),
     mockEmit: vi.fn().mockResolvedValue(undefined),
     mockValidateTemplate: vi.fn().mockResolvedValue({
+      inbox: { integrationWhatsapp: { id: "iw-1" } },
       template: {
         id: "tmpl-wa-1",
         name: "wa-template",
@@ -81,6 +83,7 @@ const {
     mockParseSdkError: vi.fn().mockResolvedValue({ message: "sdk error" }),
     mockRecordSendFailure: vi.fn().mockResolvedValue(undefined),
     mockDbSet,
+    mockEnqueueIntegrationJob: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -112,6 +115,13 @@ vi.mock("@chatbotx.io/database/schema", () => ({
   messageModel: { id: "id", sourceId: "sourceId" },
   contactInboxModel: { id: "id" },
   conversationModel: { id: "id", lastActivityAt: "lastActivityAt" },
+}))
+
+vi.mock("@chatbotx.io/worker-config", () => ({
+  IntegrationJobAction: {
+    evaluateTemplateSent: "evaluateTemplateSent",
+  },
+  enqueueIntegrationJob: mockEnqueueIntegrationJob,
 }))
 
 vi.mock("@chatbotx.io/business", () => ({
@@ -256,6 +266,7 @@ describe("processWhatsappTemplate", () => {
       updateSourceId: mockRepositoryUpdateSourceId,
     })
     mockValidateTemplate.mockResolvedValue({
+      inbox: { integrationWhatsapp: { id: "iw-1" } },
       template: {
         id: "tmpl-wa-1",
         name: "wa-template",
@@ -313,6 +324,29 @@ describe("processWhatsappTemplate", () => {
       "ws-1",
       expect.objectContaining({ eventType: "messageCreated" }),
     )
+  })
+
+  test("sends the variable-resolved params to the channel, not the raw template params", async () => {
+    // Regression: replaceWhatsappTemplateVariables resolved the params but the
+    // channel send received the raw `template`, so WhatsApp received literal
+    // tokens like {{first_name}} instead of the contact's attribute values.
+    const resolvedParams = { body: [{ type: "text", text: "John Doe" }] }
+    mockReplaceVariables.mockResolvedValue(resolvedParams)
+
+    await processWhatsappTemplate({
+      conversation: fakeConversation,
+      contactInbox: fakeContactInbox,
+      template: {
+        id: "tmpl-wa-1",
+        name: "wa-template",
+        language: "en",
+        params: { body: [{ type: "text", text: "{{first_name}}" }] },
+      } as unknown as ProcessWhatsappTemplateParams["template"],
+    })
+
+    expect(mockSendFlowStep).toHaveBeenCalledTimes(1)
+    const sentStep = mockSendFlowStep.mock.calls[0][0].step
+    expect(sentStep.template.params).toEqual(resolvedParams)
   })
 
   test("throws when validateWhatsappTemplate returns null — repository.create not called", async () => {
@@ -379,6 +413,43 @@ describe("processWhatsappTemplate", () => {
     ).resolves.toBeDefined()
 
     expect(mockSendFlowStep).toHaveBeenCalledTimes(1)
+  })
+
+  test("enqueues ads conversion evaluation after a successful template send", async () => {
+    await processWhatsappTemplate({
+      conversation: fakeConversation,
+      contactInbox: fakeContactInbox,
+      template: fakeTemplate,
+    })
+
+    expect(mockEnqueueIntegrationJob).toHaveBeenCalledWith(
+      {
+        type: "evaluateTemplateSent",
+        data: {
+          workspaceId: "ws-1",
+          integrationWhatsappId: "iw-1",
+          contactInboxId: "ci-1",
+          templateId: "tmpl-wa-1",
+        },
+      },
+      { jobId: "ads-conversion-evaluate-template-msg-created" },
+    )
+    expect(mockEnqueueIntegrationJob.mock.calls[0][1].jobId).not.toContain(":")
+  })
+
+  test("swallows ads conversion evaluation enqueue failures after send success", async () => {
+    mockEnqueueIntegrationJob.mockRejectedValueOnce(new Error("redis down"))
+
+    await expect(
+      processWhatsappTemplate({
+        conversation: fakeConversation,
+        contactInbox: fakeContactInbox,
+        template: fakeTemplate,
+      }),
+    ).resolves.toBeDefined()
+
+    expect(mockSendFlowStep).toHaveBeenCalledTimes(1)
+    expect(mockEnqueueIntegrationJob).toHaveBeenCalledTimes(1)
   })
 
   test("emits message:failed on error and rethrows", async () => {

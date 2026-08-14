@@ -7,6 +7,11 @@ export type AIAgentModel = typeof schema.aiAgentModel.$inferSelect
 export type AIFunctionModel = typeof schema.aiFunctionModel.$inferSelect
 export type AIMCPServerModel = typeof schema.aiMCPServerModel.$inferSelect
 export type AITriggerModel = typeof schema.aiTriggerModel.$inferSelect
+export type AdsConversionRuleModel =
+  typeof schema.adsConversionRuleModel.$inferSelect
+export type AdsConversionEventModel =
+  typeof schema.adsConversionEventModel.$inferSelect
+export type MetaCapiEventModel = typeof schema.metaCapiEventModel.$inferSelect
 export type FieldModel = typeof schema.customFieldModel.$inferSelect
 export type AutomatedResponseModel =
   typeof schema.automatedResponseModel.$inferSelect
@@ -103,6 +108,8 @@ export type FBCommentAutomationModel =
   typeof schema.fbCommentAutomationModel.$inferSelect
 export type FBCommentAutomationReplyModel =
   typeof schema.fbCommentAutomationReplyModel.$inferSelect
+export type IgStoryAutomationModel =
+  typeof schema.igStoryAutomationModel.$inferSelect
 export type AuditLogModel = typeof schema.auditLogModel.$inferSelect
 export type SequenceModel = typeof schema.sequenceModel.$inferSelect
 export type SequenceStepModel = typeof schema.sequenceStepModel.$inferSelect
@@ -131,6 +138,7 @@ export type IntegrationInstagramModel =
   typeof schema.integrationInstagramModel.$inferSelect
 export type WhatsappMessageTemplateModel =
   typeof schema.whatsappMessageTemplateModel.$inferSelect
+export type WhatsappFlowModel = typeof schema.whatsappFlowModel.$inferSelect
 export type FlowAnalyticsSessionModel =
   typeof schema.flowAnalyticsSessionModel.$inferSelect
 export type FlowNodeStatModel = typeof schema.flowNodeStatModel.$inferSelect

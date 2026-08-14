@@ -1,6 +1,6 @@
 "use server"
 
-import { productService, userQuotaService } from "@chatbotx.io/business"
+import { productService } from "@chatbotx.io/business"
 import {
   type WorkspaceIdRequestParams,
   workspaceIdrequestParams,
@@ -24,10 +24,6 @@ export const createProductAction = workspaceActionClient
 export const createProduct = async (
   input: ProductFormRequest & { workspaceId: string },
 ) => {
-  await userQuotaService.assertPlanResourceCapacity(
-    input.workspaceId,
-    "products",
-  )
   const product = await productService.createFull(input)
 
   return { data: product }

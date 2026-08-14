@@ -3,9 +3,7 @@
   "name": "tilt-card",
   "title": "Tilt Card",
   "description": "3D perspective tilt that tracks the cursor.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/tilt-card.tsx",

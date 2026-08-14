@@ -18,10 +18,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { authClient } from "@/lib/auth/auth-client"
-import {
-  authErrorMessage,
-  isEmailNotVerified,
-} from "../lib/auth-error-message"
+import { authErrorMessage, isEmailNotVerified } from "../lib/auth-error-message"
 import {
   type EmailPasswordSignInRequest,
   emailPasswordSignInRequest,

@@ -3,13 +3,26 @@ import type {
   WaTemplateButtonParam,
   WaTemplateCarouselCard,
 } from "@chatbotx.io/flow-config"
+import {
+  encodeTemplateFlowToken,
+  extractMetadata,
+  TemplateFlowOrigin,
+} from "@chatbotx.io/flow-config"
 import type { MessageHandlers } from "@chatbotx.io/sdk"
+import { logger } from "../../../lib/logger"
 import type {
   TemplateMessage,
   WhatsAppTemplateComponent,
   WhatsAppTemplateComponentParameter,
   WhatsappAuthValue,
 } from "../../../schema"
+
+type TemplateFlowTokenContext = {
+  flowId: string
+  flowVersionId?: string
+  stepId: string
+  broadcastId?: string
+}
 
 export function* convertFlowStepWaTemplate(
   props: Parameters<
@@ -24,7 +37,12 @@ export function* convertFlowStepWaTemplate(
   } = props
   const template = step.template
 
-  const components = buildTemplateComponents(template.params)
+  const components = buildTemplateComponents(template.params, {
+    flowId: props.data.flowId,
+    flowVersionId: props.data.flowVersionId,
+    stepId: step.id,
+    broadcastId: extractMetadata("broadcastId", props.data.metadata),
+  })
 
   yield {
     _type: "template",
@@ -39,6 +57,8 @@ export function* convertFlowStepWaTemplate(
 
 function buildButtonParameter(
   param: WaTemplateButtonParam,
+  tokenContext: TemplateFlowTokenContext,
+  cardIndex?: number,
 ): WhatsAppTemplateComponentParameter {
   const subType = param.sub_type || "url"
 
@@ -59,13 +79,7 @@ function buildButtonParameter(
         payload: param.payload || "",
       }
     case "flow":
-      return {
-        type: "action",
-        action: {
-          flow_token: param.flow_token || "",
-          flow_action_data: param.flow_action_data || {},
-        },
-      }
+      return buildFlowButtonParameter(param, tokenContext, cardIndex)
     case "catalog":
       return {
         type: "action",
@@ -89,8 +103,70 @@ function buildButtonParameter(
   }
 }
 
+function buildFlowButtonParameter(
+  param: WaTemplateButtonParam,
+  tokenContext: TemplateFlowTokenContext,
+  cardIndex?: number,
+): WhatsAppTemplateComponentParameter {
+  const flowToken = buildTemplateFlowToken(param, tokenContext, cardIndex)
+  const flowActionData = param.flow_action_data
+  const hasFlowActionData =
+    flowActionData && Object.keys(flowActionData).length > 0
+
+  return {
+    type: "action",
+    action: {
+      ...(flowToken ? { flow_token: flowToken } : {}),
+      ...(hasFlowActionData ? { flow_action_data: flowActionData } : {}),
+    },
+  }
+}
+
+function buildTemplateFlowToken(
+  param: WaTemplateButtonParam,
+  tokenContext: TemplateFlowTokenContext,
+  cardIndex?: number,
+): string | null {
+  const buttonIndex = param.index
+  if (buttonIndex === undefined) {
+    logger.warn(
+      { stepId: tokenContext.stepId, broadcastId: tokenContext.broadcastId },
+      "WhatsApp template FLOW button skipped token generation: missing button index",
+    )
+    return null
+  }
+
+  if (tokenContext.broadcastId && !tokenContext.flowId) {
+    return encodeTemplateFlowToken({
+      origin: TemplateFlowOrigin.Broadcast,
+      broadcastId: tokenContext.broadcastId,
+      buttonIndex,
+      ...(cardIndex === undefined ? {} : { cardIndex }),
+    })
+  }
+
+  if (tokenContext.flowId && tokenContext.stepId) {
+    return encodeTemplateFlowToken({
+      origin: TemplateFlowOrigin.FlowStep,
+      flowId: tokenContext.flowId,
+      flowVersionId: tokenContext.flowVersionId,
+      stepId: tokenContext.stepId,
+      buttonIndex,
+      ...(cardIndex === undefined ? {} : { cardIndex }),
+    })
+  }
+
+  logger.warn(
+    { stepId: tokenContext.stepId, broadcastId: tokenContext.broadcastId },
+    "WhatsApp template FLOW button sent without generated token: origin could not be resolved",
+  )
+  return null
+}
+
 function buildButtonComponents(
   buttons: WaTemplateButtonParam[],
+  tokenContext: TemplateFlowTokenContext,
+  cardIndex?: number,
 ): WhatsAppTemplateComponent[] {
   const components: WhatsAppTemplateComponent[] = []
 
@@ -102,7 +178,7 @@ function buildButtonComponents(
       type: "button",
       sub_type: subType,
       index: param.index ?? i,
-      parameters: [buildButtonParameter(param)],
+      parameters: [buildButtonParameter(param, tokenContext, cardIndex)],
     })
   }
 
@@ -111,6 +187,7 @@ function buildButtonComponents(
 
 function buildCarouselComponent(
   cards: WaTemplateCarouselCard[],
+  tokenContext: TemplateFlowTokenContext,
 ): WhatsAppTemplateComponent {
   return {
     type: "carousel",
@@ -152,7 +229,9 @@ function buildCarouselComponent(
       }
 
       if (card.button && card.button.length > 0) {
-        cardComponents.push(...buildButtonComponents(card.button))
+        cardComponents.push(
+          ...buildButtonComponents(card.button, tokenContext, card.card_index),
+        )
       }
 
       return {
@@ -163,18 +242,32 @@ function buildCarouselComponent(
   }
 }
 
+/**
+ * Builds a text parameter, echoing `parameter_name` back to Meta only when the
+ * template placeholder is named ({{order_id}}). Positional placeholders ({{1}})
+ * leave it out, so their payload shape is byte-for-byte unchanged.
+ */
+function buildTextParameter(param: {
+  text?: string
+  parameter_name?: string
+}): WhatsAppTemplateComponentParameter {
+  return {
+    type: "text",
+    text: param.text ?? "",
+    ...(param.parameter_name ? { parameter_name: param.parameter_name } : {}),
+  }
+}
+
 function buildTemplateComponents(
   params: SendWaTemplateMessageStepSchema["template"]["params"],
+  tokenContext: TemplateFlowTokenContext,
 ) {
   const components: WhatsAppTemplateComponent[] = []
 
   if (params.header && params.header.length > 0) {
     const headerParams = params.header.map((param) => {
       if (param.type === "text" && param.text) {
-        return {
-          type: "text",
-          text: param.text,
-        }
+        return buildTextParameter(param)
       }
       if (param.type === "image" && param.image?.link) {
         return {
@@ -220,10 +313,7 @@ function buildTemplateComponents(
   }
 
   if (params.body && params.body.length > 0) {
-    const bodyParams = params.body.map((param) => ({
-      type: "text",
-      text: param.text,
-    }))
+    const bodyParams = params.body.map((param) => buildTextParameter(param))
     components.push({
       type: "body",
       parameters: bodyParams,
@@ -231,11 +321,11 @@ function buildTemplateComponents(
   }
 
   if (params.button && params.button.length > 0) {
-    components.push(...buildButtonComponents(params.button))
+    components.push(...buildButtonComponents(params.button, tokenContext))
   }
 
   if (params.carousel && params.carousel.length > 0) {
-    components.push(buildCarouselComponent(params.carousel))
+    components.push(buildCarouselComponent(params.carousel, tokenContext))
   }
 
   if (params.limited_time_offer) {

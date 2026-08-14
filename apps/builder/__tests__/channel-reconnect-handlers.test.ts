@@ -10,8 +10,11 @@ const {
   mockExchangeMessengerCode,
   mockGetUserPages,
   mockGetMessengerFacebookUser,
+  mockDebugToken,
+  mockToAppAccessToken,
   mockExchangeMessengerLongLivedToken,
   mockSubscribePageToAppWebhook,
+  mockScopesToPageSubscribeFields,
   mockGetInstagramAccount,
   mockSubscribeInstagramWebhook,
   mockGetUserInstagramAccounts,
@@ -27,8 +30,11 @@ const {
   mockExchangeMessengerCode: vi.fn(),
   mockGetUserPages: vi.fn(),
   mockGetMessengerFacebookUser: vi.fn(),
+  mockDebugToken: vi.fn(),
+  mockToAppAccessToken: vi.fn(),
   mockExchangeMessengerLongLivedToken: vi.fn(),
   mockSubscribePageToAppWebhook: vi.fn(),
+  mockScopesToPageSubscribeFields: vi.fn(),
   mockGetInstagramAccount: vi.fn(),
   mockSubscribeInstagramWebhook: vi.fn(),
   mockGetUserInstagramAccounts: vi.fn(),
@@ -39,29 +45,28 @@ const {
 }))
 
 vi.mock("@chatbotx.io/business", () => ({
-  findMessengerIntegrationByIdForWorkspace: mockFindMessengerIntegration,
-  updateMessengerIntegrationAuth: mockUpdateMessengerIntegrationAuth,
-  findInstagramIntegrationByIdForWorkspace: mockFindInstagramIntegration,
-  updateInstagramIntegrationAuth: mockUpdateInstagramIntegrationAuth,
+  messengerIntegrationService: {
+    findByIdForWorkspace: mockFindMessengerIntegration,
+    updateAuth: mockUpdateMessengerIntegrationAuth,
+  },
+  instagramIntegrationService: {
+    findByIdForWorkspace: mockFindInstagramIntegration,
+    updateAuth: mockUpdateInstagramIntegrationAuth,
+  },
 }))
 
 vi.mock("@chatbotx.io/integration-messenger", () => ({
   exchangeCodeForToken: mockExchangeMessengerCode,
   getFacebookUser: mockGetMessengerFacebookUser,
   getUserPages: mockGetUserPages,
-  // The handler reads granted scopes from this to decide which page fields to
-  // subscribe to. It already tolerates a failure (.catch(() => undefined)), so
-  // an empty result keeps these tests on the path they actually assert.
-  debugToken: vi.fn(async () => ({ scopes: [] })),
+  debugToken: mockDebugToken,
+  toAppAccessToken: mockToAppAccessToken,
 }))
 
 vi.mock("@chatbotx.io/integration-messenger/apis/page", () => ({
   exchangeLongLivedToken: mockExchangeMessengerLongLivedToken,
   subscribePageToAppWebhook: mockSubscribePageToAppWebhook,
-  // Maps granted scopes to the page fields to subscribe. These tests assert
-  // token/identity handling, not field selection, so a fixed list keeps the
-  // subscribe call well-formed without pinning them to the real scope table.
-  scopesToPageSubscribeFields: vi.fn(() => ["messages"]),
+  scopesToPageSubscribeFields: mockScopesToPageSubscribeFields,
 }))
 
 vi.mock("@chatbotx.io/integration-instagram", () => ({
@@ -209,6 +214,9 @@ describe("reconnectMessengerHandler", () => {
       ],
       bmLookupFailed: false,
     })
+    mockToAppAccessToken.mockReturnValue("app-id|app-secret")
+    mockDebugToken.mockResolvedValue({ scopes: [] })
+    mockScopesToPageSubscribeFields.mockReturnValue(["messages"])
   })
 
   const executeReconnect = () =>
@@ -228,8 +236,6 @@ describe("reconnectMessengerHandler", () => {
       pageId: "page-1",
       accessToken: "long-page-token",
       version: "v23.0",
-      // Added with lead-ads support: the fields subscribed depend on the
-      // scopes the token was actually granted.
       subscribedFields: "messages",
     })
     expect(mockUpdateMessengerIntegrationAuth).toHaveBeenCalledWith({

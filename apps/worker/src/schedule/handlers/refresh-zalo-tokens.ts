@@ -4,37 +4,63 @@ import {
   refreshAccessToken,
   type ZaloAuthValue,
 } from "@chatbotx.io/integration-zalo"
+import { distributedLock } from "@chatbotx.io/redis"
 import { logger } from "../../lib/logger"
+
+const BATCH_SIZE = 50
+const REFRESH_LOCK_TIMEOUT_SECONDS = 10
+
+async function refreshOne(integration: {
+  id: string
+  workspaceId: string
+}): Promise<void> {
+  await distributedLock.runExclusive({
+    key: `auth:refresh:zalo:${integration.id}`,
+    timeoutInSeconds: REFRESH_LOCK_TIMEOUT_SECONDS,
+    fn: async () => {
+      try {
+        const current = await zaloIntegrationService.findById({
+          id: integration.id,
+          workspaceId: integration.workspaceId,
+        })
+        const auth = current.auth as ZaloAuthValue
+        if (!auth.tokens.refreshToken) {
+          logger.warn(
+            `[refreshZaloTokens] id=${integration.id} skipped: no refreshToken`,
+          )
+          return
+        }
+
+        const newTokens = await refreshAccessToken(
+          auth,
+          auth.tokens.refreshToken,
+        )
+
+        await zaloIntegrationService.updateAuth(integration.id, {
+          ...auth,
+          tokens: {
+            ...auth.tokens,
+            accessToken: newTokens.access_token,
+            refreshToken: newTokens.refresh_token,
+            expiresAt: calculateExpiresAt(newTokens.expires_in),
+          },
+        })
+      } catch (error) {
+        logger.error(error, `[refreshZaloTokens] id=${integration.id} failed`)
+        await zaloIntegrationService.markTokenRefreshError(
+          integration.id,
+          error instanceof Error ? error.message : String(error),
+        )
+      }
+    },
+  })
+}
 
 export async function refreshZaloTokens(): Promise<void> {
   const integrations = await zaloIntegrationService.findAll()
-  logger.info(`[refreshZaloTokens] found=${integrations.length}`)
 
-  for (const integration of integrations) {
-    try {
-      const auth = integration.auth as ZaloAuthValue
-      if (!auth.tokens.refreshToken) {
-        logger.warn(
-          `[refreshZaloTokens] id=${integration.id} skipped: no refreshToken`,
-        )
-        continue
-      }
-
-      const newTokens = await refreshAccessToken(auth, auth.tokens.refreshToken)
-
-      await zaloIntegrationService.updateAuth(integration.id, {
-        ...auth,
-        tokens: {
-          ...auth.tokens,
-          accessToken: newTokens.access_token,
-          refreshToken: newTokens.refresh_token,
-          expiresAt: calculateExpiresAt(newTokens.expires_in),
-        },
-      })
-
-      logger.info(`[refreshZaloTokens] id=${integration.id} refreshed`)
-    } catch (error) {
-      logger.error(error, `[refreshZaloTokens] id=${integration.id} failed`)
-    }
+  for (let i = 0; i < integrations.length; i += BATCH_SIZE) {
+    const batch = integrations.slice(i, i + BATCH_SIZE)
+    await Promise.all(batch.map(refreshOne))
   }
 }

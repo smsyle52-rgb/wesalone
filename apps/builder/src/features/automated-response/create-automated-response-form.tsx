@@ -1,5 +1,6 @@
 "use client"
 
+import type { AutomatedResponseType } from "@chatbotx.io/database/partials"
 import { ComboboxField } from "@chatbotx.io/ui/components/form/combobox-field"
 import { InputField } from "@chatbotx.io/ui/components/form/input-field"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
@@ -19,17 +20,20 @@ import { useFieldArray } from "react-hook-form"
 import { toast } from "sonner"
 import { useFlowSelectOptions } from "../flows/provider/flow-hook"
 import { createAutomatedResponseAction } from "./actions/create-automated-response-action"
+import { useKeywordFieldNavigation } from "./hooks/use-keyword-field-navigation"
 import { createAutomatedResponseRequest, responseModes } from "./schema/action"
 
 type CreateAutomatedResponseFormProps = {
   workspaceId: string
   folderId: string | null
+  type: AutomatedResponseType
+  basePath: string
 }
 
 export function CreateAutomatedResponseForm(
   props: CreateAutomatedResponseFormProps,
 ) {
-  const { workspaceId, folderId } = props
+  const { workspaceId, folderId, type, basePath } = props
 
   const searchParams = useSearchParams()
 
@@ -44,7 +48,7 @@ export function CreateAutomatedResponseForm(
     handleSubmitWithAction,
     form: { control },
   } = useHookFormAction(
-    createAutomatedResponseAction.bind(null, workspaceId),
+    createAutomatedResponseAction.bind(null, workspaceId, type),
     zodResolver(createAutomatedResponseRequest),
     {
       actionProps: {
@@ -55,7 +59,7 @@ export function CreateAutomatedResponseForm(
             }),
           )
           router.push(
-            `/space/${workspaceId}/automated-responses?${searchParams.toString()}`,
+            `/space/${workspaceId}/${basePath}?${searchParams.toString()}`,
           )
         },
         onError: ({ error }) => {
@@ -93,6 +97,12 @@ export function CreateAutomatedResponseForm(
     name: "keywords",
   })
 
+  const handleKeywordInputKeyDown = useKeywordFieldNavigation(
+    form,
+    keywords.length,
+    () => appendKeywords({ value: "" }),
+  )
+
   return (
     <Form {...form}>
       <form
@@ -104,24 +114,31 @@ export function CreateAutomatedResponseForm(
             {t("fields.keywords.label")}
           </Label>
 
-          {keywords.map((_, index) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: wip
-            <div className="flex gap-2" key={index}>
-              <InputField name={`keywords.${index}.value`} />
-              {index === 0 ? (
-                <div className="w-12">&nbsp;</div>
-              ) : (
-                <Button
-                  onClick={() => {
-                    removeKeywords(index)
+          <div className="flex flex-col gap-2">
+            {keywords.map((_, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: wip
+              <div className="flex gap-2" key={index}>
+                <InputField
+                  name={`keywords.${index}.value`}
+                  onKeyDown={(event) => {
+                    handleKeywordInputKeyDown(event, index)
                   }}
-                  variant="ghost"
-                >
-                  <XIcon />
-                </Button>
-              )}
-            </div>
-          ))}
+                />
+                {index === 0 ? (
+                  <div className="w-12">&nbsp;</div>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      removeKeywords(index)
+                    }}
+                    variant="ghost"
+                  >
+                    <XIcon />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
           <FormMessage />
           <div>
             <Button
@@ -190,9 +207,7 @@ export function CreateAutomatedResponseForm(
 
         <div className="flex justify-end gap-4">
           <Button
-            onClick={() =>
-              router.push(`/space/${workspaceId}/automated-responses`)
-            }
+            onClick={() => router.push(`/space/${workspaceId}/${basePath}`)}
             type="button"
             variant="ghost"
           >

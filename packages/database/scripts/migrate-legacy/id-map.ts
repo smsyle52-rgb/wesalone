@@ -59,11 +59,7 @@ export const getOrCreateId = (kind: EntityKind, oldId: string): string => {
   return newId
 }
 
-export const setId = (
-  kind: EntityKind,
-  oldId: string,
-  newId: string,
-): void => {
+export const setId = (kind: EntityKind, oldId: string, newId: string): void => {
   const map = load()
   const key = `${kind}:${oldId}`
   if (map[key] === newId) {

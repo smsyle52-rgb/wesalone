@@ -33,9 +33,14 @@ const TRANSIENT_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "EPIPE"])
 // pg-pool's connect-timeout errors carry no syscall `code`, only a message —
 // match those (and any nested cause message) too so a flaky proxy tunnel drop
 // at connect time is retried rather than aborting the whole run.
-const TRANSIENT_MESSAGE = /econnreset|connection terminated|connection timeout|timeout expired|server closed/i
+const TRANSIENT_MESSAGE =
+  /econnreset|connection terminated|connection timeout|timeout expired|server closed/i
 
-const collectMessages = (error: unknown, out: string[] = [], depth = 0): string[] => {
+const collectMessages = (
+  error: unknown,
+  out: string[] = [],
+  depth = 0,
+): string[] => {
   if (!error || depth > 5) {
     return out
   }

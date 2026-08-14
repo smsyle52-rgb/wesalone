@@ -3,9 +3,7 @@
   "name": "dock",
   "title": "Dock",
   "description": "macOS-style dock with cursor magnification.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/dock.tsx",
