@@ -12,7 +12,7 @@ type PlatformOverride = {
 } | null
 
 const state = {
-  aiResponseText: "Hello from Vertex",
+  aiResponseText: "Hello from Azure OpenAI",
   platformOverride: null as PlatformOverride,
 }
 
@@ -32,15 +32,15 @@ const getActivePlatformAiOverrideMock = vi.hoisted(() =>
 const usageMeteringReserveMock = vi.hoisted(() => vi.fn())
 const usageMeteringSettleLanguageMock = vi.hoisted(() => vi.fn())
 const usageMeteringReleaseMock = vi.hoisted(() => vi.fn())
-const getPlatformVertexChatModelMock = vi.hoisted(() =>
-  vi.fn((modelId: string) => ({ type: "vertex-model", modelId })),
+const getPlatformAzureOpenAIChatModelMock = vi.hoisted(() =>
+  vi.fn((modelId: string) => ({ type: "azure-openai-model", modelId })),
 )
 
-function isPlatformVertexModelCandidateImpl(value: unknown): boolean {
+function isPlatformAzureOpenAIModelCandidateImpl(value: unknown): boolean {
   return (
     !!value &&
     typeof value === "object" &&
-    (value as { platformVertex?: unknown }).platformVertex === true
+    (value as { platformAzureOpenAI?: unknown }).platformAzureOpenAI === true
   )
 }
 
@@ -66,9 +66,14 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   buildPlatformOverrideCandidates: (
     override: NonNullable<PlatformOverride>,
   ) => {
-    const candidates = [{ platformVertex: true, model: override.chatModel }]
+    const candidates = [
+      { platformAzureOpenAI: true, model: override.chatModel },
+    ]
     if (override.fallbackModel) {
-      candidates.push({ platformVertex: true, model: override.fallbackModel })
+      candidates.push({
+        platformAzureOpenAI: true,
+        model: override.fallbackModel,
+      })
     }
     return candidates
   },
@@ -76,8 +81,11 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   createOpenaiCompatibleModelInstance: createOpenaiCompatibleModelInstanceMock,
   getActivePlatformAiOverride: getActivePlatformAiOverrideMock,
   getAIToolset: vi.fn(async () => ({ tools: {}, cleanup: vi.fn() })),
-  getPlatformVertexChatModel: getPlatformVertexChatModelMock,
-  isPlatformVertexModelCandidate: isPlatformVertexModelCandidateImpl,
+  getPlatformAzureOpenAIChatModel: getPlatformAzureOpenAIChatModelMock,
+  getPlatformAzureOpenAIProvider: vi.fn(() =>
+    Object.assign(vi.fn(), { tools: {} }),
+  ),
+  isPlatformAzureOpenAIModelCandidate: isPlatformAzureOpenAIModelCandidateImpl,
   McpClient: vi.fn(),
   normalizeMcpContent: vi.fn((content: unknown) => content),
 }))
@@ -159,7 +167,7 @@ function makeConversation(): ConversationModel {
 describe.skip("AI agent runner — platform Vertex override", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    state.aiResponseText = "Hello from Vertex"
+    state.aiResponseText = "Hello from Azure OpenAI"
     state.platformOverride = null
     // `restoreMocks: true` (packages/vitest-config) resets every vi.fn to a
     // bare stub before each test, so an implementation given at vi.hoisted
@@ -174,10 +182,12 @@ describe.skip("AI agent runner — platform Vertex override", () => {
     getActivePlatformAiOverrideMock.mockImplementation(
       async () => state.platformOverride,
     )
-    getPlatformVertexChatModelMock.mockImplementation((modelId: string) => ({
-      type: "vertex-model",
-      modelId,
-    }))
+    getPlatformAzureOpenAIChatModelMock.mockImplementation(
+      (modelId: string) => ({
+        type: "azure-openai-model",
+        modelId,
+      }),
+    )
     usageMeteringReserveMock.mockResolvedValue({
       enabled: false,
       operationId: "op-1",
@@ -203,7 +213,7 @@ describe.skip("AI agent runner — platform Vertex override", () => {
 
     expect(result?.provider).toBe("vertex")
     expect(result?.modelId).toBe("gemini-3.1-flash-lite")
-    expect(getPlatformVertexChatModelMock).toHaveBeenCalledWith(
+    expect(getPlatformAzureOpenAIChatModelMock).toHaveBeenCalledWith(
       "gemini-3.1-flash-lite",
       state.platformOverride,
     )
@@ -211,7 +221,7 @@ describe.skip("AI agent runner — platform Vertex override", () => {
     expect(findAIIntegrationMock).not.toHaveBeenCalled()
     expect(streamText).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: { type: "vertex-model", modelId: "gemini-3.1-flash-lite" },
+        model: { type: "azure-openai-model", modelId: "gemini-3.1-flash-lite" },
       }),
     )
   })
@@ -253,12 +263,12 @@ describe.skip("AI agent runner — platform Vertex override", () => {
 
     expect(result?.provider).toBe("vertex")
     expect(result?.modelId).toBe("gemini-2.5-flash")
-    expect(getPlatformVertexChatModelMock).toHaveBeenNthCalledWith(
+    expect(getPlatformAzureOpenAIChatModelMock).toHaveBeenNthCalledWith(
       1,
       "gemini-3.1-flash-lite",
       state.platformOverride,
     )
-    expect(getPlatformVertexChatModelMock).toHaveBeenNthCalledWith(
+    expect(getPlatformAzureOpenAIChatModelMock).toHaveBeenNthCalledWith(
       2,
       "gemini-2.5-flash",
       state.platformOverride,
@@ -277,7 +287,7 @@ describe.skip("AI agent runner — platform Vertex override", () => {
     })
 
     expect(result?.provider).toBe("openai")
-    expect(getPlatformVertexChatModelMock).not.toHaveBeenCalled()
+    expect(getPlatformAzureOpenAIChatModelMock).not.toHaveBeenCalled()
     expect(createAIModelInstanceMock).toHaveBeenCalledWith(
       expect.objectContaining({ provider: "openai", modelId: "gpt-5.4-mini" }),
     )
@@ -289,7 +299,7 @@ describe.skip("AI agent runner — platform Vertex override", () => {
       fallbackModel: null,
       location: "us-central1",
     }
-    getPlatformVertexChatModelMock.mockImplementationOnce(() => {
+    getPlatformAzureOpenAIChatModelMock.mockImplementationOnce(() => {
       throw new Error("Vertex AI request failed")
     })
 

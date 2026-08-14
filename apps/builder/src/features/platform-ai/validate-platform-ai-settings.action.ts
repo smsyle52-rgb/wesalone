@@ -2,17 +2,15 @@
 
 import {
   getPlatformAiEnvStatus,
-  probePlatformVertexChatModel,
+  probePlatformAzureOpenAIChatModel,
 } from "@chatbotx.io/ai/server"
 import { platformAiSettingService } from "@chatbotx.io/business"
 import { superAdminActionClient } from "@/lib/safe-action"
 
 /**
- * Configuration-shape check only — this never calls Vertex AI. It confirms
- * the deployment env is wired (VERTEX_AI_PROJECT_ID present) and reports the
- * model that would be used, without ever returning the project id itself or
- * making any network call. A true end-to-end connectivity check is a manual,
- * post-deploy step for the team.
+ * Configuration check only — it confirms the Azure OpenAI deployment env is
+ * wired and probes the selected deployment without returning an endpoint or
+ * API key to the caller.
  */
 export const validatePlatformAiSettingsAction = superAdminActionClient.action(
   async () => {
@@ -21,18 +19,17 @@ export const validatePlatformAiSettingsAction = superAdminActionClient.action(
       getPlatformAiEnvStatus(),
     ]
 
-    const issues: ("missingProjectId" | "modelUnavailable")[] = []
-    if (envStatus.hasProjectId) {
+    const issues: ("missingAzureOpenAIConfig" | "modelUnavailable")[] = []
+    if (envStatus.hasEndpoint && envStatus.hasApiKey) {
       try {
-        await probePlatformVertexChatModel({
+        await probePlatformAzureOpenAIChatModel({
           modelId: setting.chatModel,
-          location: setting.location,
         })
       } catch {
         issues.push("modelUnavailable")
       }
     } else {
-      issues.push("missingProjectId")
+      issues.push("missingAzureOpenAIConfig")
     }
 
     return {

@@ -1,8 +1,9 @@
 import z from "zod"
 
-// Fixed to "vertex" today. Kept as an enum (not a literal) so a future
-// platform-wide provider change is a value addition, not a schema rewrite.
-export const platformAiProviders = z.enum(["vertex"])
+// Keep the legacy Vertex value readable while Azure OpenAI becomes the
+// platform provider. Existing rows are migrated only on the Azure copy of the
+// database; production Google data remains untouched.
+export const platformAiProviders = z.enum(["vertex", "azureOpenAI"])
 export type PlatformAiProvider = z.infer<typeof platformAiProviders>
 
 // Capability providers are intentionally broader than the singleton platform
@@ -11,6 +12,7 @@ export type PlatformAiProvider = z.infer<typeof platformAiProviders>
 // flow/agent, while the Google-backed providers use platform ADC.
 export const platformAiCapabilityProviders = z.enum([
   "vertex",
+  "azureOpenAI",
   "googleCloud",
   "workspace",
   "local",

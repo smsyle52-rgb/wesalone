@@ -43,7 +43,7 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   appendFabricationGuard: (prompt: string) => prompt,
   appendKnowledgeBaseGuard: (prompt: string) => prompt,
   appendToolOutputGuard: (prompt: string) => prompt,
-  // Platform Vertex override — always inactive here so every existing
+  // Platform Azure OpenAI override — always inactive here so every existing
   // scenario in this file keeps resolving through the agent's own BYOK
   // provider exactly as before.
   buildPlatformOverrideCandidates: vi.fn(() => []),
@@ -51,8 +51,13 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   createOpenaiCompatibleModelInstance: createOpenaiCompatibleModelInstanceMock,
   getActivePlatformAiOverride: vi.fn(async () => null),
   getAIToolset: vi.fn(async () => ({ tools: {}, cleanup: vi.fn() })),
-  getPlatformVertexChatModel: vi.fn(() => ({ type: "vertex-model" })),
-  isPlatformVertexModelCandidate: vi.fn(() => false),
+  getPlatformAzureOpenAIChatModel: vi.fn(() => ({
+    type: "azure-openai-model",
+  })),
+  getPlatformAzureOpenAIProvider: vi.fn(() =>
+    Object.assign(vi.fn(), { tools: {} }),
+  ),
+  isPlatformAzureOpenAIModelCandidate: vi.fn(() => false),
   McpClient: vi.fn(),
   normalizeMcpContent: vi.fn((content: unknown) => content),
 }))
