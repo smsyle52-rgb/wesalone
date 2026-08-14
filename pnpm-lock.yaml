@@ -422,6 +422,9 @@ importers:
       swr:
         specifier: ^2.4.1
         version: 2.4.1(react@19.2.5)
+      tailwind-merge:
+        specifier: ^3.6.0
+        version: 3.6.0
       tippy.js:
         specifier: ^6.3.7
         version: 6.3.7

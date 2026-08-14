@@ -21,7 +21,9 @@ export const locales = [
 ] as const
 
 export type Locale = (typeof locales)[number]
-export const defaultLocale: Locale = "en"
+export const defaultLocale: Locale = "ar"
+export const LOCALE_COOKIE = "NEXT_LOCALE"
+export const LOCALE_QUERY_PARAM = "lang"
 
 export const localeMeta: Record<
   Locale,
@@ -50,6 +52,15 @@ export const localeMeta: Record<
 
 export function isLocale(value: string): value is Locale {
   return (locales as readonly string[]).includes(value)
+}
+
+export function parseLocale(value: string | null | undefined): Locale | null {
+  if (!value) {
+    return null
+  }
+
+  const normalizedValue = value.trim()
+  return isLocale(normalizedValue) ? normalizedValue : null
 }
 
 export function resolveLocale(value: string | undefined): Locale {
