@@ -64,12 +64,12 @@ beforeEach(() => {
 })
 
 describe("platformAiSettingService — fixed provider + safe defaults", () => {
-  test("provider is fixed to vertex", () => {
-    expect(PLATFORM_AI_PROVIDER).toBe("vertex")
+  test("provider is fixed to Azure OpenAI", () => {
+    expect(PLATFORM_AI_PROVIDER).toBe("azureOpenAI")
   })
 
-  test("default chat model is gemini-3.1-flash-lite", () => {
-    expect(DEFAULT_PLATFORM_AI_CHAT_MODEL).toBe("gemini-3.1-flash-lite")
+  test("default chat model is the Azure deployment name", () => {
+    expect(DEFAULT_PLATFORM_AI_CHAT_MODEL).toBe("wesal-chat")
   })
 
   test("get() returns safe, disabled defaults when no row exists yet", async () => {
@@ -78,7 +78,7 @@ describe("platformAiSettingService — fixed provider + safe defaults", () => {
     const setting = await platformAiSettingService.get()
 
     expect(setting).toEqual({
-      provider: "vertex",
+      provider: "azureOpenAI",
       chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
       embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
       location: DEFAULT_PLATFORM_AI_LOCATION,
@@ -95,10 +95,10 @@ describe("platformAiSettingService.getActive — the one check the AI runtime ne
   test("returns null when disabled — callers must fall back to the agent's own provider/model", async () => {
     findFirstResult = {
       id: "setting-1",
-      provider: "vertex",
-      chatModel: "gemini-3.1-pro-preview",
-      embeddingModel: "text-embedding-005",
-      location: "us-central1",
+      provider: "azureOpenAI",
+      chatModel: "wesal-chat",
+      embeddingModel: "wesal-embedding",
+      location: "uaenorth",
       fallbackModel: null,
       enabled: false,
       updatedByUserId: "admin-1",
@@ -111,21 +111,21 @@ describe("platformAiSettingService.getActive — the one check the AI runtime ne
   test("returns the active override when enabled", async () => {
     findFirstResult = {
       id: "setting-1",
-      provider: "vertex",
-      chatModel: "gemini-3.1-pro-preview",
-      embeddingModel: "text-embedding-005",
-      location: "us-central1",
-      fallbackModel: "gemini-2.5-flash",
+      provider: "azureOpenAI",
+      chatModel: "wesal-chat",
+      embeddingModel: "wesal-embedding",
+      location: "uaenorth",
+      fallbackModel: "wesal-chat",
       enabled: true,
       updatedByUserId: "admin-1",
       updatedAt: new Date(),
     }
 
     await expect(platformAiSettingService.getActive()).resolves.toEqual({
-      chatModel: "gemini-3.1-pro-preview",
-      fallbackModel: "gemini-2.5-flash",
-      location: "us-central1",
-      embeddingModel: "text-embedding-005",
+      chatModel: "wesal-chat",
+      fallbackModel: "wesal-chat",
+      location: "uaenorth",
+      embeddingModel: "wesal-embedding",
       capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
     })
   })
@@ -147,8 +147,8 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     insertReturnRows = [
       {
         id: "setting-1",
-        provider: "vertex",
-        chatModel: "gemini-3.1-flash-lite",
+        provider: "azureOpenAI",
+        chatModel: "wesal-chat",
         embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
         location: DEFAULT_PLATFORM_AI_LOCATION,
         fallbackModel: null,
@@ -159,7 +159,7 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     ]
 
     await platformAiSettingService.upsert({
-      chatModel: "gemini-3.1-flash-lite",
+      chatModel: "wesal-chat",
       fallbackModel: null,
       location: DEFAULT_PLATFORM_AI_LOCATION,
       capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
@@ -172,10 +172,10 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     }
     const [values] = usedChain.values.mock.calls.at(-1) ?? []
     expect(values).toMatchObject({
-      provider: "vertex",
+      provider: "azureOpenAI",
       embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
       location: DEFAULT_PLATFORM_AI_LOCATION,
-      chatModel: "gemini-3.1-flash-lite",
+      chatModel: "wesal-chat",
       enabled: true,
       updatedByUserId: "admin-1",
     })
@@ -186,8 +186,8 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     updateReturnRows = [
       {
         id: "setting-1",
-        provider: "vertex",
-        chatModel: "gemini-2.5-flash",
+        provider: "azureOpenAI",
+        chatModel: "wesal-chat",
         embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
         location: DEFAULT_PLATFORM_AI_LOCATION,
         fallbackModel: null,
@@ -198,7 +198,7 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     ]
 
     await platformAiSettingService.upsert({
-      chatModel: "gemini-2.5-flash",
+      chatModel: "wesal-chat",
       fallbackModel: null,
       location: DEFAULT_PLATFORM_AI_LOCATION,
       capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
@@ -215,8 +215,8 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     updateReturnRows = [
       {
         id: "setting-1",
-        provider: "vertex",
-        chatModel: "gemini-2.5-flash",
+        provider: "azureOpenAI",
+        chatModel: "wesal-chat",
         embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
         location: DEFAULT_PLATFORM_AI_LOCATION,
         fallbackModel: null,
@@ -227,7 +227,7 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     ]
 
     await platformAiSettingService.upsert({
-      chatModel: "gemini-2.5-flash",
+      chatModel: "wesal-chat",
       fallbackModel: null,
       location: DEFAULT_PLATFORM_AI_LOCATION,
       capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
