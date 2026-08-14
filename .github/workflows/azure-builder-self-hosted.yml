@@ -15,7 +15,7 @@ concurrency:
 
 env:
   AZURE_CLIENT_ID: 02b98259-3e80-4cf5-87b3-6cc6968d06f0
-  AZURE_TENANT_ID: 30a49e5c-d762-4170-beac-5bdfd2aa7e
+  AZURE_TENANT_ID: 30a49e5c-d762-4170-beac-5bdfd2aa7c9e
   AZURE_SUBSCRIPTION_ID: 4dad6f21-8881-4379-9379-d6f220ed9fc0
   AZURE_CONTAINER_REGISTRY: acrwesaluae4dad6f
   TEMP_RUNNER_RESOURCE_GROUP: rg-wesal-builder-runner-temp
