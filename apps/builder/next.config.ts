@@ -10,7 +10,14 @@ const withNextIntl = createNextIntlPlugin({
 
 const appUrl = env.NEXT_PUBLIC_BUILDER_URL.replace(/\/$/, "")
 const storageUrl = env.NEXT_PUBLIC_STORAGE_URL ?? `${appUrl}/storage`
-const nextConfig: NextConfig = {
+
+// Next 16.3 validates this runtime option, but the installed NextConfig type
+// has not yet exposed it. Keep the extension local and narrowly scoped.
+type NextConfigWithStaticGenerationConcurrency = NextConfig & {
+  staticGenerationMaxConcurrency?: number
+}
+
+const nextConfig: NextConfigWithStaticGenerationConcurrency = {
   reactStrictMode: true,
   output: "standalone",
   pageExtensions: ["ts", "tsx"],
