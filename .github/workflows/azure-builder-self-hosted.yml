@@ -34,18 +34,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Sign in to Azure using OIDC
-        uses: azure/login@v2
-        with:
-          client-id: ${{ env.AZURE_CLIENT_ID }}
-          tenant-id: ${{ env.AZURE_TENANT_ID }}
-          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Sign in to Azure Container Registry
-        shell: bash
-        run: |
-          set -euo pipefail
-          az acr login --name "$AZURE_CONTAINER_REGISTRY"
+      # A short-lived ACR token is installed on the isolated ephemeral runner at VM boot.
+      # The builder job receives no Azure credentials and cannot target other resources.
 
       - name: Set up Docker Buildx
         id: buildx
