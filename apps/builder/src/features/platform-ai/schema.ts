@@ -1,4 +1,3 @@
-import { vertexModels } from "@chatbotx.io/ai/models"
 import { platformAiCapabilityProviders } from "@chatbotx.io/database/partials"
 import { z } from "zod"
 
@@ -16,10 +15,10 @@ const capabilitySchema = z.object({
 })
 
 export const updatePlatformAiSettingsSchema = z.object({
-  chatModel: vertexModels,
-  // Empty string / undefined both mean "no fallback configured" — the
-  // SelectField's clear button sets `undefined`, the form default is "".
-  fallbackModel: z.union([vertexModels, z.literal("")]).optional(),
+  // Azure uses deployment names, which are workspace-specific text values.
+  chatModel: z.string().trim().min(1),
+  // Empty string / undefined both mean "no fallback configured".
+  fallbackModel: z.union([z.string().trim().min(1), z.literal("")]).optional(),
   location: z.string().trim().min(1),
   capabilities: z.object({
     vision: capabilitySchema,

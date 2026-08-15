@@ -1,4 +1,3 @@
-import { type VertexModel, vertexModels } from "@chatbotx.io/ai/models"
 import {
   DEFAULT_PLATFORM_AI_CHAT_MODEL,
   platformAiSettingService,
@@ -6,15 +5,9 @@ import {
 import { getTranslations } from "next-intl/server"
 import { PlatformAiSettings } from "@/features/platform-ai/platform-ai-settings"
 
-const DEFAULT_MODEL = vertexModels.parse(DEFAULT_PLATFORM_AI_CHAT_MODEL)
-
-// The DB column is a plain `text()` (see packages/database/src/schema/platform-ai-setting.ts),
-// so a value written before an allowlist change could in theory no longer be
-// a valid VertexModel. Parse defensively rather than trust the stored string
-// — the admin action layer is the one place that must reject bad input outright.
-function toVertexModel(value: string): VertexModel {
-  const parsed = vertexModels.safeParse(value)
-  return parsed.success ? parsed.data : DEFAULT_MODEL
+function toDeploymentName(value: string): string {
+  const deployment = value.trim()
+  return deployment.length > 0 ? deployment : DEFAULT_PLATFORM_AI_CHAT_MODEL
 }
 
 export default async function AdminAiSettingsPage() {
@@ -34,10 +27,10 @@ export default async function AdminAiSettingsPage() {
 
       <PlatformAiSettings
         setting={{
-          chatModel: toVertexModel(setting.chatModel),
+          chatModel: toDeploymentName(setting.chatModel),
           embeddingModel: setting.embeddingModel,
           fallbackModel: setting.fallbackModel
-            ? toVertexModel(setting.fallbackModel)
+            ? toDeploymentName(setting.fallbackModel)
             : null,
           location: setting.location,
           capabilities: setting.capabilities,

@@ -1,6 +1,5 @@
 "use client"
 
-import { type VertexModel, vertexModelOptions } from "@chatbotx.io/ai/models"
 import type { PlatformAiCapabilities } from "@chatbotx.io/database/partials"
 import { InputField } from "@chatbotx.io/ui/components/form/input-field"
 import { SelectField } from "@chatbotx.io/ui/components/form/select-field"
@@ -29,9 +28,9 @@ import { validatePlatformAiSettingsAction } from "./validate-platform-ai-setting
 
 export type PlatformAiSettingsProps = {
   setting: {
-    chatModel: VertexModel
+    chatModel: string
     embeddingModel: string
-    fallbackModel: VertexModel | null
+    fallbackModel: string | null
     location: string
     capabilities: PlatformAiCapabilities
     enabled: boolean
@@ -118,10 +117,9 @@ export function PlatformAiSettings({ setting }: PlatformAiSettingsProps) {
               name="enabled"
             />
 
-            <SelectField
+            <InputField
               label={t("platformAiSettings.chatModel.label")}
               name="chatModel"
-              options={vertexModelOptions}
               required
             />
 
@@ -132,13 +130,10 @@ export function PlatformAiSettings({ setting }: PlatformAiSettingsProps) {
               required
             />
 
-            <SelectField
-              allowClear
-              clearLabel={t("platformAiSettings.fallbackModel.none")}
+            <InputField
               description={t("platformAiSettings.fallbackModel.description")}
               label={t("platformAiSettings.fallbackModel.label")}
               name="fallbackModel"
-              options={vertexModelOptions}
             />
 
             <div className="flex flex-col gap-1">
@@ -235,10 +230,12 @@ export function PlatformAiSettings({ setting }: PlatformAiSettingsProps) {
   )
 }
 
-const VERTEX_OR_WORKSPACE_OPTIONS = [
-  { label: "Vertex AI", value: "vertex" },
+const AZURE_OPENAI_OR_WORKSPACE_OPTIONS = [
+  { label: "Azure OpenAI", value: "azureOpenAI" },
   { label: "Workspace", value: "workspace" },
 ]
+
+const WORKSPACE_OPTIONS = [{ label: "Workspace", value: "workspace" }]
 
 const GOOGLE_CLOUD_OR_WORKSPACE_OPTIONS = [
   { label: "Google Cloud", value: "googleCloud" },
@@ -251,15 +248,15 @@ const DOCUMENT_PROVIDER_OPTIONS = [
 ]
 
 const CAPABILITY_FIELDS = [
-  { key: "vision", providers: VERTEX_OR_WORKSPACE_OPTIONS },
-  { key: "embedding", providers: VERTEX_OR_WORKSPACE_OPTIONS },
-  { key: "summarization", providers: VERTEX_OR_WORKSPACE_OPTIONS },
-  { key: "extraction", providers: VERTEX_OR_WORKSPACE_OPTIONS },
-  { key: "imageGeneration", providers: VERTEX_OR_WORKSPACE_OPTIONS },
-  { key: "imageEditing", providers: VERTEX_OR_WORKSPACE_OPTIONS },
-  { key: "speechToText", providers: VERTEX_OR_WORKSPACE_OPTIONS },
+  { key: "vision", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
+  { key: "embedding", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
+  { key: "summarization", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
+  { key: "extraction", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
+  { key: "imageGeneration", providers: WORKSPACE_OPTIONS },
+  { key: "imageEditing", providers: WORKSPACE_OPTIONS },
+  { key: "speechToText", providers: WORKSPACE_OPTIONS },
   { key: "textToSpeech", providers: GOOGLE_CLOUD_OR_WORKSPACE_OPTIONS },
-  { key: "webSearch", providers: VERTEX_OR_WORKSPACE_OPTIONS },
+  { key: "webSearch", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
   { key: "documentParsing", providers: DOCUMENT_PROVIDER_OPTIONS },
-  { key: "translation", providers: GOOGLE_CLOUD_OR_WORKSPACE_OPTIONS },
+  { key: "translation", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
 ] as const
