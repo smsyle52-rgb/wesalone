@@ -6,75 +6,55 @@ import {
 import { platformAiSettingModel } from "@chatbotx.io/database/schema"
 import { invalidateCacheKeys, withCache } from "@chatbotx.io/redis"
 
-export const PLATFORM_AI_PROVIDER = "vertex" as const
-export const DEFAULT_PLATFORM_AI_CHAT_MODEL = "gemini-3.1-flash-lite"
-export const DEFAULT_PLATFORM_AI_EMBEDDING_MODEL = "text-embedding-005"
-export const DEFAULT_PLATFORM_AI_LOCATION = "global"
+export const PLATFORM_AI_PROVIDER = "azureOpenAI" as const
+export const DEFAULT_PLATFORM_AI_CHAT_MODEL = "wesal-chat"
+export const DEFAULT_PLATFORM_AI_EMBEDDING_MODEL = "wesal-embedding"
+export const DEFAULT_PLATFORM_AI_LOCATION = "uaenorth"
 
 export const DEFAULT_PLATFORM_AI_CAPABILITIES: PlatformAiCapabilities = {
+  // gpt-4.1-mini supports Arabic chat and vision. The deployment name, not
+  // the upstream model ID, is used so Azure routing remains explicit.
   vision: {
-    provider: "vertex",
-    model: "gemini-2.5-pro",
-    fallbackModel: "gemini-2.5-flash",
-    location: "global",
+    provider: "azureOpenAI",
+    model: DEFAULT_PLATFORM_AI_CHAT_MODEL,
+    location: DEFAULT_PLATFORM_AI_LOCATION,
   },
-  // Keep the existing embedding model as the migration default. Switching an
-  // embedding model requires a controlled full re-index; the admin UI makes
-  // the stronger gemini-embedding-001 selectable after that job is complete.
+  // text-embedding-3-small defaults to 1536 dimensions, matching Wesal's
+  // existing pgvector columns without a destructive vector migration.
   embedding: {
-    provider: "vertex",
+    provider: "azureOpenAI",
     model: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
     location: DEFAULT_PLATFORM_AI_LOCATION,
   },
   summarization: {
-    provider: "vertex",
-    model: "gemini-3.1-flash-lite",
-    fallbackModel: "gemini-2.5-flash",
-    location: "global",
+    provider: "azureOpenAI",
+    model: DEFAULT_PLATFORM_AI_CHAT_MODEL,
+    location: DEFAULT_PLATFORM_AI_LOCATION,
   },
   extraction: {
-    provider: "vertex",
-    model: "gemini-2.5-pro",
-    fallbackModel: "gemini-2.5-flash",
-    location: "global",
+    provider: "azureOpenAI",
+    model: DEFAULT_PLATFORM_AI_CHAT_MODEL,
+    location: DEFAULT_PLATFORM_AI_LOCATION,
   },
-  imageGeneration: {
-    provider: "vertex",
-    model: "imagen-4.0-ultra-generate-001",
-    fallbackModel: "imagen-4.0-generate-001",
-    location: "us-central1",
-  },
-  imageEditing: {
-    provider: "vertex",
-    model: "gemini-3.1-flash-image",
-    fallbackModel: "gemini-2.5-flash-image",
-    location: "global",
-  },
-  speechToText: {
-    provider: "vertex",
-    model: "chirp_3",
-    fallbackModel: "chirp_2",
-    location: "us",
-  },
-  textToSpeech: {
-    provider: "googleCloud",
-    model: "chirp3-hd",
-    location: "global",
-    voice: "ar-XA-Chirp3-HD-Aoede",
-  },
+  // No image or speech deployment is provisioned yet. Defer to an explicitly
+  // configured workspace provider instead of silently calling Google.
+  imageGeneration: { provider: "workspace", model: "gpt-image-1" },
+  imageEditing: { provider: "workspace", model: "gpt-image-1" },
+  speechToText: { provider: "workspace", model: "gpt-4o-transcribe" },
+  textToSpeech: { provider: "workspace", model: "gpt-4o-mini-tts" },
   webSearch: {
-    provider: "vertex",
-    model: "gemini-2.5-flash",
-    location: "global",
+    provider: "azureOpenAI",
+    model: DEFAULT_PLATFORM_AI_CHAT_MODEL,
+    location: DEFAULT_PLATFORM_AI_LOCATION,
   },
   documentParsing: {
     provider: "local",
     model: "builtin-layout-parser",
   },
   translation: {
-    provider: "googleCloud",
-    model: "translation-llm",
-    location: "global",
+    provider: "azureOpenAI",
+    model: DEFAULT_PLATFORM_AI_CHAT_MODEL,
+    location: DEFAULT_PLATFORM_AI_LOCATION,
   },
 }
 
@@ -119,12 +99,11 @@ const DEFAULT_SETTING: PlatformAiSettingView = {
 }
 
 /**
- * Central, platform-wide Vertex AI configuration — a singleton row. Only the
- * chat model, fallback model, and enabled flag are admin-editable (see the
+ * Central, platform-wide Azure OpenAI configuration — a singleton row. Only
+ * the chat model, fallback model, and enabled flag are admin-editable (see the
  * builder action); embeddingModel/location/provider keep their seeded
- * defaults until a real need to change them is proven. Never stores or
- * returns credentials: Vertex AI auth is Application Default Credentials,
- * resolved at call time from the environment, not from this table.
+ * defaults until a real need to change them is proven. Credentials live only
+ * in deployment secrets and are never stored in this table.
  */
 class PlatformAiSettingService {
   async get(): Promise<PlatformAiSettingView> {

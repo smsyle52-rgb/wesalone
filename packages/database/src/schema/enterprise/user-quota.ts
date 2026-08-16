@@ -36,6 +36,8 @@ export const userQuotaModel = pgTable(
     botMessagesUsed: integer().notNull().default(0),
     monthlyBotMessagesLimit: integer(),
     monthlyBotMessagesUsed: integer().notNull().default(0),
+    monthlyBotMessagesPeriodStart: timestamp(timestampConfig),
+    botMessagesTopUpGranted: integer().notNull().default(0),
     agentsLimit: integer(),
     knowledgeDocumentsLimit: integer(),
     productsLimit: integer(),

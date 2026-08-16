@@ -23,6 +23,7 @@ export default async function AutomatedResponesPage(props: {
   const promises = Promise.all([
     listAutomatedResponses({
       ...search,
+      type: "inbound",
       folderId,
       workspaceId,
     }),
@@ -30,7 +31,12 @@ export default async function AutomatedResponesPage(props: {
 
   return (
     <Suspense>
-      <AutomatedResponsesTable promises={promises} workspaceId={workspaceId} />
+      <AutomatedResponsesTable
+        basePath="automated-responses"
+        promises={promises}
+        type="inbound"
+        workspaceId={workspaceId}
+      />
     </Suspense>
   )
 }

@@ -3,9 +3,7 @@
   "name": "terminal",
   "title": "Terminal",
   "description": "A terminal window that types its lines in view.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/terminal.tsx",

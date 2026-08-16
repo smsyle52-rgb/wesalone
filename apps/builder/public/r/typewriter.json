@@ -3,9 +3,7 @@
   "name": "typewriter",
   "title": "Typewriter",
   "description": "Types, holds and deletes through a list of words.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/typewriter.tsx",

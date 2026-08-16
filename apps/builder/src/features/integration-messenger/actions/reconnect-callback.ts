@@ -1,13 +1,11 @@
-import {
-  findMessengerIntegrationByIdForWorkspace,
-  updateMessengerIntegrationAuth,
-} from "@chatbotx.io/business"
+import { messengerIntegrationService } from "@chatbotx.io/business"
 import type { MessengerAuthValue } from "@chatbotx.io/integration-messenger"
 import {
   debugToken,
   exchangeCodeForToken,
   getFacebookUser,
   getUserPages,
+  toAppAccessToken,
 } from "@chatbotx.io/integration-messenger"
 import {
   exchangeLongLivedToken,
@@ -33,10 +31,11 @@ export async function reconnectMessengerHandler(props: {
   code: string
   callbackUrl: string
 }): Promise<ReconnectResult> {
-  const integrationMessenger = await findMessengerIntegrationByIdForWorkspace({
-    id: props.integrationId,
-    workspaceId: props.workspaceId,
-  })
+  const integrationMessenger =
+    await messengerIntegrationService.findByIdForWorkspace({
+      id: props.integrationId,
+      workspaceId: props.workspaceId,
+    })
   if (!integrationMessenger) {
     return { status: "error", reason: "notFound" }
   }
@@ -102,7 +101,7 @@ export async function reconnectMessengerHandler(props: {
     // DB write before the webhook subscription (matching the connect flow) so
     // a failed write never leaves the webhook re-bound while the stored auth
     // still holds the stale token.
-    await updateMessengerIntegrationAuth({
+    await messengerIntegrationService.updateAuth({
       id: integrationMessenger.id,
       workspaceId: props.workspaceId,
       auth,
@@ -113,12 +112,22 @@ export async function reconnectMessengerHandler(props: {
     // Re-subscribe the page to exactly the webhook fields its reconnected
     // token's scopes support (a plain reconnect would otherwise re-subscribe
     // with only the base fields and silently drop `leadgen` delivery for any
-    // Facebook Lead Ads automation on this page). Best-effort: a failed
-    // debug_token check falls back to the base subscription.
-    const debug = await debugToken(
-      pageToken,
-      props.credentialConfig.version,
-    ).catch(() => undefined)
+    // Facebook Lead Ads automation on this page). The app access token is
+    // mandatory: Facebook rejects a page token inspecting itself, which would
+    // land in the base-fields fallback below and drop `leadgen` anyway.
+    // Best-effort otherwise — a failed check falls back to the base fields, so
+    // log it rather than failing the whole reconnect.
+    const debug = await debugToken({
+      inputToken: pageToken,
+      appAccessToken: toAppAccessToken(props.credentialConfig),
+      version: props.credentialConfig.version,
+    }).catch((error) => {
+      logger.warn(
+        { err: error, pageId: integrationMessenger.pageId },
+        "Messenger debug_token failed during reconnect; subscribing base webhook fields only (leadgen delivery may be dropped)",
+      )
+      return
+    })
 
     await subscribePageToAppWebhook({
       pageId: integrationMessenger.pageId,

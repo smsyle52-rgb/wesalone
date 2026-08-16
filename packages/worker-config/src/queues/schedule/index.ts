@@ -26,13 +26,24 @@ export const ScheduleJobData = {
   purgeCoexistStaging: "purgeCoexistStaging",
   purgeWhatsappSignupSessions: "purgeWhatsappSignupSessions",
   purgeWorkspaces: "purgeWorkspaces",
-  refreshZaloTokens: "refreshZaloTokens",
+  refreshChannelTokens: "refreshChannelTokens",
   unsubscribeExpiredTrials: "unsubscribeExpiredTrials",
   teardownExpiredTrial: "teardownExpiredTrial",
   expireStalePendingOrders: "expireStalePendingOrders",
   processBillingLifecycle: "processBillingLifecycle",
   notifyMacLimitReached: "notifyMacLimitReached",
 } as const
+
+/**
+ * Cadence (minutes) of the `purgeWorkspaces` cron. Shared so the scheduled
+ * deletion timestamp can be rounded up to the same boundary the cron fires on,
+ * keeping the deletion time shown in the UI honest (the banner renders
+ * `scheduledDeletionAt` verbatim). The cron pattern in
+ * `apps/worker/src/schedule/handlers/register-schedules.ts` is derived from
+ * this value, so both stay in sync automatically. Keep it a divisor of 60 so
+ * the derived every-N-minutes cron pattern remains valid.
+ */
+export const PURGE_WORKSPACES_INTERVAL_MINUTES = 30
 
 export const broadcastSendJobId = (broadcastId: string) =>
   `broadcast-send-${broadcastId}`
@@ -141,8 +152,8 @@ export type ScheduleJobPurgeWorkspaces = {
   data: Record<string, never>
 }
 
-export type ScheduleJobRefreshZaloTokens = {
-  type: typeof ScheduleJobData.refreshZaloTokens
+export type ScheduleJobRefreshChannelTokens = {
+  type: typeof ScheduleJobData.refreshChannelTokens
   data: Record<string, never>
 }
 
@@ -191,7 +202,7 @@ export type ScheduleJobData =
   | ScheduleJobPurgeCoexistStaging
   | ScheduleJobPurgeWhatsappSignupSessions
   | ScheduleJobPurgeWorkspaces
-  | ScheduleJobRefreshZaloTokens
+  | ScheduleJobRefreshChannelTokens
   | ScheduleJobUnsubscribeExpiredTrials
   | ScheduleJobTeardownExpiredTrial
   | ScheduleJobExpireStalePendingOrders

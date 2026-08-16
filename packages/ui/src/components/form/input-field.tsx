@@ -1,4 +1,3 @@
-import { cn } from "@chatbotx.io/ui/lib/utils"
 import type { ComponentProps, ReactNode } from "react"
 import type { FieldPath, FieldValues } from "react-hook-form"
 import { Input } from "../ui/input"
@@ -38,21 +37,7 @@ export function InputField<T extends FieldValues>({
       name={name}
       required={required}
     >
-      {(field) =>
-        icon ? (
-          <div className="relative">
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-muted-foreground"
-            >
-              {icon}
-            </span>
-            <Input {...props} {...field} className={cn("ps-10", className)} />
-          </div>
-        ) : (
-          <Input {...props} {...field} className={className} />
-        )
-      }
+      {(field) => <Input {...props} {...field} value={field.value ?? ""} />}
     </FormFieldWrapper>
   )
 }

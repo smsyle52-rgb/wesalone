@@ -45,6 +45,7 @@ import type { IncomingAttachment } from "@chatbotx.io/sdk"
 import {
   type AuthValue,
   contentTypes,
+  getStoryReply,
   type IncomingContact,
   type IncomingMessage,
   type MessageLocationEntity,
@@ -83,6 +84,22 @@ type ReceivedMessageSystemFieldUpdates = {
   contactLocation: ContactLocation | null
 }
 
+const correctStoryReplyDirectionForNewContact = (
+  message: IncomingMessage | null,
+  isNewContact: boolean,
+): IncomingMessage | null => {
+  const storyReply = getStoryReply(message?.contentAttributes)
+  if (
+    message &&
+    isNewContact &&
+    message.messageType === messageTypes.enum.outgoing &&
+    storyReply
+  ) {
+    return { ...message, messageType: messageTypes.enum.incoming }
+  }
+  return message
+}
+
 export const metaReferralToContactSource = (
   raw?: string | null,
 ): ContactSource | undefined => {
@@ -104,8 +121,10 @@ export const receiveMessage = async (
   message: (MessageModel & { attachments: unknown[] }) | null
   conversation: ConversationModel
   postbackAction: string | null
+  templateFlowToken: string | null
   quickReplyAction: string | null
   ref?: string | null
+  channelType: "instagram" | "instagramFacebook"
 }> => {
   setWebhookExecutionContext({ source: "webhook" })
 
@@ -127,12 +146,13 @@ export const receiveMessage = async (
       `No integration registered for channel: ${integrationType}`,
     )
   }
-  if (
-    integrationType === "instagram" &&
-    isInstagramViaFacebook(integrationRow)
-  ) {
+  const isFacebookConnectedInstagram =
+    integrationType === "instagram" && isInstagramViaFacebook(integrationRow)
+  if (isFacebookConnectedInstagram) {
     integration = allIntegrations.instagramFacebook ?? integration
   }
+  const channelType: "instagram" | "instagramFacebook" =
+    isFacebookConnectedInstagram ? "instagramFacebook" : "instagram"
 
   const workspace = await workspaceService.findById({ id: inbox.workspaceId })
   const isWorkspaceActive = workspaceService.isActiveNow(workspace)
@@ -156,9 +176,10 @@ export const receiveMessage = async (
   }
 
   const {
-    message: incomingMessage,
+    message: rawIncomingMessage,
     contact: incomingContact,
     postbackAction: rawPostbackAction,
+    templateFlowToken,
     quickReplyAction: rawQuickReplyAction,
     ref,
     referralSource,
@@ -178,7 +199,6 @@ export const receiveMessage = async (
     incomingContact,
     inbox,
     integrationRow,
-    skipProfileLookup: incomingMessage?.messageType === "outgoing",
     source:
       metaReferralToContactSource(referralSource) ??
       contactSources.enum.inboundMessage,
@@ -187,7 +207,14 @@ export const receiveMessage = async (
     throw new SdkException("Unable to resolve contact and conversation")
   }
   const { contactInbox, conversation, contact, isNewContact } = detected
-  const systemFieldUpdates = getReceivedMessageSystemFieldUpdates(parsedMessage)
+  const incomingMessage = correctStoryReplyDirectionForNewContact(
+    rawIncomingMessage,
+    isNewContact,
+  )
+  const systemFieldUpdates = getReceivedMessageSystemFieldUpdates({
+    ...parsedMessage,
+    message: incomingMessage,
+  })
 
   // Overwrite Contact.phoneNumber/email from message text — every inbound
   // channel. Unconditional: the customer just typed the value, so it's
@@ -271,6 +298,27 @@ export const receiveMessage = async (
           },
         })
       }
+
+      if (templateFlowToken && isWorkspaceActive) {
+        const flowResponse = getWhatsappFlowResponse(incomingMessage)
+        if (flowResponse) {
+          await integrationQueue.add(
+            IntegrationJobAction.captureTemplateFlowResponse,
+            {
+              type: IntegrationJobAction.captureTemplateFlowResponse,
+              data: {
+                workspaceId: conversation.workspaceId,
+                conversationId: conversation,
+                contactInboxId: contactInbox,
+                messageId: createdMessage.id,
+                templateFlowToken,
+                flowResponse,
+              },
+            },
+            { jobId: `template-flow-response-${createdMessage.id}` },
+          )
+        }
+      }
     }
   }
 
@@ -291,8 +339,10 @@ export const receiveMessage = async (
     message: createdMessage,
     conversation,
     postbackAction,
+    templateFlowToken: templateFlowToken ?? null,
     quickReplyAction,
     ref,
+    channelType,
   }
 }
 
@@ -305,6 +355,19 @@ const getReceivedMessageSystemFieldUpdates = (
   contactInboxTracking: getReceivedMessageContactInboxTracking(parsedMessage),
   contactLocation: parseIncomingLocation(parsedMessage.message),
 })
+
+const getWhatsappFlowResponse = (
+  message: IncomingMessage,
+): Record<string, unknown> | null => {
+  const entity = message.contentAttributes as
+    | MessageWhatsappFlowResponseEntity
+    | undefined
+  return entity?.type === "whatsapp_flow_response" &&
+    entity.flowResponse &&
+    typeof entity.flowResponse === "object"
+    ? entity.flowResponse
+    : null
+}
 
 const getReceivedMessageContactInboxTracking = (
   parsedMessage: Pick<ReceivedMessageResult, "buttonTitle" | "referral">,
@@ -380,6 +443,15 @@ const saveAndBroadcastMessage = async (props: {
     storageUrl,
   } = props
   const repository = await createMessageRepository()
+
+  // Computed from the pre-update `contactInbox` snapshot this function was
+  // called with — before persistNewMessageSideEffects' updateTracking runs —
+  // because ContactInbox.lastIncomingMessageAt/firstInteractionAt get set by
+  // outbound sends too (see contact-inbox/service.ts) and can't be used to
+  // infer "first inbound message" after the tracking update has landed.
+  const isInboundMessage = incomingMessage.messageType !== "outgoing"
+  const isFirstIncomingMessage =
+    isInboundMessage && contactInbox.lastIncomingMessageAt === null
 
   const messageInput = {
     id: createId(),
@@ -460,6 +532,9 @@ const saveAndBroadcastMessage = async (props: {
       inboxId: inbox.id,
       occurredAt: newMessage.createdAt,
       sourceId: newMessage.sourceId ?? undefined,
+      origin: isInboundMessage ? "inbound" : undefined,
+      messageId: newMessage.id,
+      isFirstIncomingMessage,
     })
   }
 
@@ -779,15 +854,13 @@ export const detectContactAndConversation = async (props: {
     [x: string]: unknown
   }
   source: ContactSource
-  skipProfileLookup?: boolean
 }): Promise<{
   contactInbox: ContactInboxModel
   contact: ContactModel
   conversation: ConversationModel
   isNewContact: boolean
 }> => {
-  const { incomingContact, inbox, integrationRow, source, skipProfileLookup } =
-    props
+  const { incomingContact, inbox, integrationRow, source } = props
 
   const existingContactInbox = await db.query.contactInboxModel.findFirst({
     where: {
@@ -824,7 +897,7 @@ export const detectContactAndConversation = async (props: {
     ...incomingContact,
     workspaceId: inbox.workspaceId,
   }
-  if (canGetUserProfileIfNeeded(inbox.channel) && !skipProfileLookup) {
+  if (canGetUserProfileIfNeeded(inbox.channel)) {
     const integrationType =
       inbox.channel === "instagram" && isInstagramViaFacebook(integrationRow)
         ? "instagramFacebook"

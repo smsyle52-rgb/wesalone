@@ -18,7 +18,9 @@ export default async function CreateAutomatedResponePage({
 
   return (
     <CreateAutomatedResponseForm
+      basePath="automated-responses"
       folderId={folderId}
+      type="inbound"
       workspaceId={data.workspaceId}
     />
   )

@@ -95,6 +95,7 @@ export function UpdateAIAgentDialog({
     control,
     name: "messages",
   })
+
   const messageRoleOptions = useMemo(
     () => [
       { label: "User", value: aiMessageRoles.enum.user },
@@ -168,21 +169,13 @@ export function UpdateAIAgentDialog({
           >
             <InputField label={t("fields.name.label")} name="name" required />
 
-            {/* Model/provider selection and model tuning (temperature / max
-                output tokens) are deliberately not exposed to merchants — the
-                platform manages the model and its parameters. Existing
-                stored values are preserved untouched via setValue above.
-                The note says so out loud: the copy already existed in every
-                locale but was never rendered, so merchants met a missing
-                setting with no explanation. */}
-            <p className="text-muted-foreground text-xs">
-              {t("platformAiSettings.agentModelManaged")}
-            </p>
-
             <div>
               <div className="min-w-0 flex-1 font-medium text-sm">
                 {t("fields.instructions.label")}
               </div>
+              <p className="text-muted-foreground text-xs">
+                {t("platformAiSettings.agentModelManaged")}
+              </p>
 
               <PlainTextEditorField name="prompt" />
             </div>

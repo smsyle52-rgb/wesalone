@@ -1,13 +1,15 @@
 import { Pool } from "pg"
 
 const databaseUrl = process.env.DATABASE_URL
-if (!databaseUrl) throw new Error("DATABASE_URL is required")
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required")
+}
 
 const pool = new Pool({
   connectionString: databaseUrl,
   max: 1,
   connectionTimeoutMillis: 15_000,
-  idleTimeoutMillis: 2_000,
+  idleTimeoutMillis: 2000,
 })
 
 try {

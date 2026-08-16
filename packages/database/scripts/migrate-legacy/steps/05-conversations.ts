@@ -26,7 +26,10 @@ import {
 } from "../../../src/schema"
 import { BATCH_SIZE, chunk } from "../batch"
 import { getOrCreateId } from "../id-map"
-import { fetchAllOldMessagesByConversation, fetchOldConversations } from "../old-db"
+import {
+  fetchAllOldMessagesByConversation,
+  fetchOldConversations,
+} from "../old-db"
 import type { WorkspaceMigrationResult } from "./01-workspaces"
 
 const MESSAGE_TYPES = ["incoming", "outgoing", "activity"] as const
@@ -214,7 +217,7 @@ export const migrateConversations = async (
   )
   if (unrecognizedContentTypeCounts.size > 0) {
     console.warn(
-      "Step 5: message content types with no NEW equivalent, defaulted to \"text\" (attachment/file content, if any, was NOT migrated):",
+      'Step 5: message content types with no NEW equivalent, defaulted to "text" (attachment/file content, if any, was NOT migrated):',
       Object.fromEntries(unrecognizedContentTypeCounts),
     )
   }

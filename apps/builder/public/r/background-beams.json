@@ -3,9 +3,7 @@
   "name": "background-beams",
   "title": "Background Beams",
   "description": "Light beams flowing along curved paths behind content.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/background-beams.tsx",

@@ -3,9 +3,7 @@
   "name": "flip-words",
   "title": "Flip Words",
   "description": "Cycles words with a springy blur-flip transition.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/flip-words.tsx",

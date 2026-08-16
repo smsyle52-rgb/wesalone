@@ -3,9 +3,9 @@
 import {
   buildContext,
   connectChannelIntegration,
+  instagramIntegrationService,
   platformCredentialService,
   resolveTenantSettings,
-  updateInstagramIntegrationUserInfo,
   workspaceService,
 } from "@chatbotx.io/business"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
@@ -19,7 +19,6 @@ import {
 } from "@chatbotx.io/integration-instagram-facebook"
 import { AuthType, SdkException } from "@chatbotx.io/sdk"
 import { createId } from "@chatbotx.io/utils/id"
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import {
   BRANDING_TITLE,
@@ -32,6 +31,7 @@ import {
 } from "@/lib/facebook-pending-auth"
 import { persistIntegrationUserInfo } from "@/lib/integration-user-info"
 import { logger } from "@/lib/log"
+import { resolvePlatformOwnerId } from "@/lib/platform-credential-owner"
 import { authActionClient } from "@/lib/safe-action"
 import {
   type SelectFacebookAccountRequest,
@@ -51,13 +51,10 @@ export const selectFacebookAccountAction = authActionClient
       try {
         let workspaceId = parsedInput.workspaceId
 
-        const ownerId = parsedInput.workspaceId
-          ? ((
-              await workspaceService.find({
-                where: { id: parsedInput.workspaceId },
-              })
-            )?.ownerId ?? ctx.user.id)
-          : ctx.user.id
+        const ownerId = await resolvePlatformOwnerId({
+          userId: ctx.user.id,
+          workspaceId: parsedInput.workspaceId,
+        })
 
         const instagramCredential =
           await platformCredentialService.resolveForOwner({
@@ -173,7 +170,7 @@ export const selectFacebookAccountAction = authActionClient
           userAccessToken: pendingAuth?.userToken,
           avatarUrl: pendingAuth?.userAvatarUrl,
           persist: (userInfo) =>
-            updateInstagramIntegrationUserInfo({
+            instagramIntegrationService.updateUserInfo({
               id: integrationRow.id,
               workspaceId: workspaceId as string,
               userInfo,
@@ -208,10 +205,11 @@ export const selectFacebookAccountAction = authActionClient
           )
         }
 
-        // Invalidate the pending-auth cookie now that the account is connected.
-        const cookieStore = await cookies()
-        cookieStore.delete(FB_INSTAGRAM_FACEBOOK_PENDING_AUTH_COOKIE)
-
+        // NOTE: the pending-auth cookie is intentionally left to expire on its
+        // own (matching the Messenger flow). Deleting it here caused the
+        // onboarding select page — which redirects to `/channels/create` when
+        // the cookie is absent — to redirect on the post-action re-render,
+        // navigating away before the coexist dialog could be shown.
         await updateWorkspaceLogo({
           id: workspaceId as string,
           integration: integrationInstagramFacebook,
@@ -219,6 +217,7 @@ export const selectFacebookAccountAction = authActionClient
         })
 
         return {
+          integrationId: integrationRow.id,
           workspaceId,
         }
       } catch (error) {

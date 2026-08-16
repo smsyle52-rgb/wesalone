@@ -67,59 +67,76 @@ if (!databaseUrl) {
     } else {
       const scopedValues = createdAfter ? [createdAfter] : []
       const userScope = createdAfter ? `AND u."createdAt" >= $1` : ""
-      const subscriptionScope = createdAfter
-        ? `AND s."createdAt" >= $1`
-        : ""
+      const subscriptionScope = createdAfter ? `AND s."createdAt" >= $1` : ""
       const grantScope = createdAfter ? `AND g."createdAt" >= $1` : ""
       const usageScope = createdAfter ? `AND "createdAt" >= $1` : ""
       const checks = {
-        workspaceOwnersMissingQuota: await scalar(`
+        workspaceOwnersMissingQuota: await scalar(
+          `
           SELECT count(DISTINCT w."ownerId")
           FROM "Workspace" w
           JOIN "User" u ON u.id = w."ownerId"
           LEFT JOIN "UserQuota" q ON q."userId" = w."ownerId"
           WHERE q.id IS NULL
           ${userScope}
-        `, scopedValues),
-        workspaceOwnersMissingSubscription: await scalar(`
+        `,
+          scopedValues,
+        ),
+        workspaceOwnersMissingSubscription: await scalar(
+          `
           SELECT count(DISTINCT w."ownerId")
           FROM "Workspace" w
           JOIN "User" u ON u.id = w."ownerId"
           LEFT JOIN "PlatformSubscription" s ON s."userId" = w."ownerId"
           WHERE s.id IS NULL
           ${userScope}
-        `, scopedValues),
-        subscriptionsMissingWallet: await scalar(`
+        `,
+          scopedValues,
+        ),
+        subscriptionsMissingWallet: await scalar(
+          `
           SELECT count(*)
           FROM "PlatformSubscription" s
           LEFT JOIN "PointWallet" w ON w."userId" = s."userId"
           WHERE w.id IS NULL
           ${subscriptionScope}
-        `, scopedValues),
-        activeSubscriptionQuotaMismatch: await scalar(`
+        `,
+          scopedValues,
+        ),
+        activeSubscriptionQuotaMismatch: await scalar(
+          `
           SELECT count(*)
           FROM "PlatformSubscription" s
           JOIN "UserQuota" q ON q."userId" = s."userId"
           WHERE s.status IN ('active', 'cancel_at_period_end')
             AND (q."planStatus" <> 'active' OR q."planName" IS NULL)
           ${subscriptionScope}
-        `, scopedValues),
-        overdueSubscriptions: await scalar(`
+        `,
+          scopedValues,
+        ),
+        overdueSubscriptions: await scalar(
+          `
           SELECT count(*)
           FROM "PlatformSubscription" s
           WHERE s.status IN ('active', 'cancel_at_period_end')
             AND s."nextGrantAt" <= now()
           ${subscriptionScope}
-        `, scopedValues),
-        invalidGrantBalances: await scalar(`
+        `,
+          scopedValues,
+        ),
+        invalidGrantBalances: await scalar(
+          `
           SELECT count(*)
           FROM "PointGrant" g
           WHERE (g."originalMicroPoints" < 0
              OR g."remainingMicroPoints" < 0
              OR g."remainingMicroPoints" > g."originalMicroPoints")
           ${grantScope}
-        `, scopedValues),
-        grantLedgerDrift: await scalar(`
+        `,
+          scopedValues,
+        ),
+        grantLedgerDrift: await scalar(
+          `
           SELECT count(*)
           FROM "PointGrant" g
           LEFT JOIN LATERAL (
@@ -129,20 +146,28 @@ if (!databaseUrl) {
           ) ledger ON true
           WHERE g."remainingMicroPoints" <> ledger.ledger_total
           ${grantScope}
-        `, scopedValues),
-        staleReservations: await scalar(`
+        `,
+          scopedValues,
+        ),
+        staleReservations: await scalar(
+          `
           SELECT count(*)
           FROM "BillableUsageEvent"
           WHERE status = 'reserved'
             AND "updatedAt" < now() - interval '30 minutes'
           ${usageScope}
-        `, scopedValues),
-        pendingSettlements: await scalar(`
+        `,
+          scopedValues,
+        ),
+        pendingSettlements: await scalar(
+          `
           SELECT count(*)
           FROM "BillableUsageEvent"
           WHERE status = 'settlement_pending'
           ${usageScope}
-        `, scopedValues),
+        `,
+          scopedValues,
+        ),
       }
 
       const criticalKeys = [

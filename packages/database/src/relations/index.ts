@@ -1,3 +1,5 @@
+import { adsConversionEventRelations } from "./ads-conversion-event"
+import { adsConversionRuleRelations } from "./ads-conversion-rule"
 import { aiAgentRelations } from "./ai-agent"
 import { aiAssistantRelations } from "./ai-assistant"
 import { aiConversationSourceRelations } from "./ai-conversation-source"
@@ -58,6 +60,7 @@ import { flowNodeStatRelations } from "./flow-node-stat"
 import { flowRunRelations } from "./flow-run"
 import { flowVersionRelations } from "./flow-version"
 import { folderRelations } from "./folder"
+import { igStoryAutomationRelations } from "./ig-story-automation"
 import { importRelations } from "./import"
 import { inboxRelations } from "./inbox"
 import { inboxContactStatsRelations } from "./inbox-contact-stats"
@@ -94,6 +97,7 @@ import { inventoryStockRelations } from "./inventory-stock"
 import { magicLinkRelations } from "./magic-link"
 import { messageRelations } from "./message"
 import { messengerMessageTemplateRelations } from "./messenger-message-template"
+import { metaCapiEventRelations } from "./meta-capi-event"
 import { metaCatalogRelations } from "./meta-catalog"
 import { orderRelations } from "./order"
 import { orderItemRelations } from "./order-item"
@@ -137,6 +141,10 @@ import { workspaceMemberRelations } from "./workspace-member"
 
 export const relations = {
   ...aiTriggerRelations,
+  ...adsConversionEventRelations,
+  ...adsConversionRuleRelations,
+  ...metaCapiEventRelations,
+  ...igStoryAutomationRelations,
   ...integrationOpenaiRelations,
   ...contactRelations,
   ...tagRelations,

@@ -523,6 +523,13 @@ class UserQuotaService extends BaseService {
     userId: string,
     quota: UserQuotaModel | null,
   ): Promise<UserQuotaModel | null> {
+    // Default-plan snapshots are a cloud concept. Off-cloud, a shared or
+    // stale Redis carrying `entitlements:default-plan` must never impose
+    // cloud limits on a self-hosted install.
+    if (!isCloud()) {
+      return null
+    }
+
     const snapshot = await this.resolveDefaultPlanSnapshot(userId)
     if (!snapshot) {
       return null
@@ -548,6 +555,8 @@ class UserQuotaService extends BaseService {
       botMessagesUsed: 0,
       monthlyBotMessagesLimit: null,
       monthlyBotMessagesUsed: 0,
+      monthlyBotMessagesPeriodStart: null,
+      botMessagesTopUpGranted: 0,
       agentsLimit: null,
       knowledgeDocumentsLimit: null,
       productsLimit: null,
@@ -707,7 +716,9 @@ class UserQuotaService extends BaseService {
    */
   async listOwnersNeedingMacBlockedNotice(
     limit: number,
-  ): Promise<Array<{ userId: string; macLimit: number; planName: string | null }>> {
+  ): Promise<
+    Array<{ userId: string; macLimit: number; planName: string | null }>
+  > {
     const rows = await db
       .select({
         userId: userQuotaModel.userId,
@@ -736,7 +747,13 @@ class UserQuotaService extends BaseService {
     return rows.flatMap((row) =>
       row.macLimit === null
         ? []
-        : [{ userId: row.userId, macLimit: row.macLimit, planName: row.planName }],
+        : [
+            {
+              userId: row.userId,
+              macLimit: row.macLimit,
+              planName: row.planName,
+            },
+          ],
     )
   }
 

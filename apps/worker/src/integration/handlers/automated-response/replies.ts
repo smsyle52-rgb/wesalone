@@ -19,14 +19,14 @@ import {
   getActivePlatformAiOverride,
   getAIIntegrationInDB,
   getAIToolset,
+  getPlatformAzureOpenAIChatModel,
+  getPlatformAzureOpenAIProvider,
   getPlatformCapabilityLanguageModel,
-  getPlatformVertexChatModel,
-  getPlatformVertexProvider,
-  isPlatformVertexModelCandidate,
+  isPlatformAzureOpenAIModelCandidate,
   McpClient,
   normalizeAuthorizedWebSearchDomains,
   normalizeMcpContent,
-  type PlatformVertexModelCandidate,
+  type PlatformAzureOpenAIModelCandidate,
 } from "@chatbotx.io/ai/server"
 import {
   integrationOpenaiCompatibleService,
@@ -60,9 +60,9 @@ import {
 } from "ai"
 import { normalizeError } from "universal-error-normalizer"
 import { logger } from "../../../lib/logger"
-import { reserveUsageOrUnmetered } from "../shared/reserve-usage"
 import { handoffExecutorService } from "../../../trigger/services/handoff-executor.service"
 import { sendMessageAndWait, sendMessageWithRender } from "../../utils/message"
+import { reserveUsageOrUnmetered } from "../shared/reserve-usage"
 import { triggerDefaultReplyFlow } from "./default-reply"
 import { handleRichAIReply } from "./rich-reply"
 import { createDocumentReaderExecutor } from "./system-tools/document-reader"
@@ -101,7 +101,10 @@ export type ReplyByAIExecutionResult = {
   }
 }
 
-export type ReplyAIProvider = AIAgentProvider | "openaiCompatible" | "vertex"
+export type ReplyAIProvider =
+  | AIAgentProvider
+  | "azureOpenAI"
+  | "openaiCompatible"
 
 export async function replyByAI(
   props: ReplyByAIProps,
@@ -119,11 +122,11 @@ export async function replyByAI(
     return null
   }
 
-  // Platform-locked Vertex setting takes precedence over the agent's own
+  // Platform-locked Azure OpenAI setting takes precedence over the agent's own
   // stored fallback chain — see packages/ai/src/server/platform-provider.ts.
   // `null` means disabled, so this behaves exactly as before this setting existed.
   const platformOverride = await getActivePlatformAiOverride()
-  const providers: (AIAgentModelConfig | PlatformVertexModelCandidate)[] =
+  const providers: (AIAgentModelConfig | PlatformAzureOpenAIModelCandidate)[] =
     platformOverride
       ? buildPlatformOverrideCandidates(platformOverride)
       : (aiAgent.models as AIAgentProviderModels)
@@ -182,7 +185,7 @@ export async function generateAIReplyText(
   }
 
   const platformOverride = await getActivePlatformAiOverride()
-  const providers: (AIAgentModelConfig | PlatformVertexModelCandidate)[] =
+  const providers: (AIAgentModelConfig | PlatformAzureOpenAIModelCandidate)[] =
     platformOverride
       ? buildPlatformOverrideCandidates(platformOverride)
       : (aiAgent.models as AIAgentProviderModels)
@@ -653,16 +656,16 @@ function filterToolsByAllowedSystemFunctions(
 }
 
 function isOpenaiCompatibleProviderModel(
-  providerInfo: AIAgentModelConfig | PlatformVertexModelCandidate,
+  providerInfo: AIAgentModelConfig | PlatformAzureOpenAIModelCandidate,
 ): providerInfo is AIAgentOpenaiCompatibleProviderModel {
   return "kind" in providerInfo && providerInfo.kind === "openaiCompatible"
 }
 
 function getProviderName(
-  providerInfo: AIAgentModelConfig | PlatformVertexModelCandidate,
+  providerInfo: AIAgentModelConfig | PlatformAzureOpenAIModelCandidate,
 ): ReplyAIProvider {
-  if (isPlatformVertexModelCandidate(providerInfo)) {
-    return "vertex"
+  if (isPlatformAzureOpenAIModelCandidate(providerInfo)) {
+    return "azureOpenAI"
   }
   return isOpenaiCompatibleProviderModel(providerInfo)
     ? "openaiCompatible"
@@ -670,7 +673,7 @@ function getProviderName(
 }
 
 async function createReplyModel(props: {
-  providerInfo: AIAgentModelConfig | PlatformVertexModelCandidate
+  providerInfo: AIAgentModelConfig | PlatformAzureOpenAIModelCandidate
   workspaceId: string
 }): Promise<null | {
   model: LanguageModel
@@ -678,16 +681,16 @@ async function createReplyModel(props: {
 }> {
   const { providerInfo, workspaceId } = props
 
-  if (isPlatformVertexModelCandidate(providerInfo)) {
+  if (isPlatformAzureOpenAIModelCandidate(providerInfo)) {
     const override = await getActivePlatformAiOverride()
     // Setting flipped off between the loop starting and this call — fall
     // through to null like any other "no integration available" case.
     if (!override) {
       return null
     }
-    const providerInstance = getPlatformVertexProvider(override)
+    const providerInstance = getPlatformAzureOpenAIProvider(override)
     return {
-      model: getPlatformVertexChatModel(providerInfo.model, override),
+      model: getPlatformAzureOpenAIChatModel(providerInfo.model, override),
       providerInstance,
     }
   }
@@ -734,7 +737,7 @@ async function createReplyModel(props: {
 
 async function runAIReply(
   props: ReplyByAIProps,
-  providerInfo: AIAgentModelConfig | PlatformVertexModelCandidate,
+  providerInfo: AIAgentModelConfig | PlatformAzureOpenAIModelCandidate,
   abortSignal: AbortSignal,
 ): Promise<null | ReplyByAIExecutionResult> {
   const { conversation, messages, aiAgent } = props

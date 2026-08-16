@@ -99,7 +99,7 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   appendKnowledgeBaseGuard: (p: string) => p,
   appendToolOutputGuard: (p: string) => p,
   appendUnavailableWebSearchPolicy: (p: string) => p,
-  // Platform Vertex override — always inactive here so every existing
+  // Platform Azure OpenAI override — always inactive here so every existing
   // scenario in this file keeps resolving through the agent's own BYOK
   // provider exactly as before (see platform-provider.ts / the dedicated
   // automated-response-platform-override.test.ts for the override itself).
@@ -114,8 +114,13 @@ vi.mock("@chatbotx.io/ai/server", () => ({
     webSearchOmitReason: undefined,
   })),
   getPlatformCapabilityLanguageModel: vi.fn(async () => null),
-  getPlatformVertexChatModel: vi.fn(() => ({ type: "vertex-model" })),
-  isPlatformVertexModelCandidate: vi.fn(() => false),
+  getPlatformAzureOpenAIChatModel: vi.fn(() => ({
+    type: "azure-openai-model",
+  })),
+  getPlatformAzureOpenAIProvider: vi.fn(() =>
+    Object.assign(vi.fn(), { tools: {} }),
+  ),
+  isPlatformAzureOpenAIModelCandidate: vi.fn(() => false),
   McpClient: vi.fn(),
   normalizeAuthorizedWebSearchDomains: vi.fn(() => []),
   normalizeMcpContent: vi.fn((c: unknown) => c),

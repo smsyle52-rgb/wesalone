@@ -1,7 +1,7 @@
 "use server"
 
 import {
-  findMessengerIntegrationByIdForWorkspace,
+  messengerIntegrationService,
   platformCredentialService,
 } from "@chatbotx.io/business"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
@@ -11,6 +11,7 @@ import { zodBigintAsString } from "@chatbotx.io/utils"
 import { redirect } from "next/navigation"
 import { getOriginUrlFromHeader } from "@/lib/domain"
 import { buildBrokerCallbackUrl } from "@/lib/oauth-broker"
+import { resolveOwnerForWorkspace } from "@/lib/platform-credential-owner"
 import { workspaceActionClient } from "@/lib/safe-action"
 
 /**
@@ -30,7 +31,7 @@ export const reconnectMessengerAction = workspaceActionClient
       ctx: { workspace: WorkspaceModel }
     }) => {
       const integrationMessenger =
-        await findMessengerIntegrationByIdForWorkspace({
+        await messengerIntegrationService.findByIdForWorkspace({
           id: integrationId,
           workspaceId,
         })
@@ -40,7 +41,7 @@ export const reconnectMessengerAction = workspaceActionClient
 
       const messengerCredential =
         await platformCredentialService.resolveForOwner({
-          ownerId: ctx.workspace.ownerId,
+          ownerId: await resolveOwnerForWorkspace(ctx.workspace),
           type: "messenger",
         })
       if (!messengerCredential) {

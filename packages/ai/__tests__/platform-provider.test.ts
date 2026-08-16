@@ -2,47 +2,49 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const {
   getActiveMock,
-  createVertexMock,
-  vertexProviderMock,
+  createOpenAIMock,
+  azureProviderMock,
   envMock,
   defaultCapabilities,
 } = vi.hoisted(() => {
-  const vertexProviderMock = vi.fn((modelId: string) => ({
-    type: "vertex-chat",
+  const azureProviderMock = vi.fn((modelId: string) => ({
+    type: "azure-openai-chat",
     modelId,
   }))
   const defaultCapabilities = {
-    vision: { provider: "vertex", model: "gemini-2.5-pro" },
-    embedding: { provider: "vertex", model: "text-embedding-005" },
-    summarization: { provider: "vertex", model: "gemini-3.1-flash-lite" },
-    extraction: { provider: "vertex", model: "gemini-2.5-pro" },
-    imageGeneration: {
-      provider: "vertex",
-      model: "imagen-4.0-ultra-generate-001",
-    },
-    imageEditing: { provider: "vertex", model: "gemini-3.1-flash-image" },
-    speechToText: { provider: "vertex", model: "chirp_3" },
-    textToSpeech: { provider: "googleCloud", model: "chirp3-hd" },
-    webSearch: { provider: "vertex", model: "gemini-2.5-flash" },
+    vision: { provider: "azureOpenAI", model: "wesal-chat" },
+    embedding: { provider: "azureOpenAI", model: "wesal-embedding" },
+    summarization: { provider: "azureOpenAI", model: "wesal-chat" },
+    extraction: { provider: "azureOpenAI", model: "wesal-chat" },
+    imageGeneration: { provider: "workspace", model: "gpt-image-1" },
+    imageEditing: { provider: "workspace", model: "gpt-image-1" },
+    speechToText: { provider: "workspace", model: "gpt-4o-transcribe" },
+    textToSpeech: { provider: "workspace", model: "gpt-4o-mini-tts" },
+    webSearch: { provider: "azureOpenAI", model: "wesal-chat" },
     documentParsing: { provider: "local", model: "builtin-layout-parser" },
-    translation: { provider: "googleCloud", model: "translation-llm" },
+    translation: { provider: "azureOpenAI", model: "wesal-chat" },
   }
   return {
     getActiveMock: vi.fn(),
-    createVertexMock: vi.fn(() => vertexProviderMock),
-    vertexProviderMock,
+    createOpenAIMock: vi.fn(() => azureProviderMock),
+    azureProviderMock,
     envMock: {
-      VERTEX_AI_PROJECT_ID: undefined as string | undefined,
-      VERTEX_AI_LOCATION: undefined as string | undefined,
+      AZURE_OPENAI_ENDPOINT: undefined as string | undefined,
+      AZURE_OPENAI_API_KEY: undefined as string | undefined,
+      AZURE_OPENAI_LOCATION: undefined as string | undefined,
+      AZURE_OPENAI_CHAT_DEPLOYMENT: undefined as string | undefined,
+      AZURE_OPENAI_EMBEDDING_DEPLOYMENT: undefined as string | undefined,
       AI_INTEGRATION_CACHE_TTL_SECONDS: 3600,
     },
     defaultCapabilities,
   }
 })
 
-vi.mock("@ai-sdk/google-vertex", () => ({ createVertex: createVertexMock }))
+vi.mock("@ai-sdk/openai", () => ({ createOpenAI: createOpenAIMock }))
 vi.mock("@chatbotx.io/business", () => ({
   DEFAULT_PLATFORM_AI_CAPABILITIES: defaultCapabilities,
+  DEFAULT_PLATFORM_AI_CHAT_MODEL: "wesal-chat",
+  DEFAULT_PLATFORM_AI_EMBEDDING_MODEL: "wesal-embedding",
   platformAiSettingService: { getActive: getActiveMock },
 }))
 vi.mock("../src/keys", () => ({ env: envMock }))
@@ -54,160 +56,145 @@ const {
   buildPlatformOverrideCandidates,
   getActivePlatformAiOverride,
   getPlatformAiEnvStatus,
-  getPlatformVertexChatModel,
-  isPlatformVertexModelCandidate,
+  getPlatformAzureOpenAIChatModel,
+  isPlatformAzureOpenAIModelCandidate,
 } = await import("../src/server/platform-provider")
 
 beforeEach(() => {
   vi.clearAllMocks()
   getActiveMock.mockResolvedValue(null)
-  envMock.VERTEX_AI_PROJECT_ID = undefined
-  envMock.VERTEX_AI_LOCATION = undefined
+  envMock.AZURE_OPENAI_ENDPOINT = undefined
+  envMock.AZURE_OPENAI_API_KEY = undefined
+  envMock.AZURE_OPENAI_LOCATION = undefined
+  envMock.AZURE_OPENAI_CHAT_DEPLOYMENT = undefined
+  envMock.AZURE_OPENAI_EMBEDDING_DEPLOYMENT = undefined
 })
 
-describe("getActivePlatformAiOverride — fail-closed by construction", () => {
-  test("returns null when the setting is disabled/unset — callers fall back to the agent's own provider/model", async () => {
-    getActiveMock.mockResolvedValue(null)
+describe("getActivePlatformAiOverride — Azure OpenAI fail-closed", () => {
+  test("returns null when the setting is disabled/unset", async () => {
     await expect(getActivePlatformAiOverride()).resolves.toBeNull()
   })
 
-  test("returns null (never throws) when enabled but VERTEX_AI_PROJECT_ID is not configured — a deployment misconfiguration must degrade to the agent's own provider, not crash reply generation platform-wide", async () => {
+  test("returns null when endpoint or API key is missing", async () => {
     getActiveMock.mockResolvedValue({
-      chatModel: "gemini-3.1-flash-lite",
+      chatModel: "wesal-chat",
       fallbackModel: null,
-      location: "us-central1",
+      location: "uaenorth",
     })
-    envMock.VERTEX_AI_PROJECT_ID = undefined
 
     await expect(getActivePlatformAiOverride()).resolves.toBeNull()
   })
 
-  test("returns null (never throws) when the DB read itself fails — e.g. this code deployed before the PlatformAiSetting migration ran", async () => {
+  test("returns null when the setting read fails", async () => {
     getActiveMock.mockRejectedValue(
       new Error('relation "PlatformAiSetting" does not exist'),
     )
-    envMock.VERTEX_AI_PROJECT_ID = "my-project"
+    envMock.AZURE_OPENAI_ENDPOINT = "https://aoai.example/"
+    envMock.AZURE_OPENAI_API_KEY = "test-key"
 
     await expect(getActivePlatformAiOverride()).resolves.toBeNull()
   })
 
-  test("returns the merged override when active and configured — env location overrides the stored default", async () => {
+  test("returns the merged Azure override while keeping endpoint and key internal", async () => {
     getActiveMock.mockResolvedValue({
-      chatModel: "gemini-3.1-flash-lite",
-      fallbackModel: "gemini-2.5-flash",
-      location: "us-central1",
+      chatModel: "wesal-chat",
+      fallbackModel: "wesal-chat-fallback",
+      location: "uaenorth",
     })
-    envMock.VERTEX_AI_PROJECT_ID = "my-project"
-    envMock.VERTEX_AI_LOCATION = "europe-west1"
+    envMock.AZURE_OPENAI_ENDPOINT = "https://aoai.example/"
+    envMock.AZURE_OPENAI_API_KEY = "test-key"
+    envMock.AZURE_OPENAI_LOCATION = "uaenorth"
 
     await expect(getActivePlatformAiOverride()).resolves.toEqual({
-      chatModel: "gemini-3.1-flash-lite",
-      fallbackModel: "gemini-2.5-flash",
-      location: "europe-west1",
-      projectId: "my-project",
+      chatModel: "wesal-chat",
+      fallbackModel: "wesal-chat-fallback",
+      location: "uaenorth",
+      endpoint: "https://aoai.example/",
+      apiKey: "test-key",
       capabilities: defaultCapabilities,
     })
   })
 
-  test("falls back to the DB-stored location when no env override is set", async () => {
+  test("maps a legacy Gemini row to the Azure chat deployment", async () => {
     getActiveMock.mockResolvedValue({
       chatModel: "gemini-3.1-flash-lite",
-      fallbackModel: null,
-      location: "us-central1",
+      embeddingModel: "text-embedding-005",
+      fallbackModel: "gemini-2.5-flash",
+      location: "global",
     })
-    envMock.VERTEX_AI_PROJECT_ID = "my-project"
+    envMock.AZURE_OPENAI_ENDPOINT = "https://aoai.example/"
+    envMock.AZURE_OPENAI_API_KEY = "test-key"
 
     const result = await getActivePlatformAiOverride()
-    expect(result?.location).toBe("us-central1")
+    expect(result?.chatModel).toBe("wesal-chat")
+    expect(result?.fallbackModel).toBeNull()
   })
 })
 
-describe("getPlatformAiEnvStatus — presence only, never leaks the actual value", () => {
-  test("reports booleans, not the underlying project id/location strings", () => {
-    envMock.VERTEX_AI_PROJECT_ID = "super-secret-looking-project-id"
-    envMock.VERTEX_AI_LOCATION = "us-central1"
+describe("getPlatformAiEnvStatus — presence only", () => {
+  test("reports booleans without exposing endpoint or key", () => {
+    envMock.AZURE_OPENAI_ENDPOINT = "https://aoai.example/"
+    envMock.AZURE_OPENAI_API_KEY = "test-key"
+    envMock.AZURE_OPENAI_LOCATION = "uaenorth"
 
     const status = getPlatformAiEnvStatus()
 
-    expect(status).toEqual({ hasProjectId: true, hasLocationOverride: true })
-    expect(JSON.stringify(status)).not.toContain(
-      "super-secret-looking-project-id",
-    )
+    expect(status).toEqual({
+      hasEndpoint: true,
+      hasApiKey: true,
+      hasLocationOverride: true,
+    })
+    expect(JSON.stringify(status)).not.toContain("aoai.example")
+    expect(JSON.stringify(status)).not.toContain("test-key")
   })
 
   test("reports false when unset", () => {
     expect(getPlatformAiEnvStatus()).toEqual({
-      hasProjectId: false,
+      hasEndpoint: false,
+      hasApiKey: false,
       hasLocationOverride: false,
     })
   })
 })
 
-describe("platform Vertex model candidates — reuse the agent's own fallback-chain shape", () => {
-  test("primary only when no fallback is configured", () => {
+describe("platform Azure OpenAI model candidates", () => {
+  test("creates primary and optional fallback candidates", () => {
     const candidates = buildPlatformOverrideCandidates({
-      chatModel: "gemini-3.1-flash-lite",
-      fallbackModel: null,
-      location: "us-central1",
-      projectId: "p",
+      chatModel: "wesal-chat",
+      fallbackModel: "wesal-chat-fallback",
+      location: "uaenorth",
+      endpoint: "https://aoai.example/",
+      apiKey: "test-key",
+      capabilities: defaultCapabilities,
     })
 
     expect(candidates).toEqual([
-      { platformVertex: true, model: "gemini-3.1-flash-lite" },
+      { platformAzureOpenAI: true, model: "wesal-chat" },
+      { platformAzureOpenAI: true, model: "wesal-chat-fallback" },
     ])
-  })
-
-  test("primary + fallback, both flagged as platform Vertex candidates", () => {
-    const candidates = buildPlatformOverrideCandidates({
-      chatModel: "gemini-3.1-flash-lite",
-      fallbackModel: "gemini-2.5-flash",
-      location: "us-central1",
-      projectId: "p",
-    })
-
-    expect(candidates).toEqual([
-      { platformVertex: true, model: "gemini-3.1-flash-lite" },
-      { platformVertex: true, model: "gemini-2.5-flash" },
-    ])
-    expect(candidates.every(isPlatformVertexModelCandidate)).toBe(true)
-  })
-
-  test("isPlatformVertexModelCandidate rejects a normal agent-stored BYOK provider entry", () => {
+    expect(candidates.every(isPlatformAzureOpenAIModelCandidate)).toBe(true)
     expect(
-      isPlatformVertexModelCandidate({
+      isPlatformAzureOpenAIModelCandidate({
         provider: "openai",
-        model: "gpt-5.4-mini",
+        model: "workspace-model",
       }),
     ).toBe(false)
-    expect(
-      isPlatformVertexModelCandidate({
-        kind: "openaiCompatible",
-        integrationId: "int-1",
-        model: "local-model",
-      }),
-    ).toBe(false)
-    expect(isPlatformVertexModelCandidate(null)).toBe(false)
-    expect(isPlatformVertexModelCandidate(undefined)).toBe(false)
   })
 })
 
-describe("Vertex model construction — Application Default Credentials, never an API key", () => {
-  test("getPlatformVertexChatModel builds via createVertex with project/location only", () => {
-    getPlatformVertexChatModel("gemini-3.1-flash-lite", {
-      location: "us-central1",
-      projectId: "my-project",
+describe("Azure OpenAI model construction", () => {
+  test("uses Azure OpenAI v1 endpoint and the api-key header", () => {
+    getPlatformAzureOpenAIChatModel("wesal-chat", {
+      endpoint: "https://aoai.example/",
+      apiKey: "test-key",
     })
 
-    expect(createVertexMock).toHaveBeenCalledWith({
-      project: "my-project",
-      location: "us-central1",
+    expect(createOpenAIMock).toHaveBeenCalledWith({
+      baseURL: "https://aoai.example/openai/v1",
+      apiKey: "test-key",
+      headers: { "api-key": "test-key" },
+      name: "azure-openai",
     })
-    const passedOptions = createVertexMock.mock.calls.at(-1)?.[0] as Record<
-      string,
-      unknown
-    >
-    expect(passedOptions).not.toHaveProperty("apiKey")
-    expect(passedOptions).not.toHaveProperty("googleAuthOptions")
-    expect(vertexProviderMock).toHaveBeenCalledWith("gemini-3.1-flash-lite")
+    expect(azureProviderMock).toHaveBeenCalledWith("wesal-chat")
   })
 })

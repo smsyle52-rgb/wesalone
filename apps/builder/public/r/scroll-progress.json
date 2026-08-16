@@ -3,9 +3,7 @@
   "name": "scroll-progress",
   "title": "Scroll Progress",
   "description": "Gradient page-progress bar pinned to the top.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/scroll-progress.tsx",

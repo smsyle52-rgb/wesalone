@@ -24,6 +24,7 @@ import { useTranslations } from "next-intl"
 import { useAction } from "next-safe-action/hooks"
 import { useEffect, useMemo } from "react"
 import { toast } from "sonner"
+import { useUserAvatarUrl } from "@/lib/auth/avatar"
 import { useChatStore } from "../chat/store/chat-store-provider"
 import { useAvatarUrl } from "../contacts/utils"
 import { InboxIcon } from "../inboxes/components/inbox-icon"
@@ -36,14 +37,23 @@ type ConversationItemProps = {
   onSelect: () => void
 }
 
-const assignedIcon = (conversation: ListConversationItemResource) => {
+const assignedIcon = (
+  conversation: ListConversationItemResource,
+  assignedAvatarUrl: string | undefined,
+  t: ReturnType<typeof useTranslations>,
+) => {
   if (conversation.assignedUserId) {
+    const assignedUserName =
+      conversation.assignedUser?.name ||
+      conversation.assignedUser?.email ||
+      t("assignAdmin.user")
+
     return (
       <Tooltip>
         <TooltipTrigger
           render={
             <Avatar className="size-4">
-              <AvatarImage src={conversation.assignedUser?.image ?? ""} />
+              <AvatarImage src={assignedAvatarUrl ?? ""} />
 
               <AvatarFallback className="text-[0.5rem]">
                 {conversation.assignedUser?.name?.slice(0, 2) ?? " "}
@@ -52,18 +62,28 @@ const assignedIcon = (conversation: ListConversationItemResource) => {
           }
         />
         <TooltipContent align="center" side="bottom">
-          {conversation.assignedUser?.name ||
-            conversation.assignedUser?.email ||
-            "User"}
+          {t("assignAdmin.assignedTo", { name: assignedUserName })}
         </TooltipContent>
       </Tooltip>
     )
   }
   if (conversation.assignedInboxTeamId) {
     return (
-      <div className="overflow-hidden rounded-full border border-zinc-600 bg-secondary">
-        <UsersRoundIcon size={16} strokeWidth={1} />
-      </div>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <div className="overflow-hidden rounded-full border border-zinc-600 bg-secondary">
+              <UsersRoundIcon size={16} strokeWidth={1} />
+            </div>
+          }
+        />
+        <TooltipContent align="center" side="bottom">
+          {t("assignAdmin.assignedTo", {
+            name:
+              conversation.assignedInboxTeam?.name ?? t("fields.team.label"),
+          })}
+        </TooltipContent>
+      </Tooltip>
     )
   }
   return
@@ -80,6 +100,7 @@ export default function ConversationItem({
   const isActive = conversation.id === activeConversationId
   const isComment = conversation.messages?.[0]?.type === "comment"
   const avatarUrl = useAvatarUrl(conversation.contact)
+  const assignedAvatarUrl = useUserAvatarUrl(conversation.assignedUser?.image)
   const previewText = resolveLastMessagePreview(conversation.messages?.[0], t)
   const isUnread = Boolean(
     conversation.agentLastReadAt &&
@@ -144,7 +165,7 @@ export default function ConversationItem({
         <div className="relative">
           {contactAvatar}
           <div className="absolute start-0 bottom-0 transform">
-            {assignedIcon(conversation)}
+            {assignedIcon(conversation, assignedAvatarUrl, t)}
           </div>
           <div className="absolute end-0 bottom-0 transform">
             {conversation.contactInboxes?.map((contactInbox) => (

@@ -15,6 +15,7 @@ const {
   mockQuotaHasReachedLimit,
   mockUpdateSet,
   mockWorkspaceFindById,
+  mockWorkspaceMemberServiceDelete,
 } = vi.hoisted(() => {
   const mockInsertReturning = vi.fn()
   const mockInsertValues = vi.fn(() => ({ returning: mockInsertReturning }))
@@ -33,6 +34,7 @@ const {
     mockFindOrFail: vi.fn(),
     mockGetCurrentUserAndTargetWorkspace: vi.fn(),
     mockInsertReturning,
+    mockWorkspaceMemberServiceDelete: vi.fn(),
     mockInsertValues,
     mockInvalidateCacheByTags: vi.fn(),
     mockIsCommunity: vi.fn(),
@@ -65,18 +67,17 @@ vi.mock("@/lib/auth/utils", () => ({
 // The member row is removed through workspaceMemberService, not a raw
 // db.delete — see .agents/rules/data-access.md. The assertions below watch the
 // service for the same reason.
-const mockWorkspaceMemberDelete = vi.fn()
 vi.mock("@chatbotx.io/business", () => ({
   workspaceMemberCacheTag: (userId: string) =>
     `users:${userId}:workspace-members`,
   quotaEnforcementService: {
     hasReachedLimit: mockQuotaHasReachedLimit,
   },
+  workspaceMemberService: {
+    delete: mockWorkspaceMemberServiceDelete,
+  },
   workspaceService: {
     findById: mockWorkspaceFindById,
-  },
-  workspaceMemberService: {
-    delete: mockWorkspaceMemberDelete,
   },
 }))
 
@@ -365,7 +366,7 @@ describe("deleteWorkspaceMemberAction", () => {
       ),
     ).rejects.toThrow("You cannot delete the owner of the workspace")
 
-    expect(mockWorkspaceMemberDelete).not.toHaveBeenCalled()
+    expect(mockWorkspaceMemberServiceDelete).not.toHaveBeenCalled()
   })
 
   test("rejects non-super-admin members before deleting", async () => {
@@ -379,7 +380,7 @@ describe("deleteWorkspaceMemberAction", () => {
       "You are not authorized to delete this workspace member. You need to be a super admin to do this.",
     )
 
-    expect(mockWorkspaceMemberDelete).not.toHaveBeenCalled()
+    expect(mockWorkspaceMemberServiceDelete).not.toHaveBeenCalled()
   })
 
   test("invalidates the removed member's cached workspace list", async () => {
@@ -387,7 +388,10 @@ describe("deleteWorkspaceMemberAction", () => {
       deleteActionCtx(),
     )
 
-    expect(mockWorkspaceMemberDelete).toHaveBeenCalled()
+    expect(mockWorkspaceMemberServiceDelete).toHaveBeenCalledWith({
+      id: MEMBER_ID,
+      workspaceId: WORKSPACE_ID,
+    })
     expect(mockInvalidateCacheByTags).toHaveBeenCalledWith([
       `users:${MEMBER_USER_ID}:workspace-members`,
     ])
@@ -398,7 +402,7 @@ describe("deleteWorkspaceMemberAction", () => {
       deleteActionCtx(),
     )
 
-    expect(mockWorkspaceMemberDelete).toHaveBeenCalledOnce()
+    expect(mockWorkspaceMemberServiceDelete).toHaveBeenCalledOnce()
     expect(mockInvalidateCacheByTags).toHaveBeenCalledWith([
       `users:${MEMBER_USER_ID}:workspace-members`,
     ])

@@ -1,8 +1,4 @@
-import {
-  type BaseEmailProps,
-  buildSystemEmail,
-  esc,
-} from "./base-template"
+import { type BaseEmailProps, buildSystemEmail, esc } from "./base-template"
 import { SIGNUP_BODY_MJML, SIGNUP_BODY_MJML_AR } from "./default-templates"
 
 export type SignUpVerificationProps = BaseEmailProps & {

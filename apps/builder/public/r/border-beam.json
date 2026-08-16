@@ -3,9 +3,7 @@
   "name": "border-beam",
   "title": "Border Beam",
   "description": "A beam of light traveling around any border.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/border-beam.tsx",

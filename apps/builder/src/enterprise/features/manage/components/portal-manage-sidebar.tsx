@@ -5,6 +5,7 @@ import { PortalSideNav } from "@chatbotx.io/ui/components/portal/portal-side-nav
 import type { PortalPricingState } from "@chatbotx.io/ui/components/portal/pricing-nav-item"
 import {
   type PortalSaasFlags,
+  type PortalSaasNavKey,
   portalSaasNavConfigs,
 } from "@chatbotx.io/ui/config/portal-nav"
 import {
@@ -12,6 +13,7 @@ import {
   Grid2x2PlusIcon,
   MailIcon,
   PaletteIcon,
+  RadioTowerIcon,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { BrandIcon } from "@/components/brand-icon"
@@ -56,6 +58,11 @@ export function PortalManageSidebar({ flags, pricing }: Props) {
       icon: Grid2x2PlusIcon,
     },
     {
+      title: t("channels.title"),
+      url: "/manage/platform-channels",
+      icon: RadioTowerIcon,
+    },
+    {
       title: t("platformBranding.title"),
       url: "/manage/branding",
       icon: PaletteIcon,
@@ -75,7 +82,7 @@ export function PortalManageSidebar({ flags, pricing }: Props) {
   const saasItems: PortalNavItem[] = portalSaasNavConfigs
     .filter((item) => flags[item.requires])
     .map((item) => ({
-      title: tManage(item.key),
+      title: tManage(item.key satisfies PortalSaasNavKey),
       url: `${PORTAL_PREFIX}${item.pathSuffix}`,
       icon: item.icon,
     }))

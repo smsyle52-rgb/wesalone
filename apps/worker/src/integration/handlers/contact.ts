@@ -1,4 +1,5 @@
 import {
+  adsConversionService,
   contactCustomFieldService,
   contactService,
   tagSyncService,
@@ -19,8 +20,8 @@ import {
   emitTagRemoved,
 } from "@chatbotx.io/events"
 import type {
+  AddContactNotesStepSchema,
   AddContactTagStepSchema,
-  AddNotesStepSchema,
   ClearCustomFieldStepSchema,
   DeleteContactStepSchema,
   MarkEmailVerifiedStepSchema,
@@ -35,17 +36,33 @@ import type {
 import { enrollContactInSequence } from "@chatbotx.io/sequence-scheduler"
 import { createId } from "@chatbotx.io/utils"
 import { TemporalInputParsing } from "@chatbotx.io/utils/datetime"
+import { contactVariableService } from "@chatbotx.io/variables"
 import type { ExecuteStepProps } from "./flow"
 
 export async function setContactCustomField({
   conversation,
+  contactInbox,
   step,
 }: ExecuteStepProps<SetCustomFieldStepSchema>) {
+  // The value can contain {{variable}} tokens inserted via the editor (contact
+  // fields, coupons, etc.); resolve them against this contact before persisting.
+  // Unresolvable tokens are left as-is, and a value that resolves to empty still
+  // falls through to the temporal "now" handling below.
+  const variables = await contactVariableService.getAll({
+    contactId: conversation.contactId,
+    contactInbox,
+    conversation,
+  })
+  const resolvedValue = await contactVariableService.replaceAll({
+    text: step.value,
+    variables,
+  })
+
   await contactCustomFieldService.setValueByKey({
     workspaceId: conversation.workspaceId,
     contactId: conversation.contactId,
     keyword: step.inputFieldId,
-    value: step.value,
+    value: resolvedValue,
     // The editor captured its browser zone at save time; anchor naive
     // date/datetime values to it (worker has no browser context). Lenient
     // parsing accepts flexible user input (unix ts, "23/07/2026", ...), and a
@@ -70,10 +87,10 @@ export async function clearContactCustomField({
 export async function addContactNotes({
   conversation,
   step,
-}: ExecuteStepProps<AddNotesStepSchema>) {
+}: ExecuteStepProps<AddContactNotesStepSchema>) {
   await db.insert(contactNoteModel).values({
     contactId: conversation.contactId,
-    text: step.text,
+    text: step.content,
     id: createId(),
   })
 }
@@ -113,19 +130,36 @@ export async function optOutEmail({
 
 export async function addContactTag({
   conversation,
+  contactInbox,
   step,
 }: ExecuteStepProps<AddContactTagStepSchema>) {
   await attachTagsByNames(
     conversation.workspaceId,
     conversation.contactId,
     step.tags,
+    contactInbox,
   )
+}
+
+/**
+ * Minimal contact-inbox shape `attachTagsByNames` needs to resolve+enqueue
+ * the `tagApplied` conversion-trigger evaluation for one specific inbox. A
+ * full `ContactInboxModel` satisfies this structurally, so the flow-step
+ * `addContactTag` path (which has the full row) needs no change; the
+ * rich-response `add_tag` action (MEDIUM-a) only has these three fields in
+ * scope and can pass a minimal object instead.
+ */
+export type TagAttachContactInbox = {
+  id: string
+  inboxId: string
+  channel: string | null
 }
 
 export async function attachTagsByNames(
   workspaceId: string,
   contactId: string,
   tagNames: string[],
+  contactInbox?: TagAttachContactInbox,
 ): Promise<void> {
   if (tagNames.length === 0) {
     return
@@ -188,6 +222,23 @@ export async function attachTagsByNames(
       emitTagApplied(workspaceId, contactId, tagId),
     ),
   )
+
+  // Ads conversion `tagApplied` trigger: only when the caller already has a
+  // specific WhatsApp conversation in scope (the flow-step path) — resolves
+  // and enqueues for that one contactInbox rather than fanning out to every
+  // other WhatsApp-CTWA inbox the contact might have.
+  if (
+    contactInbox &&
+    newlyLinkedTagIds.length > 0 &&
+    adsConversionService.isEligibleChannel(contactInbox.channel)
+  ) {
+    await adsConversionService.enqueueTagAppliedEvaluationsForInbox({
+      workspaceId,
+      inboxId: contactInbox.inboxId,
+      contactInboxId: contactInbox.id,
+      tagIds: newlyLinkedTagIds,
+    })
+  }
 }
 
 export async function removeContactTag({

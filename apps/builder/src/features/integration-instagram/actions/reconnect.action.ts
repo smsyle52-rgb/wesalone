@@ -1,7 +1,7 @@
 "use server"
 
 import {
-  findInstagramIntegrationByIdForWorkspace,
+  instagramIntegrationService,
   platformCredentialService,
 } from "@chatbotx.io/business"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
@@ -12,6 +12,7 @@ import { zodBigintAsString } from "@chatbotx.io/utils"
 import { redirect } from "next/navigation"
 import { getOriginUrlFromHeader } from "@/lib/domain"
 import { buildBrokerCallbackUrl } from "@/lib/oauth-broker"
+import { resolveOwnerForWorkspace } from "@/lib/platform-credential-owner"
 import { workspaceActionClient } from "@/lib/safe-action"
 
 /**
@@ -32,7 +33,7 @@ export const reconnectInstagramAction = workspaceActionClient
       ctx: { workspace: WorkspaceModel }
     }) => {
       const integrationInstagram =
-        await findInstagramIntegrationByIdForWorkspace({
+        await instagramIntegrationService.findByIdForWorkspace({
           id: integrationId,
           workspaceId,
         })
@@ -44,7 +45,7 @@ export const reconnectInstagramAction = workspaceActionClient
         integrationInstagram.type === "facebook"
       const instagramCredential =
         await platformCredentialService.resolveForOwner({
-          ownerId: ctx.workspace.ownerId,
+          ownerId: await resolveOwnerForWorkspace(ctx.workspace),
           type: connectedWithFacebookLogin ? "instagramFacebook" : "instagram",
         })
       if (!instagramCredential) {

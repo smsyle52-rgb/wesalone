@@ -1,8 +1,9 @@
-import { createId } from "@chatbotx.io/utils"
+import { createId, zodBigintAsString } from "@chatbotx.io/utils"
 import { z } from "zod"
 import { baseStepSchema } from "./base"
 import { buttonStepDefaultFn, buttonStepSchema } from "./button"
 import { stepTypes } from "./step-action"
+import { whatsappFlowFieldMappingSchema } from "./whatsapp-flow"
 
 export const buttonSubTypes = z.enum([
   "url",
@@ -22,6 +23,9 @@ export const waTemplateButtonParamSchema = z.object({
   payload: z.string().optional(),
   flow_token: z.string().optional(),
   flow_action_data: z.record(z.string(), z.unknown()).optional(),
+  flowSourceId: z.string().optional(),
+  navigateScreenId: z.string().optional(),
+  fieldMappings: z.array(whatsappFlowFieldMappingSchema).optional(),
   thumbnail_product_retailer_id: z.string().optional(),
   sections: z
     .array(
@@ -71,6 +75,8 @@ export const waTemplateParamsSchema = z.object({
       z.object({
         type: z.enum(["text", "image", "video", "document", "location"]),
         text: z.string().optional(),
+        // NAMED-template placeholder name for a text header; see body note.
+        parameter_name: z.string().optional(),
         image: z.object({ link: z.string() }).optional(),
         video: z.object({ link: z.string() }).optional(),
         document: z.object({ link: z.string() }).optional(),
@@ -90,6 +96,10 @@ export const waTemplateParamsSchema = z.object({
       z.object({
         type: z.literal("text").optional(),
         text: z.string(),
+        // Present only for NAMED templates ({{order_id}}); Meta requires it to
+        // be echoed back on every send-time parameter. Absent for positional
+        // templates ({{1}}), which must omit it.
+        parameter_name: z.string().optional(),
       }),
     )
     .optional(),
@@ -110,10 +120,22 @@ export type TemplateComponentButton = {
   url?: string
   phone_number?: string
   example?: string[]
-  flow_id?: string
+  // Meta returns flow_id as a JSON number (e.g. 1690702985711558), not a string.
+  flow_id?: string | number
   flow_action?: string
   navigate_screen?: string
 }
+
+/**
+ * Coerces an optional Meta-sourced value to a string. WhatsApp template
+ * component JSON delivers numeric ids (notably `flow_id`) as JSON numbers, but
+ * our schemas store them as strings — assigning the raw number trips Zod's
+ * "expected string, received number" and breaks string equality checks.
+ */
+export const toOptionalString = (
+  value: string | number | null | undefined,
+): string | undefined =>
+  value === null || value === undefined ? undefined : String(value)
 
 export type TemplateComponentCard = {
   card_index: number
@@ -136,6 +158,48 @@ export type TemplateComponent = {
   limited_time_offer?: {
     has_expiration: boolean
   }
+}
+
+// Matches a single Meta template placeholder, capturing its token: positional
+// ({{1}}) or named ({{order_id}}). `.match()` resets lastIndex per call, so a
+// shared module-level global regex is safe under concurrent sends.
+const TEMPLATE_PLACEHOLDER_REGEX = /\{\{(\d+|[a-zA-Z_]+)\}\}/g
+const PLACEHOLDER_BRACES_REGEX = /\{\{|\}\}/g
+const POSITIONAL_TOKEN_REGEX = /^\d+$/
+
+/**
+ * A purely numeric placeholder token ({{1}}) is positional; any other token is
+ * a named parameter. Meta requires named parameters to be echoed back as
+ * `parameter_name` on every send-time parameter, while positional ones must
+ * omit it entirely.
+ */
+export function isNamedTemplateToken(token: string): boolean {
+  return !POSITIONAL_TOKEN_REGEX.test(token)
+}
+
+type TemplateTextParam = {
+  type: "text"
+  text: string
+  parameter_name?: string
+}
+
+/**
+ * Builds the send-time text params for a body/header from its raw template
+ * text. Named placeholders carry `parameter_name`; positional placeholders
+ * keep their exact existing shape so running templates never change.
+ */
+function extractTextParams(text: string): TemplateTextParam[] {
+  const matches = text.match(TEMPLATE_PLACEHOLDER_REGEX)
+  if (!matches) {
+    return []
+  }
+
+  return matches.map((match) => {
+    const token = match.replace(PLACEHOLDER_BRACES_REGEX, "")
+    return isNamedTemplateToken(token)
+      ? { type: "text", text: "", parameter_name: token }
+      : { type: "text", text: "" }
+  })
 }
 
 function extractButtonParams(
@@ -168,8 +232,9 @@ function extractButtonParams(
       buttonParams.push({
         sub_type: "flow",
         index: idx,
-        flow_token: "",
-        flow_action_data: {},
+        flowSourceId: toOptionalString(button.flow_id),
+        navigateScreenId: toOptionalString(button.navigate_screen),
+        fieldMappings: [],
       })
     } else if (buttonType === "CATALOG") {
       buttonParams.push({
@@ -237,12 +302,9 @@ export function extractTemplateParams(
   for (const component of components) {
     if (component.type === "HEADER") {
       if (component.format === "TEXT" && component.text) {
-        const matches = component.text.match(/\{\{(\d+|[a-zA-Z_]+)\}\}/g)
-        if (matches) {
-          params.header = matches.map(() => ({
-            type: "text" as const,
-            text: "",
-          }))
+        const headerParams = extractTextParams(component.text)
+        if (headerParams.length > 0) {
+          params.header = headerParams
         }
       } else if (component.format === "LOCATION") {
         params.header = [
@@ -271,12 +333,9 @@ export function extractTemplateParams(
         ]
       }
     } else if (component.type === "BODY" && component.text) {
-      const matches = component.text.match(/\{\{(\d+|[a-zA-Z_]+)\}\}/g)
-      if (matches) {
-        params.body = matches.map(() => ({
-          type: "text" as const,
-          text: "",
-        }))
+      const bodyParams = extractTextParams(component.text)
+      if (bodyParams.length > 0) {
+        params.body = bodyParams
       }
     } else if (component.type === "BUTTONS" && component.buttons) {
       const buttonParams = extractButtonParams(component.buttons)
@@ -304,6 +363,11 @@ export const sendWaTemplateMessageStepSchema = baseStepSchema.extend({
     id: z.string().trim().min(1),
     name: z.string(),
     language: z.string(),
+    // Persist the selected WhatsApp channel so the editor rehydrates it (and its
+    // template list) after publish/reload. Optional (`.nullish()`): the send path
+    // resolves the channel from the flow/contact context, so this is editor state
+    // that is absent in send code and in flows saved before the field existed.
+    inboxId: zodBigintAsString().nullish(),
     params: waTemplateParamsSchema,
   }),
   buttons: z
@@ -342,6 +406,7 @@ export const sendWaTemplateMessageStepDefaultFn = (
       id: "",
       name: "",
       language: "",
+      inboxId: null,
       params: {},
       ...templateProps,
     },

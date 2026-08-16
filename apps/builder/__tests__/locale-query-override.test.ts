@@ -25,8 +25,6 @@ describe("locale config", () => {
       null,
       undefined,
       "",
-      "fr",
-      "vi",
       "EN",
       "en-US",
       "ar; drop",

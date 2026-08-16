@@ -3,9 +3,7 @@
   "name": "number-ticker",
   "title": "Number Ticker",
   "description": "Springs a number up when it enters the viewport.",
-  "dependencies": [
-    "motion"
-  ],
+  "dependencies": ["motion"],
   "files": [
     {
       "path": "src/components/velora/number-ticker.tsx",

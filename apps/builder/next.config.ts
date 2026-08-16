@@ -10,20 +10,48 @@ const withNextIntl = createNextIntlPlugin({
 
 const appUrl = env.NEXT_PUBLIC_BUILDER_URL.replace(/\/$/, "")
 const storageUrl = env.NEXT_PUBLIC_STORAGE_URL ?? `${appUrl}/storage`
-const nextConfig: NextConfig = {
+
+// Next 16.3 validates this runtime option, but the installed NextConfig type
+// has not yet exposed it. Keep the extension local and narrowly scoped.
+type NextConfigWithStaticGenerationConcurrency = NextConfig & {
+  staticGenerationMaxConcurrency?: number
+}
+
+const nextConfig: NextConfigWithStaticGenerationConcurrency = {
   reactStrictMode: true,
   output: "standalone",
   pageExtensions: ["ts", "tsx"],
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
+  // Type-checking is NOT part of `next build`: the in-build tsc pass duplicated
+  // `check-types` and OOMs a default 4GB heap. The type gate lives in
+  // .github/workflows/ci.yml (`turbo run check-types lint test`) — keep that
+  // workflow green before trusting a build.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "20mb",
     },
-    // turbopackServerFastRefresh: false,
+    // Additive to Next's built-in default list, which already covers
+    // lucide-react. `@chatbotx.io/ui` doesn't belong here: it's imported via
+    // per-file subpaths and its root export is not a re-export barrel, so
+    // there is nothing for this optimization to rewrite.
+    optimizePackageImports: ["@icons-pack/react-simple-icons"],
+    // Keep the production image build inside standard GitHub runner memory.
+    // These official options trade a small amount of compilation time for lower
+    // peak Webpack memory without changing rendered application behavior.
+    webpackBuildWorker: true,
+    webpackMemoryOptimizations: true,
+    serverSourceMaps: false,
   },
   poweredByHeader: false,
+  productionBrowserSourceMaps: false,
+  enablePrerenderSourceMaps: false,
+  // Next.js 16.3 supported static-generation limit: lower peak memory in CI.
+  staticGenerationMaxConcurrency: 1,
   async rewrites() {
     const alwaysRewrites = [
       {
@@ -40,7 +68,8 @@ const nextConfig: NextConfig = {
       return alwaysRewrites
     }
 
-    // Local dev: production routes /ws, /storage, and /manage/* via load balancer / Caddy
+    // Local dev: production routes /ws, /storage, /manage/*, and /portal/*
+    // via load balancer / Caddy
     const wsUrl = env.NEXT_PUBLIC_INTERNAL_WS_URL
     const s3Bucket = process.env.S3_BUCKET ?? "chatbotx"
     const s3Endpoint = process.env.S3_ENDPOINT ?? "http://localhost:9000"
@@ -66,6 +95,15 @@ const nextConfig: NextConfig = {
         {
           source: "/api/checkout/:path*",
           destination: `${portalUrl}/portal/api/checkout/:path*`,
+        },
+        {
+          // Top-up-pack checkout (buy more botMessages credit) — same public
+          // authenticated-buyer surface as /api/checkout/*, kept as its own
+          // path so it isn't mistaken for a plan checkout by anything reading
+          // the URL (the request body/session metadata is what actually
+          // disambiguates server-side, but the path stays self-describing).
+          source: "/api/top-ups/:path*",
+          destination: `${portalUrl}/portal/api/top-ups/:path*`,
         },
         {
           source: "/api/billing/webhook",

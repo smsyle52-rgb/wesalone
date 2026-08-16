@@ -166,9 +166,7 @@
       "type": "registry:ui",
       "title": "Background Beams",
       "description": "Light beams flowing along curved paths behind content.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/background-beams.tsx",
@@ -202,9 +200,7 @@
       "type": "registry:ui",
       "title": "Lamp",
       "description": "A glowing lamp-line header that expands into view.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/lamp.tsx",
@@ -282,9 +278,7 @@
       "type": "registry:ui",
       "title": "Text Reveal",
       "description": "Word-by-word blur reveal on scroll.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/text-reveal.tsx",
@@ -298,9 +292,7 @@
       "type": "registry:ui",
       "title": "Typewriter",
       "description": "Types, holds and deletes through a list of words.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/typewriter.tsx",
@@ -314,9 +306,7 @@
       "type": "registry:ui",
       "title": "Flip Words",
       "description": "Cycles words with a springy blur-flip transition.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/flip-words.tsx",
@@ -330,9 +320,7 @@
       "type": "registry:ui",
       "title": "Sparkles Text",
       "description": "Twinkling stars orbiting your headline.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/sparkles-text.tsx",
@@ -394,9 +382,7 @@
       "type": "registry:ui",
       "title": "Number Ticker",
       "description": "Springs a number up when it enters the viewport.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/number-ticker.tsx",
@@ -451,9 +437,7 @@
       "type": "registry:ui",
       "title": "Bento Grid",
       "description": "Feature bento with hover-reveal CTAs and rich backgrounds.",
-      "dependencies": [
-        "lucide-react"
-      ],
+      "dependencies": ["lucide-react"],
       "files": [
         {
           "path": "src/components/velora/bento-grid.tsx",
@@ -500,9 +484,7 @@
       "type": "registry:ui",
       "title": "Tilt Card",
       "description": "3D perspective tilt that tracks the cursor.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/tilt-card.tsx",
@@ -553,9 +535,7 @@
       "type": "registry:ui",
       "title": "Animated List",
       "description": "Looping feed that springs each item in, newest on top.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/animated-list.tsx",
@@ -610,9 +590,7 @@
       "type": "registry:ui",
       "title": "Animated Tooltip",
       "description": "Avatar row with springy name tooltips on hover.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/animated-tooltip.tsx",
@@ -626,9 +604,7 @@
       "type": "registry:ui",
       "title": "Dock",
       "description": "macOS-style dock with cursor magnification.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/dock.tsx",
@@ -642,9 +618,7 @@
       "type": "registry:ui",
       "title": "Border Beam",
       "description": "A beam of light traveling around any border.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/border-beam.tsx",
@@ -678,9 +652,7 @@
       "type": "registry:ui",
       "title": "Animated Beam",
       "description": "Draws an animated connection between any two elements.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/animated-beam.tsx",
@@ -694,9 +666,7 @@
       "type": "registry:ui",
       "title": "Blur Fade",
       "description": "The workhorse entrance — blur, fade and drift into view.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/blur-fade.tsx",
@@ -710,9 +680,7 @@
       "type": "registry:ui",
       "title": "Scroll Progress",
       "description": "Gradient page-progress bar pinned to the top.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/scroll-progress.tsx",
@@ -772,9 +740,7 @@
       "type": "registry:ui",
       "title": "Terminal",
       "description": "A terminal window that types its lines in view.",
-      "dependencies": [
-        "motion"
-      ],
+      "dependencies": ["motion"],
       "files": [
         {
           "path": "src/components/velora/terminal.tsx",
@@ -785,4 +751,3 @@
     }
   ]
 }
-

@@ -1,7 +1,6 @@
 import { PassThrough, Readable } from "node:stream"
 import type { ReadableStream } from "node:stream/web"
 import type { ObjectCannedACL } from "@aws-sdk/client-s3"
-import { Upload } from "@aws-sdk/lib-storage"
 import { createId } from "@chatbotx.io/utils"
 import probe from "probe-image-size"
 import { guessFileTypeFromMimeType } from "./helper"
@@ -13,16 +12,9 @@ export function createUpload(
   options?: { contentType?: string },
 ): { stream: PassThrough; done: Promise<void> } {
   const stream = new PassThrough()
-  const upload = new Upload({
-    client: uploader.client,
-    params: {
-      Bucket: uploader.bucketName,
-      Key: path,
-      Body: stream,
-      ContentType: options?.contentType,
-    },
-  })
-  const done = upload.done().then(() => undefined)
+  const done = uploader
+    .putObject(path, stream, { ContentType: options?.contentType })
+    .then(() => undefined)
   return { stream, done }
 }
 

@@ -1,0 +1,79 @@
+name: Azure Builder Self-Hosted (Temporary)
+
+on:
+  push:
+    branches:
+      - chore/chatbotx-azure-20260814
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: wesal-builder-self-hosted-temporary
+  cancel-in-progress: true
+
+env:
+  AZURE_CLIENT_ID: 02b98259-3e80-4cf5-87b3-6cc6968d06f0
+  AZURE_TENANT_ID: 30a49e5c-d762-4170-beac-5bdfd2aa7c9e
+  AZURE_SUBSCRIPTION_ID: 4dad6f21-8881-4379-9379-d6f220ed9fc0
+  AZURE_CONTAINER_REGISTRY: acrwesaluae4dad6f
+  TEMP_RUNNER_RESOURCE_GROUP: rg-wesal-builder-runner-temp
+
+jobs:
+  build-builder:
+    # The one-time workflow is trusted only when pushed from the protected migration branch
+    # using this exact control commit. It has no pull_request trigger.
+    if: >-
+      github.ref == 'refs/heads/chore/chatbotx-azure-20260814' &&
+      github.event.head_commit.message == 'ci(builder): run self-hosted candidate build'
+    name: Build and push builder on temporary Azure runner
+    runs-on: [self-hosted, linux, x64, wesal-builder-ephemeral]
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # A short-lived ACR token is installed on the isolated ephemeral runner at VM boot.
+      # The builder job receives no Azure credentials and cannot target other resources.
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
+      - name: Build and push builder image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/builder/docker/Dockerfile
+          builder: ${{ steps.buildx.outputs.name }}
+          push: true
+          tags: |
+            ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/wesal/builder:${{ github.sha }}
+            ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/wesal/builder:candidate
+          cache-from: type=gha,scope=wesal-builder
+          cache-to: type=gha,mode=max,scope=wesal-builder
+
+  cleanup-temporary-runner:
+    name: Delete temporary Azure runner resources
+    needs: build-builder
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Sign in to Azure using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Delete runner resource group
+        shell: bash
+        run: |
+          set -euo pipefail
+          if az group exists --name "$TEMP_RUNNER_RESOURCE_GROUP" | grep -qx true; then
+            az group delete --name "$TEMP_RUNNER_RESOURCE_GROUP" --yes --no-wait
+          fi
