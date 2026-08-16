@@ -61,6 +61,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # GitHub runners can retain a stale active /swapfile between jobs.
+          # Release it first so fallocate never targets a busy file.
+          if [ -e /swapfile ]; then
+            sudo swapoff /swapfile || true
+            sudo rm -f /swapfile
+          fi
+          test ! -e /swapfile
           sudo fallocate -l 8G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile >/dev/null
