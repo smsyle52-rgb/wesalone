@@ -12,7 +12,9 @@ import { httpLogger } from "./lib/log"
 
 const publicRoutes = [
   "/about",
+  "/channels",
   "/channels/create",
+  "/features",
   "/data-deletion",
   "/integrations",
   "/login",

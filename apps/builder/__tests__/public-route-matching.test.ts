@@ -17,6 +17,8 @@ describe("isPublicRoute", () => {
       "/",
       "/pricing",
       "/about",
+      "/features",
+      "/channels",
       "/auth/sign-in",
       "/auth/sign-up",
       "/api/health",
