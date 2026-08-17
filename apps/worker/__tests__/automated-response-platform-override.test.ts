@@ -31,6 +31,12 @@ const getPlatformAzureOpenAIChatModelMock = vi.hoisted(() =>
 const getPlatformAzureOpenAIProviderMock = vi.hoisted(() =>
   vi.fn(() => Object.assign(vi.fn(), { tools: {} })),
 )
+const getPlatformVertexChatModelMock = vi.hoisted(() =>
+  vi.fn((modelId: string) => ({ type: "vertex-model", modelId })),
+)
+const getPlatformVertexProviderMock = vi.hoisted(() =>
+  vi.fn(() => Object.assign(vi.fn(), { tools: {} })),
+)
 const isAutoReplyEnabledForWorkspaceMock = vi.hoisted(() => vi.fn())
 const usageMeteringReserveMock = vi.hoisted(() => vi.fn())
 const usageMeteringSettleLanguageMock = vi.hoisted(() => vi.fn())
@@ -44,6 +50,14 @@ function isPlatformAzureOpenAIModelCandidateImpl(value: unknown): boolean {
     !!value &&
     typeof value === "object" &&
     (value as { platformAzureOpenAI?: unknown }).platformAzureOpenAI === true
+  )
+}
+
+function isPlatformVertexModelCandidateImpl(value: unknown): boolean {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    (value as { platformVertex?: unknown }).platformVertex === true
   )
 }
 
@@ -80,20 +94,9 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   appendKnowledgeBaseGuard: (p: string) => p,
   appendToolOutputGuard: (p: string) => p,
   appendUnavailableWebSearchPolicy: (p: string) => p,
-  buildPlatformOverrideCandidates: (
-    override: NonNullable<PlatformOverride>,
-  ) => {
-    const candidates = [
-      { platformAzureOpenAI: true, model: override.chatModel },
-    ]
-    if (override.fallbackModel) {
-      candidates.push({
-        platformAzureOpenAI: true,
-        model: override.fallbackModel,
-      })
-    }
-    return candidates
-  },
+  buildPlatformOverrideCandidates: (override: NonNullable<PlatformOverride>) => [
+    { platformVertex: true, model: override.chatModel },
+  ],
   createAIProviderInstance: createAIProviderInstanceMock,
   createOpenaiCompatibleModelInstance: vi.fn(() => ({
     type: "openai-compatible-model",
@@ -108,8 +111,10 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   getPlatformCapabilityLanguageModel: getPlatformCapabilityLanguageModelMock,
   getPlatformAzureOpenAIChatModel: getPlatformAzureOpenAIChatModelMock,
   getPlatformAzureOpenAIProvider: getPlatformAzureOpenAIProviderMock,
+  getPlatformVertexChatModel: getPlatformVertexChatModelMock,
+  getPlatformVertexProvider: getPlatformVertexProviderMock,
   isPlatformAzureOpenAIModelCandidate: isPlatformAzureOpenAIModelCandidateImpl,
-  isPlatformVertexModelCandidate: vi.fn(() => false),
+  isPlatformVertexModelCandidate: isPlatformVertexModelCandidateImpl,
   McpClient: vi.fn(),
   normalizeAuthorizedWebSearchDomains: vi.fn(() => []),
   normalizeMcpContent: vi.fn((c: unknown) => c),
@@ -273,9 +278,9 @@ describe("replyByAI (DM auto-reply) — platform Azure OpenAI override", () => {
       aiAgent: makeAIAgent(),
     })
 
-    expect(result?.provider).toBe("azureOpenAI")
+    expect(result?.provider).toBe("vertex")
     expect(result?.modelId).toBe("gemini-3.1-flash-lite")
-    expect(getPlatformAzureOpenAIChatModelMock).toHaveBeenCalledWith(
+    expect(getPlatformVertexChatModelMock).toHaveBeenCalledWith(
       "gemini-3.1-flash-lite",
       state.platformOverride,
     )
