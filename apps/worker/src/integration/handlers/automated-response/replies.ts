@@ -110,6 +110,13 @@ export type ReplyAIProvider =
   | "azureOpenAI"
   | "openaiCompatible"
 
+function getNoResponseFallback(contactInbox: ContactInboxModel): string {
+  if (contactInbox.language?.toLowerCase().startsWith("ar")) {
+    return "عذرًا، لم أتمكن من إنشاء رد كامل الآن. يرجى إعادة صياغة طلبك أو تحديد ما تحتاجه وسأساعدك."
+  }
+  return helpTexts.fallbackLookup
+}
+
 export async function replyByAI(
   props: ReplyByAIProps,
 ): Promise<null | ReplyByAIExecutionResult> {
@@ -149,7 +156,40 @@ export async function replyByAI(
     clearTimeout(timeoutId)
   }
 
-  return null
+  // A configured agent must never leave the customer without any response.
+  // Every candidate has already run in order (Vertex first, then Azure), so
+  // this is an explicit, localized clarification rather than silent failure.
+  const primaryCandidate = providers[0]
+  const provider = primaryCandidate ? getProviderName(primaryCandidate) : "vertex"
+  const modelId = primaryCandidate?.model ?? "unavailable-response"
+  logger.warn(
+    {
+      conversationId: props.conversation.id,
+      workspaceId: props.conversation.workspaceId,
+      provider,
+      modelId,
+      candidatesTried: providers.length,
+    },
+    "[automated-response] all AI candidates completed without a response; sending localized fallback",
+  )
+  await sendMessageWithRender(
+    props.conversation.id,
+    getNoResponseFallback(props.contactInbox),
+  )
+  return {
+    responded: true,
+    provider,
+    modelId,
+    usedFallbackText: true,
+    toolStats: {
+      steps: 0,
+      toolCallsCount: 0,
+      toolResultsCount: 0,
+      toolErrorsCount: 0,
+      toolNames: [],
+      finishReasons: [],
+    },
+  }
 }
 
 export type GenerateAIReplyProps = {

@@ -3,6 +3,7 @@ import type {
   ContactInboxModel,
   ConversationModel,
 } from "@chatbotx.io/database/types"
+import { processStreamingText } from "@chatbotx.io/ai"
 import { contactVariableService } from "@chatbotx.io/variables"
 import { type ModelMessage, streamText } from "ai"
 import { beforeEach, describe, expect, test, vi } from "vitest"
@@ -44,6 +45,7 @@ const usageMeteringReleaseMock = vi.hoisted(() => vi.fn())
 const getPlatformCapabilityLanguageModelMock = vi.hoisted(() =>
   vi.fn(async () => null),
 )
+const sendMessageWithRenderMock = vi.hoisted(() => vi.fn(async () => undefined))
 
 function isPlatformAzureOpenAIModelCandidateImpl(value: unknown): boolean {
   return (
@@ -141,12 +143,12 @@ vi.mock(
 
 vi.mock("../src/integration/utils/message", () => ({
   sendMessageAndWait: vi.fn(async () => undefined),
-  sendMessageWithRender: vi.fn(async () => undefined),
+  sendMessageWithRender: sendMessageWithRenderMock,
 }))
 
 vi.mock("../../utils/message", () => ({
   sendMessageAndWait: vi.fn(async () => undefined),
-  sendMessageWithRender: vi.fn(async () => undefined),
+  sendMessageWithRender: sendMessageWithRenderMock,
 }))
 
 vi.mock("@chatbotx.io/variables", () => ({
@@ -302,6 +304,35 @@ describe("replyByAI (DM auto-reply) — platform Azure OpenAI override", () => {
     expect(getPlatformAzureOpenAIChatModelMock).not.toHaveBeenCalled()
     expect(getAIIntegrationInDBMock).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: "ws-1", provider: "openai" }),
+    )
+  })
+
+  test("sends a localized Arabic fallback instead of silently returning null when every candidate yields no text", async () => {
+    state.platformOverride = {
+      chatModel: "gemini-3.7-flash",
+      fallbackModel: "gpt-4.1-mini",
+      location: "us-central1",
+    }
+    vi.mocked(processStreamingText).mockResolvedValueOnce({
+      fullText: "",
+      messageCount: 0,
+    })
+
+    const result = await replyByAI({
+      ...baseProps,
+      contactInbox: { ...contactInbox, language: "ar" } as ContactInboxModel,
+      aiAgent: makeAIAgent(),
+    })
+
+    expect(result).toMatchObject({
+      responded: true,
+      provider: "vertex",
+      modelId: "gemini-3.7-flash",
+      usedFallbackText: true,
+    })
+    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
+      "conv-1",
+      "عذرًا، لم أتمكن من إنشاء رد كامل الآن. يرجى إعادة صياغة طلبك أو تحديد ما تحتاجه وسأساعدك.",
     )
   })
 })

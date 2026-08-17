@@ -20,6 +20,7 @@ const state = {
 // ---------------------------------------------------------------------------
 
 const sendMessageAndWaitMock = vi.hoisted(() => vi.fn(async () => undefined))
+const sendMessageWithRenderMock = vi.hoisted(() => vi.fn(async () => undefined))
 const sendRichMessagesMock = vi.hoisted(() =>
   vi.fn(async () => ({ enqueued: 1, skipped: 0 })),
 )
@@ -70,6 +71,7 @@ vi.mock("@chatbotx.io/ai", () => ({
   aiProviders: { openai: "openai" },
   aiTimeouts: { aiTotal: 30_000, aiStep: 10_000, aiChunk: 5000 },
   helpTexts: {
+    fallbackLookup: "I've found some data, but I couldn't generate a complete answer yet.",
     richResponseFormat: richResponseFormatMock,
     unavailable: "Sorry, I cannot help right now.",
   },
@@ -172,17 +174,17 @@ vi.mock("../src/integration/handlers/rich-response", (importOriginal) =>
 
 vi.mock("../../utils/message", () => ({
   sendMessageAndWait: sendMessageAndWaitMock,
-  sendMessageWithRender: vi.fn(async () => undefined),
+  sendMessageWithRender: sendMessageWithRenderMock,
 }))
 
 vi.mock("../src/integration/utils/message", () => ({
   sendMessageAndWait: sendMessageAndWaitMock,
-  sendMessageWithRender: vi.fn(async () => undefined),
+  sendMessageWithRender: sendMessageWithRenderMock,
 }))
 
 vi.mock("../src/chat/handlers/send-message", () => ({
   sendMessageAndWait: sendMessageAndWaitMock,
-  sendMessageWithRender: vi.fn(async () => undefined),
+  sendMessageWithRender: sendMessageWithRenderMock,
 }))
 
 vi.mock("../src/integration/handlers/automated-response/utils/message", () => ({
@@ -437,7 +439,7 @@ describe("replyByAI — rich mode routing", () => {
     expect(appendHistoryMock).toHaveBeenCalledOnce()
   })
 
-  test("schema_error JSON response → null returned, no messages sent", async () => {
+  test("schema_error JSON response → localized fallback sent instead of a silent null", async () => {
     // Valid JSON but wrong schema (missing messages AND actions)
     state.aiResponseText = JSON.stringify({ unrelated_key: "value" })
 
@@ -446,9 +448,13 @@ describe("replyByAI — rich mode routing", () => {
       aiAgent: makeAIAgent({ isRichResponse: true }),
     })
 
-    expect(result).toBeNull()
+    expect(result).toMatchObject({ responded: true, usedFallbackText: true })
     expect(sendMessageAndWaitMock).not.toHaveBeenCalled()
     expect(sendRichMessagesMock).not.toHaveBeenCalled()
+    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
+      "conv-1",
+      "I've found some data, but I couldn't generate a complete answer yet.",
+    )
   })
 
   test("missing triggerMessageId → rich mode disabled warning logged", async () => {
@@ -504,7 +510,7 @@ describe("replyByAI — rich mode routing", () => {
     )
   })
 
-  test("valid JSON messages skipped with no actions → null returned for fallback", async () => {
+  test("valid JSON messages skipped with no actions → localized fallback sent", async () => {
     state.aiResponseText = JSON.stringify({
       messages: [
         {
@@ -523,13 +529,17 @@ describe("replyByAI — rich mode routing", () => {
       aiAgent: makeAIAgent({ isRichResponse: true }),
     })
 
-    expect(result).toBeNull()
+    expect(result).toMatchObject({ responded: true, usedFallbackText: true })
     expect(sendRichMessagesMock).toHaveBeenCalledOnce()
     expect(executeRichActionsMock).toHaveBeenCalledOnce()
     expect(appendHistoryMock).not.toHaveBeenCalled()
+    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
+      "conv-1",
+      "I've found some data, but I couldn't generate a complete answer yet.",
+    )
   })
 
-  test("actions-only response with no executed actions → null returned for fallback", async () => {
+  test("actions-only response with no executed actions → localized fallback sent", async () => {
     state.aiResponseText = JSON.stringify({
       actions: [{ action: "send_flow", flow_id: "missing-flow" }],
     })
@@ -543,9 +553,13 @@ describe("replyByAI — rich mode routing", () => {
       aiAgent: makeAIAgent({ isRichResponse: true }),
     })
 
-    expect(result).toBeNull()
+    expect(result).toMatchObject({ responded: true, usedFallbackText: true })
     expect(sendRichMessagesMock).not.toHaveBeenCalled()
     expect(appendHistoryMock).not.toHaveBeenCalled()
+    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
+      "conv-1",
+      "I've found some data, but I couldn't generate a complete answer yet.",
+    )
     expect(warnMock).toHaveBeenCalledWith(
       expect.objectContaining({
         executionId: baseProps.triggerMessageId,
@@ -554,7 +568,7 @@ describe("replyByAI — rich mode routing", () => {
     )
   })
 
-  test("empty plain_text response → no message sent, null returned", async () => {
+  test("empty plain_text response → localized fallback sent instead of silence", async () => {
     state.aiResponseText = "   " // whitespace only, not a valid JSON
 
     const result = await replyByAI({
@@ -562,10 +576,14 @@ describe("replyByAI — rich mode routing", () => {
       aiAgent: makeAIAgent({ isRichResponse: true }),
     })
 
-    // whitespace-only text: parseRichResponse returns plain_text but text.trim() is empty
-    // → no sendMessageAndWait, falls through to null
+    // Whitespace-only text produces no deliverable rich message, so the common
+    // outer fallback provides a clear customer-facing reply.
     expect(sendMessageAndWaitMock).not.toHaveBeenCalled()
-    expect(result).toBeNull()
+    expect(result).toMatchObject({ responded: true, usedFallbackText: true })
+    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
+      "conv-1",
+      "I've found some data, but I couldn't generate a complete answer yet.",
+    )
   })
 })
 
