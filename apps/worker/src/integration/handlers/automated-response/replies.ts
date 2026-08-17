@@ -759,7 +759,7 @@ async function createReplyModel(props: {
 
 async function runAIReply(
   props: ReplyByAIProps,
-  providerInfo: AIAgentModelConfig | PlatformAzureOpenAIModelCandidate,
+  providerInfo: AIAgentModelConfig | PlatformModelCandidate,
   abortSignal: AbortSignal,
 ): Promise<null | ReplyByAIExecutionResult> {
   const { conversation, messages, aiAgent } = props
