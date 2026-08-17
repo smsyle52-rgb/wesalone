@@ -121,6 +121,7 @@ vi.mock("@chatbotx.io/ai/server", () => ({
     Object.assign(vi.fn(), { tools: {} }),
   ),
   isPlatformAzureOpenAIModelCandidate: vi.fn(() => false),
+  isPlatformVertexModelCandidate: vi.fn(() => false),
   McpClient: vi.fn(),
   normalizeAuthorizedWebSearchDomains: vi.fn(() => []),
   normalizeMcpContent: vi.fn((c: unknown) => c),
