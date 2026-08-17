@@ -6,44 +6,43 @@ import {
 import { platformAiSettingModel } from "@chatbotx.io/database/schema"
 import { invalidateCacheKeys, withCache } from "@chatbotx.io/redis"
 
-export const PLATFORM_AI_PROVIDER = "azureOpenAI" as const
-export const DEFAULT_PLATFORM_AI_CHAT_MODEL = "wesal-chat"
+export const PLATFORM_AI_PROVIDER = "vertex" as const
+export const DEFAULT_PLATFORM_AI_CHAT_MODEL = "gemini-3.5-flash"
+// Azure OpenAI stays on the established 1536-dimensional embedding deployment.
 export const DEFAULT_PLATFORM_AI_EMBEDDING_MODEL = "wesal-embedding"
-export const DEFAULT_PLATFORM_AI_LOCATION = "uaenorth"
+export const DEFAULT_PLATFORM_AI_LOCATION = "global"
 
 export const DEFAULT_PLATFORM_AI_CAPABILITIES: PlatformAiCapabilities = {
-  // gpt-4.1-mini supports Arabic chat and vision. The deployment name, not
-  // the upstream model ID, is used so Azure routing remains explicit.
   vision: {
-    provider: "azureOpenAI",
+    provider: "vertex",
     model: DEFAULT_PLATFORM_AI_CHAT_MODEL,
     location: DEFAULT_PLATFORM_AI_LOCATION,
   },
-  // text-embedding-3-small defaults to 1536 dimensions, matching Wesal's
-  // existing pgvector columns without a destructive vector migration.
+  // Keep the established 1536-dimensional Azure embedding deployment. The
+  // runtime ignores any legacy Vertex embedding entry to avoid vector drift.
   embedding: {
     provider: "azureOpenAI",
     model: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
-    location: DEFAULT_PLATFORM_AI_LOCATION,
+    location: "uaenorth",
   },
   summarization: {
-    provider: "azureOpenAI",
+    provider: "vertex",
     model: DEFAULT_PLATFORM_AI_CHAT_MODEL,
     location: DEFAULT_PLATFORM_AI_LOCATION,
   },
   extraction: {
-    provider: "azureOpenAI",
+    provider: "vertex",
     model: DEFAULT_PLATFORM_AI_CHAT_MODEL,
     location: DEFAULT_PLATFORM_AI_LOCATION,
   },
   // No image or speech deployment is provisioned yet. Defer to an explicitly
-  // configured workspace provider instead of silently calling Google.
+  // configured workspace provider instead of calling a capability implicitly.
   imageGeneration: { provider: "workspace", model: "gpt-image-1" },
   imageEditing: { provider: "workspace", model: "gpt-image-1" },
   speechToText: { provider: "workspace", model: "gpt-4o-transcribe" },
   textToSpeech: { provider: "workspace", model: "gpt-4o-mini-tts" },
   webSearch: {
-    provider: "azureOpenAI",
+    provider: "vertex",
     model: DEFAULT_PLATFORM_AI_CHAT_MODEL,
     location: DEFAULT_PLATFORM_AI_LOCATION,
   },
@@ -52,7 +51,7 @@ export const DEFAULT_PLATFORM_AI_CAPABILITIES: PlatformAiCapabilities = {
     model: "builtin-layout-parser",
   },
   translation: {
-    provider: "azureOpenAI",
+    provider: "vertex",
     model: DEFAULT_PLATFORM_AI_CHAT_MODEL,
     location: DEFAULT_PLATFORM_AI_LOCATION,
   },
@@ -99,7 +98,7 @@ const DEFAULT_SETTING: PlatformAiSettingView = {
 }
 
 /**
- * Central, platform-wide Azure OpenAI configuration — a singleton row. Only
+ * Central, platform-wide Vertex AI configuration — a singleton row. Only
  * the chat model, fallback model, and enabled flag are admin-editable (see the
  * builder action); embeddingModel/location/provider keep their seeded
  * defaults until a real need to change them is proven. Credentials live only

@@ -64,12 +64,12 @@ beforeEach(() => {
 })
 
 describe("platformAiSettingService — fixed provider + safe defaults", () => {
-  test("provider is fixed to Azure OpenAI", () => {
-    expect(PLATFORM_AI_PROVIDER).toBe("azureOpenAI")
+  test("provider is fixed to Vertex AI", () => {
+    expect(PLATFORM_AI_PROVIDER).toBe("vertex")
   })
 
-  test("default chat model is the Azure deployment name", () => {
-    expect(DEFAULT_PLATFORM_AI_CHAT_MODEL).toBe("wesal-chat")
+  test("default chat model is the allowlisted Gemini model", () => {
+    expect(DEFAULT_PLATFORM_AI_CHAT_MODEL).toBe("gemini-3.5-flash")
   })
 
   test("get() returns safe, disabled defaults when no row exists yet", async () => {
@@ -78,7 +78,7 @@ describe("platformAiSettingService — fixed provider + safe defaults", () => {
     const setting = await platformAiSettingService.get()
 
     expect(setting).toEqual({
-      provider: "azureOpenAI",
+      provider: "vertex",
       chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
       embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
       location: DEFAULT_PLATFORM_AI_LOCATION,
@@ -95,10 +95,10 @@ describe("platformAiSettingService.getActive — the one check the AI runtime ne
   test("returns null when disabled — callers must fall back to the agent's own provider/model", async () => {
     findFirstResult = {
       id: "setting-1",
-      provider: "azureOpenAI",
-      chatModel: "wesal-chat",
+      provider: "vertex",
+      chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
       embeddingModel: "wesal-embedding",
-      location: "uaenorth",
+      location: DEFAULT_PLATFORM_AI_LOCATION,
       fallbackModel: null,
       enabled: false,
       updatedByUserId: "admin-1",
@@ -111,20 +111,20 @@ describe("platformAiSettingService.getActive — the one check the AI runtime ne
   test("returns the active override when enabled", async () => {
     findFirstResult = {
       id: "setting-1",
-      provider: "azureOpenAI",
-      chatModel: "wesal-chat",
+      provider: "vertex",
+      chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
       embeddingModel: "wesal-embedding",
-      location: "uaenorth",
-      fallbackModel: "wesal-chat",
+      location: DEFAULT_PLATFORM_AI_LOCATION,
+      fallbackModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
       enabled: true,
       updatedByUserId: "admin-1",
       updatedAt: new Date(),
     }
 
     await expect(platformAiSettingService.getActive()).resolves.toEqual({
-      chatModel: "wesal-chat",
-      fallbackModel: "wesal-chat",
-      location: "uaenorth",
+      chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
+      fallbackModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
+      location: DEFAULT_PLATFORM_AI_LOCATION,
       embeddingModel: "wesal-embedding",
       capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
     })
@@ -147,8 +147,8 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     insertReturnRows = [
       {
         id: "setting-1",
-        provider: "azureOpenAI",
-        chatModel: "wesal-chat",
+        provider: "vertex",
+        chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
         embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
         location: DEFAULT_PLATFORM_AI_LOCATION,
         fallbackModel: null,
@@ -159,7 +159,7 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     ]
 
     await platformAiSettingService.upsert({
-      chatModel: "wesal-chat",
+      chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
       fallbackModel: null,
       location: DEFAULT_PLATFORM_AI_LOCATION,
       capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
@@ -172,10 +172,10 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     }
     const [values] = usedChain.values.mock.calls.at(-1) ?? []
     expect(values).toMatchObject({
-      provider: "azureOpenAI",
+      provider: "vertex",
       embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
       location: DEFAULT_PLATFORM_AI_LOCATION,
-      chatModel: "wesal-chat",
+      chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
       enabled: true,
       updatedByUserId: "admin-1",
     })
@@ -186,8 +186,8 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     updateReturnRows = [
       {
         id: "setting-1",
-        provider: "azureOpenAI",
-        chatModel: "wesal-chat",
+        provider: "vertex",
+        chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
         embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
         location: DEFAULT_PLATFORM_AI_LOCATION,
         fallbackModel: null,
@@ -198,7 +198,7 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     ]
 
     await platformAiSettingService.upsert({
-      chatModel: "wesal-chat",
+      chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
       fallbackModel: null,
       location: DEFAULT_PLATFORM_AI_LOCATION,
       capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
@@ -215,8 +215,8 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     updateReturnRows = [
       {
         id: "setting-1",
-        provider: "azureOpenAI",
-        chatModel: "wesal-chat",
+        provider: "vertex",
+        chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
         embeddingModel: DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
         location: DEFAULT_PLATFORM_AI_LOCATION,
         fallbackModel: null,
@@ -227,7 +227,7 @@ describe("platformAiSettingService.upsert — only chatModel/fallbackModel/enabl
     ]
 
     await platformAiSettingService.upsert({
-      chatModel: "wesal-chat",
+      chatModel: DEFAULT_PLATFORM_AI_CHAT_MODEL,
       fallbackModel: null,
       location: DEFAULT_PLATFORM_AI_LOCATION,
       capabilities: DEFAULT_PLATFORM_AI_CAPABILITIES,
