@@ -22,11 +22,14 @@ import {
   getPlatformAzureOpenAIChatModel,
   getPlatformAzureOpenAIProvider,
   getPlatformCapabilityLanguageModel,
+  getPlatformVertexChatModel,
+  getPlatformVertexProvider,
   isPlatformAzureOpenAIModelCandidate,
+  isPlatformVertexModelCandidate,
   McpClient,
   normalizeAuthorizedWebSearchDomains,
   normalizeMcpContent,
-  type PlatformAzureOpenAIModelCandidate,
+  type PlatformModelCandidate,
 } from "@chatbotx.io/ai/server"
 import {
   integrationOpenaiCompatibleService,
@@ -103,6 +106,7 @@ export type ReplyByAIExecutionResult = {
 
 export type ReplyAIProvider =
   | AIAgentProvider
+  | "vertex"
   | "azureOpenAI"
   | "openaiCompatible"
 
@@ -122,11 +126,11 @@ export async function replyByAI(
     return null
   }
 
-  // Platform-locked Azure OpenAI setting takes precedence over the agent's own
-  // stored fallback chain — see packages/ai/src/server/platform-provider.ts.
+  // Platform-locked Vertex setting takes precedence over the agent's own
+  // stored fallback chain. Its synthetic candidates end with Azure OpenAI.
   // `null` means disabled, so this behaves exactly as before this setting existed.
   const platformOverride = await getActivePlatformAiOverride()
-  const providers: (AIAgentModelConfig | PlatformAzureOpenAIModelCandidate)[] =
+  const providers: (AIAgentModelConfig | PlatformModelCandidate)[] =
     platformOverride
       ? buildPlatformOverrideCandidates(platformOverride)
       : (aiAgent.models as AIAgentProviderModels)
@@ -185,7 +189,7 @@ export async function generateAIReplyText(
   }
 
   const platformOverride = await getActivePlatformAiOverride()
-  const providers: (AIAgentModelConfig | PlatformAzureOpenAIModelCandidate)[] =
+  const providers: (AIAgentModelConfig | PlatformModelCandidate)[] =
     platformOverride
       ? buildPlatformOverrideCandidates(platformOverride)
       : (aiAgent.models as AIAgentProviderModels)
@@ -656,14 +660,17 @@ function filterToolsByAllowedSystemFunctions(
 }
 
 function isOpenaiCompatibleProviderModel(
-  providerInfo: AIAgentModelConfig | PlatformAzureOpenAIModelCandidate,
+  providerInfo: AIAgentModelConfig | PlatformModelCandidate,
 ): providerInfo is AIAgentOpenaiCompatibleProviderModel {
   return "kind" in providerInfo && providerInfo.kind === "openaiCompatible"
 }
 
 function getProviderName(
-  providerInfo: AIAgentModelConfig | PlatformAzureOpenAIModelCandidate,
+  providerInfo: AIAgentModelConfig | PlatformModelCandidate,
 ): ReplyAIProvider {
+  if (isPlatformVertexModelCandidate(providerInfo)) {
+    return "vertex"
+  }
   if (isPlatformAzureOpenAIModelCandidate(providerInfo)) {
     return "azureOpenAI"
   }
@@ -673,7 +680,7 @@ function getProviderName(
 }
 
 async function createReplyModel(props: {
-  providerInfo: AIAgentModelConfig | PlatformAzureOpenAIModelCandidate
+  providerInfo: AIAgentModelConfig | PlatformModelCandidate
   workspaceId: string
 }): Promise<null | {
   model: LanguageModel
@@ -681,16 +688,31 @@ async function createReplyModel(props: {
 }> {
   const { providerInfo, workspaceId } = props
 
-  if (isPlatformAzureOpenAIModelCandidate(providerInfo)) {
+  if (isPlatformVertexModelCandidate(providerInfo)) {
     const override = await getActivePlatformAiOverride()
-    // Setting flipped off between the loop starting and this call — fall
-    // through to null like any other "no integration available" case.
     if (!override) {
       return null
     }
-    const providerInstance = getPlatformAzureOpenAIProvider(override)
+    const providerInstance = getPlatformVertexProvider(override)
     return {
-      model: getPlatformAzureOpenAIChatModel(providerInfo.model, override),
+      model: getPlatformVertexChatModel(providerInfo.model, override),
+      providerInstance,
+    }
+  }
+
+  if (isPlatformAzureOpenAIModelCandidate(providerInfo)) {
+    const override = await getActivePlatformAiOverride()
+    // Setting flipped off, or the fallback was removed, between the loop
+    // starting and this call — continue like any unavailable integration.
+    if (!override?.azureOpenAI) {
+      return null
+    }
+    const providerInstance = getPlatformAzureOpenAIProvider(override.azureOpenAI)
+    return {
+      model: getPlatformAzureOpenAIChatModel(
+        providerInfo.model,
+        override.azureOpenAI,
+      ),
       providerInstance,
     }
   }

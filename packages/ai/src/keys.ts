@@ -12,10 +12,19 @@ export const keys = () =>
       AZURE_OPENAI_LOCATION: z.string().trim().min(1).optional(),
       AZURE_OPENAI_CHAT_DEPLOYMENT: z.string().trim().min(1).optional(),
       AZURE_OPENAI_EMBEDDING_DEPLOYMENT: z.string().trim().min(1).optional(),
-      // Legacy values remain readable only while old database rows are moved
-      // on the Azure copy; runtime Platform AI never authenticates to Vertex.
+      // Vertex AI authenticates with Azure Managed Identity through Google
+      // Workload Identity Federation. None of these values is a credential.
       VERTEX_AI_PROJECT_ID: z.string().trim().min(1).optional(),
       VERTEX_AI_LOCATION: z.string().trim().min(1).optional(),
+      VERTEX_AI_WIF_PROJECT_NUMBER: z.string().trim().regex(/^\d+$/).optional(),
+      VERTEX_AI_WIF_POOL_ID: z.string().trim().min(1).optional(),
+      VERTEX_AI_WIF_PROVIDER_ID: z.string().trim().min(1).optional(),
+      VERTEX_AI_AZURE_AUDIENCE: z.string().trim().min(1).optional(),
+      AZURE_MANAGED_IDENTITY_CLIENT_ID: z.string().uuid().optional(),
+      // Azure Container Apps injects these on each replica; the header is a
+      // short-lived local proof and is never configured or stored by Wesal.
+      IDENTITY_ENDPOINT: z.string().url().optional(),
+      IDENTITY_HEADER: z.string().trim().min(1).optional(),
       GOOGLE_DOCUMENT_AI_PROCESSOR_ID: z.string().trim().min(1).optional(),
       GOOGLE_DOCUMENT_AI_LOCATION: z.string().trim().min(1).optional(),
     },
