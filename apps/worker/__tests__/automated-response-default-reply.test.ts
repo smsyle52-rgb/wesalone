@@ -404,7 +404,7 @@ describe("replyByAI — default reply flow fallback", () => {
     expect(sendMessageWithRenderMock).not.toHaveBeenCalled()
   })
 
-  test("falls back to the canned help text when no default reply flow is configured", async () => {
+  test("uses the Arabic fallback when no default reply flow is configured and inbox language is unset", async () => {
     const result = await replyByAI({
       ...baseProps,
       aiAgent: makeAIAgent(),
@@ -415,11 +415,11 @@ describe("replyByAI — default reply flow fallback", () => {
     expect(integrationQueueAddMock).not.toHaveBeenCalled()
     expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
       baseProps.conversation.id,
-      expect.stringContaining("I've found some data"),
+      expect.stringContaining("عذرًا، لم أتمكن"),
     )
   })
 
-  test("falls back to the canned help text when the configured default reply flow is invalid", async () => {
+  test("uses the Arabic fallback when the configured default reply flow is invalid", async () => {
     findByFlowMock.mockResolvedValueOnce(undefined)
 
     const result = await replyByAI({
@@ -430,6 +430,21 @@ describe("replyByAI — default reply flow fallback", () => {
 
     expect(result?.usedFallbackText).toBe(true)
     expect(integrationQueueAddMock).not.toHaveBeenCalled()
+    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
+      baseProps.conversation.id,
+      expect.stringContaining("عذرًا، لم أتمكن"),
+    )
+  })
+
+  test("uses the English fallback only when the inbox explicitly declares English", async () => {
+    const result = await replyByAI({
+      ...baseProps,
+      contactInbox: { ...contactInbox, language: "en" } as ContactInboxModel,
+      aiAgent: makeAIAgent(),
+      defaultReplyFlowId: null,
+    })
+
+    expect(result?.usedFallbackText).toBe(true)
     expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
       baseProps.conversation.id,
       expect.stringContaining("I've found some data"),

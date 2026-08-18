@@ -111,10 +111,13 @@ export type ReplyAIProvider =
   | "openaiCompatible"
 
 function getNoResponseFallback(contactInbox: ContactInboxModel): string {
-  if (contactInbox.language?.toLowerCase().startsWith("ar")) {
-    return "عذرًا، لم أتمكن من إنشاء رد كامل الآن. يرجى إعادة صياغة طلبك أو تحديد ما تحتاجه وسأساعدك."
+  // Wesal is Arabic-first. Use the legacy English fallback only when the
+  // channel explicitly declares English, rather than letting an unset inbox
+  // language silently turn an Arabic customer conversation into English.
+  if (contactInbox.language?.toLowerCase().startsWith("en")) {
+    return helpTexts.fallbackLookup
   }
-  return helpTexts.fallbackLookup
+  return "عذرًا، لم أتمكن من إنشاء رد كامل الآن. يرجى إعادة صياغة طلبك أو تحديد ما تحتاجه وسأساعدك."
 }
 
 export async function replyByAI(
@@ -1152,7 +1155,10 @@ async function runAIReply(
           : undefined,
       })
       if (!triggeredDefaultReplyFlow) {
-        await sendMessageWithRender(conversation.id, helpTexts.fallbackLookup)
+        await sendMessageWithRender(
+          conversation.id,
+          getNoResponseFallback(props.contactInbox),
+        )
       }
       return {
         responded: true,
