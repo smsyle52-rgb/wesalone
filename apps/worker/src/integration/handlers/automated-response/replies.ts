@@ -707,7 +707,9 @@ async function createReplyModel(props: {
     if (!override?.azureOpenAI) {
       return null
     }
-    const providerInstance = getPlatformAzureOpenAIProvider(override.azureOpenAI)
+    const providerInstance = getPlatformAzureOpenAIProvider(
+      override.azureOpenAI,
+    )
     return {
       model: getPlatformAzureOpenAIChatModel(
         providerInfo.model,
@@ -866,7 +868,6 @@ async function runAIReply(
 
     const runtimeTools: ToolSet = tools
     const hasTools = Object.keys(runtimeTools).length > 0
-    const hasKnowledgeBase = "search_knowledge_base" in runtimeTools
     const result = await streamText({
       model: modelConfig.model,
       system: systemPrompt,
@@ -875,18 +876,6 @@ async function runAIReply(
       temperature: aiAgent.temperature,
       tools: runtimeTools,
       toolChoice: hasTools ? "auto" : "none",
-      prepareStep: hasKnowledgeBase
-        ? ({ stepNumber }) =>
-            stepNumber === 0
-              ? {
-                  activeTools: ["search_knowledge_base"],
-                  toolChoice: {
-                    type: "tool",
-                    toolName: "search_knowledge_base",
-                  },
-                }
-              : undefined
-        : undefined,
       stopWhen: stepCountIs(5),
       timeout: {
         totalMs: aiTimeouts.aiTotal,
