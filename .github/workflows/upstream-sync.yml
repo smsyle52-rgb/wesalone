@@ -45,10 +45,11 @@ permissions:
 env:
   UPSTREAM_URL: https://github.com/ChatbotXIO/ChatbotX.git
   BASE_BRANCH: release/wesal-one-next
-  # These six ChatbotX commits were already integrated into Wesal One with
+  # These ChatbotX commits were already integrated into Wesal One with
   # rewritten SHAs, so Git cannot recognize them as ancestors. Skip only their
   # upstream identities; their patches are already present on BASE_BRANCH.
   ALREADY_INTEGRATED_UPSTREAM_SHAS: |
+    2c1a8d99c5fe85e9814e6bbf5d5c89d849b3d60e
     56bd7f6dd739e046b731db9cba617bd2dbf488d2
     be79b4773ae285b3f302c469ebcae8bb2467a2ce
     a8fc33d713affff59d3ad5b804f25921573e56fa
