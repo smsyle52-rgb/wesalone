@@ -25,11 +25,19 @@ const channelIcons = [
   { Icon: SiTelegram, background: "#2AABEE" },
 ] as const
 
+const iconPositions = [
+  "left-1/2 top-[8%] -translate-x-1/2",
+  "right-[6%] top-1/2 -translate-y-1/2",
+  "bottom-[8%] left-1/2 -translate-x-1/2",
+  "left-[6%] top-1/2 -translate-y-1/2",
+] as const
+
 export function WesalAuthShell({ children }: { children: ReactNode }) {
   const t = useTranslations()
   const pathname = usePathname()
+  const isSignUp = pathname?.startsWith("/auth/sign-up")
 
-  const visual = pathname?.startsWith("/auth/sign-up")
+  const visual = isSignUp
     ? {
         badge: t("auth.signUpVisual.trialBadge"),
         title: t("auth.signUpVisual.title"),
@@ -48,110 +56,120 @@ export function WesalAuthShell({ children }: { children: ReactNode }) {
       }
 
   return (
-    <main className="grid min-h-svh overflow-hidden bg-[#050a18] text-white lg:grid-cols-2">
-      <section className="order-1 flex min-w-0 flex-col bg-background px-4 py-5 text-foreground sm:px-8 sm:py-8 lg:px-12">
-        <header className="flex items-center justify-between gap-4">
-          <Link className="flex items-center gap-3" href="/">
+    <main
+      className="legacy-wesal-auth grid min-h-svh overflow-hidden lg:grid-cols-2"
+      dir="rtl"
+    >
+      <section className="legacy-auth-form order-1 flex min-w-0 flex-col px-6 py-6 sm:px-10 sm:py-10 lg:px-14">
+        <header className="mb-8 flex items-center justify-between gap-4">
+          <Link className="shrink-0" href="/">
             <Image
               alt={t("marketing.brandName")}
-              className="h-12 w-12 rounded-2xl object-cover shadow-blue-950/30 shadow-lg"
-              height={64}
+              className="h-14 w-auto object-contain"
+              height={80}
               priority
-              src="/assets/wesal/wesal-w.png"
-              width={64}
+              src="/assets/wesal/wesal-logo.png"
+              width={271}
             />
-            <span className="flex flex-col leading-none">
-              <strong className="text-lg">{t("marketing.brandName")}</strong>
-              <span className="mt-1 font-bold text-[10px] text-cyan-500 tracking-[0.18em]">
-                WESAL ONE
-              </span>
-            </span>
           </Link>
           <div className="flex items-center gap-2">
             <LangSelector />
             <ThemeSwitcher />
+            <Link
+              className="legacy-auth-site-link hidden sm:inline-flex"
+              href="/"
+            >
+              {t("actions.back")}
+            </Link>
           </div>
         </header>
 
-        <div className="mx-auto grid w-full max-w-lg flex-1 place-items-center py-8">
-          <div className="w-full [&_[data-slot=card]]:rounded-[1.75rem] [&_[data-slot=card]]:border-border/70 [&_[data-slot=card]]:shadow-2xl [&_[data-slot=card]]:shadow-blue-950/10">
-            {children}
-          </div>
+        <div className="grid flex-1 place-items-center py-6">
+          <div className="legacy-auth-card w-full max-w-md">{children}</div>
         </div>
 
-        <footer className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-center text-muted-foreground text-xs">
+        <footer className="legacy-auth-footer mt-8 text-center text-[11px]">
           <span>{t("marketing.footer.copyright")}</span>
-          <Link className="underline underline-offset-4" href="/privacy">
-            {t("marketing.footer.privacy")}
-          </Link>
-          <Link className="underline underline-offset-4" href="/data-deletion">
+          <span aria-hidden="true"> · </span>
+          <Link href="/privacy">{t("marketing.footer.privacy")}</Link>
+          <span aria-hidden="true"> · </span>
+          <Link href="/data-deletion">
             {t("marketing.footer.dataDeletion")}
           </Link>
-          <Link className="underline underline-offset-4" href="/terms">
-            {t("marketing.footer.terms")}
-          </Link>
+          <span aria-hidden="true"> · </span>
+          <Link href="/terms">{t("marketing.footer.terms")}</Link>
         </footer>
       </section>
 
-      <aside className="relative order-2 hidden min-h-svh overflow-hidden border-white/10 border-s bg-[linear-gradient(135deg,#050a18_0%,#0b1530_60%,#050a18_100%)] lg:flex lg:flex-col lg:justify-end lg:p-12">
-        <div className="pointer-events-none absolute -end-32 -top-32 h-[32rem] w-[32rem] rounded-full bg-blue-600/35 blur-3xl" />
-        <div className="pointer-events-none absolute -start-32 -bottom-40 h-[28rem] w-[28rem] rounded-full bg-cyan-500/25 blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(125,211,252,.18)_1px,transparent_0)] bg-[size:32px_32px] opacity-40 [mask-image:radial-gradient(ellipse_75%_70%_at_50%_45%,#000_25%,transparent_80%)]" />
+      <aside className="legacy-auth-visual relative order-2 hidden min-h-svh overflow-hidden lg:block">
+        <div className="legacy-auth-glow-blue pointer-events-none absolute -top-[10%] -right-[10%] h-[520px] w-[520px] rounded-full" />
+        <div className="legacy-auth-glow-cyan pointer-events-none absolute -bottom-[15%] -left-[10%] h-[440px] w-[440px] rounded-full" />
+        <div className="legacy-auth-grid pointer-events-none absolute inset-0 opacity-40" />
 
-        <div className="absolute inset-x-0 top-[12%] mx-auto aspect-square w-[min(31rem,72%)] rounded-full border border-blue-300/20">
-          <div className="absolute inset-[13%] rounded-full border border-cyan-300/20 border-dashed" />
-          {channelIcons.map(({ Icon, background }, index) => {
-            const positions = [
-              "start-1/2 top-0 -translate-x-1/2 -translate-y-1/2",
-              "end-0 top-1/2 translate-x-1/2 -translate-y-1/2",
-              "start-1/2 bottom-0 -translate-x-1/2 translate-y-1/2",
-              "start-0 top-1/2 -translate-x-1/2 -translate-y-1/2",
-            ]
-            return (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <div className="relative aspect-square w-[min(560px,80%)]">
+            <div className="legacy-orbit-ring--slow absolute inset-0 rounded-full border border-[rgba(90,140,255,0.28)]">
+              <div className="absolute top-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 shadow-[0_0_14px_#22D3EE]" />
+            </div>
+            <div className="legacy-orbit-ring--rev absolute inset-[12%] rounded-full border border-[rgba(90,140,255,0.22)] border-dashed" />
+            {channelIcons.map(({ Icon, background }, index) => (
               <span
-                className={`absolute grid h-12 w-12 place-items-center rounded-2xl border border-white/15 text-white shadow-xl ${positions[index]}`}
+                className={`legacy-float-y absolute grid h-12 w-12 place-items-center rounded-2xl border border-white/10 text-white shadow-xl ${iconPositions[index]}`}
                 key={Icon.displayName ?? String(index)}
-                style={{ background }}
+                style={{ animationDelay: `${index * 0.4}s`, background }}
               >
                 <Icon className="h-5 w-5" color="white" />
               </span>
-            )
-          })}
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="grid h-28 w-28 place-items-center rounded-full border border-white/15 bg-blue-600/30 shadow-[0_0_70px_rgba(37,99,235,.55)] backdrop-blur-xl">
-              <Image
-                alt=""
-                className="h-20 w-20 rounded-full object-cover"
-                height={96}
-                src="/assets/wesal/wesal-mark.png"
-                width={96}
-              />
+            ))}
+            <div className="absolute inset-0 grid place-items-center">
+              <div className="relative">
+                <div className="legacy-orb-pulse absolute h-[140px] w-[140px] rounded-full" />
+                <div className="legacy-auth-mark grid h-[112px] w-[112px] place-items-center rounded-full">
+                  <Image
+                    alt=""
+                    className="h-[76px] w-[76px] rounded-full object-cover"
+                    height={96}
+                    src="/assets/wesal/wesal-mark.png"
+                    width={96}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="relative max-w-xl">
-          {visual.badge && (
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-cyan-300/15 px-3 py-1.5 font-bold text-[11px] text-cyan-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
-              {visual.badge}
-            </span>
-          )}
-          <p className="font-black text-3xl leading-tight">{visual.title}</p>
-          <p className="mt-4 text-slate-300 leading-8">{visual.subtitle}</p>
-          <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-            {visual.bullets.map((bullet, index) => (
-              <li
-                className="flex items-center gap-2 text-slate-200 text-sm"
-                key={String(index)}
-              >
-                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-cyan-300/15 text-cyan-300">
-                  <Check className="h-3 w-3" />
-                </span>
-                {bullet}
-              </li>
-            ))}
-          </ul>
+        <div className="relative flex min-h-svh flex-col p-8 lg:p-12">
+          <div className="mt-auto max-w-md">
+            {visual.badge && (
+              <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-[rgba(90,140,255,0.22)] bg-white/6 px-3 py-1.5 font-bold text-[11px] text-cyan-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#22D3EE]" />
+                {visual.badge}
+              </span>
+            )}
+            <h2 className="font-extrabold text-2xl text-white leading-[1.3] lg:text-3xl">
+              {visual.title}
+            </h2>
+            <p className="mt-3 text-[14px] text-slate-300 leading-[1.9]">
+              {visual.subtitle}
+            </p>
+            <ul className="mt-5 space-y-2.5">
+              {visual.bullets.map((bullet, index) => (
+                <li
+                  className="flex items-center gap-2.5 text-[13px] text-slate-200"
+                  key={String(index)}
+                >
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-cyan-300/15 text-cyan-300">
+                    <Check className="h-3 w-3" />
+                  </span>
+                  {bullet}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[rgba(90,140,255,0.22)] bg-white/6 px-3 py-1.5 font-bold text-[11px] text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#22D3EE]" />
+              {t("marketing.brandName")}
+            </div>
+          </div>
         </div>
       </aside>
     </main>

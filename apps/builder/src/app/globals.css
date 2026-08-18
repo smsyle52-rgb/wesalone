@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@chatbotx.io/ui/styles/default.css";
+@import "../features/auth/legacy-wesal-auth.css";
 
 /**
  * Tailwind CSS official document:
