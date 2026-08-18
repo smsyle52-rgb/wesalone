@@ -16,7 +16,7 @@
   background: var(--legacy-bg);
 }
 
-.legacy-auth-card > [data-slot="card"] {
+.legacy-auth-card [data-slot="card"] {
   color: var(--legacy-fg) !important;
   background: rgba(12, 24, 52, 0.72) !important;
   border-color: var(--legacy-line) !important;
