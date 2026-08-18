@@ -117,6 +117,26 @@ function getNoResponseFallback(contactInbox: ContactInboxModel): string {
   return helpTexts.fallbackLookup
 }
 
+/**
+ * Vertex rejects a generation request whose final conversation turn is from
+ * the model. This can happen when a queued webhook is retried after the
+ * preceding assistant reply was persisted, but before a new user message was
+ * added to the AI context. Remove only those dangling assistant turns; all
+ * customer turns and complete tool exchanges remain intact.
+ */
+function removeTrailingAssistantTurns(messages: ModelMessage[]): {
+  messages: ModelMessage[]
+  removed: number
+} {
+  const normalized = [...messages]
+  let removed = 0
+  while (normalized.at(-1)?.role === "assistant") {
+    normalized.pop()
+    removed += 1
+  }
+  return { messages: normalized, removed }
+}
+
 export async function replyByAI(
   props: ReplyByAIProps,
 ): Promise<null | ReplyByAIExecutionResult> {
@@ -251,6 +271,8 @@ export async function generateAIReplyText(
         })
       : ""
 
+    const { messages: modelMessages } = removeTrailingAssistantTurns(messages)
+
     for (const providerInfo of providers) {
       const modelConfig = await createReplyModel({
         workspaceId: conversation.workspaceId,
@@ -280,7 +302,7 @@ export async function generateAIReplyText(
       const result = await streamText({
         model: modelConfig.model,
         system: systemPrompt,
-        messages,
+        messages: modelMessages,
         maxOutputTokens: aiAgent.maxOutputTokens,
         temperature: aiAgent.temperature,
         tools: {},
@@ -907,10 +929,24 @@ async function runAIReply(
     const runtimeTools: ToolSet = tools
     const hasTools = Object.keys(runtimeTools).length > 0
     const hasKnowledgeBase = "search_knowledge_base" in runtimeTools
+    const { messages: modelMessages, removed: removedAssistantTurns } =
+      removeTrailingAssistantTurns(messages)
+    if (removedAssistantTurns > 0) {
+      logger.warn(
+        {
+          conversationId: conversation.id,
+          workspaceId: conversation.workspaceId,
+          provider,
+          modelId: selectedModelId,
+          removedAssistantTurns,
+        },
+        "[automated-response] removed dangling assistant turns before model request",
+      )
+    }
     const result = await streamText({
       model: modelConfig.model,
       system: systemPrompt,
-      messages,
+      messages: modelMessages,
       maxOutputTokens: aiAgent.maxOutputTokens,
       temperature: aiAgent.temperature,
       tools: runtimeTools,

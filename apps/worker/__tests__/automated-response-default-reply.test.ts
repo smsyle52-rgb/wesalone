@@ -435,4 +435,25 @@ describe("replyByAI — default reply flow fallback", () => {
       expect.stringContaining("I've found some data"),
     )
   })
+
+  test("removes dangling assistant turns before calling the model", async () => {
+    await replyByAI({
+      ...baseProps,
+      messages: [
+        { role: "user", content: "مرحبا" },
+        { role: "assistant", content: "رد سابق" },
+      ],
+      aiAgent: makeAIAgent(),
+      defaultReplyFlowId: null,
+    })
+
+    const streamOptions = vi.mocked(streamText).mock.calls.at(-1)?.[0] as {
+      messages: ModelMessage[]
+    }
+    expect(streamOptions.messages).toEqual([{ role: "user", content: "مرحبا" }])
+    expect(warnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ removedAssistantTurns: 1 }),
+      expect.stringContaining("removed dangling assistant turns"),
+    )
+  })
 })
