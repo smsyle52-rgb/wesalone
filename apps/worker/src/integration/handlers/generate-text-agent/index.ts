@@ -30,12 +30,18 @@ export async function handleAIGenerateTextAgent({
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
 
   try {
-    const aiAgent = await db.query.aiAgentModel.findFirst({
-      where: {
-        id: step.aiAgentId,
-        workspaceId: conversation.workspaceId,
-      },
-    })
+    const [aiAgent, workspace] = await Promise.all([
+      db.query.aiAgentModel.findFirst({
+        where: {
+          id: step.aiAgentId,
+          workspaceId: conversation.workspaceId,
+        },
+      }),
+      db.query.workspaceModel.findFirst({
+        where: { id: conversation.workspaceId },
+        columns: { language: true },
+      }),
+    ])
 
     if (!aiAgent) {
       logger.error(
@@ -91,6 +97,7 @@ export async function handleAIGenerateTextAgent({
       messages,
       aiAgent,
       summary,
+      workspaceLanguage: workspace?.language,
       operationId: `flow:generate-text-agent:${conversation.id}:${triggerMessageId ?? flowVersion.id}:${step.id}`,
       ...(preferredModel
         ? { preferredModel }
