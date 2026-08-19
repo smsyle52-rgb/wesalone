@@ -962,18 +962,25 @@ async function runAIReply(
       temperature: aiAgent.temperature,
       tools: runtimeTools,
       toolChoice: hasTools ? "auto" : "none",
-      prepareStep: hasKnowledgeBase
-        ? ({ stepNumber }) =>
-            stepNumber === 0
-              ? {
-                  activeTools: ["search_knowledge_base"],
-                  toolChoice: {
-                    type: "tool",
-                    toolName: "search_knowledge_base",
-                  },
-                }
-              : undefined
-        : undefined,
+      prepareStep: ({ stepNumber }) => {
+        if (stepNumber === 0 && hasKnowledgeBase) {
+          return {
+            activeTools: ["search_knowledge_base"],
+            toolChoice: {
+              type: "tool",
+              toolName: "search_knowledge_base",
+            },
+          }
+        }
+        // Image analysis is an information-gathering step. Once it has run,
+        // require the next step to turn that result into the customer-facing
+        // answer instead of letting the model spend the remaining step budget
+        // repeating tools and falling through to the generic reply.
+        if (toolNamesSet.has(systemFunctionNames.imageReader)) {
+          return { activeTools: [], toolChoice: "none" }
+        }
+        return undefined
+      },
       stopWhen: stepCountIs(5),
       timeout: {
         totalMs: aiTimeouts.aiTotal,
@@ -1199,7 +1206,13 @@ async function runAIReply(
           : undefined,
       })
       if (!triggeredDefaultReplyFlow) {
-        await sendMessageWithRender(conversation.id, helpTexts.fallbackLookup)
+        await sendMessageWithRender(
+          conversation.id,
+          getNoResponseFallback(
+            (props.workspaceLanguage ?? props.contactInbox.language) ??
+              undefined,
+          ),
+        )
       }
       return {
         responded: true,
