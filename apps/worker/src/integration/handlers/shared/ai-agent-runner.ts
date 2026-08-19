@@ -46,7 +46,6 @@ export type ReplyByAIProps = {
   messages: ModelMessage[]
   aiAgent: AIAgentModel
   summary?: string
-  workspaceLanguage?: string | null
   preferredProvider?: AIAgentProvider
   preferredModel?: AIAgentModelConfig
   operationId: string
@@ -70,13 +69,6 @@ export type ReplyByAIExecutionResult = {
       rawFinishReason?: string
     }>
   }
-}
-
-function getNoResponseFallback(language?: string | null): string {
-  if (language?.toLowerCase().startsWith("ar")) {
-    return "عذرًا، لم أتمكن من إنشاء رد كامل الآن. يرجى إعادة صياغة طلبك أو تحديد ما تحتاجه وسأساعدك."
-  }
-  return helpTexts.fallbackLookup
 }
 
 export async function runAIAgentRunner(
@@ -415,9 +407,7 @@ async function runAIReplyInternal(
         provider,
         modelId: selectedModelId,
         usedFallbackText: true,
-        fullText: getNoResponseFallback(
-          props.workspaceLanguage ?? props.contactInbox.language,
-        ),
+        fullText: helpTexts.fallbackLookup,
         toolStats: {
           steps: stepCount,
           toolCallsCount,
