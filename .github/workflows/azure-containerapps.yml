@@ -172,15 +172,27 @@ jobs:
           az containerapp update --resource-group "$AZURE_RESOURCE_GROUP" --name wesal-realtime \
             --image "$AZURE_CONTAINER_REGISTRY.azurecr.io/wesal/realtime:${GITHUB_SHA}"
 
-      - name: Smoke test public staging endpoints
+      - name: Smoke test public production ingress
         shell: bash
         run: |
           set -euo pipefail
-          for app in wesal-builder wesal-realtime; do
-            host=$(az containerapp show --resource-group "$AZURE_RESOURCE_GROUP" --name "$app" --query properties.configuration.ingress.fqdn --output tsv)
-            test -n "$host"
-            curl --fail --silent --show-error --retry 5 --retry-delay 5 "https://${host}/" >/dev/null
-          done
+          builder_host=$(az containerapp show --resource-group "$AZURE_RESOURCE_GROUP" --name wesal-builder --query properties.configuration.ingress.fqdn --output tsv)
+          test -n "$builder_host"
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 "https://${builder_host}/" >/dev/null
+
+          # Realtime intentionally protects generic HTTP requests and can return
+          # a 4xx at its root. Any non-5xx response proves the ingress and
+          # revision are reachable; connection failures still fail the command.
+          realtime_host=$(az containerapp show --resource-group "$AZURE_RESOURCE_GROUP" --name wesal-realtime --query properties.configuration.ingress.fqdn --output tsv)
+          test -n "$realtime_host"
+          realtime_status=$(curl --silent --show-error --retry 5 --retry-delay 5 --output /dev/null --write-out "%{http_code}" "https://${realtime_host}/")
+          case "$realtime_status" in
+            2*|3*|4*) ;;
+            *)
+              echo "Realtime ingress returned HTTP ${realtime_status}" >&2
+              exit 1
+              ;;
+          esac
 
   rollback:
     name: Restore a prior revision
