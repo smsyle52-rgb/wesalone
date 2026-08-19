@@ -276,6 +276,7 @@ export async function processAutomatedResponse(
           hasDocument: hasTriggerDocument,
           hasImage: hasTriggerImage,
           audioTranscribed: audioTranscripts.length > 0,
+          language: workspace.language,
         }),
       })
     }
@@ -315,6 +316,7 @@ export async function processAutomatedResponse(
           : undefined,
         summary,
         defaultReplyFlowId: workspace.defaultReply,
+        workspaceLanguage: workspace.language,
       })
     } finally {
       clearInterval(typingIntervalId)
@@ -436,7 +438,10 @@ function getFileOnlyPrompt(input: {
   audioTranscribed: boolean
   hasDocument: boolean
   hasImage: boolean
+  language?: string
 }): string {
+  const isArabic = input.language?.toLowerCase().startsWith("ar") ?? false
+
   if (input.hasAudio && input.audioTranscribed) {
     return "The attached voice message has been transcribed above. Answer the user's spoken request directly."
   }
@@ -446,7 +451,9 @@ function getFileOnlyPrompt(input: {
   }
 
   if (input.hasImage && !input.hasDocument) {
-    return "I uploaded an image. Please analyze it, provide a short summary, then ask what specific detail I want to know more about."
+    return isArabic
+      ? "أرفقت صورة. حلّلها وقدّم ملخصًا قصيرًا بالعربية، ثم اسألني عن التفصيل المحدد الذي أريد معرفة المزيد عنه."
+      : "I uploaded an image. Please analyze it, provide a short summary, then ask what specific detail I want to know more about."
   }
 
   if (input.hasDocument && !input.hasImage) {

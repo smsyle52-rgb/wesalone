@@ -83,6 +83,7 @@ export type ReplyByAIProps = {
   allowedSystemFunctionIds?: string[]
   summary?: string
   defaultReplyFlowId?: string | null
+  workspaceLanguage?: string
 }
 
 export type ReplyByAIExecutionResult = {
@@ -110,8 +111,8 @@ export type ReplyAIProvider =
   | "azureOpenAI"
   | "openaiCompatible"
 
-function getNoResponseFallback(contactInbox: ContactInboxModel): string {
-  if (contactInbox.language?.toLowerCase().startsWith("ar")) {
+function getNoResponseFallback(language?: string): string {
+  if (language?.toLowerCase().startsWith("ar")) {
     return "عذرًا، لم أتمكن من إنشاء رد كامل الآن. يرجى إعادة صياغة طلبك أو تحديد ما تحتاجه وسأساعدك."
   }
   return helpTexts.fallbackLookup
@@ -180,7 +181,9 @@ export async function replyByAI(
   // Every candidate has already run in order (Vertex first, then Azure), so
   // this is an explicit, localized clarification rather than silent failure.
   const primaryCandidate = providers[0]
-  const provider = primaryCandidate ? getProviderName(primaryCandidate) : "vertex"
+  const provider = primaryCandidate
+    ? getProviderName(primaryCandidate)
+    : "vertex"
   const modelId = primaryCandidate?.model ?? "unavailable-response"
   logger.warn(
     {
@@ -194,7 +197,9 @@ export async function replyByAI(
   )
   await sendMessageWithRender(
     props.conversation.id,
-    getNoResponseFallback(props.contactInbox),
+    getNoResponseFallback(
+      (props.workspaceLanguage ?? props.contactInbox.language) ?? undefined,
+    ),
   )
   return {
     responded: true,
@@ -486,6 +491,10 @@ function createReplyToolset(options: {
       [systemFunctionNames.imageReader]: createImageReaderExecutor({
         abortSignal: options.abortSignal,
         fileOnlyTrigger: options.props.fileOnlyTrigger,
+        language:
+          (options.props.workspaceLanguage ??
+            options.props.contactInbox.language) ??
+          undefined,
         model: options.model,
         modelId: options.modelId,
         provider: options.provider,
@@ -769,7 +778,9 @@ async function createReplyModel(props: {
     if (!override?.azureOpenAI) {
       return null
     }
-    const providerInstance = getPlatformAzureOpenAIProvider(override.azureOpenAI)
+    const providerInstance = getPlatformAzureOpenAIProvider(
+      override.azureOpenAI,
+    )
     return {
       model: getPlatformAzureOpenAIChatModel(
         providerInfo.model,
