@@ -7,7 +7,6 @@ import type { AIGenerateTextAgentSchema } from "@chatbotx.io/flow-config"
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const findAgentMock = vi.hoisted(() => vi.fn())
-const findWorkspaceMock = vi.hoisted(() => vi.fn())
 const getOrInitContextMock = vi.hoisted(() => vi.fn())
 const runAIAgentRunnerMock = vi.hoisted(() => vi.fn())
 const saveResultToCustomFieldMock = vi.hoisted(() => vi.fn())
@@ -25,9 +24,6 @@ vi.mock("@chatbotx.io/database/client", () => ({
     query: {
       aiAgentModel: {
         findFirst: findAgentMock,
-      },
-      workspaceModel: {
-        findFirst: findWorkspaceMock,
       },
     },
   },
@@ -119,7 +115,6 @@ describe("handleAIGenerateTextAgent OpenAI-compatible provider", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     findAgentMock.mockResolvedValue(makeAgent())
-    findWorkspaceMock.mockResolvedValue({ language: "ar" })
     getOrInitContextMock.mockResolvedValue({ summary: "Summary" })
     runAIAgentRunnerMock.mockResolvedValue({
       responded: true,
@@ -155,7 +150,6 @@ describe("handleAIGenerateTextAgent OpenAI-compatible provider", () => {
           integrationId: "integration-1",
           model: "local-model",
         },
-        workspaceLanguage: "ar",
       }),
     )
     expect(saveResultToCustomFieldMock).toHaveBeenCalledWith({
