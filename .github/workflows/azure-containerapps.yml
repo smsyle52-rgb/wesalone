@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: Deploy the built commit to Azure staging resources
+        description: Deploy the built commit to Azure production resources
         required: true
         default: false
         type: boolean
@@ -124,12 +124,11 @@ jobs:
           sudo rm -f /swapfile
 
   deploy:
-    name: Deploy verified staging revision
+    name: Deploy verified production revision
     needs: build
     if: >-
-      github.event_name == 'workflow_dispatch' &&
-      inputs.deploy &&
-      inputs.rollback_revision == ''
+      (github.event_name == 'push' && github.ref == 'refs/heads/release/wesal-one-next') ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy && inputs.rollback_revision == '')
     runs-on: ubuntu-latest
     environment: azure-production
     steps:
@@ -152,9 +151,12 @@ jobs:
           for name in "${required_secrets[@]}"; do
             az keyvault secret show --vault-name "$AZURE_KEY_VAULT" --name "$name" --query id --output tsv >/dev/null
           done
-          for app in wesal-builder wesal-worker wesal-realtime; do
+          for app in wesal-builder wesal-worker-consumption wesal-worker-scheduler wesal-realtime; do
             az containerapp show --resource-group "$AZURE_RESOURCE_GROUP" --name "$app" --output none
           done
+          # The legacy all-in-one worker is the rollback plan. This workflow
+          # must never update or scale it during routine production deploys.
+          test "$(az containerapp show --resource-group "$AZURE_RESOURCE_GROUP" --name wesal-worker --query properties.template.scale.minReplicas --output tsv)" = "0"
 
       - name: Update revisions without migrations
         shell: bash
@@ -163,7 +165,9 @@ jobs:
           az containerapp update --resource-group "$AZURE_RESOURCE_GROUP" --name wesal-builder \
             --image "$AZURE_CONTAINER_REGISTRY.azurecr.io/wesal/builder:${GITHUB_SHA}" \
             --set-env-vars RUN_DB_MIGRATE=false RUN_DB_SEED=false
-          az containerapp update --resource-group "$AZURE_RESOURCE_GROUP" --name wesal-worker \
+          az containerapp update --resource-group "$AZURE_RESOURCE_GROUP" --name wesal-worker-consumption \
+            --image "$AZURE_CONTAINER_REGISTRY.azurecr.io/wesal/worker:${GITHUB_SHA}"
+          az containerapp update --resource-group "$AZURE_RESOURCE_GROUP" --name wesal-worker-scheduler \
             --image "$AZURE_CONTAINER_REGISTRY.azurecr.io/wesal/worker:${GITHUB_SHA}"
           az containerapp update --resource-group "$AZURE_RESOURCE_GROUP" --name wesal-realtime \
             --image "$AZURE_CONTAINER_REGISTRY.azurecr.io/wesal/realtime:${GITHUB_SHA}"
