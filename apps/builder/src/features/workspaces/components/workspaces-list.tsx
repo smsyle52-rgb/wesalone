@@ -15,7 +15,7 @@ import { CrownIcon, PlusCircleIcon } from "lucide-react"
 import Link from "next/link"
 import { getTranslations } from "next-intl/server"
 import { UpgradePlanButton } from "@/enterprise/features/billing/upgrade-plan-dialog"
-import { isCloud, isCommunity } from "@/env"
+import { isCloud } from "@/env"
 import { formatScheduleTime } from "../helpers"
 import type { WorkspaceResource } from "../schema/resource"
 import { WorkspaceStatusSwitch } from "./workspace-status-switch"
@@ -197,7 +197,17 @@ const WorkspacesList = async ({
   const createLabel = t("actions.createFeature", {
     feature: t("fields.workspace.label"),
   })
-  const showCreateCard = !isCommunity()
+  // Upstream hides this card outside the cloud edition, where a self-hosted
+  // install is assumed to seed its single workspace at install time. Wesal One
+  // runs the community edition as a hosted multi-tenant platform: merchants
+  // sign up themselves, so with the card hidden a new account lands on an empty
+  // page with nothing to click and no way forward.
+  //
+  // This file sits outside the two commercially licensed directories
+  // (apps/builder/src/enterprise and packages/database/src/schema/enterprise),
+  // so it is MIT and free to modify. No enterprise code or LICENSE_KEY is
+  // involved — the quota gating below still applies untouched on cloud.
+  const showCreateCard = true
   const ownerIds = new Set(ownerWorkspaceIds)
   const superAdminIds = new Set(superAdminWorkspaceIds)
   const ownerLabel = t("home.owner")
