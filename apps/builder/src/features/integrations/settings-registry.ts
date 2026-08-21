@@ -1,5 +1,5 @@
 import { SiFacebook, SiMake } from "@icons-pack/react-simple-icons"
-import { BotIcon, CodeIcon, MailIcon, TableIcon } from "lucide-react"
+import { CodeIcon, MailIcon, TableIcon } from "lucide-react"
 import type { ComponentType } from "react"
 
 /**
@@ -31,16 +31,13 @@ export const INTEGRATION_SETTINGS_REGISTRY: readonly IntegrationSettingsEntry[] 
       titleKey: "workspaceToken.title",
       icon: CodeIcon,
     },
-    { slug: "openai", titleKey: "openai.title", icon: BotIcon },
-    { slug: "gemini", titleKey: "gemini.title", icon: BotIcon },
-    { slug: "claude", titleKey: "claude.title", icon: BotIcon },
-    { slug: "deepseek", titleKey: "deepseek.title", icon: BotIcon },
-    { slug: "openrouter", titleKey: "openrouter.title", icon: BotIcon },
-    {
-      slug: "openai-compatible",
-      titleKey: "openaiCompatible.title",
-      icon: BotIcon,
-    },
+    // The six bring-your-own-key AI provider rows (openai, gemini, claude,
+    // deepseek, openrouter, openai-compatible) are intentionally absent: the
+    // platform serves every workspace from its own AI provider, so asking a
+    // merchant for an API key offers them a setup that cannot help and a bill
+    // they should not pay. The layout comment above this registry already
+    // described this as the intended behaviour; the rows simply outlived it.
+    // Their route directories are left in place so re-enabling is one commit.
     { slug: "google-sheets", titleKey: "googleSheets.title", icon: TableIcon },
     { slug: "facebook-ads", titleKey: "facebookAds.title", icon: SiFacebook },
     { slug: "make", titleKey: "make.title", icon: SiMake },
