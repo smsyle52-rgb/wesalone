@@ -58,7 +58,20 @@ describe("updateWorkspaceAdvancedRequest.smartResponseDelaySeconds", () => {
     const result = updateWorkspaceAdvancedRequest.safeParse({
       ...baseInput,
       smartResponseDelaySeconds: "7",
-import { updateWorkspaceAdvancedRequest } from "../src/features/workspaces/schema/update-workspace-schema"
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  test("rejects a numeric delay outside the allowed options", () => {
+    const result = updateWorkspaceAdvancedRequest.safeParse({
+      ...baseInput,
+      smartResponseDelaySeconds: 7,
+    })
+
+    expect(result.success).toBe(false)
+  })
+})
 
 const validBase = {
   defaultReply: null,
@@ -93,13 +106,6 @@ describe("updateWorkspaceAdvancedRequest.defaultReplyFrequency", () => {
     expect(result.success).toBe(false)
   })
 
-  test("rejects a numeric delay outside the allowed options", () => {
-    const result = updateWorkspaceAdvancedRequest.safeParse({
-      ...baseInput,
-      smartResponseDelaySeconds: 7,
-    })
-
-    expect(result.success).toBe(false)
   test("accepts a missing frequency (stale clients must keep the stored value untouched)", () => {
     // `validBase` itself has no `defaultReplyFrequency` key. A form rendered
     // before this field shipped submits without it; the parsed output must

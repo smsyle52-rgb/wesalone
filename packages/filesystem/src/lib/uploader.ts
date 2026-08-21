@@ -470,13 +470,19 @@ export class Uploader {
       })
       const page = await pages.next()
       const response = page.value
+      // The SDK's page iterator is loosely typed, so annotate the mapped result:
+      // without it `Contents` widens to `any` and every caller that reads it
+      // inherits an implicit-any parameter.
+      const contents: { Key: string }[] = (
+        response?.segment.blobItems ?? []
+      ).map((blob: { name: string }) => ({ Key: blob.name }))
       return {
-        Contents: (response?.segment.blobItems ?? []).map(
-          (blob: { name: string }) => ({
-            Key: blob.name,
-          }),
-        ),
+        Contents: contents,
         NextContinuationToken: response?.continuationToken,
+        // Callers page with `IsTruncated`, the S3 shape. Azure signals
+        // "more pages" with a continuation token instead, so translate it
+        // here rather than making every caller special-case the provider.
+        IsTruncated: Boolean(response?.continuationToken),
       }
     }
 
@@ -488,6 +494,10 @@ export class Uploader {
       })
       return {
         Contents: files.map((file) => ({ Key: file.name })),
+        // getFiles without autoPaginate already returned every match, so
+        // there is never a further page to fetch.
+        NextContinuationToken: undefined as string | undefined,
+        IsTruncated: false,
       }
     }
 

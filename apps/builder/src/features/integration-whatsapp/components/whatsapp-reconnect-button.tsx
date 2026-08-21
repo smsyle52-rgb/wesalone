@@ -85,7 +85,7 @@ export function WhatsappReconnectButton({
 
     const authTab = window.open(
       buildFacebookOAuthDialogUrl({
-        resellerOrigin: window.location.origin,
+        resellerUrl: window.location.href,
         clientId: settings.clientId,
         configId: settings.configId,
         version: settings.version,

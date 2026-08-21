@@ -13,6 +13,7 @@ import {
   ChartPieIcon,
   ChevronsRight,
   CreditCardIcon,
+  MegaphoneIcon,
   LightbulbIcon,
   type LucideIcon,
   MessageCircleMoreIcon,
