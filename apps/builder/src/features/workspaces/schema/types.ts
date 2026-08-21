@@ -1,5 +1,5 @@
 import { getAllCountries, getAllTimezones } from "countries-and-timezones"
-import { localeMeta, locales } from "@/i18n/config"
+import { localeMeta, locales, selectableLocales } from "@/i18n/config"
 
 export const UNKNOWN_COUNTRY = "unknown"
 export const allCountryCodes = [
@@ -14,13 +14,15 @@ export const allCountryOptions = [
   })),
 ]
 
-export const allSupportedLanguages = locales.map((locale) => ({
+export const allSupportedLanguages = selectableLocales.map((locale) => ({
   label: localeMeta[locale].nativeLabel,
   value: locale,
 }))
-export const allLanguageCodes = allSupportedLanguages.map(
-  (language) => language.value,
-)
+// Deliberately NOT derived from the options above: a workspace created before
+// the UI narrowed can still hold any shipped locale, and validating against the
+// short list would reject its own stored value the next time someone saves this
+// form for an unrelated reason.
+export const allLanguageCodes = locales.map((locale) => locale as string)
 
 export const allTimezoneOptions = Object.values(getAllTimezones()).map(
   (timezone) => ({

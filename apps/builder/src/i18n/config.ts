@@ -22,6 +22,19 @@ export const locales = [
 ] as const
 
 export type Locale = (typeof locales)[number]
+
+/**
+ * The locales Wesal One offers in its own UI.
+ *
+ * `locales` above stays whole on purpose: it is the set of catalogs that ship,
+ * and every one of them is still a valid value for an existing cookie or a
+ * workspace row set before this narrowing. Trimming that list instead would
+ * turn stored values invalid and delete the upstream catalog files, which then
+ * conflicts on every sync from ChatbotX. This list only decides what a person
+ * is offered to pick.
+ */
+export const selectableLocales = ["ar", "en"] as const satisfies readonly Locale[]
+
 export const defaultLocale: Locale = "ar"
 export const LOCALE_COOKIE = "NEXT_LOCALE"
 export const LOCALE_QUERY_PARAM = "lang"

@@ -19,10 +19,15 @@ import { useRouter } from "next/navigation"
 import { useLocale, useTranslations } from "next-intl"
 import type React from "react"
 import { useState, useTransition } from "react"
-import { isLocale, localeMeta, locales, resolveLocale } from "@/i18n/config"
+import {
+  isLocale,
+  localeMeta,
+  resolveLocale,
+  selectableLocales,
+} from "@/i18n/config"
 import { setUserLocale } from "@/lib/locale"
 
-const items = locales.map((value) => ({
+const items = selectableLocales.map((value) => ({
   value,
   label: localeMeta[value].nativeLabel,
 }))
