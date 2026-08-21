@@ -237,7 +237,20 @@ const AZURE_OPENAI_OR_WORKSPACE_OPTIONS = [
 
 const WORKSPACE_OPTIONS = [{ label: "Workspace", value: "workspace" }]
 
-const GOOGLE_CLOUD_OR_WORKSPACE_OPTIONS = [
+// Speech-to-text resolves through the platform provider: Azure OpenAI
+// (OpenAI's own transcription model, served from Azure) with Vertex as the
+// fallback that runs today. Offering only Workspace made the row
+// unusable once per-workspace AI keys were retired.
+const VOICE_INPUT_OPTIONS = [
+  { label: "Azure OpenAI", value: "azureOpenAI" },
+  { label: "Vertex (Google)", value: "vertex" },
+  { label: "Workspace", value: "workspace" },
+]
+
+// getPlatformTextToSpeechConfig returns a config ONLY for `vertex`, so a
+// page that could not offer it made text-to-speech impossible to configure.
+const VOICE_OUTPUT_OPTIONS = [
+  { label: "Vertex (Google)", value: "vertex" },
   { label: "Google Cloud", value: "googleCloud" },
   { label: "Workspace", value: "workspace" },
 ]
@@ -254,8 +267,8 @@ const CAPABILITY_FIELDS = [
   { key: "extraction", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
   { key: "imageGeneration", providers: WORKSPACE_OPTIONS },
   { key: "imageEditing", providers: WORKSPACE_OPTIONS },
-  { key: "speechToText", providers: WORKSPACE_OPTIONS },
-  { key: "textToSpeech", providers: GOOGLE_CLOUD_OR_WORKSPACE_OPTIONS },
+  { key: "speechToText", providers: VOICE_INPUT_OPTIONS },
+  { key: "textToSpeech", providers: VOICE_OUTPUT_OPTIONS },
   { key: "webSearch", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
   { key: "documentParsing", providers: DOCUMENT_PROVIDER_OPTIONS },
   { key: "translation", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
