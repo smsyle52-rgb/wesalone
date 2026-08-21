@@ -114,18 +114,18 @@ describe("LangSelector", () => {
 
   test("refreshes after the locale cookie write resolves", async () => {
     const option = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="简体中文"]',
+      'button[aria-label="English"]',
     )
 
     if (!option) {
-      throw new Error("simplified chinese option not rendered")
+      throw new Error("english option not rendered")
     }
 
     act(() => {
       option.click()
     })
 
-    expect(localeAction.setUserLocale).toHaveBeenCalledWith("zh-CN")
+    expect(localeAction.setUserLocale).toHaveBeenCalledWith("en")
     expect(navigation.refresh).not.toHaveBeenCalled()
 
     await act(() => {
@@ -140,7 +140,7 @@ describe("LangSelector", () => {
       'button[role="combobox"]',
     )
     const option = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="简体中文"]',
+      'button[aria-label="English"]',
     )
 
     if (!(trigger && option)) {
