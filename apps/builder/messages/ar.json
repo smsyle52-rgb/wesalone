@@ -2065,7 +2065,42 @@
       "placeholder": "اختر موديلًا"
     },
     "optionalHint": "(اختياري)",
-    "selectOptionsPlaceholder": "اختر من القائمة"
+    "selectOptionsPlaceholder": "اختر من القائمة",
+    "dynamicImage": {
+      "label": "صورة ديناميكية"
+    },
+    "defaultReplyFrequency": {
+      "description": "Controls how often the Default Reply flow may fire for the same contact on a channel.",
+      "label": "Default Reply activation frequency",
+      "options": {
+        "allTime": "All time",
+        "oncePerHour": "Once per 1h",
+        "oncePerDay": "Once per 24h"
+      }
+    },
+    "javascriptCode": {
+      "label": "رمز JavaScript",
+      "placeholder": "return (input.first_name || 'there').toUpperCase()",
+      "description": "استخدم JavaScript خالصًا وأعد قيمة. الشبكة والملفات وواجهات البرمجة والمكتبات الخارجية غير متوفرة. بيانات جهة الاتصال والنظام متاحة عبر الكائن `input`."
+    },
+    "waUserId": {
+      "label": "معرف مستخدم واتساب"
+    },
+    "waUserName": {
+      "label": "اسم مستخدم واتساب"
+    },
+    "bookingCalendar": {
+      "label": "تقويم الحجز"
+    },
+    "bookingDate": {
+      "label": "تاريخ الحجز"
+    },
+    "bookingLink": {
+      "label": "رابط الحجز"
+    },
+    "enabled": {
+      "label": "مفعّل"
+    }
   },
   "flows": {
     "title": "مسارات المحادثة",
@@ -2196,7 +2231,13 @@
       "splitTraffic": "تقسيم حركة المرور",
       "aiEditImage": "تحرير الصورة بالذكاء الاصطناعي",
       "whatsappFlow": "تدفق WhatsApp",
-      "sendMetaCapiEvent": "Send Meta CAPI Event"
+      "sendMetaCapiEvent": "Send Meta CAPI Event",
+      "executeJavascript": "تنفيذ JavaScript",
+      "appointmentScheduling": "جدولة المواعيد",
+      "import": "استيراد التدفق",
+      "export": "تصدير",
+      "importStarted": "جارٍ استيراد التدفق. يرجى مراجعة سجل الاستيراد للحصول على النتائج.",
+      "importJsonOnly": "ملفات JSON فقط"
     },
     "splitTraffic": {
       "balanceHint": "يجب أن يساوي المبلغ الإجمالي 100%.",
@@ -2300,6 +2341,13 @@
     },
     "setCustomField": {
       "temporalHint": "اتركه فارغاً لحفظ التاريخ/الوقت الحالي."
+    },
+    "export": {
+      "notPublished": "هذا المسار لم يُنشر مطلقًا. يرجى نشره قبل التصدير.",
+      "failed": "فشل التصدير. يرجى المحاولة مرة أخرى."
+    },
+    "sendText": {
+      "tiktokTitleTruncated": "عند إرفاق أزرار، يرسل TikTok أول 40 حرفًا فقط من هذه الرسالة، وسيتم قص الباقي."
     }
   },
   "folders": {
@@ -2962,7 +3010,13 @@
     "deleteNodeError": "تعذّر حذف الكتلة. يُرجى المحاولة مرة أخرى.",
     "redoHistoryCleared": "تم مسح سجل الإعادة",
     "historyDepth": "({count})",
-    "none": "لا شيء"
+    "none": "لا شيء",
+    "tiktokCardTitleTooLong": "سيقوم TikTok بتقصير هذه الرسالة: عند إرفاق أزرار، يتم إرسال أول 40 حرفًا فقط. قم بتقصير الرسالة أو إزالة الأزرار.",
+    "waTemplateMpmNoProducts": "أضف منتجًا واحدًا على الأقل إلى زر المنتجات المتعددة هذا قبل النشر.",
+    "waTemplateMpmTooManySections": "يمكن أن يحتوي زر المنتجات المتعددة على 10 أقسام كحد أقصى. أزل بعض الأقسام قبل النشر.",
+    "waTemplateMpmTooManyProducts": "يمكن أن يحتوي زر المنتجات المتعددة على 30 منتجًا كحد أقصى إجمالاً. أزل بعض المنتجات قبل النشر.",
+    "waTemplateLtoExpirationRequired": "اختر تاريخ انتهاء العرض المحدود المدة قبل الإرسال.",
+    "waTemplateMpmIncompleteProducts": "يحتاج كل قسم إلى منتج واحد محدد على الأقل — احذف الصفوف الفارغة أو اختر منتجًا لها."
   },
   "instagram": {
     "description": "يتيح لك هذا التكامل إنشاء روبوتات Instagram.",
@@ -2998,7 +3052,9 @@
       "notEligible": "هذا الرقم غير مؤهل للمزامنة التاريخية.",
       "triggerFailed": "تعذر بدء المزامنة. يرجى المحاولة مرة أخرى في وقت لاحق.",
       "unknown": "تعذر تمكين المزامنة. يرجى المحاولة مرة أخرى في وقت لاحق."
-    }
+    },
+    "aiReadsSyncedHistoryLabel": "يقرأ الذكاء الاصطناعي السجل المتزامن",
+    "aiReadsSyncedHistoryHelper": "عند الإيقاف، لا يرى الذكاء الاصطناعي سوى الرسائل الجديدة."
   },
   "messenger": {
     "description": "يتيح لك هذا التكامل إنشاء روبوتات Messenger.",
@@ -3423,7 +3479,24 @@
         "longitude": "خط الطول",
         "locationName": "اسم الموقع (اختياري)",
         "locationAddress": "العنوان (اختياري)",
-        "enterFormatUrl": "أدخل عنوان URL الخاص بـ {format}"
+        "enterFormatUrl": "أدخل عنوان URL الخاص بـ {format}",
+        "catalogUseDefault": "استخدام الصورة المصغّرة الافتراضية للكتالوج",
+        "catalogNotConnectedGuidance": "قم بربط كتالوج Meta لاختيار منتج.",
+        "catalogSetupLink": "الانتقال إلى إعدادات الكتالوج",
+        "catalogSelectedProductFallback": "المنتج: {retailerId}",
+        "limitedTimeOfferBadge": "تنتهي الصلاحية في {date}",
+        "limitedTimeOfferExpiredBadge": "انتهت الصلاحية في {date}",
+        "mpmSections": "المنتجات",
+        "mpmSectionTitlePlaceholder": "عنوان القسم (اختياري)",
+        "mpmAddSection": "إضافة قسم",
+        "mpmRemoveSection": "إزالة القسم",
+        "mpmAddProduct": "إضافة منتج",
+        "mpmRemoveProduct": "إزالة المنتج",
+        "mpmNoProductsHelp": "أضف منتجًا واحدًا على الأقل قبل النشر.",
+        "mpmSectionLimitReached": "تم الوصول إلى الحد الأقصى 10 أقسام.",
+        "mpmProductLimitReached": "تم الوصول إلى الحد الأقصى 30 منتجًا.",
+        "mpmProductsSummary": "{productCount} منتج في {sectionCount} أقسام",
+        "unsupportedButtonParam": "هذا النوع من الأزرار غير مدعوم بعد."
       }
     },
     "sampleBodyCardContent": {
@@ -3449,7 +3522,8 @@
       "messageTemplates": "قوالب الرسائل",
       "profile": "الملف الشخصي",
       "usefulLinks": "روابط مفيدة",
-      "conversionsApi": "Ads Optimization"
+      "conversionsApi": "Ads Optimization",
+      "settings": "الإعدادات"
     },
     "accountHealths": {
       "title": "إدارة حساب WhatsApp الخاص بك",
@@ -3579,7 +3653,13 @@
       "label": "رأس القالب"
     },
     "transferPhoneNumber": "نقل الهاتف من مزود Whatsapp آخر",
-    "signupSessionExpired": "انتهت صلاحية جلسة تسجيل WhatsApp. يُرجى بدء الاتصال من جديد."
+    "signupSessionExpired": "انتهت صلاحية جلسة تسجيل WhatsApp. يُرجى بدء الاتصال من جديد.",
+    "capi": {
+      "automaticEvents": {
+        "title": "الأحداث التلقائية",
+        "description": "أرسل أحداث التحويل من رقم واتساب هذا إلى Meta تلقائيًا. إذا كان الإذن مفقودًا، فأعد ربط الحساب لمنحه."
+      }
+    }
   },
   "zalo": {
     "title": "زالو الزراعة العضوية",
@@ -4045,7 +4125,28 @@
   },
   "appointmentScheduling": {
     "title": "جدولة المواعيد",
-    "description": "إنشاء وإدارة جدولة مواعيدك."
+    "description": "إنشاء وإدارة جدولة مواعيدك.",
+    "flowModes": {
+      "bookFromCustomField": "حجز موعد",
+      "checkAvailabilityFromCustomField": "التحقق من التوفر",
+      "book": "أداة اختيار التاريخ والوقت",
+      "checkAvailability": "أداة اختيار نطاق التاريخ",
+      "cancel": "إلغاء موعد"
+    },
+    "fields": {
+      "mode": "الوضع",
+      "dateTimeFieldId": "تاريخ ووقت الموعد",
+      "dateTimeFieldIdSource": "حقل التاريخ والوقت",
+      "startDateFieldId": "حقل تاريخ البدء",
+      "endDateFieldId": "حقل تاريخ الانتهاء",
+      "resultUsedByAI": "استخدام النتيجة للذكاء الاصطناعي",
+      "outputCustomFieldId": "حفظ النتيجة في",
+      "startDateFieldIdSelected": "حفظ تاريخ البدء المحدد في",
+      "endDateFieldIdSelected": "حفظ تاريخ الانتهاء المحدد في"
+    },
+    "dialogDescriptions": {
+      "flowStep": "اختر كيف تقوم خطوة التدفق هذه بجدولة المواعيد."
+    }
   },
   "templates": {
     "title": "قوالب",
@@ -4863,7 +4964,8 @@
       "saveFailed": "Could not save. Please try again.",
       "datasetRequired": "Save a Dataset ID before adding an access token.",
       "invalidToken": "This token could not access the dataset.",
-      "whatsappNotFound": "WhatsApp integration not found."
+      "whatsappNotFound": "WhatsApp integration not found.",
+      "invalidDatasetId": "أدخل معرّف مجموعة بيانات صالحًا (أرقام فقط)."
     },
     "fields": {
       "eventType": {
@@ -4919,7 +5021,8 @@
       "title": "Choose a Dataset ID",
       "description": "Enter an existing Dataset ID, or leave it empty to create one automatically.",
       "save": "حفظ",
-      "caveat": "A Dataset ID that isn't linked to this Page or Instagram account may not attribute events correctly. Leave this field empty to create a linked dataset automatically."
+      "caveat": "A Dataset ID that isn't linked to this Page or Instagram account may not attribute events correctly. Leave this field empty to create a linked dataset automatically.",
+      "createDataset": "إنشاء مجموعة بيانات"
     },
     "whatsapp": {
       "connect": "Connect"
@@ -5301,7 +5404,9 @@
       "sections": [
         {
           "title": "المحادثات والفريق",
-          "body": ["صندوق وارد موحد مع توزيع المحادثات والصلاحيات."]
+          "body": [
+            "صندوق وارد موحد مع توزيع المحادثات والصلاحيات."
+          ]
         },
         {
           "title": "الوكلاء والتجارة",
@@ -5318,11 +5423,15 @@
       "sections": [
         {
           "title": "قنوات Meta",
-          "body": ["واتساب وإنستغرام وماسنجر في صندوق وارد موحد."]
+          "body": [
+            "واتساب وإنستغرام وماسنجر في صندوق وارد موحد."
+          ]
         },
         {
           "title": "تيليجرام والويب",
-          "body": ["تيليجرام وWebchat والتكاملات الأخرى من لوحة واحدة."]
+          "body": [
+            "تيليجرام وWebchat والتكاملات الأخرى من لوحة واحدة."
+          ]
         }
       ]
     },
@@ -5333,7 +5442,9 @@
       "sections": [
         {
           "title": "رسالتنا",
-          "body": ["منح صاحب النشاط نظامًا واضحًا لخدمة العملاء والمبيعات."]
+          "body": [
+            "منح صاحب النشاط نظامًا واضحًا لخدمة العملاء والمبيعات."
+          ]
         },
         {
           "title": "التزامنا",
@@ -5350,11 +5461,15 @@
       "sections": [
         {
           "title": "البريد",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "واتساب",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },
@@ -5446,7 +5561,9 @@
         },
         {
           "title": "النسخ الاحتياطية",
-          "body": ["قد تبقى نسخ مؤقتة حتى انتهاء دورة النسخ الاحتياطي."]
+          "body": [
+            "قد تبقى نسخ مؤقتة حتى انتهاء دورة النسخ الاحتياطي."
+          ]
         },
         {
           "title": "بعد الحذف",
@@ -5456,5 +5573,325 @@
         }
       ]
     }
+  },
+  "notFound": {
+    "title": "الصفحة غير موجودة",
+    "description": "الصفحة التي تبحث عنها غير موجودة أو ربما تم نقلها.",
+    "backToHome": "العودة إلى الصفحة الرئيسية"
+  },
+  "dynamicImages": {
+    "title": "الصور الديناميكية",
+    "description": "أنشئ صورًا مخصصة لكل جهة اتصال من خلفية وطبقات نص/صورة/رمز QR.",
+    "publicUrl": {
+      "label": "الرابط العام",
+      "hint": "انسخ الرابط والصقه في المسار أو البث أو التسلسل الخاص بك لإرسال صور مخصصة."
+    },
+    "editor": {
+      "addElement": "إضافة عنصر",
+      "addImage": "إضافة صورة",
+      "addText": "إضافة نص",
+      "addQrCode": "إضافة رمز QR",
+      "template": "قالب",
+      "templateDialogTitle": "اختر قالبًا",
+      "templateDialogDescription": "اختيار قالب سيستبدل جميع الطبقات الحالية.",
+      "layers": "الطبقات",
+      "noLayers": "لا توجد طبقات بعد. أضف عنصرًا للبدء.",
+      "deleteLayer": "حذف الطبقة",
+      "layerNameImage": "صورة",
+      "layerNameText": "نص",
+      "layerNameQrCode": "رمز QR",
+      "editElement": "تعديل العنصر",
+      "selectElementHint": "حدد عنصرًا في اللوحة لتعديل خصائصه.",
+      "width": "العرض",
+      "height": "الارتفاع",
+      "priority": "الأولوية",
+      "imageType": "نوع الصورة",
+      "imageTypeUrl": "رابط الصورة",
+      "imageTypeAvatarUser": "صورة جهة الاتصال",
+      "imageTypeCustomField": "حقل مخصص",
+      "imageUrl": "رابط الصورة",
+      "uploadImage": "رفع صورة",
+      "customField": "حقل مخصص",
+      "imageStyle": "نمط الصورة",
+      "imageStyleSquare": "مربع",
+      "imageStyleCircle": "دائري",
+      "qrText": "محتوى رمز QR",
+      "qrSize": "الحجم",
+      "qrColor": "اللون",
+      "qrLogo": "الشعار",
+      "uploadLogo": "رفع شعار",
+      "textContent": "محتوى النص",
+      "fontSize": "حجم الخط",
+      "fontFamily": "نوع الخط",
+      "fontFamilyArial": "Arial",
+      "fontFamilySerif": "Serif",
+      "fontFamilyRoboto": "Roboto",
+      "fontFamilyGreatVibes": "Great Vibes",
+      "align": "المحاذاة",
+      "alignLeft": "يسار",
+      "alignCenter": "وسط",
+      "alignRight": "يمين",
+      "color": "اللون",
+      "bold": "غامق",
+      "italic": "مائل",
+      "uppercase": "أحرف كبيرة"
+    },
+    "preview": {
+      "error": "فشل تحميل الصورة الديناميكية المرتبطة. ربما تم حذفها."
+    }
+  },
+  "bookingWebview": {
+    "metadataTitle": "حجز موعد",
+    "badge": "موعد",
+    "timezone": "المنطقة الزمنية",
+    "empty": "لم يتم العثور على أوقات متاحة.",
+    "noSelection": "اختر وقتًا",
+    "actions": {
+      "book": "حجز موعد",
+      "viewDetails": "عرض التفاصيل"
+    },
+    "errors": {
+      "invalidTokenTitle": "رابط الحجز هذا غير متاح.",
+      "invalidTokenDescription": "قد يكون الرابط غير صالح أو منتهي الصلاحية. يُرجى طلب رابط حجز جديد.",
+      "staleSlot": "هذا الوقت لم يعد متاحًا. يُرجى اختيار وقت آخر.",
+      "availabilityChanged": "تغيّر التوفر أثناء اختيارك للوقت. يُرجى الاختيار مرة أخرى.",
+      "submitFailed": "تعذّر إتمام هذا الطلب. يُرجى المحاولة مرة أخرى."
+    },
+    "success": {
+      "title": "تم حجز موعدك.",
+      "description": "تفاصيل الموعد جاهزة."
+    },
+    "schedule": {
+      "metadataTitle": "تفاصيل الموعد",
+      "defaultMessage": "تمت جدولة موعدك.",
+      "unknownInvitee": "ضيف",
+      "fields": {
+        "invitee": "المدعو",
+        "time": "الوقت",
+        "timezone": "المنطقة الزمنية",
+        "location": "الموقع"
+      },
+      "status": {
+        "scheduled": "مجدول",
+        "cancelled": "ملغى"
+      },
+      "locationTypes": {
+        "inPerson": "اجتماع حضوري",
+        "phoneCall": "مكالمة هاتفية",
+        "onlineMeeting": "اجتماع عبر الإنترنت"
+      }
+    },
+    "cancel": {
+      "metadataTitle": "إلغاء الموعد",
+      "title": "إلغاء الموعد",
+      "description": "إلغاء {calendar} في {time}.",
+      "action": "إلغاء الموعد",
+      "cancelledTitle": "تم إلغاء الموعد",
+      "cancelledDescription": "تم إلغاء هذا الموعد.",
+      "unavailableTitle": "الإلغاء غير متاح",
+      "unavailableDescription": "هذا الموعد ملغى بالفعل أو محذوف أو في الماضي."
+    },
+    "range": {
+      "metadataTitle": "التحقق من التوفر",
+      "empty": "لم يتم التحديد",
+      "successTitle": "تم استلام نطاق التاريخ.",
+      "successDescription": "نحن نتحقق من أوقات المواعيد المتاحة.",
+      "fields": {
+        "startDate": "تاريخ البدء",
+        "endDate": "تاريخ الانتهاء",
+        "startTime": "وقت البدء",
+        "endTime": "وقت الانتهاء"
+      },
+      "actions": {
+        "skip": "تخطي"
+      },
+      "errors": {
+        "invalidRange": "يجب أن يكون تاريخ الانتهاء مطابقًا لتاريخ البدء أو بعده."
+      },
+      "timezoneHint": "تُعرض الأوقات بتوقيت {timezone}."
+    }
+  },
+  "appointments": {
+    "title": "المواعيد",
+    "statuses": {
+      "scheduled": "مجدول",
+      "cancelled": "ملغى"
+    },
+    "messages": {
+      "empty": "لا توجد مواعيد بعد."
+    }
+  },
+  "appointmentManagement": {
+    "title": "المواعيد",
+    "singular": "موعد",
+    "unknownContact": "جهة اتصال غير معروفة",
+    "searchPlaceholder": "ابحث بالاسم...",
+    "tabs": {
+      "next": "القادمة",
+      "past": "السابقة"
+    },
+    "fields": {
+      "name": "الاسم",
+      "date": "التاريخ",
+      "status": "الحالة",
+      "calendar": "التقويم"
+    },
+    "statuses": {
+      "scheduled": "مجدول",
+      "cancelled": "ملغى"
+    },
+    "actions": {
+      "cancelAppointment": "إلغاء الموعد"
+    },
+    "dialogs": {
+      "cancelTitle": "إلغاء الموعد",
+      "cancelDescription": "إلغاء هذا الموعد وتنفيذ الإجراءات المرتبطة بالإلغاء.",
+      "deleteTitle": "حذف الموعد",
+      "deleteDescription": "حذف هذا الموعد من قائمة الإدارة. لن يؤدي ذلك إلى تشغيل مسار الإلغاء."
+    },
+    "messages": {
+      "cancelled": "تم إلغاء الموعد.",
+      "deleted": "تم حذف الموعد."
+    }
+  },
+  "appointmentCalendars": {
+    "title": "تقويمات المواعيد",
+    "singular": "تقويم مواعيد",
+    "addNew": "إضافة جديد",
+    "none": "لا شيء",
+    "addReminder": "إضافة تذكير",
+    "reminderSummary": "إرسال تذكير - {calendar} {timing}.",
+    "noExternalConnections": "لا توجد اتصالات بتقويمات خارجية بعد",
+    "dialogDescriptions": {
+      "create": "امنح تقويم مواعيدك اسمًا للبدء.",
+      "rename": "إعادة تسمية تقويم المواعيد هذا."
+    },
+    "tabs": {
+      "calendars": "التقويمات",
+      "appointments": "المواعيد",
+      "externalCalendars": "التقويمات الخارجية"
+    },
+    "sections": {
+      "appointment": "ما هو موعدك",
+      "availability": "متى يمكن للأشخاص الحجز؟",
+      "duration": "ما هي مدة موعدك؟",
+      "location": "أين سيُعقد الموعد؟",
+      "notifications": "الإشعارات",
+      "restrictions": "القيود",
+      "externalCalendar": "ربط Google Calendar"
+    },
+    "fields": {
+      "description": "الوصف",
+      "timezone": "المنطقة الزمنية",
+      "locationType": "نوع الموقع",
+      "locationDetail": "التفاصيل",
+      "durationMinutes": "مدة الموعد",
+      "bufferAfterMinutes": "إضافة وقت بعد مواعيدك",
+      "scheduleWindowType": "يمكن للأشخاص الحجز",
+      "rollingDays": "أيام متجددة",
+      "minAdvanceDays": "الحد الأدنى لعدد أيام الحجز المسبق",
+      "startDate": "تاريخ البدء",
+      "endDate": "تاريخ الانتهاء",
+      "specificDate": "التاريخ",
+      "maxAppointmentsPerUser": "الحد الأقصى للمواعيد لكل مستخدم",
+      "maxAppointmentsUnlimited": "غير محدود",
+      "dailyLimitEnabled": "الحد اليومي",
+      "maxPerDay": "الحد الأقصى في اليوم",
+      "allowGroupMeeting": "السماح باجتماع جماعي",
+      "maxPerSlot": "الحد الأقصى لكل فترة",
+      "confirmationMessage": "رسالة التأكيد",
+      "confirmationFlowId": "مسار التأكيد",
+      "cancellationFlowId": "مسار الإلغاء",
+      "externalConnectionId": "التقويم الخارجي",
+      "reminders": "التذكيرات",
+      "reminderTimingValue": "القيمة",
+      "reminderTimingUnit": "الوحدة"
+    },
+    "locationTypes": {
+      "inPerson": "اجتماع حضوري",
+      "phoneCall": "مكالمة هاتفية",
+      "onlineMeeting": "اجتماع عبر الإنترنت"
+    },
+    "scheduleWindowTypes": {
+      "rollingDays": "خلال عدد أيام متجددة في المستقبل",
+      "dateRange": "خلال نطاق تاريخ محدد",
+      "specificDay": "يوم محدد واحد",
+      "anyFutureDate": "في أي تاريخ في المستقبل"
+    },
+    "reminderTimingUnits": {
+      "minutes": "دقائق قبل الموعد",
+      "hours": "ساعات قبل الموعد",
+      "days": "أيام قبل الموعد"
+    },
+    "reminderTimingLabels": {
+      "minutes": "{count, plural, one {# دقيقة قبل الموعد} other {# دقائق قبل الموعد}}",
+      "hours": "{count, plural, one {ساعة واحدة قبل الموعد} other {# ساعات قبل الموعد}}",
+      "days": "{count, plural, one {يوم واحد قبل الموعد} other {# أيام قبل الموعد}}"
+    },
+    "weekdays": {
+      "0": "الأحد",
+      "1": "الاثنين",
+      "2": "الثلاثاء",
+      "3": "الأربعاء",
+      "4": "الخميس",
+      "5": "الجمعة",
+      "6": "السبت"
+    },
+    "weekdayEditor": {
+      "description": "حدد الفترات الزمنية المتاحة لهذا اليوم.",
+      "unavailable": "غير متاح",
+      "overlapWarning": "بعض الفترات الزمنية متداخلة. لا يُحتسب الوقت المتداخل مرتين.",
+      "addInterval": "إضافة فترة",
+      "startTime": "وقت البدء",
+      "endTime": "وقت الانتهاء"
+    },
+    "tooltips": {
+      "timezone": "المنطقة الزمنية التي تُنشئ بها هذا التقويم. سيرى الأشخاص التوفر بحسب منطقتهم الزمنية الخاصة.",
+      "confirmationFlow": "المسار الذي يُرسل بمجرد أن يحجز المستخدم موعدًا.",
+      "cancellationFlow": "المسار الذي يُرسل بمجرد إلغاء موعد.",
+      "reminders": "أرسل تذكيرات لتذكير المدعو بالموعد.",
+      "appointmentDuration": "حدد المدة التي سيستغرقها موعدك.",
+      "bufferAfterMinutes": "امنح نفسك بعض الوقت الإضافي لإنهاء المواعيد المحجوزة.",
+      "peopleCanSchedule": "حدد نطاق التواريخ التي يمكنك خلالها قبول الاجتماعات.",
+      "maxAppointmentsPerUser": "الحد الأقصى لعدد المواعيد المستقبلية التي يمكن للمستخدم حجزها.",
+      "rollingDays": "السماح بالحجز حتى عدد معين من الأيام في المستقبل",
+      "minAdvanceDays": "اطلب أن يتم الحجز قبل هذه المدة على الأقل بالأيام. استخدم 0 للسماح بالحجز في اليوم نفسه.",
+      "dailyLimit": "الحد الأقصى لعدد الأشخاص المسموح لهم بالحجز في اليوم الواحد.",
+      "allowGroupMeeting": "السماح لعدة أشخاص بالحجز في نفس الفترة الزمنية.",
+      "externalCalendar": "اربط Google Calendar لمزامنة مواعيدك."
+    },
+    "minutesLabel": "{count} دقيقة"
+  },
+  "externalCalendars": {
+    "title": "التقويمات الخارجية",
+    "connectGoogle": "ربط Google",
+    "emptyEmail": "لا يوجد بريد إلكتروني",
+    "fields": {
+      "provider": "المزوّد",
+      "email": "البريد الإلكتروني",
+      "calendarId": "معرف التقويم",
+      "connected": "متصل",
+      "date": "التاريخ"
+    },
+    "providers": {
+      "googleCalendar": "Google Calendar"
+    },
+    "dialogs": {
+      "editTitle": "تعديل معرف التقويم",
+      "editDescription": "اختر معرف تقويم Google للتحقق من التعارضات وإنشاء أحداث المواعيد.",
+      "deleteTitle": "قطع اتصال التقويم",
+      "deleteDescription": "قطع اتصال تقويم Google هذا عن جدولة المواعيد."
+    },
+    "messages": {
+      "connected": "تم ربط تقويم Google.",
+      "connectFailed": "تعذّر ربط تقويم Google. تحقق من إعدادات Google OAuth وصلاحية الوصول إلى Calendar API، ثم حاول مرة أخرى.",
+      "calendarIdUpdated": "تم تحديث معرف التقويم.",
+      "disconnected": "تم قطع اتصال التقويم."
+    }
+  },
+  "bookingPage": {
+    "metadataTitle": "الحجز",
+    "comingSoonTitle": "صفحة الحجز قريبًا",
+    "comingSoonDescription": "صفحة الحجز العامة هذه غير متاحة بعد."
   }
 }

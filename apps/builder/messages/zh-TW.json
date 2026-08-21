@@ -17,8 +17,7 @@
       "minutes": "{count, plural, one {# 分鐘} other {# 分鐘}}",
       "seconds": "{count, plural, one {# 秒} other {# 秒}}",
       "description": "設定機器人在使用者最後一則訊息後，等待多久才回覆。如果使用者又傳送新訊息，計時器會重設，並將訊息併入單一回應。",
-      "label": "機器人回覆延遲",
-      "none": "None"
+      "label": "機器人回覆延遲"
     },
     "persistentMenu": {
       "label": "常駐選單 {plural, select, 1 {} other {}}",
@@ -188,8 +187,7 @@
     },
     "authType": {
       "headers": "自訂標頭",
-      "token": "代幣",
-      "none": "None"
+      "token": "代幣"
     },
     "automatedResponse": {
       "label": "自動回應"
@@ -202,6 +200,9 @@
     },
     "qrCode": {
       "label": "QR Code"
+    },
+    "dynamicImage": {
+      "label": "動態圖片"
     },
     "savePayloadToCustomField": {
       "label": "將負載儲存到自訂欄位"
@@ -296,6 +297,15 @@
     "defaultReply": {
       "description": "這是當工作區不知道如何回應使用者訊息時，工作區會傳送給使用者的預設回應。",
       "label": "預設回覆"
+    },
+    "defaultReplyFrequency": {
+      "description": "Controls how often the Default Reply flow may fire for the same contact on a channel.",
+      "label": "Default Reply activation frequency",
+      "options": {
+        "allTime": "All time",
+        "oncePerHour": "Once per 1h",
+        "oncePerDay": "Once per 24h"
+      }
     },
     "delayType": {
       "label": "延遲型",
@@ -470,10 +480,7 @@
     "language": {
       "description": "聯絡人將套用此預設語言。",
       "label": "語言",
-      "placeholder": "選擇語言",
-      "english": "English",
-      "vietnamese": "Tiếng Việt",
-      "arabic": "Arabic"
+      "placeholder": "選擇語言"
     },
     "lastName": {
       "label": "姓氏",
@@ -589,6 +596,11 @@
     "outputCustomField": {
       "label": "輸出自訂欄位"
     },
+    "javascriptCode": {
+      "label": "JavaScript 程式碼",
+      "placeholder": "return (input.first_name || 'there').toUpperCase()",
+      "description": "使用純 JavaScript 並回傳一個值。無法使用網路、檔案、API 或外部函式庫。聯絡人與系統資料可透過 `input` 物件取得。"
+    },
     "httpMethod": {
       "label": "方法"
     },
@@ -654,6 +666,12 @@
     },
     "pageUserName": {
       "label": "粉絲專頁使用者名稱"
+    },
+    "waUserId": {
+      "label": "WhatsApp 使用者ID"
+    },
+    "waUserName": {
+      "label": "WhatsApp 使用者名稱"
     },
     "purpose": {
       "label": "目的",
@@ -1352,26 +1370,23 @@
       "placeholder": "輸入事件名稱並按 Enter",
       "description": "新增一個或多個事件名稱。當 Make 為其中某個事件附加 Webhook 時，此步驟執行時就會把資料傳送過去。"
     },
+    "bookingCalendar": {
+      "label": "預約日曆"
+    },
+    "bookingDate": {
+      "label": "預約日期"
+    },
+    "bookingLink": {
+      "label": "預約連結"
+    },
     "n8nEvents": {
       "label": "活動",
       "placeholder": "輸入事件名稱並按 Enter",
       "description": "新增一個或多個事件名稱。當 n8n 為其中某個事件附加 Webhook 時，此步驟執行時就會把資料傳送過去。"
     },
-    "attribute": {
-      "label": "Attribute"
-    },
-    "header": {
-      "label": "Header"
-    },
-    "aiProvider": {
-      "label": "Provider"
-    },
-    "transcriptionModel": {
-      "label": "Model",
-      "placeholder": "Select a model"
-    },
-    "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "enabled": {
+      "label": "已啟用"
+    }
   },
   "messages": {
     "sentAttachments": "已傳送 {count, plural, one {1 個附件} other {# 個附件}}",
@@ -1489,7 +1504,13 @@
     "deleteNodeError": "無法刪除該區塊。請再試一次。",
     "redoHistoryCleared": "重做歷史記錄已清除",
     "historyDepth": "({count})",
-    "none": "無"
+    "none": "無",
+    "tiktokCardTitleTooLong": "TikTok 會截斷這則訊息：附加按鈕後，只會傳送前 40 個字元。請縮短訊息內容或移除按鈕。",
+    "waTemplateMpmNoProducts": "發布前請至少為此多商品按鈕新增一項商品。",
+    "waTemplateMpmTooManySections": "多商品按鈕最多可包含 10 個版塊。請在發布前移除部分版塊。",
+    "waTemplateMpmTooManyProducts": "多商品按鈕總共最多可包含 30 項商品。請在發布前移除部分商品。",
+    "waTemplateLtoExpirationRequired": "傳送前請為限時優惠選擇到期時間。",
+    "waTemplateMpmIncompleteProducts": "每個分組至少需要一個已選擇的商品——請刪除空白列或為其選擇商品。"
   },
   "productCategories": {
     "deleteDescription": "{count, plural, =0 {此分類尚未指派任何商品。} one {# 項商品將移至未分類。} other {# 項商品將移至未分類。}}",
@@ -1860,8 +1881,7 @@
       "bannerDescription": "傳送與接收訊息將暫停，直到您升級方案。",
       "bannerCta": "升級",
       "createDisabled": "建立新的 {feature} 將被停用，直到您升級您的方案。"
-    },
-    "navTitle": "Billing & Subscription"
+    }
   },
   "broadcasts": {
     "title": "廣播",
@@ -2173,8 +2193,7 @@
       "button": "重新整理所有權限",
       "resultSuccess": "已重新整理 {refreshed} 個頻道。",
       "resultWithFailures": "已重新整理 {refreshed} 個頻道，{failed} 個失敗。"
-    },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    }
   },
   "workspace": {
     "schedule": {
@@ -2219,6 +2238,10 @@
     "deleteConfirmation": "你確定嗎？\n此操作無法撤銷。\n這將從我們的伺服器中永久刪除您的 {feature}。"
   },
   "flows": {
+    "export": {
+      "notPublished": "此流程從未發布過。請先發布後再匯出。",
+      "failed": "匯出失敗，請重試。"
+    },
     "title": "流程",
     "quickReplies": {
       "limitReached": "已達到快速回覆限制 ({max})。"
@@ -2243,8 +2266,7 @@
     },
     "openaiCompatible": {
       "empty": "連接相容OpenAI的提供者。",
-      "integration": "OpenAI相容供應商",
-      "none": "None"
+      "integration": "OpenAI相容供應商"
     },
     "actions": {
       "addContactNotes": "新增聯絡人備註",
@@ -2263,11 +2285,11 @@
       "broadcastActions": "廣播操作",
       "callApi": "外部API 請求",
       "make": "Make.com",
-      "triggerN8n": "Trigger n8n",
       "triggers": "觸發器",
       "questionnaires": "問卷",
       "setUpCoupon": "設定優惠券",
       "markCouponUsed": "標記優惠券",
+      "executeJavascript": "執行 JavaScript",
       "chooseChannel": "選擇頻道",
       "clearCustomField": "清除自訂欄位",
       "condition": "條件",
@@ -2292,7 +2314,6 @@
       "getResponseAddContact": "將聯絡人新增到 GetResponse",
       "sendGridAddContact": "將聯絡人新增到 SendGrid",
       "messenger": "Messenger",
-      "metaConversions": "Meta Conversions API",
       "openWebsite": "打開網站",
       "optInEmail": "選擇接收電子郵件",
       "optOutEmail": "選擇退出電子郵件",
@@ -2347,7 +2368,14 @@
       "splitTraffic": "拆分流量",
       "aiEditImage": "人工智慧編輯影像",
       "whatsappFlow": "WhatsApp流程",
-      "sendMetaCapiEvent": "Send Meta CAPI Event"
+      "appointmentScheduling": "預約安排",
+      "triggerN8n": "觸發 n8n",
+      "metaConversions": "Meta Conversions API",
+      "sendMetaCapiEvent": "傳送 Meta CAPI 事件",
+      "import": "匯入流程",
+      "export": "匯出",
+      "importStarted": "流程匯入中，請稍後查看匯入紀錄以取得結果。",
+      "importJsonOnly": "僅限 JSON 檔案"
     },
     "splitTraffic": {
       "balanceHint": "總和必須等於 100%。",
@@ -2451,6 +2479,9 @@
     },
     "setCustomField": {
       "temporalHint": "將其留空以儲存目前日期/時間。"
+    },
+    "sendText": {
+      "tiktokTitleTruncated": "附加按鈕後，TikTok 只會傳送這則訊息的前 40 個字元——其餘部分將被截斷。"
     }
   },
   "folders": {
@@ -2501,32 +2532,12 @@
   },
   "ads": {
     "title": "廣告",
-    "nav": {
-      "clickToWhatsappAds": "Click to WhatsApp 廣告",
-      "clickToTiktokAds": "Click to TikTok 廣告",
-      "connectAccounts": "連接帳戶",
-      "conversionEvents": "轉換事件",
-      "adsAnalytics": "廣告分析",
-      "reporting": "報表",
-      "ctwa": "CTWA",
-      "googleAds": "Google 廣告",
-      "comingSoon": "即將推出"
-    },
     "connectAccounts": {
-      "title": "管理您的所有廣告帳戶",
-      "description": "追蹤轉換並優化您的 Click to WhatsApp 廣告活動。",
-      "learnMore": "了解更多",
       "connectAdAccount": "連接廣告帳戶",
       "adAccountName": "廣告帳戶名稱",
-      "disconnect": "取消連接",
-      "empty": "尚未連接任何廣告帳戶。",
-      "adAccountsTitle": "Meta 廣告帳戶",
-      "adAccountsDescription": "連接 Facebook 廣告，以載入用於 Click to WhatsApp 活動的廣告帳戶。",
       "adAccountsReconnectBanner": "您的 Meta 廣告帳戶權杖已過期或失去權限。請重新連接 Facebook 廣告，以維持廣告報表功能可用。",
       "adAccountsNotConnected": "尚未連接任何 Meta 廣告帳戶。",
       "adAccountsEmpty": "此 Facebook 廣告連接找不到任何 Meta 廣告帳戶。",
-      "adAccountsNote": "花費與再行銷受眾皆來自這些廣告帳戶。",
-      "reconnectBanner": "重新連接您的 WhatsApp 帳戶，以啟用將轉換事件傳送至 Meta。",
       "reconnect": "重新連接",
       "reconnectSuccess": "WhatsApp 帳戶已重新連接。",
       "selectAccountLabel": "WhatsApp 帳戶",
@@ -2536,22 +2547,9 @@
         "unverified": "權限尚未驗證"
       },
       "table": {
-        "name": "名稱",
-        "phoneNumber": "電話號碼",
-        "wabaId": "WABA ID",
-        "permission": "自動事件"
-      },
-      "providers": {
-        "meta": "Meta",
-        "googleAds": "Google 廣告",
-        "tiktok": "TikTok"
+        "wabaId": "WABA ID"
       },
       "connectWhatsapp": {
-        "title": "請先連接您的 WhatsApp 帳戶",
-        "description": "在連接廣告帳戶並建立轉換資料集之前，Click to WhatsApp 轉換追蹤需要先連接一個 WhatsApp 帳戶。",
-        "step1": "在「頻道」中連接您的 WhatsApp Business 帳戶。",
-        "step2": "返回此處以授權 Meta 廣告並選擇您的廣告帳戶。",
-        "step3": "我們將使用您的 WhatsApp Business 帳戶自動建立轉換資料集。",
         "cta": "連接 WhatsApp 帳戶"
       }
     },
@@ -2977,15 +2975,7 @@
     "title": "平台設定",
     "errors": {
       "giphyApiKeyRequired": "GIPHY 的 API 設定需要金鑰。",
-      "giphyApiKeyInvalid": "GIPHY API 金鑰無效",
-      "googleClientSecretRequired": "Client Secret is required to configure Google.",
-      "googleVerifyTokenRequired": "Verify Token is required to configure Google.",
-      "messengerAppSecretRequired": "App Secret is required to configure Messenger.",
-      "zaloAppSecretRequired": "App Secret is required to configure Zalo.",
-      "stripeSecretKeyRequired": "Secret Key is required to configure Stripe.",
-      "whatsappAppSecretRequired": "App Secret is required to configure WhatsApp.",
-      "whatsappSystemUserTokenRequired": "System User Token is required to configure WhatsApp.",
-      "tiktokAppSecretRequired": "App Secret is required to configure TikTok."
+      "giphyApiKeyInvalid": "GIPHY API 金鑰無效"
     }
   },
   "home": {
@@ -2993,6 +2983,11 @@
     "subtitle": "選擇要跳回的工作區，或建立新工作區。",
     "noWorkspaces": "您還沒有任何工作區。",
     "owner": "所有者"
+  },
+  "notFound": {
+    "title": "找不到頁面",
+    "description": "您造訪的頁面不存在，或可能已被移動。",
+    "backToHome": "返回首頁"
   },
   "editProfile": {
     "title": "編輯個人資料"
@@ -3005,8 +3000,8 @@
     "reconnect": "重新連接",
     "title": "Instagram",
     "tabs": {
-      "generalSettings": "General Settings",
-      "conversionsApi": "Ads Optimization"
+      "generalSettings": "一般設定",
+      "conversionsApi": "廣告優化"
     }
   },
   "coexist": {
@@ -3021,6 +3016,8 @@
     "toggleHelper": "僅當Meta 有緩衝資料時（啟動後 24 小時內），重新啟用才有效。否則斷開並重新連接。",
     "toggleHelperMessenger": "僅當Meta 有緩衝資料時（啟動後 24 小時內），重新啟用才有效。否則斷開並重新連接Messenger頁面。",
     "toggleHelperWhatsapp": "僅當Meta 有緩衝資料時（啟動後 24 小時內），重新啟用才有效。否則，請斷開並重新連接WhatsApp號碼。",
+    "aiReadsSyncedHistoryLabel": "AI 讀取同步歷史",
+    "aiReadsSyncedHistoryHelper": "關閉時，AI 僅查看新訊息。",
     "success": {
       "enabled": "同步已開始。歷史聯絡人和訊息很快就會出現。",
       "disabled": "同步已停用。"
@@ -3064,7 +3061,7 @@
     "tabs": {
       "generalSettings": "一般設定",
       "messageTemplates": "訊息範本",
-      "conversionsApi": "Ads Optimization"
+      "conversionsApi": "廣告優化"
     },
     "messageTemplate": {
       "params": {
@@ -3244,50 +3241,7 @@
     "signUpTitle": "註冊 {name}",
     "changePasswordTitle": "更改密碼",
     "changePasswordDescription": "在繼續之前設定新密碼。",
-    "passwordChangeSuccess": "密碼已更改",
-    "signInVisual": {
-      "title": "A unified platform for your customers' conversations.",
-      "subtitle": "Manage WhatsApp, Instagram, Messenger, and Telegram from one dashboard.",
-      "bullets": {
-        "0": "Unified inbox",
-        "1": "Live, exportable reports",
-        "2": "Top-tier security and privacy"
-      }
-    },
-    "signUpVisual": {
-      "trialBadge": "14-day free trial",
-      "title": "Start with a 14-day free trial - no card required.",
-      "subtitle": "Create your workspace and connect your channels in one unified Arabic experience.",
-      "bullets": {
-        "0": "Fast setup, no code",
-        "1": "Connects with your channels",
-        "2": "Full control over your workspace data"
-      }
-    },
-    "passwordStrength": {
-      "veryWeak": "Very weak",
-      "weak": "Weak",
-      "medium": "Medium",
-      "strong": "Strong",
-      "veryStrong": "Very strong",
-      "label": "Password strength: {level}"
-    },
-    "orSignInWithEmail": "Or sign in with email",
-    "orSignUpWithEmail": "Or sign up with email",
-    "errorInvalidEmailOrPassword": "The email or password is incorrect. Please check and try again.",
-    "errorEmailNotVerified": "Your email is not verified yet. We just sent you a new verification link — check your inbox.",
-    "errorUserNotFound": "No account exists with this email.",
-    "errorUserAlreadyExists": "An account already exists with this email. Sign in instead.",
-    "errorInvalidEmail": "This email address is not valid.",
-    "errorPasswordTooShort": "The password is too short.",
-    "errorPasswordTooLong": "The password is too long.",
-    "errorInvalidToken": "This link is invalid or has already been used.",
-    "errorTokenExpired": "This link has expired. Please request a new one.",
-    "errorSessionExpired": "Your session has expired. Please sign in again.",
-    "errorGeneric": "Something went wrong. Please try again.",
-    "resendVerification": "Resend verification email",
-    "verificationResent": "Verification email sent. Check your inbox.",
-    "signedInSuccessfully": "Signed in successfully"
+    "passwordChangeSuccess": "密碼已更改"
   },
   "emailTopics": {
     "title": "電子郵件主題"
@@ -3440,23 +3394,38 @@
       "params": {
         "couponCode": "優惠券代碼",
         "couponCodePlaceholder": "輸入優惠券代碼",
-        "quickReplyPayload": "快速回覆負載",
-        "quickReplyPayloadPlaceholder": "輸入酬載（選填）",
         "flowToken": "流程代幣",
         "flowTokenPlaceholder": "輸入流權杖",
         "flowNotSynced": "同步WhatsApp 流以映射提交的欄位。",
-        "catalogProductId": "產品ID",
-        "catalogProductIdPlaceholder": "輸入產品零售商ID",
+        "catalogProductId": "目錄商品",
+        "catalogProductIdPlaceholder": "搜尋商品…",
         "carouselCard": "卡 {index}",
         "limitedTimeOffer": "優惠到期時間",
-        "limitedTimeOfferPlaceholder": "輸入過期時間（以毫秒為單位）",
-        "limitedTimeOfferHelp": "優惠到期時的 Unix 時間戳記（以毫秒為單位）",
+        "limitedTimeOfferPlaceholder": "選擇到期日期與時間",
+        "limitedTimeOfferHelp": "到期時間將依所選內容準確傳送。",
         "location": "位置",
         "latitude": "緯度",
         "longitude": "經度",
         "locationName": "位置名稱（可選）",
         "locationAddress": "地址（可選）",
-        "enterFormatUrl": "輸入 {format} URL"
+        "enterFormatUrl": "輸入 {format} URL",
+        "catalogUseDefault": "使用目錄預設縮圖",
+        "catalogNotConnectedGuidance": "連結 Meta 目錄以選擇商品。",
+        "catalogSetupLink": "前往目錄設定",
+        "catalogSelectedProductFallback": "商品：{retailerId}",
+        "limitedTimeOfferBadge": "將於 {date} 到期",
+        "limitedTimeOfferExpiredBadge": "已於 {date} 到期",
+        "mpmSections": "商品",
+        "mpmSectionTitlePlaceholder": "版塊標題（選填）",
+        "mpmAddSection": "新增版塊",
+        "mpmRemoveSection": "移除版塊",
+        "mpmAddProduct": "新增商品",
+        "mpmRemoveProduct": "移除商品",
+        "mpmNoProductsHelp": "發布前請至少新增一項商品。",
+        "mpmSectionLimitReached": "已達到最多 10 個版塊的上限。",
+        "mpmProductLimitReached": "已達到最多 30 項商品的上限。",
+        "mpmProductsSummary": "{sectionCount} 個版塊中共 {productCount} 項商品",
+        "unsupportedButtonParam": "此按鈕類型尚不支援。"
       }
     },
     "sampleBodyCardContent": {
@@ -3482,7 +3451,8 @@
       "messageTemplates": "訊息範本",
       "profile": "簡介",
       "usefulLinks": "有用連結",
-      "conversionsApi": "Ads Optimization"
+      "conversionsApi": "廣告優化",
+      "settings": "設定"
     },
     "accountHealths": {
       "title": "管理您的WhatsApp帳戶",
@@ -3612,7 +3582,13 @@
       "label": "範本標頭"
     },
     "transferPhoneNumber": "從其他 Whatsapp 供應商轉接電話",
-    "signupSessionExpired": "您的WhatsApp註冊會話已過期。請重新開始連線。"
+    "signupSessionExpired": "您的WhatsApp註冊會話已過期。請重新開始連線。",
+    "capi": {
+      "automaticEvents": {
+        "title": "自動事件",
+        "description": "自動將此 WhatsApp 號碼的轉換事件傳送到 Meta。如果缺少權限,請重新連接帳號以授予權限。"
+      }
+    }
   },
   "zalo": {
     "title": "ZaloOA",
@@ -3652,6 +3628,67 @@
   "qrCodes": {
     "title": "QR Code",
     "description": "建立連結到聊天機器人流程的 QR 程式碼。"
+  },
+  "dynamicImages": {
+    "title": "動態圖片",
+    "description": "根據背景與文字/圖片/QR Code 圖層，為每位聯絡人產生個人化圖片。",
+    "publicUrl": {
+      "label": "公開網址",
+      "hint": "複製並貼上此網址到流程、廣播或序列中，以傳送個人化圖片。"
+    },
+    "editor": {
+      "addElement": "新增元素",
+      "addImage": "新增圖片",
+      "addText": "新增文字",
+      "addQrCode": "新增 QR Code",
+      "template": "範本",
+      "templateDialogTitle": "選擇範本",
+      "templateDialogDescription": "選擇範本將取代目前所有圖層。",
+      "layers": "圖層",
+      "noLayers": "尚無圖層。新增一個元素開始使用。",
+      "deleteLayer": "刪除圖層",
+      "layerNameImage": "圖片",
+      "layerNameText": "文字",
+      "layerNameQrCode": "QR Code",
+      "editElement": "編輯元素",
+      "selectElementHint": "在畫布上選取一個元素以編輯其屬性。",
+      "width": "寬度",
+      "height": "高度",
+      "priority": "優先順序",
+      "imageType": "圖片類型",
+      "imageTypeUrl": "圖片網址",
+      "imageTypeAvatarUser": "聯絡人頭像",
+      "imageTypeCustomField": "自訂欄位",
+      "imageUrl": "圖片網址",
+      "uploadImage": "上傳圖片",
+      "customField": "自訂欄位",
+      "imageStyle": "圖片樣式",
+      "imageStyleSquare": "方形",
+      "imageStyleCircle": "圓形",
+      "qrText": "QR Code 內容",
+      "qrSize": "大小",
+      "qrColor": "顏色",
+      "qrLogo": "標誌",
+      "uploadLogo": "上傳標誌",
+      "textContent": "文字內容",
+      "fontSize": "字型大小",
+      "fontFamily": "字型",
+      "fontFamilyArial": "Arial",
+      "fontFamilySerif": "Serif",
+      "fontFamilyRoboto": "Roboto",
+      "fontFamilyGreatVibes": "Great Vibes",
+      "align": "對齊方式",
+      "alignLeft": "靠左",
+      "alignCenter": "居中",
+      "alignRight": "靠右",
+      "color": "顏色",
+      "bold": "粗體",
+      "italic": "斜體",
+      "uppercase": "大寫"
+    },
+    "preview": {
+      "error": "載入關聯的動態圖片失敗,可能已被刪除。"
+    }
   },
   "magicLinks": {
     "title": "Magic Link",
@@ -3710,7 +3747,7 @@
       "startAnotherFlow": "開始另一個流程",
       "notifyAdmins": "通知管理員",
       "transferConversationToHuman": "將對話轉移給人類",
-      "sendMetaCapiEvent": "Send Meta CAPI Event"
+      "sendMetaCapiEvent": "傳送 Meta CAPI 事件"
     },
     "triggerGoesOff": "觸發器熄滅",
     "before": "之前",
@@ -3868,8 +3905,7 @@
     "claude": "Claude",
     "deepseek": "DeepSeek",
     "openrouter": "開放路由器",
-    "openaiCompatible": "OpenAI相容",
-    "google": "Google Cloud"
+    "openaiCompatible": "OpenAI相容"
   },
   "smtp": {
     "setting": {
@@ -4234,8 +4270,7 @@
     "addNewPage": "新增新",
     "noEligiblePages": "沒有符合條件的頁面。使用「新增新建」授予潛在客戶存取權限。",
     "duplicateError": "此頁面和表單已存在自動化。",
-    "subscribeError": "無法將此頁面訂閱至 Facebook 潛在客戶通知，因此未建立自動化。使用「新增 New」重新連接頁面並重試。",
-    "none": "None"
+    "subscribeError": "無法將此頁面訂閱至 Facebook 潛在客戶通知，因此未建立自動化。使用「新增 New」重新連接頁面並重試。"
   },
   "ecommerce": {
     "title": "電子商務",
@@ -4243,7 +4278,28 @@
   },
   "appointmentScheduling": {
     "title": "預約安排",
-    "description": "建立並管理您的預約安排。"
+    "description": "建立並管理您的預約安排。",
+    "flowModes": {
+      "bookFromCustomField": "預約",
+      "checkAvailabilityFromCustomField": "查看可預約時間",
+      "book": "日期時間選擇器",
+      "checkAvailability": "日期範圍選擇器",
+      "cancel": "取消預約"
+    },
+    "fields": {
+      "mode": "模式",
+      "dateTimeFieldId": "將所選日期儲存至",
+      "dateTimeFieldIdSource": "日期時間欄位",
+      "startDateFieldId": "開始日期欄位",
+      "startDateFieldIdSelected": "將所選開始日期儲存至",
+      "endDateFieldId": "結束日期欄位",
+      "endDateFieldIdSelected": "將所選結束日期儲存至",
+      "resultUsedByAI": "將結果用於 AI",
+      "outputCustomFieldId": "將回應儲存至自訂欄位"
+    },
+    "dialogDescriptions": {
+      "flowStep": "選擇此流程步驟如何安排預約。"
+    }
   },
   "templates": {
     "title": "範本",
@@ -4264,10 +4320,6 @@
     },
     "queues": {
       "title": "佇列"
-    },
-    "aiSettings": {
-      "title": "AI Settings",
-      "description": "Central Vertex AI configuration every workspace's AI agents inherit."
     }
   },
   "platformCredentials": {
@@ -4394,68 +4446,7 @@
     "unknown": "未知"
   },
   "orders": {
-    "title": "訂單",
-    "emptyState": "No orders yet",
-    "noCustomer": "No customer",
-    "status": {
-      "draft": "Draft",
-      "pending_payment": "Pending payment",
-      "paid": "Paid",
-      "payment_review": "Needs review",
-      "refunded": "Refunded",
-      "cancelled": "Cancelled",
-      "expired": "Expired"
-    },
-    "paymentStatus": {
-      "pending": "Pending",
-      "paid": "Paid",
-      "failed": "Failed",
-      "refunded": "Refunded"
-    },
-    "columns": {
-      "orderNumber": "Order #",
-      "customer": "Customer",
-      "status": "Status",
-      "amount": "Amount",
-      "paymentStatus": "Payment status",
-      "createdAt": "Created"
-    },
-    "filters": {
-      "customerPlaceholder": "Search by customer name",
-      "statusPlaceholder": "Status",
-      "allStatuses": "All statuses"
-    },
-    "pagination": {
-      "previous": "Previous page",
-      "next": "Next page"
-    },
-    "detail": {
-      "title": "Order #{id}",
-      "itemsTitle": "Items",
-      "columns": {
-        "product": "Product",
-        "quantity": "Qty",
-        "unitPrice": "Unit price",
-        "lineTotal": "Line total",
-        "reservation": "Reservation",
-        "provider": "Provider",
-        "confirmedAt": "Confirmed",
-        "failureReason": "Failure reason"
-      },
-      "reservationReleased": "Released",
-      "reservedAt": "Reserved {date}",
-      "subtotal": "Subtotal",
-      "tax": "Tax",
-      "discount": "Discount",
-      "total": "Total",
-      "paymentHistoryTitle": "Payment history",
-      "noPayments": "No payment attempts yet",
-      "customerTitle": "Customer",
-      "datesTitle": "Dates",
-      "expiresAt": "Checkout expires",
-      "paymentReviewTitle": "This order needs manual review",
-      "paymentReviewDescription": "A payment event arrived after this order had already expired or was otherwise resolved. No money has been silently applied — check the payment history below before taking any action."
-    }
+    "title": "訂單"
   },
   "products": {
     "title": "產品",
@@ -4829,636 +4820,356 @@
       "iconSearchLink": "瀏覽 Lucide 圖示 →"
     }
   },
+  "appointments": {
+    "title": "預約",
+    "statuses": {
+      "scheduled": "已預約",
+      "cancelled": "已取消"
+    },
+    "messages": {
+      "empty": "尚無預約。"
+    }
+  },
+  "appointmentManagement": {
+    "title": "預約",
+    "singular": "預約",
+    "unknownContact": "未知聯絡人",
+    "searchPlaceholder": "依姓名搜尋…",
+    "tabs": {
+      "next": "即將到來",
+      "past": "過去"
+    },
+    "fields": {
+      "name": "姓名",
+      "date": "日期",
+      "status": "狀態",
+      "calendar": "日曆"
+    },
+    "statuses": {
+      "scheduled": "已預約",
+      "cancelled": "已取消"
+    },
+    "actions": {
+      "cancelAppointment": "取消預約"
+    },
+    "dialogs": {
+      "cancelTitle": "取消預約",
+      "cancelDescription": "取消此預約，並執行其取消附帶效果。",
+      "deleteTitle": "刪除預約",
+      "deleteDescription": "從管理清單中刪除此預約。此操作不會執行取消流程。"
+    },
+    "messages": {
+      "cancelled": "預約已取消。",
+      "deleted": "預約已刪除。"
+    }
+  },
+  "appointmentCalendars": {
+    "title": "預約日曆",
+    "singular": "預約日曆",
+    "addNew": "新增",
+    "none": "無",
+    "addReminder": "新增提醒",
+    "reminderSummary": "傳送提醒 - {calendar} {timing}。",
+    "noExternalConnections": "尚未連接任何外部日曆",
+    "dialogDescriptions": {
+      "create": "為您的預約日曆命名以開始使用。",
+      "rename": "重新命名此預約日曆。"
+    },
+    "tabs": {
+      "calendars": "日曆",
+      "appointments": "預約",
+      "externalCalendars": "外部日曆"
+    },
+    "sections": {
+      "appointment": "您的預約項目是什麼",
+      "availability": "何時可供預約？",
+      "duration": "您的預約時長是多久？",
+      "location": "預約將在哪裡進行？",
+      "notifications": "通知",
+      "restrictions": "限制",
+      "externalCalendar": "連接 Google 日曆"
+    },
+    "fields": {
+      "description": "描述",
+      "timezone": "時區",
+      "locationType": "地點類型",
+      "locationDetail": "詳細資訊",
+      "durationMinutes": "預約時長",
+      "bufferAfterMinutes": "在預約後新增緩衝時間",
+      "scheduleWindowType": "可供預約的時間範圍",
+      "rollingDays": "滾動天數",
+      "minAdvanceDays": "最少提前天數",
+      "startDate": "開始日期",
+      "endDate": "結束日期",
+      "specificDate": "日期",
+      "maxAppointmentsPerUser": "每位使用者最多預約數",
+      "maxAppointmentsUnlimited": "無限制",
+      "dailyLimitEnabled": "每日上限",
+      "maxPerDay": "每日最多",
+      "allowGroupMeeting": "允許團體會議",
+      "maxPerSlot": "每時段最多",
+      "confirmationMessage": "確認訊息",
+      "confirmationFlowId": "確認流程",
+      "cancellationFlowId": "取消流程",
+      "externalConnectionId": "外部日曆",
+      "reminders": "提醒",
+      "reminderTimingValue": "數值",
+      "reminderTimingUnit": "單位"
+    },
+    "locationTypes": {
+      "inPerson": "實體會議",
+      "phoneCall": "電話通話",
+      "onlineMeeting": "線上會議"
+    },
+    "scheduleWindowTypes": {
+      "rollingDays": "未來滾動天數內",
+      "dateRange": "在指定日期範圍內",
+      "specificDay": "特定某一天",
+      "anyFutureDate": "未來任何日期"
+    },
+    "reminderTimingUnits": {
+      "minutes": "提前幾分鐘",
+      "hours": "提前幾小時",
+      "days": "提前幾天"
+    },
+    "reminderTimingLabels": {
+      "minutes": "{count, plural, one {提前 # 分鐘} other {提前 # 分鐘}}",
+      "hours": "{count, plural, one {提前一小時} other {提前 # 小時}}",
+      "days": "{count, plural, one {提前一天} other {提前 # 天}}"
+    },
+    "weekdays": {
+      "0": "星期日",
+      "1": "星期一",
+      "2": "星期二",
+      "3": "星期三",
+      "4": "星期四",
+      "5": "星期五",
+      "6": "星期六"
+    },
+    "weekdayEditor": {
+      "description": "設定此日期的可用時間區段。",
+      "unavailable": "不可預約",
+      "overlapWarning": "部分時間區段重疊。重疊的時間不會被重複計算。",
+      "addInterval": "新增時間區段",
+      "startTime": "開始時間",
+      "endTime": "結束時間"
+    },
+    "tooltips": {
+      "timezone": "您建立此日曆時所在的時區。使用者將依其自身時區看到可預約時間。",
+      "confirmationFlow": "使用者預約成功後所傳送的流程。",
+      "cancellationFlow": "預約被取消後所傳送的流程。",
+      "reminders": "向受邀者傳送預約提醒。",
+      "appointmentDuration": "定義您的預約時長。",
+      "bufferAfterMinutes": "在已預約的時段後保留緩衝時間，方便您結束前一個預約。",
+      "peopleCanSchedule": "設定您可接受會議預約的日期範圍。",
+      "maxAppointmentsPerUser": "允許每位使用者預約的未來預約數量上限。",
+      "rollingDays": "允許安排至未來最多幾天內",
+      "minAdvanceDays": "要求預約至少提前這麼多天進行。設為 0 可允許當天預約。",
+      "dailyLimit": "每天允許預約的最大人數。",
+      "allowGroupMeeting": "允許多人預約同一個時段。",
+      "externalCalendar": "連接 Google 日曆以同步您的預約。"
+    },
+    "minutesLabel": "{count} 分鐘"
+  },
+  "externalCalendars": {
+    "title": "外部日曆",
+    "connectGoogle": "連接 Google",
+    "emptyEmail": "無電子郵件",
+    "fields": {
+      "provider": "提供者",
+      "email": "電子郵件",
+      "calendarId": "日曆 ID",
+      "connected": "已連接",
+      "date": "日期"
+    },
+    "providers": {
+      "googleCalendar": "Google 日曆"
+    },
+    "dialogs": {
+      "editTitle": "編輯日曆 ID",
+      "editDescription": "選擇要用來檢查衝突並建立預約事件的 Google 日曆 ID。",
+      "deleteTitle": "中斷日曆連線",
+      "deleteDescription": "從預約安排中中斷此 Google 日曆的連線。"
+    },
+    "messages": {
+      "connected": "Google 日曆已連接。",
+      "connectFailed": "無法連接 Google 日曆。請檢查 Google OAuth 設定與日曆 API 存取權限，然後再試一次。",
+      "calendarIdUpdated": "日曆 ID 已更新。",
+      "disconnected": "日曆連線已中斷。"
+    }
+  },
+  "bookingPage": {
+    "metadataTitle": "預約",
+    "comingSoonTitle": "預約頁面即將推出",
+    "comingSoonDescription": "此公開預約頁面尚不可用。"
+  },
+  "bookingWebview": {
+    "metadataTitle": "預約",
+    "badge": "預約",
+    "timezone": "時區",
+    "empty": "未找到可用時間。",
+    "noSelection": "選擇時間",
+    "range": {
+      "metadataTitle": "查看可預約時間",
+      "empty": "未選擇",
+      "successTitle": "已收到日期範圍。",
+      "successDescription": "我們正在查詢可預約的時間。",
+      "fields": {
+        "startDate": "開始日期",
+        "endDate": "結束日期",
+        "startTime": "開始時間",
+        "endTime": "結束時間"
+      },
+      "actions": {
+        "skip": "略過"
+      },
+      "errors": {
+        "invalidRange": "結束日期必須晚於或等於開始日期。"
+      },
+      "timezoneHint": "時間以 {timezone} 顯示。"
+    },
+    "actions": {
+      "book": "預約",
+      "viewDetails": "查看詳情"
+    },
+    "errors": {
+      "invalidTokenTitle": "此預約連結目前無法使用。",
+      "invalidTokenDescription": "此連結可能無效或已過期，請索取新的預約連結。",
+      "staleSlot": "此時段已不可用，請選擇其他時間。",
+      "availabilityChanged": "在您選擇時間的過程中，可預約時間已變更，請重新選擇。",
+      "submitFailed": "我們無法完成此請求，請再試一次。"
+    },
+    "success": {
+      "title": "您的預約已完成。",
+      "description": "預約詳情已準備就緒。"
+    },
+    "schedule": {
+      "metadataTitle": "預約詳情",
+      "defaultMessage": "您的預約已排定。",
+      "unknownInvitee": "訪客",
+      "fields": {
+        "invitee": "受邀者",
+        "time": "時間",
+        "timezone": "時區",
+        "location": "地點"
+      },
+      "status": {
+        "scheduled": "已排定",
+        "cancelled": "已取消"
+      },
+      "locationTypes": {
+        "inPerson": "實體會議",
+        "phoneCall": "電話通話",
+        "onlineMeeting": "線上會議"
+      }
+    },
+    "cancel": {
+      "metadataTitle": "取消預約",
+      "title": "取消預約",
+      "description": "取消 {time} 的 {calendar}。",
+      "action": "取消預約",
+      "cancelledTitle": "預約已取消",
+      "cancelledDescription": "此預約已被取消。",
+      "unavailableTitle": "無法取消",
+      "unavailableDescription": "此預約已取消、已刪除，或時間已過。"
+    }
+  },
   "metaConversions": {
     "title": "Conversions API",
-    "description": "Send LeadSubmitted events from Messenger, Instagram, and WhatsApp conversations to Meta.",
-    "datasetId": "Dataset ID",
-    "reconnect": "Reconnect permissions",
-    "connectViaFacebook": "Connect via Facebook",
-    "unsupportedExplanation": "This Instagram account was connected with Instagram Business Login. Connect the account via Facebook to use Meta Conversions API.",
+    "description": "將 Messenger、Instagram 和 WhatsApp 對話中的 LeadSubmitted 事件傳送給 Meta。",
+    "datasetId": "資料集 ID",
+    "reconnect": "重新連接權限",
+    "connectViaFacebook": "透過 Facebook 連接",
+    "unsupportedExplanation": "此 Instagram 帳戶是透過 Instagram Business Login 連接的。請透過 Facebook 連接該帳戶，以使用 Meta Conversions API。",
     "flowStep": {
-      "description": "Queue a LeadSubmitted event for Messenger, Instagram, or WhatsApp.",
-      "whatsappNote": "WhatsApp events only send for conversations that started from a click-to-WhatsApp ad."
+      "description": "為 Messenger、Instagram 或 WhatsApp 排入一筆 LeadSubmitted 事件。",
+      "whatsappNote": "WhatsApp 事件僅會針對由點擊式 WhatsApp 廣告發起的對話傳送。"
     },
     "status": {
       "title": "Meta Conversions API",
-      "ready": "Ready",
-      "missingPermission": "Permission needed",
-      "unverified": "Unverified",
-      "unsupported": "Unsupported",
-      "notConnected": "Not connected"
+      "ready": "已就緒",
+      "missingPermission": "需要權限",
+      "unverified": "未驗證",
+      "unsupported": "不支援",
+      "notConnected": "未連接"
     },
     "statusDescriptions": {
-      "ready": "This integration has the required Meta permission for Conversions API events.",
-      "missingPermission": "Reconnect this integration and grant the requested Meta permission.",
-      "unverified": "Platform app settings are not available, so the CAPI permission cannot be verified.",
-      "unsupported": "Meta Conversions API for Instagram requires an account connected through Facebook Login for Business.",
-      "notConnected": "The Conversions API is a Meta Business Tool that allows you to share data with Meta to enhance the performance of ads."
+      "ready": "此整合已取得 Conversions API 事件所需的 Meta 權限。",
+      "missingPermission": "請重新連接此整合，並授予所要求的 Meta 權限。",
+      "unverified": "平台應用程式設定無法取得，因此無法驗證 CAPI 權限。",
+      "unsupported": "Instagram 的 Meta Conversions API 需要透過 Facebook Login for Business 連接的帳戶。",
+      "notConnected": "Conversions API 是一項 Meta 商業工具，可讓您與 Meta 分享資料，以提升廣告成效。"
     },
     "errors": {
-      "reconnect": "Failed to start Meta CAPI reconnect.",
-      "messengerNotFound": "Messenger integration not found.",
-      "instagramNotFound": "Instagram integration not found.",
-      "instagramRequiresFacebook": "Instagram CAPI requires connecting via Facebook.",
-      "saveFailed": "Could not save. Please try again.",
-      "datasetRequired": "Save a Dataset ID before adding an access token.",
-      "invalidToken": "This token could not access the dataset.",
-      "whatsappNotFound": "WhatsApp integration not found."
+      "reconnect": "無法啟動 Meta CAPI 重新連接。",
+      "messengerNotFound": "找不到 Messenger 整合。",
+      "instagramNotFound": "找不到 Instagram 整合。",
+      "instagramRequiresFacebook": "Instagram CAPI 需要透過 Facebook 連接。",
+      "saveFailed": "無法儲存，請再試一次。",
+      "datasetRequired": "請先儲存資料集 ID，再新增存取權杖。",
+      "invalidToken": "此權杖無法存取該資料集。",
+      "invalidDatasetId": "請輸入有效的 Dataset ID（僅數字）。",
+      "whatsappNotFound": "找不到 WhatsApp 整合。"
     },
     "fields": {
       "eventType": {
-        "label": "Event type",
-        "leadSubmitted": "Lead Submitted"
+        "label": "事件類型",
+        "leadSubmitted": "已提交名單"
       },
-      "value": "Value",
-      "valuePlaceholder": "e.g. 250",
-      "currency": "Currency",
-      "currencyPlaceholder": "e.g. USD",
-      "contentCategory": "Content Category",
-      "contentCategoryPlaceholder": "The category of the content associated with the event",
-      "contentName": "Content Name",
-      "contentNamePlaceholder": "The name of the page or product associated with the event"
+      "value": "價值",
+      "valuePlaceholder": "例如 250",
+      "currency": "貨幣",
+      "currencyPlaceholder": "例如 USD",
+      "contentCategory": "內容類別",
+      "contentCategoryPlaceholder": "與此事件相關聯的內容類別",
+      "contentName": "內容名稱",
+      "contentNamePlaceholder": "與此事件相關聯的頁面或產品名稱"
     },
-    "datasetIdPlaceholder": "Paste Dataset ID from Events Manager",
-    "saveDataset": "Save",
-    "accessToken": "Access Token (optional)",
-    "accessTokenHint": "Paste a token from Events Manager to send events with your own token instead of the connected page token. Requires a Dataset ID.",
-    "accessTokenPlaceholder": "Events Manager access token",
-    "saveToken": "Save token",
-    "tokenSaved": "Token saved",
-    "removeToken": "Remove",
-    "saved": "Saved",
+    "datasetIdPlaceholder": "貼上來自 Events Manager 的資料集 ID",
+    "saveDataset": "儲存",
+    "accessToken": "存取權杖（選填）",
+    "accessTokenHint": "貼上來自 Events Manager 的權杖，即可改用您自己的權杖傳送事件，而非目前連接的粉專權杖。需要先設定資料集 ID。",
+    "accessTokenPlaceholder": "Events Manager 存取權杖",
+    "saveToken": "儲存權杖",
+    "tokenSaved": "權杖已儲存",
+    "removeToken": "移除",
+    "saved": "已儲存",
     "help": {
-      "delay": "Events may take up to 40 minutes to appear in Events Manager and show as Meta Leads in Ads Manager."
+      "delay": "事件最多可能需要 40 分鐘才會顯示於 Events Manager，並在 Ads Manager 中顯示為 Meta Leads。"
     },
-    "connected": "Connected",
-    "disconnect": "Disconnect",
-    "openEventManager": "Open Event Manager",
+    "connected": "已連接",
+    "disconnect": "中斷連線",
+    "openEventManager": "開啟 Event Manager",
     "methods": {
       "oauth": {
-        "title": "Connect via Facebook",
-        "description": "Use your page's existing connection, then choose a Dataset ID.",
-        "connect": "Connect via Facebook",
-        "connectedLabel": "via Facebook"
+        "title": "透過 Facebook 連接",
+        "description": "使用您粉專現有的連接，然後選擇資料集 ID。",
+        "connect": "建立資料集",
+        "connectedLabel": "透過 Facebook"
       },
       "custom": {
-        "title": "Custom connection",
-        "description": "Use a Dataset ID and an access token from Meta Events Manager.",
-        "start": "Set up custom connection",
-        "connect": "Connect",
-        "connectedLabel": "Custom"
+        "title": "自訂連接",
+        "description": "使用來自 Meta Events Manager 的資料集 ID 與存取權杖。",
+        "start": "設定自訂連接",
+        "connect": "連接",
+        "connectedLabel": "自訂"
       },
       "whatsapp": {
-        "title": "Connect via WhatsApp",
-        "description": "Use your WhatsApp connection, then choose a Dataset ID.",
-        "connect": "Connect via WhatsApp",
-        "connectedLabel": "via WhatsApp"
+        "title": "透過 WhatsApp 連接",
+        "description": "使用您的 WhatsApp 連接，然後選擇資料集 ID。",
+        "connect": "建立資料集",
+        "connectedLabel": "透過 WhatsApp"
       }
     },
     "finalize": {
-      "title": "Choose a Dataset ID",
-      "description": "Enter an existing Dataset ID, or leave it empty to create one automatically.",
+      "title": "選擇資料集 ID",
+      "description": "輸入現有的資料集 ID，或留空以自動建立一個。",
       "save": "儲存",
-      "caveat": "A Dataset ID that isn't linked to this Page or Instagram account may not attribute events correctly. Leave this field empty to create a linked dataset automatically."
+      "createDataset": "建立資料集",
+      "caveat": "未連結至此粉專或 Instagram 帳戶的資料集 ID 可能無法正確歸因事件。將此欄位留空即可自動建立已連結的資料集。"
     },
     "whatsapp": {
-      "connect": "Connect"
-    }
-  },
-  "platformAiSettings": {
-    "title": "AI Settings",
-    "description": "Vertex AI is the platform's internal AI provider. Workspaces and their AI agents never choose a provider directly — when enabled, every AI agent automatically uses the model configured here instead of its own connected provider.",
-    "provider": {
-      "label": "Provider",
-      "value": "Vertex AI (Google Cloud)"
-    },
-    "enabled": {
-      "label": "Enabled",
-      "description": "When on, every AI agent in every workspace uses this configuration instead of its own connected provider."
-    },
-    "chatModel": {
-      "label": "Primary model"
-    },
-    "fallbackModel": {
-      "label": "Fallback model",
-      "description": "Used only if the primary model fails. Optional.",
-      "none": "None"
-    },
-    "location": {
-      "label": "Reply model region",
-      "description": "Use global for Gemini preview models unless Google documents a regional endpoint."
-    },
-    "embeddingModel": {
-      "label": "Embeddings model",
-      "description": "Legacy compatibility value. The active knowledge model is configured below."
-    },
-    "capabilities": {
-      "title": "Specialized AI services",
-      "description": "Configure every workload independently. Select Workspace to keep using the provider configured in the flow or agent.",
-      "provider": "Provider",
-      "model": "Model or service ID",
-      "fallbackModel": "Fallback model (optional)",
-      "location": "Region (optional)",
-      "voice": "Voice ID (optional)",
-      "items": {
-        "vision": "Image understanding",
-        "embedding": "Knowledge embeddings",
-        "summarization": "Conversation summarization",
-        "extraction": "Structured data extraction",
-        "imageGeneration": "Image generation",
-        "imageEditing": "Image editing",
-        "speechToText": "Speech to text",
-        "textToSpeech": "Text to speech",
-        "webSearch": "Google Search grounding",
-        "documentParsing": "Document parsing",
-        "translation": "Translation"
-      }
-    },
-    "agentModelManaged": "The AI provider and model are managed by the platform. Agents use the model selected by the platform admin.",
-    "validate": {
-      "button": "Validate configuration",
-      "success": "Configuration looks valid.",
-      "error": "Could not validate the configuration.",
-      "missingProjectId": "VERTEX_AI_PROJECT_ID is not set on this deployment.",
-      "modelUnavailable": "The selected primary model could not answer a live Vertex AI request in the configured region.",
-      "invalidChatModel": "Primary model is not in the allowed list.",
-      "invalidFallbackModel": "Fallback model is not in the allowed list."
-    }
-  },
-  "plans": {
-    "navLabel": "Pricing",
-    "title": "Choose Your Plan",
-    "subtitle": "Pricing",
-    "description": "Wesal One plans for your workspace — pick the tier that fits your channels and team.",
-    "monthly": "Monthly",
-    "yearly": "Yearly",
-    "perMonth": "/month",
-    "perYear": "/year",
-    "custom": "Custom",
-    "contactSales": "Contact sales",
-    "selectPlan": "Select plan",
-    "selectFree": "Start for free",
-    "currentPlan": "Current plan",
-    "audience": {
-      "individual": "For individuals",
-      "business": "For businesses",
-      "enterprise": "Enterprise"
-    },
-    "sandboxBadge": "Sandbox",
-    "sandboxNotice": "Sandbox mode — selecting a plan applies its limits immediately with no real payment. There is no live billing yet.",
-    "usage": {
-      "title": "Points usage",
-      "available": "Available points",
-      "monthly": "From monthly plan",
-      "purchased": "Purchased points",
-      "frozen": "Frozen points",
-      "reserved": "Reserved by running tasks",
-      "breakdown": "Usage by category (30 days)",
-      "categories": {
-        "language": "Text and agent replies",
-        "image_analysis": "Image analysis",
-        "image_generation": "Image generation",
-        "image_editing": "Image editing",
-        "transcription": "Audio transcription",
-        "speech": "Text to speech",
-        "embedding_document": "Knowledge indexing",
-        "embedding_query": "Knowledge searches",
-        "knowledge_search": "Knowledge search",
-        "summarization": "Conversation summaries",
-        "web_search": "Web searches",
-        "tool": "AI tools"
-      },
-      "expiresOn": "Nearest expiry: {date}",
-      "empty": "No points balance yet — select a plan below to get started.",
-      "consumed": "{used} of {total} included points consumed"
-    },
-    "summaryCustom": "Custom limits, tailored to your needs",
-    "summary": "Up to {channels} channels · {contacts} contacts · {teamMembers} team members · {points} AI points/month",
-    "toast": {
-      "success": "{plan} plan applied (sandbox)",
-      "error": "Could not apply the plan"
-    },
-    "features": {
-      "inbox": "Shared inbox",
-      "ai_agent": "AI sales agent",
-      "catalog": "Product catalog",
-      "basic_automation": "Basic automation",
-      "automation": "Advanced automation",
-      "campaigns": "Broadcast campaigns",
-      "advanced_analytics": "Advanced analytics",
-      "vision_voice": "Vision & voice replies",
-      "priority_support": "Priority support",
-      "everything": "Everything included"
-    },
-    "subscriptionPayment": {
-      "underReview": "Payment under review",
-      "cancelRequest": "Cancel request",
-      "viewReceipt": "View receipt",
-      "history": "Payment history",
-      "dialogTitle": "Pay for {plan}",
-      "paymentMethod": "Payment method",
-      "reference": "Transfer reference (optional)",
-      "receipt": "Payment receipt",
-      "note": "Note (optional)",
-      "send": "Send for review",
-      "sending": "Sending…",
-      "methods": {
-        "kuraimi": "Kuraimi",
-        "jawali": "Jawali",
-        "bank_transfer": "Bank transfer",
-        "cash": "Cash"
-      },
-      "status": {
-        "under_review": "Under review",
-        "confirmed": "Confirmed",
-        "rejected": "Rejected",
-        "cancelled": "Cancelled"
-      },
-      "receiptErrors": {
-        "unsupportedType": "Unsupported file type — use JPG, PNG, or WebP",
-        "tooLarge": "File is larger than 5MB",
-        "presignFailed": "Could not start the upload, try again",
-        "uploadFailed": "Upload failed, try again"
-      },
-      "toast": {
-        "submitted": "Payment submitted for review",
-        "submitError": "Could not submit the payment",
-        "cancelled": "Request cancelled",
-        "cancelError": "Could not cancel the request",
-        "cancellationScheduled": "Subscription will end at the close of the current period",
-        "cancellationScheduleError": "Could not schedule subscription cancellation",
-        "resumed": "Subscription will continue",
-        "resumeError": "Could not resume the subscription"
-      },
-      "currentSubscription": "Current subscription",
-      "renewsOn": "Renews on {date}",
-      "endsOn": "Ends on {date}",
-      "cancelSubscription": "Cancel at period end",
-      "resumeSubscription": "Keep subscription",
-      "subscriptionStatus": {
-        "active": "Active",
-        "past_due": "Payment overdue",
-        "cancel_at_period_end": "Ends at period close",
-        "cancelled": "Cancelled",
-        "expired": "Expired"
-      }
-    },
-    "pointPurchase": {
-      "title": "Buy more points",
-      "pointsLabel": "points",
-      "buyButton": "Buy",
-      "dialogTitle": "Pay for {product}",
-      "underReview": "Order under review",
-      "history": "Order history",
-      "methods": {
-        "kuraimi": "Kuraimi",
-        "jawali": "Jawali",
-        "bank_transfer": "Bank transfer",
-        "cash": "Cash"
-      },
-      "status": {
-        "pending_payment": "Pending payment",
-        "under_review": "Under review",
-        "approved": "Approved",
-        "rejected": "Rejected",
-        "expired": "Expired",
-        "cancelled": "Cancelled",
-        "refunded": "Refunded",
-        "chargeback": "Chargeback"
-      },
-      "toast": {
-        "submitted": "Order submitted for review",
-        "submitError": "Could not submit the order",
-        "cancelled": "Order cancelled",
-        "cancelError": "Could not cancel the order"
-      }
-    },
-    "admin": {
-      "navLabel": "Subscription payments",
-      "title": "Subscription payments",
-      "subtitle": "Review manual payment submissions and activate plans after verifying the receipt.",
-      "statusFilter": "Status",
-      "statusAll": "All",
-      "stats": {
-        "underReview": "Awaiting review",
-        "confirmedToday": "Confirmed today",
-        "rejected": "Rejected"
-      },
-      "table": {
-        "workspace": "Workspace",
-        "owner": "Owner",
-        "plan": "Plan",
-        "price": "Price",
-        "status": "Status"
-      },
-      "empty": "No submissions with this status",
-      "detail": {
-        "paymentMethod": "Payment method",
-        "reference": "Reference",
-        "submittedAt": "Submitted",
-        "note": "Customer note",
-        "rejectionReason": "Rejection reason",
-        "receipt": "View receipt",
-        "noReceipt": "No receipt on file",
-        "confirm": "Confirm payment",
-        "reject": "Reject",
-        "rejectReasonPlaceholder": "Reason for rejection (required)",
-        "close": "Close"
-      },
-      "toast": {
-        "confirmed": "Payment confirmed and plan activated",
-        "confirmError": "Could not confirm the payment",
-        "rejected": "Payment rejected",
-        "rejectError": "Could not reject the payment"
-      }
-    },
-    "pointPurchaseAdmin": {
-      "navLabel": "Point purchases",
-      "title": "Point purchases",
-      "subtitle": "Review manual point top-up orders and credit points after verifying the receipt.",
-      "table": {
-        "buyer": "Buyer",
-        "bundle": "Bundle",
-        "points": "Points"
-      },
-      "toast": {
-        "confirmed": "Order confirmed and points credited",
-        "confirmError": "Could not confirm the order",
-        "rejected": "Order rejected",
-        "rejectError": "Could not reject the order"
-      }
-    },
-    "recommended": "Recommended",
-    "audienceDescription": {
-      "individual": "Built for individual operators and small teams.",
-      "business": "Built for growing teams with multiple channels.",
-      "enterprise": "Built for organizations that need custom scale and support."
-    },
-    "capacity": {
-      "unlimited": "Custom",
-      "points": "{count} AI points each month",
-      "agents": "{count} AI agents",
-      "knowledgeDocuments": "{count} knowledge documents",
-      "products": "{count} catalog products"
-    }
-  },
-  "marketing": {
-    "brandName": "Wesal One",
-    "nav": {
-      "features": "Features",
-      "channels": "Channels",
-      "pricing": "Pricing",
-      "about": "About",
-      "contact": "Contact"
-    },
-    "actions": {
-      "signIn": "Sign in",
-      "start": "Get started"
-    },
-    "hero": {
-      "badge": "Arabic-first customer service and sales platform",
-      "titleBefore": "AI agents that run",
-      "titleHighlight": "sales and conversations",
-      "titleAfter": "professionally",
-      "description": "Wesal One brings customer channels, teams, products and orders into one platform, with clear human control whenever a conversation needs an employee.",
-      "learnMore": "Explore the platform",
-      "trial": "Free trial",
-      "noCard": "No payment card",
-      "fastSetup": "Fast setup"
-    },
-    "demo": {
-      "title": "Live sales conversation",
-      "subtitle": "WhatsApp · Demo store",
-      "active": "Agent active",
-      "customer": "I need four units of the available product. What is the price?",
-      "agent": "The product is available. I will use the approved price and help confirm the order.",
-      "handoffTitle": "Controlled human handoff",
-      "handoffDescription": "The agent pauses only when an employee takes over or an explicit handoff rule matches."
-    },
-    "features": {
-      "eyebrow": "Everything your team needs",
-      "title": "Customer service and sales in one workspace",
-      "description": "From the first conversation through ordering and follow-up, with clear team tools and agents governed by your business rules.",
-      "items": [
-        {
-          "title": "Unified inbox",
-          "description": "WhatsApp, Instagram, Messenger and Telegram in one interface."
-        },
-        {
-          "title": "AI sales agents",
-          "description": "Understand requests, search products and reply using platform settings."
-        },
-        {
-          "title": "Clear human handoff",
-          "description": "The agent pauses when an employee takes over, preventing overlapping replies."
-        },
-        {
-          "title": "Products and orders",
-          "description": "Read inventory and create orders through trusted platform services."
-        },
-        {
-          "title": "Automation and campaigns",
-          "description": "Flows, scheduled messages and campaigns that help you grow."
-        },
-        {
-          "title": "Reports and permissions",
-          "description": "Track performance, manage teams and isolate every workspace."
-        }
-      ]
-    },
-    "control": {
-      "eyebrow": "Human control",
-      "title": "AI accelerates the work while your team owns the decision",
-      "description": "Clear rules prevent overlap and preserve human review for sensitive situations.",
-      "items": [
-        "Pause automation when staff take over",
-        "Separate team-member permissions",
-        "Conversation and action history",
-        "Strong workspace isolation"
-      ],
-      "cardTitle": "Built for sales and support",
-      "cardDescription": "Agents use your products and rules to complete conversations and orders without changing channel logic or blocking manual work."
-    },
-    "cta": {
-      "title": "Run every customer conversation from one place",
-      "description": "Create your account, connect channels, and prepare your team and agents in Wesal One."
-    },
-    "footer": {
-      "description": "An Arabic-first platform for customer conversations, teams, products and automation.",
-      "product": "Product",
-      "legal": "Legal",
-      "privacy": "Privacy policy",
-      "dataDeletion": "Data deletion",
-      "terms": "Terms of use",
-      "copyright": "© 2026 Wesal One. All rights reserved."
-    }
-  },
-  "publicPages": {
-    "features": {
-      "eyebrow": "Features",
-      "title": "One platform for customer service and sales",
-      "intro": "Conversations, agents, teams, products, orders and campaigns in one place.",
-      "sections": [
-        {
-          "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
-        },
-        {
-          "title": "Agents and commerce",
-          "body": [
-            "AI agents use products and orders with controlled human handoff."
-          ]
-        }
-      ]
-    },
-    "channels": {
-      "eyebrow": "Channels",
-      "title": "Customer channels in one place",
-      "intro": "Connect approved channels and retain customer context in the workspace.",
-      "sections": [
-        {
-          "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
-        },
-        {
-          "title": "Telegram and web",
-          "body": [
-            "Telegram, Webchat and other integrations from one dashboard."
-          ]
-        }
-      ]
-    },
-    "about": {
-      "eyebrow": "About",
-      "title": "Wesal One for businesses in Yemen and the region",
-      "intro": "We bring conversations, follow-up, knowledge and products into one Arabic-first workspace.",
-      "sections": [
-        {
-          "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
-        },
-        {
-          "title": "Commitment",
-          "body": [
-            "Data isolation, permissions and transparency while humans retain control."
-          ]
-        }
-      ]
-    },
-    "contact": {
-      "eyebrow": "Contact",
-      "title": "We would love to hear from you",
-      "intro": "For questions, trial requests or plan guidance.",
-      "sections": [
-        {
-          "title": "Email",
-          "body": ["support@wesal.one"]
-        },
-        {
-          "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
-        }
-      ]
-    },
-    "privacy": {
-      "eyebrow": "Privacy",
-      "title": "Wesal One privacy policy",
-      "intro": "The data we process and how it is used and protected.",
-      "updated": "Last updated: July 18, 2026",
-      "sections": [
-        {
-          "title": "Data and use",
-          "body": [
-            "We process account, workspace, channel, conversation, file, product and order data to operate, authenticate, automate and support the service."
-          ]
-        },
-        {
-          "title": "Channels and providers",
-          "body": [
-            "Channel data may pass through the channel provider and cloud infrastructure according to your configuration."
-          ]
-        },
-        {
-          "title": "Security and retention",
-          "body": [
-            "We use access controls and workspace isolation and retain data as needed to operate the service."
-          ]
-        },
-        {
-          "title": "Your rights",
-          "body": [
-            "Request access, correction or deletion through support@wesal.one."
-          ]
-        }
-      ]
-    },
-    "terms": {
-      "eyebrow": "Terms",
-      "title": "Wesal One terms of use",
-      "intro": "Using the platform means accepting the account, trial and subscription terms.",
-      "updated": "Last updated: July 18, 2026",
-      "sections": [
-        {
-          "title": "Service use",
-          "body": [
-            "Use the platform lawfully. Account owners are responsible for members, content and channels."
-          ]
-        },
-        {
-          "title": "Subscriptions",
-          "body": [
-            "Features and limits follow the plan. Payments activate only after confirmation."
-          ]
-        },
-        {
-          "title": "Content and data",
-          "body": [
-            "You must have the right to use data and content entered or sent through the platform."
-          ]
-        },
-        {
-          "title": "Artificial intelligence",
-          "body": [
-            "AI assists teams and does not replace human review for sensitive decisions."
-          ]
-        }
-      ]
-    },
-    "dataDeletion": {
-      "eyebrow": "Data deletion",
-      "title": "How to delete your data",
-      "intro": "Request deletion of an account, workspace or specific channel data.",
-      "updated": "Last updated: July 18, 2026",
-      "sections": [
-        {
-          "title": "How to request",
-          "body": [
-            "Email support@wesal.one from the owner's address with the workspace name and scope."
-          ],
-          "bullets": [
-            "Subject: Wesal One data deletion request",
-            "Specify full account, channel or selected data."
-          ]
-        },
-        {
-          "title": "Verification and time",
-          "body": [
-            "We verify authority and usually process requests within 7 to 30 days."
-          ]
-        },
-        {
-          "title": "Backups",
-          "body": [
-            "Temporary backups may remain until their backup cycle completes."
-          ]
-        },
-        {
-          "title": "After deletion",
-          "body": [
-            "Access to channels, conversations and reports may be lost and recovery is not guaranteed."
-          ]
-        }
-      ]
+      "connect": "連接"
     }
   }
 }

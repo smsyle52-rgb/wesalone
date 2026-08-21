@@ -292,32 +292,14 @@
     },
     "connectAccounts": {
       "adAccountName": "广告账号名称",
-      "adAccountsDescription": "连接 Facebook Ads 以加载用于点击 WhatsApp 广告活动的广告账号。",
       "adAccountsEmpty": "此 Facebook Ads 连接中未找到任何 Meta 广告账号。",
       "adAccountsNotConnected": "尚未连接任何 Meta 广告账号。",
-      "adAccountsNote": "广告花费和再营销受众来自这些广告账号。",
       "adAccountsReconnectBanner": "您的 Meta 广告账号令牌已过期或权限已丢失。请重新连接 Facebook Ads 以继续使用广告报表功能。",
-      "adAccountsTitle": "Meta 广告账号",
       "connectAdAccount": "连接广告账号",
       "connectWhatsapp": {
-        "cta": "连接 WhatsApp 账号",
-        "description": "点击 WhatsApp 转化跟踪需要先连接 WhatsApp 账号，之后您才能关联广告账号并创建转化数据集。",
-        "step1": "在“频道”中连接您的 WhatsApp Business 账号。",
-        "step2": "返回此处授权 Meta Ads，并选择您的广告账号。",
-        "step3": "我们会使用您的 WhatsApp Business 账号自动创建转化数据集。",
-        "title": "请先连接您的 WhatsApp 账号"
-      },
-      "description": "跟踪转化并优化您的点击 WhatsApp 广告活动。",
-      "disconnect": "断开连接",
-      "empty": "尚未连接任何广告账号。",
-      "learnMore": "了解更多",
-      "providers": {
-        "googleAds": "Google Ads",
-        "meta": "Meta",
-        "tiktok": "TikTok"
+        "cta": "连接 WhatsApp 账号"
       },
       "reconnect": "重新连接",
-      "reconnectBanner": "重新连接您的 WhatsApp 账号，以启用将转化事件发送到 Meta。",
       "reconnectSuccess": "WhatsApp 账号已重新连接。",
       "selectAccountLabel": "WhatsApp 账号",
       "status": {
@@ -326,12 +308,8 @@
         "unverified": "权限尚未验证"
       },
       "table": {
-        "name": "名称",
-        "permission": "Automatic Events",
-        "phoneNumber": "电话号码",
         "wabaId": "WABA ID"
-      },
-      "title": "管理您的所有广告账号"
+      }
     },
     "conversionEvents": {
       "dealWon": "商机成交",
@@ -398,17 +376,6 @@
         "templateSent": "已发送符合条件的模板消息"
       }
     },
-    "nav": {
-      "adsAnalytics": "广告分析",
-      "clickToTiktokAds": "点击 TikTok 广告",
-      "clickToWhatsappAds": "点击 WhatsApp 广告",
-      "comingSoon": "即将推出",
-      "connectAccounts": "连接账号",
-      "conversionEvents": "转化事件",
-      "ctwa": "CTWA",
-      "googleAds": "Google Ads",
-      "reporting": "报表"
-    },
     "title": "广告"
   },
   "aiAgent": {
@@ -439,8 +406,7 @@
     "gemini": "Gemini",
     "openai": "OpenAI",
     "openaiCompatible": "OpenAI兼容",
-    "openrouter": "开放路由器",
-    "google": "Google Cloud"
+    "openrouter": "开放路由器"
   },
   "analytics": {
     "activeContacts": "活跃联系人",
@@ -515,7 +481,28 @@
   },
   "appointmentScheduling": {
     "description": "创建并管理您的预约安排。",
-    "title": "预约安排"
+    "title": "预约安排",
+    "flowModes": {
+      "bookFromCustomField": "预约",
+      "checkAvailabilityFromCustomField": "查看可预约时间",
+      "book": "日期时间选择器",
+      "checkAvailability": "日期范围选择器",
+      "cancel": "取消预约"
+    },
+    "fields": {
+      "mode": "模式",
+      "dateTimeFieldId": "将所选日期保存至",
+      "dateTimeFieldIdSource": "日期时间字段",
+      "startDateFieldId": "开始日期字段",
+      "startDateFieldIdSelected": "将所选开始日期保存至",
+      "endDateFieldId": "结束日期字段",
+      "endDateFieldIdSelected": "将所选结束日期保存至",
+      "resultUsedByAI": "将结果用于 AI",
+      "outputCustomFieldId": "将回应保存到自订字段"
+    },
+    "dialogDescriptions": {
+      "flowStep": "选择此流程步骤如何安排预约。"
+    }
   },
   "assignAdmin": {
     "assignConversation": "指派对话",
@@ -560,50 +547,7 @@
     "signUpSuccess": "注册成功。请检查您的电子邮件以进行验证。",
     "signUpTitle": "注册 {name}",
     "termsOfService": "服务条款",
-    "trySigningInAgain": "您也可以尝试改用其他电子邮件再次登录。",
-    "signInVisual": {
-      "title": "A unified platform for your customers' conversations.",
-      "subtitle": "Manage WhatsApp, Instagram, Messenger, and Telegram from one dashboard.",
-      "bullets": {
-        "0": "Unified inbox",
-        "1": "Live, exportable reports",
-        "2": "Top-tier security and privacy"
-      }
-    },
-    "signUpVisual": {
-      "trialBadge": "14-day free trial",
-      "title": "Start with a 14-day free trial - no card required.",
-      "subtitle": "Create your workspace and connect your channels in one unified Arabic experience.",
-      "bullets": {
-        "0": "Fast setup, no code",
-        "1": "Connects with your channels",
-        "2": "Full control over your workspace data"
-      }
-    },
-    "passwordStrength": {
-      "veryWeak": "Very weak",
-      "weak": "Weak",
-      "medium": "Medium",
-      "strong": "Strong",
-      "veryStrong": "Very strong",
-      "label": "Password strength: {level}"
-    },
-    "orSignInWithEmail": "Or sign in with email",
-    "orSignUpWithEmail": "Or sign up with email",
-    "errorInvalidEmailOrPassword": "The email or password is incorrect. Please check and try again.",
-    "errorEmailNotVerified": "Your email is not verified yet. We just sent you a new verification link — check your inbox.",
-    "errorUserNotFound": "No account exists with this email.",
-    "errorUserAlreadyExists": "An account already exists with this email. Sign in instead.",
-    "errorInvalidEmail": "This email address is not valid.",
-    "errorPasswordTooShort": "The password is too short.",
-    "errorPasswordTooLong": "The password is too long.",
-    "errorInvalidToken": "This link is invalid or has already been used.",
-    "errorTokenExpired": "This link has expired. Please request a new one.",
-    "errorSessionExpired": "Your session has expired. Please sign in again.",
-    "errorGeneric": "Something went wrong. Please try again.",
-    "resendVerification": "Resend verification email",
-    "verificationResent": "Verification email sent. Check your inbox.",
-    "signedInSuccessfully": "Signed in successfully"
+    "trySigningInAgain": "您也可以尝试改用其他电子邮件再次登录。"
   },
   "autoAssignConversation": {
     "rule": {
@@ -669,8 +613,7 @@
       "monthlyBotMessages": "每月机器人消息",
       "teamMembers": "团队成员",
       "workspaces": "工作区"
-    },
-    "navTitle": "Billing & Subscription"
+    }
   },
   "botSimulator": {
     "description": "在即时环境中仿真机器人的行为。",
@@ -800,8 +743,7 @@
       "cta": "重新连接",
       "description": "以下频道未能自动刷新其访问权杖。请重新连接，以持续收发消息。",
       "title": "紧急"
-    },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    }
   },
   "claude": {
     "autoReply": {
@@ -836,6 +778,8 @@
     "toggleHelper": "仅当Meta 有缓冲数据时（启动后 24 小时内），重新激活才有效。否则断开并重新连接。",
     "toggleHelperMessenger": "仅当Meta 有缓冲数据时（启动后 24 小时内），重新激活才有效。否则断开并重新连接Messenger页面。",
     "toggleHelperWhatsapp": "仅当Meta 有缓冲数据时（启动后 24 小时内），重新激活才有效。否则，请断开并重新连接WhatsApp号码。",
+    "aiReadsSyncedHistoryLabel": "AI 读取同步历史",
+    "aiReadsSyncedHistoryHelper": "关闭时，AI 仅查看新消息。",
     "toggleLabel": "同步现有联系人与聊天记录"
   },
   "condition": {
@@ -1350,8 +1294,7 @@
     "noEligiblePages": "没有符合条件的页面。使用「添加新建」授予潜在客户访问权限。",
     "subscribeError": "无法将此页面订阅至 Facebook 潜在客户通知，因此未创建自动化。使用「添加 New」重新连接页面并重试。",
     "title": "Facebook 引导广告自动化",
-    "whatFlow": "触发什么流程",
-    "none": "None"
+    "whatFlow": "触发什么流程"
   },
   "fields": {
     "accessToken": {
@@ -1428,8 +1371,7 @@
     },
     "authType": {
       "headers": "自订标头",
-      "token": "代币",
-      "none": "None"
+      "token": "代币"
     },
     "authorizedDomain": {
       "description": "有权访问您的网络聊天的网域或子网域。",
@@ -1622,6 +1564,15 @@
     "defaultReply": {
       "description": "这是当工作区不知道如何回应用户消息时，工作区会发送给用户的缺省回应。",
       "label": "缺省回复"
+    },
+    "defaultReplyFrequency": {
+      "description": "Controls how often the Default Reply flow may fire for the same contact on a channel.",
+      "label": "Default Reply activation frequency",
+      "options": {
+        "allTime": "All time",
+        "oncePerHour": "Once per 1h",
+        "oncePerDay": "Once per 24h"
+      }
     },
     "delayType": {
       "label": "延迟型",
@@ -1906,6 +1857,11 @@
       "description": "传回包含消息与操作的结构化 JSON，而不是纯文本流。",
       "label": "丰富回应"
     },
+    "javascriptCode": {
+      "description": "使用纯 JavaScript 并返回一个值。网络、文件、API 和外部库均不可用。可通过 `input` 对象访问联系人和系统数据。",
+      "label": "JavaScript 代码",
+      "placeholder": "return (input.first_name || 'there').toUpperCase()"
+    },
     "jsonPath": {
       "placeholder": "输入 JSON 路径",
       "targetThisRow": "从 JSON 填入此列"
@@ -1939,10 +1895,7 @@
     "language": {
       "description": "联系人将套用此缺省语言。",
       "label": "语言",
-      "placeholder": "选择语言",
-      "english": "English",
-      "vietnamese": "Tiếng Việt",
-      "arabic": "Arabic"
+      "placeholder": "选择语言"
     },
     "last30days": {
       "label": "过去 30 天"
@@ -2205,6 +2158,12 @@
     "pageUserName": {
       "label": "粉丝专页用户名"
     },
+    "waUserId": {
+      "label": "WhatsApp 用户ID"
+    },
+    "waUserName": {
+      "label": "WhatsApp 用户名"
+    },
     "password": {
       "label": "密码",
       "placeholder": "••••••••"
@@ -2295,6 +2254,9 @@
     },
     "qrCode": {
       "label": "QR Code"
+    },
+    "dynamicImage": {
+      "label": "动态图片"
     },
     "quality": {
       "label": "品质",
@@ -2417,8 +2379,7 @@
       "description": "设置机器人在用户最后一则消息后，等待多久才回复。如果用户又发送新消息，计时器会重设，并将消息并入单一回应。",
       "label": "机器人回复延迟",
       "minutes": "{count, plural, one {# 分钟} other {# 分钟}}",
-      "seconds": "{count, plural, one {# 秒} other {# 秒}}",
-      "none": "None"
+      "seconds": "{count, plural, one {# 秒} other {# 秒}}"
     },
     "sms": {
       "label": "短信"
@@ -2706,26 +2667,23 @@
     "zalo": {
       "label": "ZaloOA"
     },
+    "bookingCalendar": {
+      "label": "预约日历"
+    },
+    "bookingDate": {
+      "label": "预约日期"
+    },
+    "bookingLink": {
+      "label": "预约链接"
+    },
     "n8nEvents": {
-      "label": "活动",
+      "label": "事件",
       "placeholder": "输入事件名称并按 Enter",
-      "description": "新增一个或多个事件名称。当 n8n 为其中某个事件附加 Webhook 时，此步骤执行时就会把资料传送过去。"
+      "description": "添加一个或多个事件名称。当 n8n 为其中某个事件附加 webhook 时，此步骤运行时会将数据发送给它。"
     },
-    "attribute": {
-      "label": "Attribute"
-    },
-    "header": {
-      "label": "Header"
-    },
-    "aiProvider": {
-      "label": "Provider"
-    },
-    "transcriptionModel": {
-      "label": "Model",
-      "placeholder": "Select a model"
-    },
-    "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "enabled": {
+      "label": "已激活"
+    }
   },
   "flowAnalytics": {
     "nodes": {
@@ -2741,6 +2699,10 @@
     }
   },
   "flows": {
+    "export": {
+      "notPublished": "该流程从未发布过。请先发布后再导出。",
+      "failed": "导出失败，请重试。"
+    },
     "actions": {
       "actions": "操作",
       "activeCampaignSyncContact": "将联系人添加到 ActiveCampaign",
@@ -2770,6 +2732,7 @@
       "dripSubscribeSubscriber": "将联系人加入 Drip",
       "emailActions": "电子邮件操作",
       "enableMessengerComposer": "激活 Messenger 作曲家",
+      "executeJavascript": "执行 JavaScript 代码",
       "facebookCustomAudience": "Facebook 自订受众",
       "findGif": "找 GIF",
       "flowActions": "流程操作",
@@ -2840,9 +2803,14 @@
       "updateMessengerContactData": "更新联系人数据",
       "whatsappFlow": "WhatsApp流程",
       "whatsappOptionList": "选项清单",
-      "triggerN8n": "Trigger n8n",
-      "sendMetaCapiEvent": "Send Meta CAPI Event",
-      "metaConversions": "Meta Conversions API"
+      "appointmentScheduling": "预约安排",
+      "triggerN8n": "触发 n8n",
+      "sendMetaCapiEvent": "发送 Meta CAPI 事件",
+      "metaConversions": "Meta Conversions API",
+      "import": "导入流程",
+      "export": "导出",
+      "importStarted": "流程正在导入中，请稍后查看导入记录以获取结果。",
+      "importJsonOnly": "仅限 JSON 文件"
     },
     "additionalSteps": "附加步骤",
     "aiAnalyzeImage": {
@@ -2898,8 +2866,7 @@
     },
     "openaiCompatible": {
       "empty": "连接兼容OpenAI的提供者。",
-      "integration": "OpenAI兼容供应商",
-      "none": "None"
+      "integration": "OpenAI兼容供应商"
     },
     "operators": {
       "append": "追加到末尾",
@@ -2973,6 +2940,9 @@
       "editOptionTitle": "编辑选项",
       "optionDescription": "说明",
       "optionTitle": "标题"
+    },
+    "sendText": {
+      "tiktokTitleTruncated": "附加按钮后，TikTok 只会发送这条消息的前 40 个字符——其余部分将被截断。"
     }
   },
   "folders": {
@@ -3065,6 +3035,11 @@
     "subtitle": "选择要跳回的工作区，或创建新工作区。",
     "welcomeBack": "欢迎回来，{name}"
   },
+  "notFound": {
+    "title": "页面未找到",
+    "description": "您访问的页面不存在，或可能已被移动。",
+    "backToHome": "返回首页"
+  },
   "inboxTeams": {
     "title": "收件匣团队"
   },
@@ -3076,8 +3051,8 @@
     "selectInstagramAccount": "选择Instagram 帐户",
     "title": "Instagram",
     "tabs": {
-      "generalSettings": "General Settings",
-      "conversionsApi": "Ads Optimization"
+      "generalSettings": "常规设置",
+      "conversionsApi": "广告优化"
     }
   },
   "instagramCommentAutomation": {
@@ -3482,7 +3457,13 @@
     "viewPost": "查看贴文",
     "warning": "警告！",
     "whatsappCarouselButtonsMismatch": "在 WhatsApp 上，轮播需要在每张卡片上使用相同的按钮：每张卡片上有一个链接按钮，或每张卡片上有相同数量的回应按钮",
-    "whatsappCarouselLinkButtonNotAlone": "在 WhatsApp 中，带有链接按钮的轮播卡片不能同时包含其他按钮。请移除此卡片上的其他按钮，或将链接按钮改成其他动作。"
+    "whatsappCarouselLinkButtonNotAlone": "在 WhatsApp 中，带有链接按钮的轮播卡片不能同时包含其他按钮。请移除此卡片上的其他按钮，或将链接按钮改成其他动作。",
+    "tiktokCardTitleTooLong": "TikTok 会截断这条消息：附加按钮后，只会发送前 40 个字符。请缩短消息内容或移除按钮。",
+    "waTemplateMpmNoProducts": "发布前请至少为此多商品按钮添加一个商品。",
+    "waTemplateMpmTooManySections": "多商品按钮最多可包含 10 个版块。请在发布前移除部分版块。",
+    "waTemplateMpmTooManyProducts": "多商品按钮总共最多可包含 30 个商品。请在发布前移除部分商品。",
+    "waTemplateLtoExpirationRequired": "发送前请为限时优惠选择到期时间。",
+    "waTemplateMpmIncompleteProducts": "每个分组至少需要一个已选择的商品——请删除空行或为其选择商品。"
   },
   "messenger": {
     "botProfile": "机器人个人数据",
@@ -3552,7 +3533,7 @@
     "tabs": {
       "generalSettings": "一般设置",
       "messageTemplates": "消息范本",
-      "conversionsApi": "Ads Optimization"
+      "conversionsApi": "广告优化"
     },
     "tagSync": {
       "description": "在此工作区与已连接频道之间双向同步标签。",
@@ -3757,68 +3738,7 @@
     "title": "开放路由器"
   },
   "orders": {
-    "title": "订单",
-    "emptyState": "No orders yet",
-    "noCustomer": "No customer",
-    "status": {
-      "draft": "Draft",
-      "pending_payment": "Pending payment",
-      "paid": "Paid",
-      "payment_review": "Needs review",
-      "refunded": "Refunded",
-      "cancelled": "Cancelled",
-      "expired": "Expired"
-    },
-    "paymentStatus": {
-      "pending": "Pending",
-      "paid": "Paid",
-      "failed": "Failed",
-      "refunded": "Refunded"
-    },
-    "columns": {
-      "orderNumber": "Order #",
-      "customer": "Customer",
-      "status": "Status",
-      "amount": "Amount",
-      "paymentStatus": "Payment status",
-      "createdAt": "Created"
-    },
-    "filters": {
-      "customerPlaceholder": "Search by customer name",
-      "statusPlaceholder": "Status",
-      "allStatuses": "All statuses"
-    },
-    "pagination": {
-      "previous": "Previous page",
-      "next": "Next page"
-    },
-    "detail": {
-      "title": "Order #{id}",
-      "itemsTitle": "Items",
-      "columns": {
-        "product": "Product",
-        "quantity": "Qty",
-        "unitPrice": "Unit price",
-        "lineTotal": "Line total",
-        "reservation": "Reservation",
-        "provider": "Provider",
-        "confirmedAt": "Confirmed",
-        "failureReason": "Failure reason"
-      },
-      "reservationReleased": "Released",
-      "reservedAt": "Reserved {date}",
-      "subtotal": "Subtotal",
-      "tax": "Tax",
-      "discount": "Discount",
-      "total": "Total",
-      "paymentHistoryTitle": "Payment history",
-      "noPayments": "No payment attempts yet",
-      "customerTitle": "Customer",
-      "datesTitle": "Dates",
-      "expiresAt": "Checkout expires",
-      "paymentReviewTitle": "This order needs manual review",
-      "paymentReviewDescription": "A payment event arrived after this order had already expired or was otherwise resolved. No money has been silently applied — check the payment history below before taking any action."
-    }
+    "title": "订单"
   },
   "placesNearMe": {
     "description": "寻找您的联系人附近的地点。",
@@ -3835,10 +3755,6 @@
     },
     "queues": {
       "title": "队列"
-    },
-    "aiSettings": {
-      "title": "AI Settings",
-      "description": "Central Vertex AI configuration every workspace's AI agents inherit."
     }
   },
   "platformBranding": {
@@ -3919,15 +3835,7 @@
   "platformSettings": {
     "errors": {
       "giphyApiKeyInvalid": "GIPHY API 密钥无效",
-      "giphyApiKeyRequired": "GIPHY 的 API 设置需要密钥。",
-      "googleClientSecretRequired": "Client Secret is required to configure Google.",
-      "googleVerifyTokenRequired": "Verify Token is required to configure Google.",
-      "messengerAppSecretRequired": "App Secret is required to configure Messenger.",
-      "zaloAppSecretRequired": "App Secret is required to configure Zalo.",
-      "stripeSecretKeyRequired": "Secret Key is required to configure Stripe.",
-      "whatsappAppSecretRequired": "App Secret is required to configure WhatsApp.",
-      "whatsappSystemUserTokenRequired": "System User Token is required to configure WhatsApp.",
-      "tiktokAppSecretRequired": "App Secret is required to configure TikTok."
+      "giphyApiKeyRequired": "GIPHY 的 API 设置需要密钥。"
     },
     "title": "平台设置"
   },
@@ -4138,6 +4046,67 @@
   "qrCodes": {
     "description": "创建链接到聊天机器人流程的 QR 代码。",
     "title": "QR Code"
+  },
+  "dynamicImages": {
+    "title": "动态图片",
+    "description": "根据背景以及文字/图片/QR Code 图层，为每个联系人生成个性化图片。",
+    "publicUrl": {
+      "label": "公开 URL",
+      "hint": "复制并粘贴此 URL 到流程、广播或串行中，以发送个性化图片。"
+    },
+    "editor": {
+      "addElement": "添加元素",
+      "addImage": "添加图片",
+      "addText": "添加文字",
+      "addQrCode": "添加 QR Code",
+      "template": "模板",
+      "templateDialogTitle": "选择模板",
+      "templateDialogDescription": "选择模板将替换当前所有图层。",
+      "layers": "图层",
+      "noLayers": "暂无图层。添加一个元素以开始。",
+      "deleteLayer": "删除图层",
+      "layerNameImage": "图片",
+      "layerNameText": "文字",
+      "layerNameQrCode": "QR Code",
+      "editElement": "编辑元素",
+      "selectElementHint": "在画布上选择一个元素以编辑其属性。",
+      "width": "宽度",
+      "height": "高度",
+      "priority": "优先级",
+      "imageType": "图片类型",
+      "imageTypeUrl": "图片 URL",
+      "imageTypeAvatarUser": "联系人头像",
+      "imageTypeCustomField": "自订字段",
+      "imageUrl": "图片 URL",
+      "uploadImage": "上传图片",
+      "customField": "自订字段",
+      "imageStyle": "图片样式",
+      "imageStyleSquare": "方形",
+      "imageStyleCircle": "圆形",
+      "qrText": "QR Code 内容",
+      "qrSize": "尺寸",
+      "qrColor": "颜色",
+      "qrLogo": "标志",
+      "uploadLogo": "上传标志",
+      "textContent": "文字内容",
+      "fontSize": "字体大小",
+      "fontFamily": "字体",
+      "fontFamilyArial": "Arial",
+      "fontFamilySerif": "Serif",
+      "fontFamilyRoboto": "Roboto",
+      "fontFamilyGreatVibes": "Great Vibes",
+      "align": "对齐方式",
+      "alignLeft": "左对齐",
+      "alignCenter": "居中",
+      "alignRight": "右对齐",
+      "color": "颜色",
+      "bold": "粗体",
+      "italic": "斜体",
+      "uppercase": "大写"
+    },
+    "preview": {
+      "error": "加载关联的动态图片失败,可能已被删除。"
+    }
   },
   "questionnaires": {
     "activeQuestion": "活动",
@@ -4393,10 +4362,10 @@
       "clearCustomField": "清除自订字段",
       "notifyAdmins": "通知管理员",
       "removeTag": "移除标签",
+      "sendMetaCapiEvent": "发送 Meta CAPI 事件",
       "setCustomField": "设置自订字段",
       "startAnotherFlow": "开始另一个流程",
-      "transferConversationToHuman": "将对话转移给人类",
-      "sendMetaCapiEvent": "Send Meta CAPI Event"
+      "transferConversationToHuman": "将对话转移给人类"
     },
     "after": "之后",
     "at": "在",
@@ -4674,8 +4643,8 @@
       },
       "params": {
         "carouselCard": "卡 {index}",
-        "catalogProductId": "产品ID",
-        "catalogProductIdPlaceholder": "输入产品零售商ID",
+        "catalogProductId": "目录商品",
+        "catalogProductIdPlaceholder": "搜索商品…",
         "couponCode": "优惠券代码",
         "couponCodePlaceholder": "输入优惠券代码",
         "enterFormatUrl": "输入 {format} URL",
@@ -4684,14 +4653,29 @@
         "flowTokenPlaceholder": "输入流权杖",
         "latitude": "纬度",
         "limitedTimeOffer": "优惠到期时间",
-        "limitedTimeOfferHelp": "优惠到期时的 Unix 时间戳记（以毫秒为单位）",
-        "limitedTimeOfferPlaceholder": "输入过期时间（以毫秒为单位）",
+        "limitedTimeOfferHelp": "到期时间将按所选内容准确发送。",
+        "limitedTimeOfferPlaceholder": "选择到期日期和时间",
         "location": "位置",
         "locationAddress": "地址（可选）",
         "locationName": "位置名称（可选）",
         "longitude": "经度",
-        "quickReplyPayload": "快速回复负载",
-        "quickReplyPayloadPlaceholder": "输入酬载（选填）"
+        "catalogUseDefault": "使用目录默认缩略图",
+        "catalogNotConnectedGuidance": "连接 Meta 目录以选择商品。",
+        "catalogSetupLink": "前往目录设置",
+        "catalogSelectedProductFallback": "商品：{retailerId}",
+        "limitedTimeOfferBadge": "将于 {date} 到期",
+        "limitedTimeOfferExpiredBadge": "已于 {date} 到期",
+        "mpmSections": "商品",
+        "mpmSectionTitlePlaceholder": "版块标题（可选）",
+        "mpmAddSection": "添加版块",
+        "mpmRemoveSection": "移除版块",
+        "mpmAddProduct": "添加商品",
+        "mpmRemoveProduct": "移除商品",
+        "mpmNoProductsHelp": "发布前请至少添加一个商品。",
+        "mpmSectionLimitReached": "已达到最多 10 个版块的上限。",
+        "mpmProductLimitReached": "已达到最多 30 个商品的上限。",
+        "mpmProductsSummary": "{sectionCount} 个版块中共 {productCount} 个商品",
+        "unsupportedButtonParam": "暂不支持此按钮类型。"
       },
       "text": {
         "label": "文本"
@@ -4768,7 +4752,8 @@
       "messageTemplates": "消息范本",
       "profile": "简介",
       "usefulLinks": "有用链接",
-      "conversionsApi": "Ads Optimization"
+      "conversionsApi": "广告优化",
+      "settings": "设置"
     },
     "templateFooter": {
       "label": "范本页脚"
@@ -4776,7 +4761,13 @@
     "templateHeader": {
       "label": "范本标头"
     },
-    "transferPhoneNumber": "从其他 Whatsapp 供应商转接电话"
+    "transferPhoneNumber": "从其他 Whatsapp 供应商转接电话",
+    "capi": {
+      "automaticEvents": {
+        "title": "Automatic Events",
+        "description": "自动将此 WhatsApp 号码的转化事件发送到 Meta。如果缺少权限,请重新连接账户以授予权限。"
+      }
+    }
   },
   "workspace": {
     "deletion": {
@@ -4830,635 +4821,355 @@
     "title": "ZaloOA"
   },
   "metaConversions": {
-    "title": "Conversions API",
-    "description": "Send LeadSubmitted events from Messenger, Instagram, and WhatsApp conversations to Meta.",
-    "datasetId": "Dataset ID",
-    "reconnect": "Reconnect permissions",
-    "connectViaFacebook": "Connect via Facebook",
-    "unsupportedExplanation": "This Instagram account was connected with Instagram Business Login. Connect the account via Facebook to use Meta Conversions API.",
     "flowStep": {
-      "description": "Queue a LeadSubmitted event for Messenger, Instagram, or WhatsApp.",
-      "whatsappNote": "WhatsApp events only send for conversations that started from a click-to-WhatsApp ad."
+      "description": "为 Messenger、Instagram 或 WhatsApp 排队发送一个 LeadSubmitted 事件。",
+      "whatsappNote": "WhatsApp 事件仅针对由点击 WhatsApp 广告发起的对话发送。"
     },
+    "title": "Conversions API",
+    "description": "将 Messenger、Instagram 和 WhatsApp 对话中的 LeadSubmitted 事件发送给 Meta。",
+    "datasetId": "数据集 ID",
+    "reconnect": "重新连接权限",
+    "connectViaFacebook": "通过 Facebook 连接",
+    "unsupportedExplanation": "此 Instagram 帐户是通过 Instagram Business Login 连接的。请通过 Facebook 连接该帐户，以使用 Meta Conversions API。",
     "status": {
       "title": "Meta Conversions API",
-      "ready": "Ready",
-      "missingPermission": "Permission needed",
-      "unverified": "Unverified",
-      "unsupported": "Unsupported",
-      "notConnected": "Not connected"
+      "ready": "已就绪",
+      "missingPermission": "需要权限",
+      "unverified": "未验证",
+      "unsupported": "不支持",
+      "notConnected": "未连接"
     },
     "statusDescriptions": {
-      "ready": "This integration has the required Meta permission for Conversions API events.",
-      "missingPermission": "Reconnect this integration and grant the requested Meta permission.",
-      "unverified": "Platform app settings are not available, so the CAPI permission cannot be verified.",
-      "unsupported": "Meta Conversions API for Instagram requires an account connected through Facebook Login for Business.",
-      "notConnected": "The Conversions API is a Meta Business Tool that allows you to share data with Meta to enhance the performance of ads."
+      "ready": "此集成已获得 Conversions API 事件所需的 Meta 权限。",
+      "missingPermission": "请重新连接此集成，并授予所请求的 Meta 权限。",
+      "unverified": "平台应用设置不可用，因此无法验证 CAPI 权限。",
+      "unsupported": "Instagram 的 Meta Conversions API 需要通过 Facebook 商业登录连接的帐户。",
+      "notConnected": "Conversions API 是一款 Meta 商业工具，可让您与 Meta 共享数据，以提升广告效果。"
     },
     "errors": {
-      "reconnect": "Failed to start Meta CAPI reconnect.",
-      "messengerNotFound": "Messenger integration not found.",
-      "instagramNotFound": "Instagram integration not found.",
-      "instagramRequiresFacebook": "Instagram CAPI requires connecting via Facebook.",
-      "saveFailed": "Could not save. Please try again.",
-      "datasetRequired": "Save a Dataset ID before adding an access token.",
-      "invalidToken": "This token could not access the dataset.",
-      "whatsappNotFound": "WhatsApp integration not found."
+      "reconnect": "无法启动 Meta CAPI 重新连接。",
+      "messengerNotFound": "未找到 Messenger 集成。",
+      "instagramNotFound": "未找到 Instagram 集成。",
+      "instagramRequiresFacebook": "Instagram CAPI 需要通过 Facebook 连接。",
+      "saveFailed": "无法保存，请重试。",
+      "datasetRequired": "请先保存数据集 ID，再添加访问令牌。",
+      "invalidToken": "此令牌无法访问该数据集。",
+      "invalidDatasetId": "请输入有效的 Dataset ID（仅数字）。",
+      "whatsappNotFound": "未找到 WhatsApp 集成。"
     },
     "fields": {
       "eventType": {
-        "label": "Event type",
-        "leadSubmitted": "Lead Submitted"
+        "label": "事件类型",
+        "leadSubmitted": "已提交潜在客户"
       },
-      "value": "Value",
-      "valuePlaceholder": "e.g. 250",
-      "currency": "Currency",
-      "currencyPlaceholder": "e.g. USD",
-      "contentCategory": "Content Category",
-      "contentCategoryPlaceholder": "The category of the content associated with the event",
-      "contentName": "Content Name",
-      "contentNamePlaceholder": "The name of the page or product associated with the event"
+      "value": "价值",
+      "valuePlaceholder": "例如 250",
+      "currency": "货币",
+      "currencyPlaceholder": "例如 USD",
+      "contentCategory": "内容类别",
+      "contentCategoryPlaceholder": "与此事件相关联的内容类别",
+      "contentName": "内容名称",
+      "contentNamePlaceholder": "与此事件相关联的页面或产品名称"
     },
-    "datasetIdPlaceholder": "Paste Dataset ID from Events Manager",
-    "saveDataset": "Save",
-    "accessToken": "Access Token (optional)",
-    "accessTokenHint": "Paste a token from Events Manager to send events with your own token instead of the connected page token. Requires a Dataset ID.",
-    "accessTokenPlaceholder": "Events Manager access token",
-    "saveToken": "Save token",
-    "tokenSaved": "Token saved",
-    "removeToken": "Remove",
-    "saved": "Saved",
+    "datasetIdPlaceholder": "粘贴来自事件管理工具的数据集 ID",
+    "saveDataset": "保存",
+    "accessToken": "访问令牌（可选）",
+    "accessTokenHint": "粘贴来自事件管理工具的令牌，以使用您自己的令牌而非已连接的页面令牌发送事件。需要数据集 ID。",
+    "accessTokenPlaceholder": "事件管理工具访问令牌",
+    "saveToken": "保存令牌",
+    "tokenSaved": "令牌已保存",
+    "removeToken": "移除",
+    "saved": "已保存",
     "help": {
-      "delay": "Events may take up to 40 minutes to appear in Events Manager and show as Meta Leads in Ads Manager."
+      "delay": "事件最多可能需要 40 分钟才会显示在事件管理工具中，并在广告管理工具中显示为 Meta Leads。"
     },
-    "connected": "Connected",
-    "disconnect": "Disconnect",
-    "openEventManager": "Open Event Manager",
+    "connected": "已连接",
+    "disconnect": "断开连接",
+    "openEventManager": "打开事件管理工具",
     "methods": {
       "oauth": {
-        "title": "Connect via Facebook",
-        "description": "Use your page's existing connection, then choose a Dataset ID.",
-        "connect": "Connect via Facebook",
-        "connectedLabel": "via Facebook"
+        "title": "通过 Facebook 连接",
+        "description": "使用您页面现有的连接，然后选择数据集 ID。",
+        "connect": "创建数据集",
+        "connectedLabel": "通过 Facebook"
       },
       "custom": {
-        "title": "Custom connection",
-        "description": "Use a Dataset ID and an access token from Meta Events Manager.",
-        "start": "Set up custom connection",
-        "connect": "Connect",
-        "connectedLabel": "Custom"
+        "title": "自定义连接",
+        "description": "使用来自 Meta 事件管理工具的数据集 ID 和访问令牌。",
+        "start": "设置自定义连接",
+        "connect": "连接",
+        "connectedLabel": "自定义"
       },
       "whatsapp": {
-        "title": "Connect via WhatsApp",
-        "description": "Use your WhatsApp connection, then choose a Dataset ID.",
-        "connect": "Connect via WhatsApp",
-        "connectedLabel": "via WhatsApp"
+        "title": "通过 WhatsApp 连接",
+        "description": "使用您的 WhatsApp 连接，然后选择数据集 ID。",
+        "connect": "创建数据集",
+        "connectedLabel": "通过 WhatsApp"
       }
     },
     "finalize": {
-      "title": "Choose a Dataset ID",
-      "description": "Enter an existing Dataset ID, or leave it empty to create one automatically.",
-      "save": "储存",
-      "caveat": "A Dataset ID that isn't linked to this Page or Instagram account may not attribute events correctly. Leave this field empty to create a linked dataset automatically."
+      "title": "选择数据集 ID",
+      "description": "输入现有的数据集 ID，留空则自动创建一个。",
+      "save": "保存",
+      "createDataset": "创建数据集",
+      "caveat": "未关联到此页面或 Instagram 帐户的数据集 ID 可能无法正确归因事件。留空此字段可自动创建关联的数据集。"
     },
     "whatsapp": {
-      "connect": "Connect"
+      "connect": "连接"
     }
   },
-  "platformAiSettings": {
-    "title": "AI Settings",
-    "description": "Vertex AI is the platform's internal AI provider. Workspaces and their AI agents never choose a provider directly — when enabled, every AI agent automatically uses the model configured here instead of its own connected provider.",
-    "provider": {
-      "label": "Provider",
-      "value": "Vertex AI (Google Cloud)"
+  "appointments": {
+    "title": "预约",
+    "statuses": {
+      "scheduled": "已排定",
+      "cancelled": "已取消"
     },
-    "enabled": {
-      "label": "Enabled",
-      "description": "When on, every AI agent in every workspace uses this configuration instead of its own connected provider."
-    },
-    "chatModel": {
-      "label": "Primary model"
-    },
-    "fallbackModel": {
-      "label": "Fallback model",
-      "description": "Used only if the primary model fails. Optional.",
-      "none": "None"
-    },
-    "location": {
-      "label": "Reply model region",
-      "description": "Use global for Gemini preview models unless Google documents a regional endpoint."
-    },
-    "embeddingModel": {
-      "label": "Embeddings model",
-      "description": "Legacy compatibility value. The active knowledge model is configured below."
-    },
-    "capabilities": {
-      "title": "Specialized AI services",
-      "description": "Configure every workload independently. Select Workspace to keep using the provider configured in the flow or agent.",
-      "provider": "Provider",
-      "model": "Model or service ID",
-      "fallbackModel": "Fallback model (optional)",
-      "location": "Region (optional)",
-      "voice": "Voice ID (optional)",
-      "items": {
-        "vision": "Image understanding",
-        "embedding": "Knowledge embeddings",
-        "summarization": "Conversation summarization",
-        "extraction": "Structured data extraction",
-        "imageGeneration": "Image generation",
-        "imageEditing": "Image editing",
-        "speechToText": "Speech to text",
-        "textToSpeech": "Text to speech",
-        "webSearch": "Google Search grounding",
-        "documentParsing": "Document parsing",
-        "translation": "Translation"
-      }
-    },
-    "agentModelManaged": "The AI provider and model are managed by the platform. Agents use the model selected by the platform admin.",
-    "validate": {
-      "button": "Validate configuration",
-      "success": "Configuration looks valid.",
-      "error": "Could not validate the configuration.",
-      "missingProjectId": "VERTEX_AI_PROJECT_ID is not set on this deployment.",
-      "modelUnavailable": "The selected primary model could not answer a live Vertex AI request in the configured region.",
-      "invalidChatModel": "Primary model is not in the allowed list.",
-      "invalidFallbackModel": "Fallback model is not in the allowed list."
+    "messages": {
+      "empty": "暂无预约。"
     }
   },
-  "plans": {
-    "navLabel": "Pricing",
-    "title": "Choose Your Plan",
-    "subtitle": "Pricing",
-    "description": "Wesal One plans for your workspace — pick the tier that fits your channels and team.",
-    "monthly": "Monthly",
-    "yearly": "Yearly",
-    "perMonth": "/month",
-    "perYear": "/year",
-    "custom": "Custom",
-    "contactSales": "Contact sales",
-    "selectPlan": "Select plan",
-    "selectFree": "Start for free",
-    "currentPlan": "Current plan",
-    "audience": {
-      "individual": "For individuals",
-      "business": "For businesses",
-      "enterprise": "Enterprise"
+  "appointmentManagement": {
+    "title": "预约",
+    "singular": "预约",
+    "unknownContact": "未知联系人",
+    "searchPlaceholder": "按姓名搜索...",
+    "tabs": {
+      "next": "即将到来",
+      "past": "过去"
     },
-    "sandboxBadge": "Sandbox",
-    "sandboxNotice": "Sandbox mode — selecting a plan applies its limits immediately with no real payment. There is no live billing yet.",
-    "usage": {
-      "title": "Points usage",
-      "available": "Available points",
-      "monthly": "From monthly plan",
-      "purchased": "Purchased points",
-      "frozen": "Frozen points",
-      "reserved": "Reserved by running tasks",
-      "breakdown": "Usage by category (30 days)",
-      "categories": {
-        "language": "Text and agent replies",
-        "image_analysis": "Image analysis",
-        "image_generation": "Image generation",
-        "image_editing": "Image editing",
-        "transcription": "Audio transcription",
-        "speech": "Text to speech",
-        "embedding_document": "Knowledge indexing",
-        "embedding_query": "Knowledge searches",
-        "knowledge_search": "Knowledge search",
-        "summarization": "Conversation summaries",
-        "web_search": "Web searches",
-        "tool": "AI tools"
-      },
-      "expiresOn": "Nearest expiry: {date}",
-      "empty": "No points balance yet — select a plan below to get started.",
-      "consumed": "{used} of {total} included points consumed"
+    "fields": {
+      "name": "姓名",
+      "date": "日期",
+      "status": "状态",
+      "calendar": "日历"
     },
-    "summaryCustom": "Custom limits, tailored to your needs",
-    "summary": "Up to {channels} channels · {contacts} contacts · {teamMembers} team members · {points} AI points/month",
-    "toast": {
-      "success": "{plan} plan applied (sandbox)",
-      "error": "Could not apply the plan"
-    },
-    "features": {
-      "inbox": "Shared inbox",
-      "ai_agent": "AI sales agent",
-      "catalog": "Product catalog",
-      "basic_automation": "Basic automation",
-      "automation": "Advanced automation",
-      "campaigns": "Broadcast campaigns",
-      "advanced_analytics": "Advanced analytics",
-      "vision_voice": "Vision & voice replies",
-      "priority_support": "Priority support",
-      "everything": "Everything included"
-    },
-    "subscriptionPayment": {
-      "underReview": "Payment under review",
-      "cancelRequest": "Cancel request",
-      "viewReceipt": "View receipt",
-      "history": "Payment history",
-      "dialogTitle": "Pay for {plan}",
-      "paymentMethod": "Payment method",
-      "reference": "Transfer reference (optional)",
-      "receipt": "Payment receipt",
-      "note": "Note (optional)",
-      "send": "Send for review",
-      "sending": "Sending…",
-      "methods": {
-        "kuraimi": "Kuraimi",
-        "jawali": "Jawali",
-        "bank_transfer": "Bank transfer",
-        "cash": "Cash"
-      },
-      "status": {
-        "under_review": "Under review",
-        "confirmed": "Confirmed",
-        "rejected": "Rejected",
-        "cancelled": "Cancelled"
-      },
-      "receiptErrors": {
-        "unsupportedType": "Unsupported file type — use JPG, PNG, or WebP",
-        "tooLarge": "File is larger than 5MB",
-        "presignFailed": "Could not start the upload, try again",
-        "uploadFailed": "Upload failed, try again"
-      },
-      "toast": {
-        "submitted": "Payment submitted for review",
-        "submitError": "Could not submit the payment",
-        "cancelled": "Request cancelled",
-        "cancelError": "Could not cancel the request",
-        "cancellationScheduled": "Subscription will end at the close of the current period",
-        "cancellationScheduleError": "Could not schedule subscription cancellation",
-        "resumed": "Subscription will continue",
-        "resumeError": "Could not resume the subscription"
-      },
-      "currentSubscription": "Current subscription",
-      "renewsOn": "Renews on {date}",
-      "endsOn": "Ends on {date}",
-      "cancelSubscription": "Cancel at period end",
-      "resumeSubscription": "Keep subscription",
-      "subscriptionStatus": {
-        "active": "Active",
-        "past_due": "Payment overdue",
-        "cancel_at_period_end": "Ends at period close",
-        "cancelled": "Cancelled",
-        "expired": "Expired"
-      }
-    },
-    "pointPurchase": {
-      "title": "Buy more points",
-      "pointsLabel": "points",
-      "buyButton": "Buy",
-      "dialogTitle": "Pay for {product}",
-      "underReview": "Order under review",
-      "history": "Order history",
-      "methods": {
-        "kuraimi": "Kuraimi",
-        "jawali": "Jawali",
-        "bank_transfer": "Bank transfer",
-        "cash": "Cash"
-      },
-      "status": {
-        "pending_payment": "Pending payment",
-        "under_review": "Under review",
-        "approved": "Approved",
-        "rejected": "Rejected",
-        "expired": "Expired",
-        "cancelled": "Cancelled",
-        "refunded": "Refunded",
-        "chargeback": "Chargeback"
-      },
-      "toast": {
-        "submitted": "Order submitted for review",
-        "submitError": "Could not submit the order",
-        "cancelled": "Order cancelled",
-        "cancelError": "Could not cancel the order"
-      }
-    },
-    "admin": {
-      "navLabel": "Subscription payments",
-      "title": "Subscription payments",
-      "subtitle": "Review manual payment submissions and activate plans after verifying the receipt.",
-      "statusFilter": "Status",
-      "statusAll": "All",
-      "stats": {
-        "underReview": "Awaiting review",
-        "confirmedToday": "Confirmed today",
-        "rejected": "Rejected"
-      },
-      "table": {
-        "workspace": "Workspace",
-        "owner": "Owner",
-        "plan": "Plan",
-        "price": "Price",
-        "status": "Status"
-      },
-      "empty": "No submissions with this status",
-      "detail": {
-        "paymentMethod": "Payment method",
-        "reference": "Reference",
-        "submittedAt": "Submitted",
-        "note": "Customer note",
-        "rejectionReason": "Rejection reason",
-        "receipt": "View receipt",
-        "noReceipt": "No receipt on file",
-        "confirm": "Confirm payment",
-        "reject": "Reject",
-        "rejectReasonPlaceholder": "Reason for rejection (required)",
-        "close": "Close"
-      },
-      "toast": {
-        "confirmed": "Payment confirmed and plan activated",
-        "confirmError": "Could not confirm the payment",
-        "rejected": "Payment rejected",
-        "rejectError": "Could not reject the payment"
-      }
-    },
-    "pointPurchaseAdmin": {
-      "navLabel": "Point purchases",
-      "title": "Point purchases",
-      "subtitle": "Review manual point top-up orders and credit points after verifying the receipt.",
-      "table": {
-        "buyer": "Buyer",
-        "bundle": "Bundle",
-        "points": "Points"
-      },
-      "toast": {
-        "confirmed": "Order confirmed and points credited",
-        "confirmError": "Could not confirm the order",
-        "rejected": "Order rejected",
-        "rejectError": "Could not reject the order"
-      }
-    },
-    "recommended": "Recommended",
-    "audienceDescription": {
-      "individual": "Built for individual operators and small teams.",
-      "business": "Built for growing teams with multiple channels.",
-      "enterprise": "Built for organizations that need custom scale and support."
-    },
-    "capacity": {
-      "unlimited": "Custom",
-      "points": "{count} AI points each month",
-      "agents": "{count} AI agents",
-      "knowledgeDocuments": "{count} knowledge documents",
-      "products": "{count} catalog products"
-    }
-  },
-  "marketing": {
-    "brandName": "Wesal One",
-    "nav": {
-      "features": "Features",
-      "channels": "Channels",
-      "pricing": "Pricing",
-      "about": "About",
-      "contact": "Contact"
+    "statuses": {
+      "scheduled": "已排定",
+      "cancelled": "已取消"
     },
     "actions": {
-      "signIn": "Sign in",
-      "start": "Get started"
+      "cancelAppointment": "取消预约"
     },
-    "hero": {
-      "badge": "Arabic-first customer service and sales platform",
-      "titleBefore": "AI agents that run",
-      "titleHighlight": "sales and conversations",
-      "titleAfter": "professionally",
-      "description": "Wesal One brings customer channels, teams, products and orders into one platform, with clear human control whenever a conversation needs an employee.",
-      "learnMore": "Explore the platform",
-      "trial": "Free trial",
-      "noCard": "No payment card",
-      "fastSetup": "Fast setup"
+    "dialogs": {
+      "cancelTitle": "取消预约",
+      "cancelDescription": "取消此预约并执行其取消后续动作。",
+      "deleteTitle": "删除预约",
+      "deleteDescription": "从管理列表中删除此预约。此操作不会执行取消流程。"
     },
-    "demo": {
-      "title": "Live sales conversation",
-      "subtitle": "WhatsApp · Demo store",
-      "active": "Agent active",
-      "customer": "I need four units of the available product. What is the price?",
-      "agent": "The product is available. I will use the approved price and help confirm the order.",
-      "handoffTitle": "Controlled human handoff",
-      "handoffDescription": "The agent pauses only when an employee takes over or an explicit handoff rule matches."
-    },
-    "features": {
-      "eyebrow": "Everything your team needs",
-      "title": "Customer service and sales in one workspace",
-      "description": "From the first conversation through ordering and follow-up, with clear team tools and agents governed by your business rules.",
-      "items": [
-        {
-          "title": "Unified inbox",
-          "description": "WhatsApp, Instagram, Messenger and Telegram in one interface."
-        },
-        {
-          "title": "AI sales agents",
-          "description": "Understand requests, search products and reply using platform settings."
-        },
-        {
-          "title": "Clear human handoff",
-          "description": "The agent pauses when an employee takes over, preventing overlapping replies."
-        },
-        {
-          "title": "Products and orders",
-          "description": "Read inventory and create orders through trusted platform services."
-        },
-        {
-          "title": "Automation and campaigns",
-          "description": "Flows, scheduled messages and campaigns that help you grow."
-        },
-        {
-          "title": "Reports and permissions",
-          "description": "Track performance, manage teams and isolate every workspace."
-        }
-      ]
-    },
-    "control": {
-      "eyebrow": "Human control",
-      "title": "AI accelerates the work while your team owns the decision",
-      "description": "Clear rules prevent overlap and preserve human review for sensitive situations.",
-      "items": [
-        "Pause automation when staff take over",
-        "Separate team-member permissions",
-        "Conversation and action history",
-        "Strong workspace isolation"
-      ],
-      "cardTitle": "Built for sales and support",
-      "cardDescription": "Agents use your products and rules to complete conversations and orders without changing channel logic or blocking manual work."
-    },
-    "cta": {
-      "title": "Run every customer conversation from one place",
-      "description": "Create your account, connect channels, and prepare your team and agents in Wesal One."
-    },
-    "footer": {
-      "description": "An Arabic-first platform for customer conversations, teams, products and automation.",
-      "product": "Product",
-      "legal": "Legal",
-      "privacy": "Privacy policy",
-      "dataDeletion": "Data deletion",
-      "terms": "Terms of use",
-      "copyright": "© 2026 Wesal One. All rights reserved."
+    "messages": {
+      "cancelled": "预约已取消。",
+      "deleted": "预约已删除。"
     }
   },
-  "publicPages": {
-    "features": {
-      "eyebrow": "Features",
-      "title": "One platform for customer service and sales",
-      "intro": "Conversations, agents, teams, products, orders and campaigns in one place.",
-      "sections": [
-        {
-          "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
-        },
-        {
-          "title": "Agents and commerce",
-          "body": [
-            "AI agents use products and orders with controlled human handoff."
-          ]
-        }
-      ]
+  "appointmentCalendars": {
+    "title": "预约日历",
+    "singular": "预约日历",
+    "addNew": "新建",
+    "none": "无",
+    "addReminder": "添加提醒",
+    "reminderSummary": "发送提醒 - {calendar} {timing}。",
+    "noExternalConnections": "尚未连接任何外部日历",
+    "dialogDescriptions": {
+      "create": "为您的预约日历命名以开始使用。",
+      "rename": "重命名此预约日历。"
     },
-    "channels": {
-      "eyebrow": "Channels",
-      "title": "Customer channels in one place",
-      "intro": "Connect approved channels and retain customer context in the workspace.",
-      "sections": [
-        {
-          "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
-        },
-        {
-          "title": "Telegram and web",
-          "body": [
-            "Telegram, Webchat and other integrations from one dashboard."
-          ]
-        }
-      ]
+    "tabs": {
+      "calendars": "日历",
+      "appointments": "预约",
+      "externalCalendars": "外部日历"
     },
-    "about": {
-      "eyebrow": "About",
-      "title": "Wesal One for businesses in Yemen and the region",
-      "intro": "We bring conversations, follow-up, knowledge and products into one Arabic-first workspace.",
-      "sections": [
-        {
-          "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
-        },
-        {
-          "title": "Commitment",
-          "body": [
-            "Data isolation, permissions and transparency while humans retain control."
-          ]
-        }
-      ]
+    "sections": {
+      "appointment": "您的预约是什么",
+      "availability": "何时可供预约？",
+      "duration": "预约时长是多少？",
+      "location": "预约将在哪里进行？",
+      "notifications": "通知",
+      "restrictions": "限制",
+      "externalCalendar": "连接 Google 日历"
     },
-    "contact": {
-      "eyebrow": "Contact",
-      "title": "We would love to hear from you",
-      "intro": "For questions, trial requests or plan guidance.",
-      "sections": [
-        {
-          "title": "Email",
-          "body": ["support@wesal.one"]
-        },
-        {
-          "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
-        }
-      ]
+    "fields": {
+      "description": "说明",
+      "timezone": "时区",
+      "locationType": "地点类型",
+      "locationDetail": "详细信息",
+      "durationMinutes": "预约时长",
+      "bufferAfterMinutes": "在预约后增加时间",
+      "scheduleWindowType": "可预约时间范围",
+      "rollingDays": "滚动天数",
+      "minAdvanceDays": "最少提前天数",
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "specificDate": "日期",
+      "maxAppointmentsPerUser": "每位用户的最大预约数",
+      "maxAppointmentsUnlimited": "无限制",
+      "dailyLimitEnabled": "每日限额",
+      "maxPerDay": "每日最大数量",
+      "allowGroupMeeting": "允许团体会议",
+      "maxPerSlot": "每个时段的最大数量",
+      "confirmationMessage": "确认消息",
+      "confirmationFlowId": "确认流程",
+      "cancellationFlowId": "取消流程",
+      "externalConnectionId": "外部日历",
+      "reminders": "提醒",
+      "reminderTimingValue": "数值",
+      "reminderTimingUnit": "单位"
     },
-    "privacy": {
-      "eyebrow": "Privacy",
-      "title": "Wesal One privacy policy",
-      "intro": "The data we process and how it is used and protected.",
-      "updated": "Last updated: July 18, 2026",
-      "sections": [
-        {
-          "title": "Data and use",
-          "body": [
-            "We process account, workspace, channel, conversation, file, product and order data to operate, authenticate, automate and support the service."
-          ]
-        },
-        {
-          "title": "Channels and providers",
-          "body": [
-            "Channel data may pass through the channel provider and cloud infrastructure according to your configuration."
-          ]
-        },
-        {
-          "title": "Security and retention",
-          "body": [
-            "We use access controls and workspace isolation and retain data as needed to operate the service."
-          ]
-        },
-        {
-          "title": "Your rights",
-          "body": [
-            "Request access, correction or deletion through support@wesal.one."
-          ]
-        }
-      ]
+    "locationTypes": {
+      "inPerson": "线下会面",
+      "phoneCall": "电话通话",
+      "onlineMeeting": "在线会议"
     },
-    "terms": {
-      "eyebrow": "Terms",
-      "title": "Wesal One terms of use",
-      "intro": "Using the platform means accepting the account, trial and subscription terms.",
-      "updated": "Last updated: July 18, 2026",
-      "sections": [
-        {
-          "title": "Service use",
-          "body": [
-            "Use the platform lawfully. Account owners are responsible for members, content and channels."
-          ]
-        },
-        {
-          "title": "Subscriptions",
-          "body": [
-            "Features and limits follow the plan. Payments activate only after confirmation."
-          ]
-        },
-        {
-          "title": "Content and data",
-          "body": [
-            "You must have the right to use data and content entered or sent through the platform."
-          ]
-        },
-        {
-          "title": "Artificial intelligence",
-          "body": [
-            "AI assists teams and does not replace human review for sensitive decisions."
-          ]
-        }
-      ]
+    "scheduleWindowTypes": {
+      "rollingDays": "未来滚动天数内",
+      "dateRange": "在某个日期范围内",
+      "specificDay": "某一特定日期",
+      "anyFutureDate": "未来任意日期"
     },
-    "dataDeletion": {
-      "eyebrow": "Data deletion",
-      "title": "How to delete your data",
-      "intro": "Request deletion of an account, workspace or specific channel data.",
-      "updated": "Last updated: July 18, 2026",
-      "sections": [
-        {
-          "title": "How to request",
-          "body": [
-            "Email support@wesal.one from the owner's address with the workspace name and scope."
-          ],
-          "bullets": [
-            "Subject: Wesal One data deletion request",
-            "Specify full account, channel or selected data."
-          ]
-        },
-        {
-          "title": "Verification and time",
-          "body": [
-            "We verify authority and usually process requests within 7 to 30 days."
-          ]
-        },
-        {
-          "title": "Backups",
-          "body": [
-            "Temporary backups may remain until their backup cycle completes."
-          ]
-        },
-        {
-          "title": "After deletion",
-          "body": [
-            "Access to channels, conversations and reports may be lost and recovery is not guaranteed."
-          ]
-        }
-      ]
+    "reminderTimingUnits": {
+      "minutes": "提前几分钟",
+      "hours": "提前几小时",
+      "days": "提前几天"
+    },
+    "reminderTimingLabels": {
+      "minutes": "{count, plural, one {提前 # 分钟} other {提前 # 分钟}}",
+      "hours": "{count, plural, one {提前一小时} other {提前 # 小时}}",
+      "days": "{count, plural, one {提前一天} other {提前 # 天}}"
+    },
+    "weekdays": {
+      "0": "星期日",
+      "1": "星期一",
+      "2": "星期二",
+      "3": "星期三",
+      "4": "星期四",
+      "5": "星期五",
+      "6": "星期六"
+    },
+    "weekdayEditor": {
+      "description": "设置此日期的可用时间段。",
+      "unavailable": "不可预约",
+      "overlapWarning": "部分时间段重叠。重叠的时间不会被重复计算。",
+      "addInterval": "添加时间段",
+      "startTime": "开始时间",
+      "endTime": "结束时间"
+    },
+    "tooltips": {
+      "timezone": "您创建此日历时所在的时区。用户将看到基于其自身时区的可预约时间。",
+      "confirmationFlow": "用户预约成功后发送的流程。",
+      "cancellationFlow": "预约被取消后发送的流程。",
+      "reminders": "向受邀者发送预约提醒。",
+      "appointmentDuration": "定义您的预约时长。",
+      "bufferAfterMinutes": "在已预约的时段后留出缓冲时间。",
+      "peopleCanSchedule": "设置您可以接受会议的日期范围。",
+      "maxAppointmentsPerUser": "允许每位用户预约的未来预约数量上限。",
+      "rollingDays": "允许安排到未来最多多少天",
+      "minAdvanceDays": "要求预约至少提前这么多天进行。设为 0 可允许当天预约。",
+      "dailyLimit": "每天允许预约的最大人数。",
+      "allowGroupMeeting": "允许多人预约同一个时间段。",
+      "externalCalendar": "连接 Google 日历以同步您的预约。"
+    },
+    "minutesLabel": "{count} 分钟"
+  },
+  "externalCalendars": {
+    "title": "外部日历",
+    "connectGoogle": "连接 Google",
+    "emptyEmail": "无电子邮件",
+    "fields": {
+      "provider": "提供商",
+      "email": "电子邮件",
+      "calendarId": "日历 ID",
+      "connected": "已连接",
+      "date": "日期"
+    },
+    "providers": {
+      "googleCalendar": "Google 日历"
+    },
+    "dialogs": {
+      "editTitle": "编辑日历 ID",
+      "editDescription": "选择要检查冲突并创建预约事件的 Google 日历 ID。",
+      "deleteTitle": "断开日历连接",
+      "deleteDescription": "从预约安排中断开此 Google 日历的连接。"
+    },
+    "messages": {
+      "connected": "Google 日历已连接。",
+      "connectFailed": "无法连接 Google 日历。请检查 Google OAuth 设置和日历 API 访问权限，然后重试。",
+      "calendarIdUpdated": "日历 ID 已更新。",
+      "disconnected": "日历已断开连接。"
+    }
+  },
+  "bookingPage": {
+    "metadataTitle": "预约",
+    "comingSoonTitle": "预约页面即将推出",
+    "comingSoonDescription": "此公开预约页面尚不可用。"
+  },
+  "bookingWebview": {
+    "metadataTitle": "预约",
+    "badge": "预约",
+    "timezone": "时区",
+    "empty": "未找到可用时间。",
+    "noSelection": "选择时间",
+    "range": {
+      "metadataTitle": "查看可预约时间",
+      "empty": "未选择",
+      "successTitle": "已收到日期范围。",
+      "successDescription": "我们正在查询可预约的时间。",
+      "fields": {
+        "startDate": "开始日期",
+        "endDate": "结束日期",
+        "startTime": "开始时间",
+        "endTime": "结束时间"
+      },
+      "actions": {
+        "skip": "跳过"
+      },
+      "errors": {
+        "invalidRange": "结束日期必须晚于或等于开始日期。"
+      },
+      "timezoneHint": "时间以 {timezone} 显示。"
+    },
+    "actions": {
+      "book": "预约",
+      "viewDetails": "查看详情"
+    },
+    "errors": {
+      "invalidTokenTitle": "此预约链接不可用。",
+      "invalidTokenDescription": "该链接可能无效或已过期，请索取新的预约链接。",
+      "staleSlot": "此时间段已不可用，请选择其他时间。",
+      "availabilityChanged": "在您选择时间的过程中，可预约时间已发生变化，请重新选择。",
+      "submitFailed": "无法完成此请求，请重试。"
+    },
+    "success": {
+      "title": "您的预约已完成。",
+      "description": "预约详情已准备就绪。"
+    },
+    "schedule": {
+      "metadataTitle": "预约详情",
+      "defaultMessage": "您的预约已排定。",
+      "unknownInvitee": "访客",
+      "fields": {
+        "invitee": "受邀者",
+        "time": "时间",
+        "timezone": "时区",
+        "location": "地点"
+      },
+      "status": {
+        "scheduled": "已排定",
+        "cancelled": "已取消"
+      },
+      "locationTypes": {
+        "inPerson": "线下会面",
+        "phoneCall": "电话通话",
+        "onlineMeeting": "在线会议"
+      }
+    },
+    "cancel": {
+      "metadataTitle": "取消预约",
+      "title": "取消预约",
+      "description": "取消 {time} 的 {calendar}。",
+      "action": "取消预约",
+      "cancelledTitle": "预约已取消",
+      "cancelledDescription": "此预约已被取消。",
+      "unavailableTitle": "无法取消",
+      "unavailableDescription": "此预约已取消、已删除或已过期。"
     }
   }
 }

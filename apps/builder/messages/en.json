@@ -2065,7 +2065,42 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "selectOptionsPlaceholder": "Select options",
+    "dynamicImage": {
+      "label": "Dynamic Image"
+    },
+    "bookingCalendar": {
+      "label": "Booking Calendar"
+    },
+    "bookingDate": {
+      "label": "Booking Date"
+    },
+    "bookingLink": {
+      "label": "Booking Link"
+    },
+    "defaultReplyFrequency": {
+      "description": "Controls how often the Default Reply flow may fire for the same contact on a channel.",
+      "label": "Default Reply activation frequency",
+      "options": {
+        "allTime": "All time",
+        "oncePerHour": "Once per 1h",
+        "oncePerDay": "Once per 24h"
+      }
+    },
+    "javascriptCode": {
+      "label": "JavaScript code",
+      "placeholder": "return (input.first_name || 'there').toUpperCase()",
+      "description": "Use pure JavaScript and return a value. Network, files, APIs, and external libraries are unavailable. Contact and system data is available on the `input` object."
+    },
+    "waUserId": {
+      "label": "WhatsApp User ID"
+    },
+    "waUserName": {
+      "label": "WhatsApp Username"
+    },
+    "enabled": {
+      "label": "Enabled"
+    }
   },
   "metaConversions": {
     "flowStep": {
@@ -2101,7 +2136,8 @@
       "saveFailed": "Could not save. Please try again.",
       "datasetRequired": "Save a Dataset ID before adding an access token.",
       "invalidToken": "This token could not access the dataset.",
-      "whatsappNotFound": "WhatsApp integration not found."
+      "whatsappNotFound": "WhatsApp integration not found.",
+      "invalidDatasetId": "Enter a valid Dataset ID (numbers only)."
     },
     "fields": {
       "eventType": {
@@ -2157,7 +2193,8 @@
       "title": "Choose a Dataset ID",
       "description": "Enter an existing Dataset ID, or leave it empty to create one automatically.",
       "save": "Save",
-      "caveat": "A Dataset ID that isn't linked to this Page or Instagram account may not attribute events correctly. Leave this field empty to create a linked dataset automatically."
+      "caveat": "A Dataset ID that isn't linked to this Page or Instagram account may not attribute events correctly. Leave this field empty to create a linked dataset automatically.",
+      "createDataset": "Create Dataset"
     },
     "whatsapp": {
       "connect": "Connect"
@@ -2292,7 +2329,13 @@
       "unsubscribeSequence": "Unsubscribe Sequence",
       "splitTraffic": "Split Traffic",
       "aiEditImage": "AI Edit Image",
-      "whatsappFlow": "WhatsApp Flow"
+      "whatsappFlow": "WhatsApp Flow",
+      "appointmentScheduling": "Appointment Scheduling",
+      "executeJavascript": "Execute JavaScript Code",
+      "import": "Import Flow",
+      "export": "Export",
+      "importStarted": "Flow is importing. Check the import history for results.",
+      "importJsonOnly": "JSON files only"
     },
     "splitTraffic": {
       "balanceHint": "The total sum must equal 100%.",
@@ -2396,6 +2439,13 @@
     },
     "setCustomField": {
       "temporalHint": "Leave it empty to save the current date/time."
+    },
+    "export": {
+      "notPublished": "This flow has never been published. Publish it before exporting.",
+      "failed": "Export failed. Please try again."
+    },
+    "sendText": {
+      "tiktokTitleTruncated": "With buttons attached, TikTok only sends the first 40 characters of this message — the rest will be cut off."
     }
   },
   "folders": {
@@ -3058,7 +3108,13 @@
     "deleteNodeError": "Could not delete the block. Please try again.",
     "redoHistoryCleared": "Redo history cleared",
     "historyDepth": "({count})",
-    "none": "None"
+    "none": "None",
+    "tiktokCardTitleTooLong": "TikTok will cut this message short: with buttons attached, only the first 40 characters are sent. Shorten the message or remove the buttons.",
+    "waTemplateMpmNoProducts": "Add at least one product to this multi-product button before publishing.",
+    "waTemplateMpmTooManySections": "A multi-product button can have at most 10 sections. Remove some sections before publishing.",
+    "waTemplateMpmTooManyProducts": "A multi-product button can have at most 30 products in total. Remove some products before publishing.",
+    "waTemplateLtoExpirationRequired": "Pick an expiration date for the limited-time offer before sending.",
+    "waTemplateMpmIncompleteProducts": "Every section needs at least one selected product — remove empty rows or pick a product for them."
   },
   "instagram": {
     "description": "This integration lets you create Instagram bots.",
@@ -3094,7 +3150,9 @@
       "notEligible": "This number is not eligible for historical sync.",
       "triggerFailed": "Could not start the sync. Please try again later.",
       "unknown": "Could not enable sync. Please try again later."
-    }
+    },
+    "aiReadsSyncedHistoryLabel": "AI reads synced history",
+    "aiReadsSyncedHistoryHelper": "When off, AI only sees new messages."
   },
   "messenger": {
     "description": "This integration lets you create Messenger bots.",
@@ -3519,7 +3577,24 @@
         "longitude": "Longitude",
         "locationName": "Location name (optional)",
         "locationAddress": "Address (optional)",
-        "enterFormatUrl": "Enter {format} URL"
+        "enterFormatUrl": "Enter {format} URL",
+        "catalogUseDefault": "Use catalog default thumbnail",
+        "catalogNotConnectedGuidance": "Connect a Meta Catalog to select a product.",
+        "catalogSetupLink": "Go to Catalog settings",
+        "catalogSelectedProductFallback": "Product: {retailerId}",
+        "limitedTimeOfferBadge": "Expires {date}",
+        "limitedTimeOfferExpiredBadge": "Expired {date}",
+        "mpmSections": "Products",
+        "mpmSectionTitlePlaceholder": "Section title (optional)",
+        "mpmAddSection": "Add section",
+        "mpmRemoveSection": "Remove section",
+        "mpmAddProduct": "Add product",
+        "mpmRemoveProduct": "Remove product",
+        "mpmNoProductsHelp": "Add at least one product before publishing.",
+        "mpmSectionLimitReached": "Maximum of 10 sections reached.",
+        "mpmProductLimitReached": "Maximum of 30 products reached.",
+        "mpmProductsSummary": "{productCount} products in {sectionCount} sections",
+        "unsupportedButtonParam": "This button type isn't supported yet."
       }
     },
     "sampleBodyCardContent": {
@@ -3545,7 +3620,8 @@
       "messageTemplates": "Message Templates",
       "profile": "Profile",
       "usefulLinks": "Useful Links",
-      "conversionsApi": "Ads Optimization"
+      "conversionsApi": "Ads Optimization",
+      "settings": "Settings"
     },
     "accountHealths": {
       "title": "Manage your WhatsApp account",
@@ -3675,7 +3751,13 @@
       "label": "Template Header"
     },
     "transferPhoneNumber": "Transfer phone from another Whatsapp provider",
-    "signupSessionExpired": "Your WhatsApp signup session has expired. Please start the connection again."
+    "signupSessionExpired": "Your WhatsApp signup session has expired. Please start the connection again.",
+    "capi": {
+      "automaticEvents": {
+        "title": "Automatic Events",
+        "description": "Automatically send conversion events from this WhatsApp number to Meta. If the permission is missing, reconnect the account to grant it."
+      }
+    }
   },
   "zalo": {
     "title": "Zalo OA",
@@ -4306,7 +4388,28 @@
   },
   "appointmentScheduling": {
     "title": "Appointment Scheduling",
-    "description": "Create and manage your appointment scheduling."
+    "description": "Create and manage your appointment scheduling.",
+    "flowModes": {
+      "bookFromCustomField": "Book appointment",
+      "checkAvailabilityFromCustomField": "Check availability",
+      "book": "Date & time picker",
+      "checkAvailability": "Date range picker",
+      "cancel": "Cancel appointment"
+    },
+    "fields": {
+      "mode": "Mode",
+      "dateTimeFieldId": "Save selected date to",
+      "dateTimeFieldIdSource": "Date/time field",
+      "startDateFieldId": "Start date field",
+      "startDateFieldIdSelected": "Save selected start date to",
+      "endDateFieldId": "End date field",
+      "endDateFieldIdSelected": "Save selected end date to",
+      "resultUsedByAI": "Use result for AI",
+      "outputCustomFieldId": "Save response to a custom field"
+    },
+    "dialogDescriptions": {
+      "flowStep": "Choose how this flow step schedules appointments."
+    }
   },
   "templates": {
     "title": "Templates",
@@ -5301,7 +5404,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -5318,7 +5423,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -5335,7 +5442,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -5352,11 +5461,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },
@@ -5459,6 +5572,326 @@
           ]
         }
       ]
+    }
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "The page you're looking for doesn't exist or may have been moved.",
+    "backToHome": "Back to homepage"
+  },
+  "dynamicImages": {
+    "title": "Dynamic Images",
+    "description": "Generate personalized images per contact from a background and text/image/QR layers.",
+    "publicUrl": {
+      "label": "Public URL",
+      "hint": "Copy and paste the URL into your flow, broadcast, or sequence to send personalized images."
+    },
+    "editor": {
+      "addElement": "Add element",
+      "addImage": "Add image",
+      "addText": "Add text",
+      "addQrCode": "Add QR code",
+      "template": "Template",
+      "templateDialogTitle": "Choose a template",
+      "templateDialogDescription": "Selecting a template replaces all current layers.",
+      "layers": "Layers",
+      "noLayers": "No layers yet. Add an element to get started.",
+      "deleteLayer": "Delete layer",
+      "layerNameImage": "Image",
+      "layerNameText": "Text",
+      "layerNameQrCode": "QR code",
+      "editElement": "Edit element",
+      "selectElementHint": "Select an element on the canvas to edit its properties.",
+      "width": "Width",
+      "height": "Height",
+      "priority": "Priority",
+      "imageType": "Image type",
+      "imageTypeUrl": "Image URL",
+      "imageTypeAvatarUser": "Contact avatar",
+      "imageTypeCustomField": "Custom field",
+      "imageUrl": "Image URL",
+      "uploadImage": "Upload image",
+      "customField": "Custom field",
+      "imageStyle": "Image style",
+      "imageStyleSquare": "Square",
+      "imageStyleCircle": "Circle",
+      "qrText": "QR code content",
+      "qrSize": "Size",
+      "qrColor": "Color",
+      "qrLogo": "Logo",
+      "uploadLogo": "Upload logo",
+      "textContent": "Text content",
+      "fontSize": "Font size",
+      "fontFamily": "Font family",
+      "fontFamilyArial": "Arial",
+      "fontFamilySerif": "Serif",
+      "fontFamilyRoboto": "Roboto",
+      "fontFamilyGreatVibes": "Great Vibes",
+      "align": "Alignment",
+      "alignLeft": "Left",
+      "alignCenter": "Center",
+      "alignRight": "Right",
+      "color": "Color",
+      "bold": "Bold",
+      "italic": "Italic",
+      "uppercase": "Uppercase"
+    },
+    "preview": {
+      "error": "Failed to load the linked dynamic image. It may have been deleted."
+    }
+  },
+  "appointments": {
+    "title": "Appointments",
+    "statuses": {
+      "scheduled": "Scheduled",
+      "cancelled": "Canceled"
+    },
+    "messages": {
+      "empty": "No appointments yet."
+    }
+  },
+  "appointmentManagement": {
+    "title": "Appointments",
+    "singular": "Appointment",
+    "unknownContact": "Unknown contact",
+    "searchPlaceholder": "Search by name...",
+    "tabs": {
+      "next": "Next",
+      "past": "Past"
+    },
+    "fields": {
+      "name": "Name",
+      "date": "Date",
+      "status": "Status",
+      "calendar": "Calendar"
+    },
+    "statuses": {
+      "scheduled": "Scheduled",
+      "cancelled": "Canceled"
+    },
+    "actions": {
+      "cancelAppointment": "Cancel appointment"
+    },
+    "dialogs": {
+      "cancelTitle": "Cancel appointment",
+      "cancelDescription": "Cancel this appointment and run its cancellation side effects.",
+      "deleteTitle": "Delete appointment",
+      "deleteDescription": "Delete this appointment from the management list. This will not run the cancellation flow."
+    },
+    "messages": {
+      "cancelled": "Appointment canceled.",
+      "deleted": "Appointment deleted."
+    }
+  },
+  "appointmentCalendars": {
+    "title": "Appointment Calendars",
+    "singular": "Appointment Calendar",
+    "addNew": "Add New",
+    "none": "None",
+    "addReminder": "Add Reminder",
+    "reminderSummary": "Send Reminder - {calendar} {timing}.",
+    "noExternalConnections": "No external calendar connections yet",
+    "dialogDescriptions": {
+      "create": "Give your appointment calendar a name to get started.",
+      "rename": "Rename this appointment calendar."
+    },
+    "tabs": {
+      "calendars": "Calendars",
+      "appointments": "Appointments",
+      "externalCalendars": "External Calendars"
+    },
+    "sections": {
+      "appointment": "What is your appointment",
+      "availability": "When can people book?",
+      "duration": "How long is your appointment?",
+      "location": "Where will the appointment happen?",
+      "notifications": "Notifications",
+      "restrictions": "Restrictions",
+      "externalCalendar": "Connect Google Calendar"
+    },
+    "fields": {
+      "description": "Description",
+      "timezone": "Timezone",
+      "locationType": "Location Type",
+      "locationDetail": "Detail",
+      "durationMinutes": "Appointment duration",
+      "bufferAfterMinutes": "Add time after your appointments",
+      "scheduleWindowType": "People can schedule",
+      "rollingDays": "Rolling Days",
+      "minAdvanceDays": "Minimum days in advance",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "specificDate": "Date",
+      "maxAppointmentsPerUser": "Maximum appointments per user",
+      "maxAppointmentsUnlimited": "Unlimited",
+      "dailyLimitEnabled": "Daily limit",
+      "maxPerDay": "Max Per Day",
+      "allowGroupMeeting": "Allow Group Meeting",
+      "maxPerSlot": "Max Per Slot",
+      "confirmationMessage": "Confirmation Message",
+      "confirmationFlowId": "Confirmation Flow",
+      "cancellationFlowId": "Cancellation Flow",
+      "externalConnectionId": "External Calendar",
+      "reminders": "Reminders",
+      "reminderTimingValue": "Value",
+      "reminderTimingUnit": "Unit"
+    },
+    "locationTypes": {
+      "inPerson": "In-Person Meeting",
+      "phoneCall": "Phone Call",
+      "onlineMeeting": "Online Meeting"
+    },
+    "scheduleWindowTypes": {
+      "rollingDays": "Within rolling days in future",
+      "dateRange": "Within a date range",
+      "specificDay": "One specific day",
+      "anyFutureDate": "At any date in future"
+    },
+    "reminderTimingUnits": {
+      "minutes": "Minutes before",
+      "hours": "Hours before",
+      "days": "Days before"
+    },
+    "reminderTimingLabels": {
+      "minutes": "{count, plural, one {# minute before} other {# minutes before}}",
+      "hours": "{count, plural, one {an hour before} other {# hours before}}",
+      "days": "{count, plural, one {a day before} other {# days before}}"
+    },
+    "weekdays": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "weekdayEditor": {
+      "description": "Set the available time intervals for this day.",
+      "unavailable": "Unavailable",
+      "overlapWarning": "Some intervals overlap. Overlapping time is not counted twice.",
+      "addInterval": "Add Interval",
+      "startTime": "Start Time",
+      "endTime": "End Time"
+    },
+    "tooltips": {
+      "timezone": "The timezone you are creating this calendar. People will see availability based on their timezone.",
+      "confirmationFlow": "The flow that is sent once the user book an appointment.",
+      "cancellationFlow": "The flow that is sent once an appointment is canceled.",
+      "reminders": "Send reminders to remember the invitee about the appointment.",
+      "appointmentDuration": "Define how long your appointment will be.",
+      "bufferAfterMinutes": "Give yourself some buffer time to wrap up from booked appointments.",
+      "peopleCanSchedule": "Set a range of dates when you can accept meetings.",
+      "maxAppointmentsPerUser": "The maximum number of future appointments a user is allowed to book.",
+      "rollingDays": "Allow schedule up to how many days in the future",
+      "minAdvanceDays": "Require bookings to be made at least this many days in advance. Use 0 to allow same-day bookings.",
+      "dailyLimit": "The maximum number of people that are allowed to book per day.",
+      "allowGroupMeeting": "Allow many people to book at the same time slot.",
+      "externalCalendar": "Connect Google Calendar to sync your appointments."
+    },
+    "minutesLabel": "{count} minutes"
+  },
+  "externalCalendars": {
+    "title": "External Calendars",
+    "connectGoogle": "Connect Google",
+    "emptyEmail": "No email",
+    "fields": {
+      "provider": "Provider",
+      "email": "Email",
+      "calendarId": "Calendar ID",
+      "connected": "Connected",
+      "date": "Date"
+    },
+    "providers": {
+      "googleCalendar": "Google Calendar"
+    },
+    "dialogs": {
+      "editTitle": "Edit Calendar ID",
+      "editDescription": "Choose the Google Calendar ID to check for conflicts and create appointment events.",
+      "deleteTitle": "Disconnect Calendar",
+      "deleteDescription": "Disconnect this Google Calendar from appointment scheduling."
+    },
+    "messages": {
+      "connected": "Google Calendar connected.",
+      "connectFailed": "Could not connect Google Calendar. Check the Google OAuth settings and Calendar API access, then try again.",
+      "calendarIdUpdated": "Calendar ID updated.",
+      "disconnected": "Calendar disconnected."
+    }
+  },
+  "bookingPage": {
+    "metadataTitle": "Booking",
+    "comingSoonTitle": "Booking page coming soon",
+    "comingSoonDescription": "This public booking page is not available yet."
+  },
+  "bookingWebview": {
+    "metadataTitle": "Book appointment",
+    "badge": "Appointment",
+    "timezone": "Timezone",
+    "empty": "No available times were found.",
+    "noSelection": "Choose a time",
+    "range": {
+      "metadataTitle": "Check availability",
+      "empty": "Not selected",
+      "successTitle": "Date range received.",
+      "successDescription": "We are checking available appointment times.",
+      "fields": {
+        "startDate": "Start Date",
+        "endDate": "End Date",
+        "startTime": "Start Time",
+        "endTime": "End Time"
+      },
+      "actions": {
+        "skip": "Skip"
+      },
+      "errors": {
+        "invalidRange": "End Date must be on or after Start Date."
+      },
+      "timezoneHint": "Times are shown in {timezone}."
+    },
+    "actions": {
+      "book": "Book appointment",
+      "viewDetails": "View details"
+    },
+    "errors": {
+      "invalidTokenTitle": "This booking link is unavailable.",
+      "invalidTokenDescription": "The link may be invalid or expired. Please ask for a new booking link.",
+      "staleSlot": "This time is no longer available. Please choose another time.",
+      "availabilityChanged": "Availability changed while you were choosing a time. Please choose again.",
+      "submitFailed": "We couldn't complete this request. Please try again."
+    },
+    "success": {
+      "title": "Your appointment is booked.",
+      "description": "The appointment details are ready."
+    },
+    "schedule": {
+      "metadataTitle": "Appointment details",
+      "defaultMessage": "Your appointment has been scheduled.",
+      "unknownInvitee": "Guest",
+      "fields": {
+        "invitee": "Invitee",
+        "time": "Time",
+        "timezone": "Timezone",
+        "location": "Location"
+      },
+      "status": {
+        "scheduled": "Scheduled",
+        "cancelled": "Canceled"
+      },
+      "locationTypes": {
+        "inPerson": "In-person meeting",
+        "phoneCall": "Phone call",
+        "onlineMeeting": "Online meeting"
+      }
+    },
+    "cancel": {
+      "metadataTitle": "Cancel appointment",
+      "title": "Cancel appointment",
+      "description": "Cancel {calendar} at {time}.",
+      "action": "Cancel appointment",
+      "cancelledTitle": "Appointment canceled",
+      "cancelledDescription": "This appointment has been canceled.",
+      "unavailableTitle": "Cancellation unavailable",
+      "unavailableDescription": "This appointment is already canceled, deleted, or in the past."
     }
   }
 }

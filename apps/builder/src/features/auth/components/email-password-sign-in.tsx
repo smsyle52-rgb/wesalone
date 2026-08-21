@@ -12,13 +12,14 @@ import { Input } from "@chatbotx.io/ui/components/ui/input"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2Icon, LockIcon, MailIcon } from "lucide-react"
 import Link from "next/link"
-import { redirect } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { authClient } from "@/lib/auth/auth-client"
 import { authErrorMessage, isEmailNotVerified } from "../lib/auth-error-message"
+import { resolveSafeCallbackUrl } from "@/lib/safe-callback-url"
 import {
   type EmailPasswordSignInRequest,
   emailPasswordSignInRequest,
@@ -32,6 +33,7 @@ export const EmailPasswordSignIn = () => {
   // to ask for another one and is simply locked out.
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
   const [isResending, setIsResending] = useState(false)
+  const searchParams = useSearchParams()
 
   const emailPasswordForm = useForm<EmailPasswordSignInRequest>({
     resolver: zodResolver(emailPasswordSignInRequest),
@@ -53,7 +55,14 @@ export const EmailPasswordSignIn = () => {
 
     if (data) {
       toast.success(tAuth("signedInSuccessfully"))
-      redirect("/")
+      // Full reload (not router.push) so a fresh session re-renders
+      // layout/sidebar state that depends on auth.
+      window.location.assign(
+        resolveSafeCallbackUrl(
+          searchParams.get("callbackURL"),
+          window.location.origin,
+        ),
+      )
     } else {
       setUnverifiedEmail(isEmailNotVerified(error) ? input.email : null)
       toast.error(authErrorMessage(error, tAuth))

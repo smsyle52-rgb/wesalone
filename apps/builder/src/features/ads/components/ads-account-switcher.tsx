@@ -1,7 +1,6 @@
 "use client"
 
 import type { WhatsappCredentialPublic } from "@chatbotx.io/database/partials"
-import { Button } from "@chatbotx.io/ui/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -10,20 +9,14 @@ import {
   SelectValue,
 } from "@chatbotx.io/ui/components/ui/select"
 import { cn } from "@chatbotx.io/ui/lib/utils"
-import { Loader2Icon } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
-import { useAction } from "next-safe-action/hooks"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { toast } from "sonner"
-import { reconnectWhatsappAction } from "@/features/integration-whatsapp/actions/reconnect.action"
-import { buildFacebookOAuthDialogUrl } from "@/features/integration-whatsapp/libs/embedded-signup"
-import { parseOAuthRelayResult } from "@/features/integration-whatsapp/libs/oauth-relay"
-import { getBrokerOrigin } from "@/lib/oauth-broker"
+import { useMemo } from "react"
+import { WhatsappReconnectButton } from "@/features/integration-whatsapp/components/whatsapp-reconnect-button"
 import {
   getPermissionStatus,
   permissionStatusConfig,
-} from "../lib/permission-status"
+} from "@/features/integration-whatsapp/libs/permission-status"
 import { resolveSelectedIntegration } from "../lib/select-account"
 
 export type AdsAccountSwitcherIntegration = {

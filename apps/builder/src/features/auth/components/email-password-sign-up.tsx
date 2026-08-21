@@ -6,10 +6,13 @@ import { Form } from "@chatbotx.io/ui/components/ui/form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2Icon, LockIcon, MailIcon, UserIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { Loader2Icon } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { authClient } from "@/lib/auth/auth-client"
+import { withCallbackUrlParam } from "@/lib/safe-callback-url"
 import {
   type EmailPasswordSignUpRequest,
   emailPasswordSignUpRequest,
@@ -75,6 +78,7 @@ const PasswordStrengthMeter = ({ password }: { password: string }) => {
 export const EmailPasswordSignUp = () => {
   const t = useTranslations()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const emailPasswordForm = useForm<EmailPasswordSignUpRequest>({
     resolver: zodResolver(emailPasswordSignUpRequest),
@@ -93,7 +97,9 @@ export const EmailPasswordSignUp = () => {
 
     if (data) {
       toast.success(t("auth.signUpSuccess"))
-      router.push("/auth/sign-in")
+      router.push(
+        withCallbackUrlParam("/auth/sign-in", searchParams.get("callbackURL")),
+      )
     } else {
       toast.error(error.message)
     }

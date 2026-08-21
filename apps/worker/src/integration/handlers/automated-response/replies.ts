@@ -42,6 +42,7 @@ import type {
   AIAgentOpenaiCompatibleProviderModel,
   AIAgentProvider,
   AIAgentProviderModels,
+  DefaultReplyFrequency,
 } from "@chatbotx.io/database/partials"
 import type {
   AIAgentModel,
@@ -84,6 +85,7 @@ export type ReplyByAIProps = {
   summary?: string
   defaultReplyFlowId?: string | null
   workspaceLanguage?: string
+  defaultReplyFrequency: DefaultReplyFrequency
 }
 
 export type ReplyByAIExecutionResult = {
@@ -1188,9 +1190,10 @@ async function runAIReply(
     // reply flow, and only fall back to a clarifying question if none is set.
     if (toolCallsCount > 0 || toolResultsCount > 0) {
       await settleUsage()
-      const triggeredDefaultReplyFlow = await triggerDefaultReplyFlow({
+      const defaultReplyResult = await triggerDefaultReplyFlow({
         workspaceId: conversation.workspaceId,
         defaultReplyFlowId: props.defaultReplyFlowId,
+        defaultReplyFrequency: props.defaultReplyFrequency,
         conversation,
         contactInbox: props.contactInbox,
         trackingContext: props.triggerMessageId
@@ -1205,7 +1208,12 @@ async function runAIReply(
             }
           : undefined,
       })
-      if (!triggeredDefaultReplyFlow) {
+      // `skipped` (no flow configured / flow invalid) preserves the old
+      // behavior: send the canned clarifying text. `throttled` means a valid
+      // default reply flow exists but its activation window is still open for
+      // this contact/channel — stay silent rather than double-message with a
+      // canned line on top of a flow that already fired recently.
+      if (defaultReplyResult === "skipped") {
         await sendMessageWithRender(
           conversation.id,
           getNoResponseFallback(

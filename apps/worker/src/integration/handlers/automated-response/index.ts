@@ -10,6 +10,7 @@ import { isMessageStorageError } from "@chatbotx.io/database/errors"
 import {
   aiAgentProviderModels,
   aiMessageRoles,
+  defaultReplyFrequencies,
 } from "@chatbotx.io/database/partials"
 import {
   createMessageRepository,
@@ -71,6 +72,11 @@ export async function processAutomatedResponse(
   if (!workspaceService.isActiveNow(workspace)) {
     return
   }
+  // Robustness against a stale/unmigrated row: fall back to `allTime`
+  // (today's behavior) rather than throwing on an unexpected column value.
+  const defaultReplyFrequency =
+    defaultReplyFrequencies.safeParse(workspace.defaultReplyFrequency).data ??
+    defaultReplyFrequencies.enum.allTime
 
   const repo = await createMessageRepository()
   const triggerMessage = await repo.findTriggerMessage({
@@ -123,9 +129,10 @@ export async function processAutomatedResponse(
     const aiAgent = await aiAgentService.findDefault(conversation.workspaceId)
 
     if (!aiAgent) {
-      const triggeredDefaultReplyFlow = await triggerDefaultReplyFlow({
+      const defaultReplyResult = await triggerDefaultReplyFlow({
         workspaceId: conversation.workspaceId,
         defaultReplyFlowId: workspace.defaultReply,
+        defaultReplyFrequency,
         conversation,
         contactInbox,
         trackingContext: messageId
@@ -140,7 +147,7 @@ export async function processAutomatedResponse(
             }
           : undefined,
       })
-      if (!triggeredDefaultReplyFlow && messageId) {
+      if (defaultReplyResult !== "triggered" && messageId) {
         await emit("analytics:dashboard", {
           eventType: "message:bot_received",
           workspaceId: conversation.workspaceId,
@@ -317,6 +324,7 @@ export async function processAutomatedResponse(
         summary,
         defaultReplyFlowId: workspace.defaultReply,
         workspaceLanguage: workspace.language,
+        defaultReplyFrequency,
       })
     } finally {
       clearInterval(typingIntervalId)
@@ -360,9 +368,10 @@ export async function processAutomatedResponse(
     }
 
     // AI agent exists but failed to produce any response at all → fallback flow.
-    const triggeredDefaultReplyFlow = await triggerDefaultReplyFlow({
+    const defaultReplyResult = await triggerDefaultReplyFlow({
       workspaceId: conversation.workspaceId,
       defaultReplyFlowId: workspace.defaultReply,
+      defaultReplyFrequency,
       conversation,
       contactInbox,
       trackingContext: messageId
@@ -377,7 +386,7 @@ export async function processAutomatedResponse(
           }
         : undefined,
     })
-    if (!triggeredDefaultReplyFlow && messageId) {
+    if (defaultReplyResult !== "triggered" && messageId) {
       await emit("analytics:dashboard", {
         eventType: "message:bot_received",
         workspaceId: conversation.workspaceId,

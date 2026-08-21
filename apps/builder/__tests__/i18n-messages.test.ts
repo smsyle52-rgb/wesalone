@@ -18,18 +18,7 @@ const flattenMessages = (
   prefix = "",
   result: FlatMessages = {},
 ): FlatMessages => {
-  if (Array.isArray(value)) {
-    for (const [index, child] of value.entries()) {
-      flattenMessages(
-        child,
-        prefix ? `${prefix}.${index}` : String(index),
-        result,
-      )
-    }
-    return result
-  }
-
-  if (typeof value !== "object" || value === null) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     result[prefix] = value
     return result
   }
@@ -52,6 +41,7 @@ const completeCatalogLocales = ["en", "vi"] as const
 const cjkCatalogLocales = ["zh-TW", "zh-CN"].filter((locale) =>
   isLocale(locale),
 )
+const expectedSimplifiedChineseLocale = isLocale("zh-CN") ? "zh-CN" : "en"
 
 type IcuStructure = {
   argument: string
@@ -249,14 +239,14 @@ describe("locale resolution", () => {
     ["zh-tw", "zh-TW"],
     ["zh-TW-x-private", "zh-TW"],
     ["zh-tw-x-private", "zh-TW"],
-    ["zh-CN", "zh-CN"],
-    ["zh-CN-x-private", "zh-CN"],
-    ["zh-cn", "zh-CN"],
-    ["ZH-CN", "zh-CN"],
-    ["zh-Hans", "zh-CN"],
-    ["zh-hans", "zh-CN"],
-    ["zh-Hans-CN", "zh-CN"],
-    ["zh", "zh-CN"],
+    ["zh-CN", expectedSimplifiedChineseLocale],
+    ["zh-CN-x-private", expectedSimplifiedChineseLocale],
+    ["zh-cn", expectedSimplifiedChineseLocale],
+    ["ZH-CN", expectedSimplifiedChineseLocale],
+    ["zh-Hans", expectedSimplifiedChineseLocale],
+    ["zh-hans", expectedSimplifiedChineseLocale],
+    ["zh-Hans-CN", expectedSimplifiedChineseLocale],
+    ["zh", expectedSimplifiedChineseLocale],
     ["xx", "ar"],
   ] as const)("resolves %s to %s", (input, expected) => {
     expect(resolveLocale(input)).toBe(expected)

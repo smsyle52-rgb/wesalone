@@ -15,6 +15,15 @@ export type MetaCapiEventModel = typeof schema.metaCapiEventModel.$inferSelect
 export type FieldModel = typeof schema.customFieldModel.$inferSelect
 export type AutomatedResponseModel =
   typeof schema.automatedResponseModel.$inferSelect
+export type AppointmentModel = typeof schema.appointmentModel.$inferSelect
+export type AppointmentCalendarModel =
+  typeof schema.appointmentCalendarModel.$inferSelect
+export type AppointmentCalendarAvailabilityModel =
+  typeof schema.appointmentCalendarAvailabilityModel.$inferSelect
+export type AppointmentCalendarReminderModel =
+  typeof schema.appointmentCalendarReminderModel.$inferSelect
+export type AppointmentReminderDispatchModel =
+  typeof schema.appointmentReminderDispatchModel.$inferSelect
 export type FlowModel = typeof schema.flowModel.$inferSelect
 export type FolderModel = typeof schema.folderModel.$inferSelect
 export type TagModel = typeof schema.tagModel.$inferSelect
@@ -55,6 +64,8 @@ export type IntegrationActiveCampaignModel =
   typeof schema.integrationActiveCampaignModel.$inferSelect
 export type IntegrationGoogleSheetsModel =
   typeof schema.integrationGoogleSheetsModel.$inferSelect
+export type IntegrationGoogleCalendarModel =
+  typeof schema.integrationGoogleCalendarModel.$inferSelect
 export type IntegrationMailchimpModel =
   typeof schema.integrationMailchimpModel.$inferSelect
 export type IntegrationMailerLiteModel =
@@ -69,6 +80,8 @@ export type IntegrationMessengerModel =
   typeof schema.integrationMessengerModel.$inferSelect
 export type IntegrationOpenAIModel =
   typeof schema.integrationOpenaiModel.$inferSelect
+export type IntegrationOutlookCalendarModel =
+  typeof schema.integrationOutlookCalendarModel.$inferSelect
 export type IntegrationWhatsappModel =
   typeof schema.integrationWhatsappModel.$inferSelect
 export type IntegrationZaloModel =
@@ -133,6 +146,7 @@ export type ContactInboxModel = typeof schema.contactInboxModel.$inferSelect
 export type CustomFieldModel = typeof schema.customFieldModel.$inferSelect
 export type BotFieldModel = typeof schema.botFieldModel.$inferSelect
 export type ReflinkModel = typeof schema.reflinkModel.$inferSelect
+export type DynamicImageModel = typeof schema.dynamicImageModel.$inferSelect
 export type MagicLinkModel = typeof schema.magicLinkModel.$inferSelect
 export type IntegrationInstagramModel =
   typeof schema.integrationInstagramModel.$inferSelect
@@ -225,3 +239,5 @@ export type PointTopupProductModel =
   typeof schema.pointTopupProductModel.$inferSelect
 export type PointPurchaseOrderModel =
   typeof schema.pointPurchaseOrderModel.$inferSelect
+export type AutomationThrottleModel =
+  typeof schema.automationThrottleModel.$inferSelect

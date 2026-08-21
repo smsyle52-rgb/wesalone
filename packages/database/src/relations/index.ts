@@ -17,12 +17,16 @@ import {
   analyticsSequenceEventRelations,
 } from "./analytics"
 import { analyticsEmailTopicRelations } from "./analytics-email-topic"
+import { appointmentRelations } from "./appointment"
+import { appointmentCalendarRelations } from "./appointment-calendar"
+import { appointmentReminderDispatchRelations } from "./appointment-reminder-dispatch"
 import { attachmentRelations } from "./attachment"
 import { accountRelations } from "./auth-account"
 import { invitationRelations } from "./auth-invitation"
 import { sessionRelations } from "./auth-session"
 import { automatedResponseRelations } from "./automated-response"
 import { billableUsageEventRelations } from "./billable-usage-event"
+import { automationThrottleRelations } from "./automation-throttle"
 import { botFieldRelations } from "./bot-field"
 import { broadcastRelations } from "./broadcast"
 import { coexistSyncRunRelations } from "./coexist-sync-run"
@@ -40,6 +44,7 @@ import { conversationParticipantRelations } from "./conversation-participant"
 import { couponRelations } from "./coupon"
 import { platformCredentialRelations } from "./credential"
 import { customFieldRelations } from "./custom-field"
+import { dynamicImageRelations } from "./dynamic-image"
 import { emailTopicRelations } from "./email-topic"
 import { auditLogRelations } from "./enterprise/audit-log"
 import { customDomainRelations } from "./enterprise/custom-domain"
@@ -74,6 +79,7 @@ import { integrationDripRelations } from "./integration-drip"
 import { integrationFacebookAdsRelations } from "./integration-facebook-ads"
 import { integrationGeminiRelations } from "./integration-gemini"
 import { integrationGetResponseRelations } from "./integration-get-response"
+import { integrationGoogleCalendarRelations } from "./integration-google-calendar"
 import { integrationGoogleSheetsRelations } from "./integration-google-sheets"
 import { integrationInstagramRelations } from "./integration-instagram"
 import { integrationKlaviyoRelations } from "./integration-klaviyo"
@@ -84,6 +90,7 @@ import { integrationMoosendRelations } from "./integration-moosend"
 import { integrationOpenaiRelations } from "./integration-openai"
 import { integrationOpenaiCompatibleRelations } from "./integration-openai-compatible"
 import { integrationOpenrouterRelations } from "./integration-openrouter"
+import { integrationOutlookCalendarRelations } from "./integration-outlook-calendar"
 import { integrationSendGridRelations } from "./integration-sendgrid"
 import { integrationSmtpRelations } from "./integration-smtp"
 import { integrationTelegramRelations } from "./integration-telegram"
@@ -171,6 +178,7 @@ export const relations = {
   ...workspaceUsageRelations,
   ...contactCustomFieldRelations,
   ...customFieldRelations,
+  ...dynamicImageRelations,
   ...broadcastRelations,
   ...inboxTeamRelations,
   ...inboxRelations,
@@ -189,6 +197,9 @@ export const relations = {
   ...invitationRelations,
   ...emailTopicRelations,
   ...analyticsEmailTopicRelations,
+  ...appointmentRelations,
+  ...appointmentCalendarRelations,
+  ...appointmentReminderDispatchRelations,
   ...errorLogRelations,
   ...facebookLeadAdsAutomationRelations,
   ...facebookLeadAdsLeadRelations,
@@ -203,6 +214,7 @@ export const relations = {
   ...workspaceMemberRelations,
   ...contactNoteRelations,
   ...aiEmbeddingRelations,
+  ...integrationGoogleCalendarRelations,
   ...integrationGoogleSheetsRelations,
   ...integrationFacebookAdsRelations,
   ...integrationSmtpRelations,
@@ -210,6 +222,7 @@ export const relations = {
   ...integrationDeepseekRelations,
   ...integrationGeminiRelations,
   ...integrationOpenrouterRelations,
+  ...integrationOutlookCalendarRelations,
   ...integrationOpenaiCompatibleRelations,
   ...contactsOnBroadcastsRelations,
   ...contactsToTagsRelations,
@@ -276,4 +289,5 @@ export const relations = {
   ...pointTopupProductRelations,
   ...pointPurchaseOrderRelations,
   ...whatsappSignupSessionRelations,
+  ...automationThrottleRelations,
 }

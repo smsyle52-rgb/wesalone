@@ -46,6 +46,10 @@ const nextConfig: NextConfigWithStaticGenerationConcurrency = {
     webpackBuildWorker: true,
     webpackMemoryOptimizations: true,
     serverSourceMaps: false,
+    // turbopackServerFastRefresh: false,
+    // The Docker build starts from a clean layer and `.next/cache` is not
+    // persisted across CI runs, so this cache is written and never read.
+    turbopackFileSystemCacheForBuild: false,
   },
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
@@ -146,11 +150,14 @@ const nextConfig: NextConfigWithStaticGenerationConcurrency = {
   ],
 
   // Resolve bull-board and bullmq from node_modules at runtime, not from the bundle.
+  // @napi-rs/canvas ships a native .node addon (per-platform binary) that the
+  // bundler can't inline — it must stay a runtime require() too.
   serverExternalPackages: [
     "@bull-board/api",
     "@bull-board/ui",
     "@bull-board/hono",
     "bullmq",
+    "@napi-rs/canvas",
   ],
 
   outputFileTracingRoot: require("path").join(import.meta.dirname, "../../"),

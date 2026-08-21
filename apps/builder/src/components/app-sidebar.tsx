@@ -15,7 +15,6 @@ import {
   CreditCardIcon,
   LightbulbIcon,
   type LucideIcon,
-  MegaphoneIcon,
   MessageCircleMoreIcon,
   RadioIcon,
   SlidersHorizontalIcon,

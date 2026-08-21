@@ -24,6 +24,7 @@ import { notifyMacLimitReached } from "./handlers/notify-mac-limit-reached"
 import { prepareBroadcast } from "./handlers/prepare-broadcast"
 import { processBillingLifecycle } from "./handlers/process-billing-lifecycle"
 import { processBroadcastContacts } from "./handlers/process-broadcast-contacts"
+import { purgeAutomationThrottle } from "./handlers/purge-automation-throttle"
 import { purgeCoexistStaging } from "./handlers/purge-coexist-staging"
 import { purgeWhatsappSignupSessions } from "./handlers/purge-whatsapp-signup-sessions"
 import { purgeWorkspaces } from "./handlers/purge-workspaces"
@@ -32,6 +33,7 @@ import { reconcileMetaCatalogSyncs } from "./handlers/reconcile-meta-catalog-syn
 import { reconcileTenants } from "./handlers/reconcile-tenants"
 import { refreshChannelTokens } from "./handlers/refresh-channel-tokens"
 import { registerSchedules } from "./handlers/register-schedules"
+import { scanAppointmentReminders } from "./handlers/scan-appointment-reminders"
 import { scanCoexistRuns } from "./handlers/scan-coexist-runs"
 import { scanSmartDelay } from "./handlers/scan-smart-delay"
 import { syncUserQuota } from "./handlers/sync-user-quota"
@@ -101,6 +103,10 @@ async function startScheduleWorker() {
           await scanSmartDelay()
           return
 
+        case ScheduleJobData.scanAppointmentReminders:
+          await scanAppointmentReminders(job.data.data)
+          return
+
         case ScheduleJobData.syncUserQuota:
           await syncUserQuota()
           return
@@ -131,6 +137,10 @@ async function startScheduleWorker() {
 
         case ScheduleJobData.purgeWorkspaces:
           await purgeWorkspaces()
+          return
+
+        case ScheduleJobData.purgeAutomationThrottle:
+          await purgeAutomationThrottle()
           return
 
         case ScheduleJobData.refreshChannelTokens:

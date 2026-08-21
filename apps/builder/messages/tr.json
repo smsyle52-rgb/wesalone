@@ -335,8 +335,7 @@
       "bannerDescription": "Planınızı yükseltene kadar mesaj gönderme ve alma duraklatıldı.",
       "bannerCta": "Yükselt",
       "createDisabled": "Planınızı yükseltene kadar yeni {feature} oluşturma devre dışıdır."
-    },
-    "navTitle": "Billing & Subscription"
+    }
   },
   "broadcasts": {
     "title": "Toplu Gönderimler",
@@ -648,8 +647,7 @@
       "button": "Tüm izinleri yenile",
       "resultSuccess": "{refreshed} kanal yenilendi.",
       "resultWithFailures": "{refreshed} kanal yenilendi, {failed} başarısız oldu."
-    },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    }
   },
   "workspace": {
     "schedule": {
@@ -858,8 +856,7 @@
     },
     "authType": {
       "headers": "Özel Üstbilgi",
-      "token": "Jeton",
-      "none": "None"
+      "token": "Jeton"
     },
     "automatedResponse": {
       "label": "Otomatik Yanıt"
@@ -872,6 +869,9 @@
     },
     "qrCode": {
       "label": "QR Kodu"
+    },
+    "dynamicImage": {
+      "label": "Dinamik Görsel"
     },
     "savePayloadToCustomField": {
       "label": "Yükü özel alana kaydet"
@@ -976,12 +976,20 @@
       "description": "Çalışma alanınız kullanıcı mesajına nasıl yanıt vereceğini bilmediğinde kullanıcılara göndereceği varsayılan yanıttır.",
       "label": "Varsayılan Yanıt"
     },
+    "defaultReplyFrequency": {
+      "description": "Controls how often the Default Reply flow may fire for the same contact on a channel.",
+      "label": "Default Reply activation frequency",
+      "options": {
+        "allTime": "All time",
+        "oncePerHour": "Once per 1h",
+        "oncePerDay": "Once per 24h"
+      }
+    },
     "smartResponseDelaySeconds": {
       "description": "Kullanıcının son mesajından sonra botun yanıtlamadan önce ne kadar bekleyeceğini ayarlayın. Kullanıcı başka bir mesaj gönderirse zamanlayıcı sıfırlanır ve mesajlar tek bir yanıt için kuyruğa alınır.",
       "label": "Bot yanıt gecikmesi",
       "minutes": "{count, plural, one {# dakika} other {# dakika}}",
-      "seconds": "{count, plural, one {# saniye} other {# saniye}}",
-      "none": "None"
+      "seconds": "{count, plural, one {# saniye} other {# saniye}}"
     },
     "delayType": {
       "label": "Gecikme Türü",
@@ -1156,10 +1164,7 @@
     "language": {
       "description": "Kişinin dili bilinmediğinde kişilere varsayılan dil atanır.",
       "label": "Dil",
-      "placeholder": "Dil seçin",
-      "english": "English",
-      "vietnamese": "Tiếng Việt",
-      "arabic": "Arabic"
+      "placeholder": "Dil seçin"
     },
     "lastName": {
       "label": "Soyad",
@@ -1275,6 +1280,11 @@
     "outputCustomField": {
       "label": "Çıkış Özel Alanı"
     },
+    "javascriptCode": {
+      "label": "JavaScript kodu",
+      "placeholder": "return (input.first_name || 'there').toUpperCase()",
+      "description": "Saf JavaScript kullanın ve bir değer döndürün. Ağ, dosyalar, API'ler ve harici kitaplıklar kullanılamaz. Kişi ve sistem verileri `input` nesnesi üzerinden kullanılabilir."
+    },
     "httpMethod": {
       "label": "Yöntem"
     },
@@ -1348,6 +1358,12 @@
     },
     "pageUserName": {
       "label": "Sayfa Kullanıcı Adı"
+    },
+    "waUserId": {
+      "label": "WhatsApp Kullanıcı Kimliği"
+    },
+    "waUserName": {
+      "label": "WhatsApp Kullanıcı Adı"
     },
     "purpose": {
       "label": "Amaç",
@@ -2046,28 +2062,29 @@
       "placeholder": "Bir etkinlik adı yazın ve Enter'a basın",
       "description": "Bir veya daha fazla etkinlik adı ekleyin. Make bu etkinliklerden biri için bir webhook eklediğinde, bu adım çalıştığında veri gönderilir."
     },
+    "bookingCalendar": {
+      "label": "Randevu Takvimi"
+    },
+    "bookingDate": {
+      "label": "Randevu Tarihi"
+    },
+    "bookingLink": {
+      "label": "Randevu bağlantısı"
+    },
     "n8nEvents": {
       "label": "Etkinlikler",
       "placeholder": "Bir etkinlik adı yazın ve Enter'a basın",
       "description": "Bir veya daha fazla etkinlik adı ekleyin. n8n bu etkinliklerden biri için bir webhook eklediğinde, bu adım çalıştığında veri gönderilir."
     },
-    "attribute": {
-      "label": "Attribute"
-    },
-    "header": {
-      "label": "Header"
-    },
-    "aiProvider": {
-      "label": "Provider"
-    },
-    "transcriptionModel": {
-      "label": "Model",
-      "placeholder": "Select a model"
-    },
-    "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "enabled": {
+      "label": "Etkin"
+    }
   },
   "flows": {
+    "export": {
+      "notPublished": "Bu akış hiç yayınlanmadı. Dışa aktarmadan önce yayınlayın.",
+      "failed": "Dışa aktarma başarısız oldu. Lütfen tekrar deneyin."
+    },
     "title": "Akışlar",
     "quickReplies": {
       "limitReached": "Hızlı yanıt sınırına ulaşıldı ({max})."
@@ -2092,8 +2109,7 @@
     },
     "openaiCompatible": {
       "empty": "Bu adımı kullanmadan önce entegrasyon ayarlarında OpenAI uyumlu bir sağlayıcı bağlayın.",
-      "integration": "OpenAI uyumlu sağlayıcı",
-      "none": "None"
+      "integration": "OpenAI uyumlu sağlayıcı"
     },
     "actions": {
       "addContactNotes": "Kişi Notu Ekle",
@@ -2112,11 +2128,11 @@
       "broadcastActions": "Yayın İşlemleri",
       "callApi": "Harici API İsteği",
       "make": "Make",
-      "triggerN8n": "Trigger n8n",
       "triggers": "Tetikleyiciler",
       "questionnaires": "Anketler",
       "setUpCoupon": "Kupon Ayarla",
       "markCouponUsed": "Kuponu Kullanıldı Olarak İşaretle",
+      "executeJavascript": "JavaScript Çalıştır",
       "chooseChannel": "Kanal Seç",
       "clearCustomField": "Özel Alanı Temizle",
       "condition": "Koşul",
@@ -2141,7 +2157,6 @@
       "getResponseAddContact": "GetResponse'a Kişi Ekle",
       "sendGridAddContact": "SendGrid'e Kişi Ekle",
       "messenger": "Messenger",
-      "metaConversions": "Meta Conversions API",
       "openWebsite": "Web Sitesini Aç",
       "optInEmail": "E-posta İzni Ver",
       "optOutEmail": "E-posta İznini Kaldır",
@@ -2196,7 +2211,14 @@
       "splitTraffic": "Trafiği Böl",
       "aiEditImage": "Yapay Zekâ ile Görsel Düzenle",
       "whatsappFlow": "WhatsApp Akışı",
-      "sendMetaCapiEvent": "Send Meta CAPI Event"
+      "appointmentScheduling": "Randevu Planlama",
+      "triggerN8n": "n8n'i Tetikle",
+      "metaConversions": "Meta Conversions API",
+      "sendMetaCapiEvent": "Meta CAPI Etkinliği Gönder",
+      "import": "Akışı içe aktar",
+      "export": "Dışa aktar",
+      "importStarted": "Akış içe aktarılıyor. Sonuçlar için içe aktarma geçmişini kontrol edin.",
+      "importJsonOnly": "Yalnızca JSON dosyaları"
     },
     "splitTraffic": {
       "balanceHint": "Toplam %100 olmalıdır.",
@@ -2300,6 +2322,9 @@
     },
     "setCustomField": {
       "temporalHint": "Geçerli tarih/saati kaydetmek için boş bırakın."
+    },
+    "sendText": {
+      "tiktokTitleTruncated": "Butonlar eklendiğinde TikTok bu mesajın yalnızca ilk 40 karakterini gönderir — geri kalanı kesilir."
     }
   },
   "folders": {
@@ -2350,32 +2375,12 @@
   },
   "ads": {
     "title": "Reklamlar",
-    "nav": {
-      "clickToWhatsappAds": "Click to WhatsApp Ads",
-      "clickToTiktokAds": "Click to TikTok Ads",
-      "connectAccounts": "Hesapları Bağla",
-      "conversionEvents": "Dönüşüm Olayları",
-      "adsAnalytics": "Reklam Analizleri",
-      "reporting": "Raporlama",
-      "ctwa": "CTWA",
-      "googleAds": "Google Ads",
-      "comingSoon": "Yakında"
-    },
     "connectAccounts": {
-      "title": "Tüm reklam hesaplarınızı yönetin",
-      "description": "Dönüşümleri takip edin ve click-to-WhatsApp reklam kampanyalarınızı optimize edin.",
-      "learnMore": "Daha Fazla Bilgi",
       "connectAdAccount": "Reklam Hesabı Bağla",
       "adAccountName": "Reklam Hesabı Adı",
-      "disconnect": "Bağlantıyı Kes",
-      "empty": "Henüz bağlı bir reklam hesabı yok.",
-      "adAccountsTitle": "Meta reklam hesapları",
-      "adAccountsDescription": "Click-to-WhatsApp kampanyalarında kullanılan reklam hesaplarını yüklemek için Facebook Ads'i bağlayın.",
       "adAccountsReconnectBanner": "Meta reklam hesabı belirteciniz süresi doldu veya izinlerini kaybetti. Reklam raporlamasının kullanılabilir kalması için Facebook Ads'i yeniden bağlayın.",
       "adAccountsNotConnected": "Henüz bağlı bir Meta reklam hesabı yok.",
       "adAccountsEmpty": "Bu Facebook Ads bağlantısı için Meta reklam hesabı bulunamadı.",
-      "adAccountsNote": "Harcama ve yeniden pazarlama hedef kitleleri bu reklam hesaplarından gelir.",
-      "reconnectBanner": "Meta'ya dönüşüm olayları gönderimini etkinleştirmek için WhatsApp hesabınızı yeniden bağlayın.",
       "reconnect": "Yeniden Bağlan",
       "reconnectSuccess": "WhatsApp hesabı yeniden bağlandı.",
       "selectAccountLabel": "WhatsApp hesabı",
@@ -2385,22 +2390,9 @@
         "unverified": "İzin doğrulanmadı"
       },
       "table": {
-        "name": "Ad",
-        "phoneNumber": "Telefon numarası",
-        "wabaId": "WABA Kimliği",
-        "permission": "Otomatik Olaylar"
-      },
-      "providers": {
-        "meta": "Meta",
-        "googleAds": "Google Ads",
-        "tiktok": "TikTok"
+        "wabaId": "WABA Kimliği"
       },
       "connectWhatsapp": {
-        "title": "Önce WhatsApp hesabınızı bağlayın",
-        "description": "Click-to-WhatsApp dönüşüm takibi, reklam hesaplarını bağlayıp dönüşüm veri kümeleri oluşturabilmeniz için önce bağlı bir WhatsApp hesabı gerektirir.",
-        "step1": "Kanallar bölümünden WhatsApp Business hesabınızı bağlayın.",
-        "step2": "Meta Ads'i yetkilendirmek ve reklam hesabınızı seçmek için buraya geri dönün.",
-        "step3": "Dönüşüm veri kümesini WhatsApp Business hesabınızı kullanarak otomatik olarak oluşturacağız.",
         "cta": "WhatsApp Hesabını Bağla"
       }
     },
@@ -2826,15 +2818,7 @@
     "title": "Platform Ayarları",
     "errors": {
       "giphyApiKeyRequired": "GIPHY'yi yapılandırmak için API Anahtarı gereklidir.",
-      "giphyApiKeyInvalid": "Geçersiz GIPHY API anahtarı",
-      "googleClientSecretRequired": "Client Secret is required to configure Google.",
-      "googleVerifyTokenRequired": "Verify Token is required to configure Google.",
-      "messengerAppSecretRequired": "App Secret is required to configure Messenger.",
-      "zaloAppSecretRequired": "App Secret is required to configure Zalo.",
-      "stripeSecretKeyRequired": "Secret Key is required to configure Stripe.",
-      "whatsappAppSecretRequired": "App Secret is required to configure WhatsApp.",
-      "whatsappSystemUserTokenRequired": "System User Token is required to configure WhatsApp.",
-      "tiktokAppSecretRequired": "App Secret is required to configure TikTok."
+      "giphyApiKeyInvalid": "Geçersiz GIPHY API anahtarı"
     }
   },
   "home": {
@@ -2842,6 +2826,11 @@
     "subtitle": "Kaldığınız yerden devam etmek için bir çalışma alanı seçin veya yeni bir tane oluşturun.",
     "noWorkspaces": "Henüz hiç çalışma alanınız yok.",
     "owner": "Sahip"
+  },
+  "notFound": {
+    "title": "Sayfa bulunamadı",
+    "description": "Aradığınız sayfa mevcut değil veya taşınmış olabilir.",
+    "backToHome": "Ana sayfaya dön"
   },
   "editProfile": {
     "title": "Profili Düzenle"
@@ -2962,7 +2951,13 @@
     "deleteNodeError": "Blok silinemedi. Lütfen tekrar deneyin.",
     "redoHistoryCleared": "Yinele geçmişi temizlendi",
     "historyDepth": "({count})",
-    "none": "Yok"
+    "none": "Yok",
+    "tiktokCardTitleTooLong": "TikTok bu mesajı kısaltacak: butonlar eklendiğinde yalnızca ilk 40 karakter gönderilir. Mesajı kısaltın veya butonları kaldırın.",
+    "waTemplateMpmNoProducts": "Yayınlamadan önce bu çoklu ürün butonuna en az bir ürün ekleyin.",
+    "waTemplateMpmTooManySections": "Çoklu ürün butonunda en fazla 10 bölüm olabilir. Yayınlamadan önce bazı bölümleri kaldırın.",
+    "waTemplateMpmTooManyProducts": "Çoklu ürün butonunda toplamda en fazla 30 ürün olabilir. Yayınlamadan önce bazı ürünleri kaldırın.",
+    "waTemplateLtoExpirationRequired": "Göndermeden önce sınırlı süreli teklif için bir bitiş tarihi seçin.",
+    "waTemplateMpmIncompleteProducts": "Her bölümde en az bir seçili ürün olmalı — boş satırları silin veya onlara ürün seçin."
   },
   "instagram": {
     "description": "Bu entegrasyon, Instagram botları oluşturmanızı sağlar.",
@@ -2972,8 +2967,8 @@
     "reconnect": "Yeniden Bağlan",
     "title": "Instagram",
     "tabs": {
-      "generalSettings": "General Settings",
-      "conversionsApi": "Ads Optimization"
+      "generalSettings": "Genel Ayarlar",
+      "conversionsApi": "Reklam Optimizasyonu"
     }
   },
   "coexist": {
@@ -2988,6 +2983,8 @@
     "toggleHelper": "Yeniden etkinleştirme yalnızca Meta'da arabelleğe alınmış veri varsa (katılımdan itibaren 24 saat içinde) çalışır. Aksi halde bağlantıyı kesip yeniden bağlayın.",
     "toggleHelperMessenger": "Yeniden etkinleştirme yalnızca Meta'da arabelleğe alınmış veri varsa (katılımdan itibaren 24 saat içinde) çalışır. Aksi halde Messenger sayfasının bağlantısını kesip yeniden bağlayın.",
     "toggleHelperWhatsapp": "Yeniden etkinleştirme yalnızca Meta'da arabelleğe alınmış veri varsa (katılımdan itibaren 24 saat içinde) çalışır. Aksi halde WhatsApp numarasının bağlantısını kesip yeniden bağlayın.",
+    "aiReadsSyncedHistoryLabel": "AI eşitlenen geçmişi okur",
+    "aiReadsSyncedHistoryHelper": "Kapalıyken AI yalnızca yeni mesajları görür.",
     "success": {
       "enabled": "Senkronizasyon başlatıldı. Geçmiş kişiler ve mesajlar kısa süre içinde görünecek.",
       "disabled": "Senkronizasyon devre dışı bırakıldı."
@@ -3031,7 +3028,7 @@
     "tabs": {
       "generalSettings": "Genel Ayarlar",
       "messageTemplates": "Mesaj Şablonları",
-      "conversionsApi": "Ads Optimization"
+      "conversionsApi": "Reklam Optimizasyonu"
     },
     "messageTemplate": {
       "params": {
@@ -3211,50 +3208,7 @@
     "signUpTitle": "{name} adresine kaydolun",
     "changePasswordTitle": "Şifrenizi değiştirin",
     "changePasswordDescription": "Devam etmeden önce yeni bir şifre belirleyin.",
-    "passwordChangeSuccess": "Şifre değiştirildi",
-    "signInVisual": {
-      "title": "A unified platform for your customers' conversations.",
-      "subtitle": "Manage WhatsApp, Instagram, Messenger, and Telegram from one dashboard.",
-      "bullets": {
-        "0": "Unified inbox",
-        "1": "Live, exportable reports",
-        "2": "Top-tier security and privacy"
-      }
-    },
-    "signUpVisual": {
-      "trialBadge": "14-day free trial",
-      "title": "Start with a 14-day free trial - no card required.",
-      "subtitle": "Create your workspace and connect your channels in one unified Arabic experience.",
-      "bullets": {
-        "0": "Fast setup, no code",
-        "1": "Connects with your channels",
-        "2": "Full control over your workspace data"
-      }
-    },
-    "passwordStrength": {
-      "veryWeak": "Very weak",
-      "weak": "Weak",
-      "medium": "Medium",
-      "strong": "Strong",
-      "veryStrong": "Very strong",
-      "label": "Password strength: {level}"
-    },
-    "orSignInWithEmail": "Or sign in with email",
-    "orSignUpWithEmail": "Or sign up with email",
-    "errorInvalidEmailOrPassword": "The email or password is incorrect. Please check and try again.",
-    "errorEmailNotVerified": "Your email is not verified yet. We just sent you a new verification link — check your inbox.",
-    "errorUserNotFound": "No account exists with this email.",
-    "errorUserAlreadyExists": "An account already exists with this email. Sign in instead.",
-    "errorInvalidEmail": "This email address is not valid.",
-    "errorPasswordTooShort": "The password is too short.",
-    "errorPasswordTooLong": "The password is too long.",
-    "errorInvalidToken": "This link is invalid or has already been used.",
-    "errorTokenExpired": "This link has expired. Please request a new one.",
-    "errorSessionExpired": "Your session has expired. Please sign in again.",
-    "errorGeneric": "Something went wrong. Please try again.",
-    "resendVerification": "Resend verification email",
-    "verificationResent": "Verification email sent. Check your inbox.",
-    "signedInSuccessfully": "Signed in successfully"
+    "passwordChangeSuccess": "Şifre değiştirildi"
   },
   "emailTopics": {
     "title": "E-posta Konuları"
@@ -3407,23 +3361,38 @@
       "params": {
         "couponCode": "Kupon Kodu",
         "couponCodePlaceholder": "Kupon kodunu girin",
-        "quickReplyPayload": "Hızlı Yanıt Verisi",
-        "quickReplyPayloadPlaceholder": "Veriyi girin (isteğe bağlı)",
         "flowToken": "Akış Token'ı",
         "flowTokenPlaceholder": "Akış token'ını girin",
         "flowNotSynced": "Gönderilen alanları eşlemek için WhatsApp akışlarını senkronize edin.",
-        "catalogProductId": "Ürün ID",
-        "catalogProductIdPlaceholder": "Ürün satıcı ID'sini girin",
+        "catalogProductId": "Katalog ürünü",
+        "catalogProductIdPlaceholder": "Ürün ara…",
         "carouselCard": "Kart {index}",
         "limitedTimeOffer": "Teklif Bitiş Süresi",
-        "limitedTimeOfferPlaceholder": "Bitiş süresini milisaniye cinsinden girin",
-        "limitedTimeOfferHelp": "Teklifin sona erdiği milisaniye cinsinden Unix zaman damgası",
+        "limitedTimeOfferPlaceholder": "Son kullanma tarihi ve saatini seçin",
+        "limitedTimeOfferHelp": "Son kullanma zamanı seçildiği gibi gönderilir.",
         "location": "Konum",
         "latitude": "Enlem",
         "longitude": "Boylam",
         "locationName": "Konum adı (isteğe bağlı)",
         "locationAddress": "Adres (isteğe bağlı)",
-        "enterFormatUrl": "{format} URL'sini girin"
+        "enterFormatUrl": "{format} URL'sini girin",
+        "catalogUseDefault": "Katalog varsayılan küçük resmini kullan",
+        "catalogNotConnectedGuidance": "Bir ürün seçmek için Meta Kataloğu bağlayın.",
+        "catalogSetupLink": "Katalog ayarlarına git",
+        "catalogSelectedProductFallback": "Ürün: {retailerId}",
+        "limitedTimeOfferBadge": "{date} tarihinde sona eriyor",
+        "limitedTimeOfferExpiredBadge": "{date} tarihinde sona erdi",
+        "mpmSections": "Ürünler",
+        "mpmSectionTitlePlaceholder": "Bölüm başlığı (isteğe bağlı)",
+        "mpmAddSection": "Bölüm ekle",
+        "mpmRemoveSection": "Bölümü kaldır",
+        "mpmAddProduct": "Ürün ekle",
+        "mpmRemoveProduct": "Ürünü kaldır",
+        "mpmNoProductsHelp": "Yayınlamadan önce en az bir ürün ekleyin.",
+        "mpmSectionLimitReached": "En fazla 10 bölüm sınırına ulaşıldı.",
+        "mpmProductLimitReached": "En fazla 30 ürün sınırına ulaşıldı.",
+        "mpmProductsSummary": "{sectionCount} bölümde {productCount} ürün",
+        "unsupportedButtonParam": "Bu buton türü henüz desteklenmiyor."
       }
     },
     "sampleBodyCardContent": {
@@ -3449,7 +3418,8 @@
       "messageTemplates": "Mesaj Şablonları",
       "profile": "Profil",
       "usefulLinks": "Faydalı Bağlantılar",
-      "conversionsApi": "Ads Optimization"
+      "conversionsApi": "Reklam Optimizasyonu",
+      "settings": "Ayarlar"
     },
     "accountHealths": {
       "title": "WhatsApp hesabınızı yönetin",
@@ -3579,7 +3549,13 @@
       "label": "Şablon Üst Bilgisi"
     },
     "transferPhoneNumber": "Telefonu başka bir WhatsApp sağlayıcısından aktar",
-    "signupSessionExpired": "WhatsApp kayıt oturumunuzun süresi doldu. Lütfen bağlantıyı yeniden başlatın."
+    "signupSessionExpired": "WhatsApp kayıt oturumunuzun süresi doldu. Lütfen bağlantıyı yeniden başlatın.",
+    "capi": {
+      "automaticEvents": {
+        "title": "Otomatik Olaylar",
+        "description": "Bu WhatsApp numarasından dönüşüm etkinliklerini Meta’ya otomatik olarak gönderin. İzin eksikse, vermek için hesabı yeniden bağlayın."
+      }
+    }
   },
   "zalo": {
     "title": "Zalo OA",
@@ -3619,6 +3595,67 @@
   "qrCodes": {
     "title": "QR Kodları",
     "description": "Chatbot akışlarınıza bağlanan QR kodları oluşturun."
+  },
+  "dynamicImages": {
+    "title": "Dinamik Görseller",
+    "description": "Bir arka plan ile metin/görsel/QR katmanlarından her kişi için kişiselleştirilmiş görseller oluşturun.",
+    "publicUrl": {
+      "label": "Herkese Açık URL",
+      "hint": "URL'yi akışınıza, toplu gönderiminize veya sıranıza kopyalayıp yapıştırarak kişiselleştirilmiş görseller gönderin."
+    },
+    "editor": {
+      "addElement": "Öğe ekle",
+      "addImage": "Görsel ekle",
+      "addText": "Metin ekle",
+      "addQrCode": "QR kod ekle",
+      "template": "Şablon",
+      "templateDialogTitle": "Bir şablon seçin",
+      "templateDialogDescription": "Bir şablon seçmek mevcut tüm katmanların yerini alır.",
+      "layers": "Katmanlar",
+      "noLayers": "Henüz katman yok. Başlamak için bir öğe ekleyin.",
+      "deleteLayer": "Katmanı sil",
+      "layerNameImage": "Görsel",
+      "layerNameText": "Metin",
+      "layerNameQrCode": "QR kod",
+      "editElement": "Öğeyi düzenle",
+      "selectElementHint": "Özelliklerini düzenlemek için tuval üzerinde bir öğe seçin.",
+      "width": "Genişlik",
+      "height": "Yükseklik",
+      "priority": "Öncelik",
+      "imageType": "Görsel türü",
+      "imageTypeUrl": "Görsel URL'si",
+      "imageTypeAvatarUser": "Kişi profil resmi",
+      "imageTypeCustomField": "Özel alan",
+      "imageUrl": "Görsel URL'si",
+      "uploadImage": "Görsel yükle",
+      "customField": "Özel alan",
+      "imageStyle": "Görsel stili",
+      "imageStyleSquare": "Kare",
+      "imageStyleCircle": "Daire",
+      "qrText": "QR kod içeriği",
+      "qrSize": "Boyut",
+      "qrColor": "Renk",
+      "qrLogo": "Logo",
+      "uploadLogo": "Logo yükle",
+      "textContent": "Metin içeriği",
+      "fontSize": "Yazı boyutu",
+      "fontFamily": "Yazı tipi ailesi",
+      "fontFamilyArial": "Arial",
+      "fontFamilySerif": "Serif",
+      "fontFamilyRoboto": "Roboto",
+      "fontFamilyGreatVibes": "Great Vibes",
+      "align": "Hizalama",
+      "alignLeft": "Sol",
+      "alignCenter": "Orta",
+      "alignRight": "Sağ",
+      "color": "Renk",
+      "bold": "Kalın",
+      "italic": "İtalik",
+      "uppercase": "Büyük harf"
+    },
+    "preview": {
+      "error": "Bağlantılı dinamik görsel yüklenemedi. Silinmiş olabilir."
+    }
   },
   "magicLinks": {
     "title": "Sihirli Bağlantılar",
@@ -3677,7 +3714,7 @@
       "startAnotherFlow": "Başka Bir Akış Başlat",
       "notifyAdmins": "Yöneticileri Bilgilendir",
       "transferConversationToHuman": "Görüşmeyi İnsana Aktar",
-      "sendMetaCapiEvent": "Send Meta CAPI Event"
+      "sendMetaCapiEvent": "Meta CAPI Etkinliği Gönder"
     },
     "triggerGoesOff": "Tetikleyici devreye girer",
     "before": "Önce",
@@ -3835,8 +3872,7 @@
     "claude": "Claude",
     "deepseek": "DeepSeek",
     "openrouter": "OpenRouter",
-    "openaiCompatible": "OpenAI Uyumlu",
-    "google": "Google Cloud"
+    "openaiCompatible": "OpenAI Uyumlu"
   },
   "smtp": {
     "setting": {
@@ -4201,8 +4237,7 @@
     "addNewPage": "Yeni Ekle",
     "noEligiblePages": "Uygun sayfa yok. Potansiyel müşteri erişimi vermek için \"Yeni Ekle\"yi kullanın.",
     "duplicateError": "Bu sayfa ve form için zaten bir otomasyon mevcut.",
-    "subscribeError": "Bu sayfa Facebook potansiyel müşteri bildirimlerine abone edilemediğinden otomasyon oluşturulamadı. Sayfayı \"Yeni Ekle\" ile yeniden bağlayıp tekrar deneyin.",
-    "none": "None"
+    "subscribeError": "Bu sayfa Facebook potansiyel müşteri bildirimlerine abone edilemediğinden otomasyon oluşturulamadı. Sayfayı \"Yeni Ekle\" ile yeniden bağlayıp tekrar deneyin."
   },
   "ecommerce": {
     "title": "E-ticaret",
@@ -4210,7 +4245,28 @@
   },
   "appointmentScheduling": {
     "title": "Randevu Planlama",
-    "description": "Randevu planlamanızı oluşturun ve yönetin."
+    "description": "Randevu planlamanızı oluşturun ve yönetin.",
+    "flowModes": {
+      "bookFromCustomField": "Randevu al",
+      "checkAvailabilityFromCustomField": "Uygunluğu kontrol et",
+      "book": "Tarih ve saat seçici",
+      "checkAvailability": "Tarih aralığı seçici",
+      "cancel": "Randevuyu iptal et"
+    },
+    "fields": {
+      "mode": "Mod",
+      "dateTimeFieldId": "Seçilen tarihi şuraya kaydet",
+      "dateTimeFieldIdSource": "Tarih/saat alanı",
+      "startDateFieldId": "Başlangıç tarihi alanı",
+      "endDateFieldId": "Bitiş tarihi alanı",
+      "resultUsedByAI": "Sonucu AI için kullan",
+      "outputCustomFieldId": "Sonucu şuraya kaydet",
+      "startDateFieldIdSelected": "Seçilen başlangıç tarihini şuraya kaydet",
+      "endDateFieldIdSelected": "Seçilen bitiş tarihini şuraya kaydet"
+    },
+    "dialogDescriptions": {
+      "flowStep": "Bu akış adımının randevuları nasıl planlayacağını seçin."
+    }
   },
   "templates": {
     "title": "Şablonlar",
@@ -4231,10 +4287,6 @@
     },
     "queues": {
       "title": "Kuyruklar"
-    },
-    "aiSettings": {
-      "title": "AI Settings",
-      "description": "Central Vertex AI configuration every workspace's AI agents inherit."
     }
   },
   "platformCredentials": {
@@ -4361,68 +4413,7 @@
     "unknown": "Bilinmiyor"
   },
   "orders": {
-    "title": "Siparişler",
-    "emptyState": "No orders yet",
-    "noCustomer": "No customer",
-    "status": {
-      "draft": "Draft",
-      "pending_payment": "Pending payment",
-      "paid": "Paid",
-      "payment_review": "Needs review",
-      "refunded": "Refunded",
-      "cancelled": "Cancelled",
-      "expired": "Expired"
-    },
-    "paymentStatus": {
-      "pending": "Pending",
-      "paid": "Paid",
-      "failed": "Failed",
-      "refunded": "Refunded"
-    },
-    "columns": {
-      "orderNumber": "Order #",
-      "customer": "Customer",
-      "status": "Status",
-      "amount": "Amount",
-      "paymentStatus": "Payment status",
-      "createdAt": "Created"
-    },
-    "filters": {
-      "customerPlaceholder": "Search by customer name",
-      "statusPlaceholder": "Status",
-      "allStatuses": "All statuses"
-    },
-    "pagination": {
-      "previous": "Previous page",
-      "next": "Next page"
-    },
-    "detail": {
-      "title": "Order #{id}",
-      "itemsTitle": "Items",
-      "columns": {
-        "product": "Product",
-        "quantity": "Qty",
-        "unitPrice": "Unit price",
-        "lineTotal": "Line total",
-        "reservation": "Reservation",
-        "provider": "Provider",
-        "confirmedAt": "Confirmed",
-        "failureReason": "Failure reason"
-      },
-      "reservationReleased": "Released",
-      "reservedAt": "Reserved {date}",
-      "subtotal": "Subtotal",
-      "tax": "Tax",
-      "discount": "Discount",
-      "total": "Total",
-      "paymentHistoryTitle": "Payment history",
-      "noPayments": "No payment attempts yet",
-      "customerTitle": "Customer",
-      "datesTitle": "Dates",
-      "expiresAt": "Checkout expires",
-      "paymentReviewTitle": "This order needs manual review",
-      "paymentReviewDescription": "A payment event arrived after this order had already expired or was otherwise resolved. No money has been silently applied — check the payment history below before taking any action."
-    }
+    "title": "Siparişler"
   },
   "products": {
     "title": "Ürünler",
@@ -4829,636 +4820,356 @@
       "iconSearchLink": "Lucide simgelerine göz atın →"
     }
   },
+  "bookingWebview": {
+    "metadataTitle": "Randevu al",
+    "badge": "Randevu",
+    "timezone": "Saat dilimi",
+    "empty": "Uygun saat bulunamadı.",
+    "noSelection": "Bir saat seçin",
+    "actions": {
+      "book": "Randevu al",
+      "viewDetails": "Ayrıntıları görüntüle"
+    },
+    "errors": {
+      "invalidTokenTitle": "Bu randevu bağlantısı kullanılamıyor.",
+      "invalidTokenDescription": "Bağlantı geçersiz veya süresi dolmuş olabilir. Lütfen yeni bir randevu bağlantısı isteyin.",
+      "staleSlot": "Bu saat artık uygun değil. Lütfen başka bir saat seçin.",
+      "availabilityChanged": "Saat seçerken uygunluk değişti. Lütfen tekrar seçin.",
+      "submitFailed": "Bu isteği tamamlayamadık. Lütfen tekrar deneyin."
+    },
+    "success": {
+      "title": "Randevunuz alındı.",
+      "description": "Randevu ayrıntıları hazır."
+    },
+    "schedule": {
+      "metadataTitle": "Randevu ayrıntıları",
+      "defaultMessage": "Randevunuz planlandı.",
+      "unknownInvitee": "Konuk",
+      "fields": {
+        "invitee": "Davetli",
+        "time": "Saat",
+        "timezone": "Saat dilimi",
+        "location": "Konum"
+      },
+      "status": {
+        "scheduled": "Planlandı",
+        "cancelled": "İptal Edildi"
+      },
+      "locationTypes": {
+        "inPerson": "Yüz yüze görüşme",
+        "phoneCall": "Telefon görüşmesi",
+        "onlineMeeting": "Çevrimiçi görüşme"
+      }
+    },
+    "cancel": {
+      "metadataTitle": "Randevuyu iptal et",
+      "title": "Randevuyu iptal et",
+      "description": "{calendar} randevusunu {time} saatinde iptal edin.",
+      "action": "Randevuyu iptal et",
+      "cancelledTitle": "Randevu iptal edildi",
+      "cancelledDescription": "Bu randevu iptal edildi.",
+      "unavailableTitle": "İptal kullanılamıyor",
+      "unavailableDescription": "Bu randevu zaten iptal edilmiş, silinmiş veya geçmişte kalmış."
+    },
+    "range": {
+      "metadataTitle": "Uygunluğu kontrol et",
+      "empty": "Seçilmedi",
+      "successTitle": "Tarih aralığı alındı.",
+      "successDescription": "Uygun randevu saatlerini kontrol ediyoruz.",
+      "fields": {
+        "startDate": "Başlangıç Tarihi",
+        "endDate": "Bitiş Tarihi",
+        "startTime": "Başlangıç Saati",
+        "endTime": "Bitiş Saati"
+      },
+      "actions": {
+        "skip": "Atla"
+      },
+      "errors": {
+        "invalidRange": "Bitiş Tarihi, Başlangıç Tarihi'yle aynı veya sonrasında olmalıdır."
+      },
+      "timezoneHint": "Saatler {timezone} olarak gösterilir."
+    }
+  },
+  "appointments": {
+    "title": "Randevular",
+    "statuses": {
+      "scheduled": "Planlandı",
+      "cancelled": "İptal Edildi"
+    },
+    "messages": {
+      "empty": "Henüz randevu yok."
+    }
+  },
+  "appointmentManagement": {
+    "title": "Randevular",
+    "singular": "Randevu",
+    "unknownContact": "Bilinmeyen kişi",
+    "searchPlaceholder": "İsme göre ara...",
+    "tabs": {
+      "next": "Sonraki",
+      "past": "Geçmiş"
+    },
+    "fields": {
+      "name": "Ad",
+      "date": "Tarih",
+      "status": "Durum",
+      "calendar": "Takvim"
+    },
+    "statuses": {
+      "scheduled": "Planlandı",
+      "cancelled": "İptal Edildi"
+    },
+    "actions": {
+      "cancelAppointment": "Randevuyu iptal et"
+    },
+    "dialogs": {
+      "cancelTitle": "Randevuyu iptal et",
+      "cancelDescription": "Bu randevuyu iptal edin ve iptal yan etkilerini çalıştırın.",
+      "deleteTitle": "Randevuyu sil",
+      "deleteDescription": "Bu randevuyu yönetim listesinden silin. Bu, iptal akışını çalıştırmaz."
+    },
+    "messages": {
+      "cancelled": "Randevu iptal edildi.",
+      "deleted": "Randevu silindi."
+    }
+  },
+  "appointmentCalendars": {
+    "title": "Randevu Takvimleri",
+    "singular": "Randevu Takvimi",
+    "addNew": "Yeni Ekle",
+    "none": "Yok",
+    "addReminder": "Hatırlatma Ekle",
+    "reminderSummary": "Hatırlatma Gönder - {calendar} {timing}.",
+    "noExternalConnections": "Henüz harici takvim bağlantısı yok",
+    "dialogDescriptions": {
+      "create": "Randevu takviminize başlamak için bir ad verin.",
+      "rename": "Bu randevu takvimini yeniden adlandırın."
+    },
+    "tabs": {
+      "calendars": "Takvimler",
+      "appointments": "Randevular",
+      "externalCalendars": "Harici Takvimler"
+    },
+    "sections": {
+      "appointment": "Randevunuz nedir",
+      "availability": "İnsanlar ne zaman randevu alabilir?",
+      "duration": "Randevunuz ne kadar sürer?",
+      "location": "Randevu nerede gerçekleşecek?",
+      "notifications": "Bildirimler",
+      "restrictions": "Kısıtlamalar",
+      "externalCalendar": "Google Takvim'i Bağla"
+    },
+    "fields": {
+      "description": "Açıklama",
+      "timezone": "Saat dilimi",
+      "locationType": "Konum Türü",
+      "locationDetail": "Detay",
+      "durationMinutes": "Randevu süresi",
+      "bufferAfterMinutes": "Randevularınızdan sonra süre ekleyin",
+      "scheduleWindowType": "Randevu alınabilir",
+      "rollingDays": "Hareketli Günler",
+      "minAdvanceDays": "Minimum kaç gün önceden",
+      "startDate": "Başlangıç Tarihi",
+      "endDate": "Bitiş Tarihi",
+      "specificDate": "Tarih",
+      "maxAppointmentsPerUser": "Kullanıcı başına maksimum randevu",
+      "maxAppointmentsUnlimited": "Sınırsız",
+      "dailyLimitEnabled": "Günlük limit",
+      "maxPerDay": "Gün Başına Maksimum",
+      "allowGroupMeeting": "Grup Toplantısına İzin Ver",
+      "maxPerSlot": "Aralık Başına Maksimum",
+      "confirmationMessage": "Onay Mesajı",
+      "confirmationFlowId": "Onay Akışı",
+      "cancellationFlowId": "İptal Akışı",
+      "externalConnectionId": "Harici Takvim",
+      "reminders": "Hatırlatmalar",
+      "reminderTimingValue": "Değer",
+      "reminderTimingUnit": "Birim"
+    },
+    "locationTypes": {
+      "inPerson": "Yüz Yüze Görüşme",
+      "phoneCall": "Telefon Görüşmesi",
+      "onlineMeeting": "Çevrimiçi Görüşme"
+    },
+    "scheduleWindowTypes": {
+      "rollingDays": "Gelecekteki hareketli günler içinde",
+      "dateRange": "Bir tarih aralığında",
+      "specificDay": "Belirli bir günde",
+      "anyFutureDate": "Gelecekteki herhangi bir tarihte"
+    },
+    "reminderTimingUnits": {
+      "minutes": "Dakika önce",
+      "hours": "Saat önce",
+      "days": "Gün önce"
+    },
+    "reminderTimingLabels": {
+      "minutes": "{count, plural, one {# dakika önce} other {# dakika önce}}",
+      "hours": "{count, plural, one {bir saat önce} other {# saat önce}}",
+      "days": "{count, plural, one {bir gün önce} other {# gün önce}}"
+    },
+    "weekdays": {
+      "0": "Pazar",
+      "1": "Pazartesi",
+      "2": "Salı",
+      "3": "Çarşamba",
+      "4": "Perşembe",
+      "5": "Cuma",
+      "6": "Cumartesi"
+    },
+    "weekdayEditor": {
+      "description": "Bu gün için uygun zaman aralıklarını ayarlayın.",
+      "unavailable": "Müsait Değil",
+      "overlapWarning": "Bazı aralıklar çakışıyor. Çakışan süre iki kez sayılmaz.",
+      "addInterval": "Aralık Ekle",
+      "startTime": "Başlangıç Saati",
+      "endTime": "Bitiş Saati"
+    },
+    "tooltips": {
+      "timezone": "Bu takvimi oluşturduğunuz saat dilimi. Kişiler uygunluğu kendi saat dilimlerine göre görür.",
+      "confirmationFlow": "Kullanıcı bir randevu aldığında gönderilen akış.",
+      "cancellationFlow": "Bir randevu iptal edildiğinde gönderilen akış.",
+      "reminders": "Davetliye randevuyu hatırlatmak için hatırlatmalar gönderin.",
+      "appointmentDuration": "Randevunuzun ne kadar süreceğini tanımlayın.",
+      "bufferAfterMinutes": "Randevularınızı tamamlamak için kendinize biraz tampon süre tanıyın.",
+      "peopleCanSchedule": "Toplantı kabul edebileceğiniz tarih aralığını ayarlayın.",
+      "maxAppointmentsPerUser": "Bir kullanıcının alabileceği maksimum gelecekteki randevu sayısı.",
+      "rollingDays": "Gelecekte kaç güne kadar randevu alınabileceğine izin verin",
+      "minAdvanceDays": "Randevuların en az bu kadar gün önceden alınmasını zorunlu kılın. Aynı gün randevu almaya izin vermek için 0 kullanın.",
+      "dailyLimit": "Günde randevu alabilecek maksimum kişi sayısı.",
+      "allowGroupMeeting": "Birden fazla kişinin aynı zaman aralığında randevu almasına izin verin.",
+      "externalCalendar": "Randevularınızı senkronize etmek için Google Takvim'i bağlayın."
+    },
+    "minutesLabel": "{count} dakika"
+  },
+  "externalCalendars": {
+    "title": "Harici Takvimler",
+    "connectGoogle": "Google'a Bağlan",
+    "emptyEmail": "E-posta yok",
+    "fields": {
+      "provider": "Sağlayıcı",
+      "email": "E-posta",
+      "calendarId": "Takvim ID",
+      "connected": "Bağlandı",
+      "date": "Tarih"
+    },
+    "providers": {
+      "googleCalendar": "Google Takvim"
+    },
+    "dialogs": {
+      "editTitle": "Takvim ID'sini Düzenle",
+      "editDescription": "Çakışmaları kontrol etmek ve randevu etkinlikleri oluşturmak için Google Takvim ID'sini seçin.",
+      "deleteTitle": "Takvim Bağlantısını Kes",
+      "deleteDescription": "Bu Google Takvim'in randevu planlamayla bağlantısını kesin."
+    },
+    "messages": {
+      "connected": "Google Takvim bağlandı.",
+      "connectFailed": "Google Takvim bağlanamadı. Google OAuth ayarlarını ve Takvim API erişimini kontrol edip tekrar deneyin.",
+      "calendarIdUpdated": "Takvim ID'si güncellendi.",
+      "disconnected": "Takvim bağlantısı kesildi."
+    }
+  },
+  "bookingPage": {
+    "metadataTitle": "Randevu Alma",
+    "comingSoonTitle": "Randevu alma sayfası yakında",
+    "comingSoonDescription": "Bu genel randevu alma sayfası henüz kullanılamıyor."
+  },
   "metaConversions": {
     "title": "Conversions API",
-    "description": "Send LeadSubmitted events from Messenger, Instagram, and WhatsApp conversations to Meta.",
-    "datasetId": "Dataset ID",
-    "reconnect": "Reconnect permissions",
-    "connectViaFacebook": "Connect via Facebook",
-    "unsupportedExplanation": "This Instagram account was connected with Instagram Business Login. Connect the account via Facebook to use Meta Conversions API.",
+    "description": "Messenger, Instagram ve WhatsApp konuşmalarından LeadSubmitted etkinliklerini Meta'ya gönderin.",
+    "datasetId": "Veri Kümesi ID",
+    "reconnect": "İzinleri yeniden bağla",
+    "connectViaFacebook": "Facebook üzerinden bağlan",
+    "unsupportedExplanation": "Bu Instagram hesabı Instagram Business Girişi ile bağlandı. Meta Conversions API'yi kullanmak için hesabı Facebook üzerinden bağlayın.",
     "flowStep": {
-      "description": "Queue a LeadSubmitted event for Messenger, Instagram, or WhatsApp.",
-      "whatsappNote": "WhatsApp events only send for conversations that started from a click-to-WhatsApp ad."
+      "description": "Messenger, Instagram veya WhatsApp için bir LeadSubmitted etkinliği kuyruğa alın.",
+      "whatsappNote": "WhatsApp etkinlikleri yalnızca click-to-WhatsApp reklamından başlayan konuşmalar için gönderilir."
     },
     "status": {
       "title": "Meta Conversions API",
-      "ready": "Ready",
-      "missingPermission": "Permission needed",
-      "unverified": "Unverified",
-      "unsupported": "Unsupported",
-      "notConnected": "Not connected"
+      "ready": "Hazır",
+      "missingPermission": "İzin gerekli",
+      "unverified": "Doğrulanmadı",
+      "unsupported": "Desteklenmiyor",
+      "notConnected": "Bağlı değil"
     },
     "statusDescriptions": {
-      "ready": "This integration has the required Meta permission for Conversions API events.",
-      "missingPermission": "Reconnect this integration and grant the requested Meta permission.",
-      "unverified": "Platform app settings are not available, so the CAPI permission cannot be verified.",
-      "unsupported": "Meta Conversions API for Instagram requires an account connected through Facebook Login for Business.",
-      "notConnected": "The Conversions API is a Meta Business Tool that allows you to share data with Meta to enhance the performance of ads."
+      "ready": "Bu entegrasyon, Conversions API etkinlikleri için gereken Meta iznine sahip.",
+      "missingPermission": "Bu entegrasyonu yeniden bağlayın ve istenen Meta iznini verin.",
+      "unverified": "Platform uygulama ayarları kullanılamıyor, bu nedenle CAPI izni doğrulanamıyor.",
+      "unsupported": "Instagram için Meta Conversions API, Facebook için İşletme Girişi üzerinden bağlanmış bir hesap gerektirir.",
+      "notConnected": "Conversions API, reklamlarınızın performansını artırmak için Meta ile veri paylaşmanızı sağlayan bir Meta İş Aracıdır."
     },
     "errors": {
-      "reconnect": "Failed to start Meta CAPI reconnect.",
-      "messengerNotFound": "Messenger integration not found.",
-      "instagramNotFound": "Instagram integration not found.",
-      "instagramRequiresFacebook": "Instagram CAPI requires connecting via Facebook.",
-      "saveFailed": "Could not save. Please try again.",
-      "datasetRequired": "Save a Dataset ID before adding an access token.",
-      "invalidToken": "This token could not access the dataset.",
-      "whatsappNotFound": "WhatsApp integration not found."
+      "reconnect": "Meta CAPI yeniden bağlantısı başlatılamadı.",
+      "messengerNotFound": "Messenger entegrasyonu bulunamadı.",
+      "instagramNotFound": "Instagram entegrasyonu bulunamadı.",
+      "instagramRequiresFacebook": "Instagram CAPI, Facebook üzerinden bağlantı gerektirir.",
+      "saveFailed": "Kaydedilemedi. Lütfen tekrar deneyin.",
+      "datasetRequired": "Erişim jetonu eklemeden önce bir Veri Kümesi ID'si kaydedin.",
+      "invalidToken": "Bu jeton veri kümesine erişemedi.",
+      "invalidDatasetId": "Geçerli bir Dataset ID girin (yalnızca rakamlar).",
+      "whatsappNotFound": "WhatsApp entegrasyonu bulunamadı."
     },
     "fields": {
       "eventType": {
-        "label": "Event type",
-        "leadSubmitted": "Lead Submitted"
+        "label": "Etkinlik Türü",
+        "leadSubmitted": "Potansiyel Müşteri Gönderildi"
       },
-      "value": "Value",
-      "valuePlaceholder": "e.g. 250",
-      "currency": "Currency",
-      "currencyPlaceholder": "e.g. USD",
-      "contentCategory": "Content Category",
-      "contentCategoryPlaceholder": "The category of the content associated with the event",
-      "contentName": "Content Name",
-      "contentNamePlaceholder": "The name of the page or product associated with the event"
+      "value": "Değer",
+      "valuePlaceholder": "ör. 250",
+      "currency": "Para Birimi",
+      "currencyPlaceholder": "ör. USD",
+      "contentCategory": "İçerik Kategorisi",
+      "contentCategoryPlaceholder": "Etkinlikle ilişkili içeriğin kategorisi",
+      "contentName": "İçerik Adı",
+      "contentNamePlaceholder": "Etkinlikle ilişkili sayfanın veya ürünün adı"
     },
-    "datasetIdPlaceholder": "Paste Dataset ID from Events Manager",
-    "saveDataset": "Save",
-    "accessToken": "Access Token (optional)",
-    "accessTokenHint": "Paste a token from Events Manager to send events with your own token instead of the connected page token. Requires a Dataset ID.",
-    "accessTokenPlaceholder": "Events Manager access token",
-    "saveToken": "Save token",
-    "tokenSaved": "Token saved",
-    "removeToken": "Remove",
-    "saved": "Saved",
+    "datasetIdPlaceholder": "Etkinlik Yöneticisi'nden Veri Kümesi ID'sini yapıştırın",
+    "saveDataset": "Kaydet",
+    "accessToken": "Erişim Jetonu (isteğe bağlı)",
+    "accessTokenHint": "Bağlı sayfa jetonu yerine kendi jetonunuzla etkinlik göndermek için Etkinlik Yöneticisi'nden bir jeton yapıştırın. Veri Kümesi ID'si gerektirir.",
+    "accessTokenPlaceholder": "Etkinlik Yöneticisi erişim jetonu",
+    "saveToken": "Jetonu kaydet",
+    "tokenSaved": "Jeton kaydedildi",
+    "removeToken": "Kaldır",
+    "saved": "Kaydedildi",
     "help": {
-      "delay": "Events may take up to 40 minutes to appear in Events Manager and show as Meta Leads in Ads Manager."
+      "delay": "Etkinlikler, Etkinlik Yöneticisi'nde görünmesi ve Reklam Yöneticisi'nde Meta Potansiyel Müşterisi olarak gösterilmesi 40 dakikaya kadar sürebilir."
     },
-    "connected": "Connected",
-    "disconnect": "Disconnect",
-    "openEventManager": "Open Event Manager",
+    "connected": "Bağlandı",
+    "disconnect": "Bağlantıyı Kes",
+    "openEventManager": "Etkinlik Yöneticisi'ni Aç",
     "methods": {
       "oauth": {
-        "title": "Connect via Facebook",
-        "description": "Use your page's existing connection, then choose a Dataset ID.",
-        "connect": "Connect via Facebook",
-        "connectedLabel": "via Facebook"
+        "title": "Facebook üzerinden bağlan",
+        "description": "Sayfanızın mevcut bağlantısını kullanın, ardından bir Veri Kümesi ID'si seçin.",
+        "connect": "Veri kümesi oluştur",
+        "connectedLabel": "Facebook üzerinden"
       },
       "custom": {
-        "title": "Custom connection",
-        "description": "Use a Dataset ID and an access token from Meta Events Manager.",
-        "start": "Set up custom connection",
-        "connect": "Connect",
-        "connectedLabel": "Custom"
+        "title": "Özel bağlantı",
+        "description": "Meta Etkinlik Yöneticisi'nden bir Veri Kümesi ID'si ve erişim jetonu kullanın.",
+        "start": "Özel bağlantı kur",
+        "connect": "Bağlan",
+        "connectedLabel": "Özel"
       },
       "whatsapp": {
-        "title": "Connect via WhatsApp",
-        "description": "Use your WhatsApp connection, then choose a Dataset ID.",
-        "connect": "Connect via WhatsApp",
-        "connectedLabel": "via WhatsApp"
+        "title": "WhatsApp üzerinden bağlan",
+        "description": "WhatsApp bağlantınızı kullanın, ardından bir Veri Kümesi ID'si seçin.",
+        "connect": "Veri kümesi oluştur",
+        "connectedLabel": "WhatsApp üzerinden"
       }
     },
     "finalize": {
-      "title": "Choose a Dataset ID",
-      "description": "Enter an existing Dataset ID, or leave it empty to create one automatically.",
+      "title": "Bir Veri Kümesi ID'si seçin",
+      "description": "Mevcut bir Veri Kümesi ID'si girin veya otomatik olarak oluşturmak için boş bırakın.",
       "save": "Kaydet",
-      "caveat": "A Dataset ID that isn't linked to this Page or Instagram account may not attribute events correctly. Leave this field empty to create a linked dataset automatically."
+      "createDataset": "Veri kümesi oluştur",
+      "caveat": "Bu Sayfa veya Instagram hesabına bağlı olmayan bir Veri Kümesi ID'si etkinlikleri doğru şekilde ilişkilendirmeyebilir. Bağlı bir veri kümesini otomatik olarak oluşturmak için bu alanı boş bırakın."
     },
     "whatsapp": {
-      "connect": "Connect"
-    }
-  },
-  "platformAiSettings": {
-    "title": "AI Settings",
-    "description": "Vertex AI is the platform's internal AI provider. Workspaces and their AI agents never choose a provider directly — when enabled, every AI agent automatically uses the model configured here instead of its own connected provider.",
-    "provider": {
-      "label": "Provider",
-      "value": "Vertex AI (Google Cloud)"
-    },
-    "enabled": {
-      "label": "Enabled",
-      "description": "When on, every AI agent in every workspace uses this configuration instead of its own connected provider."
-    },
-    "chatModel": {
-      "label": "Primary model"
-    },
-    "fallbackModel": {
-      "label": "Fallback model",
-      "description": "Used only if the primary model fails. Optional.",
-      "none": "None"
-    },
-    "location": {
-      "label": "Reply model region",
-      "description": "Use global for Gemini preview models unless Google documents a regional endpoint."
-    },
-    "embeddingModel": {
-      "label": "Embeddings model",
-      "description": "Legacy compatibility value. The active knowledge model is configured below."
-    },
-    "capabilities": {
-      "title": "Specialized AI services",
-      "description": "Configure every workload independently. Select Workspace to keep using the provider configured in the flow or agent.",
-      "provider": "Provider",
-      "model": "Model or service ID",
-      "fallbackModel": "Fallback model (optional)",
-      "location": "Region (optional)",
-      "voice": "Voice ID (optional)",
-      "items": {
-        "vision": "Image understanding",
-        "embedding": "Knowledge embeddings",
-        "summarization": "Conversation summarization",
-        "extraction": "Structured data extraction",
-        "imageGeneration": "Image generation",
-        "imageEditing": "Image editing",
-        "speechToText": "Speech to text",
-        "textToSpeech": "Text to speech",
-        "webSearch": "Google Search grounding",
-        "documentParsing": "Document parsing",
-        "translation": "Translation"
-      }
-    },
-    "agentModelManaged": "The AI provider and model are managed by the platform. Agents use the model selected by the platform admin.",
-    "validate": {
-      "button": "Validate configuration",
-      "success": "Configuration looks valid.",
-      "error": "Could not validate the configuration.",
-      "missingProjectId": "VERTEX_AI_PROJECT_ID is not set on this deployment.",
-      "modelUnavailable": "The selected primary model could not answer a live Vertex AI request in the configured region.",
-      "invalidChatModel": "Primary model is not in the allowed list.",
-      "invalidFallbackModel": "Fallback model is not in the allowed list."
-    }
-  },
-  "plans": {
-    "navLabel": "Pricing",
-    "title": "Choose Your Plan",
-    "subtitle": "Pricing",
-    "description": "Wesal One plans for your workspace — pick the tier that fits your channels and team.",
-    "monthly": "Monthly",
-    "yearly": "Yearly",
-    "perMonth": "/month",
-    "perYear": "/year",
-    "custom": "Custom",
-    "contactSales": "Contact sales",
-    "selectPlan": "Select plan",
-    "selectFree": "Start for free",
-    "currentPlan": "Current plan",
-    "audience": {
-      "individual": "For individuals",
-      "business": "For businesses",
-      "enterprise": "Enterprise"
-    },
-    "sandboxBadge": "Sandbox",
-    "sandboxNotice": "Sandbox mode — selecting a plan applies its limits immediately with no real payment. There is no live billing yet.",
-    "usage": {
-      "title": "Points usage",
-      "available": "Available points",
-      "monthly": "From monthly plan",
-      "purchased": "Purchased points",
-      "frozen": "Frozen points",
-      "reserved": "Reserved by running tasks",
-      "breakdown": "Usage by category (30 days)",
-      "categories": {
-        "language": "Text and agent replies",
-        "image_analysis": "Image analysis",
-        "image_generation": "Image generation",
-        "image_editing": "Image editing",
-        "transcription": "Audio transcription",
-        "speech": "Text to speech",
-        "embedding_document": "Knowledge indexing",
-        "embedding_query": "Knowledge searches",
-        "knowledge_search": "Knowledge search",
-        "summarization": "Conversation summaries",
-        "web_search": "Web searches",
-        "tool": "AI tools"
-      },
-      "expiresOn": "Nearest expiry: {date}",
-      "empty": "No points balance yet — select a plan below to get started.",
-      "consumed": "{used} of {total} included points consumed"
-    },
-    "summaryCustom": "Custom limits, tailored to your needs",
-    "summary": "Up to {channels} channels · {contacts} contacts · {teamMembers} team members · {points} AI points/month",
-    "toast": {
-      "success": "{plan} plan applied (sandbox)",
-      "error": "Could not apply the plan"
-    },
-    "features": {
-      "inbox": "Shared inbox",
-      "ai_agent": "AI sales agent",
-      "catalog": "Product catalog",
-      "basic_automation": "Basic automation",
-      "automation": "Advanced automation",
-      "campaigns": "Broadcast campaigns",
-      "advanced_analytics": "Advanced analytics",
-      "vision_voice": "Vision & voice replies",
-      "priority_support": "Priority support",
-      "everything": "Everything included"
-    },
-    "subscriptionPayment": {
-      "underReview": "Payment under review",
-      "cancelRequest": "Cancel request",
-      "viewReceipt": "View receipt",
-      "history": "Payment history",
-      "dialogTitle": "Pay for {plan}",
-      "paymentMethod": "Payment method",
-      "reference": "Transfer reference (optional)",
-      "receipt": "Payment receipt",
-      "note": "Note (optional)",
-      "send": "Send for review",
-      "sending": "Sending…",
-      "methods": {
-        "kuraimi": "Kuraimi",
-        "jawali": "Jawali",
-        "bank_transfer": "Bank transfer",
-        "cash": "Cash"
-      },
-      "status": {
-        "under_review": "Under review",
-        "confirmed": "Confirmed",
-        "rejected": "Rejected",
-        "cancelled": "Cancelled"
-      },
-      "receiptErrors": {
-        "unsupportedType": "Unsupported file type — use JPG, PNG, or WebP",
-        "tooLarge": "File is larger than 5MB",
-        "presignFailed": "Could not start the upload, try again",
-        "uploadFailed": "Upload failed, try again"
-      },
-      "toast": {
-        "submitted": "Payment submitted for review",
-        "submitError": "Could not submit the payment",
-        "cancelled": "Request cancelled",
-        "cancelError": "Could not cancel the request",
-        "cancellationScheduled": "Subscription will end at the close of the current period",
-        "cancellationScheduleError": "Could not schedule subscription cancellation",
-        "resumed": "Subscription will continue",
-        "resumeError": "Could not resume the subscription"
-      },
-      "currentSubscription": "Current subscription",
-      "renewsOn": "Renews on {date}",
-      "endsOn": "Ends on {date}",
-      "cancelSubscription": "Cancel at period end",
-      "resumeSubscription": "Keep subscription",
-      "subscriptionStatus": {
-        "active": "Active",
-        "past_due": "Payment overdue",
-        "cancel_at_period_end": "Ends at period close",
-        "cancelled": "Cancelled",
-        "expired": "Expired"
-      }
-    },
-    "pointPurchase": {
-      "title": "Buy more points",
-      "pointsLabel": "points",
-      "buyButton": "Buy",
-      "dialogTitle": "Pay for {product}",
-      "underReview": "Order under review",
-      "history": "Order history",
-      "methods": {
-        "kuraimi": "Kuraimi",
-        "jawali": "Jawali",
-        "bank_transfer": "Bank transfer",
-        "cash": "Cash"
-      },
-      "status": {
-        "pending_payment": "Pending payment",
-        "under_review": "Under review",
-        "approved": "Approved",
-        "rejected": "Rejected",
-        "expired": "Expired",
-        "cancelled": "Cancelled",
-        "refunded": "Refunded",
-        "chargeback": "Chargeback"
-      },
-      "toast": {
-        "submitted": "Order submitted for review",
-        "submitError": "Could not submit the order",
-        "cancelled": "Order cancelled",
-        "cancelError": "Could not cancel the order"
-      }
-    },
-    "admin": {
-      "navLabel": "Subscription payments",
-      "title": "Subscription payments",
-      "subtitle": "Review manual payment submissions and activate plans after verifying the receipt.",
-      "statusFilter": "Status",
-      "statusAll": "All",
-      "stats": {
-        "underReview": "Awaiting review",
-        "confirmedToday": "Confirmed today",
-        "rejected": "Rejected"
-      },
-      "table": {
-        "workspace": "Workspace",
-        "owner": "Owner",
-        "plan": "Plan",
-        "price": "Price",
-        "status": "Status"
-      },
-      "empty": "No submissions with this status",
-      "detail": {
-        "paymentMethod": "Payment method",
-        "reference": "Reference",
-        "submittedAt": "Submitted",
-        "note": "Customer note",
-        "rejectionReason": "Rejection reason",
-        "receipt": "View receipt",
-        "noReceipt": "No receipt on file",
-        "confirm": "Confirm payment",
-        "reject": "Reject",
-        "rejectReasonPlaceholder": "Reason for rejection (required)",
-        "close": "Close"
-      },
-      "toast": {
-        "confirmed": "Payment confirmed and plan activated",
-        "confirmError": "Could not confirm the payment",
-        "rejected": "Payment rejected",
-        "rejectError": "Could not reject the payment"
-      }
-    },
-    "pointPurchaseAdmin": {
-      "navLabel": "Point purchases",
-      "title": "Point purchases",
-      "subtitle": "Review manual point top-up orders and credit points after verifying the receipt.",
-      "table": {
-        "buyer": "Buyer",
-        "bundle": "Bundle",
-        "points": "Points"
-      },
-      "toast": {
-        "confirmed": "Order confirmed and points credited",
-        "confirmError": "Could not confirm the order",
-        "rejected": "Order rejected",
-        "rejectError": "Could not reject the order"
-      }
-    },
-    "recommended": "Recommended",
-    "audienceDescription": {
-      "individual": "Built for individual operators and small teams.",
-      "business": "Built for growing teams with multiple channels.",
-      "enterprise": "Built for organizations that need custom scale and support."
-    },
-    "capacity": {
-      "unlimited": "Custom",
-      "points": "{count} AI points each month",
-      "agents": "{count} AI agents",
-      "knowledgeDocuments": "{count} knowledge documents",
-      "products": "{count} catalog products"
-    }
-  },
-  "marketing": {
-    "brandName": "Wesal One",
-    "nav": {
-      "features": "Features",
-      "channels": "Channels",
-      "pricing": "Pricing",
-      "about": "About",
-      "contact": "Contact"
-    },
-    "actions": {
-      "signIn": "Sign in",
-      "start": "Get started"
-    },
-    "hero": {
-      "badge": "Arabic-first customer service and sales platform",
-      "titleBefore": "AI agents that run",
-      "titleHighlight": "sales and conversations",
-      "titleAfter": "professionally",
-      "description": "Wesal One brings customer channels, teams, products and orders into one platform, with clear human control whenever a conversation needs an employee.",
-      "learnMore": "Explore the platform",
-      "trial": "Free trial",
-      "noCard": "No payment card",
-      "fastSetup": "Fast setup"
-    },
-    "demo": {
-      "title": "Live sales conversation",
-      "subtitle": "WhatsApp · Demo store",
-      "active": "Agent active",
-      "customer": "I need four units of the available product. What is the price?",
-      "agent": "The product is available. I will use the approved price and help confirm the order.",
-      "handoffTitle": "Controlled human handoff",
-      "handoffDescription": "The agent pauses only when an employee takes over or an explicit handoff rule matches."
-    },
-    "features": {
-      "eyebrow": "Everything your team needs",
-      "title": "Customer service and sales in one workspace",
-      "description": "From the first conversation through ordering and follow-up, with clear team tools and agents governed by your business rules.",
-      "items": [
-        {
-          "title": "Unified inbox",
-          "description": "WhatsApp, Instagram, Messenger and Telegram in one interface."
-        },
-        {
-          "title": "AI sales agents",
-          "description": "Understand requests, search products and reply using platform settings."
-        },
-        {
-          "title": "Clear human handoff",
-          "description": "The agent pauses when an employee takes over, preventing overlapping replies."
-        },
-        {
-          "title": "Products and orders",
-          "description": "Read inventory and create orders through trusted platform services."
-        },
-        {
-          "title": "Automation and campaigns",
-          "description": "Flows, scheduled messages and campaigns that help you grow."
-        },
-        {
-          "title": "Reports and permissions",
-          "description": "Track performance, manage teams and isolate every workspace."
-        }
-      ]
-    },
-    "control": {
-      "eyebrow": "Human control",
-      "title": "AI accelerates the work while your team owns the decision",
-      "description": "Clear rules prevent overlap and preserve human review for sensitive situations.",
-      "items": [
-        "Pause automation when staff take over",
-        "Separate team-member permissions",
-        "Conversation and action history",
-        "Strong workspace isolation"
-      ],
-      "cardTitle": "Built for sales and support",
-      "cardDescription": "Agents use your products and rules to complete conversations and orders without changing channel logic or blocking manual work."
-    },
-    "cta": {
-      "title": "Run every customer conversation from one place",
-      "description": "Create your account, connect channels, and prepare your team and agents in Wesal One."
-    },
-    "footer": {
-      "description": "An Arabic-first platform for customer conversations, teams, products and automation.",
-      "product": "Product",
-      "legal": "Legal",
-      "privacy": "Privacy policy",
-      "dataDeletion": "Data deletion",
-      "terms": "Terms of use",
-      "copyright": "© 2026 Wesal One. All rights reserved."
-    }
-  },
-  "publicPages": {
-    "features": {
-      "eyebrow": "Features",
-      "title": "One platform for customer service and sales",
-      "intro": "Conversations, agents, teams, products, orders and campaigns in one place.",
-      "sections": [
-        {
-          "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
-        },
-        {
-          "title": "Agents and commerce",
-          "body": [
-            "AI agents use products and orders with controlled human handoff."
-          ]
-        }
-      ]
-    },
-    "channels": {
-      "eyebrow": "Channels",
-      "title": "Customer channels in one place",
-      "intro": "Connect approved channels and retain customer context in the workspace.",
-      "sections": [
-        {
-          "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
-        },
-        {
-          "title": "Telegram and web",
-          "body": [
-            "Telegram, Webchat and other integrations from one dashboard."
-          ]
-        }
-      ]
-    },
-    "about": {
-      "eyebrow": "About",
-      "title": "Wesal One for businesses in Yemen and the region",
-      "intro": "We bring conversations, follow-up, knowledge and products into one Arabic-first workspace.",
-      "sections": [
-        {
-          "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
-        },
-        {
-          "title": "Commitment",
-          "body": [
-            "Data isolation, permissions and transparency while humans retain control."
-          ]
-        }
-      ]
-    },
-    "contact": {
-      "eyebrow": "Contact",
-      "title": "We would love to hear from you",
-      "intro": "For questions, trial requests or plan guidance.",
-      "sections": [
-        {
-          "title": "Email",
-          "body": ["support@wesal.one"]
-        },
-        {
-          "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
-        }
-      ]
-    },
-    "privacy": {
-      "eyebrow": "Privacy",
-      "title": "Wesal One privacy policy",
-      "intro": "The data we process and how it is used and protected.",
-      "updated": "Last updated: July 18, 2026",
-      "sections": [
-        {
-          "title": "Data and use",
-          "body": [
-            "We process account, workspace, channel, conversation, file, product and order data to operate, authenticate, automate and support the service."
-          ]
-        },
-        {
-          "title": "Channels and providers",
-          "body": [
-            "Channel data may pass through the channel provider and cloud infrastructure according to your configuration."
-          ]
-        },
-        {
-          "title": "Security and retention",
-          "body": [
-            "We use access controls and workspace isolation and retain data as needed to operate the service."
-          ]
-        },
-        {
-          "title": "Your rights",
-          "body": [
-            "Request access, correction or deletion through support@wesal.one."
-          ]
-        }
-      ]
-    },
-    "terms": {
-      "eyebrow": "Terms",
-      "title": "Wesal One terms of use",
-      "intro": "Using the platform means accepting the account, trial and subscription terms.",
-      "updated": "Last updated: July 18, 2026",
-      "sections": [
-        {
-          "title": "Service use",
-          "body": [
-            "Use the platform lawfully. Account owners are responsible for members, content and channels."
-          ]
-        },
-        {
-          "title": "Subscriptions",
-          "body": [
-            "Features and limits follow the plan. Payments activate only after confirmation."
-          ]
-        },
-        {
-          "title": "Content and data",
-          "body": [
-            "You must have the right to use data and content entered or sent through the platform."
-          ]
-        },
-        {
-          "title": "Artificial intelligence",
-          "body": [
-            "AI assists teams and does not replace human review for sensitive decisions."
-          ]
-        }
-      ]
-    },
-    "dataDeletion": {
-      "eyebrow": "Data deletion",
-      "title": "How to delete your data",
-      "intro": "Request deletion of an account, workspace or specific channel data.",
-      "updated": "Last updated: July 18, 2026",
-      "sections": [
-        {
-          "title": "How to request",
-          "body": [
-            "Email support@wesal.one from the owner's address with the workspace name and scope."
-          ],
-          "bullets": [
-            "Subject: Wesal One data deletion request",
-            "Specify full account, channel or selected data."
-          ]
-        },
-        {
-          "title": "Verification and time",
-          "body": [
-            "We verify authority and usually process requests within 7 to 30 days."
-          ]
-        },
-        {
-          "title": "Backups",
-          "body": [
-            "Temporary backups may remain until their backup cycle completes."
-          ]
-        },
-        {
-          "title": "After deletion",
-          "body": [
-            "Access to channels, conversations and reports may be lost and recovery is not guaranteed."
-          ]
-        }
-      ]
+      "connect": "Bağlan"
     }
   }
 }

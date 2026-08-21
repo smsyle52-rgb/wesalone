@@ -22,6 +22,7 @@ const publicRoutes = [
   "/signup",
   "/r",
   "/l",
+  "/dynamic-images",
   "/auth",
   "/api",
   "/ws",
@@ -30,6 +31,7 @@ const publicRoutes = [
   "/unsubscribe",
   "/email-topic",
   "/extensions",
+  "/booking",
   "/portal/redeem",
 ]
 const signinPath = "/auth/sign-in"
@@ -172,7 +174,7 @@ export const config = {
     // Arabic while every other public page honoured the parameter — and that
     // link is what we hand to reviewers who cannot read Arabic. It is in
     // publicRoutes, so running the middleware here costs no auth redirect.
-    "/((?!webchat|zalo_verifier|chat-widget|assets|ws|storage|_next/static|_next/image|favicon.ico|avatars|.*.svg|brand|openapi.json).*)",
+    "/((?!webchat|zalo_verifier|chat-widget|assets|ws|storage|_next/static|_next/image|favicon.ico|avatars|.*.svg|brand|openapi.json|dynamic-image/).*)",
     "/api/presigned-upload",
     "/api/whatsapp/:path*",
   ],
