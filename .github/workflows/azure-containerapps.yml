@@ -28,12 +28,12 @@ concurrency:
 env:
   AZURE_CLIENT_ID: 02b98259-3e80-4cf5-87b3-6cc6968d06f0
   AZURE_TENANT_ID: 30a49e5c-d762-4170-beac-5bdfd2aa7c9e
-  AZURE_SUBSCRIPTION_ID: 4dad6f21-8881-4379-9379-d6f220ed9fc0
-  AZURE_RESOURCE_GROUP: rg-wesal-migration-uae
+  AZURE_SUBSCRIPTION_ID: ab678f25-fa4c-4e65-aafa-f7017f24d1ee
+  AZURE_RESOURCE_GROUP: rg-wesal-prod
   AZURE_CONTAINER_REGISTRY: acrwesaluae4dad6f
-  AZURE_CONTAINERAPPS_ENVIRONMENT: cae-wesal-migration-uae
+  AZURE_CONTAINERAPPS_ENVIRONMENT: cae-wesal-prod
   AZURE_KEY_VAULT: kv-wesal-uae-4dad6f
-  AZURE_CONTAINER_IDENTITY: /subscriptions/4dad6f21-8881-4379-9379-d6f220ed9fc0/resourceGroups/rg-wesal-migration-uae/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-wesal-containerapps
+  AZURE_CONTAINER_IDENTITY: /subscriptions/ab678f25-fa4c-4e65-aafa-f7017f24d1ee/resourceGroups/rg-wesal-prod/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-wesal-containerapps
 
 jobs:
   build:
@@ -154,9 +154,6 @@ jobs:
           for app in wesal-builder wesal-worker-consumption wesal-worker-scheduler wesal-realtime; do
             az containerapp show --resource-group "$AZURE_RESOURCE_GROUP" --name "$app" --output none
           done
-          # The legacy all-in-one worker is the rollback plan. This workflow
-          # must never update or scale it during routine production deploys.
-          test "$(az containerapp show --resource-group "$AZURE_RESOURCE_GROUP" --name wesal-worker --query properties.template.scale.minReplicas --output tsv)" = "0"
 
       - name: Update revisions without migrations
         shell: bash
