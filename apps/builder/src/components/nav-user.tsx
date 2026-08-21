@@ -23,8 +23,6 @@ import {
 import { CreditCard, Crown, Settings2, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
-import { useState } from "react"
-import { UpgradePlanDialog } from "@/enterprise/features/billing/upgrade-plan-dialog"
 import { isCloud } from "@/env"
 import { SignOut } from "@/features/auth/sign-out"
 import { EditProfileDialog } from "@/features/workspaces/components/edit-profile-dialog"
@@ -50,15 +48,11 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const t = useTranslations()
-  const [upgradeOpen, setUpgradeOpen] = useState(false)
   const avatarUrl = useUserAvatarUrl(user.avatar)
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        {isCloud() && (
-          <UpgradePlanDialog onOpenChange={setUpgradeOpen} open={upgradeOpen} />
-        )}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -126,14 +120,13 @@ export function NavUser({
                 </DropdownMenuGroup>
                 <DropdownMenuGroup>
                   <DropdownMenuItem
-                    closeOnClick={false}
-                    onClick={() => {
-                      setUpgradeOpen(true)
-                    }}
-                  >
-                    <Crown className="me-2 h-4 w-4" />
-                    {t("actions.upgradePlan")}
-                  </DropdownMenuItem>
+                    render={
+                      <Link href="/portal/pricing">
+                        <Crown className="me-2 h-4 w-4" />
+                        {t("actions.upgradePlan")}
+                      </Link>
+                    }
+                  />
                   <DropdownMenuItem
                     render={
                       <Link href="/portal/billing">

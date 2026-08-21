@@ -7,19 +7,18 @@ import {
   SidebarHeader,
 } from "@chatbotx.io/ui/components/ui/sidebar"
 import {
-  CircleHelpIcon,
+  BrainIcon,
+  CoinsIcon,
   Grid2x2PlusIcon,
   ListTodoIcon,
-  MailIcon,
-  PaletteIcon,
   RadioTowerIcon,
+  ReceiptTextIcon,
 } from "lucide-react"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
 import { BrandIcon } from "@/components/brand-icon"
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
-import { isCloud } from "@/env"
 import { authClient } from "@/lib/auth/auth-client"
 
 /**
@@ -27,11 +26,9 @@ import { authClient } from "@/lib/auth/auth-client"
  * Gated by `isSuperAdmin` in the parent layout; no auth check needed here.
  */
 export function AdminSidebar({
-  showEnterpriseItems,
-  showPointPurchaseOrders: _showPointPurchaseOrders,
-  showSubscriptionPayments: _showSubscriptionPayments,
+  showPointPurchaseOrders,
+  showSubscriptionPayments,
 }: {
-  showEnterpriseItems: boolean
   showPointPurchaseOrders: boolean
   showSubscriptionPayments: boolean
 }) {
@@ -56,26 +53,29 @@ export function AdminSidebar({
       url: "/admin/platform-channels",
       icon: RadioTowerIcon,
     },
-    ...(showEnterpriseItems && !isCloud()
+    {
+      title: t("platformAiSettings.title"),
+      url: "/admin/ai-settings",
+      icon: BrainIcon,
+    },
+    // Both pages already notFound() on their own env flag; gating the link on
+    // the same flag keeps the nav from advertising a 404. Before this, neither
+    // was reachable at all — the flags arrived and were dropped on the floor.
+    ...(showSubscriptionPayments
       ? [
           {
-            title: t("platformBranding.title"),
-            url: "/admin/branding",
-            icon: PaletteIcon,
-          },
-          {
-            title: t("platformEmailTemplates.title"),
-            url: "/admin/email-templates",
-            icon: MailIcon,
+            title: t("plans.admin.title"),
+            url: "/admin/subscription-payments",
+            icon: ReceiptTextIcon,
           },
         ]
       : []),
-    ...(showEnterpriseItems
+    ...(showPointPurchaseOrders
       ? [
           {
-            title: t("platformAdmin.helpItems.title"),
-            url: "/admin/help-items",
-            icon: CircleHelpIcon,
+            title: t("plans.pointPurchaseAdmin.title"),
+            url: "/admin/point-purchase-orders",
+            icon: CoinsIcon,
           },
         ]
       : []),

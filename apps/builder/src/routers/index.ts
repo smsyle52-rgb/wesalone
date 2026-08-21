@@ -202,11 +202,6 @@ export const router = {
       default: m.workspaceMembersAPI,
     })),
   ),
-  inboxTeamsAPI: lazy(() =>
-    import("@/enterprise/features/inbox-teams/api").then((m) => ({
-      default: m.inboxTeamsAPI,
-    })),
-  ),
   foldersAPI: lazy(() =>
     import("@/features/folders/api").then((m) => ({ default: m.foldersAPI })),
   ),

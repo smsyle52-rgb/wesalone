@@ -1,4 +1,4 @@
-import { hasEnterpriseFeatures, isSuperAdmin } from "@chatbotx.io/business"
+import { isSuperAdmin } from "@chatbotx.io/business"
 import { notFound } from "next/navigation"
 import {
   isPlatformSubscriptionPaymentsEnabled,
@@ -24,13 +24,11 @@ export default async function AdminLayout({
   }
 
   enforcePasswordCurrent(user)
-  const showEnterpriseItems = await hasEnterpriseFeatures()
 
   return (
     <ManageLayout
       sidebar={
         <AdminSidebar
-          showEnterpriseItems={showEnterpriseItems}
           showPointPurchaseOrders={isPointPurchasesEnabled()}
           showSubscriptionPayments={isPlatformSubscriptionPaymentsEnabled()}
         />

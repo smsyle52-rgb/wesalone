@@ -35,10 +35,6 @@ export function SettingsTab({
         label: t("admins.title"),
         value: "admins",
       },
-      {
-        label: t("inboxTeams.title"),
-        value: "inbox-teams",
-      },
       // {
       //   label: t("billing.title"),
       //   value: "billing",

@@ -1,6 +1,6 @@
 import ky, { HTTPError } from "ky"
 import { createStore } from "zustand/vanilla"
-import type { ListInboxTeamsResponse } from "@/enterprise/features/inbox-teams/schema/action"
+import type { InboxTeamResource } from "@/features/inbox-teams/schema/resource"
 import type { ListWorkspaceMembersResponse } from "@/features/workspace-members/schema/query"
 import { maxPerPageString } from "@/lib/shared-request"
 
@@ -12,7 +12,7 @@ export type UserState = {
 
   workspaceId: string
   workspaceMembers: ListWorkspaceMembersResponse["data"]
-  inboxTeams: ListInboxTeamsResponse["data"]
+  inboxTeams: InboxTeamResource[]
 }
 
 export type UserActions = {
@@ -91,37 +91,11 @@ export const createUserStore = (props: Partial<UserState>) =>
       }
     },
 
-    getAllInboxTeams: async () => {
-      const { workspaceId, loadingInboxTeams } = get()
-
-      // Skip if already initialized for the same workspaceId or currently loading
-      if (loadingInboxTeams || !workspaceId) {
-        return
-      }
-
-      set({ loadingInboxTeams: true, error: null })
-
-      try {
-        const searchParams = new URLSearchParams({
-          perPage: maxPerPageString,
-        })
-
-        const { data } = await ky
-          .get<ListInboxTeamsResponse>(
-            `/api/workspaces/${workspaceId}/inbox-teams?${searchParams.toString()}`,
-          )
-          .json()
-
-        set({ inboxTeams: data })
-      } catch (error: unknown) {
-        set({
-          error:
-            error instanceof HTTPError
-              ? error.message
-              : "Failed to fetch inbox teams",
-        })
-      } finally {
-        set({ loadingInboxTeams: false })
-      }
+    getAllInboxTeams: () => {
+      // Inbox teams could only ever be created from the commercially
+      // licensed settings pages, which this deployment does not ship.
+      // There is nothing to fetch, and the endpoint is gone.
+      set({ inboxTeams: [], loadingInboxTeams: false })
+      return Promise.resolve()
     },
   }))

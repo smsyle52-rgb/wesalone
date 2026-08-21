@@ -59,7 +59,7 @@ vi.mock("../refresh-all-channel-tokens-button", () => ({
   RefreshAllChannelTokensButton: () => null,
 }))
 
-vi.mock("@/enterprise/features/billing/upgrade-plan-dialog", () => ({
+vi.mock("@/features/billing/upgrade-plan-button", () => ({
   UpgradePlanButton: ({ children }: { children?: React.ReactNode }) => (
     <button type="button">{children}</button>
   ),
