@@ -1,0 +1,22 @@
+# Throwaway: reproduces the builder image's first stage on an ACR agent and
+# prints what the real build refuses to say. `turbo prune` dies there with no
+# output at all, on both an uploaded context and one ACR cloned from GitHub, so
+# the question is what the agent has rather than what the source contains.
+FROM node:24-trixie-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+WORKDIR /app
+
+FROM base AS pre
+RUN npm install -g turbo@^2
+WORKDIR /app
+COPY . .
+RUN echo "=== memory ===" && free -m \
+ && echo "=== disk ===" && df -h / /tmp \
+ && echo "=== cpus ===" && nproc \
+ && echo "=== context size ===" && du -sh /app \
+ && echo "=== running prune ===" \
+ && (turbo prune builder --docker > /tmp/prune.log 2>&1; echo "PRUNE EXIT=$?") \
+ && echo "=== prune output ===" && cat /tmp/prune.log \
+ && echo "=== memory after ===" && free -m
