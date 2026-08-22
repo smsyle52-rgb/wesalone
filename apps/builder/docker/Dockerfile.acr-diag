@@ -12,11 +12,4 @@ FROM base AS pre
 RUN npm install -g turbo@^2
 WORKDIR /app
 COPY . .
-RUN echo "=== memory ===" && free -m \
- && echo "=== disk ===" && df -h / /tmp \
- && echo "=== cpus ===" && nproc \
- && echo "=== context size ===" && du -sh /app \
- && echo "=== running prune ===" \
- && (turbo prune builder --docker > /tmp/prune.log 2>&1; echo "PRUNE EXIT=$?") \
- && echo "=== prune output ===" && cat /tmp/prune.log \
- && echo "=== memory after ===" && free -m
+RUN set +e;     echo "=== memory (kB) ==="; head -3 /proc/meminfo;     echo "=== cgroup limit ==="; cat /sys/fs/cgroup/memory.max 2>/dev/null || cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo none;     echo "=== cpus ==="; nproc;     echo "=== disk ==="; df -h / /tmp;     echo "=== context ==="; du -sh /app;     echo "=== running prune ===";     turbo prune builder --docker > /tmp/prune.log 2>&1;     echo "PRUNE EXIT=$?";     echo "=== prune output ==="; cat /tmp/prune.log;     echo "=== memory after ==="; head -3 /proc/meminfo;     echo "=== DIAG DONE ==="
