@@ -3,6 +3,7 @@ import { useCallback, useState } from "react"
 import { randomString } from "remeda"
 import { toast } from "sonner"
 import { getMimeTypeFromFile } from "../../lib/file-types"
+import { presignedUploadHeaders } from "../../lib/upload-headers"
 import { Button } from "../ui/button"
 import {
   FileUpload,
@@ -139,6 +140,14 @@ export function DirectUploadButton({
               })
 
               xhr.open("PUT", presignedPost.presignedPostUrl)
+              for (const [header, value] of Object.entries(
+                presignedUploadHeaders(
+                  presignedPost.presignedPostUrl,
+                  mimeType,
+                ),
+              )) {
+                xhr.setRequestHeader(header, value)
+              }
               xhr.send(file)
             })
           } catch (error) {

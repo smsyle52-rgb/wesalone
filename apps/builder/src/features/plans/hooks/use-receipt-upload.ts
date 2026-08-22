@@ -1,5 +1,6 @@
 "use client"
 
+import { presignedUploadHeaders } from "@chatbotx.io/ui/lib/upload-headers"
 import { useCallback } from "react"
 
 export type ReceiptUploadResult = {
@@ -70,7 +71,10 @@ export function useReceiptUpload(workspaceId: string) {
 
       const uploadResponse = await fetch(presignedPostUrl, {
         method: "PUT",
-        headers: { "Content-Type": file.type },
+        headers: {
+          "Content-Type": file.type,
+          ...presignedUploadHeaders(presignedPostUrl),
+        },
         body: file,
       })
       if (!uploadResponse.ok) {

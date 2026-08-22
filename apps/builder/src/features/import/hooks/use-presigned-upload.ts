@@ -1,6 +1,7 @@
 "use client"
 
 import type { ImportType, UploadTypes } from "@chatbotx.io/database/partials"
+import { presignedUploadHeaders } from "@chatbotx.io/ui/lib/upload-headers"
 import { useCallback } from "react"
 
 export type UploadResult = {
@@ -40,6 +41,7 @@ export function usePresignedUpload(
 
       const uploadResponse = await fetch(presignedPostUrl, {
         method: "PUT",
+        headers: presignedUploadHeaders(presignedPostUrl, file.type),
         body: file,
       })
       if (!uploadResponse.ok) {
