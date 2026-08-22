@@ -9,7 +9,6 @@ import {
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
-import { isCommunity } from "@/env"
 import SSOSignUp from "@/features/auth/sso-sign-in"
 import { withCallbackUrlParam } from "@/lib/safe-callback-url"
 import { useTenantSettings } from "../tenant"
@@ -47,7 +46,12 @@ export const SignUpForm = ({
         <CardContent>
           <div className="grid gap-6">
             {/* Mirrors sign-in: social first, then the email form. */}
-            {!isCommunity() && enabledProviders.length > 0 && (
+            {/* Gated on whether a provider is actually configured, not on the
+              edition. The Google credential lives in PlatformCredential and
+              has been there since July; keying this on the edition hid a
+              working sign-in button and left email+password as the only way
+              in. `enabledProviders` is already empty when nothing is set up. */}
+            {enabledProviders.length > 0 && (
               <>
                 <SSOSignUp providers={enabledProviders} />
                 <OrSeparator label={t("auth.orSignUpWithEmail")} />
