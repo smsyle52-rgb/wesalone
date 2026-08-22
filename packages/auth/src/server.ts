@@ -561,6 +561,15 @@ export function createAuth(config: AuthConfig) {
       // original email is permanently locked out with no way to request
       // another — they just get "Email not verified" forever.
       sendOnSignIn: true,
+      // Clicking the link is the moment the person proves they own the
+      // address, so it should also be the moment they are let in. Without
+      // this, a new merchant signs up, is refused at sign-in because the
+      // address is unverified, receives a link that looks like a password
+      // reset, clicks it — and lands back on the sign-in form with nothing
+      // to show for it. better-auth creates the session and sets the cookie
+      // here (see email-verification.mjs), reusing an existing session when
+      // the click happens in the browser that signed up.
+      autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }, request) => {
         if (!request) {
           throw new APIError(400, {
