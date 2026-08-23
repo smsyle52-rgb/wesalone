@@ -719,12 +719,22 @@ function filterToolsByAllowedSystemFunctions(
     return tools
   }
 
+  // The one caller (index.ts, isFileOnlyTrigger) passes this to force a
+  // single reader tool for a turn that is only "the user sent a file, nothing
+  // else" — e.g. only image_reader when an image arrived with no text.
+  // Non-"sys:" tools (file:<id> knowledge-base search, fn:, mcp:) used to pass
+  // through unfiltered, so the model still had file_search sitting right next
+  // to image_reader and could reach for the wrong one — observed live: an
+  // image-only WhatsApp message made the agent query the knowledge base for
+  // "wesal onboarding image" instead of analyzing the photo, and reply with
+  // unrelated platform text. A restricted turn now means restricted to
+  // exactly the requested system function, full stop.
   const allowedSystemFunctionIdSet = new Set(allowedSystemFunctionIds)
   const systemToolPrefix = `${toolPrefixes.enum.sys}:`
 
   return tools.filter((tool) => {
     if (!tool.startsWith(systemToolPrefix)) {
-      return true
+      return false
     }
 
     const systemFunctionId = tool.slice(systemToolPrefix.length)
