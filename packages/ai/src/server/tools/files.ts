@@ -22,7 +22,14 @@ export async function getAIFileTools(
     fileSearchNoResult = "No relevant information found.",
     fileSearchFoundPrefix = (count: number) =>
       `Found ${count} matching results:`,
-    similarityThreshold = 0.7,
+    // 0.7 belongs to text-embedding-ada-002, whose cosine scores sit high and
+    // bunched: unrelated text still scores around 0.75 there, so a high cut was
+    // the only way to filter anything out. Measured against the platform's
+    // current model (text-embedding-3-small), the same Arabic question scores
+    // 0.673 against a chunk that answers it verbatim, 0.405 against a related
+    // one and 0.072 against an unrelated one — so 0.7 discards every document
+    // ever indexed, and no knowledge base can return a single result.
+    similarityThreshold = 0.35,
     maxResults = 5,
   } = options
   try {
