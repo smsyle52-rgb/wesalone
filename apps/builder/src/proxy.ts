@@ -16,6 +16,14 @@ const publicRoutes = [
   "/channels/create",
   "/features",
   "/data-deletion",
+  // Meta's app settings point at /privacy and /terms, and it requires both to
+  // be reachable without a login — behind the session gate they answer 307 to
+  // the sign-in page, which is grounds for rejecting the app on review. /contact
+  // belongs here for a plainer reason: the people who need it are the ones who
+  // do not have an account yet.
+  "/privacy",
+  "/terms",
+  "/contact",
   "/integrations",
   "/login",
   "/pricing",
