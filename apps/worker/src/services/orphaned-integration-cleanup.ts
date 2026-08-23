@@ -86,9 +86,19 @@ export async function handleOrphanedIntegration(
   const strategy = ORPHAN_CLEANUP_STRATEGIES[channel]
 
   if (!strategy) {
-    logger.info(
+    // WhatsApp has no strategy here on purpose: its Meta webhook is
+    // subscribed at the app level, not per-number like Messenger/Instagram, so
+    // there is nothing to unsubscribe. But unlike a disconnected Messenger
+    // page — which is the case this cleanup was built for — a WhatsApp number
+    // with no IntegrationWhatsapp row usually means a real, currently-used
+    // number whose integration row was never created. Every message it
+    // receives is silently dropped, which "Skipping ... for unsupported
+    // channel" at info level does not surface to anyone.
+    logger.warn(
       { channel, identifier },
-      "Skipping orphaned integration cleanup for unsupported channel",
+      channel === integrationTypes.enum.whatsapp
+        ? "Orphaned WhatsApp integration: message received for a phoneNumberId with no IntegrationWhatsapp row — the customer's message was dropped"
+        : "Skipping orphaned integration cleanup for unsupported channel",
     )
     return
   }
