@@ -12,7 +12,6 @@ import {
 import { platformCredentialService } from "@chatbotx.io/business"
 import type { CredentialType } from "@chatbotx.io/database/partials"
 import { ROOT_TENANT_ID } from "@chatbotx.io/database/schema"
-import { isCommunity } from "@/env"
 import { onUserCreated } from "./on-user-created"
 import {
   FACEBOOK_SSO_SCOPES,
@@ -127,15 +126,15 @@ async function resolveCredentialForTenant(
   tenantId: string,
   provider: SocialProvider,
 ): Promise<FacebookAwareCredential | null> {
-  // Community edition ships without social sign-in (email/password + magic
-  // link only). Resolving no credential builds the better-auth instance with
-  // zero social providers, so /api/auth/sign-in/social, OAuth callbacks, and
-  // link-social all reject — and the sign-in pages hide the buttons since
-  // isSocialLoginEnabledForTenant derives from this same resolver.
-  if (isCommunity()) {
-    return null
-  }
-
+  // The upstream community edition ships without social sign-in as a licensing
+  // restriction, gated here regardless of whether real Google/Facebook app
+  // credentials are configured. This deployment runs on NEXT_PUBLIC_EDITION=
+  // community (switching to "cloud"/"enterprise" makes both apps refuse to
+  // start without a LICENSE_KEY — see assertLicenseAtStartup) but still has a
+  // real platform Google credential in PlatformCredential, so the gate was
+  // discarding a working sign-in method for no reason tied to this platform's
+  // actual license state. Removed; the credential lookup below still returns
+  // null (and social sign-in stays off) whenever no credential is configured.
   const type = PROVIDER_CREDENTIAL_TYPE[provider]
   const decrypted =
     tenantId === ROOT_TENANT_ID
