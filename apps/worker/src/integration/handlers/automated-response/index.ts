@@ -49,19 +49,6 @@ const CONVERSATION_EVENT_LABELS = new Set([
   "Received revoke",
 ])
 
-/**
- * `unsupported` is Meta's signal that it could not deliver the content at all
- * (a poll, or something a newer WhatsApp build sent). The customer did write
- * something; we simply never received it. Left as the raw label, the agent
- * reads the English word "unsupported", searches the knowledge base for it and
- * answers with whatever comes back — observed on production, querying
- * "unsupported message media" and finding nothing. Replacing it with a real
- * instruction lets the agent say something useful instead.
- */
-const UNSUPPORTED_LABEL = "Received unsupported"
-const UNSUPPORTED_PROMPT =
-  "أرسل العميل رسالة لم يصلنا محتواها لأن واتساب لا يدعم نوعها. اعتذر له بإيجاز واطلب منه إعادة إرسالها نصًّا أو صورة."
-
 const SUPPORTED_DOCUMENT_MIME_TYPES = new Set<string>([
   ...PDF_MIME_TYPES,
   ...DOCX_MIME_TYPES,
@@ -336,21 +323,6 @@ export async function processAutomatedResponse(
           language: workspace.language,
         }),
       })
-    }
-
-    // Rewrite the bare "Received unsupported" label the agent would otherwise
-    // read as a customer's own words. The message row keeps the original label
-    // so the inbox still shows what arrived; only what the model sees changes.
-    if (triggerMessage?.text === UNSUPPORTED_LABEL) {
-      const last = messages.at(-1)
-      if (last?.role === aiMessageRoles.enum.user) {
-        last.content = UNSUPPORTED_PROMPT
-      } else {
-        messages.push({
-          role: aiMessageRoles.enum.user,
-          content: UNSUPPORTED_PROMPT,
-        })
-      }
     }
 
     const sendTyping = () =>
