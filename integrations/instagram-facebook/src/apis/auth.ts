@@ -5,13 +5,23 @@ import { exchangeLongLivedToken } from "./page"
 
 const FACEBOOK_OAUTH_BASE = "https://www.facebook.com"
 
-// Only permissions this Meta app is approved for (App Review page).
-// instagram_manage_comments / instagram_manage_engagement are NOT approved and
-// break the OAuth dialog with "Invalid Scopes".
+// Only the permissions this Meta app is approved for (App Review page).
+// Meta rejects the *entire* authorization dialog when any single requested
+// scope is unapproved — "Invalid Scopes: <name>" — so one unused permission
+// here silently blocks every Instagram connection.
+//
+// Not approved, must stay out: instagram_manage_comments,
+// instagram_manage_engagement, instagram_manage_events.
+//
+// instagram_manage_events was missed when the first two were removed, and
+// kept Instagram dead-ending on the error page for a month after Messenger
+// was fixed. Verified live on 25 Aug 2026: dropping it alone turned the same
+// URL into the consent screen. It is wanted only by the Conversions API, and
+// both CAPI consumers already branch on `hasInstagramManageEventsScope`, so
+// the feature degrades instead of breaking. Re-add only after App Review.
 const INSTAGRAM_SCOPES = [
   "instagram_basic",
   "instagram_manage_messages",
-  "instagram_manage_events",
   "pages_manage_metadata",
   "pages_show_list",
   "pages_messaging",
