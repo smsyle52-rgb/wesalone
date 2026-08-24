@@ -1132,6 +1132,23 @@ class UserQuotaService extends BaseService {
         channelsUsed,
         macUsed,
         syncedAt: new Date(),
+        // This insert exists to record usage counts, but on this deployment it
+        // is what actually CREATES the row: `ensureBootstrapPlan` returns early
+        // unless `isCloud()`, and Wesal One runs on the community edition. The
+        // row therefore lands with `autoReplyEnabled` at its column default of
+        // false, and `isAutoReplyEnabledForWorkspace` reads exactly that field —
+        // so the merchant's AI agent is silent from the moment they sign up,
+        // with only an info-level log line to show for it.
+        //
+        // Four live merchants were found this way over three days, each
+        // discovered only because someone noticed the agent never answered.
+        //
+        // Every plan in WESAL_ONE_PLANS sets `autoReply: true`, including free,
+        // so a row with no plan stamped on it should behave as free rather than
+        // as the most restrictive possible state. `onConflictDoUpdate` below
+        // deliberately does not touch this field — once the billing layer has
+        // written a real plan, that plan's value wins.
+        autoReplyEnabled: findWesalOnePlan("free")?.autoReply ?? true,
       })
       .onConflictDoUpdate({
         target: userQuotaModel.userId,

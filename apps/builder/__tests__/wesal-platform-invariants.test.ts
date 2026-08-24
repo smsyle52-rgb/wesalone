@@ -107,6 +107,44 @@ describe("Knowledge-base retrieval uses a threshold the models can reach", () =>
   })
 })
 
+describe("A quota row created by usage sync does not silence the agent", () => {
+  /**
+   * `ensureBootstrapPlan` returns early unless `isCloud()`, and Wesal One runs
+   * on the community edition — so the row is actually created by the usage-count
+   * sync, which used to insert only `*Used` columns. `autoReplyEnabled` then took
+   * its column default of false, and `isAutoReplyEnabledForWorkspace` reads that
+   * field directly, so a merchant's agent was silent from signup.
+   *
+   * Found four times across three days, each discovered only because a human
+   * noticed the agent never answered — the code path logs at info level and
+   * raises nothing.
+   */
+  const source = read("packages/business/src/user-quota/service.ts")
+
+  test("the usage-sync insert stamps autoReplyEnabled", () => {
+    // Anchor on `userId: ownerId` — the usage-sync insert is the only one
+    // keyed that way — and stop at its closing `})`, so the assertion cannot
+    // be satisfied by the `onConflictDoUpdate` block that follows it.
+    const start = source.indexOf("userId: ownerId,")
+    expect(start).toBeGreaterThan(-1)
+    const values = source
+      .slice(start, source.indexOf("})", start))
+      // Strip comments first. The block carries a long explanatory comment that
+      // names the field repeatedly, so a plain substring check passes even when
+      // the assignment itself has been deleted — verified by removing the line
+      // and watching this test still go green.
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("//"))
+      .join("\n")
+    expect(values).toMatch(/autoReplyEnabled\s*:/)
+  })
+
+  test("every plan in the catalogue leaves auto-reply on", () => {
+    const plans = read("packages/business/src/platform/wesal-one-plans.ts")
+    expect(plans).not.toMatch(/autoReply:\s*false/)
+  })
+})
+
 describe("Browser uploads carry the header Azure Blob requires", () => {
   /**
    * Azure Blob answers 400 MissingRequiredHeader to any upload without
