@@ -3689,7 +3689,6 @@
     "title": "Zalo OA",
     "reconnect": "إعادة الاتصال",
     "duplicated": "حساب Zalo OA هذا مرتبط بالفعل بمساحة عمل أخرى.",
-    "refreshPermissions": "تحديث الأذونات",
     "tagSync": {
       "title": "مزامنة العلامات",
       "description": "قم بنسخ تعيينات العلامات المحلية إلى Zalo OA.",
@@ -4994,63 +4993,63 @@
     },
     "fields": {
       "eventType": {
-        "label": "Event type",
-        "leadSubmitted": "Lead Submitted"
+        "label": "نوع الحدث",
+        "leadSubmitted": "تم إرسال عميل محتمل"
       },
-      "value": "Value",
-      "valuePlaceholder": "e.g. 250",
-      "currency": "Currency",
-      "currencyPlaceholder": "e.g. USD",
-      "contentCategory": "Content Category",
-      "contentCategoryPlaceholder": "The category of the content associated with the event",
-      "contentName": "Content Name",
-      "contentNamePlaceholder": "The name of the page or product associated with the event"
+      "value": "القيمة",
+      "valuePlaceholder": "مثال: 250",
+      "currency": "العملة",
+      "currencyPlaceholder": "مثال: USD",
+      "contentCategory": "فئة المحتوى",
+      "contentCategoryPlaceholder": "فئة المحتوى المرتبط بالحدث",
+      "contentName": "اسم المحتوى",
+      "contentNamePlaceholder": "اسم الصفحة أو المنتج المرتبط بالحدث"
     },
-    "datasetIdPlaceholder": "Paste Dataset ID from Events Manager",
-    "saveDataset": "Save",
-    "accessToken": "Access Token (optional)",
-    "accessTokenHint": "Paste a token from Events Manager to send events with your own token instead of the connected page token. Requires a Dataset ID.",
-    "accessTokenPlaceholder": "Events Manager access token",
-    "saveToken": "Save token",
-    "tokenSaved": "Token saved",
-    "removeToken": "Remove",
-    "saved": "Saved",
+    "datasetIdPlaceholder": "الصق معرف Dataset من Events Manager",
+    "saveDataset": "حفظ",
+    "accessToken": "رمز الوصول (اختياري)",
+    "accessTokenHint": "الصق رمزًا من Events Manager لإرسال الأحداث برمزك الخاص بدلاً من رمز الصفحة المتصلة. يتطلب معرف Dataset.",
+    "accessTokenPlaceholder": "رمز وصول Events Manager",
+    "saveToken": "حفظ الرمز",
+    "tokenSaved": "تم حفظ الرمز",
+    "removeToken": "إزالة",
+    "saved": "تم الحفظ",
     "help": {
-      "delay": "Events may take up to 40 minutes to appear in Events Manager and show as Meta Leads in Ads Manager."
+      "delay": "قد تستغرق الأحداث حتى 40 دقيقة لتظهر في Events Manager وتظهر كـ Meta Leads في Ads Manager."
     },
-    "connected": "Connected",
-    "disconnect": "Disconnect",
-    "openEventManager": "Open Event Manager",
+    "connected": "متصل",
+    "disconnect": "قطع الاتصال",
+    "openEventManager": "فتح Event Manager",
     "methods": {
       "oauth": {
-        "title": "Connect via Facebook",
-        "description": "Use your page's existing connection, then choose a Dataset ID.",
-        "connect": "Connect via Facebook",
-        "connectedLabel": "via Facebook"
+        "title": "ربط عبر Facebook",
+        "description": "استخدم اتصال صفحتك الحالي، ثم اختر معرف Dataset.",
+        "connect": "إنشاء مجموعة بيانات",
+        "connectedLabel": "عبر Facebook"
       },
       "custom": {
-        "title": "Custom connection",
-        "description": "Use a Dataset ID and an access token from Meta Events Manager.",
-        "start": "Set up custom connection",
-        "connect": "Connect",
-        "connectedLabel": "Custom"
+        "title": "اتصال مخصص",
+        "description": "استخدم معرف Dataset ورمز وصول من Meta Events Manager.",
+        "start": "إعداد اتصال مخصص",
+        "connect": "ربط",
+        "connectedLabel": "مخصص"
       },
       "whatsapp": {
-        "title": "Connect via WhatsApp",
-        "description": "Use your WhatsApp connection, then choose a Dataset ID.",
-        "connect": "Connect via WhatsApp",
-        "connectedLabel": "via WhatsApp"
+        "title": "ربط عبر WhatsApp",
+        "description": "استخدم اتصال WhatsApp الخاص بك، ثم اختر معرف Dataset.",
+        "connect": "إنشاء مجموعة بيانات",
+        "connectedLabel": "عبر WhatsApp"
       }
     },
     "finalize": {
-      "title": "Choose a Dataset ID",
-      "description": "Enter an existing Dataset ID, or leave it empty to create one automatically.",
+      "title": "اختر معرف Dataset",
+      "description": "أدخل معرف Dataset موجودًا، أو اتركه فارغًا لإنشاء واحد تلقائيًا.",
       "save": "حفظ",
-      "caveat": "A Dataset ID that isn't linked to this Page or Instagram account may not attribute events correctly. Leave this field empty to create a linked dataset automatically.",
-      "createDataset": "إنشاء مجموعة بيانات"
+      "createDataset": "إنشاء مجموعة بيانات",
+      "caveat": "قد لا يُسند معرف Dataset غير المرتبط بهذه الصفحة أو حساب Instagram الأحداث بشكل صحيح. اترك هذا الحقل فارغًا لإنشاء Dataset مرتبط تلقائيًا."
     },
     "whatsapp": {
-      "connect": "Connect"
+      "connect": "ربط"
     }
   },
   "platformAiSettings": {
@@ -5940,66 +5939,8 @@
       "invalidTokenDescription": "قد يكون الرابط غير صالح أو منتهي الصلاحية. يُرجى طلب رابط جديد.",
       "submitFailed": "تعذّر إتمام هذا الطلب. يُرجى المحاولة مرة أخرى."
     },
-    "fields": {
-      "eventType": {
-        "label": "نوع الحدث",
-        "leadSubmitted": "تم إرسال عميل محتمل"
-      },
-      "value": "القيمة",
-      "valuePlaceholder": "مثال: 250",
-      "currency": "العملة",
-      "currencyPlaceholder": "مثال: USD",
-      "contentCategory": "فئة المحتوى",
-      "contentCategoryPlaceholder": "فئة المحتوى المرتبط بالحدث",
-      "contentName": "اسم المحتوى",
-      "contentNamePlaceholder": "اسم الصفحة أو المنتج المرتبط بالحدث"
-    },
-    "datasetIdPlaceholder": "الصق معرف Dataset من Events Manager",
-    "saveDataset": "حفظ",
-    "accessToken": "رمز الوصول (اختياري)",
-    "accessTokenHint": "الصق رمزًا من Events Manager لإرسال الأحداث برمزك الخاص بدلاً من رمز الصفحة المتصلة. يتطلب معرف Dataset.",
-    "accessTokenPlaceholder": "رمز وصول Events Manager",
-    "saveToken": "حفظ الرمز",
-    "tokenSaved": "تم حفظ الرمز",
-    "removeToken": "إزالة",
-    "saved": "تم الحفظ",
-    "help": {
-      "delay": "قد تستغرق الأحداث حتى 40 دقيقة لتظهر في Events Manager وتظهر كـ Meta Leads في Ads Manager."
-    },
-    "connected": "متصل",
-    "disconnect": "قطع الاتصال",
-    "openEventManager": "فتح Event Manager",
-    "methods": {
-      "oauth": {
-        "title": "ربط عبر Facebook",
-        "description": "استخدم اتصال صفحتك الحالي، ثم اختر معرف Dataset.",
-        "connect": "إنشاء مجموعة بيانات",
-        "connectedLabel": "عبر Facebook"
-      },
-      "custom": {
-        "title": "اتصال مخصص",
-        "description": "استخدم معرف Dataset ورمز وصول من Meta Events Manager.",
-        "start": "إعداد اتصال مخصص",
-        "connect": "ربط",
-        "connectedLabel": "مخصص"
-      },
-      "whatsapp": {
-        "title": "ربط عبر WhatsApp",
-        "description": "استخدم اتصال WhatsApp الخاص بك، ثم اختر معرف Dataset.",
-        "connect": "إنشاء مجموعة بيانات",
-        "connectedLabel": "عبر WhatsApp"
-      }
-    },
-    "finalize": {
-      "title": "اختر معرف Dataset",
-      "description": "أدخل معرف Dataset موجودًا، أو اتركه فارغًا لإنشاء واحد تلقائيًا.",
-      "save": "حفظ",
-      "createDataset": "إنشاء مجموعة بيانات",
-      "caveat": "قد لا يُسند معرف Dataset غير المرتبط بهذه الصفحة أو حساب Instagram الأحداث بشكل صحيح. اترك هذا الحقل فارغًا لإنشاء Dataset مرتبط تلقائيًا."
-    },
-    "whatsapp": {
-      "connect": "ربط"
-    }
+    "monthLabel": "الشهر",
+    "yearLabel": "السنة"
   },
   "minigames": {
     "title": "التلعيب",
@@ -6121,8 +6062,6 @@
         "lose": "بدون جائزة",
         "empty": "لا توجد سجلات لعب بعد"
       }
-    },
-    "monthLabel": "الشهر",
-    "yearLabel": "السنة"
+    }
   }
 }

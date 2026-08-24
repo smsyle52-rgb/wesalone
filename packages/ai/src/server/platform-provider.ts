@@ -62,7 +62,7 @@ function getPlatformAzureOpenAIConfig(): PlatformAzureOpenAIConfig | null {
  * assigned managed identity at runtime; no Google service-account key or
  * access token is persisted in the application, database, or Key Vault.
  */
-function getVertexGoogleAuthOptions(
+export function getVertexGoogleAuthOptions(
   projectId: string,
 ): GoogleAuthOptions | null {
   const identityEndpoint = env.IDENTITY_ENDPOINT
@@ -408,7 +408,13 @@ export async function getPlatformTranscriptionModel(): Promise<{
   }
 }
 
-export async function getPlatformTextToSpeechConfig(): Promise<ResolvedPlatformAiCapability | null> {
+/**
+ * Narrowed to the Vertex branch deliberately: the runtime check below already
+ * guarantees it, and callers need `projectId` off the result to build the
+ * Workload Identity Federation credential. Returning the wider union hid that
+ * field behind a type error and left the caller authenticating with nothing.
+ */
+export async function getPlatformTextToSpeechConfig(): Promise<ResolvedPlatformVertexCapability | null> {
   const capability = await getActivePlatformAiCapability("textToSpeech")
   return capability?.provider === "vertex" ? capability : null
 }

@@ -1,5 +1,8 @@
 import { GoogleAuth } from "google-auth-library"
-import { getPlatformTextToSpeechConfig } from "./platform-provider"
+import {
+  getPlatformTextToSpeechConfig,
+  getVertexGoogleAuthOptions,
+} from "./platform-provider"
 
 const CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 const VOICE_LANGUAGE_CODE_PATTERN = /^([a-z]{2,3}-[A-Z]{2})-/
@@ -23,7 +26,26 @@ export async function synthesizePlatformSpeech(props: {
   }
 
   const voice = capability.voice ?? "ar-XA-Chirp3-HD-Aoede"
-  const auth = new GoogleAuth({ scopes: [CLOUD_PLATFORM_SCOPE] })
+
+  // A bare `new GoogleAuth()` looks for Application Default Credentials —
+  // GOOGLE_APPLICATION_CREDENTIALS, a metadata server, a gcloud login. None of
+  // those exist in the Azure containers this runs in, so the call failed at
+  // authentication and the caller quietly fell through to the merchant's own
+  // OpenAI key, leaving the platform's configured Arabic voice unused.
+  //
+  // The platform already builds a Workload Identity Federation credential for
+  // Vertex from the Azure managed identity (no Google key is stored anywhere),
+  // and it is what makes chat work from these same containers. Reuse it: the
+  // scope it requests is cloud-platform, which covers the Text-to-Speech API.
+  const authOptions = getVertexGoogleAuthOptions(capability.projectId)
+  if (!authOptions) {
+    return null
+  }
+
+  const auth = new GoogleAuth({
+    ...authOptions,
+    scopes: [CLOUD_PLATFORM_SCOPE],
+  })
   const client = await auth.getClient()
   const authHeaders = await client.getRequestHeaders()
   const requestHeaders: Record<string, string> = {}
