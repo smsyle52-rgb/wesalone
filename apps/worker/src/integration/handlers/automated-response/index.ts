@@ -38,6 +38,30 @@ import { replyByAI } from "./replies"
 
 const TRIGGER_MESSAGE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000
 
+/**
+ * Labels the WhatsApp integration stores for inbound types it has no parser
+ * for. These two are events about a conversation, not messages in it, so the
+ * agent has nothing to answer. Matched on the stored text because that is what
+ * reaches this handler — the message type itself is not carried through.
+ */
+const CONVERSATION_EVENT_LABELS = new Set([
+  "Received reaction",
+  "Received revoke",
+])
+
+/**
+ * `unsupported` is Meta's signal that it could not deliver the content at all
+ * (a poll, or something a newer WhatsApp build sent). The customer did write
+ * something; we simply never received it. Left as the raw label, the agent
+ * reads the English word "unsupported", searches the knowledge base for it and
+ * answers with whatever comes back — observed on production, querying
+ * "unsupported message media" and finding nothing. Replacing it with a real
+ * instruction lets the agent say something useful instead.
+ */
+const UNSUPPORTED_LABEL = "Received unsupported"
+const UNSUPPORTED_PROMPT =
+  "أرسل العميل رسالة لم يصلنا محتواها لأن واتساب لا يدعم نوعها. اعتذر له بإيجاز واطلب منه إعادة إرسالها نصًّا أو صورة."
+
 const SUPPORTED_DOCUMENT_MIME_TYPES = new Set<string>([
   ...PDF_MIME_TYPES,
   ...DOCX_MIME_TYPES,
@@ -101,6 +125,32 @@ export async function processAutomatedResponse(
       "Automated response trigger message was not found",
     )
   }
+  // WhatsApp sends `reaction` (an emoji placed on an earlier message) and
+  // `revoke` (the sender deleting one) through the same inbound path as real
+  // messages. Neither has a parser upstream, so both land as the literal label
+  // "Received reaction" / "Received revoke" — and waking the agent for those
+  // makes it answer an emoji, and spends points doing it. Measured over one
+  // week on production: 18 such rows across two live workspaces.
+  //
+  // The check lives here rather than in the WhatsApp integration because that
+  // file is byte-identical to upstream ChatbotX and carries an upstream test
+  // asserting the label; this handler already diverges, so the fix costs no
+  // extra merge surface.
+  if (
+    triggerMessage?.senderType === "contact" &&
+    CONVERSATION_EVENT_LABELS.has(triggerMessage.text ?? "")
+  ) {
+    logger.info(
+      {
+        conversationId: conversation.id,
+        workspaceId: conversation.workspaceId,
+        label: triggerMessage.text,
+      },
+      "[automated-response] skipped a conversation event, not a message",
+    )
+    return
+  }
+
   const triggerAttachments = triggerMessage?.attachments ?? []
   const isFileOnlyTrigger =
     triggerMessage?.senderType === "contact" &&
@@ -286,6 +336,21 @@ export async function processAutomatedResponse(
           language: workspace.language,
         }),
       })
+    }
+
+    // Rewrite the bare "Received unsupported" label the agent would otherwise
+    // read as a customer's own words. The message row keeps the original label
+    // so the inbox still shows what arrived; only what the model sees changes.
+    if (triggerMessage?.text === UNSUPPORTED_LABEL) {
+      const last = messages.at(-1)
+      if (last?.role === aiMessageRoles.enum.user) {
+        last.content = UNSUPPORTED_PROMPT
+      } else {
+        messages.push({
+          role: aiMessageRoles.enum.user,
+          content: UNSUPPORTED_PROMPT,
+        })
+      }
     }
 
     const sendTyping = () =>
