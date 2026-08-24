@@ -77,19 +77,35 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe("community edition blocks social login server-side", () => {
-  test("social login is disabled even when platform credentials exist", async () => {
+/**
+ * Upstream asserts the opposite of every case here: on the community edition it
+ * refuses social login outright, before even looking a credential up, because
+ * upstream treats it as a paid-tier feature.
+ *
+ * Wesal One deliberately removed that gate. It runs with
+ * NEXT_PUBLIC_EDITION=community — switching to cloud/enterprise makes both apps
+ * refuse to start without a LICENSE_KEY — while holding a real platform Google
+ * credential, so upstream's gate discarded a working sign-in method for a reason
+ * unrelated to this platform's licence state. See `resolveCredentialForTenant`.
+ *
+ * The suite is kept rather than deleted, with its expectations inverted, so the
+ * behaviour stays pinned in both directions: an upstream merge that restores the
+ * gate fails here, and a change that starts leaking credentials when none are
+ * configured fails here too.
+ */
+describe("social login follows the configured credential, not the edition", () => {
+  test("social login is enabled when a platform credential exists", async () => {
     mockFindDecryptedPlatform.mockResolvedValue(credential("platform-client"))
     const { isSocialLoginEnabledForTenant } = await loadModule()
 
     expect(await isSocialLoginEnabledForTenant(ROOT_TENANT_ID, "google")).toBe(
-      false,
+      true,
     )
-    // The credential is never even looked up.
-    expect(mockFindDecryptedPlatform).not.toHaveBeenCalled()
+    // The gate used to return before this lookup ever ran.
+    expect(mockFindDecryptedPlatform).toHaveBeenCalled()
   })
 
-  test("the auth instance is built with no social provider", async () => {
+  test("the auth instance carries the configured client id", async () => {
     mockFindDecryptedPlatform.mockResolvedValue(credential("platform-client"))
     const { getSocialAuthForTenant } = await loadModule()
 
@@ -98,15 +114,26 @@ describe("community edition blocks social login server-side", () => {
       "google",
     )) as unknown as { clientId: string | null }
 
-    expect(auth.clientId).toBeNull()
+    expect(auth.clientId).toBe("platform-client")
   })
 
-  test("no provider resolves for any tenant or provider", async () => {
+  test("a reseller tenant resolves its own credential", async () => {
     mockResolveTenantOwnerId.mockResolvedValue("owner-1")
     mockResolveForOwner.mockResolvedValue(credential("reseller-client"))
     const { isSocialLoginEnabledForTenant } = await loadModule()
 
-    expect(await isSocialLoginEnabledForTenant("42", "facebook")).toBe(false)
-    expect(mockResolveForOwner).not.toHaveBeenCalled()
+    expect(await isSocialLoginEnabledForTenant("42", "facebook")).toBe(true)
+    expect(mockResolveForOwner).toHaveBeenCalled()
+  })
+
+  test("social login stays off when no credential is configured", async () => {
+    // This is what upstream's gate was standing in for, and it still holds:
+    // removing the edition check did not make social login unconditionally on.
+    mockFindDecryptedPlatform.mockResolvedValue(null)
+    const { isSocialLoginEnabledForTenant } = await loadModule()
+
+    expect(await isSocialLoginEnabledForTenant(ROOT_TENANT_ID, "google")).toBe(
+      false,
+    )
   })
 })
