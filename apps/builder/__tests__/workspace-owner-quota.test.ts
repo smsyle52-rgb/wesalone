@@ -38,9 +38,14 @@ vi.mock("@chatbotx.io/sdk", () => ({
   SdkException: class SdkException extends Error {},
 }))
 
-vi.mock("@chatbotx.io/utils", () => ({
-  zodBigintAsString: () => ({ safeParse: () => ({ data: null }) }),
-}))
+// Returns a real zod schema, not a stub with only `safeParse`. Schemas loaded
+// through this module chain now chain further off it — `partials/minigame.ts`
+// calls `.nullable().default(null)` — and a hand-rolled stand-in breaks the
+// moment any caller uses a method it does not implement.
+vi.mock("@chatbotx.io/utils", async () => {
+  const { z } = await import("zod")
+  return { zodBigintAsString: () => z.string() }
+})
 
 vi.mock("@/env", () => ({ isCloud }))
 vi.mock("@/features/workspace-members/queries", () => ({

@@ -64,9 +64,13 @@ vi.mock("@chatbotx.io/database/partials", async () => {
   return actual
 })
 
-vi.mock("@chatbotx.io/utils", () => ({
-  zodBigintAsString: () => ({}),
-}))
+// A real zod schema, not `{}` — schemas pulled in through this module chain
+// chain further off the result (see `partials/minigame.ts`), which an empty
+// object cannot support.
+vi.mock("@chatbotx.io/utils", async () => {
+  const { z } = await import("zod")
+  return { zodBigintAsString: () => z.string() }
+})
 
 vi.mock("@/features/custom-fields/queries", () => ({
   listCustomFields: mocks.listCustomFields,
