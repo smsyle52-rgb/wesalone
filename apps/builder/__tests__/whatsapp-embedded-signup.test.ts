@@ -90,7 +90,7 @@ describe("buildFacebookOAuthDialogUrl", () => {
     const redirectUri = `${BUILDER_URL}/integrations/whatsapp/callback`
     const result = new URL(
       buildFacebookOAuthDialogUrl({
-        resellerOrigin: RESELLER_ORIGIN,
+        resellerUrl: RESELLER_URL,
         redirectUri,
         clientId: "client-1",
         configId: "config-1",
