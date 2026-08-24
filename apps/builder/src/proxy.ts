@@ -31,6 +31,7 @@ const publicRoutes = [
   "/r",
   "/l",
   "/dynamic-images",
+  "/minigames",
   "/auth",
   "/api",
   "/ws",

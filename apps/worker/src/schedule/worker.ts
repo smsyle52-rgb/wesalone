@@ -144,7 +144,7 @@ async function startScheduleWorker() {
           return
 
         case ScheduleJobData.refreshChannelTokens:
-          await refreshChannelTokens()
+          await refreshChannelTokens(job.data.data.channels)
           return
 
         case ScheduleJobData.unsubscribeExpiredTrials:

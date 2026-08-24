@@ -107,19 +107,22 @@ import { messageRelations } from "./message"
 import { messengerMessageTemplateRelations } from "./messenger-message-template"
 import { metaCapiEventRelations } from "./meta-capi-event"
 import { metaCatalogRelations } from "./meta-catalog"
-import { orderRelations } from "./order"
-import { orderItemRelations } from "./order-item"
-import { paymentRelations } from "./payment"
-import { paymentWebhookEventRelations } from "./payment-webhook-event"
-import { platformAiSettingRelations } from "./platform-ai-setting"
-import { platformSubscriptionRelations } from "./platform-subscription"
-import { platformSubscriptionPaymentRelations } from "./platform-subscription-payment"
-import {
   pointGrantRelations,
   pointLedgerRelations,
   pointPurchaseOrderRelations,
   pointTopupProductRelations,
   pointWalletRelations,
+import {
+import { minigameContactRelations } from "./minigame-contact"
+import { minigamePlayRelations } from "./minigame-play"
+import { minigameRelations } from "./minigame"
+import { orderItemRelations } from "./order-item"
+import { orderRelations } from "./order"
+import { paymentRelations } from "./payment"
+import { paymentWebhookEventRelations } from "./payment-webhook-event"
+import { platformAiSettingRelations } from "./platform-ai-setting"
+import { platformSubscriptionPaymentRelations } from "./platform-subscription-payment"
+import { platformSubscriptionRelations } from "./platform-subscription"
 } from "./point"
 import { productRelations } from "./product"
 import { productCategoryRelations } from "./product-category"
@@ -292,4 +295,7 @@ export const relations = {
   ...pointPurchaseOrderRelations,
   ...whatsappSignupSessionRelations,
   ...automationThrottleRelations,
+  ...minigameRelations,
+  ...minigameContactRelations,
+  ...minigamePlayRelations,
 }
