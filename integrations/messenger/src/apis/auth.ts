@@ -169,8 +169,14 @@ function sortConnectableFirst(
 
 const FACEBOOK_OAUTH_BASE = "https://www.facebook.com"
 
+// Only permissions this Meta app is actually approved for (App Review page).
+// "email" was removed here on 24 Jul, then reintroduced by an upstream merge
+// that resolved this line back to ChatbotX's broader default list. "page_events"
+// was added later for a Lead Ads event-tracking check, but was never submitted
+// for App Review — it isn't part of LEAD_ADS_SCOPES (the dedicated, already-
+// approved re-auth flow below), so removing it here costs that flow nothing.
+// Both broke every Messenger/Instagram connect attempt with "Invalid Scopes".
 export const MESSENGER_SCOPES = [
-  "email",
   "public_profile",
   "pages_manage_metadata",
   "pages_read_engagement",
@@ -178,7 +184,6 @@ export const MESSENGER_SCOPES = [
   "pages_show_list",
   "business_management",
   "pages_utility_messaging",
-  "page_events",
 ]
 
 /**
