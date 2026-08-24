@@ -113,6 +113,24 @@ export type ReplyAIProvider =
   | "azureOpenAI"
   | "openaiCompatible"
 
+/** Tool id the knowledge-base search is registered under. */
+const KNOWLEDGE_SEARCH_TOOL = "search_knowledge_base"
+
+/**
+ * Total steps one reply may take, mirroring `stopWhen: stepCountIs(...)` below.
+ * Named so `prepareStep` can reserve the final step for writing the answer
+ * instead of hardcoding the same number in two places.
+ */
+const MAX_REPLY_STEPS = 5
+
+/**
+ * Searches allowed per reply. Step 0 is already forced into one, so this leaves
+ * room for a single follow-up search when the first query missed — and stops
+ * there, because past that the model was not gathering information, it was
+ * looping.
+ */
+const MAX_KNOWLEDGE_SEARCHES = 2
+
 function getNoResponseFallback(language?: string): string {
   if (language?.toLowerCase().startsWith("ar")) {
     return "عذرًا، لم أتمكن من إنشاء رد كامل الآن. يرجى إعادة صياغة طلبك أو تحديد ما تحتاجه وسأساعدك."
@@ -938,6 +956,17 @@ async function runAIReply(
       : guardedPrompt
 
     const toolNamesSet = new Set<string>()
+    /**
+     * How many times the model has searched the knowledge base this turn.
+     *
+     * `stepCountIs(5)` is the whole budget, and step 0 is forced into a search.
+     * With nothing stopping it the model keeps searching — observed on
+     * production: six searches in fifteen seconds, three of them with an empty
+     * query returning nothing — until the budget is gone, no text is ever
+     * produced, and the customer gets "لم أتمكن من إنشاء رد كامل الآن".
+     * Fifteen customers hit that in one day.
+     */
+    let knowledgeSearchCount = 0
     const finishReasons: Array<{
       stepNumber: number
       finishReason: string
@@ -951,7 +980,7 @@ async function runAIReply(
 
     const runtimeTools: ToolSet = tools
     const hasTools = Object.keys(runtimeTools).length > 0
-    const hasKnowledgeBase = "search_knowledge_base" in runtimeTools
+    const hasKnowledgeBase = KNOWLEDGE_SEARCH_TOOL in runtimeTools
     const { messages: modelMessages, removed: removedAssistantTurns } =
       removeTrailingAssistantTurns(messages)
     if (removedAssistantTurns > 0) {
@@ -977,10 +1006,10 @@ async function runAIReply(
       prepareStep: ({ stepNumber }) => {
         if (stepNumber === 0 && hasKnowledgeBase) {
           return {
-            activeTools: ["search_knowledge_base"],
+            activeTools: [KNOWLEDGE_SEARCH_TOOL],
             toolChoice: {
               type: "tool",
-              toolName: "search_knowledge_base",
+              toolName: KNOWLEDGE_SEARCH_TOOL,
             },
           }
         }
@@ -991,9 +1020,23 @@ async function runAIReply(
         if (toolNamesSet.has(systemFunctionNames.imageReader)) {
           return { activeTools: [], toolChoice: "none" }
         }
+        // The last step has to produce the answer. Leaving tools available here
+        // lets the model spend it on one more call and finish with no text at
+        // all, which is the single largest source of the generic fallback
+        // reaching customers.
+        if (stepNumber >= MAX_REPLY_STEPS - 1) {
+          return { activeTools: [], toolChoice: "none" }
+        }
+        // Searching the knowledge base is the same kind of information-
+        // gathering step as reading an image, and the model treats it as the
+        // one tool guaranteed to work — so it repeats it until the budget is
+        // gone. Two searches is enough to answer from; after that it must write.
+        if (knowledgeSearchCount >= MAX_KNOWLEDGE_SEARCHES) {
+          return { activeTools: [], toolChoice: "none" }
+        }
         return undefined
       },
-      stopWhen: stepCountIs(5),
+      stopWhen: stepCountIs(MAX_REPLY_STEPS),
       timeout: {
         totalMs: aiTimeouts.aiTotal,
         stepMs: aiTimeouts.aiStep,
@@ -1017,6 +1060,9 @@ async function runAIReply(
         for (const call of toolCalls) {
           if (call?.toolName) {
             toolNamesSet.add(call.toolName)
+            if (call.toolName === KNOWLEDGE_SEARCH_TOOL) {
+              knowledgeSearchCount += 1
+            }
             if (call.toolName === systemFunctionNames.webSearch) {
               webSearchesCount += 1
             }
