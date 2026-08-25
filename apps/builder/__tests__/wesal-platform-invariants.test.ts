@@ -138,6 +138,48 @@ describe("Meta's policy pages are reachable without a session", () => {
   )
 })
 
+describe("A blocked popup falls back to same-tab navigation", () => {
+  /**
+   * `window.open` is swallowed silently by ad blockers, privacy extensions,
+   * per-site popup blocks and in-app browsers alike. None of them reach the
+   * server, so a merchant reporting "the button does nothing" leaves no trace
+   * to diagnose — seven did, while the same click worked in an unextended
+   * Chrome. Showing a toast asking them to allow popups strands anyone whose
+   * blocker they do not control or cannot find.
+   *
+   * Navigating in place clears the whole class. This is not a new flow: the
+   * callback route already redirects back to the referer with
+   * WA_OAUTH_CODE_PARAM whenever `window.opener` is missing, and the create
+   * card reads that param on mount. Both halves must survive together — a
+   * merge that keeps one and drops the other sends merchants to Meta and
+   * loses them on the way back, which is worse than the toast.
+   *
+   * The reconnect button deliberately does NOT get this: it has no same-tab
+   * return path, so navigating away there would strand the code.
+   */
+  const card = read(
+    "apps/builder/src/features/integration-whatsapp/components/whatsapp-create.tsx",
+  )
+  const callback = read(
+    "apps/builder/src/app/integrations/whatsapp/callback/route.ts",
+  )
+
+  test("a failed window.open navigates in place instead of only warning", () => {
+    const branch = card.slice(card.indexOf("const authTab = window.open"))
+    const body = branch.slice(0, branch.indexOf("}, ["))
+    expect(body).toContain("window.location.href = url")
+  })
+
+  test("the create card still reads the code back off the URL", () => {
+    expect(card).toContain("WA_OAUTH_CODE_PARAM")
+  })
+
+  test("the callback still hands the code back for a same-tab return", () => {
+    expect(callback).toContain("WA_OAUTH_CODE_PARAM")
+    expect(callback).toContain("fallbackUrl")
+  })
+})
+
 describe("Knowledge-base retrieval uses a threshold the models can reach", () => {
   /**
    * 0.7 belongs to text-embedding-ada-002, whose cosine scores sit high and
