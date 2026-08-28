@@ -75,7 +75,11 @@ describe("handleOrphanedIntegration", () => {
 
     expect(mocks.unsubscribeMessenger).not.toHaveBeenCalled()
     expect(mocks.unsubscribeInstagram).not.toHaveBeenCalled()
-    expect(mocks.loggerInfo).toHaveBeenCalled()
+    // Wesal raised this from info to warn on purpose: a WhatsApp phoneNumberId
+    // with no IntegrationWhatsapp row is not a harmless unsupported channel —
+    // it is a live number whose customers' messages are being dropped, and at
+    // info level nobody ever saw it. See orphaned-integration-cleanup.ts.
+    expect(mocks.loggerWarn).toHaveBeenCalled()
   })
 
   test("skips messenger cleanup when an Instagram sibling still exists", async () => {

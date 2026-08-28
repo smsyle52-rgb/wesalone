@@ -17,6 +17,7 @@ import type { ExecuteStepResult } from "../step"
 
 export async function handleAIAnalyzeImage({
   conversation,
+  contactInbox,
   flowVersion,
   step,
   triggerMessageId,
@@ -125,6 +126,7 @@ export async function handleAIAnalyzeImage({
         customFieldId: step.outputFieldId,
         fullText,
         workspaceId: conversation.workspaceId,
+        contactInboxId: contactInbox.id,
       })
     }
 

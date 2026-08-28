@@ -21,6 +21,17 @@ const nextConfig: NextConfigWithStaticGenerationConcurrency = {
   reactStrictMode: true,
   output: "standalone",
   pageExtensions: ["ts", "tsx"],
+
+  // These `@chatbotx.io/*` workspace packages are consumed as SOURCE (their
+  // `exports` point at `./src/*.ts`). pnpm symlinks them under node_modules, so
+  // without this Next/Turbopack treats them as vendored externals and does NOT
+  // recompile them on edit during `next dev` — server-side changes to them
+  // silently keep running the previously-compiled copy. Listing them here puts
+  // them through the compile+watch pipeline so edits actually take effect.
+  transpilePackages: [
+    "@chatbotx.io/integration-facebook-ads",
+    "@chatbotx.io/business",
+  ],
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },

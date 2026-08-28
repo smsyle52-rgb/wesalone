@@ -51,6 +51,7 @@ vi.mock("@chatbotx.io/business", () => ({
     reserve: usageMeteringReserveMock,
     settleLanguage: usageMeteringSettleLanguageMock,
     release: usageMeteringReleaseMock,
+  },
   defaultReplyThrottleService: {
     tryAcquire: tryAcquireMock,
     release: releaseMock,
@@ -654,6 +655,8 @@ describe("replyByAI — default reply flow fallback", () => {
       expect.objectContaining({ removedAssistantTurns: 1 }),
       expect.stringContaining("removed dangling assistant turns"),
     )
+  })
+
   test("suppresses the canned fallback text (stays silent) when the default reply flow is throttled", async () => {
     findByFlowMock.mockResolvedValueOnce({
       id: "flow-1",

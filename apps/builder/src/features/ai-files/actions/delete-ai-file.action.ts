@@ -1,5 +1,6 @@
 "use server"
 
+import { auditService } from "@chatbotx.io/business/audit"
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { aiFileModel } from "@chatbotx.io/database/schema"
 import { uploader } from "@chatbotx.io/filesystem"
@@ -31,9 +32,18 @@ export const deleteAIFile = async (ctx: {
   })
 
   // The database is authoritative. Its FK cascade removes the embeddings.
-  // Storage cleanup is best-effort so a missing object or temporary storage
-  // outage can never leave an undeletable knowledge-base row in the UI.
+  // Storage cleanup stays OUTSIDE the delete and is best-effort: upstream moved
+  // `deleteObject` inside a transaction, which means a missing object or a
+  // momentary storage outage rolls the row back and leaves a knowledge-base
+  // entry the merchant can see and cannot delete. Keep Wesal's ordering; take
+  // upstream's audit record, which is the part that was genuinely missing.
   await db.delete(aiFileModel).where(eq(aiFileModel.id, ctx.id))
+
+  await auditService.record({
+    workspaceId: ctx.workspaceId,
+    action: "delete",
+    detail: `deleted a Knowledge (#${ctx.id})`,
+  })
 
   try {
     await uploader.deleteObject(targetAIFile.path)

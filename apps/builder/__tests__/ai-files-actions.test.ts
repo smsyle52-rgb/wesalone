@@ -30,10 +30,19 @@ vi.mock("@chatbotx.io/database/client", () => ({
   },
   eq: (column: unknown, value: unknown) => ({ column, value }),
   findOrFail,
+  // Upstream now wraps the delete in a transaction so the row, its embeddings
+  // and the stored object go together. Run the callback against the same spies.
+  transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+    await fn({ delete: vi.fn(() => ({ where: deleteWhere })) }),
 }))
 
 vi.mock("@chatbotx.io/database/schema", () => ({
   aiFileModel: { id: "AIFile.id" },
+  aiEmbeddingModel: { id: "AIEmbedding.id" },
+}))
+
+vi.mock("@chatbotx.io/business/audit", () => ({
+  auditService: { record: vi.fn() },
 }))
 
 vi.mock("@chatbotx.io/filesystem", () => ({

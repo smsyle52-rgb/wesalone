@@ -4,6 +4,7 @@ import {
   platformAiSettingService,
   userQuotaService,
 } from "@chatbotx.io/business"
+import { auditService } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { db } from "@chatbotx.io/database/client"
 import { aiFileModel } from "@chatbotx.io/database/schema"
@@ -61,5 +62,11 @@ export const createAIFileAction = workspaceActionClient
       data: {
         aiFileId: created[0].id,
       },
+    })
+
+    await auditService.record({
+      workspaceId,
+      action: "create",
+      detail: `created a new Knowledge (#${created[0].id})`,
     })
   })

@@ -244,6 +244,7 @@ ${schemaDescription}`
           customFieldId: mapping.customFieldId,
           fullText: stringifyFieldValue(value),
           workspaceId: conversation.workspaceId,
+          contactInboxId: contactInbox.id,
         })
       }),
     )
