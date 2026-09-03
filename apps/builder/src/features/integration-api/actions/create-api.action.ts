@@ -40,7 +40,6 @@ export const createApiAction = authActionClient
 
     const result = await integrationApiService.connect({
       ownerId,
-      actorUserId: ctx.user.id,
       workspaceId,
       name: parsedInput.name,
       auth,

@@ -17,7 +17,6 @@ import type {
 import { createId } from "@chatbotx.io/utils"
 import { BaseService } from "../base.service"
 import { notFoundException } from "../errors"
-import { assertDeletable } from "../template/installed-resource.service"
 
 export type ProductImageInput = {
   id?: string
@@ -330,11 +329,6 @@ class ProductService extends BaseService {
     tx?: DatabaseClient
   }): Promise<void> {
     const { ids, workspaceId, tx = db } = input
-    await assertDeletable({
-      workspaceId,
-      resourceKind: "product",
-      resourceIds: ids,
-    })
     await productRepository.deleteByIds({ workspaceId, productIds: ids }, tx)
   }
 

@@ -1,6 +1,5 @@
 "use server"
 import { aiIntegrationService } from "@chatbotx.io/ai/server"
-import { auditService } from "@chatbotx.io/business/audit"
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { integrationGeminiModel } from "@chatbotx.io/database/schema"
 import {
@@ -36,11 +35,5 @@ export const updateGeminiAction = workspaceActionClient
         .where(eq(integrationGeminiModel.id, integrationGemini.id))
 
       await aiIntegrationService.invalidateCache(workspaceId, "gemini")
-
-      await auditService.record({
-        workspaceId,
-        action: "update",
-        detail: "updated the Gemini integration configuration",
-      })
     },
   )

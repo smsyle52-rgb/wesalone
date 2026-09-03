@@ -3,7 +3,6 @@ import {
   tagSyncService,
   workspaceService,
 } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { db } from "@chatbotx.io/database/client"
 import {
@@ -15,18 +14,15 @@ import type { ZaloAuthValue } from "@chatbotx.io/integration-zalo"
 import { invalidateCacheByTags } from "@chatbotx.io/redis"
 import { redirect } from "next/navigation"
 import { integrations } from "@/integration"
-import { getGuestClientIp } from "@/lib/rate-limit/guest-rate-limit"
 
 export async function connectZaloHandler({
   zaloSettings,
   workspaceId,
-  userId,
   req,
   redirectUrl,
 }: {
   zaloSettings: ZaloCredential
   workspaceId: string
-  userId: string
   req: Request
   redirectUrl: string
 }) {
@@ -45,10 +41,9 @@ export async function connectZaloHandler({
   const { ownerId } = await workspaceService.findById({ id: workspaceId })
 
   let connectedIntegrationId: string | undefined
-  let channelWasCreated = false
   try {
     await db.transaction(async (tx) => {
-      const { wasCreated } = await connectChannelIntegration({
+      await connectChannelIntegration({
         tx,
         ownerId,
         inboxData: {
@@ -57,8 +52,8 @@ export async function connectZaloHandler({
           channel: "zalo",
           sourceId: authValue.oaId,
         },
-        insertIntegration: async (inboxId, insertWasCreated) => {
-          if (!insertWasCreated) {
+        insertIntegration: async (inboxId, wasCreated) => {
+          if (!wasCreated) {
             redirect(
               `/space/${workspaceId}/settings/channels?channel=zalo&error=duplicated`,
             )
@@ -76,7 +71,6 @@ export async function connectZaloHandler({
           connectedIntegrationId = row?.id
         },
       })
-      channelWasCreated = wasCreated
     })
   } catch (error) {
     if (
@@ -88,17 +82,6 @@ export async function connectZaloHandler({
       )
     }
     throw error
-  }
-
-  if (channelWasCreated) {
-    await auditService.record({
-      userId,
-      workspaceId,
-      action: "connect",
-      detail: `connected a new Zalo channel (#${connectedIntegrationId})`,
-      ipAddress: getGuestClientIp(req.headers),
-      userAgent: req.headers.get("user-agent") ?? undefined,
-    })
   }
 
   await invalidateCacheByTags([`workspaces:${workspaceId}#zalos`])

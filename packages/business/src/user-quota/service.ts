@@ -243,10 +243,18 @@ class UserQuotaService extends BaseService {
     tenantId?: string | null
     userId: string
   }): Promise<void> {
-    if (!isCloud()) {
-      return
-    }
-
+    // Upstream returns early off-cloud, which leaves a self-hosted deployment
+    // with no quota row at sign-up. The row is then created later as a side
+    // effect of usage counting and lands with `autoReplyEnabled` at its column
+    // default of `false` — so the merchant's agent is silent from the moment
+    // they register, and nobody notices until a customer is ignored. Measured
+    // on 31 Aug 2026: 91 of 119 August sign-ups had no wallet at all, against
+    // 2 of 78 in July.
+    //
+    // Wesal One runs the community edition but IS the platform for its
+    // merchants, so the free plan must be stamped here like it is on cloud.
+    // `readDefaultPlanSnapshot` already falls back to `BOOTSTRAP_TRIAL_FALLBACK`
+    // when no snapshot is published, which is the off-cloud case.
     const { tenantId, userId } = input
 
     const snapshot: BootstrapPlanSnapshot =

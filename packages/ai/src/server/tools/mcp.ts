@@ -45,6 +45,7 @@ export type McpClientLike = {
 export type McpClientConstructor = new (params: {
   url: string
   auth: AIMcpServerAuth
+  contactId?: string | null
   name: string
 }) => McpClientLike
 
@@ -59,9 +60,15 @@ export async function getMCPServerTools(
   options: {
     McpClient: McpClientConstructor
     normalizeMcpContent: (content: JsonValue) => JsonValue
+    /**
+     * The contact this reply is for. An MCP server only knows the workspace
+     * (from its bearer token), so without this anything it writes is
+     * unattributed — an order with no customer on it.
+     */
+    contactId?: string | null
   },
 ): Promise<{ tools: ToolSet; clients: McpClientLike[] }> {
-  const { McpClient, normalizeMcpContent } = options
+  const { McpClient, normalizeMcpContent, contactId } = options
   try {
     const tools: ToolSet = {}
     const clients: McpClientLike[] = []
@@ -86,6 +93,7 @@ export async function getMCPServerTools(
         const client = new McpClient({
           url: mcpServer.url,
           auth,
+          contactId,
           name: mcpServer.name,
         })
 

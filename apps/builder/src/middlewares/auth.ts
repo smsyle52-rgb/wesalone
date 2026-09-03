@@ -2,10 +2,8 @@ import {
   isWorkspaceScheduledForDeletion,
   workspaceMemberService,
 } from "@chatbotx.io/business"
-import { withAuditContext } from "@chatbotx.io/business/audit"
 import { ORPCError } from "@orpc/server"
 import { auth } from "@/lib/auth/auth"
-import { getGuestClientIp } from "@/lib/rate-limit/guest-rate-limit"
 import { base } from "./context"
 
 export const authMiddleware = base.middleware(async ({ context, next }) => {
@@ -63,23 +61,10 @@ export const workspaceAuthorizedMidddleware = base.middleware(
       })
     }
 
-    return withAuditContext(
-      {
-        userId: context.user.id,
-        workspaceId: workspaceMember.workspace.id,
-        ipAddress:
-          context.session?.ipAddress ?? getGuestClientIp(context.headers),
-        userAgent:
-          context.session?.userAgent ??
-          context.headers.get("user-agent") ??
-          undefined,
+    return next({
+      context: {
+        workspace: workspaceMember.workspace,
       },
-      () =>
-        next({
-          context: {
-            workspace: workspaceMember.workspace,
-          },
-        }),
-    )
+    })
   },
 )

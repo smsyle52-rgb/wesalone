@@ -259,7 +259,6 @@ export async function handleAIEditImage({
         customFieldId: step.outputFieldId,
         fullText: finalImageUrl,
         workspaceId: conversation.workspaceId,
-        contactInboxId: baseContactInbox.id,
       })
     }
 

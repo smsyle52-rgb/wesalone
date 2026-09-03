@@ -10,9 +10,10 @@ import {
 } from "@chatbotx.io/database/client"
 import type {
   ChannelType,
-  MinigameOutcomeMessage,
+  MinigameLoseMessage,
   MinigamePlayerSettings,
   MinigamePrizeSettings,
+  MinigamePrizeWinMessage,
 } from "@chatbotx.io/database/partials"
 import { createMessageRepository } from "@chatbotx.io/database/repositories"
 import {
@@ -39,7 +40,6 @@ import {
 } from "@chatbotx.io/worker-config"
 import { normalizeError } from "universal-error-normalizer"
 import { BaseService } from "../base.service"
-import { contactCustomFieldService } from "../contact-custom-field/service"
 import { contactInboxService } from "../contact-inbox/service"
 import { conversationService } from "../conversation/service"
 import { ChatbotXException } from "../errors"
@@ -50,16 +50,6 @@ import { minigameService } from "./service"
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const MAX_PLAY_RECORDS = 200
-
-// `winningMessageSettings`/`nonWinningMessageSettings` are unvalidated jsonb
-// columns (no parse-on-read) — a minigame saved before `outcomeMessage` was
-// added to the schema has no such key in its stored JSON, so this fallback
-// keeps `recordPlayAndDispatch` from crashing on `.enabled` for legacy rows.
-const DEFAULT_OUTCOME_MESSAGE: MinigameOutcomeMessage = {
-  enabled: false,
-  mode: "text",
-  text: "",
-}
 
 type MinigameContactListSort = { id: string; desc: boolean }[]
 
@@ -184,29 +174,6 @@ class MinigameContactService extends BaseService {
         .where(eq(minigameContactModel.id, existing.id))
         .returning()
       return updated
-    }
-
-    // For `never`, `played` never resets, so `drawsPerPerson - played` is
-    // always the correct live "remaining" — re-derive it here so raising
-    // (or lowering) the configured allowance takes effect immediately for
-    // contacts who already have a row, not just newly-created ones. Not
-    // extended to `everyNDays`: `played` there is a lifetime counter, not
-    // "played this cycle", so this formula would go permanently negative
-    // after the first reset — that policy already re-syncs at each
-    // interval boundary above.
-    if (playerSettings.resetPolicy === "never") {
-      const expectedRemaining = Math.max(
-        0,
-        playerSettings.drawsPerPerson - existing.played,
-      )
-      if (existing.remaining !== expectedRemaining) {
-        const [updated] = await tx
-          .update(minigameContactModel)
-          .set({ remaining: expectedRemaining })
-          .where(eq(minigameContactModel.id, existing.id))
-          .returning()
-        return updated
-      }
     }
 
     return existing
@@ -376,55 +343,28 @@ class MinigameContactService extends BaseService {
       workspaceId: minigame.workspaceId,
       contactId,
       tagIds: minigame.generalSettings.playerTagIds,
-      contactInboxId: contactInbox.id,
     })
 
-    const prizeName =
-      result.type === "prize"
-        ? result.prize.name
-        : minigame.prizeSettings.nonWinning.title
-
-    const nonWinningOutcomeMessage =
-      minigame.nonWinningMessageSettings.outcomeMessage ??
-      DEFAULT_OUTCOME_MESSAGE
-    const winningOutcomeMessage =
-      minigame.winningMessageSettings.outcomeMessage ?? DEFAULT_OUTCOME_MESSAGE
-
-    if (minigame.prizeSettings.prizeNameCustomFieldId) {
-      contactCustomFieldService
-        .setValues({
-          workspaceId: minigame.workspaceId,
-          contactId,
-          fields: [
-            {
-              customFieldId: minigame.prizeSettings.prizeNameCustomFieldId,
-              value: prizeName,
-            },
-          ],
-        })
-        // biome-ignore lint/suspicious/noEmptyBlockStatements: fire-and-forget, best-effort personalization write
-        .catch(() => {})
-    }
-
-    if (result.type === "nonWinning" && nonWinningOutcomeMessage.enabled) {
+    if (
+      result.type === "nonWinning" &&
+      minigame.prizeSettings.nonWinning.loseMessage.enabled
+    ) {
       this.sendLoseMessage({
         workspaceId: minigame.workspaceId,
         contactId,
         contactInbox,
-        prizeName,
-        outcomeMessage: nonWinningOutcomeMessage,
+        loseMessage: minigame.prizeSettings.nonWinning.loseMessage,
       })
         // biome-ignore lint/suspicious/noEmptyBlockStatements: fire-and-forget, already logs internally on failure
         .catch(() => {})
     }
 
-    if (result.type === "prize" && winningOutcomeMessage.enabled) {
+    if (result.type === "prize" && result.prize.winMessage?.enabled) {
       this.sendWinMessage({
         workspaceId: minigame.workspaceId,
         contactId,
         contactInbox,
-        prizeName,
-        outcomeMessage: winningOutcomeMessage,
+        winMessage: result.prize.winMessage,
       })
         // biome-ignore lint/suspicious/noEmptyBlockStatements: fire-and-forget, already logs internally on failure
         .catch(() => {})
@@ -547,38 +487,37 @@ class MinigameContactService extends BaseService {
     workspaceId: string
     contactId: string
     contactInbox: ContactInboxModel
-    prizeName: string
-    outcomeMessage: MinigameOutcomeMessage
+    loseMessage: MinigameLoseMessage
   }): Promise<void> {
-    await this.sendOutcomeMessage({ ...props, logContext: "lose" })
+    await this.sendOutcomeMessage({
+      ...props,
+      outcomeMessage: props.loseMessage,
+      logContext: "lose",
+    })
   }
 
   async sendWinMessage(props: {
     workspaceId: string
     contactId: string
     contactInbox: ContactInboxModel
-    prizeName: string
-    outcomeMessage: MinigameOutcomeMessage
+    winMessage: MinigamePrizeWinMessage
   }): Promise<void> {
-    await this.sendOutcomeMessage({ ...props, logContext: "win" })
+    await this.sendOutcomeMessage({
+      ...props,
+      outcomeMessage: props.winMessage,
+      logContext: "win",
+    })
   }
 
   private async sendOutcomeMessage(props: {
     workspaceId: string
     contactId: string
     contactInbox: ContactInboxModel
-    prizeName: string
-    outcomeMessage: MinigameOutcomeMessage
+    outcomeMessage: MinigameLoseMessage | MinigamePrizeWinMessage
     logContext: "win" | "lose"
   }): Promise<void> {
-    const {
-      workspaceId,
-      contactId,
-      contactInbox,
-      prizeName,
-      outcomeMessage,
-      logContext,
-    } = props
+    const { workspaceId, contactId, contactInbox, outcomeMessage, logContext } =
+      props
     if (!outcomeMessage.enabled) {
       return
     }
@@ -597,7 +536,7 @@ class MinigameContactService extends BaseService {
         return
       }
 
-      if (outcomeMessage.mode === "flow" || outcomeMessage.mode === "node") {
+      if (outcomeMessage.mode === "flow") {
         if (!outcomeMessage.flowId) {
           return
         }
@@ -607,10 +546,6 @@ class MinigameContactService extends BaseService {
             conversationId: conversation.id,
             contactInboxId: contactInbox.id,
             flowId: outcomeMessage.flowId,
-            nodeId:
-              outcomeMessage.mode === "node"
-                ? (outcomeMessage.nodeId ?? undefined)
-                : undefined,
           },
         })
         return
@@ -623,7 +558,7 @@ class MinigameContactService extends BaseService {
       const repository = await createMessageRepository()
       const createdAt = new Date()
       const message = await repository.create({
-        text: outcomeMessage.text.replaceAll("{{prize_name}}", prizeName),
+        text: outcomeMessage.text,
         messageType: "outgoing",
         workspaceId,
         conversationId: conversation.id,

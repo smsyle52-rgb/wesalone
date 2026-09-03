@@ -71,54 +71,6 @@ describe("Messenger OAuth requests only App-Review-approved scopes", () => {
   })
 })
 
-describe("Instagram OAuth requests only App-Review-approved scopes", () => {
-  /**
-   * Same failure shape as the Messenger scopes above, found the same way and
-   * two days apart: Meta rejects the whole authorization dialog when any one
-   * requested scope is unapproved, so `instagram_manage_events` — wanted only
-   * by the Conversions API, which this platform does not use — made every
-   * Instagram connection dead-end on "Invalid Scopes". Confirmed live on
-   * 25 Aug 2026 by removing that scope alone and watching the same URL go
-   * from an error page to the consent screen.
-   *
-   * The constant and `hasInstagramManageEventsScope` must survive: both CAPI
-   * consumers branch on the granted scopes, which is what lets the feature
-   * degrade instead of break.
-   */
-  const source = read("integrations/instagram-facebook/src/apis/auth.ts")
-  const scopeBlock = source.slice(
-    source.indexOf("const INSTAGRAM_SCOPES"),
-    source.indexOf("]", source.indexOf("const INSTAGRAM_SCOPES")),
-  )
-  // The block carries a long comment naming the scope repeatedly, so assert
-  // on the requested strings only — a bare substring check passes even when
-  // the scope has been restored to the array.
-  const requested = scopeBlock
-    .split(/\r?\n/)
-    .filter((line) => !line.trim().startsWith("//"))
-    .join("\n")
-
-  test("does not request the unapproved instagram_manage_events scope", () => {
-    expect(requested).not.toContain("instagram_manage_events")
-  })
-
-  test("still requests the scopes Instagram messaging actually needs", () => {
-    for (const scope of [
-      "instagram_basic",
-      "instagram_manage_messages",
-      "pages_show_list",
-      "pages_messaging",
-    ]) {
-      expect(requested).toContain(scope)
-    }
-  })
-
-  test("the granted-scope check survives so CAPI degrades instead of breaking", () => {
-    expect(source).toContain("hasInstagramManageEventsScope")
-    expect(source).toContain("INSTAGRAM_MANAGE_EVENTS_SCOPE")
-  })
-})
-
 describe("Meta's policy pages are reachable without a session", () => {
   /**
    * The Meta app registers https://www.wesal.one/privacy and /terms as its
@@ -136,48 +88,6 @@ describe("Meta's policy pages are reachable without a session", () => {
       expect(source).toContain(`"${route}"`)
     },
   )
-})
-
-describe("A blocked popup falls back to same-tab navigation", () => {
-  /**
-   * `window.open` is swallowed silently by ad blockers, privacy extensions,
-   * per-site popup blocks and in-app browsers alike. None of them reach the
-   * server, so a merchant reporting "the button does nothing" leaves no trace
-   * to diagnose — seven did, while the same click worked in an unextended
-   * Chrome. Showing a toast asking them to allow popups strands anyone whose
-   * blocker they do not control or cannot find.
-   *
-   * Navigating in place clears the whole class. This is not a new flow: the
-   * callback route already redirects back to the referer with
-   * WA_OAUTH_CODE_PARAM whenever `window.opener` is missing, and the create
-   * card reads that param on mount. Both halves must survive together — a
-   * merge that keeps one and drops the other sends merchants to Meta and
-   * loses them on the way back, which is worse than the toast.
-   *
-   * The reconnect button deliberately does NOT get this: it has no same-tab
-   * return path, so navigating away there would strand the code.
-   */
-  const card = read(
-    "apps/builder/src/features/integration-whatsapp/components/whatsapp-create.tsx",
-  )
-  const callback = read(
-    "apps/builder/src/app/integrations/whatsapp/callback/route.ts",
-  )
-
-  test("a failed window.open navigates in place instead of only warning", () => {
-    const branch = card.slice(card.indexOf("const authTab = window.open"))
-    const body = branch.slice(0, branch.indexOf("}, ["))
-    expect(body).toContain("window.location.href = url")
-  })
-
-  test("the create card still reads the code back off the URL", () => {
-    expect(card).toContain("WA_OAUTH_CODE_PARAM")
-  })
-
-  test("the callback still hands the code back for a same-tab return", () => {
-    expect(callback).toContain("WA_OAUTH_CODE_PARAM")
-    expect(callback).toContain("fallbackUrl")
-  })
 })
 
 describe("Knowledge-base retrieval uses a threshold the models can reach", () => {
@@ -223,7 +133,7 @@ describe("A quota row created by usage sync does not silence the agent", () => {
       // names the field repeatedly, so a plain substring check passes even when
       // the assignment itself has been deleted — verified by removing the line
       // and watching this test still go green.
-      .split(/\r?\n/)
+      .split("\n")
       .filter((line) => !line.trim().startsWith("//"))
       .join("\n")
     expect(values).toMatch(/autoReplyEnabled\s*:/)

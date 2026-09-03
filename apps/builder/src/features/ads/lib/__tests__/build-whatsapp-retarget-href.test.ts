@@ -26,7 +26,6 @@ describe("buildWhatsappRetargetHref", () => {
           field: "ctwaRetarget",
           segment: "purchases",
           adId: "238512000000102",
-          channel: "whatsapp",
           // Carried inside the condition (scopes the segment to this
           // integration for parity with the Facebook path), not only in the URL.
           integrationWhatsappId: "999",
@@ -37,7 +36,7 @@ describe("buildWhatsappRetargetHref", () => {
     })
   })
 
-  test("omits adId when unattributed and integrationWhatsappId when not selected, but always encodes channel:whatsapp", () => {
+  test("omits adId when unattributed and integrationWhatsappId when not selected", () => {
     const href = buildWhatsappRetargetHref({
       workspaceId: "81399851597824",
       segment: "conversations",
@@ -52,15 +51,9 @@ describe("buildWhatsappRetargetHref", () => {
     const contactFilter = JSON.parse(
       url.searchParams.get("contactFilter") ?? "null",
     )
-    // Regression guard: `buildCtwaSegmentPredicate` treats BOTH `channel`
-    // and `integrationWhatsappId` omitted as "any channel" — without an
-    // explicit `channel: "whatsapp"` here, a WhatsApp-labeled broadcast with
-    // no account selected would silently match messenger/instagram
-    // conversations too.
     expect(contactFilter.conditions[0]).toEqual({
       field: "ctwaRetarget",
       segment: "conversations",
-      channel: "whatsapp",
       since: "2026-07-13",
       until: "2026-08-12",
     })

@@ -1,7 +1,6 @@
 "use server"
 
 import { flowVersionService } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { notFoundException } from "@chatbotx.io/business/errors"
 import { and, db, eq } from "@chatbotx.io/database/client"
 import { flowModel, flowVersionModel } from "@chatbotx.io/database/schema"
@@ -88,10 +87,4 @@ export const publishFlow = async (
   })
 
   await flowVersionService.invalidateList(flow.id)
-
-  await auditService.record({
-    workspaceId: ctx.workspaceId,
-    action: "publish",
-    detail: `published a flow (#${flow.id})`,
-  })
 }

@@ -73,7 +73,12 @@ export async function getAIToolset(
           }),
         ),
         mcp && mcpIds.length > 0
-          ? getMCPServerTools(workspaceId, mcpIds, mcp)
+          ? options.systemFunctionContextGetter?.().then((context) =>
+              getMCPServerTools(workspaceId, mcpIds, {
+                ...mcp,
+                contactId: context?.contactId ?? null,
+              }),
+            ) ?? getMCPServerTools(workspaceId, mcpIds, mcp)
           : Promise.resolve({ tools: {}, clients: [] }),
       ])
 

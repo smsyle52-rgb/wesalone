@@ -5,10 +5,6 @@ import type { SessionUser } from "@/lib/auth/utils"
 export const base = os.$context<{
   headers: Headers
   url?: string
-  session?: {
-    ipAddress?: string | null
-    userAgent?: string | null
-  }
   user?: SessionUser
   workspace?: WorkspaceModel
 }>()

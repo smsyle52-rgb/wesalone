@@ -38,26 +38,13 @@ vi.mock("@chatbotx.io/sdk", () => ({
   SdkException: class SdkException extends Error {},
 }))
 
-vi.mock("@chatbotx.io/utils", () => {
-  // `@chatbotx.io/database/partials` re-exports every partial schema
-  // (including ones unrelated to this test, e.g. minigame.ts) through one
-  // barrel, and some of those call `zodBigintAsString().nullable()` /
-  // `.optional()` at module-eval time. A stub with only `safeParse` breaks
-  // that eval the moment any test pulls in the real partials barrel — this
-  // proxy chains any further method call back to itself so it never breaks
-  // regardless of which Zod methods a schema happens to chain.
-  const chainable: Record<string, unknown> = {
-    safeParse: () => ({ data: null }),
-  }
-  const proxy = new Proxy(chainable, {
-    get(target, prop) {
-      if (prop in target) {
-        return target[prop as string]
-      }
-      return () => proxy
-    },
-  })
-  return { zodBigintAsString: () => proxy }
+// Returns a real zod schema, not a stub with only `safeParse`. Schemas loaded
+// through this module chain now chain further off it — `partials/minigame.ts`
+// calls `.nullable().default(null)` — and a hand-rolled stand-in breaks the
+// moment any caller uses a method it does not implement.
+vi.mock("@chatbotx.io/utils", async () => {
+  const { z } = await import("zod")
+  return { zodBigintAsString: () => z.string() }
 })
 
 vi.mock("@/env", () => ({ isCloud }))

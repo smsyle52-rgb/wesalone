@@ -1,6 +1,5 @@
 "use server"
 import { aiIntegrationService } from "@chatbotx.io/ai/server"
-import { auditService } from "@chatbotx.io/business/audit"
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { integrationOpenaiModel } from "@chatbotx.io/database/schema"
 import { zodBigintAsString } from "@chatbotx.io/utils"
@@ -46,12 +45,6 @@ export const updateIntegrationOpenAI = async (
     .then((result) => result[0])
 
   await aiIntegrationService.invalidateCache(ctx.workspaceId, "openai")
-
-  await auditService.record({
-    workspaceId: ctx.workspaceId,
-    action: "update",
-    detail: "updated the OpenAI integration configuration",
-  })
 
   return result
 }

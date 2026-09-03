@@ -52,7 +52,6 @@ import type {
 import { webhookChannelOrigin } from "@chatbotx.io/events/context"
 import { contactVariableService } from "@chatbotx.io/variables"
 import {
-  type BotResponseTrackingContext,
   IntegrationJobAction,
   integrationQueue,
 } from "@chatbotx.io/worker-config"
@@ -67,18 +66,12 @@ import { normalizeError } from "universal-error-normalizer"
 import { logger } from "../../../lib/logger"
 import { handoffExecutorService } from "../../../trigger/services/handoff-executor.service"
 import { sendMessageAndWait, sendMessageWithRender } from "../../utils/message"
-import { logProviderAttempt } from "../shared/provider-attempt-logger"
 import { reserveUsageOrUnmetered } from "../shared/reserve-usage"
 import { triggerDefaultReplyFlow } from "./default-reply"
 import { handleRichAIReply } from "./rich-reply"
 import { createDocumentReaderExecutor } from "./system-tools/document-reader"
 import { createImageReaderExecutor } from "./system-tools/image-reader"
 import { createUrlReaderExecutor } from "./system-tools/url-reader"
-import {
-  buildTrackingContext,
-  consumeTrackingContext,
-  type TrackingContextRef,
-} from "./tracking-context"
 
 export type ReplyByAIProps = {
   conversation: ConversationModel
@@ -168,7 +161,7 @@ function removeTrailingAssistantTurns(messages: ModelMessage[]): {
 export async function replyByAI(
   props: ReplyByAIProps,
 ): Promise<null | ReplyByAIExecutionResult> {
-  const { aiAgent, conversation } = props
+  const { aiAgent } = props
   if (
     !(await userQuotaService.isAutoReplyEnabledForWorkspace(
       aiAgent.workspaceId,
@@ -194,30 +187,8 @@ export async function replyByAI(
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
 
   try {
-    for (const [index, providerInfo] of providers.entries()) {
-      const attemptStartedAt = Date.now()
+    for (const providerInfo of providers) {
       const result = await runAIReply(props, providerInfo, controller.signal)
-      const durationMs = Date.now() - attemptStartedAt
-      // A `null` result can also mean the provider was intentionally skipped
-      // (not configured / auto-reply off) or an empty completion / error —
-      // those are already logged at the right level inside
-      // runAIReply/createReplyModel, so this summary log shouldn't re-flag
-      // them as warnings.
-      logProviderAttempt(
-        logger,
-        durationMs,
-        {
-          conversationId: conversation.id,
-          workspaceId: conversation.workspaceId,
-          agentId: aiAgent.id,
-          provider: getProviderName(providerInfo),
-          providerIndex: index,
-          providerCount: providers.length,
-          durationMs,
-          responded: Boolean(result?.responded),
-        },
-        "[automated-response] fallback chain provider attempt",
-      )
       if (result?.responded) {
         return result
       }
@@ -238,11 +209,9 @@ export async function replyByAI(
     {
       conversationId: props.conversation.id,
       workspaceId: props.conversation.workspaceId,
-      agentId: aiAgent.id,
       provider,
       modelId,
       candidatesTried: providers.length,
-      providers: providers.map((p) => getProviderName(p)),
     },
     "[automated-response] all AI candidates completed without a response; sending localized fallback",
   )
@@ -454,7 +423,6 @@ function createReplyToolset(options: {
   props: ReplyByAIProps
   provider: ReplyAIProvider
   providerInstance?: AIProviderInstance
-  trackingContextRef: TrackingContextRef
 }) {
   const { conversation, aiAgent } = options.props
   const tools = filterToolsByAllowedSystemFunctions(
@@ -500,11 +468,7 @@ function createReplyToolset(options: {
         options.directSendTracker.sent = true
         options.directSendTracker.sentText = text
         if (text) {
-          await sendMessageAndWait(
-            conversation.id,
-            text,
-            consumeTrackingContext(options.trackingContextRef),
-          )
+          await sendMessageAndWait(conversation.id, text)
         }
       },
       triggerFlow: async (flowId: string) => {
@@ -864,16 +828,6 @@ async function createReplyModel(props: {
       })
 
     if (!(integration?.enabled && integration.autoReply)) {
-      logger.debug(
-        {
-          workspaceId,
-          integrationId: providerInfo.integrationId,
-          integrationFound: Boolean(integration),
-          enabled: integration?.enabled ?? null,
-          autoReply: integration?.autoReply ?? null,
-        },
-        "[automated-response] openaiCompatible provider skipped: integration missing, disabled, or auto-reply off",
-      )
       return null
     }
 
@@ -892,10 +846,6 @@ async function createReplyModel(props: {
   })
 
   if (!integration) {
-    logger.debug(
-      { workspaceId, provider: providerInfo.provider },
-      "[automated-response] provider skipped: no auto-reply-enabled integration found",
-    )
     return null
   }
 
@@ -949,25 +899,6 @@ async function runAIReply(
 
     const startTime = Date.now()
 
-    const successTrackingContext: BotResponseTrackingContext | undefined =
-      props.triggerMessageId
-        ? buildTrackingContext({
-            conversationId: conversation.id,
-            messageId: props.triggerMessageId,
-            provider,
-            responseType: "ai_agent",
-            startTime,
-            triggerType: "bot_response_ai_agent_success",
-            workspaceId: conversation.workspaceId,
-          })
-        : undefined
-    // Shared across the `sendMessage` tool (which the model may invoke more
-    // than once in a multi-step tool loop) and the plain-text streaming
-    // reply below, so tracking attaches to exactly one outbound message per
-    // run no matter which path sends it first.
-    const trackingContextRef: TrackingContextRef = {
-      current: successTrackingContext,
-    }
     const directSendTracker = { sent: false, sentText: "" }
     const visionModel = await getPlatformCapabilityLanguageModel("vision")
     const toolset = await createReplyToolset({
@@ -978,7 +909,6 @@ async function runAIReply(
       props,
       provider,
       providerInstance: modelConfig.providerInstance,
-      trackingContextRef,
     })
     const tools = toolset.tools
     cleanup = toolset.cleanup
@@ -1244,11 +1174,7 @@ async function runAIReply(
           return
         }
         for (const part of parts) {
-          await sendMessageAndWait(
-            conversation.id,
-            part,
-            consumeTrackingContext(trackingContextRef),
-          )
+          await sendMessageAndWait(conversation.id, part)
         }
       },
       { sendParts: true },
@@ -1362,18 +1288,6 @@ async function runAIReply(
     }
 
     await settleUsage()
-    logger.warn(
-      {
-        provider,
-        modelId: selectedModelId,
-        conversationId: conversation.id,
-        workspaceId: conversation.workspaceId,
-        historyMessageCount: messages.length,
-        hasSummary: Boolean(props.summary),
-        ...buildToolStats(),
-      },
-      "[automated-response] AI produced an empty completion (no text, no tool calls)",
-    )
     return null
   } catch (error) {
     if (reservation) {

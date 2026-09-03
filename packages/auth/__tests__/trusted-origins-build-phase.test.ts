@@ -32,7 +32,6 @@ vi.mock("better-auth/next-js", () => ({
 
 vi.mock("better-auth/plugins", () => ({
   anonymous: () => ({ id: "anonymous" }),
-  bearer: () => ({ id: "bearer" }),
   magicLink: () => ({ id: "magic-link" }),
   oneTimeToken: () => ({ id: "one-time-token" }),
 }))
@@ -103,10 +102,8 @@ describe("trustedOrigins during next build", () => {
     }
     const origins = await config.trustedOrigins()
 
-    expect(origins).toEqual(
-      expect.arrayContaining([BROKER_URL, BUILDER_URL, "chatconnectxapp://"]),
-    )
-    expect(origins).toHaveLength(3)
+    expect(origins).toEqual(expect.arrayContaining([BROKER_URL, BUILDER_URL]))
+    expect(origins).toHaveLength(2)
     expect(listActiveDomains).not.toHaveBeenCalled()
   })
 

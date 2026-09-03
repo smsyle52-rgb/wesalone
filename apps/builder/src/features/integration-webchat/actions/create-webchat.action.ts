@@ -1,7 +1,6 @@
 "use server"
 
 import { inboxService, workspaceService } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { ensureBrandingMenuEntry } from "@chatbotx.io/business/branding"
 import { db } from "@chatbotx.io/database/client"
 import { integrationWebchatModel } from "@chatbotx.io/database/schema"
@@ -29,9 +28,7 @@ export const createWebchatAction = authActionClient
     let workspaceId = parsedInput.workspaceId
     let ownerId = ctx.user.id
 
-    const result = await db.transaction(async (tx) => {
-      let createdWorkspace = false
-
+    await db.transaction(async (tx) => {
       if (workspaceId) {
         const workspace = await workspaceService.findOrFail({
           where: { id: workspaceId },
@@ -48,7 +45,6 @@ export const createWebchatAction = authActionClient
           },
         })
         workspaceId = newChatbot.id
-        createdWorkspace = true
       }
 
       const webchatId = createId()
@@ -73,26 +69,9 @@ export const createWebchatAction = authActionClient
         inboxId: inbox.id,
         auth: {},
       })
-
-      return { workspaceId, createdWorkspace, webchatId }
-    })
-
-    if (result.createdWorkspace) {
-      await auditService.record({
-        userId: ctx.user.id,
-        workspaceId: result.workspaceId as string,
-        action: "create",
-        detail: `created the workspace (#${result.workspaceId})`,
-      })
-    }
-
-    await auditService.record({
-      workspaceId: result.workspaceId as string,
-      action: "connect",
-      detail: `connected a new Webchat channel (#${result.webchatId})`,
     })
 
     return {
-      workspaceId: result.workspaceId,
+      workspaceId,
     }
   })

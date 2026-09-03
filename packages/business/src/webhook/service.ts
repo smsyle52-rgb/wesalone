@@ -83,8 +83,6 @@ class WebhookService extends BaseService {
 
     await updateWebhookCache(workspaceId)
 
-    await this.audit("create", `created a new webhook (#${created.id})`)
-
     return created
   }
 
@@ -103,8 +101,6 @@ class WebhookService extends BaseService {
     }
 
     await removeWebhookCache(workspaceId)
-
-    await this.audit("delete", `deleted webhook(s) (#${id})`)
   }
 }
 

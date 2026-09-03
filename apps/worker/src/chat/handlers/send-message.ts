@@ -101,29 +101,17 @@ export async function sendMessageToChannel(
       },
     }
 
-    const isPrivateReply =
-      isComment && handlerMessage.contentAttributes?.isPrivateReply === true
-
-    let result: Awaited<ReturnType<typeof integration.runChannelHandler>>
-    if (isPrivateReply) {
-      result = await integration.runChannelHandler(
-        "comment",
-        "sendPrivateReply",
-        handlerData,
-      )
-    } else if (isComment) {
-      result = await integration.runChannelHandler(
-        "comment",
-        "sendComment",
-        handlerData,
-      )
-    } else {
-      result = await integration.runChannelHandler(
-        "message",
-        "sendMessage",
-        handlerData,
-      )
-    }
+    const result = isComment
+      ? await integration.runChannelHandler(
+          "comment",
+          "sendComment",
+          handlerData,
+        )
+      : await integration.runChannelHandler(
+          "message",
+          "sendMessage",
+          handlerData,
+        )
 
     if (isComment) {
       // When the outgoing message is a comment reply, store the Facebook comment

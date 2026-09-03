@@ -2,7 +2,6 @@ import {
   connectChannelIntegration,
   workspaceService,
 } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { db } from "@chatbotx.io/database/client"
 import type { TiktokCredential } from "@chatbotx.io/database/partials"
@@ -11,18 +10,15 @@ import type { TiktokAuthValue } from "@chatbotx.io/integration-tiktok"
 import { createId } from "@chatbotx.io/utils"
 import { redirect } from "next/navigation"
 import { integrations } from "@/integration"
-import { getGuestClientIp } from "@/lib/rate-limit/guest-rate-limit"
 
 export async function connectTiktokHandler({
   tiktokSettings,
   workspaceId,
-  userId,
   req,
   redirectUrl,
 }: {
   tiktokSettings: TiktokCredential
   workspaceId: string
-  userId: string
   req: Request
   redirectUrl: string
 }) {
@@ -38,11 +34,10 @@ export async function connectTiktokHandler({
   const displayName = authValue.metadata.displayName
 
   const { ownerId } = await workspaceService.findById({ id: workspaceId })
-  const integrationId = createId()
 
   try {
-    const { wasCreated, integration } = await db.transaction(async (tx) =>
-      connectChannelIntegration({
+    await db.transaction(async (tx) => {
+      await connectChannelIntegration({
         tx,
         ownerId,
         inboxData: {
@@ -52,10 +47,10 @@ export async function connectTiktokHandler({
           sourceId: authValue.metadata.username,
         },
         insertIntegration: async (inboxId) => {
-          const [integration] = await tx
+          await tx
             .insert(integrationTiktokModel)
             .values({
-              id: integrationId,
+              id: createId(),
               inboxId,
               workspaceId,
               openId,
@@ -70,36 +65,9 @@ export async function connectTiktokHandler({
                 tokenRefreshError: null,
               },
             })
-            .returning({ id: integrationTiktokModel.id })
-
-          return integration
         },
-      }),
-    )
-
-    if (!integration) {
-      return
-    }
-
-    if (wasCreated) {
-      await auditService.record({
-        userId,
-        workspaceId,
-        action: "connect",
-        detail: `connected a new TikTok channel (#${integration.id})`,
-        ipAddress: getGuestClientIp(req.headers),
-        userAgent: req.headers.get("user-agent") ?? undefined,
       })
-    } else {
-      await auditService.record({
-        userId,
-        workspaceId,
-        action: "update",
-        detail: `reconnected the TikTok channel (#${integration.id})`,
-        ipAddress: getGuestClientIp(req.headers),
-        userAgent: req.headers.get("user-agent") ?? undefined,
-      })
-    }
+    })
   } catch (error) {
     if (
       error instanceof ChatbotXException &&

@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@chatbotx.io/ui/components/ui/dialog"
 import { useTranslations } from "next-intl"
-import { OutcomeMessageFields } from "./outcome-message-fields"
 
 type WinningMessageEditDialogProps = {
   open: boolean
@@ -38,7 +37,6 @@ export function WinningMessageEditDialog({
             name="winningMessageSettings.title"
           />
           <TextareaField
-            description={t("minigames.winningMessageDialog.prizeNameHint")}
             label={t("fields.description.label")}
             name="winningMessageSettings.description"
           />
@@ -47,11 +45,6 @@ export function WinningMessageEditDialog({
             name="winningMessageSettings.acceptButtonText"
           />
         </div>
-
-        <OutcomeMessageFields
-          enabledLabel={t("minigames.outcomeMessage.enableWin")}
-          fieldPrefix="winningMessageSettings.outcomeMessage"
-        />
 
         <DialogFooter>
           <DialogClose

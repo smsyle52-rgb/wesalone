@@ -1,15 +1,24 @@
 "use client"
 
+import type {
+  MinigameAppearance,
+  MinigamePrizeSettings,
+  MinigameType,
+} from "@chatbotx.io/database/partials"
 import { GenericMinigamePreview } from "./generic-minigame-preview"
-import {
-  MINIGAME_PREVIEW_COMPONENTS,
-  type MinigamePreviewProps,
-} from "./minigame-preview-registry"
+import { JackpotPreview } from "./jackpot-preview"
+
+type MinigamePreviewProps = {
+  type: MinigameType
+  name: string
+  appearance: MinigameAppearance
+  prizeSettings: MinigamePrizeSettings
+  shareEnabled: boolean
+}
 
 export function MinigamePreview(props: MinigamePreviewProps) {
-  const PreviewComponent = MINIGAME_PREVIEW_COMPONENTS[props.type]
-  if (PreviewComponent) {
-    return <PreviewComponent {...props} />
+  if (props.type === "jackpot") {
+    return <JackpotPreview {...props} />
   }
   return <GenericMinigamePreview {...props} />
 }

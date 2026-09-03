@@ -52,7 +52,6 @@ class IntegrationDripService extends BaseService {
 
     const existingId = await updateExisting()
     if (existingId) {
-      await this.audit("update", "updated the Drip integration configuration")
       return existingId
     }
 
@@ -72,7 +71,6 @@ class IntegrationDripService extends BaseService {
           auth: encryptedAuth,
         })
       })
-      await this.audit("connect", "connected a new Drip integration")
       return dripId
     } catch (error) {
       if (!isWorkspaceUniqueViolation(error)) {
@@ -82,7 +80,6 @@ class IntegrationDripService extends BaseService {
       if (!winnerId) {
         throw error
       }
-      await this.audit("update", "updated the Drip integration configuration")
       return winnerId
     }
   }
@@ -100,8 +97,6 @@ class IntegrationDripService extends BaseService {
         .delete(integrationModel)
         .where(eq(integrationModel.id, existing.integrationId))
     })
-
-    await this.audit("disconnect", "disconnected the Drip integration")
   }
 }
 

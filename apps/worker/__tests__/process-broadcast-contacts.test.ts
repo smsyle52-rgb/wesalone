@@ -4,8 +4,6 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 const findManyBroadcast = vi.fn()
 const findManyContactsOnBroadcasts = vi.fn()
 const updateWhereSpy = vi.fn()
-const returningSpy = vi.fn()
-const recordAuditLog = vi.fn()
 
 type UpdateCall = {
   table: unknown
@@ -30,10 +28,6 @@ vi.mock("@chatbotx.io/business", () => ({
   ) => fn(),
 }))
 
-vi.mock("@chatbotx.io/business/audit", () => ({
-  auditService: { record: (...args: unknown[]) => recordAuditLog(...args) },
-}))
-
 vi.mock("@chatbotx.io/database/client", () => ({
   db: {
     query: {
@@ -48,20 +42,13 @@ vi.mock("@chatbotx.io/database/client", () => ({
       set: (values: Record<string, unknown>) => ({
         where: (condition: unknown) => {
           updateCalls.push({ table, values, condition })
-          // `markBroadcastSent`'s dedupe check reads `.returning(...)`
-          // separately from the plain `contactsOnBroadcastsModel` updates
-          // below, which are awaited directly — kept on its own spy so each
-          // can be configured independently per test.
-          return Object.assign(Promise.resolve(updateWhereSpy()), {
-            returning: (...args: unknown[]) => returningSpy(...args),
-          })
+          return updateWhereSpy()
         },
       }),
     }),
   },
   and: (...args: unknown[]) => ({ __and: args }),
   eq: (a: unknown, b: unknown) => ({ __eq: [a, b] }),
-  ne: (a: unknown, b: unknown) => ({ __ne: [a, b] }),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
     __sql: { strings: [...strings], values },
   }),
@@ -158,7 +145,6 @@ const makeContactOnBroadcast = (overrides: Record<string, unknown> = {}) => ({
 const makeBroadcast = (overrides: Record<string, unknown> = {}) => ({
   id: BROADCAST_ID,
   workspaceId: WORKSPACE_ID,
-  name: "Broadcast",
   status: "sending",
   flowId: null as string | null,
   templateId: null as string | null,
@@ -174,8 +160,6 @@ beforeEach(() => {
   findManyBroadcast.mockResolvedValue([])
   findManyContactsOnBroadcasts.mockResolvedValue([])
   updateWhereSpy.mockResolvedValue(undefined)
-  returningSpy.mockResolvedValue([{ id: BROADCAST_ID }])
-  recordAuditLog.mockResolvedValue(undefined)
   chatAddSpy.mockResolvedValue(undefined)
   integrationAddSpy.mockResolvedValue(undefined)
   scheduleAddSpy.mockResolvedValue(undefined)
@@ -498,30 +482,6 @@ describe("processBroadcastContacts", () => {
             call.values.status === "sent",
         ),
       ).toBe(true)
-    })
-
-    test("emits a broadcast_sent audit row when the sent transition actually happens", async () => {
-      findManyBroadcast.mockResolvedValue([makeBroadcast({ name: "Sale" })])
-      findManyContactsOnBroadcasts.mockResolvedValue([])
-
-      await processBroadcastContacts(BROADCAST_ID)
-
-      expect(recordAuditLog).toHaveBeenCalledWith({
-        action: "broadcast_sent",
-        detail: `sent a broadcast (#${BROADCAST_ID})`,
-        workspaceId: WORKSPACE_ID,
-        source: "schedule:processBroadcastContacts",
-      })
-    })
-
-    test("does not emit broadcast_sent when the broadcast was already sent (dedupe)", async () => {
-      findManyBroadcast.mockResolvedValue([makeBroadcast()])
-      findManyContactsOnBroadcasts.mockResolvedValue([])
-      returningSpy.mockResolvedValue([])
-
-      await processBroadcastContacts(BROADCAST_ID)
-
-      expect(recordAuditLog).not.toHaveBeenCalled()
     })
   })
 

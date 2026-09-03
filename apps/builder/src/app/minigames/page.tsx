@@ -3,12 +3,13 @@ import {
   minigameContactService,
   minigameService,
 } from "@chatbotx.io/business/minigame"
+import { minigameTypes } from "@chatbotx.io/database/partials"
 import { verifyMinigamePlayToken } from "@chatbotx.io/encryption/minigame-play-token"
 import type { Metadata } from "next"
 import type { SearchParams } from "next/dist/server/request/search-params"
 import { notFound } from "next/navigation"
 import { getTranslations } from "next-intl/server"
-import { MINIGAME_PLAY_SCREENS } from "@/features/minigames/components/play/minigame-play-screen-registry"
+import { JackpotPlayScreen } from "@/features/minigames/components/play/jackpot-play-screen"
 import { loadServableWorkspace } from "@/lib/workspace/load-servable-workspace"
 
 export const dynamic = "force-dynamic"
@@ -60,8 +61,7 @@ export default async function MinigamePage(props: MinigamePageProps) {
     notFound()
   }
 
-  const PlayScreen = MINIGAME_PLAY_SCREENS[minigame.type]
-  if (!PlayScreen) {
+  if (minigame.type !== minigameTypes.enum.jackpot) {
     const t = await getTranslations("minigames.play")
     return (
       <MinigameNotice
@@ -102,6 +102,10 @@ export default async function MinigamePage(props: MinigamePageProps) {
   })
 
   return (
-    <PlayScreen contactState={contactState} minigame={minigame} token={token} />
+    <JackpotPlayScreen
+      contactState={contactState}
+      minigame={minigame}
+      token={token}
+    />
   )
 }

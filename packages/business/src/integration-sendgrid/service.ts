@@ -44,10 +44,6 @@ class IntegrationSendGridService extends BaseService {
 
     const existingId = await updateExisting()
     if (existingId) {
-      await this.audit(
-        "update",
-        "updated the SendGrid integration configuration",
-      )
       return existingId
     }
 
@@ -67,7 +63,6 @@ class IntegrationSendGridService extends BaseService {
           auth: encryptedAuth,
         })
       })
-      await this.audit("connect", "connected a new SendGrid integration")
       return sendGridId
     } catch (error) {
       if (!isWorkspaceUniqueViolation(error)) {
@@ -77,10 +72,6 @@ class IntegrationSendGridService extends BaseService {
       if (!winnerId) {
         throw error
       }
-      await this.audit(
-        "update",
-        "updated the SendGrid integration configuration",
-      )
       return winnerId
     }
   }
@@ -98,8 +89,6 @@ class IntegrationSendGridService extends BaseService {
         .delete(integrationModel)
         .where(eq(integrationModel.id, existing.integrationId))
     })
-
-    await this.audit("disconnect", "disconnected the SendGrid integration")
   }
 }
 

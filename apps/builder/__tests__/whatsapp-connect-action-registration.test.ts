@@ -22,7 +22,6 @@ type ActionHandler = (args: {
 
 const {
   addSystemUserMock,
-  auditRecordMock,
   buildContextMock,
   connectChannelIntegrationMock,
   createSignupSessionMock,
@@ -44,11 +43,9 @@ const {
   shareCreditLineMock,
   subscribeWebhookMock,
   updateWorkspaceLogoMock,
-  workspaceCreateMock,
   workspaceFindMock,
 } = vi.hoisted(() => ({
   addSystemUserMock: vi.fn(),
-  auditRecordMock: vi.fn().mockResolvedValue(undefined),
   buildContextMock: vi.fn(),
   connectChannelIntegrationMock: vi.fn(),
   createSignupSessionMock: vi.fn(),
@@ -70,7 +67,6 @@ const {
   shareCreditLineMock: vi.fn(),
   subscribeWebhookMock: vi.fn(),
   updateWorkspaceLogoMock: vi.fn(),
-  workspaceCreateMock: vi.fn(),
   workspaceFindMock: vi.fn(),
 }))
 
@@ -98,10 +94,6 @@ vi.mock("@chatbotx.io/business/errors", () => ({
   ChatbotXException: class ChatbotXException extends Error {},
 }))
 
-vi.mock("@chatbotx.io/business/audit", () => ({
-  auditService: { record: auditRecordMock },
-}))
-
 vi.mock("@chatbotx.io/business", () => ({
   buildContext: buildContextMock,
   connectChannelIntegration: connectChannelIntegrationMock,
@@ -120,7 +112,6 @@ vi.mock("@chatbotx.io/business", () => ({
     resolveForOwner: platformCredentialResolveMock,
   },
   workspaceService: {
-    create: workspaceCreateMock,
     find: workspaceFindMock,
   },
 }))
@@ -314,10 +305,6 @@ describe("connectWhatsappAction registration", () => {
     shareCreditLineMock.mockResolvedValue(undefined)
     buildContextMock.mockResolvedValue({})
     updateWorkspaceLogoMock.mockResolvedValue(undefined)
-    workspaceCreateMock.mockResolvedValue({
-      id: "ws-new",
-      name: selectedPhoneNumber.verified_name,
-    })
     subscribeWebhookMock.mockResolvedValue(undefined)
     invalidateCacheByTagsMock.mockResolvedValue(undefined)
     connectChannelIntegrationMock.mockImplementation(
@@ -325,7 +312,6 @@ describe("connectWhatsappAction registration", () => {
         insertIntegration: (inboxId: string) => Promise<void>
       }) => {
         await props.insertIntegration("inbox-1")
-        return { wasCreated: true }
       },
     )
 
@@ -369,46 +355,6 @@ describe("connectWhatsappAction registration", () => {
     })
     expect(registerPhoneNumberMock).not.toHaveBeenCalled()
     expect(recordRegistrationOutcomeMock).not.toHaveBeenCalled()
-  })
-
-  test("audits workspace creation before channel connect when connecting the first WhatsApp workspace", async () => {
-    await callConnectWhatsappAction({
-      ctx: { user: { id: "user-1" } },
-      parsedInput: {
-        businessId: null,
-        wabaId: null,
-        connectExisting: true,
-        transferPhoneNumber: false,
-        manualConnect: false,
-        marketingMessageLite: true,
-        phoneNumberId: selectedPhoneNumber.id,
-        workspaceId: null,
-        signupSessionId: "signup-session-1",
-        accessToken: null,
-        code: null,
-      },
-    })
-
-    expect(workspaceCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        createdBy: "user-1",
-        data: expect.objectContaining({
-          name: selectedPhoneNumber.verified_name,
-          ownerId: "user-1",
-        }),
-      }),
-    )
-    expect(auditRecordMock).toHaveBeenNthCalledWith(1, {
-      userId: "user-1",
-      workspaceId: "ws-new",
-      action: "create",
-      detail: "created the workspace (#ws-new)",
-    })
-    expect(auditRecordMock).toHaveBeenNthCalledWith(2, {
-      workspaceId: "ws-new",
-      action: "connect",
-      detail: `connected a new WhatsApp channel (#${integrationRow.id})`,
-    })
   })
 
   test("shows the remaining available phone for selection when the WABA has multiple phones and one is already connected", async () => {

@@ -165,10 +165,10 @@ vi.mock("@/features/integration-webchat/lib/authorized-domain", () => ({
     origin: string | null | undefined,
     authorizedDomains: string[],
   ) => {
-    if (!origin) {
+    if (authorizedDomains.length === 0) {
       return true
     }
-    if (authorizedDomains.length === 0) {
+    if (!origin) {
       return false
     }
     const host = origin
@@ -706,7 +706,6 @@ describe("handleCreateWebchatMessage — MAC quota", () => {
       undefined,
       undefined,
       undefined,
-      "ci-new",
     )
     expect(mockIntegrationQueueAdd).toHaveBeenCalledWith(
       "sendFlow",

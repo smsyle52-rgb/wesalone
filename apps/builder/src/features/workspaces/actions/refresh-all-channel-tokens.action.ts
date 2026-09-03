@@ -8,7 +8,6 @@ import {
   tiktokIntegrationService,
   zaloIntegrationService,
 } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import {
   type InstagramAuthValue,
   integration as integrationInstagram,
@@ -112,11 +111,6 @@ async function refreshOneZalo(
             expiresAt: calculateExpiresAt(newTokens.expires_in),
           },
         })
-        await auditService.record({
-          workspaceId,
-          action: "refresh",
-          detail: "refreshed the Zalo channel permissions",
-        })
         return "refreshed"
       } catch (error) {
         await zaloIntegrationService.markTokenRefreshError(
@@ -174,11 +168,6 @@ async function refreshOneTiktok(
             ),
           },
         })
-        await auditService.record({
-          workspaceId,
-          action: "refresh",
-          detail: "refreshed the TikTok channel token",
-        })
         return "refreshed"
       } catch (error) {
         await tiktokIntegrationService.markTokenRefreshError(
@@ -230,11 +219,6 @@ async function refreshOneInstagram(
           id,
           workspaceId,
           auth: newAuth as InstagramAuthValue,
-        })
-        await auditService.record({
-          workspaceId,
-          action: "refresh",
-          detail: "refreshed the Instagram channel token",
         })
         return "refreshed"
       } catch (error) {
@@ -292,11 +276,6 @@ async function refreshOneInstagramFacebook(
           workspaceId,
           auth: newAuth as InstagramAuthValue,
         })
-        await auditService.record({
-          workspaceId,
-          action: "refresh",
-          detail: "refreshed the Instagram channel token",
-        })
         return "refreshed"
       } catch (error) {
         await instagramIntegrationService.markTokenRefreshError(
@@ -350,11 +329,6 @@ async function refreshOneMessenger(
           id,
           workspaceId,
           auth: newAuth as MessengerAuthValue,
-        })
-        await auditService.record({
-          workspaceId,
-          action: "refresh",
-          detail: "refreshed the Messenger channel token",
         })
         return "refreshed"
       } catch (error) {
@@ -413,11 +387,6 @@ async function refreshOneWhatsapp(
           id,
           workspaceId,
           auth: newAuth as WhatsappAuthValue,
-        })
-        await auditService.record({
-          workspaceId,
-          action: "refresh",
-          detail: "refreshed the WhatsApp channel token",
         })
         return "refreshed"
       } catch (error) {

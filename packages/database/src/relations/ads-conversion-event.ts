@@ -12,14 +12,7 @@ export const adsConversionEventRelations = defineRelationsPart(schema, (r) => ({
     integrationWhatsapp: r.one.integrationWhatsappModel({
       from: r.adsConversionEventModel.integrationWhatsappId,
       to: r.integrationWhatsappModel.id,
-    }),
-    integrationMessenger: r.one.integrationMessengerModel({
-      from: r.adsConversionEventModel.integrationMessengerId,
-      to: r.integrationMessengerModel.id,
-    }),
-    integrationInstagram: r.one.integrationInstagramModel({
-      from: r.adsConversionEventModel.integrationInstagramId,
-      to: r.integrationInstagramModel.id,
+      optional: false,
     }),
     contactInbox: r.one.contactInboxModel({
       from: r.adsConversionEventModel.contactInboxId,

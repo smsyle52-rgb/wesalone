@@ -1,6 +1,7 @@
 "use server"
 
-import { reflinkService } from "@chatbotx.io/business"
+import { and, db, eq, inArray } from "@chatbotx.io/database/client"
+import { reflinkModel } from "@chatbotx.io/database/schema"
 import {
   type BulkUpdateIdsRequest,
   bulkUpdateIdsRequest,
@@ -20,6 +21,13 @@ export const deleteReflinksAction = workspaceActionClient
       bindArgsParsedInputs: WorkspaceIdRequestParams
       parsedInput: BulkUpdateIdsRequest
     }) => {
-      await reflinkService.deleteMany({ workspaceId, ids: parsedInput.ids })
+      await db
+        .delete(reflinkModel)
+        .where(
+          and(
+            eq(reflinkModel.workspaceId, workspaceId),
+            inArray(reflinkModel.id, parsedInput.ids),
+          ),
+        )
     },
   )

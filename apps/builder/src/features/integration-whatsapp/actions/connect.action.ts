@@ -7,7 +7,6 @@ import {
   platformCredentialService,
   workspaceService,
 } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import {
   db,
@@ -571,7 +570,6 @@ async function persistIntegration(params: {
   workspaceId: string
   createdWorkspace: boolean
   integrationRow: IntegrationWhatsappModel
-  wasCreated: boolean
 }> {
   const {
     tx,
@@ -612,7 +610,7 @@ async function persistIntegration(params: {
 
   let integrationRow: IntegrationWhatsappModel | undefined
 
-  const { wasCreated } = await connectChannelIntegration({
+  await connectChannelIntegration({
     tx,
     ownerId,
     inboxData: {
@@ -662,7 +660,6 @@ async function persistIntegration(params: {
     workspaceId: resolvedWorkspaceId,
     createdWorkspace,
     integrationRow,
-    wasCreated,
   }
 }
 
@@ -900,38 +897,20 @@ export const connectWhatsappAction = authActionClient
           }
         }
 
-        const { workspaceId, createdWorkspace, integrationRow, wasCreated } =
-          await connectInTransaction({
-            signupSessionClaim: preparedInput.signupSessionClaim,
-            messages,
-            ownerId,
-            userId: ctx.user.id,
-            workspaceId: parsedInput.workspaceId,
-            integrationId,
-            phoneNumber,
-            wabaId,
-            businessId,
-            auth,
-            isCoexist,
-            platformType,
-          })
-
-        if (createdWorkspace) {
-          await auditService.record({
-            userId: ctx.user.id,
-            workspaceId,
-            action: "create",
-            detail: `created the workspace (#${workspaceId})`,
-          })
-        }
-
-        if (wasCreated) {
-          await auditService.record({
-            workspaceId,
-            action: "connect",
-            detail: `connected a new WhatsApp channel (#${integrationRow.id})`,
-          })
-        }
+        const { workspaceId, integrationRow } = await connectInTransaction({
+          signupSessionClaim: preparedInput.signupSessionClaim,
+          messages,
+          ownerId,
+          userId: ctx.user.id,
+          workspaceId: parsedInput.workspaceId,
+          integrationId,
+          phoneNumber,
+          wabaId,
+          businessId,
+          auth,
+          isCoexist,
+          platformType,
+        })
 
         await integrationWhatsappService.refreshCapiScopeCache({
           id: integrationRow.id,

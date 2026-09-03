@@ -1,5 +1,4 @@
-import { auditService } from "@chatbotx.io/business/audit"
-import { and, db, eq, isNotNull, ne, or } from "@chatbotx.io/database/client"
+import { and, db, eq, isNotNull, or } from "@chatbotx.io/database/client"
 import { broadcastStatuses } from "@chatbotx.io/database/partials"
 import {
   broadcastModel,
@@ -62,28 +61,10 @@ export const finalizeBroadcasts = async () =>
           continue
         }
 
-        // A losing racer against process-broadcast-contacts.ts's own
-        // sent-transition must never double-audit — gate the emit on the
-        // update actually changing the row, not just on reaching this line.
-        const updated = await db
+        await db
           .update(broadcastModel)
           .set({ status: broadcastStatuses.enum.sent })
-          .where(
-            and(
-              eq(broadcastModel.id, broadcast.id),
-              ne(broadcastModel.status, broadcastStatuses.enum.sent),
-            ),
-          )
-          .returning({ id: broadcastModel.id })
-
-        if (updated.length > 0) {
-          await auditService.record({
-            action: "broadcast_sent",
-            detail: `sent a broadcast (#${broadcast.id})`,
-            workspaceId: broadcast.workspaceId,
-            source: "schedule:finalizeBroadcasts",
-          })
-        }
+          .where(eq(broadcastModel.id, broadcast.id))
 
         finalized++
       }

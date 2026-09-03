@@ -41,6 +41,7 @@ vi.mock("@chatbotx.io/business", () => ({
 vi.mock("@chatbotx.io/worker-config", () => ({
   DefaultJobAction: {
     bulkTagContacts: "bulkTagContacts",
+    sendAuditLog: "sendAuditLog",
   },
   defaultQueue: {
     add: (name: unknown, data: unknown) => mockQueueAdd(name, data),
@@ -75,7 +76,7 @@ describe("bulkTagStatsContactsAction", () => {
     mockUpsertByNames.mockResolvedValue([{ id: "tag-1", name: "VIP" }])
   })
 
-  test("enqueues a broadcast bulk tag job without request-time audit", async () => {
+  test("enqueues a broadcast bulk tag job and audit log", async () => {
     await executeAction({
       source: "broadcast",
       broadcastId: "broadcast-1",
@@ -100,7 +101,15 @@ describe("bulkTagStatsContactsAction", () => {
         eventType: "message:sent",
       },
     })
-    expect(mockQueueAdd).toHaveBeenCalledTimes(1)
+    expect(mockQueueAdd).toHaveBeenCalledWith("sendAuditLog", {
+      type: "sendAuditLog",
+      data: {
+        userId: "user-1",
+        workspaceId: "workspace-1",
+        action: "update",
+        detail: "Bulk tag contacts",
+      },
+    })
   })
 
   test("propagates assigned-contact scope for sequence step jobs", async () => {

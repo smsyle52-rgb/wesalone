@@ -5,7 +5,6 @@ import {
 } from "@chatbotx.io/database/schema"
 import { AuthType, type SecretTextAuthValue } from "@chatbotx.io/sdk"
 import { createId } from "@chatbotx.io/utils"
-import { isSameJsonValue } from "../audit/diff"
 import { BaseService } from "../base.service"
 
 class IntegrationOpenRouterService extends BaseService {
@@ -38,29 +37,15 @@ class IntegrationOpenRouterService extends BaseService {
     const existing = await this.findByWorkspaceId(props.workspaceId)
 
     if (existing) {
-      const next = {
-        model: props.model,
-        auth,
-        temperature: props.temperature,
-        maxOutputTokens: props.maxOutputTokens,
-      }
       await db
         .update(integrationOpenrouterModel)
-        .set(next)
-        .where(eq(integrationOpenrouterModel.id, existing.id))
-      if (
-        !isSameJsonValue(next, {
-          model: existing.model,
-          auth: existing.auth,
-          temperature: existing.temperature,
-          maxOutputTokens: existing.maxOutputTokens,
+        .set({
+          model: props.model,
+          auth,
+          temperature: props.temperature,
+          maxOutputTokens: props.maxOutputTokens,
         })
-      ) {
-        await this.audit(
-          "update",
-          "updated the OpenRouter integration configuration",
-        )
-      }
+        .where(eq(integrationOpenrouterModel.id, existing.id))
       return
     }
 
@@ -88,8 +73,6 @@ class IntegrationOpenRouterService extends BaseService {
         maxOutputTokens: props.maxOutputTokens,
       })
     })
-
-    await this.audit("connect", "connected a new OpenRouter integration")
   }
 
   async disconnect(workspaceId: string) {
@@ -100,8 +83,6 @@ class IntegrationOpenRouterService extends BaseService {
     await db
       .delete(integrationModel)
       .where(eq(integrationModel.id, existing.integrationId))
-
-    await this.audit("disconnect", "disconnected the OpenRouter integration")
   }
 
   async update(workspaceId: string, data: Partial<{ autoReply: boolean }>) {
@@ -110,13 +91,6 @@ class IntegrationOpenRouterService extends BaseService {
       .update(integrationOpenrouterModel)
       .set(data)
       .where(eq(integrationOpenrouterModel.id, existing.id))
-
-    if (data.autoReply !== undefined && data.autoReply !== existing.autoReply) {
-      await this.audit(
-        "update",
-        "updated the OpenRouter integration configuration",
-      )
-    }
   }
 }
 

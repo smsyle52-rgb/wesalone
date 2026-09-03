@@ -85,7 +85,6 @@ const TOOLS_CONFIG = [
     labelKey: "templates.title",
     descriptionKey: "templates.description",
     icon: CopyIcon,
-    getLink: (id: string) => `/space/${id}/templates`,
   },
   {
     id: "appointment",

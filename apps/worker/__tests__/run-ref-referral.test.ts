@@ -98,7 +98,6 @@ describe("runRef referral events", () => {
       "contact-1",
       "summer",
       "reflink-1",
-      "contact-inbox-1",
     )
     expect(emitContactReferredExistingContact).not.toHaveBeenCalled()
     expect(integrationQueueAdd).toHaveBeenCalledWith("sendFlow", {
@@ -124,7 +123,6 @@ describe("runRef referral events", () => {
       "contact-1",
       "summer",
       "reflink-1",
-      "contact-inbox-1",
     )
     expect(emitContactReferredANewContact).not.toHaveBeenCalled()
   })

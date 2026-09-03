@@ -2,6 +2,7 @@ import { processStreamingText } from "@chatbotx.io/ai"
 import { aiContextService } from "@chatbotx.io/ai/server"
 import { emit } from "@chatbotx.io/event-bus"
 import { createId } from "@chatbotx.io/utils"
+import type { BotResponseTrackingContext } from "@chatbotx.io/worker-config"
 import { normalizeError } from "universal-error-normalizer"
 import { logger } from "../../../lib/logger"
 import { sendMessageAndWait } from "../../utils/message"
@@ -13,7 +14,6 @@ import type {
   ReplyByAIExecutionResult,
   ReplyByAIProps,
 } from "./replies"
-import { buildTrackingContext } from "./tracking-context"
 
 type DirectSendTracker = {
   sent: boolean
@@ -78,11 +78,9 @@ export async function handleRichAIReply({
   const executionId = props.triggerMessageId as string
   const trackingContext = buildTrackingContext({
     conversationId: conversation.id,
-    messageId: executionId,
+    executionId,
     provider,
-    responseType: "ai_agent",
     startTime,
-    triggerType: "rich_response",
     workspaceId: conversation.workspaceId,
   })
 
@@ -186,6 +184,24 @@ async function appendAssistantHistory(
       },
     ],
   })
+}
+
+function buildTrackingContext(input: {
+  conversationId: string
+  executionId: string
+  provider: ReplyAIProvider
+  startTime: number
+  workspaceId: string
+}): BotResponseTrackingContext {
+  return {
+    aiProvider: input.provider,
+    conversationId: input.conversationId,
+    messageId: input.executionId,
+    responseType: "ai_agent",
+    startTime: input.startTime,
+    triggerType: "rich_response",
+    workspaceId: input.workspaceId,
+  }
 }
 
 async function emitStreamFailureAnalytics(input: {

@@ -5,13 +5,11 @@ import {
   quotaEnforcementService,
   userQuotaService,
 } from "@chatbotx.io/business"
-import { getAuditActor, withAuditContext } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { findOrFail, isDatabaseError } from "@chatbotx.io/database/client"
 import { userModel } from "@chatbotx.io/database/schema"
 import { SdkException } from "@chatbotx.io/sdk"
 import { zodBigintAsString } from "@chatbotx.io/utils"
-import { headers } from "next/headers"
 import {
   createSafeActionClient,
   DEFAULT_SERVER_ERROR_MESSAGE,
@@ -19,7 +17,6 @@ import {
 import { isCloud } from "@/env"
 import { getAllWorkspaceMembers } from "@/features/workspace-members/queries"
 import { getCurrentUserId } from "@/lib/auth/utils"
-import { getGuestClientIp } from "@/lib/rate-limit/guest-rate-limit"
 import { logger } from "./log"
 
 export const actionClient = createSafeActionClient({
@@ -63,16 +60,7 @@ export const authActionClient = actionClient.use(async ({ next }) => {
     )
   }
 
-  const requestHeaders = await headers()
-
-  return withAuditContext(
-    {
-      userId: user.id,
-      ipAddress: getGuestClientIp(requestHeaders),
-      userAgent: requestHeaders.get("user-agent") ?? undefined,
-    },
-    () => next({ ctx: { user } }),
-  )
+  return next({ ctx: { user } })
 })
 
 export const platformAdminActionClient = authActionClient.use(
@@ -115,17 +103,13 @@ export const workspaceActionClientAllowExpired = authActionClient.use(
     // without a second user+member round-trip — the same rows are already
     // loaded here. The `permissions` jsonb defaults to `{}`, so callers must
     // fail closed on missing keys (see `hasWorkspacePermission`).
-    return withAuditContext(
-      { ...(getAuditActor() ?? {}), workspaceId: workspace.id },
-      () =>
-        next({
-          ctx: {
-            workspaceId: workspace.id,
-            workspace,
-            workspaceMemberPermissions: member.permissions,
-          },
-        }),
-    )
+    return next({
+      ctx: {
+        workspaceId: workspace.id,
+        workspace,
+        workspaceMemberPermissions: member.permissions,
+      },
+    })
   },
 )
 

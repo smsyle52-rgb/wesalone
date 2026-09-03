@@ -16,7 +16,6 @@ import { normalizeError } from "universal-error-normalizer"
 import {
   AI_MESSAGE_HISTORY_LOOKBACK_MS,
   MAX_CONVERSATION_HISTORY,
-  MAX_CONVERSATION_HISTORY_HARD_CAP,
   MAX_SUMMARY_LENGTH,
 } from "../../constants"
 import { logger } from "../../logger"
@@ -68,19 +67,10 @@ function fallbackMessageId(props: {
     .digest("hex")
 }
 
-export function isSameContextMessage(
+function isSameContextMessage(
   existing: AIMessage,
   incoming: AIMessage,
 ): boolean {
-  // `seq` is assigned once, at append time, from a monotonic per-conversation
-  // counter — it can never collide between two distinct history entries,
-  // unlike `messageId`'s content-hash fallback below. Prefer it whenever both
-  // sides already have one (i.e. both are stored history entries, not a
-  // freshly-normalized incoming message still being deduped).
-  if (existing.seq !== undefined && incoming.seq !== undefined) {
-    return existing.seq === incoming.seq
-  }
-
   if (existing.messageId && incoming.messageId) {
     return existing.messageId === incoming.messageId
   }
@@ -276,11 +266,7 @@ export const aiContextService = {
             sinceTime,
           })
 
-          const aiHistoryUnseq = this.mapDbMessagesToContext(dbMessages)
-          const aiHistory = aiHistoryUnseq.map((msg, index) => ({
-            ...msg,
-            seq: index,
-          }))
+          const aiHistory = this.mapDbMessagesToContext(dbMessages)
           const modelMessages = this.mapContextToModelMessages(aiHistory)
 
           const summary =
@@ -296,7 +282,6 @@ export const aiContextService = {
             markerMessageId: conversation.aiContextLastMessageId,
             summary: summary.slice(0, MAX_SUMMARY_LENGTH),
             history: aiHistory,
-            nextSeq: aiHistory.length,
             summarizing: false,
             needsResummarize: false,
             updatedAt: Date.now(),
@@ -354,7 +339,6 @@ export const aiContextService = {
           )
           .filter((msg): msg is AIMessage => msg !== null)
 
-        let nextSeq = context.nextSeq
         let hasNewHistory = false
         for (const msg of normalizedNewMessages) {
           const isDuplicate = currentHistory.some((h) =>
@@ -362,8 +346,7 @@ export const aiContextService = {
           )
           if (!isDuplicate) {
             hasNewHistory = true
-            currentHistory.push({ ...msg, seq: nextSeq })
-            nextSeq += 1
+            currentHistory.push(msg)
           }
         }
 
@@ -371,47 +354,11 @@ export const aiContextService = {
           return await aiContextStore.get(conversationId)
         }
 
-        // Last-resort guard: cap history unconditionally, independent of
-        // whether the summarize job (below) is healthy. If `summarizing` is
-        // stuck (bug, race, Redis hiccup during reset), this is what actually
-        // prevents unbounded prompt growth rather than just detecting it.
-        // Applied before the summarize-trigger check below so that check
-        // (and the persisted history) always agree on the same array.
-        let boundedHistory = currentHistory
-        if (currentHistory.length > MAX_CONVERSATION_HISTORY_HARD_CAP) {
-          const droppedCount =
-            currentHistory.length - MAX_CONVERSATION_HISTORY_HARD_CAP
-          boundedHistory = currentHistory.slice(
-            -MAX_CONVERSATION_HISTORY_HARD_CAP,
-          )
-          logger.error(
-            {
-              conversationId,
-              historyLengthBeforeTruncate: currentHistory.length,
-              hardCap: MAX_CONVERSATION_HISTORY_HARD_CAP,
-              droppedCount,
-            },
-            "[ai-context-service] history exceeded hard cap — the summarizer safety net already failed; truncating to protect the AI prompt from unbounded growth",
-          )
-        }
-
-        const shouldSummarize = boundedHistory.length > MAX_CONVERSATION_HISTORY
+        const shouldSummarize = currentHistory.length > MAX_CONVERSATION_HISTORY
         const isSummarizing = context.summarizing === true
 
-        if (shouldSummarize && isSummarizing) {
-          logger.warn(
-            {
-              conversationId,
-              historyLength: boundedHistory.length,
-              maxConversationHistory: MAX_CONVERSATION_HISTORY,
-            },
-            "[ai-context-service] history exceeds cap while a summarize job is already marked in-flight — if this repeats across messages, the 'summarizing' flag is likely stuck and history is growing unbounded",
-          )
-        }
-
         await aiContextStore.update(conversationId, {
-          history: boundedHistory,
-          nextSeq,
+          history: currentHistory,
           needsResummarize: shouldSummarize && isSummarizing,
         })
 

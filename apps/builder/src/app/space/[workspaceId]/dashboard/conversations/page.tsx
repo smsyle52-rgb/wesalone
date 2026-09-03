@@ -2,7 +2,6 @@ import { ConversationsDashboard } from "@chatbotx.io/analytics-nextjs/components
 import { getIdFromParams } from "@chatbotx.io/utils"
 import { notFound } from "next/navigation"
 import { AnalyticsNav } from "@/features/analytics/components/analytics-nav"
-import { resolveAdsDashboardChannels } from "@/features/analytics/lib/ads-dashboard-channels"
 import { hasWorkspacePermission } from "@/lib/auth/permission-routes"
 import { getCurrentUserAndTargetWorkspace } from "@/lib/auth/utils"
 
@@ -35,10 +34,6 @@ export default async function ConversationsAnalyticsPage({
     userAndWorkspace.targetWorkspaceMember.permissions,
     "superAdmin",
   )
-  const adsChannels = await resolveAdsDashboardChannels({
-    workspaceId,
-    isSuperAdmin,
-  })
 
   return (
     <div className="flex flex-col gap-4">
@@ -47,7 +42,7 @@ export default async function ConversationsAnalyticsPage({
           workspaceId,
           timezone,
         }}
-        nav={<AnalyticsNav adsChannels={adsChannels} />}
+        nav={<AnalyticsNav showAds={isSuperAdmin} />}
         workspaceCreatedAt={targetWorkspace.createdAt}
       />
     </div>

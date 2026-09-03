@@ -16,7 +16,7 @@ const TAB_CONFIGS: readonly TabConfig[] = [
     translationKey: "instagram.tabs.generalSettings",
   },
   {
-    value: "ads",
+    value: "capi",
     translationKey: "instagram.tabs.conversionsApi",
   },
 ] as const

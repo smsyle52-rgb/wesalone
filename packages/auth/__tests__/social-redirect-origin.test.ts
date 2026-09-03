@@ -28,7 +28,6 @@ vi.mock("better-auth/next-js", () => ({
 
 vi.mock("better-auth/plugins", () => ({
   anonymous: () => ({ id: "anonymous" }),
-  bearer: () => ({ id: "bearer" }),
   magicLink: () => ({ id: "magic-link" }),
   oneTimeToken: () => ({ id: "one-time-token" }),
 }))

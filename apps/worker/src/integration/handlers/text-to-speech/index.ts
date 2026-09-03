@@ -29,7 +29,6 @@ function getExecutionId(
 
 export async function handleAITextToSpeech({
   conversation,
-  contactInbox,
   metadata,
   step,
 }: ExecuteStepProps<AITextToSpeechSchema>): Promise<ExecuteStepResult> {
@@ -121,7 +120,6 @@ export async function handleAITextToSpeech({
         customFieldId: step.outputFieldId,
         fullText: audioOutput.publicUrl,
         workspaceId: conversation.workspaceId,
-        contactInboxId: contactInbox.id,
       })
     }
 

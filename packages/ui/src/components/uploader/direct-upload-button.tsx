@@ -15,12 +15,6 @@ import {
 /**
  * Props for the DirectUploadButton component
  */
-/** Extra metadata a success callback gets alongside the S3 key — the `File` row id (ownership proof for a later server-side read-back) and the resolved MIME type sent to the presign endpoint. */
-export type DirectUploadSuccessMeta = {
-  fileId: string
-  mimeType: string
-}
-
 export type DirectUploadButtonProps = FileUploadProps & {
   /** Workspace ID for the upload. Omit for platform-level (workspace-less) uploads. */
   workspaceId?: string
@@ -28,17 +22,8 @@ export type DirectUploadButtonProps = FileUploadProps & {
   uploadPath?: string
   /** Custom upload handler URL, defaults to /api/presigned-upload */
   uploadHandlerUrl?: string
-  /** `type` sent to the presign endpoint — selects the server-side path/authz handler (`getUploadHandler`). Defaults to `"generic"`. */
-  uploadType?: string
-  /** `subType` sent to the presign endpoint — persisted on the `File` row for later ownership checks. Defaults to `"generic"`. */
-  uploadSubType?: string
-  /** Callback when upload is successful, receives the uploaded file path, file object, public URL, and the minted `File` row id + resolved MIME type. */
-  onUploadSuccess?: (
-    filePath: string,
-    file: File,
-    publicUrl: string,
-    meta: DirectUploadSuccessMeta,
-  ) => void
+  /** Callback when upload is successful, receives the uploaded file path and file object */
+  onUploadSuccess?: (filePath: string, file: File, publicUrl: string) => void
   /** Callback when upload fails, receives the error and file object */
   onUploadError?: (error: Error, file: File) => void
   /** Reference to the trigger button */
@@ -65,8 +50,6 @@ export function DirectUploadButton({
   workspaceId,
   uploadPath = "public/uploads",
   uploadHandlerUrl = "/api/presigned-upload",
-  uploadType = "generic",
-  uploadSubType = "generic",
   onUploadSuccess,
   onUploadError,
   triggerRef,
@@ -98,16 +81,15 @@ export function DirectUploadButton({
                 path: filePath,
                 ...(workspaceId !== undefined && { workspaceId }),
                 fileName: file.name,
-                type: uploadType,
-                subType: uploadSubType,
+                type: "generic",
+                subType: "generic",
                 mimeType,
               }),
             })
 
             if (!presignedResponse.ok) {
-              const errorBody = await presignedResponse.json().catch(() => null)
               throw new Error(
-                `Failed to get presigned URL: ${errorBody?.error ?? presignedResponse.statusText}`,
+                `Failed to get presigned URL: ${presignedResponse.statusText}`,
               )
             }
 
@@ -131,7 +113,6 @@ export function DirectUploadButton({
                     presignedPost.path,
                     file,
                     presignedPost.publicUrl,
-                    { fileId: presignedPost.fileId, mimeType },
                   )
                   resolve()
                 } else {
@@ -189,15 +170,7 @@ export function DirectUploadButton({
         setFiles([])
       }
     },
-    [
-      workspaceId,
-      uploadPath,
-      uploadHandlerUrl,
-      uploadType,
-      uploadSubType,
-      onUploadSuccess,
-      onUploadError,
-    ],
+    [workspaceId, uploadPath, uploadHandlerUrl, onUploadSuccess, onUploadError],
   )
 
   const onFileReject = useCallback((file: File, message: string) => {

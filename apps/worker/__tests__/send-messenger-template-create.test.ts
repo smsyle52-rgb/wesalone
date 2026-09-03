@@ -18,7 +18,6 @@ const {
   mockSendFlowStep,
   mockRecordSendFailure,
   mockDbSet,
-  mockEnqueueIntegrationJob,
 } = vi.hoisted(() => {
   const insertChain = {
     values: vi.fn(),
@@ -63,7 +62,6 @@ const {
     mockBroadcast: vi.fn(),
     mockEmit: vi.fn().mockResolvedValue(undefined),
     mockValidateTemplate: vi.fn().mockResolvedValue({
-      inbox: { id: "inbox-1", integrationMessenger: { id: "intg-1" } },
       template: {
         id: "tmpl-1",
         name: "my-template",
@@ -72,7 +70,6 @@ const {
         components: [],
       },
     }),
-    mockEnqueueIntegrationJob: vi.fn().mockResolvedValue(undefined),
     mockReplaceVariables: vi.fn().mockResolvedValue([]),
     mockContactVariables: vi.fn().mockResolvedValue([]),
     mockSendFlowStep: vi
@@ -161,13 +158,6 @@ vi.mock("../src/lib/logger", () => ({
 
 vi.mock("../src/chat/handlers/send-message", () => ({
   sendFlowStepToChannel: mockSendFlowStep,
-}))
-
-vi.mock("@chatbotx.io/worker-config", () => ({
-  IntegrationJobAction: {
-    evaluateTemplateSent: "evaluateTemplateSent",
-  },
-  enqueueIntegrationJob: mockEnqueueIntegrationJob,
 }))
 
 vi.mock("@chatbotx.io/flow-config", async (importOriginal) => {
@@ -261,7 +251,6 @@ describe("processMessengerTemplate", () => {
       updateSourceId: mockRepositoryUpdateSourceId,
     })
     mockValidateTemplate.mockResolvedValue({
-      inbox: { id: "inbox-1", integrationMessenger: { id: "intg-1" } },
       template: {
         id: "tmpl-1",
         name: "my-template",
@@ -274,7 +263,6 @@ describe("processMessengerTemplate", () => {
     mockContactVariables.mockResolvedValue([])
     mockSendFlowStep.mockResolvedValue({ messageIds: ["provider-msg-1"] })
     mockEmit.mockResolvedValue(undefined)
-    mockEnqueueIntegrationJob.mockResolvedValue(undefined)
   })
 
   test("calls repository.create() to insert outbound message", async () => {

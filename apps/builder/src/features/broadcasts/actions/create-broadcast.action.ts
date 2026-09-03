@@ -1,7 +1,6 @@
 "use server"
 
 import { broadcastService } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { db } from "@chatbotx.io/database/client"
 import { findBroadcastChannelCapability } from "@chatbotx.io/database/partials"
 import { pruneEmailPhoneFilterConditions } from "@chatbotx.io/database/queries/contact-filter/permission"
@@ -172,20 +171,6 @@ export const createBroadcastAction = workspaceActionClient
           : null,
       })
       .returning()
-
-    await auditService.record({
-      workspaceId,
-      action: "create",
-      detail: `created a new broadcast (#${broadcast.id})`,
-    })
-
-    if (parsedInput.schedulesType === "now") {
-      await auditService.record({
-        workspaceId,
-        action: "launch",
-        detail: `launched a broadcast (#${broadcast.id})`,
-      })
-    }
 
     return broadcast
   })

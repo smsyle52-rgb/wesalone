@@ -607,7 +607,6 @@ class ContactService extends BaseService {
       contact.firstName || undefined,
       contact.phoneNumber || undefined,
       contact.email || undefined,
-      contactInbox.id,
     )
 
     emit("analytics:dashboard", {

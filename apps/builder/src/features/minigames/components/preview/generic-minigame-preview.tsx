@@ -12,7 +12,6 @@ import type { ReactNode } from "react"
 
 type GenericMinigamePreviewProps = {
   name: string
-  showName: boolean
   appearance: MinigameAppearance
   prizeSettings: MinigamePrizeSettings
   shareEnabled: boolean
@@ -61,7 +60,6 @@ function StartButton({
 
 export function GenericMinigamePreview({
   name,
-  showName,
   appearance,
   shareEnabled,
 }: GenericMinigamePreviewProps) {
@@ -73,11 +71,9 @@ export function GenericMinigamePreview({
         className="flex flex-1 flex-col items-center justify-center gap-4 px-4 pb-6"
         style={{ backgroundColor: appearance.backgroundColor }}
       >
-        {showName && (
-          <div className="text-center font-semibold text-sm tracking-wide">
-            {name}
-          </div>
-        )}
+        <div className="text-center font-semibold text-sm tracking-wide">
+          {name}
+        </div>
 
         <div className="flex flex-col items-center gap-2 rounded-2xl bg-white/70 px-6 py-8">
           <Gamepad2Icon className="size-10 text-foreground/60" />

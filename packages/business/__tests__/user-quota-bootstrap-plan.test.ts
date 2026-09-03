@@ -266,14 +266,17 @@ describe("userQuotaService.ensureBootstrapPlan", () => {
     expect(dbInsert).toHaveBeenCalledTimes(2)
   })
 
-  test("no-ops outside cloud edition", async () => {
+  // Upstream no-ops off-cloud. Wesal One runs the community edition but is
+  // itself the platform for its merchants, so the row has to be stamped here
+  // too: without it the quota row is only created later as a side effect of
+  // usage counting, landing with `autoReplyEnabled` false, and the merchant's
+  // agent is silent from the moment they sign up.
+  test("still stamps the bootstrap row outside cloud edition", async () => {
     isCloud.mockReturnValue(false)
 
     await userQuotaService.ensureBootstrapPlan({ userId: USER })
 
-    expect(distributedStore.get).not.toHaveBeenCalled()
-    expect(dbInsert).not.toHaveBeenCalled()
-    expect(distributedStore.delete).not.toHaveBeenCalled()
+    expect(dbInsert).toHaveBeenCalled()
   })
 
   test("creates an unblocked active free access state", async () => {

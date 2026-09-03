@@ -6,15 +6,11 @@ const {
   mockRecordSendFailure,
   mockEnqueueContactRepliedEvaluation,
   mockFindWorkspaceIntegrationByInboxId,
-  mockFindMessengerIntegrationByInboxId,
-  mockFindInstagramIntegrationByInboxId,
   mockHasEnabledTriggerRule,
 } = vi.hoisted(() => ({
   mockRecordSendFailure: vi.fn().mockResolvedValue(undefined),
   mockEnqueueContactRepliedEvaluation: vi.fn().mockResolvedValue(undefined),
   mockFindWorkspaceIntegrationByInboxId: vi.fn(),
-  mockFindMessengerIntegrationByInboxId: vi.fn(),
-  mockFindInstagramIntegrationByInboxId: vi.fn(),
   mockHasEnabledTriggerRule: vi.fn(),
 }))
 
@@ -55,26 +51,13 @@ vi.mock("@chatbotx.io/business", () => ({
   adsConversionService: {
     enqueueContactRepliedEvaluation: mockEnqueueContactRepliedEvaluation,
     hasEnabledTriggerRule: mockHasEnabledTriggerRule,
-    // Mirrors the real CTWA_ELIGIBLE_CHANNELS set post-flip (whatsapp +
-    // messenger + instagram) — independent of the real implementation since
-    // this is mocked, but exercises the same 3-channel dispatch the listener
-    // code now supports.
-    isEligibleChannel: (channel: unknown) =>
-      channel === "whatsapp" ||
-      channel === "messenger" ||
-      channel === "instagram",
+    isEligibleChannel: (channel: unknown) => channel === "whatsapp",
   },
 }))
 
 vi.mock("@chatbotx.io/database/repositories", () => ({
   integrationWhatsappRepository: {
     findWorkspaceIntegrationByInboxId: mockFindWorkspaceIntegrationByInboxId,
-  },
-  integrationMessengerRepository: {
-    findWorkspaceIntegrationByInboxId: mockFindMessengerIntegrationByInboxId,
-  },
-  integrationInstagramRepository: {
-    findWorkspaceIntegrationByInboxId: mockFindInstagramIntegrationByInboxId,
   },
 }))
 
@@ -121,8 +104,6 @@ describe("messageListeners", () => {
       id: "iw-1",
       wabaId: "waba-1",
     })
-    mockFindMessengerIntegrationByInboxId.mockResolvedValue({ id: "im-1" })
-    mockFindInstagramIntegrationByInboxId.mockResolvedValue({ id: "ii-1" })
     mockHasEnabledTriggerRule.mockResolvedValue(true)
   })
 
@@ -226,8 +207,7 @@ describe("messageListeners", () => {
     })
     expect(mockEnqueueContactRepliedEvaluation).toHaveBeenCalledWith({
       workspaceId: "ws-1",
-      channel: "whatsapp",
-      integrationId: "iw-1",
+      integrationWhatsappId: "iw-1",
       contactInboxId: "ci-1",
       isFirstReply: true,
       messageId: "msg-1",
@@ -253,13 +233,13 @@ describe("messageListeners", () => {
     expect(mockEnqueueContactRepliedEvaluation).not.toHaveBeenCalled()
   })
 
-  test("ignores inbound payloads on non-ads-eligible channels (e.g. telegram)", async () => {
+  test("ignores inbound payloads on non-whatsapp channels", async () => {
     await contactRepliedListener().handler?.([
       {
         workspaceId: "ws-1",
         contactId: "contact-1",
         contactInboxId: "ci-1",
-        channel: "telegram",
+        channel: "messenger",
         inboxId: "inbox-1",
         occurredAt: new Date("2026-08-11T00:00:00.000Z"),
         origin: "inbound",
@@ -267,89 +247,7 @@ describe("messageListeners", () => {
       },
     ])
 
-    expect(mockFindWorkspaceIntegrationByInboxId).not.toHaveBeenCalled()
-    expect(mockFindMessengerIntegrationByInboxId).not.toHaveBeenCalled()
-    expect(mockFindInstagramIntegrationByInboxId).not.toHaveBeenCalled()
     expect(mockEnqueueContactRepliedEvaluation).not.toHaveBeenCalled()
-  })
-
-  test("resolves the Messenger integration and enqueues a messenger-channel evaluation", async () => {
-    await contactRepliedListener().handler?.([
-      {
-        workspaceId: "ws-1",
-        contactId: "contact-1",
-        contactInboxId: "ci-1",
-        channel: "messenger",
-        inboxId: "inbox-messenger-1",
-        occurredAt: new Date("2026-08-11T00:00:00.000Z"),
-        origin: "inbound",
-        messageId: "msg-1",
-        isFirstIncomingMessage: true,
-      },
-    ])
-
-    expect(mockFindMessengerIntegrationByInboxId).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      inboxId: "inbox-messenger-1",
-    })
-    expect(mockFindWorkspaceIntegrationByInboxId).not.toHaveBeenCalled()
-    expect(mockHasEnabledTriggerRule).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      channel: "messenger",
-      integrationId: "im-1",
-      triggerType: "contactReplied",
-    })
-    expect(mockEnqueueContactRepliedEvaluation).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      channel: "messenger",
-      integrationId: "im-1",
-      contactInboxId: "ci-1",
-      isFirstReply: true,
-      messageId: "msg-1",
-    })
-  })
-
-  test("keeps whatsapp and messenger integration id caches separate within the same batch", async () => {
-    mockFindWorkspaceIntegrationByInboxId.mockResolvedValue({ id: "same-id" })
-    mockFindMessengerIntegrationByInboxId.mockResolvedValue({ id: "same-id" })
-
-    await contactRepliedListener().handler?.([
-      {
-        workspaceId: "ws-1",
-        contactId: "contact-1",
-        contactInboxId: "ci-1",
-        channel: "whatsapp",
-        inboxId: "inbox-1",
-        occurredAt: new Date("2026-08-11T00:00:00.000Z"),
-        origin: "inbound",
-        messageId: "msg-1",
-      },
-      {
-        workspaceId: "ws-1",
-        contactId: "contact-2",
-        contactInboxId: "ci-2",
-        channel: "messenger",
-        inboxId: "inbox-2",
-        occurredAt: new Date("2026-08-11T00:00:01.000Z"),
-        origin: "inbound",
-        messageId: "msg-2",
-      },
-    ])
-
-    expect(mockHasEnabledTriggerRule).toHaveBeenCalledTimes(2)
-    expect(mockHasEnabledTriggerRule).toHaveBeenCalledWith(
-      expect.objectContaining({
-        channel: "whatsapp",
-        integrationId: "same-id",
-      }),
-    )
-    expect(mockHasEnabledTriggerRule).toHaveBeenCalledWith(
-      expect.objectContaining({
-        channel: "messenger",
-        integrationId: "same-id",
-      }),
-    )
-    expect(mockEnqueueContactRepliedEvaluation).toHaveBeenCalledTimes(2)
   })
 
   test("resolves integrationWhatsappId once per inboxId across a batch", async () => {
@@ -382,16 +280,14 @@ describe("messageListeners", () => {
     expect(mockEnqueueContactRepliedEvaluation).toHaveBeenCalledTimes(2)
     expect(mockEnqueueContactRepliedEvaluation).toHaveBeenNthCalledWith(1, {
       workspaceId: "ws-1",
-      channel: "whatsapp",
-      integrationId: "iw-1",
+      integrationWhatsappId: "iw-1",
       contactInboxId: "ci-1",
       isFirstReply: true,
       messageId: "msg-1",
     })
     expect(mockEnqueueContactRepliedEvaluation).toHaveBeenNthCalledWith(2, {
       workspaceId: "ws-1",
-      channel: "whatsapp",
-      integrationId: "iw-1",
+      integrationWhatsappId: "iw-1",
       contactInboxId: "ci-2",
       isFirstReply: false,
       messageId: "msg-2",
@@ -454,8 +350,7 @@ describe("messageListeners", () => {
 
     expect(mockHasEnabledTriggerRule).toHaveBeenCalledWith({
       workspaceId: "ws-1",
-      channel: "whatsapp",
-      integrationId: "iw-1",
+      integrationWhatsappId: "iw-1",
       triggerType: "contactReplied",
     })
     expect(mockEnqueueContactRepliedEvaluation).not.toHaveBeenCalled()
@@ -495,8 +390,7 @@ describe("messageListeners", () => {
     expect(mockEnqueueContactRepliedEvaluation).toHaveBeenCalledTimes(1)
     expect(mockEnqueueContactRepliedEvaluation).toHaveBeenCalledWith({
       workspaceId: "ws-1",
-      channel: "whatsapp",
-      integrationId: "iw-1",
+      integrationWhatsappId: "iw-1",
       contactInboxId: "ci-2",
       isFirstReply: false,
       messageId: "msg-2",

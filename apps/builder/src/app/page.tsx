@@ -6,6 +6,7 @@ import {
   userQuotaService,
 } from "@chatbotx.io/business"
 import { ROOT_TENANT_ID } from "@chatbotx.io/database/schema"
+import type { Metadata } from "next"
 import { ExpiredBanner } from "@/components/expired-banner"
 import { WorkspaceDeletionPendingToast } from "@/components/workspace-deletion-pending-toast"
 import { isCloud } from "@/env"
@@ -21,6 +22,21 @@ import {
   resolveBlockReason,
   resolveTrialEndsAt,
 } from "@/lib/quota-metrics"
+
+// Arabic stays the default for every visitor, but the page also exists in
+// English behind `?lang=en`. Without these alternates a crawler has no way to
+// discover it: Google reviewed wesal.one, got the Arabic page, and rejected a
+// startup-credit application saying it could not identify the product.
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/",
+    languages: {
+      ar: "/",
+      en: "/?lang=en",
+      "x-default": "/",
+    },
+  },
+}
 
 export default async function MainPage() {
   const userAndWorkspaces = await getCurrentUserAndAllLinkedWorkspaces()

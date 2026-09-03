@@ -2,18 +2,16 @@
 
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
-const { mockDeleteWhere, mockDelete, mockFindOrFail, mockAuditRecord } =
-  vi.hoisted(() => {
-    const mockDeleteWhere = vi.fn().mockResolvedValue(undefined)
-    const mockDelete = vi.fn().mockReturnValue({ where: mockDeleteWhere })
+const { mockDeleteWhere, mockDelete, mockFindOrFail } = vi.hoisted(() => {
+  const mockDeleteWhere = vi.fn().mockResolvedValue(undefined)
+  const mockDelete = vi.fn().mockReturnValue({ where: mockDeleteWhere })
 
-    return {
-      mockDeleteWhere,
-      mockDelete,
-      mockFindOrFail: vi.fn().mockResolvedValue({ id: "seq-1", name: "Seq" }),
-      mockAuditRecord: vi.fn().mockResolvedValue(undefined),
-    }
-  })
+  return {
+    mockDeleteWhere,
+    mockDelete,
+    mockFindOrFail: vi.fn().mockResolvedValue(undefined),
+  }
+})
 
 vi.mock("@/lib/safe-action", () => {
   const chain: Record<string, unknown> = {}
@@ -28,10 +26,6 @@ vi.mock("@chatbotx.io/database/client", () => ({
   db: { delete: mockDelete },
   eq: (a: unknown, b: unknown) => ({ eq: [a, b] }),
   findOrFail: mockFindOrFail,
-}))
-
-vi.mock("@chatbotx.io/business/audit", () => ({
-  auditService: { record: mockAuditRecord },
 }))
 
 vi.mock("@chatbotx.io/database/schema", () => ({
@@ -58,7 +52,7 @@ describe("deleteSequenceAction", () => {
     vi.clearAllMocks()
     mockDelete.mockReturnValue({ where: mockDeleteWhere })
     mockDeleteWhere.mockResolvedValue(undefined)
-    mockFindOrFail.mockResolvedValue({ id: "seq-1", name: "Seq" })
+    mockFindOrFail.mockResolvedValue(undefined)
   })
 
   describe("happy path", () => {
@@ -128,7 +122,7 @@ describe("deleteSequence (exported helper)", () => {
     vi.clearAllMocks()
     mockDelete.mockReturnValue({ where: mockDeleteWhere })
     mockDeleteWhere.mockResolvedValue(undefined)
-    mockFindOrFail.mockResolvedValue({ id: "seq-1", name: "Seq" })
+    mockFindOrFail.mockResolvedValue(undefined)
   })
 
   test("is directly callable with ctx object", async () => {

@@ -13,7 +13,6 @@ import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form"
-import { CustomFieldSelect } from "@/features/custom-fields/custom-field-select"
 import { PrizeItemEditDialog } from "./prize-item-edit-dialog"
 
 type EditTarget =
@@ -68,13 +67,6 @@ export function PrizeListEditor({ workspaceId }: { workspaceId: string }) {
         </span>
       </div>
 
-      <CustomFieldSelect
-        clearable
-        customFieldTypes={["shortText", "longText"]}
-        label={t("minigames.prizeSettings.prizeNameCustomFieldLabel")}
-        name="prizeSettings.prizeNameCustomFieldId"
-      />
-
       <div className="flex flex-col gap-2">
         {fields.map((field, index) => (
           <div className="flex items-center gap-3" key={field.id}>
@@ -85,7 +77,7 @@ export function PrizeListEditor({ workspaceId }: { workspaceId: string }) {
                   onClick={() => setEditTarget({ variant: "prize", index })}
                   type="button"
                 >
-                  <span className="w-32 truncate">
+                  <span className="max-w-32 truncate">
                     {prizeSettings.prizes[index]?.name ||
                       t("minigames.prizeItemDialog.prizeNameLabel")}
                   </span>
@@ -149,6 +141,7 @@ export function PrizeListEditor({ workspaceId }: { workspaceId: string }) {
             name: "",
             icon: { mode: "file", url: "" },
             winRate: 0,
+            winMessage: { enabled: false, mode: "text", text: "" },
           })
         }
         type="button"

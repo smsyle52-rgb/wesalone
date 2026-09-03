@@ -32,10 +32,6 @@ class IntegrationMailchimpService extends BaseService {
         .update(integrationMailchimpModel)
         .set({ auth: encryptedAuth })
         .where(eq(integrationMailchimpModel.id, existing.id))
-      await this.audit(
-        "update",
-        "updated the Mailchimp integration configuration",
-      )
       return existing.id
     }
 
@@ -54,7 +50,6 @@ class IntegrationMailchimpService extends BaseService {
         auth: encryptedAuth,
       })
     })
-    await this.audit("connect", "connected a new Mailchimp integration")
     return mailchimpId
   }
 
@@ -72,8 +67,6 @@ class IntegrationMailchimpService extends BaseService {
         .delete(integrationModel)
         .where(eq(integrationModel.id, existing.integrationId))
     })
-
-    await this.audit("disconnect", "disconnected the Mailchimp integration")
   }
 }
 

@@ -46,10 +46,7 @@ export function AppointmentsTable({ workspaceId, tab, promises }: Props) {
   const getTabHref = useTabHref()
   const [{ data, pageCount }] = use(promises)
   const [rowAction, setRowAction] = useState<AppointmentRowAction | null>(null)
-  const columns = useMemo(
-    () => getAppointmentColumns({ t, setRowAction, workspaceId }),
-    [t, workspaceId],
-  )
+  const columns = useMemo(() => getAppointmentColumns({ t, setRowAction }), [t])
   const { table } = useDataTable({
     data,
     columns,

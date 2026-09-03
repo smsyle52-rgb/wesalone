@@ -110,16 +110,6 @@ export function MessageList() {
     }
   }
 
-  const handlePrivateReplyComment = (comment: {
-    commentId: string
-    text: string
-  }) => {
-    const message = messages.find((m) => m.sourceId === comment.commentId)
-    if (message) {
-      setReplyToMessage(message, true)
-    }
-  }
-
   const handleDeleteComment = ({
     id,
     createdAt,
@@ -260,7 +250,6 @@ export function MessageList() {
               })
             }}
             onEdit={handleEditMessage}
-            onPrivateReply={handlePrivateReplyComment}
             onReply={handleReplyComment}
           />
         )}

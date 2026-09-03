@@ -45,32 +45,8 @@ export async function replaceMessengerTemplateVariables(props: {
   return replacedParams
 }
 
-// `typeof db.query.inboxModel.findFirst` alone (no call) resolves to the
-// no-`with` overload, which drops `integrationMessenger` from the inferred
-// return type — wrapping the actual call (with its `with` config) in a
-// function lets `ReturnType` capture the relation instead.
-function queryInboxWithIntegrationMessenger(inboxId: string) {
-  return db.query.inboxModel.findFirst({
-    where: { id: inboxId },
-    with: { integrationMessenger: true },
-  })
-}
-
-type InboxWithIntegrationMessenger = NonNullable<
-  Awaited<ReturnType<typeof queryInboxWithIntegrationMessenger>>
->
-
 export type ValidatedMessengerTemplate = {
-  // `integrationMessenger` is re-narrowed non-null here: `validateMessengerTemplate`
-  // already guards `!inbox?.integrationMessenger` before returning, so every
-  // caller of this type (e.g. `send-messenger-template.ts`'s ads-conversion
-  // enqueue, Amendment A1) can read `validated.inbox.integrationMessenger.id`
-  // without an extra null check.
-  inbox: Omit<InboxWithIntegrationMessenger, "integrationMessenger"> & {
-    integrationMessenger: NonNullable<
-      InboxWithIntegrationMessenger["integrationMessenger"]
-    >
-  }
+  inbox: NonNullable<Awaited<ReturnType<typeof db.query.inboxModel.findFirst>>>
   template: NonNullable<
     Awaited<ReturnType<typeof db.query.messengerMessageTemplateModel.findFirst>>
   >
@@ -82,7 +58,10 @@ export async function validateMessengerTemplate(
   templateId: string,
   inboxId: string,
 ): Promise<ValidatedMessengerTemplate | null> {
-  const inbox = await queryInboxWithIntegrationMessenger(inboxId)
+  const inbox = await db.query.inboxModel.findFirst({
+    where: { id: inboxId },
+    with: { integrationMessenger: true },
+  })
 
   if (!inbox?.integrationMessenger) {
     return null
@@ -100,13 +79,5 @@ export async function validateMessengerTemplate(
     return null
   }
 
-  // Re-reads `inbox.integrationMessenger` (rather than spreading the bare
-  // `inbox` variable) so TS's narrowing from the guard above actually
-  // applies to the returned object's `integrationMessenger` field — a
-  // narrowed property access doesn't propagate through the whole-object
-  // reference otherwise.
-  return {
-    inbox: { ...inbox, integrationMessenger: inbox.integrationMessenger },
-    template,
-  }
+  return { inbox, template }
 }

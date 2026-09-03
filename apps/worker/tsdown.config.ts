@@ -14,7 +14,6 @@ export default defineConfig({
     "src/sequence-scheduler/worker-consumer.ts",
     "src/schedule/worker.ts",
     "src/events/worker.ts",
-    "src/notification/worker.ts",
   ],
   dts: false,
   shims: true,

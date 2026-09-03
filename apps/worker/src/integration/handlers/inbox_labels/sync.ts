@@ -73,20 +73,9 @@ async function assignLabel(
     )
     .onConflictDoNothing()
 
-  // Per-contact contactInboxId map, keyed off the same `inboxes` list used to
-  // build the insert above — each newly-linked contact attributes to the
-  // specific ContactInbox that carried this label assignment, not the
-  // contact's most-recently-active inbox across every channel.
-  const contactInboxIdByContactId = new Map(
-    inboxes.map((inbox) => [inbox.contactId, inbox.id]),
-  )
-
   await emitForContacts(
     ctx.workspaceId,
-    linked.map((row) => ({
-      contactId: row.contactId,
-      contactInboxId: contactInboxIdByContactId.get(row.contactId),
-    })),
+    linked.map((row) => row.contactId),
     mapping.tagId,
     emitTagApplied,
   )
@@ -134,10 +123,7 @@ async function unassignLabel(
 
   await emitForContacts(
     ctx.workspaceId,
-    inboxes.map((inbox) => ({
-      contactId: inbox.contactId,
-      contactInboxId: inbox.id,
-    })),
+    contactIds,
     tagChannel.tagId,
     emitTagRemoved,
   )
@@ -146,18 +132,17 @@ async function unassignLabel(
 /** Best-effort tag events (failures must not fail the webhook). */
 async function emitForContacts(
   workspaceId: string,
-  contacts: Array<{ contactId: string; contactInboxId?: string }>,
+  contactIds: string[],
   tagId: string,
   emit: (
     workspaceId: string,
     contactId: string,
     tagId: string,
-    contactInboxId?: string,
   ) => Promise<void>,
 ): Promise<void> {
-  for (const { contactId, contactInboxId } of contacts) {
+  for (const contactId of contactIds) {
     try {
-      await emit(workspaceId, contactId, tagId, contactInboxId)
+      await emit(workspaceId, contactId, tagId)
     } catch (error) {
       logger.warn({ tagId, error }, "inbox labels: failed to emit tag event")
     }

@@ -1,7 +1,6 @@
 "use server"
 
 import { inboxService, workspaceService } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { integrationTiktokModel } from "@chatbotx.io/database/schema"
 import {
@@ -37,11 +36,6 @@ export const disconnectTiktokAction = workspaceActionClientAllowExpired
           workspaceId,
           tx,
         })
-      })
-
-      await auditService.record({
-        action: "disconnect",
-        detail: `disconnected the TikTok channel (#${integrationTiktok.id})`,
       })
     },
   )

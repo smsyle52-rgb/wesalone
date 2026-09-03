@@ -1,4 +1,3 @@
-import { SYSTEM_ACTOR } from "@chatbotx.io/business/audit"
 import { db } from "@chatbotx.io/database/client"
 import { auditLogModel } from "@chatbotx.io/database/schema"
 import { createId } from "@chatbotx.io/utils"
@@ -9,20 +8,12 @@ export const sendAuditLog = async (data: JobSendAuditLog["data"]) => {
   if (env.NEXT_PUBLIC_EDITION === "community") {
     return
   }
-  const { userId, workspaceId, action, detail, ipAddress, userAgent, source } =
-    data
-  const persistedUserId = userId === SYSTEM_ACTOR ? null : userId
-  await db
-    .insert(auditLogModel)
-    .values({
-      id: data.auditLogId ?? createId(),
-      userId: persistedUserId,
-      workspaceId,
-      action,
-      detail,
-      ipAddress,
-      userAgent,
-      source,
-    })
-    .onConflictDoNothing()
+  const { userId, workspaceId, action, detail } = data
+  await db.insert(auditLogModel).values({
+    id: createId(),
+    userId,
+    workspaceId,
+    action,
+    detail,
+  })
 }

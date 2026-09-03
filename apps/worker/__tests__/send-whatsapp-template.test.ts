@@ -427,8 +427,7 @@ describe("processWhatsappTemplate", () => {
         type: "evaluateTemplateSent",
         data: {
           workspaceId: "ws-1",
-          channel: "whatsapp",
-          integrationId: "iw-1",
+          integrationWhatsappId: "iw-1",
           contactInboxId: "ci-1",
           templateId: "tmpl-wa-1",
         },

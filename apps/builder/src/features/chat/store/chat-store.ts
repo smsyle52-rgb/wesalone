@@ -53,9 +53,6 @@ export type ChatState = {
 
   // message reply selection
   replyToMessage: MessageResourceWithRelations | null
-  // true when replyToMessage should be sent as a private-reply DM instead of
-  // a public comment reply
-  isPrivateReply: boolean
 
   // active facebook post (for comment conversations)
   activePost: PostDetails | null
@@ -116,10 +113,7 @@ export type ChatActions = {
   ) => void
   loadMoreMessages: (workspaceId: string, perPage: number) => Promise<void>
   handleNewMessage: (message: MessageResourceWithRelations) => void
-  setReplyToMessage: (
-    message: MessageResourceWithRelations | null,
-    isPrivate?: boolean,
-  ) => void
+  setReplyToMessage: (message: MessageResourceWithRelations | null) => void
 
   // Post actions
   loadActivePost: (workspaceId: string) => Promise<void>
@@ -175,7 +169,6 @@ export const createChatStore = () => {
     isLoadMoreMessage: false,
     hasNextMessagePage: true,
     replyToMessage: null,
-    isPrivateReply: false,
     activePost: null,
 
     prependConversation: (newConversation: ListConversationItemResource) =>
@@ -321,7 +314,6 @@ export const createChatStore = () => {
           hasNextMessagePage: true,
           isLoadMoreMessage: false,
           replyToMessage: null,
-          isPrivateReply: false,
           activePost: null,
         })
       }
@@ -414,11 +406,7 @@ export const createChatStore = () => {
       }
     },
 
-    setReplyToMessage: (message, isPrivate = false) =>
-      set({
-        replyToMessage: message,
-        isPrivateReply: message ? isPrivate : false,
-      }),
+    setReplyToMessage: (message) => set({ replyToMessage: message }),
 
     appendMessage: (message: MessageResourceWithRelations) => {
       const { updateConversationViaMessage } = get()

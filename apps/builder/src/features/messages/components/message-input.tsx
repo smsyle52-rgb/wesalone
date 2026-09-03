@@ -19,8 +19,6 @@ import { createId } from "@chatbotx.io/utils"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks"
 import {
-  ImageIcon,
-  LockIcon,
   PaperclipIcon,
   ReplyIcon,
   SendHorizonalIcon,
@@ -44,7 +42,6 @@ import {
   isConversationActive,
 } from "@/features/conversations/utils/bot-state"
 import { InboxIcon } from "@/features/inboxes/components/inbox-icon"
-import { MediaLibraryTrigger } from "@/features/media-library/components/media-library-trigger"
 import { QuickRepliesPopover } from "@/features/saved-replies/quick-replies-popover"
 import { authClient } from "@/lib/auth/auth-client"
 import { useChatStore } from "../../chat/store/chat-store-provider"
@@ -52,7 +49,6 @@ import { createMessageAction } from "../actions/create-message.action"
 import { createMessageRequest } from "../schema/mutation"
 import { FileUploadPreview } from "./file-upload"
 import { InputMenu } from "./input-menu"
-import { MediaFilePreview } from "./media-file-preview"
 
 const CHANNEL_WINDOW_SECONDS: Record<ChannelType, number> = {
   api: 0,
@@ -83,7 +79,6 @@ export const MessageInput = () => {
     updateConversation,
     replyToMessage,
     setReplyToMessage,
-    isPrivateReply,
     messages,
   } = useChatStore((state) => state)
 
@@ -138,19 +133,12 @@ export const MessageInput = () => {
       {
         actionProps: {
           onExecute: ({ input }: { input: unknown }) => {
-            // try to push raw message to store — skipped for a private
-            // reply, since that message belongs to the contact's DM
-            // conversation, not whichever post/comment conversation is
-            // currently open here.
+            // try to push raw message to store
             if (
               typeof input === "object" &&
               input !== null &&
               "text" in input &&
-              input.text &&
-              !(
-                "isPrivateReply" in input &&
-                (input as { isPrivateReply?: boolean }).isPrivateReply
-              )
+              input.text
             ) {
               const typedInput = input as { text: string; clientId: string }
               appendMessage({
@@ -193,11 +181,9 @@ export const MessageInput = () => {
           defaultValues: {
             text: "",
             files: [],
-            mediaFile: undefined,
             clientId: createId(),
             replyToMessageId: undefined,
             replyToMessageCreatedAt: undefined,
-            isPrivateReply: undefined,
           },
         },
         errorMapProps: {},
@@ -211,11 +197,10 @@ export const MessageInput = () => {
       "replyToMessageCreatedAt",
       replyToMessage?.createdAt ?? undefined,
     )
-    form.setValue("isPrivateReply", replyToMessage ? isPrivateReply : undefined)
     if (replyToMessage) {
       textareaRef.current?.focus()
     }
-  }, [form, replyToMessage, isPrivateReply])
+  }, [form, replyToMessage])
 
   // Memoize emoji selection handler
   const setContent = useCallback(
@@ -375,17 +360,12 @@ export const MessageInput = () => {
     [channel, isWindowExpired],
   )
 
-  // Check if a media file (device upload or Media Library pick) is attached
-  const mediaFile = useWatch({
-    control: form.control,
-    name: "mediaFile",
-  })
+  // Check if files are attached
   const files = useWatch({
     control: form.control,
     name: "files",
   })
-  const hasFiles =
-    Boolean(mediaFile) || (Array.isArray(files) && files.length > 0)
+  const hasFiles = Array.isArray(files) && files.length > 0
 
   // Early return if no active conversation
   if (!activeConversationId) {
@@ -466,17 +446,8 @@ export const MessageInput = () => {
         >
           {replyToMessage && (
             <div className="mx-2.5 mb-1 flex items-start gap-2 rounded-lg border-primary bg-muted px-3 py-2 text-sm">
-              {isPrivateReply ? (
-                <LockIcon className="mt-0.5 size-3.5 shrink-0 text-primary" />
-              ) : (
-                <ReplyIcon className="mt-0.5 size-3.5 shrink-0 text-primary" />
-              )}
+              <ReplyIcon className="mt-0.5 size-3.5 shrink-0 text-primary" />
               <span className="flex-1 truncate text-muted-foreground">
-                {isPrivateReply && (
-                  <span className="me-1 font-medium text-foreground">
-                    {t("messages.privateReply")}:
-                  </span>
-                )}
                 {replyToMessage.text || t("messages.facebookComment")}
               </span>
               <Button
@@ -516,7 +487,6 @@ export const MessageInput = () => {
           {!isInstagramPostComment && (
             <div className="px-2">
               <FileUploadPreview ref={fileUploadRef} />
-              <MediaFilePreview />
             </div>
           )}
           <div className="flex w-full items-center ps-2.5">
@@ -532,44 +502,15 @@ export const MessageInput = () => {
             <div className="message-toolbar flex items-center gap-2">
               {!hasFiles && <InputMenu setContent={setContent} />}
               {!isInstagramPostComment && (
-                <>
-                  <Button
-                    aria-label="Attach file"
-                    className="px-2 py-1.5 [&_svg]:size-5"
-                    disabled={Boolean(mediaFile)}
-                    onClick={onClickAttachment}
-                    type="button"
-                    variant="ghost"
-                  >
-                    <PaperclipIcon aria-hidden="true" />
-                  </Button>
-                  <MediaLibraryTrigger
-                    onSelect={(file) => {
-                      form.setValue(
-                        "mediaFile",
-                        {
-                          path: file.path,
-                          url: file.url,
-                          mimeType: file.mimeType,
-                          name: file.name,
-                          size: file.size,
-                        },
-                        { shouldValidate: true },
-                      )
-                    }}
-                    workspaceId={conversation?.workspaceId ?? ""}
-                  >
-                    <Button
-                      aria-label={t("mediaLibrary.openMediaLibrary")}
-                      className="px-2 py-1.5 [&_svg]:size-5"
-                      disabled={Array.isArray(files) && files.length > 0}
-                      type="button"
-                      variant="ghost"
-                    >
-                      <ImageIcon aria-hidden="true" />
-                    </Button>
-                  </MediaLibraryTrigger>
-                </>
+                <Button
+                  aria-label="Attach file"
+                  className="px-2 py-1.5 [&_svg]:size-5"
+                  onClick={onClickAttachment}
+                  type="button"
+                  variant="ghost"
+                >
+                  <PaperclipIcon aria-hidden="true" />
+                </Button>
               )}
               <Button
                 aria-label="Send message"

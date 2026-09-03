@@ -9,6 +9,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@chatbotx.io/ui/components/ui/dropdown-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@chatbotx.io/ui/components/ui/tooltip"
 import type { ColumnDef, Row } from "@tanstack/react-table"
 import {
   BanIcon,
@@ -16,9 +21,9 @@ import {
   ExternalLinkIcon,
   Trash2Icon,
 } from "lucide-react"
+import Link from "next/link"
 import type { useTranslations } from "next-intl"
 import type { Dispatch, SetStateAction } from "react"
-import { ContactNameCell } from "@/features/contacts/components/contact-name-cell"
 import type { AppointmentManagementListItem } from "../schemas/resource"
 
 export type AppointmentRowAction = {
@@ -29,7 +34,6 @@ export type AppointmentRowAction = {
 type Props = {
   t: ReturnType<typeof useTranslations>
   setRowAction: Dispatch<SetStateAction<AppointmentRowAction | null>>
-  workspaceId: string
 }
 
 const statusLabelKey = {
@@ -52,7 +56,6 @@ function formatAppointmentDate(date: Date, timezone: string) {
 export function getAppointmentColumns({
   t,
   setRowAction,
-  workspaceId,
 }: Props): ColumnDef<AppointmentManagementListItem>[] {
   return [
     {
@@ -64,19 +67,27 @@ export function getAppointmentColumns({
           title={t("appointmentManagement.fields.name")}
         />
       ),
-      cell: ({ row }) => (
-        <ContactNameCell
-          avatarClassName="size-8"
-          contact={{
-            avatar: row.original.contactAvatar,
-            fullName: row.original.contactName,
-          }}
-          conversationId={row.original.conversationId}
-          maxWidthClassName="max-w-64"
-          unknownContactLabel={t("appointmentManagement.unknownContact")}
-          workspaceId={workspaceId}
-        />
-      ),
+      cell: ({ row }) => {
+        const name =
+          row.original.contactName ?? t("appointmentManagement.unknownContact")
+        return (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Link
+                  className="inline-block max-w-[260px] truncate font-medium"
+                  href={row.original.scheduleUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {name}
+                </Link>
+              }
+            />
+            <TooltipContent>{name}</TooltipContent>
+          </Tooltip>
+        )
+      },
       meta: {
         label: t("appointmentManagement.fields.name"),
         placeholder: t("appointmentManagement.searchPlaceholder"),

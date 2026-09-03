@@ -21,37 +21,6 @@ type AddInstagramDialogProps = {
   onOpenChange?: (open: boolean) => void
 }
 
-function InstagramIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-12"
-      fill="none"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <defs>
-        <radialGradient
-          cx="30%"
-          cy="107%"
-          gradientUnits="userSpaceOnUse"
-          id="ig-grad"
-          r="150%"
-        >
-          <stop offset="0%" stopColor="#fdf497" />
-          <stop offset="5%" stopColor="#fdf497" />
-          <stop offset="45%" stopColor="#fd5949" />
-          <stop offset="60%" stopColor="#d6249f" />
-          <stop offset="90%" stopColor="#285AEB" />
-        </radialGradient>
-      </defs>
-      <rect fill="url(#ig-grad)" height="24" rx="6" width="24" />
-      <circle cx="12" cy="12" r="4.5" stroke="white" strokeWidth="1.8" />
-      <circle cx="17.5" cy="6.5" fill="white" r="1.2" />
-    </svg>
-  )
-}
-
 function FacebookIcon() {
   return (
     <svg
@@ -74,24 +43,14 @@ function DialogBody({ workspaceId }: { workspaceId?: string | null }) {
   const t = useTranslations()
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <div className="flex flex-col items-center gap-3 rounded-lg border p-6 text-center">
-        <InstagramIcon />
-        <h3 className="font-semibold">{t("fields.instagram.loginTitle")}</h3>
-        <p className="flex-1 text-muted-foreground text-sm">
-          {t("fields.instagram.loginDescription")}
-        </p>
-        <Link
-          className={buttonVariants({
-            variant: "secondary",
-            className: "w-full",
-          })}
-          href={`/channels/create?channel=instagram-direct${workspaceId ? `&workspaceId=${workspaceId}` : ""}`}
-        >
-          {t("fields.instagram.loginTitle")}
-        </Link>
-      </div>
-
+    // The Instagram-login card is deliberately not offered. That flow posts
+    // this deployment's Facebook app id to `instagram.com/oauth/authorize`,
+    // which answers `Invalid platform app`, and it asks for
+    // `instagram_business_*` scopes this app was never granted. It is the more
+    // recognisable of the two cards, so merchants reached for it first and hit
+    // a dead end every time. Restore it only alongside a real Instagram app id
+    // and an approved `instagram_business_*` review.
+    <div className="grid gap-4">
       <div className="flex flex-col items-center gap-3 rounded-lg border p-6 text-center">
         <FacebookIcon />
         <h3 className="font-semibold">

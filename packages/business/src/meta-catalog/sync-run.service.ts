@@ -307,8 +307,8 @@ class MetaCatalogSyncRunService extends BaseService {
       fingerprint: string
     }>
     errors: MetaCatalogItemError[]
-  }): Promise<ReturnType<typeof resolveMetaCatalogOutcome> | null> {
-    return await db.transaction(async (tx) => {
+  }) {
+    await db.transaction(async (tx) => {
       const [current] = await tx
         .select({
           skippedCount: metaCatalogSyncRunModel.skippedCount,
@@ -324,7 +324,7 @@ class MetaCatalogSyncRunService extends BaseService {
         )
         .for("update")
       if (!current) {
-        return null
+        return
       }
       await metaCatalogItemRepository.markSucceeded(
         {
@@ -356,8 +356,6 @@ class MetaCatalogSyncRunService extends BaseService {
           finishedAt: new Date(),
         })
         .where(eq(metaCatalogSyncRunModel.id, input.runId))
-
-      return status
     })
   }
 

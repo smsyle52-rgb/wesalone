@@ -1,4 +1,3 @@
-import { extractContactInboxId } from "@chatbotx.io/events"
 import { runWithWebhookExecutionContext } from "@chatbotx.io/events/context"
 import { SdkException } from "@chatbotx.io/sdk"
 import {
@@ -13,7 +12,6 @@ import { ensureBootstrapped } from "../lib/bootstrap"
 import { isBlockedWorkspace } from "../lib/is-blocked-workspace"
 import { logger } from "../lib/logger"
 import { resolveWorkspaceId } from "../lib/resolve-workspace-id"
-import { runJobWithAuditContext } from "../lib/run-job-with-audit-context"
 import { TriggerExecutorService } from "./services/trigger-executor.service"
 import { TriggerMatcherService } from "./services/trigger-matcher.service"
 import type { TriggerEventData } from "./types"
@@ -33,57 +31,46 @@ async function startTriggerWorker() {
   const worker = new Worker(
     queueNames.enum.trigger,
     async (job: Job<TriggerJobData>) => {
-      const workspaceId = await resolveWorkspaceId(job.data.data)
-      if (await isBlockedWorkspace(workspaceId)) {
+      if (await isBlockedWorkspace(await resolveWorkspaceId(job.data.data))) {
         return
       }
 
-      await runJobWithAuditContext(
-        { workspaceId, source: "trigger:evaluateTriggers" },
-        async () => {
-          switch (job.data.type) {
-            case TriggerJobAction.evaluateTriggers: {
-              const { data: eventData } = job.data
+      switch (job.data.type) {
+        case TriggerJobAction.evaluateTriggers: {
+          const { data: eventData } = job.data
 
-              if (eventData.source === "worker") {
-                logger.info("Skipping worker-emitted event to prevent loop")
-                return
-              }
-
-              const matchedTriggers = await triggerMatcher.findMatchingTriggers(
-                eventData as TriggerEventData,
-              )
-
-              if (matchedTriggers.length === 0) {
-                return
-              }
-
-              logger.info(
-                `Found ${matchedTriggers.length} triggers for event type ${eventData.eventType}`,
-              )
-
-              const contactInboxId = extractContactInboxId(eventData.eventData)
-
-              await runWithWebhookExecutionContext(
-                eventData.channelOriginated ? { source: "webhook" } : {},
-                () =>
-                  Promise.allSettled(
-                    matchedTriggers.map((trigger) =>
-                      triggerExecutor.execute(trigger, {
-                        contactId: eventData.contactId,
-                        contactInboxId,
-                      }),
-                    ),
-                  ),
-              )
-              return
-            }
-
-            default:
-              throw new SdkException("TriggerJobAction action is not defined")
+          if (eventData.source === "worker") {
+            logger.info("Skipping worker-emitted event to prevent loop")
+            return
           }
-        },
-      )
+
+          const matchedTriggers = await triggerMatcher.findMatchingTriggers(
+            eventData as TriggerEventData,
+          )
+
+          if (matchedTriggers.length === 0) {
+            return
+          }
+
+          logger.info(
+            `Found ${matchedTriggers.length} triggers for event type ${eventData.eventType}`,
+          )
+
+          await runWithWebhookExecutionContext(
+            eventData.channelOriginated ? { source: "webhook" } : {},
+            () =>
+              Promise.allSettled(
+                matchedTriggers.map((trigger) =>
+                  triggerExecutor.execute(trigger, eventData.contactId),
+                ),
+              ),
+          )
+          return
+        }
+
+        default:
+          throw new SdkException("TriggerJobAction action is not defined")
+      }
     },
     {
       connection: getRedisConnection(),

@@ -50,13 +50,6 @@ type SetValuesInput = {
    * flow "set custom field" step so an empty date/datetime records "now".
    */
   fillEmptyTemporalWithNow?: boolean
-  /**
-   * The `ContactInbox` the caller has in scope (e.g. the flow-step "set
-   * custom field" handler) — forwarded to `emitCustomFieldChanges` so the
-   * Trigger action that reacts to this change attributes to the right
-   * inbox instead of the contact's most-recently-active one.
-   */
-  contactInboxId?: string
 }
 
 /**
@@ -75,14 +68,12 @@ type EmitCustomFieldChangesInput = {
   workspaceId: string
   contactId: string
   changes: PendingContactCustomFieldChange[]
-  contactInboxId?: string
 }
 
 type DeleteByKeyInput = {
   workspaceId: string
   contactId: string
   keyword: string
-  contactInboxId?: string
 }
 
 type DeleteByCustomFieldIdInput = {
@@ -312,7 +303,6 @@ class ContactCustomFieldService extends BaseService {
       workspaceId: input.workspaceId,
       contactId: input.contactId,
       changes,
-      contactInboxId: input.contactInboxId,
     })
   }
 
@@ -339,7 +329,7 @@ class ContactCustomFieldService extends BaseService {
   async emitCustomFieldChanges(
     input: EmitCustomFieldChangesInput,
   ): Promise<void> {
-    const { workspaceId, contactId, changes, contactInboxId } = input
+    const { workspaceId, contactId, changes } = input
 
     for (const change of changes) {
       emitCustomFieldChanged(
@@ -349,7 +339,6 @@ class ContactCustomFieldService extends BaseService {
         change.customFieldName,
         change.oldValue,
         change.newValue,
-        contactInboxId,
       ).catch((error: unknown) => {
         logger.warn(
           {
@@ -432,7 +421,6 @@ class ContactCustomFieldService extends BaseService {
       sourceTimezoneOverride,
       temporalInputParsing,
       fillEmptyTemporalWithNow,
-      contactInboxId,
     } = input
 
     let customField: { id: string } | undefined
@@ -462,12 +450,11 @@ class ContactCustomFieldService extends BaseService {
       sourceTimezoneOverride,
       temporalInputParsing,
       fillEmptyTemporalWithNow,
-      contactInboxId,
     })
   }
 
   async deleteByKey(input: DeleteByKeyInput): Promise<void> {
-    const { workspaceId, contactId, keyword, contactInboxId } = input
+    const { workspaceId, contactId, keyword } = input
 
     let customField: { id: string; name: string } | undefined
 
@@ -516,7 +503,6 @@ class ContactCustomFieldService extends BaseService {
       customField.name,
       oldValue,
       null,
-      contactInboxId,
     ).catch((error: unknown) => {
       logger.warn(
         { err: error, workspaceId, contactId, customFieldId: customField.id },

@@ -10,7 +10,6 @@ const {
   mockTxInsertReturning,
   mockCreateId,
   MockChatbotXException,
-  mockRecordAuditLog,
 } = vi.hoisted(() => {
   const mockTxInsertReturning = vi.fn()
   const mockTxInsertValues = vi.fn()
@@ -33,13 +32,8 @@ const {
     mockTxInsertReturning,
     mockCreateId: vi.fn().mockReturnValue("new-bc-id"),
     MockChatbotXException,
-    mockRecordAuditLog: vi.fn(),
   }
 })
-
-vi.mock("@chatbotx.io/business/audit", () => ({
-  auditService: { record: (...args: unknown[]) => mockRecordAuditLog(...args) },
-}))
 
 vi.mock("@/lib/safe-action", () => {
   const chain: Record<string, unknown> = {}
@@ -111,9 +105,7 @@ describe("resendBroadcast", () => {
     vi.clearAllMocks()
     mockTxInsertValues.mockReturnValue({ returning: mockTxInsertReturning })
     mockTxInsert.mockReturnValue({ values: mockTxInsertValues })
-    mockTxInsertReturning.mockResolvedValue([
-      { id: "new-bc-id", name: "Summer Sale (Resend)" },
-    ])
+    mockTxInsertReturning.mockResolvedValue([{ id: "new-bc-id" }])
     mockDbTransaction.mockImplementation(
       async (fn: (tx: { insert: typeof mockTxInsert }) => Promise<unknown>) =>
         fn({ insert: mockTxInsert }),
@@ -159,11 +151,6 @@ describe("resendBroadcast", () => {
     }
     expect(insertedValues.name).toBe("Summer Sale (Resend)")
     expect(insertedValues.status).toBe("scheduled")
-    expect(mockRecordAuditLog).toHaveBeenCalledWith({
-      workspaceId: WORKSPACE_ID,
-      action: "launch",
-      detail: "launched a broadcast (#new-bc-id)",
-    })
   })
 
   test("new broadcast copies key fields from original", async () => {

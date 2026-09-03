@@ -17,8 +17,6 @@ class IntegrationDeepSeekService extends BaseService {
     await db
       .delete(integrationModel)
       .where(eq(integrationModel.id, existing.integrationId))
-
-    await this.audit("disconnect", "disconnected the DeepSeek integration")
   }
 }
 

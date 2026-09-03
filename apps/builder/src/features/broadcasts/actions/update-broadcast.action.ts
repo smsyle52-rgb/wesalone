@@ -1,6 +1,5 @@
 "use server"
 
-import { auditService } from "@chatbotx.io/business/audit"
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { broadcastModel } from "@chatbotx.io/database/schema"
 import { zodBigintAsString } from "@chatbotx.io/utils"
@@ -38,10 +37,4 @@ export const updateBroadcast = async (
     .update(broadcastModel)
     .set(parsedInput)
     .where(eq(broadcastModel.id, broadcast.id))
-
-  await auditService.record({
-    workspaceId: ctx.workspaceId,
-    action: "update",
-    detail: `updated a broadcast (#${broadcast.id})`,
-  })
 }

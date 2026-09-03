@@ -262,7 +262,7 @@ export const sendFlowStep: MessageHandlers<MessengerAuthValue>["sendFlowStep"] =
     }
   }
 
-export function* convertMessageToFacebookMessage(
+function* convertMessageToFacebookMessage(
   message: OutgoingMessage,
 ): Generator<FacebookMessage> {
   if (message.contentType === contentTypes.enum.text) {

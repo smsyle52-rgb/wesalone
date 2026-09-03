@@ -20,7 +20,6 @@
   "exports": {
     ".": "./src/index.ts",
     "./apis/*": "./src/apis/*.ts",
-    "./messaging-ads/*": "./src/messaging-ads/*.ts",
     "./schemas": "./src/schemas.ts"
   },
   "scripts": {

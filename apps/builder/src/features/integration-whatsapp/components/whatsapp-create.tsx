@@ -422,24 +422,14 @@ function SdkConnectSection({
     // `window.opener` set so the callback route can relay the code back here.
     const authTab = window.open(url, "_blank")
     if (!authTab) {
-      // Nothing opened. An ad blocker, a privacy extension, a per-site popup
-      // block, or an in-app browser can all swallow `window.open` silently,
-      // and none of them are visible from the server — seven merchants
-      // reported the button "doing nothing" while the same click worked fine
-      // in an unextended Chrome, leaving no trace anywhere to diagnose.
-      //
-      // Navigating in place clears the whole class at once. The callback route
-      // already handles a return with no `window.opener`: it redirects to the
-      // referer carrying WA_OAUTH_CODE_PARAM, and the effect above reads that
-      // param, strips it, and submits — so this path is served end to end and
-      // is not a new flow. Reaching Meta beats explaining why we could not.
-      window.location.href = url
+      toast.error(t("whatsapp.embeddedSignupPopupBlocked"))
     }
   }, [
     settings,
     oauthCallbackUrl,
     watchConnectExisting,
     watchTransferPhoneNumber,
+    t,
   ])
 
   // Once Meta hands back a code the card keeps every option on screen, showing the

@@ -1,10 +1,4 @@
-import {
-  type AIContext,
-  type AIMessage,
-  aiContextStore,
-  isSameContextMessage,
-  summarizeConversation,
-} from "@chatbotx.io/ai/server"
+import { aiContextStore, summarizeConversation } from "@chatbotx.io/ai/server"
 import { usageMeteringService } from "@chatbotx.io/business"
 import { db } from "@chatbotx.io/database/client"
 import {
@@ -17,38 +11,6 @@ import { logger } from "../../lib/logger"
 
 const HISTORY_LIMIT = 20
 const SUMMARY_BATCH_SIZE = 10
-
-// A healthy summarize call self-aborts within `aiTimeouts.aiStep` (60s, see
-// packages/ai/src/constants/index.ts). If `summarizing` has been true for
-// much longer than that, the job that set it almost certainly crashed
-// (OOM/SIGKILL/redeploy) before it could reach its own `.then`/`.catch`
-// reset — no code path is coming to clear the flag. Treat it as stale and
-// self-heal instead of leaving it stuck forever.
-const STALE_SUMMARIZING_THRESHOLD_MS = 5 * 60 * 1000
-
-function removeSummarizedMessages(
-  history: AIMessage[],
-  messagesToSummarize: AIMessage[],
-): AIMessage[] {
-  const consumedSeqs = new Set<number>()
-  const legacyConsumed: AIMessage[] = []
-  for (const msg of messagesToSummarize) {
-    if (msg.seq === undefined) {
-      legacyConsumed.push(msg)
-    } else {
-      consumedSeqs.add(msg.seq)
-    }
-  }
-
-  return history.filter((h) => {
-    // Entries cached before `seq` existed (24h Redis TTL) — fall back to the
-    // old identity check for just these stragglers.
-    if (h.seq === undefined) {
-      return !legacyConsumed.some((s) => isSameContextMessage(s, h))
-    }
-    return !consumedSeqs.has(h.seq)
-  })
-}
 
 export async function handleSummarizeConversation(
   data: AIJobSummarizeConversation["data"],
@@ -72,32 +34,16 @@ export async function handleSummarizeConversation(
       }
 
       if (context.summarizing) {
-        const startedAt = context.summarizingStartedAt
-        const staleForMs = startedAt === null ? null : Date.now() - startedAt
-        const isStale =
-          staleForMs !== null && staleForMs > STALE_SUMMARIZING_THRESHOLD_MS
-
-        if (!isStale) {
-          await aiContextStore.update(conversationId, {
-            needsResummarize: true,
-          })
-          return null
-        }
-
-        // The job that set `summarizing: true` never reached its own
-        // `.then`/`.catch` (worker crash, redeploy, OOM) — no other code path
-        // will clear this flag. Recover by proceeding as if it were false.
-        logger.warn(
-          { conversationId, staleForMs },
-          "[summarizer-worker] 'summarizing' flag stale for longer than a healthy summarize call can take — recovering from a likely crashed job",
-        )
+        await aiContextStore.update(conversationId, {
+          needsResummarize: true,
+        })
+        return null
       }
 
       if (context.history.length <= HISTORY_LIMIT) {
         if (context.needsResummarize || context.summarizing) {
           await aiContextStore.update(conversationId, {
             summarizing: false,
-            summarizingStartedAt: null,
             needsResummarize: false,
           })
         }
@@ -111,7 +57,6 @@ export async function handleSummarizeConversation(
 
       await aiContextStore.update(conversationId, {
         summarizing: true,
-        summarizingStartedAt: Date.now(),
         needsResummarize: false,
       })
 
@@ -130,11 +75,8 @@ export async function handleSummarizeConversation(
       })
 
       if (!conversation) {
-        await aiContextStore.runExclusive(conversationId, async () => {
-          await aiContextStore.update(conversationId, {
-            summarizing: false,
-            summarizingStartedAt: null,
-          })
+        await aiContextStore.update(conversationId, {
+          summarizing: false,
         })
         return
       }
@@ -192,15 +134,11 @@ export async function handleSummarizeConversation(
           return
         }
 
-        // Filter by identity rather than slicing the first N entries: the
-        // hard-cap truncation in appendHistory can drop messages from the
-        // front of history while this summarize job is in flight, so the
-        // current front-of-array entries are not reliably the ones that
-        // were actually summarized.
-        const remainingHistory = removeSummarizedMessages(
-          latestContext.history,
-          snapshot.messagesToSummarize,
+        const consumed = Math.min(
+          SUMMARY_BATCH_SIZE,
+          latestContext.history.length,
         )
+        const remainingHistory = latestContext.history.slice(consumed)
 
         shouldRequeue =
           latestContext.needsResummarize ||
@@ -210,79 +148,30 @@ export async function handleSummarizeConversation(
           summary: newSummary,
           history: remainingHistory,
           summarizing: false,
-          summarizingStartedAt: null,
           needsResummarize: false,
         })
       })
 
       if (shouldRequeue) {
-        // The summary/history commit above already succeeded — a failure to
-        // requeue must not be reported as "failed to summarize" nor trigger
-        // a full BullMQ retry (which would redundantly re-run the AI
-        // summarization call for work that's already done). It's safe to
-        // just log and move on: `summarizing` is already `false`, so the
-        // next `appendHistory` call past the threshold enqueues a fresh job
-        // organically.
-        await aiAgentQueue
-          .add(
-            AIJobAction.summarizeConversation,
-            {
-              type: AIJobAction.summarizeConversation,
-              data: {
-                conversationId,
-              },
+        await aiAgentQueue.add(
+          AIJobAction.summarizeConversation,
+          {
+            type: AIJobAction.summarizeConversation,
+            data: {
+              conversationId,
             },
-            {
-              jobId: `summarize-${conversationId}`,
-              removeOnComplete: true,
-              removeOnFail: true,
-            },
-          )
-          .catch((requeueErr) => {
-            logger.error(
-              { err: requeueErr, conversationId },
-              "[summarizer-worker] Failed to requeue follow-up summarize job after a successful summarize — will retry via next appendHistory trigger instead",
-            )
-          })
+          },
+          {
+            jobId: `summarize-${conversationId}`,
+            removeOnComplete: true,
+            removeOnFail: true,
+          },
+        )
       }
     })
-    .catch(async (err) => {
-      // Never leave `summarizing` stuck true on a failed attempt — BullMQ
-      // will retry this job from scratch, and if retries are exhausted the
-      // flag must still be clear so the *next* appendHistory call is free to
-      // enqueue a fresh summarize job. Without this, a permanently failing
-      // summarize call (e.g. bad AI integration) permanently blocks
-      // summarization and `history` grows unbounded.
-      // Read-then-reset under the same lock as every other
-      // summarizing/needsResummarize mutation, so the diagnostic snapshot
-      // below reflects the state actually being reset, and neither can race
-      // with a concurrent appendHistory reading a stale `summarizing` value.
-      const contextSnapshotRef: { current: AIContext | null } = {
-        current: null,
-      }
-      await aiContextStore
-        .runExclusive(conversationId, async () => {
-          contextSnapshotRef.current = await aiContextStore.get(conversationId)
-          await aiContextStore.update(conversationId, {
-            summarizing: false,
-            summarizingStartedAt: null,
-          })
-        })
-        .catch((resetErr) => {
-          logger.error(
-            { err: resetErr, conversationId },
-            "[summarizer-worker] Failed to reset stuck 'summarizing' flag after summarize failure",
-          )
-        })
-
+    .catch((err) => {
       logger.error(
-        {
-          err,
-          conversationId,
-          historyLengthAtFailure:
-            contextSnapshotRef.current?.history.length ?? null,
-          summarizingAtFailure: contextSnapshotRef.current?.summarizing ?? null,
-        },
+        { err, conversationId },
         "[summarizer-worker] Failed to summarize conversation",
       )
       throw err // Rethrow for BullMQ retry

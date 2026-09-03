@@ -71,7 +71,7 @@ const imageReaderSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Additional context to identify a specific image when multiple images exist",
+      "What the model looking at the image needs to know but cannot see. It is called with the image alone — none of your instructions, none of this conversation, no product catalogue — so a photo of a carton comes back described as 'a cardboard box' unless you say otherwise. Put here what this business sells, the product names it might be, and what the customer just asked. Also use it to say which image you mean when there are several.",
     ),
 })
 

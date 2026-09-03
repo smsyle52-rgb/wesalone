@@ -1,4 +1,3 @@
-import { auditService } from "@chatbotx.io/business/audit"
 import {
   and,
   type DatabaseClient,
@@ -29,10 +28,9 @@ export async function updateWorkspaceLogo<A extends AuthValue>(props: {
   ctx: Context<A>
   tx?: DatabaseClient
 }): Promise<void> {
-  const { id, integration, ctx } = props
-  const client = props.tx ?? db
+  const { id, integration, ctx, tx = db } = props
 
-  const workspace = await client.query.workspaceModel.findFirst({
+  const workspace = await tx.query.workspaceModel.findFirst({
     where: { id },
     columns: { logo: true },
   })
@@ -66,14 +64,14 @@ export async function updateWorkspaceLogo<A extends AuthValue>(props: {
     return
   }
 
-  const updated = await client
+  const updated = await tx
     .update(workspaceModel)
     .set({ logo })
     .where(and(eq(workspaceModel.id, id), isNull(workspaceModel.logo)))
     .returning({ id: workspaceModel.id })
 
   if (updated.length > 0) {
-    const workspaceMembers = await client
+    const workspaceMembers = await tx
       .select({ userId: workspaceMemberModel.userId })
       .from(workspaceMemberModel)
       .where(eq(workspaceMemberModel.workspaceId, id))
@@ -85,13 +83,5 @@ export async function updateWorkspaceLogo<A extends AuthValue>(props: {
           `users:${workspaceMember.userId}:workspace-members`,
       ),
     ])
-
-    if (!props.tx) {
-      await auditService.record({
-        workspaceId: id,
-        action: "update",
-        detail: "changed the workspace logo",
-      })
-    }
   }
 }

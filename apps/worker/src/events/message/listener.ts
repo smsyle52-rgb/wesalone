@@ -10,17 +10,11 @@ import {
   sequenceAnalyticsService,
 } from "@chatbotx.io/analytics"
 import {
-  type AdsEligibleChannel,
   adsConversionService,
   contactInboxService,
   workspaceUsageService,
 } from "@chatbotx.io/business"
-import {
-  integrationInstagramRepository,
-  integrationMessengerRepository,
-  integrationWhatsappRepository,
-} from "@chatbotx.io/database/repositories"
-import type { AdsConversionChannel } from "@chatbotx.io/database/schema"
+import { integrationWhatsappRepository } from "@chatbotx.io/database/repositories"
 import type {
   EventBusMessageMetadata,
   MessageEvenTypeMap,
@@ -96,107 +90,74 @@ function formatSendFailureError(errorData: unknown): string {
 }
 
 /**
- * Channel-aware "resolve the integration that owns this inbox" dispatch
- * (Phase 3), mirroring the resolver-map pattern used for CAPI sends
- * (`apps/worker/.../meta-conversions/send-meta-capi-event.ts`). Each branch
- * stays non-throwing (returns `null` on a miss) so a resolution failure for
- * one payload never aborts the whole batch — the caller's per-payload
- * try/catch is reserved for genuinely unexpected errors.
- */
-const integrationByInboxResolvers: Record<
-  AdsEligibleChannel,
-  (input: {
-    workspaceId: string
-    inboxId: string
-  }) => Promise<{ id: string } | null>
-> = {
-  whatsapp: (input) =>
-    integrationWhatsappRepository.findWorkspaceIntegrationByInboxId(input),
-  messenger: (input) =>
-    integrationMessengerRepository.findWorkspaceIntegrationByInboxId(input),
-  instagram: (input) =>
-    integrationInstagramRepository.findWorkspaceIntegrationByInboxId(input),
-}
-
-/**
  * Ads conversion `contactReplied` trigger. `message:received` is a shared
  * channel — see message-status.ts, which emits the same event for outbound
  * delivery-status echoes — so only payloads carrying the `origin: "inbound"`
  * discriminant (set in received-message.ts, genuine contact-authored
  * messages only) are eligible.
  *
- * The integration id is resolved per `(channel, inboxId)` and cached across
- * the whole batch so a burst of inbound messages across many conversations
- * on the same integration only costs one repository round trip per
- * integration, not one per message. Integration ids are per-table sequences,
- * so a plain `integrationId` cache key could collide across channels (Phase
- * 3) — the cache key is `${channel}:${inboxId}`/`${channel}:${integrationId}`.
+ * `integrationWhatsappId` is resolved per `inboxId` and cached across the
+ * whole batch so a burst of inbound messages across many conversations on
+ * the same WhatsApp number only costs one repository round trip per number,
+ * not one per message.
  *
- * HIGH-2: this handler runs on EVERY inbound ads-eligible message
- * platform-wide, so before enqueueing it also checks the cheap cached
- * `hasEnabledTriggerRule` gate (per channel+integrationId, cached across the
- * same batch the same way as `integrationByInboxId` above) and skips
- * entirely for the overwhelming majority of workspaces that have no
- * `contactReplied` rule configured.
+ * HIGH-2: this handler runs on EVERY inbound WhatsApp message platform-wide,
+ * so before enqueueing it also checks the cheap cached `hasEnabledTriggerRule`
+ * gate (per integrationWhatsappId, cached across the same batch the same way
+ * as `integrationIdByInboxId` above) and skips entirely for the overwhelming
+ * majority of workspaces that have no `contactReplied` rule configured.
  */
 async function enqueueContactRepliedEvaluations(
   payloads: MessageReceivedPayload[],
 ) {
-  const eligiblePayloads = payloads.filter(
+  const inboundWhatsappPayloads = payloads.filter(
     (payload) =>
       payload.origin === "inbound" &&
       adsConversionService.isEligibleChannel(payload.channel),
   )
-  if (eligiblePayloads.length === 0) {
+  if (inboundWhatsappPayloads.length === 0) {
     return
   }
 
-  const integrationByInboxId = new Map<
-    string,
-    { channel: AdsConversionChannel; integrationId: string } | null
-  >()
-  const hasContactRepliedRuleByKey = new Map<string, boolean>()
+  const integrationIdByInboxId = new Map<string, string | null>()
+  const hasContactRepliedRuleByIntegrationId = new Map<string, boolean>()
 
-  for (const payload of eligiblePayloads) {
+  for (const payload of inboundWhatsappPayloads) {
     try {
       if (!payload.messageId) {
         continue
       }
 
-      const channel = payload.channel as AdsConversionChannel
-      const inboxCacheKey = `${channel}:${payload.inboxId}`
-      let resolved = integrationByInboxId.get(inboxCacheKey)
-      if (resolved === undefined) {
-        const resolve =
-          integrationByInboxResolvers[
-            channel as keyof typeof integrationByInboxResolvers
-          ]
-        const integration = resolve
-          ? await resolve({
+      let integrationWhatsappId = integrationIdByInboxId.get(payload.inboxId)
+      if (integrationWhatsappId === undefined) {
+        const integration =
+          await integrationWhatsappRepository.findWorkspaceIntegrationByInboxId(
+            {
               workspaceId: payload.workspaceId,
               inboxId: payload.inboxId,
-            })
-          : null
-        resolved = integration
-          ? { channel, integrationId: integration.id }
-          : null
-        integrationByInboxId.set(inboxCacheKey, resolved)
+            },
+          )
+        integrationWhatsappId = integration?.id ?? null
+        integrationIdByInboxId.set(payload.inboxId, integrationWhatsappId)
       }
-      if (!resolved) {
+      if (!integrationWhatsappId) {
         continue
       }
 
-      const ruleCacheKey = `${resolved.channel}:${resolved.integrationId}`
-      let hasContactRepliedRule = hasContactRepliedRuleByKey.get(ruleCacheKey)
+      let hasContactRepliedRule = hasContactRepliedRuleByIntegrationId.get(
+        integrationWhatsappId,
+      )
       if (hasContactRepliedRule === undefined) {
         hasContactRepliedRule =
           await adsConversionService.hasEnabledTriggerRule({
             workspaceId: payload.workspaceId,
-            channel: resolved.channel,
-            integrationId: resolved.integrationId,
+            integrationWhatsappId,
             triggerType: "contactReplied",
           })
-        hasContactRepliedRuleByKey.set(ruleCacheKey, hasContactRepliedRule)
+        hasContactRepliedRuleByIntegrationId.set(
+          integrationWhatsappId,
+          hasContactRepliedRule,
+        )
       }
       if (!hasContactRepliedRule) {
         continue
@@ -204,8 +165,7 @@ async function enqueueContactRepliedEvaluations(
 
       await adsConversionService.enqueueContactRepliedEvaluation({
         workspaceId: payload.workspaceId,
-        channel: resolved.channel,
-        integrationId: resolved.integrationId,
+        integrationWhatsappId,
         contactInboxId: payload.contactInboxId,
         isFirstReply: payload.isFirstIncomingMessage ?? false,
         messageId: payload.messageId,

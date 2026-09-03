@@ -41,7 +41,6 @@ import {
   StarOffIcon,
   TagIcon,
   TicketPercentIcon,
-  TrendingUpIcon,
   UserIcon,
   UserRoundXIcon,
   WebhookIcon,
@@ -297,14 +296,29 @@ function buildProviderStepProps(providerKey: string, stepType: StepType) {
   return { provider: providerKey, integrationId: "", model: "" }
 }
 
+/**
+ * The provider and model are the platform admin's choice, not the merchant's —
+ * the same rule the agent screen already follows. Upstream renders one branded
+ * submenu per vendor (OpenAI, Claude, Gemini, Deepseek, OpenRouter …) whether
+ * or not that vendor is configured, so a merchant building a flow was picking
+ * between engine names that mean nothing to them and mostly do not work here.
+ *
+ * One group, named for what it does. Steps already saved on existing flows keep
+ * whatever provider they were created with — only the add-step menu narrows.
+ * Offer another vendor by adding its key to `MENU_PROVIDER_KEYS`.
+ */
+const MENU_PROVIDER_KEYS = ["gemini"]
+
 function buildProviderMenus(t: TranslationFn): MenuItem[] {
-  return PROVIDER_CONFIGS.map(({ label, icon, providerKey, steps }) => ({
-    label,
-    icon,
+  return PROVIDER_CONFIGS.filter(({ providerKey }) =>
+    MENU_PROVIDER_KEYS.includes(providerKey),
+  ).map(({ label, providerKey, steps }) => ({
+    label: t("flows.actions.aiAgentGroup"),
+    icon: BotIcon,
     stepType: null,
     children: steps.map((step) => ({
       label: step.getLabel(t, label),
-      icon,
+      icon: BotIcon,
       stepType: step.stepType,
       props: buildProviderStepProps(providerKey, step.stepType),
     })),
@@ -620,7 +634,7 @@ export const performActionMenus = (t: TranslationFn): MenuItem[] => [
     ],
   },
   {
-    label: t("flows.actions.adsConversions"),
+    label: t("flows.actions.metaConversions"),
     icon: MegaphoneIcon,
     stepType: null,
     children: [
@@ -628,16 +642,6 @@ export const performActionMenus = (t: TranslationFn): MenuItem[] => [
         label: t("flows.actions.sendMetaCapiEvent"),
         icon: MegaphoneIcon,
         stepType: stepTypes.enum.sendMetaCapiEvent,
-      },
-      {
-        label: t("flows.actions.trackAdsLead"),
-        icon: TrendingUpIcon,
-        stepType: stepTypes.enum.trackAdsLead,
-      },
-      {
-        label: t("flows.actions.trackAdsPurchase"),
-        icon: TrendingUpIcon,
-        stepType: stepTypes.enum.trackAdsPurchase,
       },
     ],
   },

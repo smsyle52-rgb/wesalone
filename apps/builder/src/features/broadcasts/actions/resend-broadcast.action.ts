@@ -1,6 +1,5 @@
 "use server"
 
-import { auditService } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { db, findOrFail } from "@chatbotx.io/database/client"
 import { pruneEmailPhoneFilterConditions } from "@chatbotx.io/database/queries/contact-filter/permission"
@@ -73,12 +72,6 @@ export const resendBroadcast = async (ctx: {
       .then((result) => result[0])
 
     return newBroadcast
-  })
-
-  await auditService.record({
-    workspaceId: ctx.workspaceId,
-    action: "launch",
-    detail: `launched a broadcast (#${newBroadcast.id})`,
   })
 
   return newBroadcast

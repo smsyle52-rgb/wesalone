@@ -25,7 +25,6 @@ type OptionItemProps = {
   selectedValue: string | undefined
   onSelect: (value: string) => void
   disabled?: boolean
-  groupLabel?: string
 }
 
 export const OptionItem = ({
@@ -33,15 +32,13 @@ export const OptionItem = ({
   selectedValue,
   onSelect,
   disabled,
-  groupLabel,
 }: OptionItemProps) => {
   const isSelected = option.value === selectedValue
   return (
     <CommandItem
       disabled={disabled}
-      keywords={groupLabel ? [option.label, groupLabel] : [option.label]}
       onSelect={() => onSelect(option.value)}
-      value={option.value}
+      value={option.label}
     >
       {option.icon && <option.icon className="h-4 w-4" />}
       {option.label}
@@ -193,7 +190,6 @@ export function ComboboxField<T extends FieldValues>({
                         {option.children.map((child) => (
                           <OptionItem
                             disabled={disableValues?.includes(child.value)}
-                            groupLabel={option.label}
                             key={child.value}
                             onSelect={handleSelect}
                             option={child}

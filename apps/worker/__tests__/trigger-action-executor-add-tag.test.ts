@@ -2,8 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   conversationFindFirst: vi.fn(),
-  findByIdForContact: vi.fn(),
-  findMostRecentByContact: vi.fn(),
+  contactInboxFindFirst: vi.fn(),
   tagFindMany: vi.fn(),
   insertReturning: vi.fn(),
   enqueueAttach: vi.fn(),
@@ -17,6 +16,9 @@ vi.mock("@chatbotx.io/database/client", () => ({
     query: {
       conversationModel: {
         findFirst: (...args: unknown[]) => mocks.conversationFindFirst(...args),
+      },
+      contactInboxModel: {
+        findFirst: (...args: unknown[]) => mocks.contactInboxFindFirst(...args),
       },
       tagModel: {
         findMany: (...args: unknown[]) => mocks.tagFindMany(...args),
@@ -40,21 +42,6 @@ vi.mock("@chatbotx.io/database/schema", () => ({
   contactsToTagsModel: {
     contactId: "contactsToTagsModel.contactId",
     tagId: "contactsToTagsModel.tagId",
-  },
-  metaCapiEventChannelSchema: {
-    safeParse: (value: unknown) =>
-      value === "messenger" || value === "instagram" || value === "whatsapp"
-        ? { success: true as const, data: value }
-        : { success: false as const },
-  },
-}))
-
-vi.mock("@chatbotx.io/database/repositories", () => ({
-  contactInboxRepository: {
-    findByIdForContact: (...args: unknown[]) =>
-      mocks.findByIdForContact(...args),
-    findMostRecentByContact: (...args: unknown[]) =>
-      mocks.findMostRecentByContact(...args),
   },
 }))
 
@@ -108,9 +95,10 @@ describe("ActionExecutor addTag", () => {
       contactId: "contact-1",
       workspaceId: "ws-1",
     })
-    mocks.findMostRecentByContact.mockResolvedValue({
+    mocks.contactInboxFindFirst.mockResolvedValue({
       id: "ci-1",
       inboxId: "inbox-1",
+      contactId: "contact-1",
       channel: "messenger",
     })
     mocks.buildLeadSourceKey.mockReturnValue("trigger:trigger-1:ci-1:key")

@@ -10,13 +10,11 @@ import {
 import { cn } from "@chatbotx.io/ui/lib/utils"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
-import type { KeyboardEvent } from "react"
 import { useCallback } from "react"
 import {
   MINIGAME_TYPE_CONFIGS,
   MINIGAME_TYPES_ENABLED_FOR_CREATION,
 } from "../constants"
-import { MINIGAME_TYPE_CARD_ART } from "./preview/minigame-preview-registry"
 
 type CreateMinigameTypeDialogProps = {
   open: boolean
@@ -54,69 +52,35 @@ export function CreateMinigameTypeDialog({
             const isEnabled = MINIGAME_TYPES_ENABLED_FOR_CREATION.includes(
               config.type,
             )
-            const previewArt = MINIGAME_TYPE_CARD_ART[config.type]
-
-            const cardButtonProps = {
-              "aria-disabled": !isEnabled,
-              "aria-label": t(config.labelKey),
-              onClick: isEnabled ? () => handleSelect(config.type) : undefined,
-              onKeyDown: isEnabled
-                ? (event: KeyboardEvent) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault()
-                      handleSelect(config.type)
-                    }
-                  }
-                : undefined,
-              role: "button" as const,
-              tabIndex: isEnabled ? 0 : -1,
-            }
-
-            if (previewArt) {
-              return (
-                <Card
-                  className={cn(
-                    "relative h-44 w-36 overflow-hidden p-0",
-                    isEnabled
-                      ? "cursor-pointer hover:shadow-md"
-                      : "cursor-not-allowed opacity-50",
-                  )}
-                  key={config.type}
-                  {...cardButtonProps}
-                >
-                  <CardContent
-                    className="relative flex h-full w-full items-center justify-center bg-center bg-cover p-0"
-                    style={{
-                      backgroundColor: previewArt.backgroundColor,
-                      backgroundImage: previewArt.backgroundImageUrl
-                        ? `url(${previewArt.backgroundImageUrl})`
-                        : undefined,
-                    }}
-                  >
-                    <div className="w-20">{previewArt.art}</div>
-
-                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent px-2 pt-8 pb-2">
-                      <span className="block text-center font-medium text-sm text-white">
-                        {t(config.labelKey)}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            }
 
             return (
               <Card
+                aria-disabled={!isEnabled}
+                aria-label={t(config.labelKey)}
                 className={cn(
-                  "h-44 w-36",
+                  "w-36",
                   isEnabled
                     ? "cursor-pointer hover:shadow-md"
                     : "cursor-not-allowed opacity-50",
                 )}
                 key={config.type}
-                {...cardButtonProps}
+                onClick={
+                  isEnabled ? () => handleSelect(config.type) : undefined
+                }
+                onKeyDown={
+                  isEnabled
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          handleSelect(config.type)
+                        }
+                      }
+                    : undefined
+                }
+                role="button"
+                tabIndex={isEnabled ? 0 : -1}
               >
-                <CardContent className="flex h-full flex-col items-center justify-center gap-3">
+                <CardContent className="flex flex-col items-center gap-3 py-6">
                   <config.icon className="text-primary" size={30} />
                   <span className="text-center font-medium text-sm">
                     {t(config.labelKey)}

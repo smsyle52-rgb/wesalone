@@ -9,8 +9,15 @@ export const helpTexts = {
   fileSearchDescription:
     "Search the workspace's uploaded knowledge files for factual, private, or domain-specific information needed to answer the user. Use this when the answer may depend on uploaded files. Do NOT use for greetings, small talk, or casual salutations.",
   fileSearchQueryDescription: "Search keywords to find relevant information",
+  // Sent verbatim to the customer when the agent called a tool but produced no
+  // text. Upstream ships English because ChatbotX targets an English-first
+  // audience; every live Wesal workspace is `language: "ar"`, so an Arabic
+  // merchant's customer was reading this in English. Set WESAL_REPLY_FIXES=off
+  // to restore the upstream string.
   fallbackLookup:
-    "I've found some data, but I couldn't generate a complete answer yet. Could you please specify what you're looking for (price, size, color)?",
+    process.env.WESAL_REPLY_FIXES === "off"
+      ? "I've found some data, but I couldn't generate a complete answer yet. Could you please specify what you're looking for (price, size, color)?"
+      : "لقيت بعض المعلومات، لكن ما قدرت أجهّز لك رد كامل. ممكن توضح لي إيش تحتاج بالضبط؟",
   toolOutputGuard: [
     "IMPORTANT RULES (REQUIRED):",
     "- Never send raw JSON or tool outputs directly to the user.",
@@ -122,7 +129,7 @@ export const systemFunctionCatalog = {
     id: systemFunctionNames.imageReader,
     capability: "image_context",
     description:
-      "Analyze user-uploaded images in the current conversation and return visual context relevant to the query.",
+      "Analyze user-uploaded images in the current conversation and return visual context relevant to the query. The image is examined on its own, without your instructions or this conversation, so always pass `imageContext` describing the business, the likely products and what the customer just asked — otherwise the answer comes back generic and you lose the thread.",
   },
   [systemFunctionNames.urlContext]: {
     id: systemFunctionNames.urlContext,
@@ -151,12 +158,5 @@ export const aiPolicies = {
 export const toolPrefixes = z.enum(["file", "fn", "mcp", "sys"])
 
 export const MAX_CONVERSATION_HISTORY = 100
-// Absolute ceiling on cached AI context history, enforced unconditionally in
-// `appendHistory` regardless of summarizer health. Unlike
-// `MAX_CONVERSATION_HISTORY` (which only triggers a summarize job), this is
-// the last-resort guard against unbounded prompt growth if summarization is
-// ever stuck/broken — 50% headroom above the trigger point so it never clips
-// history while a healthy summarize job is still catching up asynchronously.
-export const MAX_CONVERSATION_HISTORY_HARD_CAP = 150
 export const MAX_SUMMARY_LENGTH = 1000
 export const AI_MESSAGE_HISTORY_LOOKBACK_MS = 365 * 24 * 60 * 60 * 1000

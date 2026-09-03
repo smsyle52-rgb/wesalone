@@ -5,7 +5,6 @@ import {
   userQuotaService,
   workspaceService,
 } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { db, isDatabaseError } from "@chatbotx.io/database/client"
 import { integrationTypes } from "@chatbotx.io/database/partials"
@@ -66,12 +65,11 @@ export const connectTelegramAction = authActionClient
           }
         }
 
-        const result = await db.transaction(async (tx) => {
+        return await db.transaction(async (tx) => {
           const auth: TelegramAuthValue = {
             authType: "secretText",
             secretText: parsedInput.botToken,
           }
-          let createdWorkspace = false
 
           if (!workspaceId) {
             const workspace = await workspaceService.create({
@@ -84,11 +82,9 @@ export const connectTelegramAction = authActionClient
               },
             })
             workspaceId = workspace.id
-            createdWorkspace = true
           }
 
-          const integrationId = createId()
-          const { wasCreated } = await connectChannelIntegration({
+          await connectChannelIntegration({
             tx,
             ownerId,
             inboxData: {
@@ -100,7 +96,7 @@ export const connectTelegramAction = authActionClient
             },
             insertIntegration: async (inboxId) => {
               await tx.insert(integrationTelegramModel).values({
-                id: integrationId,
+                id: createId(),
                 inboxId,
                 workspaceId: workspaceId as string,
                 botId: botData.id,
@@ -119,32 +115,8 @@ export const connectTelegramAction = authActionClient
             webhookUrl,
           })
 
-          return {
-            workspaceId,
-            createdWorkspace,
-            wasCreated,
-            integrationId,
-          }
+          return { workspaceId }
         })
-
-        if (result.createdWorkspace) {
-          await auditService.record({
-            userId: ctx.user.id,
-            workspaceId: result.workspaceId as string,
-            action: "create",
-            detail: `created the workspace (#${result.workspaceId})`,
-          })
-        }
-
-        if (result.wasCreated) {
-          await auditService.record({
-            workspaceId: result.workspaceId as string,
-            action: "connect",
-            detail: `connected a new Telegram channel (#${result.integrationId})`,
-          })
-        }
-
-        return { workspaceId: result.workspaceId }
       } catch (error) {
         if (error instanceof ChatbotXException) {
           if (error.code === "channelDuplicated" && parsedInput.workspaceId) {

@@ -10,7 +10,7 @@ export function* convertFlowStepText(
   >[0],
 ) {
   const {
-    data: { step, contact },
+    data: { step },
   } = props
   const buttonCount =
     step.buttons.length + (props.data.quickReplies?.length ?? 0)
@@ -26,7 +26,6 @@ export function* convertFlowStepText(
     quickReplies: props.data.quickReplies,
     metadata: props.data.metadata,
     bodyText: step.text,
-    contactInboxId: contact.id,
   })) {
     yield message
   }

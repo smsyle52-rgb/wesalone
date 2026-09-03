@@ -4,7 +4,6 @@ import {
   productService,
   workspaceService,
 } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import type { MetaCatalogBatchHandle } from "@chatbotx.io/database/partials"
 import { metaCatalogItemRepository } from "@chatbotx.io/database/repositories"
 import {
@@ -266,24 +265,13 @@ export async function submitMetaCatalogSync(
     }
 
     if (handles.length === 0) {
-      const outcome = await metaCatalogSyncRunService.complete({
+      await metaCatalogSyncRunService.complete({
         runId: run.id,
         integrationMetaCatalogId: connection.id,
         catalogId,
         succeededItems: [],
         errors: [],
       })
-      // Nothing needed submitting to Meta, so this run finishes here instead
-      // of routing through check.ts's post-poll completion — audit it here
-      // too, or a "nothing changed" sync would silently produce no row.
-      if (outcome === "succeeded") {
-        await auditService.record({
-          action: "catalog_synced",
-          detail: "Meta catalog sync completed",
-          workspaceId: data.workspaceId,
-          source: "default:submitMetaCatalogSync",
-        })
-      }
       return
     }
 

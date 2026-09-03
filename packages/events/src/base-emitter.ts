@@ -3,7 +3,6 @@ import {
   type TriggerEventType,
   triggerEventTypes,
 } from "@chatbotx.io/database/partials"
-import { withContactInboxMetadata } from "./contact-inbox-context"
 
 /**
  * Base event emitter class with common functionality
@@ -61,15 +60,11 @@ export abstract class BaseEventEmitter {
     workspaceId: string,
     contactId: string,
     tagId: string,
-    contactInboxId?: string,
   ): Promise<void> {
     await this.emit(triggerEventTypes.enum.tagApplied, {
       workspaceId,
       contactId,
-      metadata: withContactInboxMetadata(
-        { sourceId: tagId, tagId },
-        contactInboxId,
-      ),
+      metadata: { sourceId: tagId, tagId },
     })
   }
 
@@ -77,15 +72,11 @@ export abstract class BaseEventEmitter {
     workspaceId: string,
     contactId: string,
     tagId: string,
-    contactInboxId?: string,
   ): Promise<void> {
     await this.emit(triggerEventTypes.enum.tagRemoved, {
       workspaceId,
       contactId,
-      metadata: withContactInboxMetadata(
-        { sourceId: tagId, tagId },
-        contactInboxId,
-      ),
+      metadata: { sourceId: tagId, tagId },
     })
   }
 
@@ -96,21 +87,17 @@ export abstract class BaseEventEmitter {
     customFieldName: string,
     oldValue: unknown,
     newValue: unknown,
-    contactInboxId?: string,
   ): Promise<void> {
     await this.emit(triggerEventTypes.enum.customFieldValueChanged, {
       workspaceId,
       contactId,
-      metadata: withContactInboxMetadata(
-        {
-          sourceId: customFieldId,
-          customFieldId,
-          customFieldName,
-          oldValue,
-          newValue,
-        },
-        contactInboxId,
-      ),
+      metadata: {
+        sourceId: customFieldId,
+        customFieldId,
+        customFieldName,
+        oldValue,
+        newValue,
+      },
     })
   }
 
@@ -166,15 +153,15 @@ export abstract class BaseEventEmitter {
     name?: string,
     phone?: string,
     email?: string,
-    contactInboxId?: string,
   ): Promise<void> {
     await this.emit(triggerEventTypes.enum.newContact, {
       workspaceId,
       contactId,
-      metadata: withContactInboxMetadata(
-        { name, phone, email },
-        contactInboxId,
-      ),
+      metadata: {
+        name,
+        phone,
+        email,
+      },
     })
   }
 
@@ -183,15 +170,11 @@ export abstract class BaseEventEmitter {
     contactId: string,
     refName?: string,
     reflinkId?: string,
-    contactInboxId?: string,
   ): Promise<void> {
     await this.emit(triggerEventTypes.enum.contactReferredANewContact, {
       workspaceId,
       contactId,
-      metadata: withContactInboxMetadata(
-        { refName, reflinkId },
-        contactInboxId,
-      ),
+      metadata: { refName, reflinkId },
     })
   }
 
@@ -200,27 +183,21 @@ export abstract class BaseEventEmitter {
     contactId: string,
     refName?: string,
     reflinkId?: string,
-    contactInboxId?: string,
   ): Promise<void> {
     await this.emit(triggerEventTypes.enum.contactReferredExistingContact, {
       workspaceId,
       contactId,
-      metadata: withContactInboxMetadata(
-        { refName, reflinkId },
-        contactInboxId,
-      ),
+      metadata: { refName, reflinkId },
     })
   }
 
   async contactUnsubscribed(
     workspaceId: string,
     contactId: string,
-    contactInboxId?: string,
   ): Promise<void> {
     await this.emit(triggerEventTypes.enum.contactUnsubscribedFormBroadcast, {
       workspaceId,
       contactId,
-      metadata: withContactInboxMetadata(undefined, contactInboxId),
     })
   }
 
@@ -295,15 +272,11 @@ export abstract class BaseEventEmitter {
     contactId: string,
     sequenceId: string,
     sequenceName: string,
-    contactInboxId?: string,
   ): Promise<void> {
     await this.emit(triggerEventTypes.enum.subscribedToSequence, {
       workspaceId,
       contactId,
-      metadata: withContactInboxMetadata(
-        { sourceId: sequenceId, sequenceId, sequenceName },
-        contactInboxId,
-      ),
+      metadata: { sourceId: sequenceId, sequenceId, sequenceName },
     })
   }
 
@@ -312,15 +285,11 @@ export abstract class BaseEventEmitter {
     contactId: string,
     sequenceId: string,
     sequenceName: string,
-    contactInboxId?: string,
   ): Promise<void> {
     await this.emit(triggerEventTypes.enum.unsubscribedFromSequence, {
       workspaceId,
       contactId,
-      metadata: withContactInboxMetadata(
-        { sourceId: sequenceId, sequenceId, sequenceName },
-        contactInboxId,
-      ),
+      metadata: { sourceId: sequenceId, sequenceId, sequenceName },
     })
   }
 }

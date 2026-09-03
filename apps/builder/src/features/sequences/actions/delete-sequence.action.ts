@@ -1,6 +1,5 @@
 "use server"
 
-import { auditService } from "@chatbotx.io/business/audit"
 import { and, db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { sequenceModel } from "@chatbotx.io/database/schema"
 import { zodBigintAsString } from "@chatbotx.io/utils"
@@ -20,7 +19,7 @@ export const deleteSequence = async (ctx: {
   workspaceId: string
   id: string
 }) => {
-  const sequence = await findOrFail({
+  await findOrFail({
     table: sequenceModel,
     where: {
       id: ctx.id,
@@ -30,10 +29,4 @@ export const deleteSequence = async (ctx: {
   })
 
   await db.delete(sequenceModel).where(and(eq(sequenceModel.id, ctx.id)))
-
-  await auditService.record({
-    workspaceId: ctx.workspaceId,
-    action: "delete",
-    detail: `deleted a sequence (#${sequence.id})`,
-  })
 }

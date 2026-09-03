@@ -26,7 +26,6 @@ export type MinigameType = z.infer<typeof minigameTypes>
 export const minigameGeneralSettingsSchema = z
   .object({
     name: z.string().trim().min(1).max(150),
-    showName: z.boolean().default(true),
     playedAtFrom: z.iso.datetime(),
     playedAtTo: z.iso.datetime(),
     rulesDescription: z.string().max(5000).default(""),
@@ -73,7 +72,7 @@ export type MinigamePlayerSettings = z.infer<
   typeof minigamePlayerSettingsSchema
 >
 
-export const minigameOutcomeMessageSchema = z.discriminatedUnion("mode", [
+export const minigamePrizeWinMessageSchema = z.discriminatedUnion("mode", [
   z.object({
     enabled: z.boolean().default(false),
     mode: z.literal("text"),
@@ -84,15 +83,9 @@ export const minigameOutcomeMessageSchema = z.discriminatedUnion("mode", [
     mode: z.literal("flow"),
     flowId: zodBigintAsString().nullable().default(null),
   }),
-  z.object({
-    enabled: z.boolean().default(false),
-    mode: z.literal("node"),
-    flowId: zodBigintAsString().nullable().default(null),
-    nodeId: zodBigintAsString().nullable().default(null),
-  }),
 ])
-export type MinigameOutcomeMessage = z.infer<
-  typeof minigameOutcomeMessageSchema
+export type MinigamePrizeWinMessage = z.infer<
+  typeof minigamePrizeWinMessageSchema
 >
 
 export const minigamePrizeItemSchema = z.object({
@@ -105,13 +98,29 @@ export const minigamePrizeItemSchema = z.object({
    * Omitted means unlimited (no stock is tracked or decremented).
    */
   quantity: z.number().int().min(0).optional(),
+  winMessage: minigamePrizeWinMessageSchema,
 })
 export type MinigamePrizeItem = z.infer<typeof minigamePrizeItemSchema>
+
+export const minigameLoseMessageSchema = z.discriminatedUnion("mode", [
+  z.object({
+    enabled: z.boolean().default(false),
+    mode: z.literal("text"),
+    text: z.string().max(1000).default(""),
+  }),
+  z.object({
+    enabled: z.boolean().default(false),
+    mode: z.literal("flow"),
+    flowId: zodBigintAsString().nullable().default(null),
+  }),
+])
+export type MinigameLoseMessage = z.infer<typeof minigameLoseMessageSchema>
 
 export const minigameNonWinningSettingSchema = z.object({
   title: z.string().trim().min(1).max(150),
   loseRate: z.number().min(0).max(100),
   loseImage: minigameImageSchema,
+  loseMessage: minigameLoseMessageSchema,
 })
 export type MinigameNonWinningSetting = z.infer<
   typeof minigameNonWinningSettingSchema
@@ -131,7 +140,6 @@ export const minigamePrizeSettingsSchema = z
   .object({
     prizes: z.array(minigamePrizeItemSchema).default([]),
     nonWinning: minigameNonWinningSettingSchema,
-    prizeNameCustomFieldId: zodBigintAsString().nullable().default(null),
   })
   .refine(
     (data) => {
@@ -147,19 +155,12 @@ export const minigamePrizeSettingsSchema = z
   )
 export type MinigamePrizeSettings = z.infer<typeof minigamePrizeSettingsSchema>
 
-const DEFAULT_MINIGAME_OUTCOME_MESSAGE: z.infer<
-  typeof minigameOutcomeMessageSchema
-> = { enabled: false, mode: "text", text: "" }
-
 export const minigameWinningMessageSettingsSchema = z.object({
   title: z.string().max(150).default(""),
   description: z.string().max(1000).default(""),
   acceptButtonText: z.string().max(50).default(""),
   shareButtonText: z.string().max(50).default(""),
   shareButtonDescription: z.string().max(300).default(""),
-  outcomeMessage: minigameOutcomeMessageSchema.default(
-    DEFAULT_MINIGAME_OUTCOME_MESSAGE,
-  ),
 })
 export type MinigameWinningMessageSettings = z.infer<
   typeof minigameWinningMessageSettingsSchema
@@ -170,9 +171,6 @@ export const minigameNonWinningMessageSettingsSchema = z.object({
   description: z.string().max(1000).default(""),
   shareButtonText: z.string().max(50).default(""),
   shareButtonDescription: z.string().max(300).default(""),
-  outcomeMessage: minigameOutcomeMessageSchema.default(
-    DEFAULT_MINIGAME_OUTCOME_MESSAGE,
-  ),
 })
 export type MinigameNonWinningMessageSettings = z.infer<
   typeof minigameNonWinningMessageSettingsSchema

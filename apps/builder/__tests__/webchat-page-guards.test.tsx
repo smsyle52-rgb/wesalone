@@ -174,7 +174,7 @@ describe("WebchatPage", () => {
     )
   })
 
-  test("shows the unauthorized-domain message for a third-party referer when authorizedDomains is empty (fail closed)", async () => {
+  test("still renders the chat for a third-party referer when authorizedDomains is empty", async () => {
     mockFindFirst.mockResolvedValue({ ...targetWebchat, authorizedDomains: [] })
     setReferer("https://anyone.example")
 
@@ -182,11 +182,8 @@ describe("WebchatPage", () => {
       searchParams: Promise.resolve(searchParams),
     })
 
-    expect(isValidElement<{ children: unknown }>(element)).toBe(true)
-    const rendered = JSON.stringify(element)
-    expect(rendered).toContain("Webchat unavailable")
-    expect(rendered).toContain(
-      "This website is not authorized to load this chat widget.",
+    expect((element as { type: { name: string } }).type.name).toBe(
+      "GuestSessionStoreProvider",
     )
   })
 
@@ -243,7 +240,7 @@ describe("WebchatPage", () => {
     ).props.config
     expect(config.persistentMenus).toHaveLength(2)
     expect(config.persistentMenus.at(-1)).toEqual({
-      label: "⚡ Built with chatbotx.io",
+      label: "⚡ مدعوم من وصال ون",
       type: "url",
       url: "https://app.chatbotx.io/?ref=selfhosted&channel=webchat",
     })

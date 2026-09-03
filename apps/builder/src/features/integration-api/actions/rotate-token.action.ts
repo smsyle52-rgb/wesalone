@@ -1,6 +1,5 @@
 "use server"
 
-import { auditService } from "@chatbotx.io/business/audit"
 import { integrationApiRepository } from "@chatbotx.io/database/repositories"
 import {
   type WorkspaceIdAndIdRequestParams,
@@ -27,12 +26,6 @@ export const rotateApiTokenAction = workspaceActionClient
         workspaceId,
         tokenHash,
         tokenPrefix,
-      })
-
-      await auditService.record({
-        workspaceId,
-        action: "update",
-        detail: `rotated the API key (#${id})`,
       })
 
       return { token }

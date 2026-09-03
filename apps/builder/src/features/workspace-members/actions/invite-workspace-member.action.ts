@@ -4,7 +4,6 @@ import {
   quotaEnforcementService,
   workspaceService,
 } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { db } from "@chatbotx.io/database/client"
 import { invitationModel } from "@chatbotx.io/database/schema"
@@ -54,30 +53,18 @@ export const inviteWorkspaceMemberAction = workspaceActionClient
       )
     }
 
-    const permissions = isCommunity()
-      ? getSuperAdminPermissions()
-      : normalizeContactsPermissions(parsedInput.permissions)
-
-    const invitation = await db
+    return await db
       .insert(invitationModel)
       .values({
         id: createId(),
         code: SymbolicSnowflakeIDs.generate(),
-        permissions,
+        permissions: isCommunity()
+          ? getSuperAdminPermissions()
+          : normalizeContactsPermissions(parsedInput.permissions),
         expiresAt: addDays(new Date(), 1),
         workspaceId,
         invitedBy: ctx.user.id,
       })
       .returning()
       .then((result) => result[0])
-
-    // No email/name is captured at invite time (invite is a shareable
-    // code/link, not addressed to a specific person), so the detail can only
-    // name the role being granted.
-    await auditService.record({
-      action: "invite",
-      detail: `invited a new ${permissions.superAdmin ? "admin" : "member"}`,
-    })
-
-    return invitation
   })

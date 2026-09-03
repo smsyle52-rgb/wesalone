@@ -7,5 +7,5 @@ export const metaMessagingChannelSchema = z.enum([
 ])
 export type MetaMessagingChannel = z.infer<typeof metaMessagingChannelSchema>
 
-export const metaCapiEventNameSchema = z.enum(["LeadSubmitted", "Purchase"])
+export const metaCapiEventNameSchema = z.enum(["LeadSubmitted"])
 export type MetaCapiEventName = z.infer<typeof metaCapiEventNameSchema>

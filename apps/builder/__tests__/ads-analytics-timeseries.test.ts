@@ -5,7 +5,7 @@ import { getAdsAnalyticsTimeseries } from "../src/features/ads/queries/analytics
 
 const mocks = vi.hoisted(() => ({
   getCtwaFunnelTimeseries: vi.fn(),
-  listForChannel: vi.fn(),
+  findByWorkspaceId: vi.fn(),
   getFacebookAdsContext: vi.fn(),
   runAction: vi.fn(),
   dailyInsightAccountIds: [] as string[],
@@ -15,15 +15,9 @@ vi.mock("@chatbotx.io/business", () => ({
   adsConversionService: {
     getCtwaFunnelTimeseries: mocks.getCtwaFunnelTimeseries,
   },
-  messagingAdsConnectionService: {
-    listForChannel: mocks.listForChannel,
+  integrationFacebookAdsService: {
+    findByWorkspaceId: mocks.findByWorkspaceId,
   },
-  listCachedMessagingAdAccounts: vi.fn(),
-  buildMessagingAdsContext: vi.fn(),
-  isAdsEligibleChannel: (channel: unknown) =>
-    channel === "whatsapp" ||
-    channel === "messenger" ||
-    channel === "instagram",
   filterAdAccountsByIds: <T extends { id: string }>(
     accounts: T[],
     selectedIds: string[] | null | undefined,
@@ -78,25 +72,22 @@ vi.mock("@/lib/log", () => ({
   logger: { warn: vi.fn() },
 }))
 
-const RANGE = {
-  from: "2026-08-01",
-  to: "2026-08-03",
-  channel: "whatsapp" as const,
-}
+const RANGE = { from: "2026-08-01", to: "2026-08-03" }
 
 describe("getAdsAnalyticsTimeseries", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.dailyInsightAccountIds.length = 0
     mocks.getCtwaFunnelTimeseries.mockResolvedValue([])
-    mocks.listForChannel.mockResolvedValue([])
+    mocks.findByWorkspaceId.mockResolvedValue({
+      id: "facebook-ads-1",
+      workspaceId: "ws-1",
+    })
     mocks.getFacebookAdsContext.mockResolvedValue({ ctx: true })
   })
 
   test("fills every day in the range with zero counts and null spend when there is no data", async () => {
-    // No workspace-wide Facebook Ads integration and no messaging-ads
-    // connections for the channel -> the ad-account union is empty.
-    mocks.runAction.mockResolvedValue([])
+    mocks.findByWorkspaceId.mockResolvedValue(null)
 
     const result = await getAdsAnalyticsTimeseries("ws-1", RANGE)
 
@@ -267,25 +258,6 @@ describe("getAdsAnalyticsTimeseries", () => {
     // kept, matching getAdsAnalyticsData's existing stale-account fallback.
     expect(mocks.dailyInsightAccountIds).toEqual([])
     expect(result[0]).toMatchObject({ date: "2026-08-01", conversations: 3 })
-  })
-
-  test("threads the resolved viewer timezone into the funnel timeseries repository call, defaulting to UTC", async () => {
-    mocks.runAction.mockResolvedValue([])
-
-    await getAdsAnalyticsTimeseries("ws-1", RANGE)
-    expect(mocks.getCtwaFunnelTimeseries).toHaveBeenCalledWith(
-      expect.objectContaining({ timezone: "UTC" }),
-    )
-
-    vi.clearAllMocks()
-    mocks.listForChannel.mockResolvedValue([])
-    mocks.runAction.mockResolvedValue([])
-    mocks.getCtwaFunnelTimeseries.mockResolvedValue([])
-
-    await getAdsAnalyticsTimeseries("ws-1", { ...RANGE, tz: "Asia/Saigon" })
-    expect(mocks.getCtwaFunnelTimeseries).toHaveBeenCalledWith(
-      expect.objectContaining({ timezone: "Asia/Saigon" }),
-    )
   })
 
   test("keeps funnel data and sets spend null when Meta insights fail to load", async () => {
