@@ -157,6 +157,7 @@ describe("handleAIGenerateTextAgent OpenAI-compatible provider", () => {
       customFieldId: "output-field",
       fullText: "Agent reply",
       workspaceId: "ws-1",
+      contactInboxId: "contact-inbox-1",
     })
   })
 

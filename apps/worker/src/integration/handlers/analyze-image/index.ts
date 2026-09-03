@@ -3,6 +3,7 @@ import {
   type UsageReservation,
   usageMeteringService,
 } from "@chatbotx.io/business"
+import { logProviderError } from "@chatbotx.io/business/error-log"
 import type { AIAnalyzeImageSchema } from "@chatbotx.io/flow-config"
 import { streamText } from "ai"
 import { normalizeError } from "universal-error-normalizer"
@@ -12,11 +13,13 @@ import {
   saveResultToCustomField,
 } from "../../utils/contact"
 import type { ExecuteStepProps } from "../flow"
+import { aiErrorLogProvider } from "../shared/ai-error-log-provider"
 import { resolveFlowAIModel } from "../shared/flow-ai-model-resolver"
 import type { ExecuteStepResult } from "../step"
 
 export async function handleAIAnalyzeImage({
   conversation,
+  contactInbox,
   flowVersion,
   step,
   triggerMessageId,
@@ -125,6 +128,7 @@ export async function handleAIAnalyzeImage({
         customFieldId: step.outputFieldId,
         fullText,
         workspaceId: conversation.workspaceId,
+        contactInboxId: contactInbox.id,
       })
     }
 
@@ -135,6 +139,12 @@ export async function handleAIAnalyzeImage({
     }
     const error = normalizeError(err)
     logger.error(error, "[ai-analyze-image] Step failed")
+    await logProviderError({
+      provider: aiErrorLogProvider(step.provider),
+      workspaceId: conversation.workspaceId,
+      contactId: conversation.contactId,
+      error: err,
+    })
     return { status: "error", errorMessage: error.message, result: null }
   } finally {
     clearTimeout(timeoutId)

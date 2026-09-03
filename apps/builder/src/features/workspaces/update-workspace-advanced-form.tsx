@@ -104,6 +104,7 @@ export function UpdateWorkspaceAdvancedForm({
             workspace.smartResponseDelaySeconds == null
               ? SMART_RESPONSE_DELAY_NONE_VALUE
               : String(workspace.smartResponseDelaySeconds),
+          capiLimitedDataUse: workspace.capiLimitedDataUse,
         },
       },
       errorMapProps: {},
@@ -220,6 +221,13 @@ export function UpdateWorkspaceAdvancedForm({
               label={t("fields.developmentMode.label")}
             >
               <SwitchField className="mt-1.5" name="developmentMode" />
+            </SettingRow>
+
+            <SettingRow
+              description={t("metaConversions.limitedDataUse.description")}
+              label={t("metaConversions.limitedDataUse.label")}
+            >
+              <SwitchField className="mt-1.5" name="capiLimitedDataUse" />
             </SettingRow>
 
             <div className="mt-4 flex flex-start">

@@ -1140,13 +1140,15 @@ class UserQuotaService extends BaseService {
         channelsUsed,
         macUsed,
         syncedAt: new Date(),
-        // This insert exists to record usage counts, but on this deployment it
-        // is what actually CREATES the row: `ensureBootstrapPlan` returns early
-        // unless `isCloud()`, and Wesal One runs on the community edition. The
-        // row therefore lands with `autoReplyEnabled` at its column default of
-        // false, and `isAutoReplyEnabledForWorkspace` reads exactly that field —
-        // so the merchant's AI agent is silent from the moment they sign up,
-        // with only an info-level log line to show for it.
+        // This insert exists to record usage counts, but it used to be what
+        // actually CREATED the row: `ensureBootstrapPlan` returned early unless
+        // `isCloud()`, and Wesal One runs the community edition. The row landed
+        // with `autoReplyEnabled` at its column default of false, and
+        // `isAutoReplyEnabledForWorkspace` reads exactly that field — so the
+        // merchant's AI agent was silent from the moment they signed up, with
+        // only an info-level log line to show for it. The early return is gone
+        // now, but this path still has to stamp the field for every row that
+        // predates the fix.
         //
         // Four live merchants were found this way over three days, each
         // discovered only because someone noticed the agent never answered.

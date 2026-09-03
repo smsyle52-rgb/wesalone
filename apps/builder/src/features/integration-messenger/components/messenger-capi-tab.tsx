@@ -11,6 +11,7 @@ import {
 } from "@chatbotx.io/ui/components/ui/card"
 import { cn } from "@chatbotx.io/ui/lib/utils"
 import { useTranslations } from "next-intl"
+import { MessagingAdsMovedAlert } from "@/features/ads-campaign/components/messaging-ads-moved-alert"
 import { CapiConnectedCard } from "@/features/meta-conversions/components/capi-connected-card"
 import { CapiMethodChooser } from "@/features/meta-conversions/components/capi-method-chooser"
 import {
@@ -127,6 +128,11 @@ export function MessengerCapiTab({
           })}
         </CardContent>
       </Card>
+      <MessagingAdsMovedAlert
+        channel="messenger"
+        integrationId={integrationMessenger.id}
+        workspaceId={workspaceId}
+      />
     </div>
   )
 }

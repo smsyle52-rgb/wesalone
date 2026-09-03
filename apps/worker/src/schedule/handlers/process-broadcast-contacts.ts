@@ -1,9 +1,7 @@
+import { broadcastService } from "@chatbotx.io/business"
 import { and, db, eq, sql } from "@chatbotx.io/database/client"
 import { broadcastStatuses, channelTypes } from "@chatbotx.io/database/partials"
-import {
-  broadcastModel,
-  contactsOnBroadcastsModel,
-} from "@chatbotx.io/database/schema"
+import { contactsOnBroadcastsModel } from "@chatbotx.io/database/schema"
 import type {
   ContactInboxModel,
   ConversationModel,
@@ -44,11 +42,17 @@ const downstreamJobOptions = (jobId: string) => ({
   },
 })
 
+// Suffixed with the broadcast's dispatch epoch (`resumeCount`) so a resumed
+// run's jobIds never collide with a completed job from the pre-stop epoch
+// still sitting in the queue's 1-hour removeOnComplete retention window —
+// see `resumeSending` in broadcast/service.ts.
 const broadcastContactSendJobId = (
   broadcastId: string,
   contactId: string,
   type: "flow" | "template",
-) => `broadcast-send-contact-${broadcastId}-${contactId}-${type}`
+  resumeCount: number,
+) =>
+  `broadcast-send-contact-${broadcastId}-${contactId}-${type}-r${resumeCount}`
 
 const invalidBroadcastContact = (
   contactOnBroadcast: ContactOnBroadcastForSend,
@@ -89,23 +93,6 @@ const markContactFailed = async (
     )
 }
 
-const markContactSent = async (
-  contactOnBroadcast: ContactOnBroadcastForSend,
-) => {
-  await db
-    .update(contactsOnBroadcastsModel)
-    .set({ sent: true })
-    .where(
-      and(
-        eq(
-          contactsOnBroadcastsModel.broadcastId,
-          contactOnBroadcast.broadcastId,
-        ),
-        eq(contactsOnBroadcastsModel.contactId, contactOnBroadcast.contactId),
-      ),
-    )
-}
-
 const enqueueBroadcastContact = async (
   broadcast: BroadcastForSend,
   contactOnBroadcast: ContactOnBroadcastForSend,
@@ -119,6 +106,11 @@ const enqueueBroadcastContact = async (
           flowId: broadcast.flowId,
           conversationId: contactOnBroadcast.conversationId,
           contactInboxId: contactOnBroadcast.contactInboxId,
+          // The flow stop/resume guard's ONE authoritative "initial
+          // broadcast dispatch" marker (see the field's doc comment in
+          // worker-config). Every re-dispatch downstream of this one must
+          // leave it unset.
+          initialBroadcastDispatch: true,
           metadata: {
             type: BROADCAST_PAYLOAD_TYPE,
             broadcastId: broadcast.id,
@@ -131,6 +123,7 @@ const enqueueBroadcastContact = async (
           broadcast.id,
           contactOnBroadcast.contactId,
           "flow",
+          broadcast.resumeCount,
         ),
       ),
     )
@@ -178,6 +171,7 @@ const enqueueBroadcastContact = async (
           broadcast.id,
           contactOnBroadcast.contactId,
           "template",
+          broadcast.resumeCount,
         ),
       ),
     )
@@ -206,6 +200,7 @@ const enqueueBroadcastContact = async (
         broadcast.id,
         contactOnBroadcast.contactId,
         "template",
+        broadcast.resumeCount,
       ),
     ),
   )
@@ -216,6 +211,7 @@ export const processBroadcastContacts = async (broadcastId: string) => {
     where: {
       id: broadcastId,
       status: broadcastStatuses.enum.sending,
+      deletedAt: { isNull: true },
     },
   })
 
@@ -245,10 +241,8 @@ export const processBroadcastContacts = async (broadcastId: string) => {
       })
 
     if (contactsOnBroadcasts.length === 0) {
-      await db
-        .update(broadcastModel)
-        .set({ status: broadcastStatuses.enum.sent })
-        .where(eq(broadcastModel.id, broadcast.id))
+      // Everything has been handed to the channel; finalizeBroadcasts resolves sent|failed.
+      await broadcastService.markHandoffCompleted({ broadcastId: broadcast.id })
       continue
     }
 
@@ -268,7 +262,13 @@ export const processBroadcastContacts = async (broadcastId: string) => {
           }
 
           await enqueueBroadcastContact(broadcast, contactOnBroadcast)
-          await markContactSent(contactOnBroadcast)
+          // Conditioned on the broadcast still being `sending` (I1 lost-update
+          // fix): a stale in-flight job from a stopped/resumed run cannot
+          // resurrect a row that resume/cleanup has since reset or purged.
+          await broadcastService.markContactSentIfSending({
+            broadcastId: broadcast.id,
+            contactId: contactOnBroadcast.contactId,
+          })
 
           totalProcessed++
         } catch (error) {
@@ -294,10 +294,7 @@ export const processBroadcastContacts = async (broadcastId: string) => {
       continue
     }
 
-    await db
-      .update(broadcastModel)
-      .set({ status: broadcastStatuses.enum.sent })
-      .where(eq(broadcastModel.id, broadcast.id))
+    await broadcastService.markHandoffCompleted({ broadcastId: broadcast.id })
   }
 
   return { processed: totalProcessed }

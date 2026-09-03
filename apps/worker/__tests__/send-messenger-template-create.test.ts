@@ -18,6 +18,9 @@ const {
   mockSendFlowStep,
   mockRecordSendFailure,
   mockDbSet,
+  mockEnqueueIntegrationJob,
+  mockFindSendableBroadcast,
+  mockResetContactForResume,
 } = vi.hoisted(() => {
   const insertChain = {
     values: vi.fn(),
@@ -62,6 +65,7 @@ const {
     mockBroadcast: vi.fn(),
     mockEmit: vi.fn().mockResolvedValue(undefined),
     mockValidateTemplate: vi.fn().mockResolvedValue({
+      inbox: { id: "inbox-1", integrationMessenger: { id: "intg-1" } },
       template: {
         id: "tmpl-1",
         name: "my-template",
@@ -70,6 +74,7 @@ const {
         components: [],
       },
     }),
+    mockEnqueueIntegrationJob: vi.fn().mockResolvedValue(undefined),
     mockReplaceVariables: vi.fn().mockResolvedValue([]),
     mockContactVariables: vi.fn().mockResolvedValue([]),
     mockSendFlowStep: vi
@@ -77,6 +82,8 @@ const {
       .mockResolvedValue({ messageIds: ["provider-msg-1"] }),
     mockRecordSendFailure: vi.fn().mockResolvedValue(undefined),
     mockDbSet,
+    mockFindSendableBroadcast: vi.fn().mockResolvedValue({ id: "broadcast-1" }),
+    mockResetContactForResume: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -120,6 +127,10 @@ vi.mock("@chatbotx.io/business", () => ({
     recordSendFailure: mockRecordSendFailure,
     invalidateTracking: vi.fn().mockResolvedValue(undefined),
   },
+  broadcastService: {
+    findSendableBroadcast: mockFindSendableBroadcast,
+    resetContactForResume: mockResetContactForResume,
+  },
 }))
 
 vi.mock("@chatbotx.io/event-bus", () => ({
@@ -158,6 +169,13 @@ vi.mock("../src/lib/logger", () => ({
 
 vi.mock("../src/chat/handlers/send-message", () => ({
   sendFlowStepToChannel: mockSendFlowStep,
+}))
+
+vi.mock("@chatbotx.io/worker-config", () => ({
+  IntegrationJobAction: {
+    evaluateTemplateSent: "evaluateTemplateSent",
+  },
+  enqueueIntegrationJob: mockEnqueueIntegrationJob,
 }))
 
 vi.mock("@chatbotx.io/flow-config", async (importOriginal) => {
@@ -251,6 +269,7 @@ describe("processMessengerTemplate", () => {
       updateSourceId: mockRepositoryUpdateSourceId,
     })
     mockValidateTemplate.mockResolvedValue({
+      inbox: { id: "inbox-1", integrationMessenger: { id: "intg-1" } },
       template: {
         id: "tmpl-1",
         name: "my-template",
@@ -263,6 +282,7 @@ describe("processMessengerTemplate", () => {
     mockContactVariables.mockResolvedValue([])
     mockSendFlowStep.mockResolvedValue({ messageIds: ["provider-msg-1"] })
     mockEmit.mockResolvedValue(undefined)
+    mockEnqueueIntegrationJob.mockResolvedValue(undefined)
   })
 
   test("calls repository.create() to insert outbound message", async () => {
@@ -397,5 +417,57 @@ describe("processMessengerTemplate", () => {
         }),
       }),
     )
+  })
+})
+
+describe("sendMessengerTemplateMessage — stop/resume guard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFindSendableBroadcast.mockResolvedValue({ id: "broadcast-1" })
+    mockResetContactForResume.mockResolvedValue(undefined)
+    mockValidateTemplate.mockResolvedValue({
+      inbox: { id: "inbox-1", integrationMessenger: { id: "intg-1" } },
+      template: {
+        id: "tmpl-1",
+        name: "my-template",
+        language: "en",
+        parameterFormat: "POSITIONAL",
+        components: [],
+      },
+    })
+    mockReplaceVariables.mockResolvedValue([])
+    mockContactVariables.mockResolvedValue([])
+    mockSendFlowStep.mockResolvedValue({ messageIds: ["provider-msg-1"] })
+    mockEmit.mockResolvedValue(undefined)
+    mockEnqueueIntegrationJob.mockResolvedValue(undefined)
+  })
+
+  test("checks findSendableBroadcast before doing anything else", async () => {
+    await sendMessengerTemplateMessage(broadcastTemplateJobData)
+
+    expect(mockFindSendableBroadcast).toHaveBeenCalledWith("broadcast-1")
+  })
+
+  test("skips the send and resets the recipient when the broadcast is no longer sendable", async () => {
+    mockFindSendableBroadcast.mockResolvedValue(null)
+
+    const result = await sendMessengerTemplateMessage(broadcastTemplateJobData)
+
+    expect(result).toBeUndefined()
+    expect(mockValidateTemplate).not.toHaveBeenCalled()
+    expect(mockSendFlowStep).not.toHaveBeenCalled()
+    expect(mockResetContactForResume).toHaveBeenCalledWith({
+      broadcastId: "broadcast-1",
+      contactKey: { contactId: "contact-1" },
+    })
+  })
+
+  test("proceeds with the send when the broadcast is still sendable", async () => {
+    mockFindSendableBroadcast.mockResolvedValue({ id: "broadcast-1" })
+
+    await sendMessengerTemplateMessage(broadcastTemplateJobData)
+
+    expect(mockSendFlowStep).toHaveBeenCalledTimes(1)
+    expect(mockResetContactForResume).not.toHaveBeenCalled()
   })
 })

@@ -8,6 +8,7 @@ import {
   type UsageReservation,
   usageMeteringService,
 } from "@chatbotx.io/business"
+import { logProviderError } from "@chatbotx.io/business/error-log"
 import type { AITextToSpeechSchema } from "@chatbotx.io/flow-config"
 import {
   experimental_generateSpeech as generateSpeech,
@@ -17,6 +18,7 @@ import { normalizeError } from "universal-error-normalizer"
 import { logger } from "../../../lib/logger"
 import { saveResultToCustomField } from "../../utils/contact"
 import type { ExecuteStepProps } from "../flow"
+import { aiErrorLogProvider } from "../shared/ai-error-log-provider"
 import type { ExecuteStepResult } from "../step"
 import { textToSpeechStorageService } from "./storage"
 
@@ -29,6 +31,7 @@ function getExecutionId(
 
 export async function handleAITextToSpeech({
   conversation,
+  contactInbox,
   metadata,
   step,
 }: ExecuteStepProps<AITextToSpeechSchema>): Promise<ExecuteStepResult> {
@@ -120,6 +123,7 @@ export async function handleAITextToSpeech({
         customFieldId: step.outputFieldId,
         fullText: audioOutput.publicUrl,
         workspaceId: conversation.workspaceId,
+        contactInboxId: contactInbox.id,
       })
     }
 
@@ -140,6 +144,12 @@ export async function handleAITextToSpeech({
       const error = normalizeError(err)
       logger.error(error, "[ai-text-to-speech] Step failed")
     }
+    await logProviderError({
+      provider: aiErrorLogProvider(step.provider),
+      workspaceId: conversation.workspaceId,
+      contactId: conversation.contactId,
+      error: err,
+    })
     return {
       status: "error",
       errorMessage:

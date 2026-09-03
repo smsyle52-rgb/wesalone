@@ -13,6 +13,7 @@ import {
 import { cn } from "@chatbotx.io/ui/lib/utils"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
+import { MessagingAdsMovedAlert } from "@/features/ads-campaign/components/messaging-ads-moved-alert"
 import { CapiConnectedCard } from "@/features/meta-conversions/components/capi-connected-card"
 import { CapiMethodChooser } from "@/features/meta-conversions/components/capi-method-chooser"
 import {
@@ -147,6 +148,13 @@ export function InstagramCapiTab({
           )}
         </CardContent>
       </Card>
+      {supported && (
+        <MessagingAdsMovedAlert
+          channel="instagram"
+          integrationId={integrationInstagram.id}
+          workspaceId={workspaceId}
+        />
+      )}
     </div>
   )
 }

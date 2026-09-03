@@ -37,15 +37,16 @@ import type {
   ChatJobSendWhatsappTemplateMessage,
 } from "@chatbotx.io/worker-config"
 import {
-  enqueueIntegrationJob,
-  IntegrationJobAction,
-} from "@chatbotx.io/worker-config"
-import {
   replaceWhatsappTemplateVariables,
   validateWhatsappTemplate,
 } from "../../integration/handlers/wa-template-handler"
 import { logger } from "../../lib/logger"
-import { shouldSuppressRetryableChannelError } from "../utils/retry"
+import { skipIfBroadcastNotSendable } from "../utils/broadcast-sendable-guard"
+import {
+  shouldSuppressRetryableChannelError,
+  willSendRetry,
+} from "../utils/retry"
+import { enqueueTemplateSentEvaluation } from "./enqueue-template-sent-evaluation"
 import { convertButtonsToTemplate } from "./send-flow-step"
 import { sendFlowStepToChannel } from "./send-message"
 
@@ -80,47 +81,6 @@ const assertTemplateAllowedForContactInbox = (props: {
   }
 }
 
-type EnqueueTemplateSentEvaluationInput = {
-  workspaceId: string
-  integrationWhatsappId: string
-  contactInboxId: string
-  templateId: string
-  messageId: string
-}
-
-async function enqueueTemplateSentEvaluation(
-  input: EnqueueTemplateSentEvaluationInput,
-): Promise<void> {
-  try {
-    await enqueueIntegrationJob(
-      {
-        type: IntegrationJobAction.evaluateTemplateSent,
-        data: {
-          workspaceId: input.workspaceId,
-          integrationWhatsappId: input.integrationWhatsappId,
-          contactInboxId: input.contactInboxId,
-          templateId: input.templateId,
-        },
-      },
-      {
-        jobId: `ads-conversion-evaluate-template-${input.messageId}`,
-      },
-    )
-  } catch (err) {
-    logger.warn(
-      {
-        err,
-        workspaceId: input.workspaceId,
-        integrationWhatsappId: input.integrationWhatsappId,
-        contactInboxId: input.contactInboxId,
-        templateId: input.templateId,
-        messageId: input.messageId,
-      },
-      "Failed to enqueue ads conversion template-sent evaluation",
-    )
-  }
-}
-
 export interface ProcessWhatsappTemplateParams {
   broadcastId?: string
   contactInbox: ContactInboxModel
@@ -134,6 +94,12 @@ export interface ProcessWhatsappTemplateParams {
   step?: SendWaTemplateMessageStepSchema
   template: SendWaTemplateMessageStepSchema["template"]
   trackingContext?: BotResponseTrackingContext
+  /**
+   * Whether a rethrow from here produces another `message:failed` for this same
+   * send — a BullMQ attempt still in hand. Defaults to terminal: the flow-step
+   * caller swallows the rethrow and never retries.
+   */
+  willRetryOnThrow?: boolean
 }
 
 export interface ProcessWhatsappTemplateResult {
@@ -215,6 +181,7 @@ export async function processWhatsappTemplate(
     step,
     trackingContext,
     metadata,
+    willRetryOnThrow = false,
   } = params
 
   const eventLogData = {
@@ -380,7 +347,8 @@ export async function processWhatsappTemplate(
 
     await enqueueTemplateSentEvaluation({
       workspaceId: conversation.workspaceId,
-      integrationWhatsappId: validated.inbox.integrationWhatsapp.id,
+      channel: "whatsapp",
+      integrationId: validated.inbox.integrationWhatsapp.id,
       contactInboxId: contactInbox.id,
       templateId: template.id,
       messageId: newMessage.id,
@@ -458,6 +426,11 @@ export async function processWhatsappTemplate(
       },
       errorData,
       occurredAt: new Date(),
+      willRetry: willSendRetry({
+        error,
+        channel: contactInbox.channel,
+        willRetryOnThrow,
+      }),
     })
 
     throw error
@@ -466,6 +439,7 @@ export async function processWhatsappTemplate(
 
 export async function sendWhatsappTemplateMessage(
   data: ChatJobSendWhatsappTemplateMessage["data"],
+  willRetryOnThrow = false,
 ): Promise<ProcessWhatsappTemplateResult | undefined> {
   const {
     conversation,
@@ -475,6 +449,16 @@ export async function sendWhatsappTemplateMessage(
     contactInbox,
     metadata,
   } = data
+
+  if (
+    await skipIfBroadcastNotSendable({
+      broadcastId,
+      contactId: conversation.contactId,
+      handler: "sendWhatsappTemplateMessage",
+    })
+  ) {
+    return
+  }
 
   const eventLogData = {
     context: {
@@ -508,6 +492,11 @@ export async function sendWhatsappTemplateMessage(
         action: { messageId: "", flowId: "" },
         errorData: await parseSdkError(error),
         occurredAt: new Date(),
+        willRetry: willSendRetry({
+          error,
+          channel: contactInbox.channel,
+          willRetryOnThrow,
+        }),
       })
       throw error
     }
@@ -520,6 +509,7 @@ export async function sendWhatsappTemplateMessage(
     const result = await processWhatsappTemplate({
       conversation,
       contactInbox,
+      willRetryOnThrow,
       template: {
         id: template.id,
         name: template.name,

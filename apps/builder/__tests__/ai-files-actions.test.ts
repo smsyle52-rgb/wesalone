@@ -13,6 +13,10 @@ vi.mock("@chatbotx.io/business", () => ({
   platformAiSettingService: { getActive },
 }))
 
+vi.mock("@chatbotx.io/business/audit", () => ({
+  auditService: { record: vi.fn() },
+}))
+
 vi.mock("@chatbotx.io/business/errors", () => ({
   ChatbotXException: class extends Error {},
 }))
@@ -54,11 +58,11 @@ vi.mock("next-intl/server", () => ({
   getTranslations: vi.fn(),
 }))
 
-vi.mock("@/features/common/schemas", () => ({
+vi.mock("@/features/common/schema", () => ({
   workspaceIdrequestParams: [],
 }))
 
-vi.mock("../src/features/ai-files/schemas", () => ({
+vi.mock("../src/features/ai-files/schema", () => ({
   createAIFileRequest: {},
 }))
 

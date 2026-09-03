@@ -164,7 +164,8 @@
     },
     "authType": {
       "headers": "Intestazione personalizzata",
-      "token": "Token"
+      "token": "Token",
+      "none": "None"
     },
     "automatedResponse": {
       "label": "Risposta automatica"
@@ -278,7 +279,10 @@
       "append": "Aggiungi alla fine",
       "prepend": "Aggiungi all'inizio",
       "increase": "Aumenta di",
-      "decrease": "Diminuisci di"
+      "decrease": "Diminuisci di",
+      "groupSystemFields": "Campi di sistema",
+      "groupCustomFields": "Campi personalizzati",
+      "groupAccountFields": "Campi del bot"
     },
     "dataCollect": {
       "label": "Raccolta dati"
@@ -300,7 +304,8 @@
       "description": "Imposta il tempo di attesa del bot prima di rispondere dopo l'ultimo messaggio dell'utente. Se l'utente invia un altro messaggio, il timer si azzera e i messaggi vengono accodati in un'unica risposta.",
       "label": "Ritardo della risposta del bot",
       "minutes": "{count, plural, one {# minuto} other {# minuti}}",
-      "seconds": "{count, plural, one {# secondo} other {# secondi}}"
+      "seconds": "{count, plural, one {# secondo} other {# secondi}}",
+      "none": "None"
     },
     "delayType": {
       "label": "Tipo di ritardo",
@@ -381,8 +386,8 @@
       "aiDeleteMessageHistory": "Elimina cronologia messaggi"
     },
     "steps": {
-      "label": "Passaggi",
-      "placeholder": "Seleziona passaggio"
+      "label": "Nodo",
+      "placeholder": "Seleziona nodo"
     },
     "folder": {
       "label": "Cartella"
@@ -475,7 +480,10 @@
     "language": {
       "description": "Ai contatti viene assegnata la lingua predefinita quando la loro lingua è sconosciuta.",
       "label": "Lingua",
-      "placeholder": "Seleziona lingua"
+      "placeholder": "Seleziona lingua",
+      "english": "English",
+      "vietnamese": "Tiếng Việt",
+      "arabic": "Arabic"
     },
     "lastName": {
       "label": "Cognome",
@@ -542,6 +550,9 @@
     },
     "mcpServer": {
       "label": "Server MCP"
+    },
+    "template": {
+      "label": "Template"
     },
     "systemFunction": {
       "label": "Funzione di sistema",
@@ -658,7 +669,8 @@
       "placeholder": "587"
     },
     "provider": {
-      "label": "Provider"
+      "label": "Provider",
+      "placeholder": "Seleziona provider"
     },
     "prompt": {
       "label": "Prompt",
@@ -747,7 +759,9 @@
       "label": "Stato",
       "pending": "In attesa",
       "processing": "In elaborazione",
+      "installing": "Installing",
       "completed": "Completato",
+      "partial": "Partial",
       "failed": "Non riuscito",
       "success": "Operazione riuscita",
       "error": "Errore"
@@ -1409,9 +1423,34 @@
         "description": "Questo token viene mostrato una sola volta. Conservalo in modo sicuro — non potrai più visualizzarlo in seguito.",
         "done": "Fatto"
       }
-    }
+    },
+    "adReferral": {
+      "label": "Ads",
+      "ctwa": "CTWA",
+      "ctm": "CTM",
+      "ctid": "CTID"
+    },
+    "adSource": {
+      "label": "Ad source"
+    },
+    "attribute": {
+      "label": "Attribute"
+    },
+    "header": {
+      "label": "Header"
+    },
+    "aiProvider": {
+      "label": "Provider"
+    },
+    "transcriptionModel": {
+      "label": "Model",
+      "placeholder": "Select a model"
+    },
+    "optionalHint": "(optional)",
+    "selectOptionsPlaceholder": "Select options"
   },
   "actions": {
+    "retry": "Riprova",
     "copy": "Copia",
     "copyUrl": "Copia URL",
     "actions": "Azioni",
@@ -1483,6 +1522,7 @@
     "reset": "Reimposta",
     "save": "Salva",
     "selectAll": "Seleziona tutto",
+    "unselect": "Deseleziona",
     "selectRow": "Seleziona riga",
     "sendFlow": "Invia flusso",
     "sendMessage": "Invia messaggio",
@@ -1557,7 +1597,13 @@
     "onSuccess": "In caso di successo",
     "clone": "Clona",
     "remove": "Rimuovi",
-    "restore": "Ripristina"
+    "restore": "Ripristina",
+    "loadMore": "Load more",
+    "saveAsDraft": "Save as draft",
+    "schedule": "Schedule",
+    "moveToDraft": "Move to draft",
+    "stop": "Stop",
+    "resume": "Resume"
   },
   "errors": {
     "superAdminRequired": "Devi essere super admin dello spazio di lavoro per farlo."
@@ -1568,7 +1614,8 @@
     "skip": "Salta"
   },
   "admins": {
-    "title": "Amministratori"
+    "title": "Amministratori",
+    "adminActivityLogs": "Registro attività amministratori"
   },
   "assignAdmin": {
     "assignConversation": "Assegna conversazione",
@@ -1747,7 +1794,8 @@
       "bannerDescription": "L'invio e la ricezione dei messaggi sono sospesi finché non aggiorni il piano.",
       "bannerCta": "Aggiorna",
       "createDisabled": "La creazione di {feature} è disabilitata finché non passi a un piano superiore."
-    }
+    },
+    "navTitle": "Billing & Subscription"
   },
   "broadcasts": {
     "title": "Broadcast",
@@ -1755,7 +1803,9 @@
       "scheduled": "Pianificato",
       "sent": "Inviato",
       "sending": "Invio in corso",
-      "cancelled": "Annullato"
+      "cancelled": "Annullato",
+      "draft": "Draft",
+      "failed": "Failed"
     },
     "stats": {
       "sent": "Inviato",
@@ -1841,6 +1891,63 @@
       "template": "Modello",
       "noTemplate": "Nessun modello",
       "integration": "Integrazione"
+    },
+    "filters": {
+      "all": "All"
+    },
+    "views": {
+      "table": "Table",
+      "calendar": "Calendar"
+    },
+    "panel": {
+      "collapse": "Collapse panel",
+      "expand": "Expand panel"
+    },
+    "empty": {
+      "title": "No broadcasts yet",
+      "description": "Create your first broadcast to reach your contacts.",
+      "filteredTitle": "No broadcasts match",
+      "filteredDescription": "Try another status or clear the search."
+    },
+    "scheduleDialog": {
+      "title": "Schedule broadcast",
+      "description": "Choose when \"{name}\" should be sent."
+    },
+    "deleteDialog": {
+      "title": "{count, plural, one {Delete broadcast} other {Delete broadcasts}}",
+      "description": "{count, plural, one {\"{name}\" will be removed. Its data is deleted in the background.} other {# broadcasts will be removed. Their data is deleted in the background.}}",
+      "partial": "{deleted} of {requested} deleted — the rest changed status"
+    },
+    "calendar": {
+      "today": "Today",
+      "apply": "Apply",
+      "more": "+{count} more",
+      "ranges": {
+        "month": "Month",
+        "week": "Week",
+        "day": "Day",
+        "custom": "Custom"
+      },
+      "previous": "Previous",
+      "next": "Next",
+      "emptyDay": "No broadcasts on this day",
+      "emptyRange": "No broadcasts in this range",
+      "jumpToDate": "Jump to date"
+    },
+    "fields": {
+      "id": "ID"
+    },
+    "moveToDraftDialog": {
+      "title": "Move to draft",
+      "description": "\"{name}\" will be unscheduled and moved back to drafts."
+    },
+    "stopDialog": {
+      "title": "Stop broadcast",
+      "description": "Remaining messages for \"{name}\" stop within about a minute. A few already handed to the channel may still deliver. You can resume later — only unsent recipients will receive."
+    },
+    "resumeDialog": {
+      "title": "Resume broadcast",
+      "description": "\"{name}\" will continue sending to recipients who have not received it yet."
     }
   },
   "condition": {
@@ -1952,8 +2059,8 @@
       "blocked": "Bloccato",
       "noAdminReply": "Nessuna risposta dell'amministratore",
       "contactCreatedAt": "Contatto creato il",
-      "fromCtwaAd": "Da un'inserzione Click to WhatsApp",
-      "ctwaConversion": "Conversione CTWA",
+      "fromCtwaAd": "Da un'inserzione",
+      "ctwaConversion": "Conversione inserzione",
       "lastUserInputTypes": {
         "text": "Testo",
         "location": "Posizione",
@@ -1980,9 +2087,10 @@
       "systemFields": "Campi di sistema",
       "topicCoupon": "Argomento coupon",
       "customFields": "Campi personalizzati",
+      "botFields": "Campi del bot",
       "email": "E-mail",
       "sms": "SMS",
-      "ctwaAds": "Inserzioni Click to WhatsApp"
+      "ctwaAds": "Inserzioni"
     },
     "languages": {
       "ar": "Arabo",
@@ -2021,9 +2129,9 @@
     },
     "ctwaRetarget": {
       "segments": {
-        "conversations": "Avvii conversazione CTWA",
-        "leads": "Lead qualificati CTWA",
-        "purchases": "Acquirenti CTWA"
+        "conversations": "Avvii conversazione da inserzione",
+        "leads": "Lead qualificati da inserzione",
+        "purchases": "Acquirenti da inserzione"
       },
       "adPrefix": "inserzione",
       "allAds": "tutte le inserzioni"
@@ -2058,7 +2166,8 @@
     },
     "openaiCompatible": {
       "empty": "Collega un provider compatibile con OpenAI nelle impostazioni delle integrazioni prima di usare questo passaggio.",
-      "integration": "Provider compatibile con OpenAI"
+      "integration": "Provider compatibile con OpenAI",
+      "none": "None"
     },
     "actions": {
       "addContactNotes": "Aggiungi note al contatto",
@@ -2123,6 +2232,7 @@
       "sendFile": "Invia file",
       "sendGif": "Invia GIF",
       "sendImage": "Invia immagine",
+      "sendMultipleImages": "Immagini multiple",
       "sendMessage": "Invia messaggio",
       "sendNode": "Avvia un altro nodo",
       "sendText": "Invia testo",
@@ -2162,12 +2272,13 @@
       "whatsappFlow": "Flusso WhatsApp",
       "appointmentScheduling": "Pianificazione appuntamenti",
       "triggerN8n": "Trigger n8n",
-      "metaConversions": "Meta Conversions API",
       "sendMetaCapiEvent": "Invia evento Meta CAPI",
       "import": "Importa flusso",
       "export": "Esporta",
       "importStarted": "Il flusso è in fase di importazione. Controlla la cronologia delle importazioni per i risultati.",
-      "importJsonOnly": "Solo file JSON"
+      "importJsonOnly": "Solo file JSON",
+      "adsConversions": "Annunci e Meta Conversions",
+      "aiAgentGroup": "AI agent"
     },
     "splitTraffic": {
       "balanceHint": "La somma totale deve essere pari al 100%.",
@@ -2204,6 +2315,10 @@
       "addSlide": "Aggiungi scheda",
       "removeSlide": "Rimuovi scheda",
       "whatsappLinkButtonIgnored": "Su WhatsApp, il link di questa scheda non funzionerà: una scheda con un pulsante di collegamento non può avere altri pulsanti. Verrà inviata come risposta."
+    },
+    "sendMultipleImages": {
+      "removeImage": "Rimuovi immagine",
+      "selectImage": "Seleziona immagini"
     },
     "additionalSteps": "Passaggi aggiuntivi",
     "delayType": {
@@ -2325,6 +2440,11 @@
   },
   "ads": {
     "title": "Inserzioni",
+    "dashboardNav": {
+      "whatsapp": "Annunci Click-to-WhatsApp",
+      "messenger": "Annunci Click-to-Messenger",
+      "instagram": "Annunci Click-to-Instagram"
+    },
     "connectAccounts": {
       "connectAdAccount": "Collega account pubblicitario",
       "adAccountName": "Nome account pubblicitario",
@@ -2340,16 +2460,40 @@
         "unverified": "Autorizzazione non verificata"
       },
       "table": {
-        "wabaId": "ID WABA"
+        "wabaId": "ID WABA",
+        "name": "Name",
+        "phoneNumber": "Phone number",
+        "permission": "Automatic Events"
       },
       "connectWhatsapp": {
-        "cta": "Collega account WhatsApp"
+        "cta": "Collega account WhatsApp",
+        "title": "Connect your WhatsApp account first",
+        "description": "Click-to-WhatsApp conversion tracking needs a connected WhatsApp account before you can link ad accounts and create conversion datasets.",
+        "step1": "Connect your WhatsApp Business account in Channels.",
+        "step2": "Return here to authorize Meta Ads and select your ad account.",
+        "step3": "We will automatically create the conversion dataset using your WhatsApp Business account."
+      },
+      "title": "Manage all your ad accounts",
+      "description": "Track conversions and optimize your click-to-WhatsApp ad campaigns.",
+      "learnMore": "Learn More",
+      "disconnect": "Disconnect",
+      "empty": "No ad account connected yet.",
+      "adAccountsTitle": "Meta ad accounts",
+      "adAccountsDescription": "Connect Facebook Ads to load the ad accounts used for click-to-WhatsApp campaigns.",
+      "adAccountsNote": "Spend and retargeting audiences come from these ad accounts.",
+      "reconnectBanner": "Reconnect your WhatsApp account to enable sending conversion events to Meta.",
+      "providers": {
+        "meta": "Meta",
+        "googleAds": "Google Ads",
+        "tiktok": "TikTok"
       }
     },
     "conversionEvents": {
       "title": "Eventi di conversione",
       "tabs": {
         "facebook": "Facebook",
+        "instagram": "Instagram",
+        "messenger": "Messenger",
         "whatsapp": "WhatsApp"
       },
       "manageAdsAccounts": "Gestisci account pubblicitari",
@@ -2357,11 +2501,16 @@
       "selectAll": "Seleziona tutto",
       "whatsappAsset": "Asset WhatsApp",
       "selectWhatsappAsset": "Seleziona asset WhatsApp",
+      "selectIntegration": "Integrazione",
+      "selectIntegrationPlaceholder": "Seleziona integrazione",
+      "noIntegrationsConnected": "Nessuna integrazione connessa per questo canale al momento.",
+      "connectIntegration": "Collega un canale",
       "templates": "Modelli",
       "selectTemplates": "Seleziona modelli",
       "noTemplates": "Nessun modello approvato trovato.",
       "existingRules": "Regole esistenti",
       "noRules": "Nessuna regola di conversione per questo asset WhatsApp per ora.",
+      "noRulesGeneric": "Nessuna regola di conversione per questa integrazione per ora.",
       "toggleRule": "Attiva o disattiva la regola",
       "deleteRule": "Elimina regola",
       "qualifyingTemplateMessageSent": "Viene inviato il messaggio modello qualificante",
@@ -2401,24 +2550,26 @@
         "title": "Monitora i lead qualificati",
         "question": "In quale punto della conversazione vuoi qualificare un contatto come lead?",
         "when": "Quando",
-        "then": "Allora contrassegna il lead CTWA come"
+        "then": "Allora contrassegna il lead CTWA come",
+        "thenGeneric": "Allora contrassegna il lead come"
       },
       "trackPurchases": {
         "title": "Monitora gli acquisti",
         "question": "Quale modello conferma un acquisto?",
         "when": "Quando",
         "then": "Allora",
-        "noValueNote": "Un acquisto basato su regole registra una conversione di Acquisto senza un valore d'ordine: conta per gli acquisti, ma aggiunge 0 al fatturato. Il valore dell'ordine viene rilevato solo dagli Eventi automatici di Meta."
+        "noValueNote": "Un acquisto basato su regole registra una conversione di Acquisto senza un valore d'ordine: conta per gli acquisti, ma aggiunge 0 al fatturato. Il valore dell'ordine viene rilevato solo dagli Eventi automatici di Meta.",
+        "questionGeneric": "In quale momento della conversazione vuoi registrare un acquisto?"
       }
     },
     "analytics": {
-      "title": "Analisi CTWA",
+      "title": "Analisi degli annunci",
       "funnelOverview": "Panoramica del funnel",
       "conversationsStarted": "Conversazioni avviate",
       "qualifiedLeads": "Lead qualificati",
       "purchases": "Acquisti",
       "adSpend": "Spesa pubblicitaria",
-      "spendAccountLevelNote": "La spesa viene riportata a livello di account pubblicitario Meta; quando è selezionato un account WhatsApp, le inserzioni con sola spesa e nessuna attività di funnel per quell'account vengono nascoste.",
+      "spendAccountLevelNote": "La spesa viene riportata a livello di account pubblicitario Meta; quando è selezionato un account, le inserzioni con sola spesa e nessuna attività di funnel per quell'account vengono nascoste.",
       "revenue": "Fatturato",
       "roas": "ROAS",
       "revenueCurrencyNote": "Il fatturato presuppone una sola valuta (USD). Gli account pubblicitari con più valute non sono ancora aggregati.",
@@ -2447,21 +2598,27 @@
       "adAccountFilter": {
         "all": "Tutti gli account pubblicitari",
         "label": "Account pubblicitario",
-        "note": "Le inserzioni con conversioni ma senza spesa o senza distribuzione nell'intervallo di date selezionato vengono nascoste durante il filtro per account pubblicitario."
+        "unavailable": "Impossibile caricare gli account pubblicitari: controlla la connessione Ads di questa integrazione, oppure la connessione Facebook Ads del workspace, nelle impostazioni."
+      },
+      "channelFilter": {
+        "label": "Canale",
+        "allAccounts": "Tutti gli account",
+        "allChannels": "Tutti i canali"
       },
       "retarget": "Retarget",
       "thoseWhoPurchased": "Chi ha acquistato",
       "thoseWhoStartedConversation": "Chi ha avviato una conversazione",
       "sendWhatsappBroadcast": "Invia broadcast WhatsApp",
+      "retargetOnChannel": "Retargeting su {channel}",
       "from": "Da",
       "to": "A",
       "unattributed": "Non attribuito",
       "retargetDialog": {
-        "title": "Retarget dei contatti CTWA",
+        "title": "Retarget dei contatti degli annunci",
         "createAudience": "Crea pubblico",
         "useExistingAudience": "Usa un pubblico esistente",
         "audienceName": "Nome del pubblico",
-        "audiencePrefix": "CTWA",
+        "audiencePrefix": "Annunci",
         "confirm": "Avvia sincronizzazione",
         "success": "Sincronizzazione del pubblico di retargeting in coda.",
         "error": "Impossibile accodare la sincronizzazione del pubblico di retargeting."
@@ -2473,7 +2630,7 @@
         "failed": "Non riuscito",
         "skippedNoScope": "Ignorato (nessun ambito)",
         "skippedRegion": "Ignorato (regione)",
-        "noScopeWarning": "Alcune conversioni non sono state inviate perché a questo account WhatsApp manca l'autorizzazione per gli eventi. Ricollegalo per abilitare il reporting degli Eventi automatici.",
+        "noScopeWarning": "Alcune conversioni non sono state inviate perché a questo account manca l'autorizzazione per gli eventi. Ricollegalo per abilitare il reporting degli Eventi automatici.",
         "reconnectCta": "Ricollega account",
         "empty": "Nessun evento di conversione in questo intervallo per ora."
       },
@@ -2486,7 +2643,8 @@
         "contactName": "Nome del contatto",
         "phone": "Telefono",
         "adId": "ID inserzione",
-        "occurredAt": "Avvenuto il"
+        "occurredAt": "Avvenuto il",
+        "channel": "Canale"
       },
       "empty": "Nessun dato per ora. Collega un account pubblicitario e inizia a monitorare le conversioni."
     }
@@ -2768,7 +2926,15 @@
     "title": "Impostazioni della piattaforma",
     "errors": {
       "giphyApiKeyRequired": "La chiave API è obbligatoria per configurare GIPHY.",
-      "giphyApiKeyInvalid": "Chiave API GIPHY non valida"
+      "giphyApiKeyInvalid": "Chiave API GIPHY non valida",
+      "googleClientSecretRequired": "Client Secret is required to configure Google.",
+      "googleVerifyTokenRequired": "Verify Token is required to configure Google.",
+      "messengerAppSecretRequired": "App Secret is required to configure Messenger.",
+      "zaloAppSecretRequired": "App Secret is required to configure Zalo.",
+      "stripeSecretKeyRequired": "Secret Key is required to configure Stripe.",
+      "whatsappAppSecretRequired": "App Secret is required to configure WhatsApp.",
+      "whatsappSystemUserTokenRequired": "System User Token is required to configure WhatsApp.",
+      "tiktokAppSecretRequired": "App Secret is required to configure TikTok."
     }
   },
   "home": {
@@ -2815,7 +2981,8 @@
       "button": "Aggiorna tutte le autorizzazioni",
       "resultSuccess": "Aggiornati {refreshed} canale/i.",
       "resultWithFailures": "Aggiornati {refreshed} canale/i, {failed} non riusciti."
-    }
+    },
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
   },
   "workspace": {
     "schedule": {
@@ -2884,6 +3051,7 @@
     "disconnectFeatureDescription": "Vuoi davvero disconnettere {feature}?",
     "disconnectSuccess": "{feature} disconnesso correttamente",
     "reply": "Rispondi",
+    "privateReply": "Risposta privata",
     "viewMessage": "Visualizza messaggio",
     "changeLikeState": "Cambia stato del Mi piace",
     "changeHideState": "Cambia stato di visibilità",
@@ -2901,6 +3069,8 @@
     "editMessagePlaceholder": "Modifica il messaggio...",
     "saveEdit": "Salva",
     "cancelEdit": "Annulla",
+    "replaceAttachment": "Sostituisci allegato",
+    "addAttachment": "Aggiungi allegato",
     "failedToCopy": "Impossibile copiare",
     "failedToPreviewImage": "Impossibile visualizzare l'anteprima dell'immagine",
     "loadingData": "Caricamento dati...",
@@ -2924,6 +3094,9 @@
     "duplicatedSuccess": "{feature} duplicato correttamente",
     "duplicateConfirmation": "Verrà creata una copia di {feature}.",
     "deleteFeature": "Elimina {feature}",
+    "resetFeature": "Reimposta {feature}",
+    "resetConfirmation": "Questo cancellerà i valori dei {feature} selezionati.\nQuesta azione non può essere annullata.",
+    "resetSuccess": "{feature} reimpostato con successo",
     "deleteConfirmation": "Sei assolutamente sicuro?\nQuesta azione non può essere annullata.\nIl tuo {feature} verrà eliminato definitivamente dai nostri server.",
     "addFeature": "Aggiungi {feature}",
     "signOutConfirmation": "Vuoi davvero uscire?",
@@ -2958,9 +3131,6 @@
     "enableSuccess": "{feature} attivato correttamente",
     "userInactive": "L'utente è inattivo da più di 7 giorni",
     "messagingWindowClosed": "Il messaggio non può essere inviato al di fuori della finestra consentita",
-    "sendHumanAgentTag": "Invia un messaggio con il tag HUMAN_AGENT",
-    "warning": "Attenzione!",
-    "humanAgentWarningDescription": "Puoi rispondere al messaggio di un utente entro 7 giorni solo quando non è ragionevolmente possibile risolvere il problema entro 24 ore. Ad esempio durante fine settimana e festività o nei casi che richiedono più di un giorno. Non usare questa opzione per altri motivi, poiché potresti mettere a rischio la tua Pagina Facebook o il tuo account Instagram. Se hai dubbi, non continuare.",
     "humanAgentWindowExpired": "La finestra di messaggistica è scaduta. Il contatto deve inviare per primo un messaggio per riaprire la conversazione.",
     "restoreVersionSuccess": "Flusso ripristinato alla versione selezionata",
     "revertToPublishedSuccess": "Bozza ripristinata alla versione pubblicata",
@@ -3042,10 +3212,12 @@
     "selectPage": {
       "noPagesTitle": "Nessuna Pagina Facebook trovata",
       "noPagesDescription": "Le Pagine in un Business Manager richiedono l'accesso a Business Manager durante la connessione. Ricollega Messenger e concedi tutte le autorizzazioni richieste.",
+      "noConnectablePagesTitle": "Nessuna Pagina disponibile da collegare",
+      "noConnectablePagesDescription": "Non sei amministratore di questa Pagina",
       "bmLookupFailedTitle": "Alcune Pagine di Business Manager potrebbero non essere disponibili",
       "bmLookupFailedDescription": "Ricollega Messenger e concedi l'accesso a Business Manager affinché possano essere elencate le Pagine gestite tramite Business Manager.",
       "alreadyConnectedNote": "Questa Pagina è già collegata",
-      "notAdminNote": "Per collegarsi è necessaria l'autorizzazione completa di amministratore della Pagina",
+      "notAdminNote": "Non sei amministratore di questa Pagina",
       "tryAgain": "Prova a ricollegarti"
     },
     "title": "Facebook Messenger",
@@ -3232,7 +3404,50 @@
     "signUpTitle": "Registrati su {name}",
     "changePasswordTitle": "Cambia la password",
     "changePasswordDescription": "Imposta una nuova password prima di continuare.",
-    "passwordChangeSuccess": "Password modificata"
+    "passwordChangeSuccess": "Password modificata",
+    "signInVisual": {
+      "title": "A unified platform for your customers' conversations.",
+      "subtitle": "Manage WhatsApp, Instagram, Messenger, and Telegram from one dashboard.",
+      "bullets": {
+        "0": "Unified inbox",
+        "1": "Live, exportable reports",
+        "2": "Top-tier security and privacy"
+      }
+    },
+    "signUpVisual": {
+      "trialBadge": "14-day free trial",
+      "title": "Start with a 14-day free trial - no card required.",
+      "subtitle": "Create your workspace and connect your channels in one unified Arabic experience.",
+      "bullets": {
+        "0": "Fast setup, no code",
+        "1": "Connects with your channels",
+        "2": "Full control over your workspace data"
+      }
+    },
+    "passwordStrength": {
+      "veryWeak": "Very weak",
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong",
+      "veryStrong": "Very strong",
+      "label": "Password strength: {level}"
+    },
+    "orSignInWithEmail": "Or sign in with email",
+    "orSignUpWithEmail": "Or sign up with email",
+    "errorInvalidEmailOrPassword": "The email or password is incorrect. Please check and try again.",
+    "errorEmailNotVerified": "Your email is not verified yet. We just sent you a new verification link — check your inbox.",
+    "errorUserNotFound": "No account exists with this email.",
+    "errorUserAlreadyExists": "An account already exists with this email. Sign in instead.",
+    "errorInvalidEmail": "This email address is not valid.",
+    "errorPasswordTooShort": "The password is too short.",
+    "errorPasswordTooLong": "The password is too long.",
+    "errorInvalidToken": "This link is invalid or has already been used.",
+    "errorTokenExpired": "This link has expired. Please request a new one.",
+    "errorSessionExpired": "Your session has expired. Please sign in again.",
+    "errorGeneric": "Something went wrong. Please try again.",
+    "resendVerification": "Resend verification email",
+    "verificationResent": "Verification email sent. Check your inbox.",
+    "signedInSuccessfully": "Signed in successfully"
   },
   "emailTopics": {
     "title": "Argomenti email"
@@ -3416,7 +3631,9 @@
         "mpmSectionLimitReached": "Raggiunto il massimo di 10 sezioni.",
         "mpmProductLimitReached": "Raggiunto il massimo di 30 prodotti.",
         "mpmProductsSummary": "{productCount} prodotti in {sectionCount} sezioni",
-        "unsupportedButtonParam": "Questo tipo di pulsante non è ancora supportato."
+        "unsupportedButtonParam": "Questo tipo di pulsante non è ancora supportato.",
+        "quickReplyPayload": "Quick Reply Payload",
+        "quickReplyPayloadPlaceholder": "Enter payload (optional)"
       }
     },
     "sampleBodyCardContent": {
@@ -3750,7 +3967,8 @@
     "at": "Alle"
   },
   "errorLogs": {
-    "title": "Registri degli errori"
+    "title": "Registri degli errori",
+    "unknownContact": "Contatto sconosciuto"
   },
   "developerAccessToken": {
     "title": "Token di accesso API",
@@ -3773,7 +3991,23 @@
     "exportTakingLongDescription": "L'esportazione è ancora in corso. Puoi chiudere questa finestra e ricontrollare tra qualche minuto nella cronologia delle esportazioni."
   },
   "auditLogs": {
-    "title": "Registri di controllo"
+    "title": "Registri di controllo",
+    "columns": {
+      "user": "Utente",
+      "action": "Azione",
+      "detail": "Dettaglio",
+      "ipAddress": "Indirizzo IP",
+      "date": "Data"
+    },
+    "filters": {
+      "from": "Da",
+      "to": "A",
+      "user": "Utente",
+      "userPlaceholder": "ID utente",
+      "keyword": "Parola chiave",
+      "keywordPlaceholder": "Azione o dettaglio",
+      "allAdmins": "Tutti gli amministratori"
+    }
   },
   "customFields": {
     "title": "Campi personalizzati",
@@ -3896,7 +4130,8 @@
     "claude": "Claude",
     "deepseek": "DeepSeek",
     "openrouter": "OpenRouter",
-    "openaiCompatible": "Compatibile con OpenAI"
+    "openaiCompatible": "Compatibile con OpenAI",
+    "google": "Google Cloud"
   },
   "smtp": {
     "setting": {
@@ -4261,7 +4496,23 @@
     "addNewPage": "Aggiungi",
     "noEligiblePages": "Nessuna pagina idonea. Usa \"Aggiungi\" per concedere l'accesso ai contatti acquisiti.",
     "duplicateError": "Esiste già un'automazione per questa pagina e questo modulo.",
-    "subscribeError": "Non è stato possibile iscrivere questa pagina alle notifiche di Facebook sui contatti acquisiti, pertanto l'automazione non è stata creata. Ricollega la pagina con \"Aggiungi\" e riprova."
+    "subscribeError": "Non è stato possibile iscrivere questa pagina alle notifiche di Facebook sui contatti acquisiti, pertanto l'automazione non è stata creata. Ricollega la pagina con \"Aggiungi\" e riprova.",
+    "none": "None"
+  },
+  "clickToMessageAds": {
+    "title": "Annunci Click-to-Message",
+    "description": "Gli annunci indirizzano le persone direttamente a una conversazione su Messenger, Instagram o WhatsApp.",
+    "empty": {
+      "title": "Nessun account collegato per questo canale",
+      "description": "Collega prima un account del canale, poi torna qui per creare annunci.",
+      "cta": "Vai alle impostazioni del canale"
+    },
+    "movedNote": {
+      "title": "Gli annunci sono stati spostati in Strumenti",
+      "description": "Crea e gestisci gli annunci Click-to-Message dallo strumento Annunci Click-to-Message.",
+      "cta": "Apri Annunci Click-to-Message"
+    },
+    "dashboardCta": "Visualizza sulla dashboard Annunci"
   },
   "ecommerce": {
     "title": "E-commerce",
@@ -4294,7 +4545,60 @@
   },
   "templates": {
     "title": "Modelli",
-    "description": "Crea e gestisci i tuoi modelli."
+    "description": "Crea e gestisci i tuoi modelli.",
+    "share": {
+      "label": "Condividi",
+      "enabled": "Condiviso",
+      "disabled": "Non condiviso",
+      "dialogTitle": "Condividi modello",
+      "dialogDescription": "Chiunque abbia questo link può installare una copia di questo modello in uno spazio di lavoro del tuo tenant.",
+      "enableLabel": "Attiva link di condivisione",
+      "linkLabel": "Link di condivisione",
+      "description": "Chiunque abbia il link può installare questo modello nel proprio spazio di lavoro."
+    },
+    "installs": {
+      "title": "Installazioni",
+      "resources": "Risorse",
+      "warnings": "Avvisi",
+      "completedAt": "Completato il",
+      "autoUpdate": "Aggiornamento automatico"
+    },
+    "form": {
+      "contents": "Contenuto del modello",
+      "comingSoon": "Prossimamente",
+      "selectAll": "Seleziona tutto",
+      "selectedCount": "{count} selezionati",
+      "details": "Dettagli",
+      "permissions": "Autorizzazioni predefinite",
+      "allowEdit": "Consenti la modifica dopo l'installazione",
+      "allowDelete": "Consenti l'eliminazione dopo l'installazione",
+      "publisherName": "Nome dell'editore",
+      "youtubeVideoId": "ID video di YouTube",
+      "youtubeVideoIdDescription": "L'ID di 11 caratteri dall'URL del video, ad es. \"dQw4w9WgXcQ\" in youtube.com/watch?v=dQw4w9WgXcQ",
+      "testLink": "Link di prova",
+      "imageUrl": "Immagine di copertina",
+      "installBehavior": "Comportamento di installazione",
+      "createInstallFolder": "Installa in una cartella dedicata",
+      "createInstallFolderDescription": "Raggruppa ogni risorsa installata in una nuova cartella con il nome di questo modello.",
+      "defaultAutoUpdate": "Contrassegna le installazioni per gli aggiornamenti per impostazione predefinita",
+      "defaultAutoUpdateDescription": "Le nuove installazioni mostreranno un avviso di aggiornamento disponibile ogni volta che ripubblichi questo modello."
+    },
+    "categories": {
+      "flows": "Flussi",
+      "customFields": "Campi personalizzati",
+      "tags": "Tag",
+      "products": "Prodotti",
+      "productCategories": "Categorie di prodotti",
+      "aiFunctions": "Funzioni IA",
+      "aiAgents": "Agenti IA",
+      "calendars": "Calendari degli appuntamenti",
+      "webchats": "Webchat",
+      "keywords": "Parole chiave",
+      "entryPointLinks": "Link dei punti di ingresso",
+      "triggers": "Trigger",
+      "fbCommentAutomations": "Automazioni dei commenti Facebook",
+      "settings": "Impostazioni"
+    }
   },
   "qrCodeGenerator": {
     "title": "Generatore di codici QR",
@@ -4311,6 +4615,10 @@
     },
     "queues": {
       "title": "Code"
+    },
+    "aiSettings": {
+      "title": "AI Settings",
+      "description": "Central Vertex AI configuration every workspace's AI agents inherit."
     }
   },
   "platformCredentials": {
@@ -4410,6 +4718,19 @@
     "unavailableTitle": "Annullamento dell'iscrizione non disponibile.",
     "unavailableDescription": "Questa area di lavoro non è più disponibile."
   },
+  "templatesPublicPage": {
+    "invalidTitle": "Questo link non è più disponibile.",
+    "invalidDescription": "Questo link di condivisione del modello non è valido, è disattivato o è scaduto.",
+    "byPublisher": "Di {publisherName}",
+    "includes": "Questo modello include",
+    "videoTitle": "Video di anteprima del modello",
+    "tryItOut": "Provalo",
+    "signInToInstall": "Accedi per installare",
+    "selectWorkspace": "Seleziona uno spazio di lavoro",
+    "install": "Installa",
+    "installStarted": "Installazione avviata",
+    "noEligibleWorkspaces": "Non hai uno spazio di lavoro idoneo per installare questo modello."
+  },
   "extensionsMe": {
     "actions": {
       "delete": "Elimina i miei dati",
@@ -4437,7 +4758,68 @@
     "unknown": "Sconosciuto"
   },
   "orders": {
-    "title": "Ordini"
+    "title": "Ordini",
+    "emptyState": "No orders yet",
+    "noCustomer": "No customer",
+    "status": {
+      "draft": "Draft",
+      "pending_payment": "Pending payment",
+      "paid": "Paid",
+      "payment_review": "Needs review",
+      "refunded": "Refunded",
+      "cancelled": "Cancelled",
+      "expired": "Expired"
+    },
+    "paymentStatus": {
+      "pending": "Pending",
+      "paid": "Paid",
+      "failed": "Failed",
+      "refunded": "Refunded"
+    },
+    "columns": {
+      "orderNumber": "Order #",
+      "customer": "Customer",
+      "status": "Status",
+      "amount": "Amount",
+      "paymentStatus": "Payment status",
+      "createdAt": "Created"
+    },
+    "filters": {
+      "customerPlaceholder": "Search by customer name",
+      "statusPlaceholder": "Status",
+      "allStatuses": "All statuses"
+    },
+    "pagination": {
+      "previous": "Previous page",
+      "next": "Next page"
+    },
+    "detail": {
+      "title": "Order #{id}",
+      "itemsTitle": "Items",
+      "columns": {
+        "product": "Product",
+        "quantity": "Qty",
+        "unitPrice": "Unit price",
+        "lineTotal": "Line total",
+        "reservation": "Reservation",
+        "provider": "Provider",
+        "confirmedAt": "Confirmed",
+        "failureReason": "Failure reason"
+      },
+      "reservationReleased": "Released",
+      "reservedAt": "Reserved {date}",
+      "subtotal": "Subtotal",
+      "tax": "Tax",
+      "discount": "Discount",
+      "total": "Total",
+      "paymentHistoryTitle": "Payment history",
+      "noPayments": "No payment attempts yet",
+      "customerTitle": "Customer",
+      "datesTitle": "Dates",
+      "expiresAt": "Checkout expires",
+      "paymentReviewTitle": "This order needs manual review",
+      "paymentReviewDescription": "A payment event arrived after this order had already expired or was otherwise resolved. No money has been silently applied — check the payment history below before taking any action."
+    }
   },
   "products": {
     "title": "Prodotti",
@@ -5171,7 +5553,16 @@
       "contentCategory": "Categoria del contenuto",
       "contentCategoryPlaceholder": "La categoria del contenuto associato all'evento",
       "contentName": "Nome del contenuto",
-      "contentNamePlaceholder": "Il nome della pagina o del prodotto associato all'evento"
+      "contentNamePlaceholder": "Il nome della pagina o del prodotto associato all'evento",
+      "orderId": "Order ID",
+      "orderIdPlaceholder": "e.g. ORDER-12345",
+      "contents": {
+        "label": "Line items",
+        "item": "line item",
+        "id": "Product ID",
+        "quantity": "Quantity",
+        "itemPrice": "Item price"
+      }
     },
     "datasetIdPlaceholder": "Incolla l'ID dataset da Gestione eventi",
     "saveDataset": "Salva",
@@ -5218,6 +5609,10 @@
     },
     "whatsapp": {
       "connect": "Connetti"
+    },
+    "limitedDataUse": {
+      "label": "Limited Data Use (US privacy)",
+      "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by ChatbotX."
     }
   },
   "minigames": {
@@ -5238,7 +5633,8 @@
       "sumOfProbabilities": "Somma di tutte le probabilità: {value}%",
       "loseProbability": "Probabilità di perdita: {value}%",
       "winProbability": "Probabilità di vincita: {value}%",
-      "newPrize": "Nuovo premio"
+      "newPrize": "Nuovo premio",
+      "prizeNameCustomFieldLabel": "Salva il nome del premio nel Campo personalizzato"
     },
     "prizeItemDialog": {
       "prizeTitle": "Modifica premio",
@@ -5247,17 +5643,20 @@
       "nonWinningTitleLabel": "Titolo",
       "loseImageDescription": "Dimensione consigliata 120x120px",
       "quantityLabel": "Quantità del premio",
-      "quantityDescription": "Numero di volte in cui questo premio può ancora essere vinto; diminuisce di 1 a ogni vincita. Lascia vuoto per illimitato.",
-      "sendMessage": "Invia un messaggio quando il giocatore non vince",
-      "sendWinMessage": "Invia un messaggio al vincitore che ha ricevuto il premio",
-      "messageMode": "Tipo di messaggio",
-      "messageModeText": "Testo",
-      "messageModeFlow": "Flow",
-      "messageText": "Messaggio"
+      "quantityDescription": "Numero di volte in cui questo premio può ancora essere vinto; diminuisce di 1 a ogni vincita. Lascia vuoto per illimitato."
+    },
+    "outcomeMessage": {
+      "enableWin": "Invia un messaggio al vincitore che ha ricevuto il premio",
+      "enableLose": "Invia un messaggio quando il giocatore non vince",
+      "mode": "Tipo di messaggio",
+      "modeText": "Testo",
+      "modeFlow": "Flow",
+      "text": "Messaggio"
     },
     "winningMessageDialog": {
       "title": "Impostazioni messaggio di vincita",
       "titleLabel": "Titolo",
+      "prizeNameHint": "Puoi usare '{{prize_name}}' nel titolo e nella descrizione per inserire il nome del premio.",
       "acceptButtonText": "Testo del pulsante di accettazione",
       "shareButtonText": "Testo del pulsante di condivisione",
       "shareButtonDescription": "Descrizione del pulsante di condivisione"
@@ -5273,8 +5672,9 @@
       "shareWithFriends": "Condividi con gli amici",
       "jackpotHeader": "JACKPOT",
       "jackpotBanner": "Jackpot",
-      "comingSoon": "L’anteprima dettagliata per questo tipo di gioco sarà disponibile a breve",
-      "rules": "Regole"
+      "luckyWheelHeader": "RUOTA DELLA FORTUNA",
+      "gashaponHeader": "GASHAPON",
+      "comingSoon": "L’anteprima dettagliata per questo tipo di gioco sarà disponibile a breve"
     },
     "form": {
       "generalSettingsTitle": "Impostazioni generali",
@@ -5283,6 +5683,7 @@
       "prizeSettingsTitle": "Impostazioni premi"
     },
     "generalSettings": {
+      "showName": "Visibile",
       "playedAt": "Giocato il",
       "rulesDescription": "Descrizione delle regole",
       "openerTags": "Assegna un tag ai contatti che aprono il link del gioco",
@@ -5340,6 +5741,776 @@
         "lose": "Nessun premio",
         "empty": "Ancora nessun registro di partite"
       }
+    }
+  },
+  "mediaLibrary": {
+    "title": "Libreria multimediale",
+    "searchPlaceholder": "Cerca file...",
+    "newFolder": "Nuova cartella",
+    "recent": "Recenti",
+    "favourite": "Preferiti",
+    "upload": "Carica",
+    "select": "Seleziona",
+    "bulkSelect": "Selezione multipla",
+    "deleteFolder": "Elimina cartella",
+    "renameFolder": "Rinomina cartella",
+    "noFiles": "Nessun file trovato",
+    "noFolders": "Nessuna cartella ancora",
+    "folderNamePlaceholder": "Nome cartella",
+    "confirmDeleteFolder": "Eliminare la cartella e tutti i suoi file?",
+    "confirmDeleteFolderDescription": "Tutti i file in questa cartella verranno eliminati permanentemente dal server. Questa azione non può essere annullata.",
+    "confirmDeleteFile": "Eliminare il file?",
+    "confirmDeleteFileDescription": "Questo file verrà eliminato permanentemente dal server.",
+    "addToFavourites": "Aggiungi ai preferiti",
+    "removeFromFavourites": "Rimuovi dai preferiti",
+    "deleteFile": "Elimina file",
+    "selectOnlyOneFile": "Puoi selezionare solo 1 file",
+    "confirmDeleteFiles": "{count, plural, =1 {Eliminare 1 file?} other {Eliminare # file?}}",
+    "confirmDeleteFilesDescription": "Questi file verranno eliminati permanentemente dal server. Questa azione non può essere annullata.",
+    "filesCount": "{count, plural, =0 {Nessun file} =1 {1 file} other {# file}}",
+    "openMediaLibrary": "Apri libreria multimediale",
+    "uploadFailed": "Caricamento di {name} non riuscito"
+  },
+  "adsCampaign": {
+    "title": "Inserzioni",
+    "createCta": "Crea inserzione",
+    "prereq": {
+      "notConnected": "Collega Facebook Ads per creare inserzioni di messaggistica per questo canale.",
+      "connectCta": "Collega Facebook Ads"
+    },
+    "specialAdCategory": {
+      "none": "Nessuna",
+      "housing": "Alloggio",
+      "employment": "Occupazione",
+      "credit": "Credito",
+      "issues": "Temi sociali, elezioni o politica",
+      "financialProducts": "Prodotti e servizi finanziari",
+      "onlineGambling": "Gioco d’azzardo e giochi online"
+    },
+    "fields": {
+      "objective": {
+        "label": "Obiettivo",
+        "value": "Interazione (messaggistica)"
+      },
+      "specialAdCategory": {
+        "label": "Categoria speciale di inserzione",
+        "description": "Selezionando una categoria soggetta a restrizioni si rimuove la targetizzazione per età, sesso e altri criteri non consentiti da Meta per tale categoria.",
+        "restrictedNote": "La targetizzazione per età e sesso è disattivata perché è selezionata una categoria speciale di inserzione soggetta a restrizioni."
+      },
+      "adAccount": {
+        "label": "Account pubblicitario"
+      },
+      "whatsappPage": {
+        "label": "Pagina Facebook",
+        "description": "Le inserzioni WhatsApp richiedono comunque una Pagina Facebook collegata: seleziona la Pagina connessa da utilizzare."
+      },
+      "dailyBudget": {
+        "label": "Budget giornaliero",
+        "placeholder": "es. 2000",
+        "description": "Inserisci l'importo nella più piccola unità di valuta del tuo account pubblicitario (ad es. centesimi per EUR)."
+      },
+      "countries": {
+        "label": "Paesi"
+      },
+      "ageRange": {
+        "min": "Età minima",
+        "max": "Età massima"
+      },
+      "gender": {
+        "label": "Sesso",
+        "male": "Uomo",
+        "female": "Donna"
+      },
+      "schedule": {
+        "start": "Ora di inizio",
+        "end": "Ora di fine"
+      },
+      "destination": {
+        "label": "Destinazione"
+      },
+      "callToAction": {
+        "label": "Invito all'azione",
+        "derivedNote": "Il pulsante di invito all'azione ({type}) viene determinato automaticamente in base al canale."
+      },
+      "specialAdCategoryCountry": {
+        "label": "Paese della categoria pubblicitaria",
+        "description": "Richiesto da Meta per la categoria questioni sociali, elezioni o politica — il paese in cui sei autorizzato a pubblicare questi annunci."
+      }
+    },
+    "welcomeMessage": {
+      "title": "Messaggio di benvenuto",
+      "label": "Messaggio di benvenuto",
+      "description": "Inviato automaticamente quando qualcuno avvia una conversazione da questa inserzione.",
+      "mode": {
+        "default": "Usa il messaggio predefinito di Meta",
+        "single": "Messaggio singolo",
+        "templates": "Testa fino a 5 varianti di messaggio"
+      },
+      "messageLabel": "Messaggio",
+      "templateLabel": "Variante {index}",
+      "headingPlaceholder": "Titolo (facoltativo)",
+      "addTemplate": "Aggiungi variante",
+      "templatesLimit": "È possibile testare fino a {max} varianti."
+    },
+    "creative": {
+      "mediaRequired": "Carica un'immagine o un video per continuare.",
+      "mediaType": {
+        "label": "Contenuto creativo",
+        "orVideo": "o video",
+        "selectAdAccountFirst": "Seleziona un account pubblicitario prima di caricare contenuti multimediali.",
+        "uploadImage": "Carica immagine",
+        "uploadVideo": "Carica video"
+      },
+      "uploading": "Caricamento in corso...",
+      "imageUploadFailed": "Caricamento dell'immagine non riuscito. Riprova.",
+      "videoProcessing": "Elaborazione del video in corso...",
+      "videoReady": "Video pronto",
+      "videoProcessingFailed": "Elaborazione del video non riuscita. Prova con un altro file.",
+      "previewAlt": "Anteprima della creatività",
+      "primaryText": "Testo principale",
+      "headline": "Titolo"
+    },
+    "wizard": {
+      "createDraft": "Crea come bozza in pausa",
+      "campaignStep": {
+        "title": "Campagna",
+        "namePlaceholder": "Assegna un nome a questa inserzione"
+      },
+      "adSetStep": {
+        "title": "Gruppo di inserzioni"
+      },
+      "creativeStep": {
+        "title": "Creatività dell'inserzione"
+      },
+      "preflightStep": {
+        "title": "Revisione"
+      },
+      "errors": {
+        "nameRequired": "Inserisci un nome per questa inserzione.",
+        "adAccountRequired": "Seleziona un account pubblicitario.",
+        "budgetRequired": "Inserisci un budget giornaliero.",
+        "countryRequired": "Seleziona almeno un paese.",
+        "mediaRequired": "Carica un'immagine o un video."
+      }
+    },
+    "preflight": {
+      "title": "Riepilogo",
+      "pausedNote": "Questa inserzione viene creata come bozza in pausa. Nulla viene pubblicato e non viene speso denaro finché non la pubblichi."
+    },
+    "publishConfirm": {
+      "title": "Pubblicare questa inserzione?",
+      "description": "La pubblicazione attiva in ordine la campagna, il gruppo di inserzioni e l'inserzione. Meta inizierà a spendere il tuo budget non appena avrà inizio la diffusione.",
+      "confirm": "Pubblica"
+    },
+    "list": {
+      "viewOnMeta": "Visualizza su Meta",
+      "empty": "Ancora nessuna inserzione di messaggistica.",
+      "createState": "Stato della bozza",
+      "actions": "Azioni",
+      "notPublishedYet": "Non ancora pubblicata",
+      "draftReady": "Bozza pronta",
+      "createFailed": "Creazione non riuscita",
+      "creating": "Creazione in corso...",
+      "publish": "Pubblica",
+      "pause": "Metti in pausa"
+    },
+    "messages": {
+      "created": "Bozza dell'inserzione creata.",
+      "actionSucceeded": "Fatto."
+    },
+    "box": {
+      "ctwa": {
+        "title": "CTWA",
+        "description": "Crea e gestisci gli annunci Click-to-WhatsApp qui."
+      },
+      "ctm": {
+        "title": "CTM",
+        "description": "Crea e gestisci gli annunci Click-to-Messenger qui."
+      },
+      "ctid": {
+        "title": "CTID",
+        "description": "Crea e gestisci gli annunci Click-to-Instagram qui."
+      },
+      "connectCta": "Collega Facebook Ads",
+      "reconnectCta": "Riconnetti",
+      "reconnectNeeded": "Questa connessione deve essere ristabilita.",
+      "refresh": "Aggiorna",
+      "whatsappPageRequiredNote": "Le inserzioni Click-to-WhatsApp richiedono comunque una Pagina Facebook collegata (un requisito di Meta): la sceglierai al momento della creazione di un'inserzione.",
+      "emptyDashboardNote": "Gli annunci creati qui ora compaiono automaticamente nella dashboard Annunci di questo canale — seleziona questa integrazione dal relativo filtro per vederne account e spesa."
+    },
+    "insights": {
+      "title": "Rendimento",
+      "empty": "Ancora nessun dato",
+      "impressions": "Impressioni",
+      "reach": "Copertura",
+      "spend": "Spesa",
+      "clicks": "Clic",
+      "conversations": "Conversazioni",
+      "costPerConversation": "Costo/conv.",
+      "costPerConversationTooltip": "Costo medio per conversazione di messaggistica avviata.",
+      "datePresetLabel": "Periodo:",
+      "datePreset": {
+        "maximum": "Sempre",
+        "last_30d": "Ultimi 30 giorni",
+        "last_7d": "Ultimi 7 giorni"
+      }
+    }
+  },
+  "accountFields": {
+    "title": "Campi del bot"
+  },
+  "platformAiSettings": {
+    "title": "AI Settings",
+    "description": "Vertex AI is the platform's internal AI provider. Workspaces and their AI agents never choose a provider directly — when enabled, every AI agent automatically uses the model configured here instead of its own connected provider.",
+    "provider": {
+      "label": "Provider",
+      "value": "Vertex AI (Google Cloud)"
+    },
+    "enabled": {
+      "label": "Enabled",
+      "description": "When on, every AI agent in every workspace uses this configuration instead of its own connected provider."
+    },
+    "chatModel": {
+      "label": "Primary model"
+    },
+    "fallbackModel": {
+      "label": "Fallback model",
+      "description": "Used only if the primary model fails. Optional.",
+      "none": "None"
+    },
+    "location": {
+      "label": "Reply model region",
+      "description": "Use global for Gemini preview models unless Google documents a regional endpoint."
+    },
+    "embeddingModel": {
+      "label": "Embeddings model",
+      "description": "Legacy compatibility value. The active knowledge model is configured below."
+    },
+    "capabilities": {
+      "title": "Specialized AI services",
+      "description": "Configure every workload independently. Select Workspace to keep using the provider configured in the flow or agent.",
+      "provider": "Provider",
+      "model": "Model or service ID",
+      "fallbackModel": "Fallback model (optional)",
+      "location": "Region (optional)",
+      "voice": "Voice ID (optional)",
+      "items": {
+        "vision": "Image understanding",
+        "embedding": "Knowledge embeddings",
+        "summarization": "Conversation summarization",
+        "extraction": "Structured data extraction",
+        "imageGeneration": "Image generation",
+        "imageEditing": "Image editing",
+        "speechToText": "Speech to text",
+        "textToSpeech": "Text to speech",
+        "webSearch": "Google Search grounding",
+        "documentParsing": "Document parsing",
+        "translation": "Translation"
+      }
+    },
+    "agentModelManaged": "The AI provider and model are managed by the platform. Agents use the model selected by the platform admin.",
+    "validate": {
+      "button": "Validate configuration",
+      "success": "Configuration looks valid.",
+      "error": "Could not validate the configuration.",
+      "missingProjectId": "VERTEX_AI_PROJECT_ID is not set on this deployment.",
+      "modelUnavailable": "The selected primary model could not answer a live Vertex AI request in the configured region.",
+      "invalidChatModel": "Primary model is not in the allowed list.",
+      "invalidFallbackModel": "Fallback model is not in the allowed list."
+    }
+  },
+  "plans": {
+    "navLabel": "Pricing",
+    "title": "Choose Your Plan",
+    "subtitle": "Pricing",
+    "description": "Wesal One plans for your workspace — pick the tier that fits your channels and team.",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "perMonth": "/month",
+    "perYear": "/year",
+    "custom": "Custom",
+    "contactSales": "Contact sales",
+    "selectPlan": "Select plan",
+    "selectFree": "Start for free",
+    "currentPlan": "Current plan",
+    "audience": {
+      "individual": "For individuals",
+      "business": "For businesses",
+      "enterprise": "Enterprise"
+    },
+    "sandboxBadge": "Sandbox",
+    "sandboxNotice": "Sandbox mode — selecting a plan applies its limits immediately with no real payment. There is no live billing yet.",
+    "usage": {
+      "title": "Points usage",
+      "available": "Available points",
+      "monthly": "From monthly plan",
+      "purchased": "Purchased points",
+      "frozen": "Frozen points",
+      "reserved": "Reserved by running tasks",
+      "breakdown": "Usage by category (30 days)",
+      "categories": {
+        "language": "Text and agent replies",
+        "image_analysis": "Image analysis",
+        "image_generation": "Image generation",
+        "image_editing": "Image editing",
+        "transcription": "Audio transcription",
+        "speech": "Text to speech",
+        "embedding_document": "Knowledge indexing",
+        "embedding_query": "Knowledge searches",
+        "knowledge_search": "Knowledge search",
+        "summarization": "Conversation summaries",
+        "web_search": "Web searches",
+        "tool": "AI tools"
+      },
+      "expiresOn": "Nearest expiry: {date}",
+      "empty": "No points balance yet — select a plan below to get started.",
+      "consumed": "{used} of {total} included points consumed"
+    },
+    "summaryCustom": "Custom limits, tailored to your needs",
+    "summary": "Up to {channels} channels · {contacts} contacts · {teamMembers} team members · {points} AI points/month",
+    "toast": {
+      "success": "{plan} plan applied (sandbox)",
+      "error": "Could not apply the plan"
+    },
+    "features": {
+      "inbox": "Shared inbox",
+      "ai_agent": "AI sales agent",
+      "catalog": "Product catalog",
+      "basic_automation": "Basic automation",
+      "automation": "Advanced automation",
+      "campaigns": "Broadcast campaigns",
+      "advanced_analytics": "Advanced analytics",
+      "vision_voice": "Vision & voice replies",
+      "priority_support": "Priority support",
+      "everything": "Everything included"
+    },
+    "subscriptionPayment": {
+      "underReview": "Payment under review",
+      "cancelRequest": "Cancel request",
+      "viewReceipt": "View receipt",
+      "history": "Payment history",
+      "dialogTitle": "Pay for {plan}",
+      "accounts": {
+        "title": "Transfer accounts",
+        "hint": "Transfer the amount to one of the accounts below, then attach the receipt.",
+        "kuraimiUsd": "Al-Kuraimi Bank — USD account",
+        "kuraimiSar": "Al-Kuraimi Bank — SAR account",
+        "walletAny": "Any network or wallet (Jawali, Cash, others)",
+        "holder": "Account holder"
+      },
+      "paymentMethod": "Payment method",
+      "reference": "Transfer reference (optional)",
+      "receipt": "Payment receipt",
+      "note": "Note (optional)",
+      "send": "Send for review",
+      "sending": "Sending…",
+      "methods": {
+        "kuraimi": "Kuraimi",
+        "jawali": "Jawali",
+        "bank_transfer": "Bank transfer",
+        "cash": "Cash"
+      },
+      "status": {
+        "under_review": "Under review",
+        "confirmed": "Confirmed",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled"
+      },
+      "receiptErrors": {
+        "unsupportedType": "Unsupported file type — use JPG, PNG, or WebP",
+        "tooLarge": "File is larger than 5MB",
+        "presignFailed": "Could not start the upload, try again",
+        "uploadFailed": "Upload failed, try again"
+      },
+      "toast": {
+        "submitted": "Payment submitted for review",
+        "submitError": "Could not submit the payment",
+        "cancelled": "Request cancelled",
+        "cancelError": "Could not cancel the request",
+        "cancellationScheduled": "Subscription will end at the close of the current period",
+        "cancellationScheduleError": "Could not schedule subscription cancellation",
+        "resumed": "Subscription will continue",
+        "resumeError": "Could not resume the subscription"
+      },
+      "currentSubscription": "Current subscription",
+      "renewsOn": "Renews on {date}",
+      "endsOn": "Ends on {date}",
+      "cancelSubscription": "Cancel at period end",
+      "resumeSubscription": "Keep subscription",
+      "subscriptionStatus": {
+        "active": "Active",
+        "past_due": "Payment overdue",
+        "cancel_at_period_end": "Ends at period close",
+        "cancelled": "Cancelled",
+        "expired": "Expired"
+      }
+    },
+    "pointPurchase": {
+      "title": "Buy more points",
+      "pointsLabel": "points",
+      "buyButton": "Buy",
+      "dialogTitle": "Pay for {product}",
+      "underReview": "Order under review",
+      "history": "Order history",
+      "methods": {
+        "kuraimi": "Kuraimi",
+        "jawali": "Jawali",
+        "bank_transfer": "Bank transfer",
+        "cash": "Cash"
+      },
+      "status": {
+        "pending_payment": "Pending payment",
+        "under_review": "Under review",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "expired": "Expired",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded",
+        "chargeback": "Chargeback"
+      },
+      "toast": {
+        "submitted": "Order submitted for review",
+        "submitError": "Could not submit the order",
+        "cancelled": "Order cancelled",
+        "cancelError": "Could not cancel the order"
+      }
+    },
+    "admin": {
+      "navLabel": "Subscription payments",
+      "title": "Subscription payments",
+      "subtitle": "Review manual payment submissions and activate plans after verifying the receipt.",
+      "statusFilter": "Status",
+      "statusAll": "All",
+      "stats": {
+        "underReview": "Awaiting review",
+        "confirmedToday": "Confirmed today",
+        "rejected": "Rejected"
+      },
+      "table": {
+        "workspace": "Workspace",
+        "owner": "Owner",
+        "plan": "Plan",
+        "price": "Price",
+        "status": "Status"
+      },
+      "empty": "No submissions with this status",
+      "detail": {
+        "paymentMethod": "Payment method",
+        "reference": "Reference",
+        "submittedAt": "Submitted",
+        "note": "Customer note",
+        "rejectionReason": "Rejection reason",
+        "receipt": "View receipt",
+        "noReceipt": "No receipt on file",
+        "confirm": "Confirm payment",
+        "reject": "Reject",
+        "rejectReasonPlaceholder": "Reason for rejection (required)",
+        "close": "Close"
+      },
+      "toast": {
+        "confirmed": "Payment confirmed and plan activated",
+        "confirmError": "Could not confirm the payment",
+        "rejected": "Payment rejected",
+        "rejectError": "Could not reject the payment"
+      }
+    },
+    "pointPurchaseAdmin": {
+      "navLabel": "Point purchases",
+      "title": "Point purchases",
+      "subtitle": "Review manual point top-up orders and credit points after verifying the receipt.",
+      "table": {
+        "buyer": "Buyer",
+        "bundle": "Bundle",
+        "points": "Points"
+      },
+      "toast": {
+        "confirmed": "Order confirmed and points credited",
+        "confirmError": "Could not confirm the order",
+        "rejected": "Order rejected",
+        "rejectError": "Could not reject the order"
+      }
+    },
+    "recommended": "Recommended",
+    "audienceDescription": {
+      "individual": "Built for individual operators and small teams.",
+      "business": "Built for growing teams with multiple channels.",
+      "enterprise": "Built for organizations that need custom scale and support."
+    },
+    "capacity": {
+      "unlimited": "Custom",
+      "points": "{count} AI points each month",
+      "agents": "{count} AI agents",
+      "knowledgeDocuments": "{count} knowledge documents",
+      "products": "{count} catalog products"
+    }
+  },
+  "marketing": {
+    "brandName": "Wesal One",
+    "nav": {
+      "features": "Features",
+      "channels": "Channels",
+      "pricing": "Pricing",
+      "about": "About",
+      "contact": "Contact"
+    },
+    "actions": {
+      "signIn": "Sign in",
+      "start": "Get started"
+    },
+    "hero": {
+      "badge": "Arabic-first customer service and sales platform",
+      "titleBefore": "AI agents that run",
+      "titleHighlight": "sales and conversations",
+      "titleAfter": "professionally",
+      "description": "Wesal One brings customer channels, teams, products and orders into one platform, with clear human control whenever a conversation needs an employee.",
+      "learnMore": "Explore the platform",
+      "trial": "Free trial",
+      "noCard": "No payment card",
+      "fastSetup": "Fast setup"
+    },
+    "demo": {
+      "title": "Live sales conversation",
+      "subtitle": "WhatsApp · Demo store",
+      "active": "Agent active",
+      "customer": "I need four units of the available product. What is the price?",
+      "agent": "The product is available. I will use the approved price and help confirm the order.",
+      "handoffTitle": "Controlled human handoff",
+      "handoffDescription": "The agent pauses only when an employee takes over or an explicit handoff rule matches."
+    },
+    "features": {
+      "eyebrow": "Everything your team needs",
+      "title": "Customer service and sales in one workspace",
+      "description": "From the first conversation through ordering and follow-up, with clear team tools and agents governed by your business rules.",
+      "items": [
+        {
+          "title": "Unified inbox",
+          "description": "WhatsApp, Instagram, Messenger and Telegram in one interface."
+        },
+        {
+          "title": "AI sales agents",
+          "description": "Understand requests, search products and reply using platform settings."
+        },
+        {
+          "title": "Clear human handoff",
+          "description": "The agent pauses when an employee takes over, preventing overlapping replies."
+        },
+        {
+          "title": "Products and orders",
+          "description": "Read inventory and create orders through trusted platform services."
+        },
+        {
+          "title": "Automation and campaigns",
+          "description": "Flows, scheduled messages and campaigns that help you grow."
+        },
+        {
+          "title": "Reports and permissions",
+          "description": "Track performance, manage teams and isolate every workspace."
+        }
+      ]
+    },
+    "control": {
+      "eyebrow": "Human control",
+      "title": "AI accelerates the work while your team owns the decision",
+      "description": "Clear rules prevent overlap and preserve human review for sensitive situations.",
+      "items": [
+        "Pause automation when staff take over",
+        "Separate team-member permissions",
+        "Conversation and action history",
+        "Strong workspace isolation"
+      ],
+      "cardTitle": "Built for sales and support",
+      "cardDescription": "Agents use your products and rules to complete conversations and orders without changing channel logic or blocking manual work."
+    },
+    "cta": {
+      "title": "Run every customer conversation from one place",
+      "description": "Create your account, connect channels, and prepare your team and agents in Wesal One."
+    },
+    "footer": {
+      "description": "An Arabic-first platform for customer conversations, teams, products and automation.",
+      "product": "Product",
+      "legal": "Legal",
+      "privacy": "Privacy policy",
+      "dataDeletion": "Data deletion",
+      "terms": "Terms of use",
+      "copyright": "© 2026 Wesal One. All rights reserved."
+    }
+  },
+  "publicPages": {
+    "features": {
+      "eyebrow": "Features",
+      "title": "One platform for customer service and sales",
+      "intro": "Conversations, agents, teams, products, orders and campaigns in one place.",
+      "sections": [
+        {
+          "title": "Conversations and teams",
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
+        },
+        {
+          "title": "Agents and commerce",
+          "body": [
+            "AI agents use products and orders with controlled human handoff."
+          ]
+        }
+      ]
+    },
+    "channels": {
+      "eyebrow": "Channels",
+      "title": "Customer channels in one place",
+      "intro": "Connect approved channels and retain customer context in the workspace.",
+      "sections": [
+        {
+          "title": "Meta channels",
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
+        },
+        {
+          "title": "Telegram and web",
+          "body": [
+            "Telegram, Webchat and other integrations from one dashboard."
+          ]
+        }
+      ]
+    },
+    "about": {
+      "eyebrow": "About",
+      "title": "Wesal One for businesses in Yemen and the region",
+      "intro": "We bring conversations, follow-up, knowledge and products into one Arabic-first workspace.",
+      "sections": [
+        {
+          "title": "Mission",
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
+        },
+        {
+          "title": "Commitment",
+          "body": [
+            "Data isolation, permissions and transparency while humans retain control."
+          ]
+        }
+      ]
+    },
+    "contact": {
+      "eyebrow": "Contact",
+      "title": "We would love to hear from you",
+      "intro": "For questions, trial requests or plan guidance.",
+      "sections": [
+        {
+          "title": "Email",
+          "body": [
+            "support@wesal.one"
+          ]
+        },
+        {
+          "title": "WhatsApp",
+          "body": [
+            "+967 775 324 950"
+          ]
+        }
+      ]
+    },
+    "privacy": {
+      "eyebrow": "Privacy",
+      "title": "Wesal One privacy policy",
+      "intro": "The data we process and how it is used and protected.",
+      "updated": "Last updated: July 18, 2026",
+      "sections": [
+        {
+          "title": "Data and use",
+          "body": [
+            "We process account, workspace, channel, conversation, file, product and order data to operate, authenticate, automate and support the service."
+          ]
+        },
+        {
+          "title": "Channels and providers",
+          "body": [
+            "Channel data may pass through the channel provider and cloud infrastructure according to your configuration."
+          ]
+        },
+        {
+          "title": "Security and retention",
+          "body": [
+            "We use access controls and workspace isolation and retain data as needed to operate the service."
+          ]
+        },
+        {
+          "title": "Your rights",
+          "body": [
+            "Request access, correction or deletion through support@wesal.one."
+          ]
+        }
+      ]
+    },
+    "terms": {
+      "eyebrow": "Terms",
+      "title": "Wesal One terms of use",
+      "intro": "Using the platform means accepting the account, trial and subscription terms.",
+      "updated": "Last updated: July 18, 2026",
+      "sections": [
+        {
+          "title": "Service use",
+          "body": [
+            "Use the platform lawfully. Account owners are responsible for members, content and channels."
+          ]
+        },
+        {
+          "title": "Subscriptions",
+          "body": [
+            "Features and limits follow the plan. Payments activate only after confirmation."
+          ]
+        },
+        {
+          "title": "Content and data",
+          "body": [
+            "You must have the right to use data and content entered or sent through the platform."
+          ]
+        },
+        {
+          "title": "Artificial intelligence",
+          "body": [
+            "AI assists teams and does not replace human review for sensitive decisions."
+          ]
+        }
+      ]
+    },
+    "dataDeletion": {
+      "eyebrow": "Data deletion",
+      "title": "How to delete your data",
+      "intro": "Request deletion of an account, workspace or specific channel data.",
+      "updated": "Last updated: July 18, 2026",
+      "sections": [
+        {
+          "title": "How to request",
+          "body": [
+            "Email support@wesal.one from the owner's address with the workspace name and scope."
+          ],
+          "bullets": [
+            "Subject: Wesal One data deletion request",
+            "Specify full account, channel or selected data."
+          ]
+        },
+        {
+          "title": "Verification and time",
+          "body": [
+            "We verify authority and usually process requests within 7 to 30 days."
+          ]
+        },
+        {
+          "title": "Backups",
+          "body": [
+            "Temporary backups may remain until their backup cycle completes."
+          ]
+        },
+        {
+          "title": "After deletion",
+          "body": [
+            "Access to channels, conversations and reports may be lost and recovery is not guaranteed."
+          ]
+        }
+      ]
     }
   }
 }

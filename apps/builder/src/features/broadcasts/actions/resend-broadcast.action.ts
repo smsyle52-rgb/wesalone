@@ -1,11 +1,12 @@
 "use server"
 
+import { auditService } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { db, findOrFail } from "@chatbotx.io/database/client"
 import { pruneEmailPhoneFilterConditions } from "@chatbotx.io/database/queries/contact-filter/permission"
 import { broadcastModel } from "@chatbotx.io/database/schema"
 import { createId, zodBigintAsString } from "@chatbotx.io/utils"
-import { contactFilterCriteriaSchema } from "@/features/contact-filter/schemas"
+import { contactFilterCriteriaSchema } from "@/features/contact-filter/schema"
 import { canViewContactEmailAndPhone } from "@/features/contacts/permissions"
 import { getCurrentUserAndTargetWorkspace } from "@/lib/auth/utils"
 import { workspaceActionClient } from "@/lib/safe-action"
@@ -29,9 +30,10 @@ export const resendBroadcast = async (ctx: {
     where: {
       id: ctx.id,
       workspaceId: ctx.workspaceId,
+      deletedAt: { isNull: true },
     },
   })
-  if (broadcast.status !== "sent") {
+  if (broadcast.status !== "sent" && broadcast.status !== "failed") {
     throw new ChatbotXException("Broadcast is not sent")
   }
   const userAndWorkspace = await getCurrentUserAndTargetWorkspace(
@@ -72,6 +74,12 @@ export const resendBroadcast = async (ctx: {
       .then((result) => result[0])
 
     return newBroadcast
+  })
+
+  await auditService.record({
+    workspaceId: ctx.workspaceId,
+    action: "launch",
+    detail: `launched a broadcast (#${newBroadcast.id})`,
   })
 
   return newBroadcast

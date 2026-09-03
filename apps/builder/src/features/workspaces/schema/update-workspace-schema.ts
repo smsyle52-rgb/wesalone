@@ -55,6 +55,11 @@ export const updateWorkspaceAdvancedRequest = z.object({
   brandColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
   developmentMode: z.boolean(),
   smartResponseDelaySeconds: smartResponseDelaySecondsSchema,
+  // Meta Conversions API Limited Data Use (plan #3) — optional so a stale
+  // client (form rendered before this field shipped) can still submit;
+  // `undefined` is skipped by Drizzle's `.set()`, leaving the stored value
+  // untouched, mirroring `defaultReplyFrequency` above. Default off.
+  capiLimitedDataUse: z.boolean().optional(),
 })
 export type UpdateWorkspaceAdvancedRequest = z.infer<
   typeof updateWorkspaceAdvancedRequest

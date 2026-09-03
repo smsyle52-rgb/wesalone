@@ -31,7 +31,6 @@ export const DefaultJobAction = {
   exportCoupons: "exportCoupons",
   bulkTagContacts: "bulkTagContacts",
   runImport: "runImport",
-  sendErrorLog: "sendErrorLog",
   sendAuditLog: "sendAuditLog",
   syncTag: "syncTag",
   syncChannelLabels: "syncChannelLabels",
@@ -40,6 +39,7 @@ export const DefaultJobAction = {
   checkMetaCatalogSync: "checkMetaCatalogSync",
   syncExternalCalendarEvent: "syncExternalCalendarEvent",
   sendAppointmentReminder: "sendAppointmentReminder",
+  installTemplate: "installTemplate",
 } as const
 
 export const syncExternalCalendarEventJobId = (
@@ -70,6 +70,8 @@ export type JobExportContacts = {
     restrictToAssignedUserId?: string
     outputPath: string
     outputFormat: "csv"
+    ipAddress?: string
+    userAgent?: string
   } & (
     | { contactIds: string[]; filter?: undefined }
     | { contactIds?: undefined; filter: ExportContactsFilter }
@@ -122,28 +124,22 @@ export type JobRunImport = {
   type: typeof DefaultJobAction.runImport
   data: {
     importId: string
-  }
-}
-
-export type JobSendErrorLog = {
-  type: typeof DefaultJobAction.sendErrorLog
-  data: {
-    workspaceId: string
-    error: {
-      message: string
-      stack?: string
-      httpCode: string
-    }
+    ipAddress?: string
+    userAgent?: string
   }
 }
 
 export type JobSendAuditLog = {
   type: typeof DefaultJobAction.sendAuditLog
   data: {
+    auditLogId?: string
     userId: string
     workspaceId: string
     action: string
     detail: string
+    ipAddress?: string
+    userAgent?: string
+    source?: string
   }
 }
 
@@ -251,12 +247,19 @@ export type JobSendAppointmentReminder = {
   data: JobSendAppointmentReminderData
 }
 
+export type JobInstallTemplate = {
+  type: typeof DefaultJobAction.installTemplate
+  data: {
+    installationId: string
+    workspaceId: string
+  }
+}
+
 export type DefaultJobData =
   | JobExportContacts
   | JobExportCoupons
   | JobBulkTagContacts
   | JobRunImport
-  | JobSendErrorLog
   | JobSendAuditLog
   | JobSyncTag
   | JobSyncChannelLabels
@@ -265,3 +268,4 @@ export type DefaultJobData =
   | JobCheckMetaCatalogSync
   | JobSyncExternalCalendarEvent
   | JobSendAppointmentReminder
+  | JobInstallTemplate

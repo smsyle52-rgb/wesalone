@@ -8,6 +8,11 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 // lose their own policy, not gain access back). This is a pure UI-visibility
 // gate: it must never be consulted for anything beyond deciding what to
 // offer on the create picker.
+//
+// The channel exercised here is telegram, not zalo: Wesal One retires zalo in
+// CHANNEL_CAPABILITIES, so it is absent from CREATABLE_CHANNELS and the policy
+// can never return it — an assertion on zalo would pass or fail for the wrong
+// reason.
 // ---------------------------------------------------------------------------
 
 vi.mock("@chatbotx.io/database/client", () => ({
@@ -53,7 +58,7 @@ describe("tenantService.resolveVisibleChannels", () => {
     const visible = await tenantService.resolveVisibleChannels("owner-1")
 
     expect(visible).toContain("whatsapp")
-    expect(visible).toContain("zalo")
+    expect(visible).toContain("telegram")
     expect(visible).not.toContain("smtp")
     expect(visible).not.toContain("omnichannel")
   })
@@ -70,12 +75,12 @@ describe("tenantService.resolveVisibleChannels", () => {
 
   test("a reseller can narrow further on top of the platform ceiling", async () => {
     root = { status: "active", hiddenChannels: ["tiktok"] }
-    owned = { status: "active", hiddenChannels: ["zalo"] }
+    owned = { status: "active", hiddenChannels: ["telegram"] }
 
     const visible = await tenantService.resolveVisibleChannels("reseller-1")
 
     expect(visible).not.toContain("tiktok")
-    expect(visible).not.toContain("zalo")
+    expect(visible).not.toContain("telegram")
     expect(visible).toContain("whatsapp")
   })
 
@@ -92,10 +97,10 @@ describe("tenantService.resolveVisibleChannels", () => {
 
   test("ignores a suspended reseller tenant's hiddenChannels entirely", async () => {
     root = { status: "active", hiddenChannels: [] }
-    owned = { status: "suspended", hiddenChannels: ["zalo"] }
+    owned = { status: "suspended", hiddenChannels: ["telegram"] }
 
     const visible = await tenantService.resolveVisibleChannels("reseller-1")
 
-    expect(visible).toContain("zalo")
+    expect(visible).toContain("telegram")
   })
 })

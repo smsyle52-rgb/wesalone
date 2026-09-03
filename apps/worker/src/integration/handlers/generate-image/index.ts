@@ -10,6 +10,7 @@ import {
   type UsageReservation,
   usageMeteringService,
 } from "@chatbotx.io/business"
+import { logProviderError } from "@chatbotx.io/business/error-log"
 import { getPublicFileUrl } from "@chatbotx.io/business/utils"
 import {
   type AIGenerateImageQualityType,
@@ -28,6 +29,7 @@ import {
   saveResultToCustomField,
 } from "../../utils/contact"
 import type { ExecuteStepProps } from "../flow"
+import { aiErrorLogProvider } from "../shared/ai-error-log-provider"
 import type { ExecuteStepResult } from "../step"
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -217,6 +219,7 @@ export async function handleAIGenerateImage({
         customFieldId: step.outputFieldId,
         fullText: finalImageUrl,
         workspaceId: conversation.workspaceId,
+        contactInboxId: baseContactInbox.id,
       })
     }
 
@@ -234,6 +237,12 @@ export async function handleAIGenerateImage({
       },
       "[ai-generate-image] Step failed",
     )
+    await logProviderError({
+      provider: aiErrorLogProvider(step.provider),
+      workspaceId: conversation.workspaceId,
+      contactId: conversation.contactId,
+      error: err,
+    })
     return { status: "error", errorMessage: error.message, result: null }
   } finally {
     clearTimeout(timeoutId)

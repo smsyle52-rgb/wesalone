@@ -20,6 +20,7 @@ import {
 import { Storage } from "@google-cloud/storage"
 import { AwsClient } from "aws4fetch"
 import { keys } from "../keys"
+import { buildCopySource } from "./copy-source"
 
 const env = keys()
 
@@ -424,15 +425,10 @@ export class Uploader {
       return {}
     }
 
-    const encodedSource = sourcePath
-      .split("/")
-      .map((segment) => encodeURIComponent(segment))
-      .join("/")
-
     const command = new CopyObjectCommand({
       Bucket: this.#bucketName,
       Key: destinationPath,
-      CopySource: `${this.#bucketName}/${encodedSource}`,
+      CopySource: buildCopySource(sourcePath, this.#bucketName, env.S3_ENDPOINT),
     })
 
     return await this.#client.send(command)

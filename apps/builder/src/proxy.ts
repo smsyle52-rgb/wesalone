@@ -42,6 +42,11 @@ const publicRoutes = [
   "/extensions",
   "/booking",
   "/portal/redeem",
+  "/webchat",
+  // Trailing slash is deliberate: `isPublicRoute` below is a bare
+  // unanchored `startsWith`, so "/t" (no slash) would also match
+  // "/templates" and make the authenticated template list world-readable.
+  "/t/",
 ]
 const signinPath = "/auth/sign-in"
 
@@ -183,7 +188,7 @@ export const config = {
     // Arabic while every other public page honoured the parameter — and that
     // link is what we hand to reviewers who cannot read Arabic. It is in
     // publicRoutes, so running the middleware here costs no auth redirect.
-    "/((?!webchat|zalo_verifier|chat-widget|assets|ws|storage|_next/static|_next/image|favicon.ico|avatars|.*.svg|brand|openapi.json|dynamic-image/).*)",
+    "/((?!webchat|zalo_verifier|chat-widget|assets|ws|storage|_next/static|_next/image|favicon.ico|avatars|.*.svg|brand|openapi.json|dynamic-image/|mini-game/).*)",
     "/api/presigned-upload",
     "/api/whatsapp/:path*",
   ],
