@@ -1,6 +1,9 @@
 import { createEnv } from "@t3-oss/env-core"
 import z from "zod"
 
+/** A Google Cloud project number is digits only. */
+const WIF_PROJECT_NUMBER = /^\d+$/
+
 export const keys = () =>
   createEnv({
     server: {
@@ -16,7 +19,11 @@ export const keys = () =>
       // Workload Identity Federation. None of these values is a credential.
       VERTEX_AI_PROJECT_ID: z.string().trim().min(1).optional(),
       VERTEX_AI_LOCATION: z.string().trim().min(1).optional(),
-      VERTEX_AI_WIF_PROJECT_NUMBER: z.string().trim().regex(/^\d+$/).optional(),
+      VERTEX_AI_WIF_PROJECT_NUMBER: z
+        .string()
+        .trim()
+        .regex(WIF_PROJECT_NUMBER)
+        .optional(),
       VERTEX_AI_WIF_POOL_ID: z.string().trim().min(1).optional(),
       VERTEX_AI_WIF_PROVIDER_ID: z.string().trim().min(1).optional(),
       VERTEX_AI_AZURE_AUDIENCE: z.string().trim().min(1).optional(),

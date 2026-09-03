@@ -2,8 +2,6 @@ import { createVertex, type GoogleVertexProvider } from "@ai-sdk/google-vertex"
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai"
 import {
   DEFAULT_PLATFORM_AI_CAPABILITIES,
-  DEFAULT_PLATFORM_AI_CHAT_MODEL,
-  DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
   platformAiSettingService,
 } from "@chatbotx.io/business"
 import type {
@@ -205,7 +203,10 @@ export async function getActivePlatformAiCapability(
     return null
   }
 
-  if (capability.provider === "vertex" || capability.provider === "googleCloud") {
+  if (
+    capability.provider === "vertex" ||
+    capability.provider === "googleCloud"
+  ) {
     return {
       ...capability,
       provider: "vertex",
@@ -473,4 +474,7 @@ export async function probePlatformAzureOpenAIFallback(): Promise<void> {
   })
 }
 
-export { DEFAULT_PLATFORM_AI_CHAT_MODEL, DEFAULT_PLATFORM_AI_EMBEDDING_MODEL }
+export {
+  DEFAULT_PLATFORM_AI_CHAT_MODEL,
+  DEFAULT_PLATFORM_AI_EMBEDDING_MODEL,
+} from "@chatbotx.io/business"
