@@ -324,9 +324,9 @@ export const handleCallback = async (
   // only create when they genuinely have none.
   const existingWorkspace = stateParams.workspaceId
     ? await workspaceService.findById({ id: stateParams.workspaceId })
-    : (
-        await workspaceMemberService.listByUserId({ userId })
-      ).find((member) => member.workspace.ownerId === userId)?.workspace
+    : (await workspaceMemberService.listByUserId({ userId })).find(
+        (member) => member.workspace.ownerId === userId,
+      )?.workspace
 
   const workspace =
     existingWorkspace ??
