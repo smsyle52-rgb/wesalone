@@ -4,6 +4,8 @@ const { contactInboxService, integrationQueueAdd, smartDelayService } =
   vi.hoisted(() => ({
     contactInboxService: {
       hasIncomingMessageSince: vi.fn(),
+      // A follow-up now also stops when somebody already answered.
+      hasHumanReplySince: vi.fn(),
     },
     integrationQueueAdd: vi.fn(),
     smartDelayService: {
@@ -62,6 +64,7 @@ describe("runFollowUpResume", () => {
     smartDelayService.findById.mockResolvedValue(followUpRow)
     smartDelayService.claimForRun.mockResolvedValue(true)
     contactInboxService.hasIncomingMessageSince.mockResolvedValue(false)
+    contactInboxService.hasHumanReplySince.mockResolvedValue(false)
     integrationQueueAdd.mockResolvedValue(undefined)
   })
 
@@ -71,6 +74,28 @@ describe("runFollowUpResume", () => {
     await runFollowUpResume({ smartDelayId: "smart-delay-1" })
 
     expect(contactInboxService.hasIncomingMessageSince).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      contactInboxId: "contact-inbox-1",
+      since: followUpRow.createdAt,
+    })
+    expect(smartDelayService.claimForRun).toHaveBeenCalledWith({
+      id: "smart-delay-1",
+      to: "canceled",
+    })
+    expect(integrationQueueAdd).not.toHaveBeenCalled()
+  })
+
+  // The merchant answering from their own WhatsApp app reaches us as a
+  // coexistence echo — an OUTGOING message, not an incoming one — so asking
+  // only "did the customer write again?" sent the canned nudge on top of a real
+  // human reply. Measured on 3 Sep 2026: 205 contact inboxes whose newest
+  // outgoing message was human, 188 of them with the tracking column behind it.
+  test("cancels the follow-up when a human already answered", async () => {
+    contactInboxService.hasHumanReplySince.mockResolvedValueOnce(true)
+
+    await runFollowUpResume({ smartDelayId: "smart-delay-1" })
+
+    expect(contactInboxService.hasHumanReplySince).toHaveBeenCalledWith({
       workspaceId: "workspace-1",
       contactInboxId: "contact-inbox-1",
       since: followUpRow.createdAt,

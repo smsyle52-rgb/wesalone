@@ -315,15 +315,28 @@ export const handleCallback = async (
     return notFound()
   }
 
-  const workspace = stateParams.workspaceId
+  // A connect started from outside a workspace (a pasted link, a deep link
+  // from the channels dialog before a workspace is picked) carries no
+  // `workspaceId`. Creating one here fails for every merchant already at their
+  // plan's workspace limit — the free plan allows exactly one — and the typed
+  // `workspaceLimitReached` escapes as a bare 500 on the OAuth return, after
+  // the customer already approved at Meta. Reuse the workspace they own and
+  // only create when they genuinely have none.
+  const existingWorkspace = stateParams.workspaceId
     ? await workspaceService.findById({ id: stateParams.workspaceId })
-    : await workspaceService.create({
-        data: {
-          name: "New Workspace",
-          ownerId: userId,
-        },
-        createdBy: userId,
-      })
+    : (await workspaceMemberService.listByUserId({ userId })).find(
+        (member) => member.workspace.ownerId === userId,
+      )?.workspace
+
+  const workspace =
+    existingWorkspace ??
+    (await workspaceService.create({
+      data: {
+        name: "New Workspace",
+        ownerId: userId,
+      },
+      createdBy: userId,
+    }))
 
   if (
     stateParams.workspaceId &&

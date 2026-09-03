@@ -18,12 +18,12 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { authClient } from "@/lib/auth/auth-client"
-import { authErrorMessage, isEmailNotVerified } from "../lib/auth-error-message"
 import { resolveSafeCallbackUrl } from "@/lib/safe-callback-url"
+import { authErrorMessage, isEmailNotVerified } from "../lib/auth-error-message"
 import {
   type EmailPasswordSignInRequest,
   emailPasswordSignInRequest,
-} from "../schemas/action"
+} from "../schema/action"
 
 export const EmailPasswordSignIn = () => {
   const t = useTranslations()

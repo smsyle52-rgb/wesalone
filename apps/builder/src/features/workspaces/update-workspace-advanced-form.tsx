@@ -1,7 +1,9 @@
 "use client"
 
-import { SMART_RESPONSE_DELAY_OPTIONS } from "@chatbotx.io/database/partials"
-import { defaultReplyFrequencies } from "@chatbotx.io/database/partials"
+import {
+  defaultReplyFrequencies,
+  SMART_RESPONSE_DELAY_OPTIONS,
+} from "@chatbotx.io/database/partials"
 import { ColorPickerField } from "@chatbotx.io/ui/components/form/color-picker-field"
 import { ComboboxField } from "@chatbotx.io/ui/components/form/combobox-field"
 import { SelectField } from "@chatbotx.io/ui/components/form/select-field"

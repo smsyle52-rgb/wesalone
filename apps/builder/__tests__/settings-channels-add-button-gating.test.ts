@@ -108,9 +108,6 @@ vi.mock("@/features/integration-webchat/queries", () => ({
   listIntegrationWebchats: vi.fn(async () => ({ data: [], pageCount: 0 })),
 }))
 
-const { default: SettingChannelZaloPage } = await import(
-  "../src/app/space/[workspaceId]/(settings)/settings/channels/zalo/page"
-)
 const { default: SettingChannelSmtpPage } = await import(
   "../src/app/space/[workspaceId]/(settings)/settings/channels/smtp/page"
 )
@@ -131,11 +128,14 @@ describe("channels settings Add-button gating", () => {
     mockDistinctConnectedChannels.mockResolvedValue([])
   })
 
+  // Telegram stands in for zalo throughout: zalo is retired in
+  // CHANNEL_CAPABILITIES here, so its page can never report canCreate=true and
+  // the gating below would pass for the wrong reason.
   test("the reported bug: a grandfathered channel (hidden by policy) gets canCreate=false", async () => {
     mockResolveVisibleChannels.mockResolvedValue(["whatsapp"])
-    mockDistinctConnectedChannels.mockResolvedValue(["zalo"])
+    mockDistinctConnectedChannels.mockResolvedValue(["telegram"])
 
-    const result = await SettingChannelZaloPage({
+    const result = await SettingChannelTelegramPage({
       params: Promise.resolve({ workspaceId: "ws-1" }),
     })
 
@@ -145,9 +145,9 @@ describe("channels settings Add-button gating", () => {
   })
 
   test("a visible channel gets canCreate=true", async () => {
-    mockResolveVisibleChannels.mockResolvedValue(["zalo", "whatsapp"])
+    mockResolveVisibleChannels.mockResolvedValue(["telegram", "whatsapp"])
 
-    const result = await SettingChannelZaloPage({
+    const result = await SettingChannelTelegramPage({
       params: Promise.resolve({ workspaceId: "ws-1" }),
     })
 

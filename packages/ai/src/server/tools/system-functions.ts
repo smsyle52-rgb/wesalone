@@ -3,6 +3,7 @@ import { normalizeError } from "universal-error-normalizer"
 import { z } from "zod"
 import { systemFunctionCatalog, systemFunctionNames } from "../../constants"
 import { logger } from "../../logger"
+import { commerceToolBuilders } from "./commerce-functions"
 
 export interface SystemFunctionContext {
   channel?: string
@@ -71,7 +72,7 @@ const imageReaderSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Additional context to identify a specific image when multiple images exist",
+      "What the model looking at the image needs to know but cannot see. It is called with the image alone — none of your instructions, none of this conversation, no product catalogue — so a photo of a carton comes back described as 'a cardboard box' unless you say otherwise. Put here what this business sells, the product names it might be, and what the customer just asked. Also use it to say which image you mean when there are several.",
     ),
 })
 
@@ -102,6 +103,12 @@ export const systemFunctionIds = [
   systemFunctionNames.imageReader,
   systemFunctionNames.urlContext,
   systemFunctionNames.webSearch,
+  systemFunctionNames.searchProducts,
+  systemFunctionNames.getProduct,
+  systemFunctionNames.checkStock,
+  systemFunctionNames.listCategories,
+  systemFunctionNames.createOrder,
+  systemFunctionNames.getOrderStatus,
 ] as const
 
 export type SystemFunctionId = (typeof systemFunctionIds)[number]
@@ -234,6 +241,10 @@ const systemToolBuilders: Record<
   [systemFunctionNames.imageReader]: buildImageReaderTool,
   [systemFunctionNames.urlContext]: buildUrlContextTool,
   [systemFunctionNames.webSearch]: buildWebSearchTool,
+  // The commerce tools live in their own file because they reach the database
+  // through the business services, while everything above is answered by an
+  // executor the caller supplies.
+  ...commerceToolBuilders,
 }
 
 export function getAISystemTools(options: GetAISystemToolsOptions): ToolSet {

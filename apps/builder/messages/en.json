@@ -148,7 +148,12 @@
     "restore": "Restore",
     "unselect": "Unselect",
     "loadMore": "Load more",
-    "retry": "Retry"
+    "retry": "Retry",
+    "saveAsDraft": "Save as draft",
+    "schedule": "Schedule",
+    "moveToDraft": "Move to draft",
+    "stop": "Stop",
+    "resume": "Resume"
   },
   "errors": {
     "superAdminRequired": "You need to be a workspace super admin to do this."
@@ -346,9 +351,11 @@
     "title": "Broadcasts",
     "status": {
       "scheduled": "Scheduled",
-      "sent": "Sent",
-      "sending": "Sending",
-      "cancelled": "Cancelled"
+      "sent": "Completed",
+      "sending": "In progress",
+      "cancelled": "Cancelled",
+      "draft": "Draft",
+      "failed": "Failed"
     },
     "stats": {
       "sent": "Sent",
@@ -434,6 +441,63 @@
       "template": "Template",
       "noTemplate": "No template",
       "integration": "Integration"
+    },
+    "filters": {
+      "all": "All"
+    },
+    "views": {
+      "table": "Table",
+      "calendar": "Calendar"
+    },
+    "panel": {
+      "collapse": "Collapse panel",
+      "expand": "Expand panel"
+    },
+    "empty": {
+      "title": "No broadcasts yet",
+      "description": "Create your first broadcast to reach your contacts.",
+      "filteredTitle": "No broadcasts match",
+      "filteredDescription": "Try another status or clear the search."
+    },
+    "scheduleDialog": {
+      "title": "Schedule broadcast",
+      "description": "Choose when \"{name}\" should be sent."
+    },
+    "deleteDialog": {
+      "title": "{count, plural, one {Delete broadcast} other {Delete broadcasts}}",
+      "description": "{count, plural, one {\"{name}\" will be removed. Its data is deleted in the background.} other {# broadcasts will be removed. Their data is deleted in the background.}}",
+      "partial": "{deleted} of {requested} deleted — the rest changed status"
+    },
+    "calendar": {
+      "today": "Today",
+      "apply": "Apply",
+      "more": "+{count} more",
+      "ranges": {
+        "month": "Month",
+        "week": "Week",
+        "day": "Day",
+        "custom": "Custom"
+      },
+      "previous": "Previous",
+      "next": "Next",
+      "emptyDay": "No broadcasts on this day",
+      "emptyRange": "No broadcasts in this range",
+      "jumpToDate": "Jump to date"
+    },
+    "fields": {
+      "id": "ID"
+    },
+    "moveToDraftDialog": {
+      "title": "Move to draft",
+      "description": "\"{name}\" will be unscheduled and moved back to drafts."
+    },
+    "stopDialog": {
+      "title": "Stop broadcast",
+      "description": "Remaining messages for \"{name}\" stop within about a minute. A few already handed to the channel may still deliver. You can resume later — only unsent recipients will receive."
+    },
+    "resumeDialog": {
+      "title": "Resume broadcast",
+      "description": "\"{name}\" will continue sending to recipients who have not received it yet."
     }
   },
   "condition": {
@@ -575,7 +639,8 @@
       "customFields": "Custom Fields",
       "email": "Email",
       "sms": "SMS",
-      "ctwaAds": "Ads"
+      "ctwaAds": "Ads",
+      "botFields": "Bot Fields"
     },
     "languages": {
       "ar": "Arabic",
@@ -977,7 +1042,10 @@
       "append": "Append to the end",
       "prepend": "Prepend to the beginning",
       "increase": "Increase by",
-      "decrease": "Decrease by"
+      "decrease": "Decrease by",
+      "groupSystemFields": "System Fields",
+      "groupCustomFields": "Custom Fields",
+      "groupAccountFields": "Bot Fields"
     },
     "dataCollect": {
       "label": "Data Collect"
@@ -1059,17 +1127,17 @@
       "label": "Flow ID"
     },
     "flows": {
-      "aiGenerateText": "{aiName}: Generate Text",
-      "aiGenerateImage": "{aiName}: Generate Image",
-      "aiEditImage": "{aiName}: Edit Image",
-      "aiAnalyzeImage": "{aiName}: Analyze Image",
-      "aiExtractData": "{aiName}: Extract Data",
-      "aiSpeechToText": "{aiName}: Speech to Text",
-      "aiTextToSpeech": "{aiName}: Text to Speech",
+      "aiGenerateText": "Agent: write text",
+      "aiGenerateImage": "Agent: create image",
+      "aiEditImage": "Agent: edit image",
+      "aiAnalyzeImage": "Agent: read image",
+      "aiExtractData": "Agent: extract data",
+      "aiSpeechToText": "Voice agent: transcribe",
+      "aiTextToSpeech": "Voice agent: speak text",
       "label": "Flows",
       "placeholder": "Select flow",
-      "aiGenerateTextAgent": "{aiName}: Generate Text Agent",
-      "aiDeleteMessageHistory": "{aiName}: Delete Message History"
+      "aiGenerateTextAgent": "Agent: reply with your instructions",
+      "aiDeleteMessageHistory": "Agent: clear chat history"
     },
     "steps": {
       "label": "Node",
@@ -1347,14 +1415,15 @@
       "placeholder": "587"
     },
     "provider": {
-      "label": "Provider"
+      "label": "Provider",
+      "placeholder": "Select provider"
     },
     "prompt": {
       "label": "Prompt",
       "placeholder": "Enter prompt"
     },
     "userMessage": {
-      "label": "User message"
+      "label": "Instruction for the agent (hidden from the customer)"
     },
     "pageUserName": {
       "label": "Page User Name"
@@ -1645,7 +1714,7 @@
       "superAdmin": "Super Admin",
       "analytics": "Analytics",
       "flows": "Flows",
-      "contacts": "Contacts / Inbox",
+      "contacts": "Contacts",
       "onlyAssignedContacts": "Only Assigned Contacts",
       "emailAndPhone": "Email and Phone",
       "broadcast": "Broadcast",
@@ -2222,7 +2291,7 @@
       "oauth": {
         "title": "Connect via Facebook",
         "description": "Use your page's existing connection, then choose a Dataset ID.",
-        "connect": "Create Dataset",
+        "connect": "Connect via Facebook",
         "connectedLabel": "via Facebook"
       },
       "custom": {
@@ -2235,7 +2304,7 @@
       "whatsapp": {
         "title": "Connect via WhatsApp",
         "description": "Use your WhatsApp connection, then choose a Dataset ID.",
-        "connect": "Create Dataset",
+        "connect": "Connect via WhatsApp",
         "connectedLabel": "via WhatsApp"
       }
     },
@@ -2248,9 +2317,6 @@
     },
     "whatsapp": {
       "connect": "Connect"
-    },
-    "trackAdsFlowStep": {
-      "helpNote": "Only records a conversion for contacts attributed to a WhatsApp click-to-WhatsApp ad or a Meta ad referral. It has no effect for other contacts."
     },
     "limitedDataUse": {
       "label": "Limited Data Use (US privacy)",
@@ -2332,7 +2398,6 @@
       "getResponseAddContact": "Add Contact to GetResponse",
       "sendGridAddContact": "Add Contact to SendGrid",
       "messenger": "Messenger",
-      "metaConversions": "Meta Conversions API",
       "openWebsite": "Open Website",
       "optInEmail": "Opt In Email",
       "optOutEmail": "Opt Out Email",
@@ -2393,9 +2458,9 @@
       "export": "Export",
       "importStarted": "Flow is importing. Check the import history for results.",
       "importJsonOnly": "JSON files only",
-      "adsConversions": "Ads & Meta Conversions",
-      "trackAdsLead": "Track Ads Lead",
-      "trackAdsPurchase": "Track Ads Purchase"
+      "aiAgentGroup": "AI agent",
+      "sendMultipleImages": "Multiple Images",
+      "adsConversions": "Ads & Meta Conversions"
     },
     "splitTraffic": {
       "balanceHint": "The total sum must equal 100%.",
@@ -2507,7 +2572,11 @@
     "sendText": {
       "tiktokTitleTruncated": "With buttons attached, TikTok only sends the first 40 characters of this message — the rest will be cut off."
     },
-    "dataWasSaved": "Data was saved"
+    "dataWasSaved": "Data was saved",
+    "sendMultipleImages": {
+      "removeImage": "Remove image",
+      "selectImage": "Select Images"
+    }
   },
   "folders": {
     "heading": {
@@ -2557,17 +2626,6 @@
   },
   "ads": {
     "title": "Ads",
-    "nav": {
-      "clickToWhatsappAds": "Click to WhatsApp Ads",
-      "clickToTiktokAds": "Click to TikTok Ads",
-      "connectAccounts": "Connect Accounts",
-      "conversionEvents": "Conversion Events",
-      "adsAnalytics": "Ads analytics",
-      "reporting": "Reporting",
-      "ctwa": "CTWA",
-      "googleAds": "Google Ads",
-      "comingSoon": "Coming soon"
-    },
     "connectAccounts": {
       "title": "Manage all your ad accounts",
       "description": "Track conversions and optimize your click-to-WhatsApp ad campaigns.",
@@ -2721,7 +2779,6 @@
       "adAccountFilter": {
         "all": "All ad accounts",
         "label": "Ad account",
-        "note": "Ads with conversions but zero spend or zero delivery in the selected date range are hidden while filtering by ad account.",
         "unavailable": "Couldn't load ad accounts — check this integration's Ads connection, or the workspace's Facebook Ads connection, in settings."
       },
       "retarget": "Retarget",
@@ -3174,9 +3231,6 @@
     "enableSuccess": "{feature} enabled successfully",
     "userInactive": "User has been inactive more than 7 days",
     "messagingWindowClosed": "The message can not be send outside the allowed window",
-    "sendHumanAgentTag": "Send one message with HUMAN_AGENT tag",
-    "warning": "Warning!",
-    "humanAgentWarningDescription": "You may respond to a user's message within 7 days only when the issue cannot reasonably be resolved within 24 hours. Examples include weekends, holidays, or cases that require more than one day to complete. Do not use this option for any other reason, as it could put your Facebook Page or Instagram account at risk. If you're not sure, do not continue.",
     "humanAgentWindowExpired": "Messaging window expired. The contact must message first to reopen the conversation.",
     "restoreVersionSuccess": "Flow restored to selected version",
     "revertToPublishedSuccess": "Draft reverted to the published version",
@@ -3200,7 +3254,10 @@
     "waTemplateMpmIncompleteProducts": "Every section needs at least one selected product — remove empty rows or pick a product for them.",
     "privateReply": "Private reply",
     "replaceAttachment": "Replace attachment",
-    "addAttachment": "Add attachment"
+    "addAttachment": "Add attachment",
+    "resetFeature": "Reset {feature}",
+    "resetConfirmation": "This will clear the values of the selected {feature} back to empty.\nThis action cannot be undone.",
+    "resetSuccess": "{feature} reset successfully"
   },
   "instagram": {
     "description": "This integration lets you create Instagram bots.",
@@ -3216,8 +3273,8 @@
   },
   "coexist": {
     "title": "Sync existing contacts and chat history?",
-    "descriptionWhatsapp": "When enabled, contacts and up to 6 months of chat history will be imported from this WhatsApp number.",
-    "descriptionMessenger": "When enabled, existing Messenger contacts and up to 3 months of conversation history will be imported from this Page.",
+    "descriptionWhatsapp": "When enabled, Wesal One will import contacts and up to 6 months of chat history from this WhatsApp number.",
+    "descriptionMessenger": "When enabled, Wesal One will import existing Messenger contacts and up to 3 months of conversation history from this Page.",
     "descriptionInstagram": "When enabled, existing Instagram contacts and up to 3 months of conversation history will be imported from this Instagram account.",
     "enable": "Enable sync",
     "decline": "Don't sync",
@@ -3264,8 +3321,10 @@
       "bmLookupFailedTitle": "Business Manager pages may be missing",
       "bmLookupFailedDescription": "Reconnect Messenger and grant Business Manager access so pages managed through a Business Manager can be listed.",
       "alreadyConnectedNote": "This page is already connected",
-      "notAdminNote": "Full admin permission on the page is required to connect",
-      "tryAgain": "Try reconnecting"
+      "notAdminNote": "You are not an admin of this Page",
+      "tryAgain": "Try reconnecting",
+      "noConnectablePagesTitle": "No Pages available to connect",
+      "noConnectablePagesDescription": "You are not an admin of this Page"
     },
     "title": "Facebook Messenger",
     "tabs": {
@@ -3494,7 +3553,8 @@
     "errorGeneric": "Something went wrong. Please try again.",
     "resendVerification": "Resend verification email",
     "verificationResent": "Verification email sent. Check your inbox.",
-    "signedInSuccessfully": "Signed in successfully"
+    "signedInSuccessfully": "Signed in successfully",
+    "verifyEmailSentTo": "We sent a verification link to {email}. Open it to activate your account."
   },
   "emailTopics": {
     "title": "Email Topics"
@@ -3652,12 +3712,12 @@
         "flowToken": "Flow Token",
         "flowTokenPlaceholder": "Enter flow token",
         "flowNotSynced": "Sync WhatsApp flows to map submitted fields.",
-        "catalogProductId": "Catalog product",
-        "catalogProductIdPlaceholder": "Search products…",
+        "catalogProductId": "Product ID",
+        "catalogProductIdPlaceholder": "Enter product retailer ID",
         "carouselCard": "Card {index}",
         "limitedTimeOffer": "Offer Expiration Time",
-        "limitedTimeOfferPlaceholder": "Pick expiration date & time",
-        "limitedTimeOfferHelp": "The offer expiration is sent exactly as picked.",
+        "limitedTimeOfferPlaceholder": "Enter expiration time in milliseconds",
+        "limitedTimeOfferHelp": "Unix timestamp in milliseconds when the offer expires",
         "location": "Location",
         "latitude": "Latitude",
         "longitude": "Longitude",
@@ -3941,9 +4001,7 @@
       "startAnotherFlow": "Start Another Flow",
       "notifyAdmins": "Notify Admins",
       "sendMetaCapiEvent": "Send Meta CAPI Event",
-      "transferConversationToHuman": "Transfer Conversation to Human",
-      "trackAdsLead": "Track Ads Lead",
-      "trackAdsPurchase": "Track Ads Purchase"
+      "transferConversationToHuman": "Transfer Conversation to Human"
     },
     "triggerGoesOff": "Trigger goes off",
     "before": "Before",
@@ -3955,11 +4013,12 @@
     "at": "At"
   },
   "errorLogs": {
-    "title": "Error Logs"
+    "title": "Error Logs",
+    "unknownContact": "Unknown contact"
   },
   "developerAccessToken": {
-    "title": "API Access Token",
-    "description": "Generate a token to allow your workspace to access the public APIs. Keep this token secret and do not share it with anyone."
+    "title": "Wesal One API Access Token",
+    "description": "Generate a token to allow your workspace to access Wesal One APIs. Keep this token secret and do not share it with anyone."
   },
   "contacts": {
     "title": "Contacts",
@@ -4622,8 +4681,8 @@
     }
   },
   "platformChannels": {
-    "title": "Hidden Channels",
-    "description": "Check a channel to stop workspaces in this tenant from creating it.",
+    "title": "Allowed Channels",
+    "description": "Choose which channel types workspaces in this tenant can create.",
     "hint": "Leave every channel unchecked to allow all channels.",
     "hiddenByPlatform": "Hidden by the platform admin — you can't re-enable this channel."
   },
@@ -4805,7 +4864,7 @@
         "label": "Long Description"
       },
       "price": {
-        "label": "Price"
+        "label": "Price $"
       },
       "taxes": {
         "label": "Taxes (0-100%)"
@@ -4822,7 +4881,7 @@
         "description": "The page customers open from Messenger Shopping. Products without a URL are skipped when syncing to Meta Catalog."
       },
       "sku": {
-        "label": "SKU",
+        "label": "Content ID/Retailer ID/SKU",
         "placeholder": "Optional"
       },
       "inventoryPolicy": {
@@ -5316,6 +5375,14 @@
       "viewReceipt": "View receipt",
       "history": "Payment history",
       "dialogTitle": "Pay for {plan}",
+      "accounts": {
+        "title": "Transfer accounts",
+        "hint": "Transfer the amount to one of the accounts below, then attach the receipt.",
+        "kuraimiUsd": "Al-Kuraimi Bank — USD account",
+        "kuraimiSar": "Al-Kuraimi Bank — SAR account",
+        "walletAny": "Any network or wallet (Jawali, Cash, others)",
+        "holder": "Account holder"
+      },
       "paymentMethod": "Payment method",
       "reference": "Transfer reference (optional)",
       "receipt": "Payment receipt",
@@ -5561,9 +5628,7 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": [
-            "A unified inbox with assignment and permissions."
-          ]
+          "body": ["A unified inbox with assignment and permissions."]
         },
         {
           "title": "Agents and commerce",
@@ -5580,9 +5645,7 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": [
-            "WhatsApp, Instagram and Messenger in a unified inbox."
-          ]
+          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
         },
         {
           "title": "Telegram and web",
@@ -5599,9 +5662,7 @@
       "sections": [
         {
           "title": "Mission",
-          "body": [
-            "Give businesses a clear customer service and sales system."
-          ]
+          "body": ["Give businesses a clear customer service and sales system."]
         },
         {
           "title": "Commitment",
@@ -5618,15 +5679,11 @@
       "sections": [
         {
           "title": "Email",
-          "body": [
-            "support@wesal.one"
-          ]
+          "body": ["support@wesal.one"]
         },
         {
           "title": "WhatsApp",
-          "body": [
-            "+967 775 324 950"
-          ]
+          "body": ["+967 775 324 950"]
         }
       ]
     },
@@ -6103,13 +6160,7 @@
       "nonWinningTitleLabel": "Title",
       "loseImageDescription": "Recommended size 120x120px",
       "quantityLabel": "Prize Quantity",
-      "quantityDescription": "Number of times this prize can still be won; decreases by 1 each time it's won. Leave empty for unlimited.",
-      "sendMessage": "Send a message when the player doesn't win",
-      "sendWinMessage": "Send message to winner who received the prize",
-      "messageMode": "Message type",
-      "messageModeText": "Text",
-      "messageModeFlow": "Flow",
-      "messageText": "Message"
+      "quantityDescription": "Number of times this prize can still be won; decreases by 1 each time it's won. Leave empty for unlimited."
     },
     "winningMessageDialog": {
       "title": "Winning Message Settings",
@@ -6131,8 +6182,8 @@
       "jackpotHeader": "JACKPOT",
       "jackpotBanner": "Jackpot",
       "comingSoon": "Detailed preview coming soon for this game type",
-      "rules": "Rules",
-      "luckyWheelHeader": "LUCKY WHEEL"
+      "luckyWheelHeader": "LUCKY WHEEL",
+      "gashaponHeader": "GASHAPON"
     },
     "form": {
       "generalSettingsTitle": "General Setting",
@@ -6209,6 +6260,21 @@
       "text": "Message"
     }
   },
+  "clickToMessageAds": {
+    "title": "Click to Message Ads",
+    "description": "Ads send people directly into a conversation on Messenger, Instagram, or WhatsApp.",
+    "empty": {
+      "title": "No account connected for this channel",
+      "description": "Connect a channel account first, then come back here to create ads.",
+      "cta": "Go to channel settings"
+    },
+    "movedNote": {
+      "title": "Ads have moved to Tools",
+      "description": "Create and manage Click to Message ads from the Click to Message Ads tool.",
+      "cta": "Open Click to Message Ads"
+    },
+    "dashboardCta": "View on Ads dashboard"
+  },
   "templatesPublicPage": {
     "invalidTitle": "This link is no longer available.",
     "invalidDescription": "This template share link is invalid, disabled, or has expired.",
@@ -6229,7 +6295,8 @@
     "recent": "Recent",
     "favourite": "Favourite",
     "upload": "Upload",
-    "done": "Done",
+    "select": "Select",
+    "bulkSelect": "Bulk select",
     "deleteFolder": "Delete folder",
     "renameFolder": "Rename folder",
     "noFiles": "No files found",
@@ -6433,5 +6500,8 @@
         "last_7d": "Last 7 days"
       }
     }
+  },
+  "accountFields": {
+    "title": "Bot Fields"
   }
 }

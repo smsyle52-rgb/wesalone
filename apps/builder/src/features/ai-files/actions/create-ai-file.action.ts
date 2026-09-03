@@ -11,9 +11,9 @@ import { aiFileModel } from "@chatbotx.io/database/schema"
 import { createId } from "@chatbotx.io/utils"
 import { AIJobAction, aiAgentQueue } from "@chatbotx.io/worker-config"
 import { getTranslations } from "next-intl/server"
-import { workspaceIdrequestParams } from "@/features/common/schemas"
+import { workspaceIdrequestParams } from "@/features/common/schema"
 import { workspaceActionClient } from "@/lib/safe-action"
-import { createAIFileRequest } from "../schemas"
+import { createAIFileRequest } from "../schema"
 
 export async function hasEmbeddingProvider(workspaceId: string) {
   const [platformProvider, hasOpenAI, hasGemini] = await Promise.all([

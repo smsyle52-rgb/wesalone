@@ -2579,62 +2579,30 @@ function PlatformDashboard() {
 
 // Wesal × Gabster — Nav + Hero (AI-agents hero merged into the full page)
 
-function ThemeToggle2() {
-  const [dark, setDark] = React.useState(() => {
-    if (typeof window === "undefined") return true
-    const saved = localStorage.getItem("wesal-theme")
-    if (saved === "light") return false
-    return true
-  })
+// The landing page is a single dark/blue composition — the light palette was
+// never designed to the same standard and read as an unfinished white page to
+// anyone who toggled it (including a reviewer). The toggle is gone; this pins
+// the page to dark and clears a `light` choice saved by an earlier visit so a
+// returning visitor is not stuck on the retired palette. Renders nothing.
+function ForceDarkTheme() {
   React.useEffect(() => {
     const r = document.documentElement
-    const hadDark = r.classList.contains("dark")
     const hadLight = r.classList.contains("light")
-    r.classList.remove("dark", "light")
-    r.classList.add(dark ? "dark" : "light")
-    localStorage.setItem("wesal-theme", dark ? "dark" : "light")
+    r.classList.remove("light")
+    r.classList.add("dark")
+    try {
+      localStorage.setItem("wesal-theme", "dark")
+    } catch {
+      // Private mode or blocked storage: the class above is what matters.
+    }
 
     return () => {
-      r.classList.remove("dark", "light")
-      if (hadDark) r.classList.add("dark")
+      r.classList.remove("dark")
       if (hadLight) r.classList.add("light")
     }
-  }, [dark])
-  return (
-    <button
-      aria-label={dark ? "الوضع النهاري" : "الوضع الليلي"}
-      className="relative w-10 h-10 grid place-items-center rounded-xl border border-line text-soft hover:text-[color:var(--primary)] transition"
-      onClick={() => setDark((d) => !d)}
-    >
-      <svg
-        className={`absolute transition-all duration-300 ${dark ? "opacity-0 -rotate-90 scale-50" : "opacity-100"}`}
-        fill="none"
-        height="18"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        viewBox="0 0 24 24"
-        width="18"
-      >
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-      </svg>
-      <svg
-        className={`absolute transition-all duration-300 ${dark ? "opacity-100" : "opacity-0 rotate-90 scale-50"}`}
-        fill="none"
-        height="18"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        viewBox="0 0 24 24"
-        width="18"
-      >
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-      </svg>
-    </button>
-  )
+  }, [])
+
+  return null
 }
 
 function LangPill() {
@@ -2705,8 +2673,8 @@ function GabsterNav() {
         <div className="flex items-center gap-2">
           <div className="hidden sm:flex items-center gap-2">
             <LangPill />
-            <ThemeToggle2 />
           </div>
+          <ForceDarkTheme />
           <a
             className="hidden sm:inline-flex items-center h-10 px-5 rounded-xl btn-primary font-bold text-sm"
             href="/auth/sign-up"
@@ -2761,7 +2729,6 @@ function GabsterNav() {
             ))}
             <div className="flex items-center gap-2 mt-3">
               <LangPill />
-              <ThemeToggle2 />
               <a
                 className="ms-auto inline-flex items-center h-10 px-5 rounded-xl btn-primary font-bold text-sm"
                 href="/auth/sign-up"

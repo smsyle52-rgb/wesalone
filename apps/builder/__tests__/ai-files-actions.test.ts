@@ -13,6 +13,10 @@ vi.mock("@chatbotx.io/business", () => ({
   platformAiSettingService: { getActive },
 }))
 
+vi.mock("@chatbotx.io/business/audit", () => ({
+  auditService: { record: vi.fn() },
+}))
+
 vi.mock("@chatbotx.io/business/errors", () => ({
   ChatbotXException: class extends Error {},
 }))
@@ -30,19 +34,10 @@ vi.mock("@chatbotx.io/database/client", () => ({
   },
   eq: (column: unknown, value: unknown) => ({ column, value }),
   findOrFail,
-  // Upstream now wraps the delete in a transaction so the row, its embeddings
-  // and the stored object go together. Run the callback against the same spies.
-  transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
-    await fn({ delete: vi.fn(() => ({ where: deleteWhere })) }),
 }))
 
 vi.mock("@chatbotx.io/database/schema", () => ({
   aiFileModel: { id: "AIFile.id" },
-  aiEmbeddingModel: { id: "AIEmbedding.id" },
-}))
-
-vi.mock("@chatbotx.io/business/audit", () => ({
-  auditService: { record: vi.fn() },
 }))
 
 vi.mock("@chatbotx.io/filesystem", () => ({
@@ -63,11 +58,11 @@ vi.mock("next-intl/server", () => ({
   getTranslations: vi.fn(),
 }))
 
-vi.mock("@/features/common/schemas", () => ({
+vi.mock("@/features/common/schema", () => ({
   workspaceIdrequestParams: [],
 }))
 
-vi.mock("../src/features/ai-files/schemas", () => ({
+vi.mock("../src/features/ai-files/schema", () => ({
   createAIFileRequest: {},
 }))
 

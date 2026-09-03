@@ -25,8 +25,8 @@ import { accountRelations } from "./auth-account"
 import { invitationRelations } from "./auth-invitation"
 import { sessionRelations } from "./auth-session"
 import { automatedResponseRelations } from "./automated-response"
-import { billableUsageEventRelations } from "./billable-usage-event"
 import { automationThrottleRelations } from "./automation-throttle"
+import { billableUsageEventRelations } from "./billable-usage-event"
 import { botFieldRelations } from "./bot-field"
 import { broadcastRelations } from "./broadcast"
 import { coexistSyncRunRelations } from "./coexist-sync-run"
@@ -294,6 +294,7 @@ export const relations = {
   ...questionnaireRelations,
   ...coexistSyncRunRelations,
   ...userPersistentMenuRelations,
+  ...userDeviceTokenRelations,
   ...inventoryLocationRelations,
   ...inventoryStockRelations,
   ...inventoryMovementRelations,
@@ -309,7 +310,6 @@ export const relations = {
   ...pointLedgerRelations,
   ...pointTopupProductRelations,
   ...pointPurchaseOrderRelations,
-  ...userDeviceTokenRelations,
   ...whatsappSignupSessionRelations,
   ...automationThrottleRelations,
   ...minigameRelations,

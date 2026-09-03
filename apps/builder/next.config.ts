@@ -21,7 +21,6 @@ const nextConfig: NextConfigWithStaticGenerationConcurrency = {
   reactStrictMode: true,
   output: "standalone",
   pageExtensions: ["ts", "tsx"],
-
   // These `@chatbotx.io/*` workspace packages are consumed as SOURCE (their
   // `exports` point at `./src/*.ts`). pnpm symlinks them under node_modules, so
   // without this Next/Turbopack treats them as vendored externals and does NOT

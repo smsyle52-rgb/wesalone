@@ -32,11 +32,8 @@ export const deleteAIFile = async (ctx: {
   })
 
   // The database is authoritative. Its FK cascade removes the embeddings.
-  // Storage cleanup stays OUTSIDE the delete and is best-effort: upstream moved
-  // `deleteObject` inside a transaction, which means a missing object or a
-  // momentary storage outage rolls the row back and leaves a knowledge-base
-  // entry the merchant can see and cannot delete. Keep Wesal's ordering; take
-  // upstream's audit record, which is the part that was genuinely missing.
+  // Storage cleanup is best-effort so a missing object or temporary storage
+  // outage can never leave an undeletable knowledge-base row in the UI.
   await db.delete(aiFileModel).where(eq(aiFileModel.id, ctx.id))
 
   await auditService.record({

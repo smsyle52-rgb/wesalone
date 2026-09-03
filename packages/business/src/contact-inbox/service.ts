@@ -16,6 +16,7 @@ import {
   CONTACT_INBOX_SOURCE_USER_ID_KEY,
   contactInboxModel,
   contactModel,
+  messageModel,
 } from "@chatbotx.io/database/schema"
 import type {
   ContactInboxModel,
@@ -28,6 +29,7 @@ import {
   isSourceUserIdKeyedIdentity,
 } from "@chatbotx.io/sdk"
 import { BaseService } from "../base.service"
+import { PROFILE_NAME_BLANK_CHARACTERS } from "../contact/profile-refresh/rules"
 import { logger } from "../logger"
 
 // Lower bound for message lookups/deletions scoped to a contact-inbox: the
@@ -417,6 +419,53 @@ class ContactInboxService extends BaseService {
     return invalidation
   }
 
+  /**
+   * Race-safe variant of `updateLanguage`: the "language is currently
+   * empty" check is folded into the WHERE clause itself (NULL or blank
+   * after `btrim`, same blank-character set `ContactService.updateIfProfileNameEmpty`
+   * binds for `Contact.firstName`/`lastName`) instead of a separate read
+   * before the write — a language set concurrently (an operator edit,
+   * another job) between a caller's in-memory snapshot and this write can
+   * no longer be clobbered: the UPDATE simply matches zero rows. Returns
+   * the updated row, or `undefined` when nothing matched (raced, or the
+   * scope didn't match — either way, not a caller error).
+   */
+  async updateLanguageIfEmpty(props: {
+    tx?: DatabaseClient
+    workspaceId: string
+    contactId: string
+    contactInboxId: string
+    language: string
+  }): Promise<ContactInboxModel | undefined> {
+    const { tx = db, workspaceId, contactId, contactInboxId, language } = props
+
+    const [updated] = await tx
+      .update(contactInboxModel)
+      .set({ language })
+      .where(
+        and(
+          eq(contactInboxModel.id, contactInboxId),
+          eq(contactInboxModel.contactId, contactId),
+          this.workspaceScope(workspaceId),
+          sql`btrim(coalesce(${contactInboxModel.language}, ''), ${PROFILE_NAME_BLANK_CHARACTERS}) = ''`,
+        ),
+      )
+      .returning()
+
+    if (!updated) {
+      // Zero rows is the expected outcome of a lost race (the common case
+      // this method exists to guard against), not a scope problem — unlike
+      // `updateLanguage` (unconditional; a miss there always means scope),
+      // so this stays silent, mirroring `updateIfProfileNameEmpty`'s
+      // silent-on-race behavior for `Contact`.
+      return
+    }
+
+    await this.invalidateTracking(this.createTrackingInvalidation(contactId))
+
+    return updated
+  }
+
   async updateTracking(props: {
     tx?: DatabaseClient
     contactInboxId: string
@@ -670,6 +719,38 @@ class ContactInboxService extends BaseService {
       .limit(1)
     const row = rows[0]
     return row !== undefined
+  }
+
+  /**
+   * Did a human answer this contact after `since`?
+   *
+   * Deliberately not "was there any outgoing message": the bot's own sends
+   * include whatever else the flow is saying, and treating those as an answer
+   * would cancel every follow-up the moment the flow that scheduled it spoke.
+   * Only `senderType: "user"` counts — an agent in the inbox, or a reply typed
+   * in the merchant's own WhatsApp app and received back as a coexistence echo.
+   */
+  async hasHumanReplySince(props: {
+    tx?: DatabaseClient
+    workspaceId: string
+    contactInboxId: string
+    since: Date
+  }): Promise<boolean> {
+    const { tx = db, workspaceId, contactInboxId, since } = props
+    const rows = await tx
+      .select({ id: messageModel.id })
+      .from(messageModel)
+      .where(
+        and(
+          eq(messageModel.contactInboxId, contactInboxId),
+          eq(messageModel.workspaceId, workspaceId),
+          eq(messageModel.messageType, "outgoing"),
+          eq(messageModel.senderType, "user"),
+          gt(messageModel.createdAt, since),
+        ),
+      )
+      .limit(1)
+    return rows[0] !== undefined
   }
 
   /**

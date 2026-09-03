@@ -59,6 +59,31 @@ type Props = {
 // subscribing, only when buying points.
 const PAYMENT_METHODS = ["kuraimi", "jawali", "bank_transfer", "cash"] as const
 
+/**
+ * Where a merchant actually sends the money. Shown only inside the payment
+ * dialog — after a plan is picked — so the numbers and the account holder's
+ * name reach people who are paying, not every visitor to the pricing page.
+ * Labels are translated; the numbers and the holder are data and read the same
+ * in both languages.
+ */
+const PLATFORM_ACCOUNTS = [
+  {
+    labelKey: "kuraimiUsd",
+    number: "3106111331",
+    holder: "صادق حسين العتمي",
+  },
+  {
+    labelKey: "kuraimiSar",
+    number: "3103403056",
+    holder: "صادق حسين العتمي",
+  },
+  {
+    labelKey: "walletAny",
+    number: "777922385",
+    holder: "صادق حسين صالح العتمي",
+  },
+] as const
+
 export function SubscriptionPaymentPanel({
   billingCycle,
   workspaceId,
@@ -331,6 +356,34 @@ export function SubscriptionPaymentPanel({
                     : plan.priceMonthlyUsd}
                 </span>
               )}
+            </div>
+            <div className="space-y-2 rounded-lg border bg-muted/40 p-3 text-sm">
+              <p className="font-semibold">
+                {t("plans.subscriptionPayment.accounts.title")}
+              </p>
+              <p className="text-muted-foreground">
+                {t("plans.subscriptionPayment.accounts.hint")}
+              </p>
+              <ul className="space-y-1.5">
+                {PLATFORM_ACCOUNTS.map((account) => (
+                  <li className="flex flex-col gap-0.5" key={account.number}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>
+                        {t(
+                          `plans.subscriptionPayment.accounts.${account.labelKey}`,
+                        )}
+                      </span>
+                      <span className="font-mono font-semibold" dir="ltr">
+                        {account.number}
+                      </span>
+                    </div>
+                    <span className="text-muted-foreground text-xs">
+                      {t("plans.subscriptionPayment.accounts.holder")}:{" "}
+                      {account.holder}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
             <div className="space-y-2">
               <Label>{t("plans.subscriptionPayment.paymentMethod")}</Label>

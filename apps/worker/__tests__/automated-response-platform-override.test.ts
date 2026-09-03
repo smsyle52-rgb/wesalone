@@ -1,9 +1,9 @@
+import { processStreamingText } from "@chatbotx.io/ai"
 import type {
   AIAgentModel,
   ContactInboxModel,
   ConversationModel,
 } from "@chatbotx.io/database/types"
-import { processStreamingText } from "@chatbotx.io/ai"
 import { contactVariableService } from "@chatbotx.io/variables"
 import { type ModelMessage, streamText } from "ai"
 import { beforeEach, describe, expect, test, vi } from "vitest"
@@ -96,9 +96,9 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   appendKnowledgeBaseGuard: (p: string) => p,
   appendToolOutputGuard: (p: string) => p,
   appendUnavailableWebSearchPolicy: (p: string) => p,
-  buildPlatformOverrideCandidates: (override: NonNullable<PlatformOverride>) => [
-    { platformVertex: true, model: override.chatModel },
-  ],
+  buildPlatformOverrideCandidates: (
+    override: NonNullable<PlatformOverride>,
+  ) => [{ platformVertex: true, model: override.chatModel }],
   createAIProviderInstance: createAIProviderInstanceMock,
   createOpenaiCompatibleModelInstance: vi.fn(() => ({
     type: "openai-compatible-model",

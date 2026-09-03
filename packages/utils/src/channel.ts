@@ -141,9 +141,15 @@ export const CHANNEL_CAPABILITIES: Record<ChannelType, ChannelCapability> = {
     requiresCredential: false,
     order: 5,
   },
+  // Zalo is a Vietnamese messenger with no users in Wesal One's market. Hiding
+  // it through `Tenant.hiddenChannels` only gates the create picker — it still
+  // surfaced in the broadcast audience and the settings accordion, so the
+  // capability flags are the honest place to retire it. Flip both back to true
+  // to offer it again; the integration itself is untouched, so a workspace that
+  // already connected Zalo keeps sending and receiving.
   zalo: {
-    creatable: true,
-    manageable: true,
+    creatable: false,
+    manageable: false,
     requiresCredential: true,
     order: 6,
   },

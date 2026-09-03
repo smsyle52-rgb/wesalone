@@ -23,6 +23,8 @@ const mcpKy = ky.create({
 
 export interface McpClientOptions {
   auth: AIMcpServerAuth
+  /** The contact the agent is replying to, when the caller knows it. */
+  contactId?: string | null
   name?: string
   url: string
 }
@@ -51,6 +53,7 @@ export const normalizeMcpContent = (content: JsonValue): JsonValue => {
 export class McpClient {
   private readonly url: string
   private readonly auth: AIMcpServerAuth
+  private readonly contactId: string | null
   private readonly name: string
   private initialized = false
   private isLegacy = false
@@ -60,6 +63,7 @@ export class McpClient {
     this.url = options.url
     this.auth = options.auth
     this.name = options.name ?? "MCP Server"
+    this.contactId = options.contactId ?? null
   }
 
   private getNextRequestId(): number {
@@ -71,6 +75,15 @@ export class McpClient {
     const headers: Record<string, string> = {
       Accept: "application/json, text/event-stream",
       "Content-Type": "application/json",
+    }
+
+    // Who the agent is talking to. An MCP server is workspace-scoped through
+    // its bearer token and otherwise blind: it cannot tell one customer from
+    // another, so anything it writes lands unattributed. Sending the id here
+    // keeps it out of the tool arguments, where the model could get it wrong
+    // and a customer could dictate it.
+    if (this.contactId) {
+      headers["X-Wesal-Contact-Id"] = this.contactId
     }
 
     switch (this.auth.type) {

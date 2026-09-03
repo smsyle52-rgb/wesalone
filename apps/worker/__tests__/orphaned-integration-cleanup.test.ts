@@ -68,18 +68,22 @@ describe("handleOrphanedIntegration", () => {
     })
   })
 
-  test("skips unsupported channels", async () => {
+  test("warns rather than informs when a WhatsApp number has no row", async () => {
+    // There is nothing to unsubscribe for WhatsApp — its webhook is subscribed
+    // at the app level — but the case is not benign the way an unsupported
+    // channel is: every message that number receives is dropped. Upstream logs
+    // it at info, where nobody sees it; this deployment raises it to warn.
     await handleOrphanedIntegration(
       new IntegrationNotFoundError("whatsapp", "phone-number-1"),
     )
 
     expect(mocks.unsubscribeMessenger).not.toHaveBeenCalled()
     expect(mocks.unsubscribeInstagram).not.toHaveBeenCalled()
-    // Wesal raised this from info to warn on purpose: a WhatsApp phoneNumberId
-    // with no IntegrationWhatsapp row is not a harmless unsupported channel —
-    // it is a live number whose customers' messages are being dropped, and at
-    // info level nobody ever saw it. See orphaned-integration-cleanup.ts.
-    expect(mocks.loggerWarn).toHaveBeenCalled()
+    expect(mocks.loggerInfo).not.toHaveBeenCalled()
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "whatsapp" }),
+      expect.stringContaining("was dropped"),
+    )
   })
 
   test("skips messenger cleanup when an Instagram sibling still exists", async () => {

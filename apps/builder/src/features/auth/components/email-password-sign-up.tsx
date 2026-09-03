@@ -14,7 +14,8 @@ import { withCallbackUrlParam } from "@/lib/safe-callback-url"
 import {
   type EmailPasswordSignUpRequest,
   emailPasswordSignUpRequest,
-} from "../schemas/action"
+} from "../schema/action"
+import { PENDING_VERIFICATION_EMAIL_KEY } from "../verify-email-sent"
 
 const STRENGTH_COLORS = [
   "#EF4444",
@@ -94,9 +95,21 @@ export const EmailPasswordSignUp = () => {
     const { data, error } = await authClient.signUp.email(input)
 
     if (data) {
+      // Verification is required before this account can sign in, so send the
+      // person to the screen that says so instead of to the sign-in form,
+      // where the toast is gone before the page paints and the sign-up reads
+      // as having failed. The address rides in sessionStorage, not the URL.
+      try {
+        sessionStorage.setItem(PENDING_VERIFICATION_EMAIL_KEY, input.email)
+      } catch {
+        // Blocked storage only costs the resend button on the next screen.
+      }
       toast.success(t("auth.signUpSuccess"))
       router.push(
-        withCallbackUrlParam("/auth/sign-in", searchParams.get("callbackURL")),
+        withCallbackUrlParam(
+          "/auth/verify-email-sent",
+          searchParams.get("callbackURL"),
+        ),
       )
     } else {
       toast.error(error.message)

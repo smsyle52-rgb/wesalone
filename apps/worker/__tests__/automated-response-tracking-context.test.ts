@@ -55,13 +55,18 @@ vi.mock("@chatbotx.io/ai", () => ({
 
 vi.mock("@chatbotx.io/ai/server", () => ({
   aiContextService: { appendHistory: appendHistoryMock },
-  buildPlatformOverrideCandidates: vi.fn(() => []),
+  // The platform-locked provider override is consulted before the agent's own
+  // fallback chain on this deployment. Disabled here, so every case in this
+  // file resolves through the agent's own provider exactly as upstream does.
   getActivePlatformAiOverride: vi.fn(async () => null),
-  getPlatformAzureOpenAIChatModel: vi.fn(),
-  getPlatformAzureOpenAIProvider: vi.fn(),
-  getPlatformCapabilityLanguageModel: vi.fn(),
-  getPlatformVertexChatModel: vi.fn(),
-  getPlatformVertexProvider: vi.fn(),
+  buildPlatformOverrideCandidates: vi.fn(() => []),
+  getPlatformCapabilityLanguageModel: vi.fn(async () => null),
+  getPlatformAzureOpenAIChatModel: vi.fn(() => ({
+    type: "azure-openai-model",
+  })),
+  getPlatformAzureOpenAIProvider: vi.fn(() =>
+    Object.assign(vi.fn(), { tools: {} }),
+  ),
   isPlatformAzureOpenAIModelCandidate: vi.fn(() => false),
   isPlatformVertexModelCandidate: vi.fn(() => false),
   appendFabricationGuard: (p: string) => p,
@@ -91,12 +96,15 @@ vi.mock("@chatbotx.io/business", () => ({
   integrationOpenaiCompatibleService: {
     findByWorkspaceIdAndId: vi.fn(),
   },
+  // replyByAI refuses to answer for a workspace whose plan has auto-reply off,
+  // before it reaches any provider. Upstream has no such gate, so its mock
+  // does not carry this.
   userQuotaService: {
     isAutoReplyEnabledForWorkspace: vi.fn(async () => true),
   },
   usageMeteringService: {
-    reserve: vi.fn(async () => null),
-    settle: vi.fn(async () => undefined),
+    reserve: vi.fn(async () => ({ id: "reservation-1" })),
+    settleLanguage: vi.fn(async () => undefined),
     release: vi.fn(async () => undefined),
   },
 }))
