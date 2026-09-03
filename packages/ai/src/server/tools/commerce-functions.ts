@@ -50,17 +50,28 @@ export const searchProductsSchema = z.object({
   category: z
     .string()
     .optional()
-    .describe("Restrict to this category name, exactly as list_categories returns it."),
+    .describe(
+      "Restrict to this category name, exactly as list_categories returns it.",
+    ),
 })
 
 export const getProductSchema = z.object({
-  sku: z.string().optional().describe("The product's SKU, if the customer gave one."),
-  name: z.string().optional().describe("The product name, when there is no SKU."),
+  sku: z
+    .string()
+    .optional()
+    .describe("The product's SKU, if the customer gave one."),
+  name: z
+    .string()
+    .optional()
+    .describe("The product name, when there is no SKU."),
 })
 
 export const checkStockSchema = z.object({
   sku: z.string().optional().describe("The product's SKU."),
-  name: z.string().optional().describe("The product name, when there is no SKU."),
+  name: z
+    .string()
+    .optional()
+    .describe("The product name, when there is no SKU."),
 })
 
 export const listCategoriesSchema = z.object({})
@@ -182,9 +193,9 @@ async function resolveOne(
   const candidates = await visibleProducts(workspaceId, { name: ref.name })
 
   if (ref.sku) {
-    const bySku = (
-      await visibleProducts(workspaceId, {})
-    ).filter((product) => product.sku?.toLowerCase() === ref.sku?.toLowerCase())
+    const bySku = (await visibleProducts(workspaceId, {})).filter(
+      (product) => product.sku?.toLowerCase() === ref.sku?.toLowerCase(),
+    )
     if (bySku.length === 1) {
       return { product: bySku[0] as ProductRow }
     }
@@ -197,7 +208,9 @@ async function resolveOne(
     return { product: candidates[0] as ProductRow }
   }
   if (candidates.length === 0) {
-    return { error: `Nothing in the catalogue matches "${ref.name ?? ref.sku}".` }
+    return {
+      error: `Nothing in the catalogue matches "${ref.name ?? ref.sku}".`,
+    }
   }
   return {
     error: `Several products match "${ref.name}": ${candidates
@@ -414,10 +427,7 @@ const buildGetOrderStatus: Builder = (options) =>
           return `Order ${args.orderId} does not belong to this customer.`
         }
         const items = order.items
-          .map(
-            (item) =>
-              `${item.quantity} × ${item.product?.name ?? "item"}`,
-          )
+          .map((item) => `${item.quantity} × ${item.product?.name ?? "item"}`)
           .join(", ")
         return `Order ${order.id}: ${order.status}. ${items}. Total ${order.total}.`
       } catch {

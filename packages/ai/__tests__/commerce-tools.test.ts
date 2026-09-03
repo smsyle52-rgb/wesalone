@@ -130,7 +130,10 @@ describe("check_stock", () => {
 describe("create_order", () => {
   test("asks which product instead of guessing between matches", async () => {
     mocks.listProducts.mockResolvedValue({
-      data: [product({ id: "a", name: "صابون كبير" }), product({ id: "b", name: "صابون صغير" })],
+      data: [
+        product({ id: "a", name: "صابون كبير" }),
+        product({ id: "b", name: "صابون صغير" }),
+      ],
       pageCount: 1,
     })
 
@@ -164,7 +167,11 @@ describe("create_order", () => {
 
   test("keys the draft on the conversation so a retry does not duplicate it", async () => {
     mocks.listProducts.mockResolvedValue({ data: [product()], pageCount: 1 })
-    mocks.getOrderById.mockResolvedValue({ id: "order-9", total: 2000, items: [] })
+    mocks.getOrderById.mockResolvedValue({
+      id: "order-9",
+      total: 2000,
+      items: [],
+    })
 
     await run("create_order", { items: [{ sku: "FAS-1", quantity: 2 }] })
 
@@ -175,7 +182,11 @@ describe("create_order", () => {
 
   test("sends the product id and quantity only — the price is the catalogue's", async () => {
     mocks.listProducts.mockResolvedValue({ data: [product()], pageCount: 1 })
-    mocks.getOrderById.mockResolvedValue({ id: "order-9", total: 2000, items: [] })
+    mocks.getOrderById.mockResolvedValue({
+      id: "order-9",
+      total: 2000,
+      items: [],
+    })
 
     await run("create_order", { items: [{ sku: "FAS-1", quantity: 2 }] })
 

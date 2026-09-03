@@ -247,7 +247,7 @@ export async function replyByAI(
   await sendMessageWithRender(
     props.conversation.id,
     getNoResponseFallback(
-      (props.workspaceLanguage ?? props.contactInbox.language) ?? undefined,
+      props.workspaceLanguage ?? props.contactInbox.language ?? undefined,
     ),
   )
   return {
@@ -546,8 +546,8 @@ function createReplyToolset(options: {
         abortSignal: options.abortSignal,
         fileOnlyTrigger: options.props.fileOnlyTrigger,
         language:
-          (options.props.workspaceLanguage ??
-            options.props.contactInbox.language) ??
+          options.props.workspaceLanguage ??
+          options.props.contactInbox.language ??
           undefined,
         model: options.model,
         modelId: options.modelId,
@@ -1102,7 +1102,7 @@ async function runAIReply(
         if (knowledgeSearchCount >= MAX_KNOWLEDGE_SEARCHES) {
           return { activeTools: [], toolChoice: "none" }
         }
-        return undefined
+        return
       },
       stopWhen: stepCountIs(MAX_REPLY_STEPS),
       timeout: {
@@ -1345,8 +1345,7 @@ async function runAIReply(
         await sendMessageWithRender(
           conversation.id,
           getNoResponseFallback(
-            (props.workspaceLanguage ?? props.contactInbox.language) ??
-              undefined,
+            props.workspaceLanguage ?? props.contactInbox.language ?? undefined,
           ),
         )
       }

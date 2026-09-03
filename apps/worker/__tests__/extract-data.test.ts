@@ -16,9 +16,27 @@ vi.mock("@chatbotx.io/ai", () => ({
 vi.mock("@chatbotx.io/business/error-log", () => ({
   logProviderError: mocks.logProviderError,
 }))
+// This deployment reserves usage before the provider call and settles it
+// after. Left unmocked, the real reservation reaches the database and throws
+// before the step ever runs, so nothing is attributed to any vendor. Only the
+// metering is replaced: the rest of the module still resolves the custom-field
+// value through the mocked database client, as upstream intends.
+vi.mock("@chatbotx.io/business", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@chatbotx.io/business")>()),
+  usageMeteringService: {
+    reserve: vi.fn(async () => ({ enabled: false, operationId: "op-1" })),
+    settleLanguage: vi.fn(async () => undefined),
+    release: vi.fn(async () => undefined),
+  },
+}))
 vi.mock("@chatbotx.io/ai/server", () => ({
   aiIntegrationService: { findBy: mocks.aiFindBy },
   createAIModelInstance: mocks.createAIModelInstance,
+  // The step resolver on this deployment offers the platform-locked model
+  // before the agent own BYOK provider. Disabled here, so the step resolves
+  // through the workspace provider exactly as upstream does.
+  getPlatformCapabilityLanguageModel: vi.fn(async () => null),
+  getActivePlatformAiOverride: vi.fn(async () => null),
 }))
 vi.mock("@chatbotx.io/database/client", () => ({
   db: {

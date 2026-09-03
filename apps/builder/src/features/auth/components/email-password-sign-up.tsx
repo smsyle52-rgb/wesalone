@@ -9,13 +9,13 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
-import { PENDING_VERIFICATION_EMAIL_KEY } from "../verify-email-sent"
 import { authClient } from "@/lib/auth/auth-client"
 import { withCallbackUrlParam } from "@/lib/safe-callback-url"
 import {
   type EmailPasswordSignUpRequest,
   emailPasswordSignUpRequest,
 } from "../schema/action"
+import { PENDING_VERIFICATION_EMAIL_KEY } from "../verify-email-sent"
 
 const STRENGTH_COLORS = [
   "#EF4444",

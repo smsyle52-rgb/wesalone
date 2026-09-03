@@ -1,6 +1,5 @@
 "use client"
 
-import { authClient } from "@/lib/auth/auth-client"
 import { Button, buttonVariants } from "@chatbotx.io/ui/components/ui/button"
 import {
   Card,
@@ -12,6 +11,7 @@ import Link from "next/link"
 import { useTranslations } from "next-intl"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { authClient } from "@/lib/auth/auth-client"
 import { AuthHeader } from "./components/shared"
 import { authErrorMessage } from "./lib/auth-error-message"
 

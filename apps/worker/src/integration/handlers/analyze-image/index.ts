@@ -78,7 +78,7 @@ export async function handleAIAnalyzeImage({
 
     reservation = await usageMeteringService.reserve({
       workspaceId: conversation.workspaceId,
-      operationId: `flow:analyze-image:${conversation.id}:${triggerMessageId ?? flowVersion.id}:${step.id}`,
+      operationId: `flow:analyze-image:${conversation.id}:${triggerMessageId ?? flowVersion?.id ?? step.id}:${step.id}`,
       category: "image_analysis",
       provider: step.provider,
       model: step.model,

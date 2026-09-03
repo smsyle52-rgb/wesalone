@@ -71,7 +71,8 @@ vi.mock("@chatbotx.io/ai", () => ({
   aiProviders: { openai: "openai" },
   aiTimeouts: { aiTotal: 30_000, aiStep: 10_000, aiChunk: 5000 },
   helpTexts: {
-    fallbackLookup: "I've found some data, but I couldn't generate a complete answer yet.",
+    fallbackLookup:
+      "I've found some data, but I couldn't generate a complete answer yet.",
     richResponseFormat: richResponseFormatMock,
     unavailable: "Sorry, I cannot help right now.",
   },

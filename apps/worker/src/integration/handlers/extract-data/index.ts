@@ -212,7 +212,7 @@ ${schemaDescription}`
 
     reservation = await usageMeteringService.reserve({
       workspaceId: conversation.workspaceId,
-      operationId: `flow:extract-data:${conversation.id}:${triggerMessageId ?? flowVersion.id}:${step.id}`,
+      operationId: `flow:extract-data:${conversation.id}:${triggerMessageId ?? flowVersion?.id ?? step.id}:${step.id}`,
       category: step.inputType === "image" ? "image_analysis" : "language",
       provider: step.provider,
       model: step.model,

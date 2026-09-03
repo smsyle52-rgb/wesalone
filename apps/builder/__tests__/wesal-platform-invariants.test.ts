@@ -9,14 +9,19 @@ import { describe, expect, test } from "vitest"
  * fixed again — each costing hours to rediagnose because the symptom looks
  * like a fresh production bug rather than a lost patch. The upstream-sync
  * workflow cannot catch these: it aborts on unknown conflicts, so it is the
- * *manual* merges that reintroduce them, and a human comparing 117 overlapping
+ * "manual" merges that reintroduce them, and a human comparing 117 overlapping
  * files will not notice one restored line.
  *
  * A failure here means a merge undid a decision, not that the decision was
  * wrong. Re-apply the fix; do not relax the assertion.
  */
 
-const repoRoot = join(__dirname, "..", "..", "..")
+const COMMUNITY_SHORT_CIRCUIT = /if\s*\(\s*isCommunity\(\)\s*\)/
+const SIMILARITY_THRESHOLD = /similarityThreshold\s*=\s*([\d.]+)/
+const AUTO_REPLY_ENABLED = /autoReplyEnabled\s*:/
+const AUTO_REPLY_FALSE = /autoReply:\s*false/
+
+const repoRoot = join(import.meta.dirname, "..", "..", "..")
 const read = (relative: string) =>
   readFileSync(join(repoRoot, relative), "utf8")
 
@@ -33,7 +38,7 @@ describe("Google sign-in is not gated on the community edition", () => {
   const source = read("apps/builder/src/lib/auth/auth-instances.ts")
 
   test("resolveCredentialForTenant does not short-circuit on isCommunity()", () => {
-    expect(source).not.toMatch(/if\s*\(\s*isCommunity\(\)\s*\)/)
+    expect(source).not.toMatch(COMMUNITY_SHORT_CIRCUIT)
   })
 
   test("the credential lookup still runs for the root tenant", () => {
@@ -82,12 +87,13 @@ describe("Meta's policy pages are reachable without a session", () => {
    */
   const source = read("apps/builder/src/proxy.ts")
 
-  test.each(["/privacy", "/terms", "/contact"])(
-    "%s is listed in publicRoutes",
-    (route) => {
-      expect(source).toContain(`"${route}"`)
-    },
-  )
+  test.each([
+    "/privacy",
+    "/terms",
+    "/contact",
+  ])("%s is listed in publicRoutes", (route) => {
+    expect(source).toContain(`"${route}"`)
+  })
 })
 
 describe("Knowledge-base retrieval uses a threshold the models can reach", () => {
@@ -101,7 +107,7 @@ describe("Knowledge-base retrieval uses a threshold the models can reach", () =>
   const source = read("packages/ai/src/server/tools/files.ts")
 
   test("the default similarity threshold stays below the measured ceiling", () => {
-    const match = source.match(/similarityThreshold\s*=\s*([\d.]+)/)
+    const match = source.match(SIMILARITY_THRESHOLD)
     expect(match).not.toBeNull()
     expect(Number(match?.[1])).toBeLessThan(0.673)
   })
@@ -136,12 +142,12 @@ describe("A quota row created by usage sync does not silence the agent", () => {
       .split("\n")
       .filter((line) => !line.trim().startsWith("//"))
       .join("\n")
-    expect(values).toMatch(/autoReplyEnabled\s*:/)
+    expect(values).toMatch(AUTO_REPLY_ENABLED)
   })
 
   test("every plan in the catalogue leaves auto-reply on", () => {
     const plans = read("packages/business/src/platform/wesal-one-plans.ts")
-    expect(plans).not.toMatch(/autoReply:\s*false/)
+    expect(plans).not.toMatch(AUTO_REPLY_FALSE)
   })
 })
 

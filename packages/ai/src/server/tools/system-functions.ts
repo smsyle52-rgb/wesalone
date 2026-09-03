@@ -2,8 +2,8 @@ import { type ToolSet, tool } from "ai"
 import { normalizeError } from "universal-error-normalizer"
 import { z } from "zod"
 import { systemFunctionCatalog, systemFunctionNames } from "../../constants"
-import { commerceToolBuilders } from "./commerce-functions"
 import { logger } from "../../logger"
+import { commerceToolBuilders } from "./commerce-functions"
 
 export interface SystemFunctionContext {
   channel?: string
