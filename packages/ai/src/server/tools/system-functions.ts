@@ -2,6 +2,7 @@ import { type ToolSet, tool } from "ai"
 import { normalizeError } from "universal-error-normalizer"
 import { z } from "zod"
 import { systemFunctionCatalog, systemFunctionNames } from "../../constants"
+import { commerceToolBuilders } from "./commerce-functions"
 import { logger } from "../../logger"
 
 export interface SystemFunctionContext {
@@ -102,6 +103,12 @@ export const systemFunctionIds = [
   systemFunctionNames.imageReader,
   systemFunctionNames.urlContext,
   systemFunctionNames.webSearch,
+  systemFunctionNames.searchProducts,
+  systemFunctionNames.getProduct,
+  systemFunctionNames.checkStock,
+  systemFunctionNames.listCategories,
+  systemFunctionNames.createOrder,
+  systemFunctionNames.getOrderStatus,
 ] as const
 
 export type SystemFunctionId = (typeof systemFunctionIds)[number]
@@ -234,6 +241,10 @@ const systemToolBuilders: Record<
   [systemFunctionNames.imageReader]: buildImageReaderTool,
   [systemFunctionNames.urlContext]: buildUrlContextTool,
   [systemFunctionNames.webSearch]: buildWebSearchTool,
+  // The commerce tools live in their own file because they reach the database
+  // through the business services, while everything above is answered by an
+  // executor the caller supplies.
+  ...commerceToolBuilders,
 }
 
 export function getAISystemTools(options: GetAISystemToolsOptions): ToolSet {

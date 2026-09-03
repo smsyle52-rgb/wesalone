@@ -110,6 +110,14 @@ export const systemFunctionNames = {
   imageReader: "image_reader",
   urlContext: "url_context",
   webSearch: "web_search",
+  // Commerce. Every workspace has these the moment it has products: they read
+  // the same tables the dashboard does, so there is nothing to provision.
+  searchProducts: "search_products",
+  getProduct: "get_product",
+  checkStock: "check_stock",
+  listCategories: "list_categories",
+  createOrder: "create_order",
+  getOrderStatus: "get_order_status",
 } as const
 
 export const systemFunctionCatalog = {
@@ -143,9 +151,51 @@ export const systemFunctionCatalog = {
     description:
       "Search publicly available web information relevant to the user's request and summarize findings.",
   },
+  [systemFunctionNames.searchProducts]: {
+    id: systemFunctionNames.searchProducts,
+    capability: "commerce_catalog",
+    description:
+      "Search this workspace's product catalogue by name or category and return each match with its current price and availability.",
+  },
+  [systemFunctionNames.getProduct]: {
+    id: systemFunctionNames.getProduct,
+    capability: "commerce_catalog",
+    description:
+      "Look up one product by SKU or exact name and return its price, availability and description.",
+  },
+  [systemFunctionNames.checkStock]: {
+    id: systemFunctionNames.checkStock,
+    capability: "commerce_catalog",
+    description:
+      "Report how many units of one product are available before promising a customer anything.",
+  },
+  [systemFunctionNames.listCategories]: {
+    id: systemFunctionNames.listCategories,
+    capability: "commerce_catalog",
+    description:
+      "List the categories this workspace sells in, to steer a customer who does not know what to ask for.",
+  },
+  [systemFunctionNames.createOrder]: {
+    id: systemFunctionNames.createOrder,
+    capability: "commerce_orders",
+    description:
+      "Record what the customer wants to buy as a draft order for the merchant to confirm.",
+  },
+  [systemFunctionNames.getOrderStatus]: {
+    id: systemFunctionNames.getOrderStatus,
+    capability: "commerce_orders",
+    description:
+      "Look up an order the customer already placed, by its order number.",
+  },
 } as const
 
 export const aiPolicies = {
+  commerce: [
+    "CATALOGUE POLICY (REQUIRED):",
+    `- Never state a price, a stock level or a total from memory: call '${systemFunctionNames.searchProducts}', '${systemFunctionNames.getProduct}' or '${systemFunctionNames.checkStock}' and quote what comes back.`,
+    "- If a product is not in the catalogue, say so plainly instead of describing something similar.",
+    `- '${systemFunctionNames.createOrder}' records a DRAFT the merchant still has to confirm. Say that, and give the customer the order number.`,
+  ].join("\n"),
   handoff: [
     "HANDOFF POLICY (REQUIRED):",
     `- Only call '${systemFunctionNames.connectUserToHuman}' if the user explicitly asks for a human agent OR if you cannot resolve the issue after 2-3 attempts.`,
