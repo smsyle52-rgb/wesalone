@@ -50,6 +50,7 @@ all_worker_names() {
 print_usage() {
     names="$(all_worker_names | tr '\n' '|' | sed 's/|$//')"
     echo "Usage: ${0} worker [all${names:+|}${names}]" >&2
+    echo "       ${0} worker <name>[,<name>...]   # a subset in one container" >&2
     echo "       ${0} {bash|sh}" >&2
 }
 
@@ -66,8 +67,17 @@ require_script() {
   fi
 }
 
-run_all_workers() {
-  if [ -z "$WORKER_TABLE" ]; then
+# Starts the named workers and supervises them as one unit.
+#
+# Takes a newline-separated roster rather than always starting everything,
+# because "everything" is twelve Node processes and each one carries its own
+# runtime and bundle. Twelve of them sat at 7.2Gi of an 8Gi box — 90% — with no
+# room to grow, and the Consumption workload profile caps at 8Gi, so there was
+# no larger box to move to. Splitting the roster across containers is the only
+# lever left.
+run_workers() {
+  roster="$1"
+  if [ -z "$roster" ]; then
     echo "No worker bundles found under $WORKER_DIST_DIR" >&2
     exit 4
   fi
@@ -84,13 +94,19 @@ run_all_workers() {
 
   trap 'handle_shutdown' INT TERM
 
-  # Validate all worker entrypoints first so we never start partially.
-  for worker in $(all_worker_names); do
-    script="$(resolve_worker_script "$worker")"
+  # Validate every entrypoint first so we never start partially. A name that
+  # does not exist is a configuration mistake worth failing loudly on, not
+  # something to skip quietly into a half-running container.
+  for worker in $roster; do
+    script="$(resolve_worker_script "$worker")" || {
+      echo "Unknown worker: $worker" >&2
+      print_usage
+      exit 3
+    }
     require_script "$script"
   done
 
-  for worker in $(all_worker_names); do
+  for worker in $roster; do
     script="$(resolve_worker_script "$worker")"
     echo "Starting worker: $worker ($script)"
     "$NODE_BIN" "$script" &
@@ -128,9 +144,19 @@ case "${1:-}" in
 
         worker="${2:-all}"
         if [ "$worker" = "all" ]; then
-            run_all_workers
+            run_workers "$(all_worker_names)"
             exit 0
         fi
+
+        # A comma-separated list runs those workers under the supervisor; a
+        # single name still execs directly, so one worker per container keeps
+        # its process as PID 1 and its signals unmediated.
+        case "$worker" in
+          *,*)
+            run_workers "$(printf '%s' "$worker" | tr ',' '\n')"
+            exit 0
+            ;;
+        esac
 
         script="$(resolve_worker_script "$worker")" || {
           print_usage
