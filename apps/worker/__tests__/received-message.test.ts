@@ -720,7 +720,11 @@ describe("receiveMessage — message repository branch", () => {
     )
   })
 
-  test("updates conversation activity but not lastIncomingMessageAt for outgoing webhook echo", async () => {
+  // A coexistence echo — the merchant answering from their own WhatsApp app —
+  // has to move lastOutboundMessageAt, or nothing downstream can tell an
+  // answered customer from an ignored one. It must still leave
+  // lastIncomingMessageAt alone: the customer did not write this.
+  test("moves lastOutboundMessageAt but not lastIncomingMessageAt for an outgoing webhook echo", async () => {
     mockRunChannelHandler.mockResolvedValue({
       message: {
         ...baseIncomingMessage,
@@ -748,6 +752,7 @@ describe("receiveMessage — message repository branch", () => {
       data: {
         firstInteractionAt: fakeCreatedMessage.createdAt,
         lastMessageAt: fakeCreatedMessage.createdAt,
+        lastOutboundMessageAt: fakeCreatedMessage.createdAt,
       },
     })
     expect(mockDbSet).toHaveBeenCalledWith({

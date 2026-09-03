@@ -16,6 +16,7 @@ import {
   CONTACT_INBOX_SOURCE_USER_ID_KEY,
   contactInboxModel,
   contactModel,
+  messageModel,
 } from "@chatbotx.io/database/schema"
 import type {
   ContactInboxModel,
@@ -718,6 +719,38 @@ class ContactInboxService extends BaseService {
       .limit(1)
     const row = rows[0]
     return row !== undefined
+  }
+
+  /**
+   * Did a human answer this contact after `since`?
+   *
+   * Deliberately not "was there any outgoing message": the bot's own sends
+   * include whatever else the flow is saying, and treating those as an answer
+   * would cancel every follow-up the moment the flow that scheduled it spoke.
+   * Only `senderType: "user"` counts — an agent in the inbox, or a reply typed
+   * in the merchant's own WhatsApp app and received back as a coexistence echo.
+   */
+  async hasHumanReplySince(props: {
+    tx?: DatabaseClient
+    workspaceId: string
+    contactInboxId: string
+    since: Date
+  }): Promise<boolean> {
+    const { tx = db, workspaceId, contactInboxId, since } = props
+    const rows = await tx
+      .select({ id: messageModel.id })
+      .from(messageModel)
+      .where(
+        and(
+          eq(messageModel.contactInboxId, contactInboxId),
+          eq(messageModel.workspaceId, workspaceId),
+          eq(messageModel.messageType, "outgoing"),
+          eq(messageModel.senderType, "user"),
+          gt(messageModel.createdAt, since),
+        ),
+      )
+      .limit(1)
+    return rows[0] !== undefined
   }
 
   /**

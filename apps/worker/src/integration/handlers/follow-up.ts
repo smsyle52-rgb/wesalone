@@ -83,13 +83,25 @@ export async function runFollowUpResume(
     return
   }
 
-  const hasReplied = await contactInboxService.hasIncomingMessageSince({
-    workspaceId: row.workspaceId,
-    contactInboxId: row.contactInboxId,
-    since: row.createdAt,
-  })
+  // Two ways a follow-up stops being wanted: the customer came back on their
+  // own, or somebody already answered them. The second was missing, so a
+  // merchant replying from their own WhatsApp app — which reaches us as a
+  // coexistence echo, not as an incoming message — still got the canned nudge
+  // sent on top of their real reply.
+  const [hasReplied, wasAnswered] = await Promise.all([
+    contactInboxService.hasIncomingMessageSince({
+      workspaceId: row.workspaceId,
+      contactInboxId: row.contactInboxId,
+      since: row.createdAt,
+    }),
+    contactInboxService.hasHumanReplySince({
+      workspaceId: row.workspaceId,
+      contactInboxId: row.contactInboxId,
+      since: row.createdAt,
+    }),
+  ])
 
-  if (hasReplied) {
+  if (hasReplied || wasAnswered) {
     const canceled = await smartDelayService.claimForRun({
       id: row.id,
       to: smartDelayStatuses.enum.canceled,
@@ -98,8 +110,12 @@ export async function runFollowUpResume(
       return
     }
     logger.info(
-      { smartDelayId: row.id, conversationId: row.conversationId },
-      "Follow-up canceled: contact replied before the timer expired",
+      {
+        smartDelayId: row.id,
+        conversationId: row.conversationId,
+        reason: hasReplied ? "contactReplied" : "humanAnswered",
+      },
+      "Follow-up canceled before the timer expired",
     )
     return
   }

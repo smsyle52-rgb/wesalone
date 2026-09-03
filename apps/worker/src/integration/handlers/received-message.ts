@@ -835,6 +835,10 @@ const getMessageActivityTracking = (props: {
     tracking.lastCommentMessageAt = message.createdAt
   }
 
+  if (incomingMessage.messageType === "outgoing") {
+    tracking.lastOutboundMessageAt = message.createdAt
+  }
+
   if (isInboundConversationMessage(incomingMessage)) {
     tracking.lastIncomingMessageAt = message.createdAt
     Object.assign(
