@@ -3447,7 +3447,8 @@
     "errorGeneric": "Something went wrong. Please try again.",
     "resendVerification": "Resend verification email",
     "verificationResent": "Verification email sent. Check your inbox.",
-    "signedInSuccessfully": "Signed in successfully"
+    "signedInSuccessfully": "Signed in successfully",
+    "verifyEmailSentTo": "We sent a verification link to {email}. Open it to activate your account."
   },
   "emailTopics": {
     "title": "E-mail Topics"

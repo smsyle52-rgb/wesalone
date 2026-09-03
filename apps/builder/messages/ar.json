@@ -3442,7 +3442,8 @@
     "errorGeneric": "حدث خطأ ما. حاول مرة أخرى.",
     "resendVerification": "إعادة إرسال رسالة التفعيل",
     "verificationResent": "تم إرسال رسالة التفعيل. تحقّق من بريدك.",
-    "signedInSuccessfully": "تم تسجيل الدخول بنجاح"
+    "signedInSuccessfully": "تم تسجيل الدخول بنجاح",
+    "verifyEmailSentTo": "أرسلنا رابط تفعيل إلى {email}. افتحه لتفعيل حسابك."
   },
   "emailTopics": {
     "title": "موضوعات البريد الإلكتروني"
