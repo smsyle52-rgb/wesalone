@@ -18,7 +18,11 @@ const flattenMessages = (
   prefix = "",
   result: FlatMessages = {},
 ): FlatMessages => {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+  // Arrays are walked, not treated as leaves. The marketing catalogues this
+  // deployment adds hold arrays of objects, and stopping at the array made
+  // every string inside it invisible to the checks below — which is the only
+  // reason they passed while the CJK catalogues were missing those keys.
+  if (typeof value !== "object" || value === null) {
     result[prefix] = value
     return result
   }

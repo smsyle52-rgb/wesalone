@@ -338,7 +338,10 @@ try {
   const hasNonTransactionalMigration =
     (await hasPendingNonTransactionalMigration(client, migrationsFolder)) ||
     (existsSync(wesalMigrationsFolder) &&
-      (await hasPendingNonTransactionalMigration(client, wesalMigrationsFolder)))
+      (await hasPendingNonTransactionalMigration(
+        client,
+        wesalMigrationsFolder,
+      )))
   if (useSequentialMigrations || hasNonTransactionalMigration) {
     if (!useSequentialMigrations) {
       console.log(

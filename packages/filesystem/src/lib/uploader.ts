@@ -428,7 +428,11 @@ export class Uploader {
     const command = new CopyObjectCommand({
       Bucket: this.#bucketName,
       Key: destinationPath,
-      CopySource: buildCopySource(sourcePath, this.#bucketName, env.S3_ENDPOINT),
+      CopySource: buildCopySource(
+        sourcePath,
+        this.#bucketName,
+        env.S3_ENDPOINT,
+      ),
     })
 
     return await this.#client.send(command)

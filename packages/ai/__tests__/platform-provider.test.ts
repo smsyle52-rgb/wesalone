@@ -87,7 +87,8 @@ function configureVertexWifEnv() {
   envMock.VERTEX_AI_WIF_POOL_ID = "wesal-azure-prod"
   envMock.VERTEX_AI_WIF_PROVIDER_ID = "azure-wesal-mi"
   envMock.VERTEX_AI_AZURE_AUDIENCE = "api://vertex-wif"
-  envMock.AZURE_MANAGED_IDENTITY_CLIENT_ID = "272aa924-b831-49a8-8e62-cc6670b71bfc"
+  envMock.AZURE_MANAGED_IDENTITY_CLIENT_ID =
+    "272aa924-b831-49a8-8e62-cc6670b71bfc"
   envMock.IDENTITY_ENDPOINT = "http://localhost/identity"
   envMock.IDENTITY_HEADER = "short-lived-local-header"
 }
@@ -206,7 +207,9 @@ describe("platform Gemini then Azure OpenAI candidates", () => {
     expect(isPlatformVertexModelCandidate(candidates[0])).toBe(true)
     expect(isPlatformAzureOpenAIModelCandidate(candidates[2])).toBe(true)
     expect(isPlatformVertexModelCandidate({ provider: "openai" })).toBe(false)
-    expect(isPlatformAzureOpenAIModelCandidate({ provider: "openai" })).toBe(false)
+    expect(isPlatformAzureOpenAIModelCandidate({ provider: "openai" })).toBe(
+      false,
+    )
   })
 })
 

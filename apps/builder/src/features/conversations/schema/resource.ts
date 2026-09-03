@@ -4,9 +4,9 @@ import {
 } from "@chatbotx.io/database/schema"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import z from "zod"
-import { inboxTeamResource } from "@/features/inbox-teams/schema/resource"
 import { contactInboxResource } from "@/features/contact-inboxes/schema/resource"
 import { contactResource } from "@/features/contacts/schema/resource"
+import { inboxTeamResource } from "@/features/inbox-teams/schema/resource"
 import { messageResourceWithRelations } from "@/features/messages/schema/resource"
 import { userResource } from "@/features/users/schema/resource"
 

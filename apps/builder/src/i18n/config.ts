@@ -33,7 +33,10 @@ export type Locale = (typeof locales)[number]
  * conflicts on every sync from ChatbotX. This list only decides what a person
  * is offered to pick.
  */
-export const selectableLocales = ["ar", "en"] as const satisfies readonly Locale[]
+export const selectableLocales = [
+  "ar",
+  "en",
+] as const satisfies readonly Locale[]
 
 export const defaultLocale: Locale = "ar"
 export const LOCALE_COOKIE = "NEXT_LOCALE"

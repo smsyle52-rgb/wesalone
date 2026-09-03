@@ -83,9 +83,12 @@ describe("settings channels layout visibility", () => {
     expect(renderToStaticMarkup(tree)).toContain(">smtp<")
   })
 
+  // Telegram, not zalo: zalo is retired in CHANNEL_CAPABILITIES on this
+  // deployment, so it never reaches the accordion and the grandfathering this
+  // asserts could not be observed through it.
   test("grandfathers an already-connected channel hidden by policy back into the accordion", async () => {
     mockResolveVisibleChannels.mockResolvedValue(["whatsapp"])
-    mockDistinctConnectedChannels.mockResolvedValue(["zalo"])
+    mockDistinctConnectedChannels.mockResolvedValue(["telegram"])
 
     const tree = await SettingsChannelsLayout({
       params: Promise.resolve({ workspaceId: "ws-1" }),
@@ -93,7 +96,7 @@ describe("settings channels layout visibility", () => {
 
     const html = renderToStaticMarkup(tree)
     expect(html).toContain(">whatsapp<")
-    expect(html).toContain(">zalo<")
+    expect(html).toContain(">telegram<")
     expect(html).not.toContain(">tiktok<")
   })
 })

@@ -41,6 +41,7 @@ describe("Arabic reply fixes (WESAL_REPLY_FIXES)", () => {
   const PLAY_URL =
     "https://play.google.com/store/apps/details?id=com.bunyan.sanaa.byhands"
 
+  // biome-ignore lint/suspicious/useAwait: processStreamingText takes an AsyncIterable; a fixed list of chunks has nothing to await.
   async function* streamOf(chunks: string[]) {
     for (const chunk of chunks) {
       yield chunk
@@ -70,8 +71,9 @@ describe("Arabic reply fixes (WESAL_REPLY_FIXES)", () => {
 
     const { messageCount } = await processStreamingText(
       streamOf([answer, "\n\n", closing, answer, "\n\n", closing]),
-      async (_segment, parts) => {
+      (_segment, parts) => {
         sent.push(...parts)
+        return Promise.resolve()
       },
     )
 
@@ -84,8 +86,9 @@ describe("Arabic reply fixes (WESAL_REPLY_FIXES)", () => {
 
     await processStreamingText(
       streamOf(["سعر القميص 5000 ريال", "\n\n", "والتوصيل خلال يومين"]),
-      async (_segment, parts) => {
+      (_segment, parts) => {
         sent.push(...parts)
+        return Promise.resolve()
       },
     )
 
@@ -98,8 +101,9 @@ describe("Arabic reply fixes (WESAL_REPLY_FIXES)", () => {
 
     const { messageCount } = await processStreamingText(
       streamOf([only, "\n\n", only, "\n\n", only]),
-      async (_segment, parts) => {
+      (_segment, parts) => {
         sent.push(...parts)
+        return Promise.resolve()
       },
     )
 
@@ -115,8 +119,9 @@ describe("Arabic reply fixes (WESAL_REPLY_FIXES)", () => {
     const answer =
       "أهلاً بك، فول الثريا متوفر كرتون (24 علبة)، والأسعار تتحدث باستمرار ومندوب المبيعات بيعطيك السعر النهائي.\nكم الكمية (الكراتين) اللي تحتاجها؟"
 
-    await processStreamingText(streamOf([answer, answer]), async (_s, parts) => {
+    await processStreamingText(streamOf([answer, answer]), (_s, parts) => {
       sent.push(...parts)
+      return Promise.resolve()
     })
 
     expect(sent).toEqual([answer])
@@ -129,8 +134,9 @@ describe("Arabic reply fixes (WESAL_REPLY_FIXES)", () => {
 
     await processStreamingText(
       streamOf([`${answer} ${answer}`]),
-      async (_s, parts) => {
+      (_s, parts) => {
         sent.push(...parts)
+        return Promise.resolve()
       },
     )
 
@@ -143,8 +149,9 @@ describe("Arabic reply fixes (WESAL_REPLY_FIXES)", () => {
     const answer =
       "متوفر عندنا زيت الباشا وزيت الثريا. ومتوفر عندنا كذلك زيت نارجيل، أي واحد تحب؟"
 
-    await processStreamingText(streamOf([answer]), async (_s, parts) => {
+    await processStreamingText(streamOf([answer]), (_s, parts) => {
       sent.push(...parts)
+      return Promise.resolve()
     })
 
     expect(sent).toEqual([answer])
