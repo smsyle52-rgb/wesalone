@@ -1,5 +1,5 @@
 import { UiProvider } from "@chatbotx.io/ui"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { NextIntlClientProvider } from "next-intl"
 import { getLocale } from "next-intl/server"
 import type { ReactNode } from "react"
@@ -11,10 +11,20 @@ import { TenantProvider } from "@/features/tenant"
 import { getTenantSettings } from "@/features/tenant/utils"
 import { getDirection } from "@/i18n/direction"
 import { getDomainFromHeader } from "@/lib/domain"
+import { QueryProvider } from "@/lib/query/query-provider"
 import { getUserTimezone } from "@/lib/timezone"
 import "./globals.css"
 import "./themes.css"
 import { DirectionProvider } from "@chatbotx.io/ui/components/ui/direction"
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // `cover` lets the page paint under the notch/home indicator so
+  // `env(safe-area-inset-*)` reports real values. Fixed mobile chrome
+  // (the sidebar's edge handle, the inbox composer) relies on those insets.
+  viewportFit: "cover",
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   const { name, faviconUrl } = await getTenantSettings()
@@ -82,8 +92,10 @@ export default async function RootLayout({ children }: Props) {
           <DirectionProvider direction={dir}>
             <UiProvider>
               <NextIntlClientProvider>
-                <TimezoneSync timezone={timezone} />
-                {children}
+                <QueryProvider>
+                  <TimezoneSync timezone={timezone} />
+                  {children}
+                </QueryProvider>
               </NextIntlClientProvider>
             </UiProvider>
           </DirectionProvider>

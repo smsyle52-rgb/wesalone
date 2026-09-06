@@ -750,6 +750,17 @@
       "pendingBlockedToast": "Bu çalışma alanının silinmesi planlandı. Erişimi geri yüklemek için bir çalışma alanı yöneticisiyle iletişime geçin.",
       "navDisabledTooltip": "Çalışma alanı silme işlemi planlıyken kullanılamaz",
       "badge": "Silme planlandı"
+    },
+    "supportAccess": {
+      "bannerTitle": "Platform destek oturumu",
+      "bannerDescription": "Bir platform destek temsilcisinin bu çalışma alanına {time} tarihine kadar geçici erişimi var.",
+      "cardTitle": "Platform destek erişimi",
+      "cardDescription": "Platform destek ekibinin bu çalışma alanını 7 gün boyunca tam erişimle açmasına izin verin. Bunu istediğiniz zaman kapatabilirsiniz.",
+      "enabledUntil": "{time} tarihine kadar etkin",
+      "permissionRequired": "Platform destek erişimini değiştirmek için süper yönetici olmanız gerekir.",
+      "enabledToast": "Platform destek erişimi etkinleştirildi.",
+      "disabledToast": "Platform destek erişimi devre dışı bırakıldı.",
+      "toggleError": "Bir şeyler ters gitti. Lütfen tekrar deneyin."
     }
   },
   "workspaces": {
@@ -888,7 +899,8 @@
       "label": "Temsilci"
     },
     "aiAgent": {
-      "label": "Yapay Zekâ Temsilcisi"
+      "label": "Yapay Zekâ Temsilcisi",
+      "loadError": "Yapay zeka temsilcileri yüklenemedi. Lütfen tekrar deneyin."
     },
     "aiQueuedMessages": {
       "label": "Kuyruğa Alınmış Yapay Zekâ Mesajları"
@@ -2211,7 +2223,27 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "selectOptionsPlaceholder": "Select options",
+    "tokenPermission": {
+      "label": "İzin",
+      "full": "Tam erişim",
+      "readOnly": "Salt okunur"
+    },
+    "tokenScopes": {
+      "label": "Kapsamlar",
+      "contacts": "Kişiler",
+      "inbox": "Gelen Kutusu",
+      "automation": "Otomasyon",
+      "broadcasts": "Yayınlar",
+      "analytics": "Analitik",
+      "ecommerce": "E-ticaret",
+      "integrations": "Entegrasyonlar",
+      "channels": "Kanallar",
+      "minigames": "Mini Oyunlar",
+      "appointments": "Randevular",
+      "media": "Medya",
+      "ads": "Reklamlar"
+    }
   },
   "flows": {
     "export": {
@@ -2353,7 +2385,6 @@
       "export": "Dışa aktar",
       "importStarted": "Akış içe aktarılıyor. Sonuçlar için içe aktarma geçmişini kontrol edin.",
       "importJsonOnly": "Yalnızca JSON dosyaları",
-      "adsConversions": "Reklamlar ve Meta Conversions",
       "aiAgentGroup": "AI agent"
     },
     "splitTraffic": {
@@ -2990,9 +3021,8 @@
     "title": "Make",
     "setting": {
       "label": "Make",
-      "description": "Akışlarınızdan olay göndermek ve Make senaryoları aracılığıyla kişi verileri almak için Make.com hesabınızı bağlayın. Bağlan'a tıkladığınızda çalışma alanınızın Geliştirici Erişim Belirteci panonuza kopyalanır — Make'te bağlantıyı oluştururken bu belirteci yapıştırın.",
-      "notConfigured": "Make davet bağlantısı bulunamadı. Lütfen Platform Ayarları'na bir tane ekleyin.",
-      "noWorkspaceToken": "Bu çalışma alanı için Geliştirici Erişim Belirteci bulunamadı. Yukarıdaki Çalışma Alanı belirteci bölümünden bir tane oluşturun, ardından tekrar Bağlan'a tıklayın."
+      "description": "Akışlarınızdan olay göndermek ve Make senaryoları aracılığıyla kişi verileri almak için Make.com hesabınızı bağlayın.",
+      "notConfigured": "Make davet bağlantısı bulunamadı. Lütfen Platform Ayarları'na bir tane ekleyin."
     }
   },
   "integrations": {
@@ -3974,7 +4004,12 @@
   },
   "developerAccessToken": {
     "title": "API Erişim Token'ı",
-    "description": "Çalışma alanınızın genel API'lere erişmesine izin vermek için bir token oluşturun. Bu token'ı gizli tutun ve kimseyle paylaşmayın."
+    "description": "Çalışma alanınızın genel API'lere erişmesine izin vermek için bir token oluşturun. Bu token'ı gizli tutun ve kimseyle paylaşmayın.",
+    "createDialogTitle": "API belirteci oluştur",
+    "namePlaceholder": "ör. Zapier entegrasyonu",
+    "empty": "Henüz API belirteci yok.",
+    "defaultBadge": "Varsayılan",
+    "allScopes": "Tüm kapsamlar"
   },
   "contacts": {
     "title": "Kişiler",
@@ -4509,11 +4544,6 @@
       "description": "Önce bir kanal hesabı bağlayın, ardından reklam oluşturmak için buraya geri dönün.",
       "cta": "Kanal ayarlarına git"
     },
-    "movedNote": {
-      "title": "Reklamlar Araçlar'a taşındı",
-      "description": "Click-to-Message reklamlarını Click-to-Message Reklamları aracından oluşturun ve yönetin.",
-      "cta": "Click-to-Message Reklamları'nı aç"
-    },
     "dashboardCta": "Reklamlar panosunda görüntüle"
   },
   "ecommerce": {
@@ -4621,6 +4651,17 @@
     "aiSettings": {
       "title": "AI Settings",
       "description": "Central Vertex AI configuration every workspace's AI agents inherit."
+    },
+    "workspaces": {
+      "title": "Çalışma alanları",
+      "description": "Sahibi platform destek erişimini etkinleştirmiş çalışma alanları burada açılabilir.",
+      "owner": "Sahip",
+      "tenant": "Kiracı",
+      "supportStatus": "Destek durumu",
+      "openAsSupport": "Destek olarak aç",
+      "supportEnabledUntil": "{time} tarihine kadar etkin",
+      "supportOff": "Kapalı",
+      "searchPlaceholder": "Ada, sahibinin e-postasına veya kimliğe göre ara"
     }
   },
   "platformCredentials": {
@@ -5508,13 +5549,12 @@
   },
   "metaConversions": {
     "title": "Conversions API",
-    "description": "Messenger, Instagram ve WhatsApp konuşmalarından LeadSubmitted etkinliklerini Meta'ya gönderin.",
+    "description": "Messenger, Instagram ve WhatsApp konuşmalarından dönüşüm etkinliklerini Meta'ya gönderin.",
     "datasetId": "Veri Kümesi ID",
     "reconnect": "İzinleri yeniden bağla",
     "connectViaFacebook": "Facebook üzerinden bağlan",
     "unsupportedExplanation": "Bu Instagram hesabı Instagram Business Girişi ile bağlandı. Meta Conversions API'yi kullanmak için hesabı Facebook üzerinden bağlayın.",
     "flowStep": {
-      "description": "Messenger, Instagram veya WhatsApp için bir LeadSubmitted etkinliği kuyruğa alın.",
       "whatsappNote": "WhatsApp etkinlikleri yalnızca click-to-WhatsApp reklamından başlayan konuşmalar için gönderilir."
     },
     "status": {
@@ -5541,12 +5581,50 @@
       "datasetRequired": "Erişim jetonu eklemeden önce bir Veri Kümesi ID'si kaydedin.",
       "invalidToken": "Bu jeton veri kümesine erişemedi.",
       "invalidDatasetId": "Geçerli bir Dataset ID girin (yalnızca rakamlar).",
-      "whatsappNotFound": "WhatsApp entegrasyonu bulunamadı."
+      "whatsappNotFound": "WhatsApp entegrasyonu bulunamadı.",
+      "testEventCodeRequired": "Bir test etkinliği göndermeden önce test etkinliği kodunu kaydedin.",
+      "noContactForTest": "Bu kanalda henüz uygun bir kişi yok. Test etkinliği, ilişkilendirilecek gerçek bir kişi gerektirir (WhatsApp için click-to-WhatsApp reklamından gelen bir kişi).",
+      "invalidTestEventCode": "Test etkinliği kodu yalnızca harf, rakam, tire veya alt çizgi içerebilir (en fazla 64)."
     },
     "fields": {
       "eventType": {
         "label": "Etkinlik Türü",
-        "leadSubmitted": "Potansiyel Müşteri Gönderildi"
+        "leadSubmitted": "Potansiyel Müşteri Gönderildi",
+        "purchase": "Satın Alma",
+        "initiateCheckout": "Ödemeyi Başlat",
+        "addToCart": "Sepete Ekle",
+        "viewContent": "İçeriği Görüntüle",
+        "orderCreated": "Sipariş Oluşturuldu",
+        "orderShipped": "Sipariş Kargoya Verildi",
+        "orderDelivered": "Sipariş Teslim Edildi",
+        "orderCanceled": "Sipariş İptal Edildi",
+        "orderReturned": "Sipariş İade Edildi",
+        "cartAbandoned": "Sepet Terk Edildi",
+        "qualifiedLead": "Nitelikli Potansiyel Müşteri",
+        "ratingProvided": "Değerlendirme Verildi",
+        "reviewProvided": "İnceleme Verildi",
+        "addPaymentInfo": "Ödeme Bilgisi Ekle",
+        "addToWishlist": "İstek Listesine Ekle",
+        "completeRegistration": "Kaydı Tamamla",
+        "contact": "İletişim",
+        "customizeProduct": "Ürünü Özelleştir",
+        "donate": "Bağış Yap",
+        "findLocation": "Konum Bul",
+        "lead": "Potansiyel Müşteri",
+        "schedule": "Randevu Al",
+        "search": "Arama",
+        "startTrial": "Denemeyi Başlat",
+        "submitApplication": "Başvuru Gönder",
+        "subscribe": "Abone Ol",
+        "custom": "Özel etkinlik…",
+        "groups": {
+          "commerce": "Ticaret",
+          "leads": "Potansiyel Müşteriler",
+          "orders": "Siparişler",
+          "feedback": "Geri Bildirim",
+          "leadsAndSignups": "Potansiyel Müşteriler ve Kayıtlar",
+          "other": "Diğer"
+        }
       },
       "value": "Değer",
       "valuePlaceholder": "ör. 250",
@@ -5564,7 +5642,16 @@
         "id": "Product ID",
         "quantity": "Quantity",
         "itemPrice": "Item price"
-      }
+      },
+      "customEventName": "Özel etkinlik adı",
+      "customEventNamePlaceholder": "örn. MyCustomEvent",
+      "contentType": {
+        "label": "İçerik türü",
+        "product": "Ürün",
+        "product_group": "Ürün Grubu"
+      },
+      "contentIds": "İçerik Kimlikleri",
+      "contentIdsPlaceholder": "örn. 123,456"
     },
     "datasetIdPlaceholder": "Etkinlik Yöneticisi'nden Veri Kümesi ID'sini yapıştırın",
     "saveDataset": "Kaydet",
@@ -5615,6 +5702,36 @@
     "limitedDataUse": {
       "label": "Limited Data Use (US privacy)",
       "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by ChatbotX."
+    },
+    "actionSource": {
+      "label": "Eylem kaynağı",
+      "help": "Bu etkinliğin nerede gerçekleştiği. Meta'nın eylem kaynağı belgelerine bakın.",
+      "business_messaging": "İşletme Mesajlaşması",
+      "email": "E-posta",
+      "phone_call": "Telefon Görüşmesi",
+      "chat": "Sohbet",
+      "physical_store": "Fiziksel Mağaza",
+      "system_generated": "Sistem Tarafından Oluşturuldu",
+      "other": "Diğer"
+    },
+    "dialog": {
+      "title": "Meta CAPI",
+      "advanced": "Gelişmiş"
+    },
+    "testEvents": {
+      "title": "Test etkinlikleri",
+      "description": "Events Manager → Test events üzerinden test_event_code değerini yapıştırın. Ayarlı olduğu sürece bu kanaldaki her etkinlik, tam yüküyle (değer, para birimi, içerik kimlikleri) Test events görünümüne yönlendirilir ve raporlarda sayılmaz. İşiniz bitince temizleyin.",
+      "codeLabel": "Test etkinliği kodu",
+      "codePlaceholder": "örn. TEST12345",
+      "save": "Kodu kaydet",
+      "clear": "Temizle",
+      "saved": "Test etkinliği kodu kaydedildi.",
+      "cleared": "Test etkinliği kodu temizlendi. Etkinlikler tekrar canlı.",
+      "send": "Test etkinliği gönder",
+      "sent": "Test etkinliği sıraya alındı. Bir dakika içinde Events Manager içindeki Test events altında görünür.",
+      "sendHint": "Bu kanalın en son kişisine örnek bir Purchase (100 USD) gönderir.",
+      "activeNotice": "Test modu açık: kod temizlenene kadar bu kanaldaki etkinlikler raporlarda sayılmaz.",
+      "openTestEvents": "Test events'i aç"
     }
   },
   "minigames": {
@@ -5676,7 +5793,10 @@
       "jackpotBanner": "Jackpot",
       "luckyWheelHeader": "ŞANS ÇARKI",
       "gashaponHeader": "GASHAPON",
-      "comingSoon": "Bu oyun türü için ayrıntılı önizleme yakında sunulacak"
+      "comingSoon": "Bu oyun türü için ayrıntılı önizleme yakında sunulacak",
+      "drawLotsHeader": "KURA ÇEKİMİ",
+      "scratchOffHeader": "KAZI KAZAN",
+      "scratchOffCardTitle": "Şanslı yıldız kazı kazan biletleri"
     },
     "form": {
       "generalSettingsTitle": "Genel Ayar",
@@ -5742,7 +5862,14 @@
         "win": "Kazandı",
         "lose": "Ödül yok",
         "empty": "Henüz oyun kaydı yok"
-      }
+      },
+      "conversationNotFound": "Bu kişi için görüşme bulunamadı",
+      "popupBlocked": "Lütfen bu site için açılır pencerelere izin verin, ardından tekrar deneyin."
+    },
+    "list": {
+      "gamesPlayed": "Oynanan oyunlar",
+      "participants": "Katılımcılar",
+      "winners": "Kazananlar"
     }
   },
   "mediaLibrary": {
@@ -6345,7 +6472,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -6362,7 +6491,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -6379,7 +6510,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -6396,11 +6529,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },

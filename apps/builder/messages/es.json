@@ -750,6 +750,17 @@
       "pendingBlockedToast": "This espacio de trabajo es scheduled para deletion. Contacto un espacio de trabajo admin un restore access.",
       "navDisabledTooltip": "Undisponible while espacio de trabajo deletion es scheduled",
       "badge": "Eliminación programada"
+    },
+    "supportAccess": {
+      "bannerTitle": "Sesión de soporte de la plataforma",
+      "bannerDescription": "Un agente de soporte de la plataforma tiene acceso temporal a este espacio de trabajo hasta las {time}.",
+      "cardTitle": "Acceso de soporte de la plataforma",
+      "cardDescription": "Permite que el equipo de soporte de la plataforma abra este espacio de trabajo con acceso completo durante 7 días. Puedes desactivarlo en cualquier momento.",
+      "enabledUntil": "Habilitado hasta {time}",
+      "permissionRequired": "Debes ser superadministrador para cambiar el acceso de soporte de la plataforma.",
+      "enabledToast": "Acceso de soporte de la plataforma habilitado.",
+      "disabledToast": "Acceso de soporte de la plataforma deshabilitado.",
+      "toggleError": "Algo salió mal. Por favor, inténtalo de nuevo."
     }
   },
   "workspaces": {
@@ -888,7 +899,8 @@
       "label": "Agente"
     },
     "aiAgent": {
-      "label": "Agente de IA"
+      "label": "Agente de IA",
+      "loadError": "No se pudieron cargar los agentes de IA. Inténtalo de nuevo."
     },
     "aiQueuedMessages": {
       "label": "Mensajes de IA en cola"
@@ -2211,7 +2223,27 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "selectOptionsPlaceholder": "Select options",
+    "tokenPermission": {
+      "label": "Permiso",
+      "full": "Acceso completo",
+      "readOnly": "Solo lectura"
+    },
+    "tokenScopes": {
+      "label": "Ámbitos",
+      "contacts": "Contactos",
+      "inbox": "Bandeja de entrada",
+      "automation": "Automatización",
+      "broadcasts": "Difusiones",
+      "analytics": "Analítica",
+      "ecommerce": "Comercio electrónico",
+      "integrations": "Integraciones",
+      "channels": "Canales",
+      "minigames": "Minijuegos",
+      "appointments": "Citas",
+      "media": "Medios",
+      "ads": "Anuncios"
+    }
   },
   "flows": {
     "export": {
@@ -2353,7 +2385,6 @@
       "export": "Exportar",
       "importStarted": "El flujo se está importando. Consulta el historial de importaciones para ver los resultados.",
       "importJsonOnly": "Solo archivos JSON",
-      "adsConversions": "Anuncios y Meta Conversions",
       "aiAgentGroup": "AI agent"
     },
     "splitTraffic": {
@@ -2990,9 +3021,8 @@
     "title": "Make",
     "setting": {
       "label": "Make",
-      "description": "Conectar tu Make.com cuenta un Enviar eventoos desde tu flujos y receive contacto datos through Make scenarios. tu espacio de trabajo's Developer Access Token es copied un tu clipboard cuando tú click Conectar — paste it cuando creating el connection en Make.",
-      "notConfigured": "No Make invite enlace found. Por favor, Añadir one en Plataforma Ajustes.",
-      "noWorkspaceToken": "No Developer Access Token found para este espacio de trabajo. Generate one en el Espacio de trabajo token section above, then click Conectar again."
+      "description": "Conectar tu Make.com cuenta un Enviar eventoos desde tu flujos y receive contacto datos through Make scenarios.",
+      "notConfigured": "No Make invite enlace found. Por favor, Añadir one en Plataforma Ajustes."
     }
   },
   "integrations": {
@@ -3974,7 +4004,12 @@
   },
   "developerAccessToken": {
     "title": "Token de acceso a la API",
-    "description": "Generate un token un todosow tu workspace un access el public APIs. Keep este token secret y hacer not share it con cualquierone."
+    "description": "Generate un token un todosow tu workspace un access el public APIs. Keep este token secret y hacer not share it con cualquierone.",
+    "createDialogTitle": "Crear token de API",
+    "namePlaceholder": "p. ej. integración de Zapier",
+    "empty": "Aún no hay tokens de API.",
+    "defaultBadge": "Predeterminado",
+    "allScopes": "Todos los ámbitos"
   },
   "contacts": {
     "title": "Contactos",
@@ -4509,11 +4544,6 @@
       "description": "Conecta primero una cuenta de canal y luego vuelve aquí para crear anuncios.",
       "cta": "Ir a la configuración del canal"
     },
-    "movedNote": {
-      "title": "Los anuncios se han movido a Herramientas",
-      "description": "Crea y gestiona los anuncios Click-to-Message desde la herramienta Anuncios Click-to-Message.",
-      "cta": "Abrir Anuncios Click-to-Message"
-    },
     "dashboardCta": "Ver en el panel de anuncios"
   },
   "ecommerce": {
@@ -4621,6 +4651,17 @@
     "aiSettings": {
       "title": "AI Settings",
       "description": "Central Vertex AI configuration every workspace's AI agents inherit."
+    },
+    "workspaces": {
+      "title": "Espacios de trabajo",
+      "description": "Aquí se pueden abrir los espacios de trabajo cuyo propietario haya habilitado el acceso de soporte de la plataforma.",
+      "owner": "Propietario",
+      "tenant": "Inquilino",
+      "supportStatus": "Estado de soporte",
+      "openAsSupport": "Abrir como soporte",
+      "supportEnabledUntil": "Habilitado hasta {time}",
+      "supportOff": "Desactivado",
+      "searchPlaceholder": "Buscar por nombre, correo del propietario o ID"
     }
   },
   "platformCredentials": {
@@ -5508,13 +5549,12 @@
   },
   "metaConversions": {
     "title": "Conversions API",
-    "description": "Envía eventos LeadSubmitted desde conversaciones de Messenger, Instagram y WhatsApp a Meta.",
+    "description": "Envía eventos de conversión desde conversaciones de Messenger, Instagram y WhatsApp a Meta.",
     "datasetId": "ID del conjunto de datos",
     "reconnect": "Reconectar permisos",
     "connectViaFacebook": "Conectar mediante Facebook",
     "unsupportedExplanation": "Esta cuenta de Instagram se conectó con Instagram Business Login. Conecta la cuenta mediante Facebook para usar Meta Conversions API.",
     "flowStep": {
-      "description": "Encola un evento LeadSubmitted para Messenger, Instagram o WhatsApp.",
       "whatsappNote": "Los eventos de WhatsApp solo se envían para conversaciones que comenzaron desde un anuncio click-to-WhatsApp."
     },
     "status": {
@@ -5541,12 +5581,50 @@
       "datasetRequired": "Guarda un ID de conjunto de datos antes de añadir un token de acceso.",
       "invalidToken": "Este token no pudo acceder al conjunto de datos.",
       "invalidDatasetId": "Introduce un Dataset ID válido (solo números).",
-      "whatsappNotFound": "No se encontró la integración de WhatsApp."
+      "whatsappNotFound": "No se encontró la integración de WhatsApp.",
+      "testEventCodeRequired": "Guarda un código de evento de prueba antes de enviar un evento de prueba.",
+      "noContactForTest": "Aún no hay un contacto apto en este canal. Un evento de prueba necesita un contacto real al que atribuirse (en WhatsApp, uno que provenga de un anuncio click-to-WhatsApp).",
+      "invalidTestEventCode": "El código de evento de prueba solo puede contener letras, números, guiones o guiones bajos (máx. 64)."
     },
     "fields": {
       "eventType": {
         "label": "Tipo de evento",
-        "leadSubmitted": "Lead enviado"
+        "leadSubmitted": "Lead enviado",
+        "purchase": "Compra",
+        "initiateCheckout": "Iniciar pago",
+        "addToCart": "Añadir al carrito",
+        "viewContent": "Ver contenido",
+        "orderCreated": "Pedido creado",
+        "orderShipped": "Pedido enviado",
+        "orderDelivered": "Pedido entregado",
+        "orderCanceled": "Pedido cancelado",
+        "orderReturned": "Pedido devuelto",
+        "cartAbandoned": "Carrito abandonado",
+        "qualifiedLead": "Lead calificado",
+        "ratingProvided": "Valoración proporcionada",
+        "reviewProvided": "Reseña proporcionada",
+        "addPaymentInfo": "Añadir información de pago",
+        "addToWishlist": "Añadir a la lista de deseos",
+        "completeRegistration": "Registro completado",
+        "contact": "Contacto",
+        "customizeProduct": "Personalizar producto",
+        "donate": "Donar",
+        "findLocation": "Buscar ubicación",
+        "lead": "Lead",
+        "schedule": "Programar",
+        "search": "Búsqueda",
+        "startTrial": "Iniciar prueba",
+        "submitApplication": "Enviar solicitud",
+        "subscribe": "Suscribirse",
+        "custom": "Evento personalizado…",
+        "groups": {
+          "commerce": "Comercio",
+          "leads": "Leads",
+          "orders": "Pedidos",
+          "feedback": "Comentarios",
+          "leadsAndSignups": "Leads y registros",
+          "other": "Otros"
+        }
       },
       "value": "Valor",
       "valuePlaceholder": "p. ej. 250",
@@ -5564,7 +5642,16 @@
         "id": "Product ID",
         "quantity": "Quantity",
         "itemPrice": "Item price"
-      }
+      },
+      "customEventName": "Nombre del evento personalizado",
+      "customEventNamePlaceholder": "p. ej. MyCustomEvent",
+      "contentType": {
+        "label": "Tipo de contenido",
+        "product": "Producto",
+        "product_group": "Grupo de productos"
+      },
+      "contentIds": "ID de contenido",
+      "contentIdsPlaceholder": "p. ej. 123,456"
     },
     "datasetIdPlaceholder": "Pega el ID del conjunto de datos desde Events Manager",
     "saveDataset": "Guardar",
@@ -5615,6 +5702,36 @@
     "limitedDataUse": {
       "label": "Limited Data Use (US privacy)",
       "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by ChatbotX."
+    },
+    "actionSource": {
+      "label": "Origen de la acción",
+      "help": "Dónde ocurrió este evento. Consulta la documentación de Meta sobre el origen de la acción.",
+      "business_messaging": "Mensajería empresarial",
+      "email": "Correo electrónico",
+      "phone_call": "Llamada telefónica",
+      "chat": "Chat",
+      "physical_store": "Tienda física",
+      "system_generated": "Generado por el sistema",
+      "other": "Otros"
+    },
+    "dialog": {
+      "title": "Meta CAPI",
+      "advanced": "Avanzado"
+    },
+    "testEvents": {
+      "title": "Eventos de prueba",
+      "description": "Pega el test_event_code de Events Manager → Test events. Mientras esté configurado, cada evento de este canal se enruta a la vista Test events con su payload completo (valor, moneda, IDs de contenido) y no se cuenta en los informes. Bórralo cuando termines.",
+      "codeLabel": "Código de evento de prueba",
+      "codePlaceholder": "p. ej. TEST12345",
+      "save": "Guardar código",
+      "clear": "Borrar",
+      "saved": "Código de evento de prueba guardado.",
+      "cleared": "Código de evento de prueba borrado. Los eventos vuelven a estar en vivo.",
+      "send": "Enviar evento de prueba",
+      "sent": "Evento de prueba en cola. Aparecerá en Test events dentro de Events Manager en un minuto.",
+      "sendHint": "Envía un Purchase de muestra (100 USD) al contacto más reciente de este canal.",
+      "activeNotice": "El modo de prueba está activo: los eventos de este canal no se cuentan en los informes hasta que se borre el código.",
+      "openTestEvents": "Abrir Test events"
     }
   },
   "minigames": {
@@ -5676,7 +5793,10 @@
       "jackpotBanner": "Jackpot",
       "luckyWheelHeader": "RULETA DE LA SUERTE",
       "gashaponHeader": "GASHAPON",
-      "comingSoon": "La vista previa detallada de este tipo de juego estará disponible próximamente"
+      "comingSoon": "La vista previa detallada de este tipo de juego estará disponible próximamente",
+      "drawLotsHeader": "SORTEO",
+      "scratchOffHeader": "RASCA Y GANA",
+      "scratchOffCardTitle": "Boletos rasca y gana de la estrella de la suerte"
     },
     "form": {
       "generalSettingsTitle": "Configuración general",
@@ -5742,7 +5862,14 @@
         "win": "Ganó",
         "lose": "Sin premio",
         "empty": "Aún no hay registros de jugadas"
-      }
+      },
+      "conversationNotFound": "No se encontró ninguna conversación para este contacto",
+      "popupBlocked": "Por favor, todosow pop-ups para este site, then try again."
+    },
+    "list": {
+      "gamesPlayed": "Partidas jugadas",
+      "participants": "Participantes",
+      "winners": "Ganadores"
     }
   },
   "mediaLibrary": {
@@ -6345,7 +6472,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -6362,7 +6491,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -6379,7 +6510,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -6396,11 +6529,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },

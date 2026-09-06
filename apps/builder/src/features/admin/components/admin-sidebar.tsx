@@ -9,6 +9,8 @@ import {
 import {
   BrainIcon,
   CoinsIcon,
+  Building2Icon,
+  CircleHelpIcon,
   Grid2x2PlusIcon,
   ListTodoIcon,
   RadioTowerIcon,
@@ -47,6 +49,11 @@ export function AdminSidebar({
       title: t("platformAdmin.platformCredentials.title"),
       url: "/admin/platform-credentials",
       icon: Grid2x2PlusIcon,
+    },
+    {
+      title: t("platformAdmin.workspaces.title"),
+      url: "/admin/workspaces",
+      icon: Building2Icon,
     },
     {
       title: t("channels.title"),

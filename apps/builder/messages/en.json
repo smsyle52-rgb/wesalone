@@ -750,6 +750,17 @@
       "pendingBlockedToast": "This workspace is scheduled for deletion. Contact a workspace admin to restore access.",
       "navDisabledTooltip": "Unavailable while workspace deletion is scheduled",
       "badge": "Deletion scheduled"
+    },
+    "supportAccess": {
+      "bannerTitle": "Platform support session",
+      "bannerDescription": "A platform support agent has temporary access to this workspace until {time}.",
+      "cardTitle": "Platform support access",
+      "cardDescription": "Let the platform support team open this workspace with full access for 7 days. You can turn it off at any time.",
+      "enabledUntil": "Enabled until {time}",
+      "permissionRequired": "You need to be a super admin to change platform support access.",
+      "enabledToast": "Platform support access enabled.",
+      "disabledToast": "Platform support access disabled.",
+      "toggleError": "Something went wrong. Please try again."
     }
   },
   "workspaces": {
@@ -888,7 +899,8 @@
       "label": "Agent"
     },
     "aiAgent": {
-      "label": "AI Agent"
+      "label": "AI Agent",
+      "loadError": "Failed to load AI agents. Please try again."
     },
     "aiQueuedMessages": {
       "label": "AI Queued Messages"
@@ -2211,15 +2223,34 @@
     },
     "adSource": {
       "label": "Ad source"
+    },
+    "tokenPermission": {
+      "label": "Permission",
+      "full": "Full access",
+      "readOnly": "Read only"
+    },
+    "tokenScopes": {
+      "label": "Scopes",
+      "contacts": "Contacts",
+      "inbox": "Inbox",
+      "automation": "Automation",
+      "broadcasts": "Broadcasts",
+      "analytics": "Analytics",
+      "ecommerce": "Ecommerce",
+      "integrations": "Integrations",
+      "channels": "Channels",
+      "minigames": "Minigames",
+      "appointments": "Appointments",
+      "media": "Media",
+      "ads": "Ads"
     }
   },
   "metaConversions": {
     "flowStep": {
-      "description": "Queue a LeadSubmitted event for Messenger, Instagram, or WhatsApp.",
       "whatsappNote": "WhatsApp events only send for conversations that started from a click-to-WhatsApp ad."
     },
     "title": "Conversions API",
-    "description": "Send LeadSubmitted events from Messenger, Instagram, and WhatsApp conversations to Meta.",
+    "description": "Send conversion events from Messenger, Instagram, and WhatsApp conversations to Meta.",
     "datasetId": "Dataset ID",
     "reconnect": "Reconnect permissions",
     "connectViaFacebook": "Connect via Facebook",
@@ -2248,12 +2279,50 @@
       "datasetRequired": "Save a Dataset ID before adding an access token.",
       "invalidToken": "This token could not access the dataset.",
       "whatsappNotFound": "WhatsApp integration not found.",
-      "invalidDatasetId": "Enter a valid Dataset ID (numbers only)."
+      "invalidDatasetId": "Enter a valid Dataset ID (numbers only).",
+      "testEventCodeRequired": "Save a test event code before sending a test event.",
+      "noContactForTest": "No eligible contact on this channel yet. A test event needs a real contact to attribute to (for WhatsApp, one that came from a click-to-WhatsApp ad).",
+      "invalidTestEventCode": "Test event code may only contain letters, digits, dashes or underscores (max 64)."
     },
     "fields": {
       "eventType": {
         "label": "Event type",
-        "leadSubmitted": "Lead Submitted"
+        "leadSubmitted": "Lead Submitted",
+        "purchase": "Purchase",
+        "initiateCheckout": "Initiate Checkout",
+        "addToCart": "Add To Cart",
+        "viewContent": "View Content",
+        "orderCreated": "Order Created",
+        "orderShipped": "Order Shipped",
+        "orderDelivered": "Order Delivered",
+        "orderCanceled": "Order Canceled",
+        "orderReturned": "Order Returned",
+        "cartAbandoned": "Cart Abandoned",
+        "qualifiedLead": "Qualified Lead",
+        "ratingProvided": "Rating Provided",
+        "reviewProvided": "Review Provided",
+        "addPaymentInfo": "Add Payment Info",
+        "addToWishlist": "Add To Wishlist",
+        "completeRegistration": "Complete Registration",
+        "contact": "Contact",
+        "customizeProduct": "Customize Product",
+        "donate": "Donate",
+        "findLocation": "Find Location",
+        "lead": "Lead",
+        "schedule": "Schedule",
+        "search": "Search",
+        "startTrial": "Start Trial",
+        "submitApplication": "Submit Application",
+        "subscribe": "Subscribe",
+        "custom": "Custom event…",
+        "groups": {
+          "commerce": "Commerce",
+          "leads": "Leads",
+          "orders": "Orders",
+          "feedback": "Feedback",
+          "leadsAndSignups": "Leads & Sign-ups",
+          "other": "Other"
+        }
       },
       "value": "Value",
       "valuePlaceholder": "e.g. 250",
@@ -2271,7 +2340,16 @@
         "id": "Product ID",
         "quantity": "Quantity",
         "itemPrice": "Item price"
-      }
+      },
+      "customEventName": "Custom event name",
+      "customEventNamePlaceholder": "e.g. MyCustomEvent",
+      "contentType": {
+        "label": "Content type",
+        "product": "Product",
+        "product_group": "Product Group"
+      },
+      "contentIds": "Content IDs",
+      "contentIdsPlaceholder": "e.g. 123,456"
     },
     "datasetIdPlaceholder": "Paste Dataset ID from Events Manager",
     "saveDataset": "Save",
@@ -2322,6 +2400,36 @@
     "limitedDataUse": {
       "label": "Limited Data Use (US privacy)",
       "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by ChatbotX."
+    },
+    "actionSource": {
+      "label": "Action source",
+      "help": "Where this event took place. See Meta's action source documentation.",
+      "business_messaging": "Business Messaging",
+      "email": "Email",
+      "phone_call": "Phone Call",
+      "chat": "Chat",
+      "physical_store": "Physical Store",
+      "system_generated": "System Generated",
+      "other": "Other"
+    },
+    "dialog": {
+      "title": "Meta CAPI",
+      "advanced": "Advanced"
+    },
+    "testEvents": {
+      "title": "Test events",
+      "description": "Paste the test_event_code from Events Manager → Test events. While it is set, every event from this channel is routed to the Test events view with its full payload (value, currency, content IDs) and is not counted in reports. Clear it when you are done.",
+      "codeLabel": "Test event code",
+      "codePlaceholder": "e.g. TEST12345",
+      "save": "Save code",
+      "clear": "Clear",
+      "saved": "Test event code saved.",
+      "cleared": "Test event code cleared. Events are live again.",
+      "send": "Send test event",
+      "sent": "Test event queued. It appears under Test events in Events Manager within a minute.",
+      "sendHint": "Sends one sample Purchase (100 USD) to this channel's most recent contact.",
+      "activeNotice": "Test mode is on: events from this channel are not counted in reports until the code is cleared.",
+      "openTestEvents": "Open Test events"
     }
   },
   "flows": {
@@ -2460,8 +2568,7 @@
       "importStarted": "Flow is importing. Check the import history for results.",
       "importJsonOnly": "JSON files only",
       "aiAgentGroup": "AI agent",
-      "sendMultipleImages": "Multiple Images",
-      "adsConversions": "Ads & Meta Conversions"
+      "sendMultipleImages": "Multiple Images"
     },
     "splitTraffic": {
       "balanceHint": "The total sum must equal 100%.",
@@ -3101,9 +3208,8 @@
     "title": "Make",
     "setting": {
       "label": "Make",
-      "description": "Connect your Make.com account to send events from your flows and receive contact data through Make scenarios. Your workspace's Developer Access Token is copied to your clipboard when you click Connect — paste it when creating the connection in Make.",
-      "notConfigured": "No Make invite link found. Please add one in Platform Settings.",
-      "noWorkspaceToken": "No Developer Access Token found for this workspace. Generate one in the Workspace token section above, then click Connect again."
+      "description": "Connect your Make.com account to send events from your flows and receive contact data through Make scenarios.",
+      "notConfigured": "No Make invite link found. Please add one in Platform Settings."
     }
   },
   "integrations": {
@@ -4019,7 +4125,12 @@
   },
   "developerAccessToken": {
     "title": "Wesal One API Access Token",
-    "description": "Generate a token to allow your workspace to access Wesal One APIs. Keep this token secret and do not share it with anyone."
+    "description": "Generate a token to allow your workspace to access Wesal One APIs. Keep this token secret and do not share it with anyone.",
+    "createDialogTitle": "Create API token",
+    "namePlaceholder": "e.g. Zapier integration",
+    "empty": "No API tokens yet.",
+    "defaultBadge": "Default",
+    "allScopes": "All scopes"
   },
   "contacts": {
     "title": "Contacts",
@@ -4651,6 +4762,17 @@
     "aiSettings": {
       "title": "AI Settings",
       "description": "Central Vertex AI configuration every workspace's AI agents inherit."
+    },
+    "workspaces": {
+      "title": "Workspaces",
+      "description": "Workspaces whose owner enabled platform support access can be opened here.",
+      "owner": "Owner",
+      "tenant": "Tenant",
+      "supportStatus": "Support status",
+      "openAsSupport": "Open as support",
+      "supportEnabledUntil": "Enabled until {time}",
+      "supportOff": "Off",
+      "searchPlaceholder": "Search by name, owner email or ID"
     }
   },
   "platformCredentials": {
@@ -5629,7 +5751,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -5646,7 +5770,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -5663,7 +5789,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -5680,11 +5808,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },
@@ -6184,7 +6316,10 @@
       "jackpotBanner": "Jackpot",
       "comingSoon": "Detailed preview coming soon for this game type",
       "luckyWheelHeader": "LUCKY WHEEL",
-      "gashaponHeader": "GASHAPON"
+      "gashaponHeader": "GASHAPON",
+      "drawLotsHeader": "DRAW LOTS",
+      "scratchOffHeader": "SCRATCH & WIN",
+      "scratchOffCardTitle": "Lucky star scratch-off tickets"
     },
     "form": {
       "generalSettingsTitle": "General Setting",
@@ -6250,7 +6385,9 @@
         "win": "Won",
         "lose": "No prize",
         "empty": "No play records yet"
-      }
+      },
+      "conversationNotFound": "No conversation found for this contact",
+      "popupBlocked": "Please allow pop-ups for this site, then try again."
     },
     "outcomeMessage": {
       "enableWin": "Send message to winner who received the prize",
@@ -6259,6 +6396,11 @@
       "modeText": "Text",
       "modeFlow": "Flow",
       "text": "Message"
+    },
+    "list": {
+      "gamesPlayed": "Games played",
+      "participants": "Participants",
+      "winners": "Winners"
     }
   },
   "clickToMessageAds": {
@@ -6268,11 +6410,6 @@
       "title": "No account connected for this channel",
       "description": "Connect a channel account first, then come back here to create ads.",
       "cta": "Go to channel settings"
-    },
-    "movedNote": {
-      "title": "Ads have moved to Tools",
-      "description": "Create and manage Click to Message ads from the Click to Message Ads tool.",
-      "cta": "Open Click to Message Ads"
     },
     "dashboardCta": "View on Ads dashboard"
   },

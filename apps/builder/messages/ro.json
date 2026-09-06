@@ -139,7 +139,6 @@
       "export": "Exportă",
       "importStarted": "Fluxul se importă. Verifică istoricul importurilor pentru rezultate.",
       "importJsonOnly": "Doar fișiere JSON",
-      "adsConversions": "Reclame și Meta Conversions",
       "aiAgentGroup": "AI agent"
     },
     "splitTraffic": {
@@ -776,9 +775,8 @@
     "title": "Make",
     "setting": {
       "label": "Make",
-      "description": "Conectați contul Make.com pentru a trimite evenimente din fluxuri și a primi date despre contacte prin scenarii Make. Tokenul de acces pentru dezvoltatori al spațiului de lucru este copiat în clipboard când apăsați pe Conectare — lipiți-l când creați conexiunea în Make.",
-      "notConfigured": "Nu a fost găsit niciun link de invitație Make. Adăugați unul în Setările platformei.",
-      "noWorkspaceToken": "Nu a fost găsit niciun token de acces pentru dezvoltatori pentru acest spațiu de lucru. Generați unul în secțiunea pentru tokenul spațiului de lucru de mai sus, apoi apăsați din nou pe Conectare."
+      "description": "Conectați contul Make.com pentru a trimite evenimente din fluxuri și a primi date despre contacte prin scenarii Make.",
+      "notConfigured": "Nu a fost găsit niciun link de invitație Make. Adăugați unul în Setările platformei."
     }
   },
   "integrations": {
@@ -1627,7 +1625,8 @@
       "label": "Agent"
     },
     "aiAgent": {
-      "label": "Agent AI"
+      "label": "Agent AI",
+      "loadError": "Încărcarea agenților AI a eșuat. Încercați din nou."
     },
     "aiQueuedMessages": {
       "label": "Mesaje AI în coadă"
@@ -2950,7 +2949,27 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "selectOptionsPlaceholder": "Select options",
+    "tokenPermission": {
+      "label": "Permisiune",
+      "full": "Acces complet",
+      "readOnly": "Doar citire"
+    },
+    "tokenScopes": {
+      "label": "Domenii",
+      "contacts": "Contacte",
+      "inbox": "Inbox",
+      "automation": "Automatizare",
+      "broadcasts": "Difuzări",
+      "analytics": "Analitice",
+      "ecommerce": "Comerț electronic",
+      "integrations": "Integrări",
+      "channels": "Canale",
+      "minigames": "Minijocuri",
+      "appointments": "Programări",
+      "media": "Media",
+      "ads": "Reclame"
+    }
   },
   "channels": {
     "title": "Canale",
@@ -3014,6 +3033,17 @@
       "pendingBlockedToast": "Acest spațiu de lucru este programat pentru ștergere. Contactează un administrator al spațiului de lucru pentru a restaura accesul.",
       "navDisabledTooltip": "Indisponibil cât timp ștergerea spațiului de lucru este programată",
       "badge": "Ștergere programată"
+    },
+    "supportAccess": {
+      "bannerTitle": "Sesiune de suport a platformei",
+      "bannerDescription": "Un agent de suport al platformei are acces temporar la acest spațiu de lucru până la {time}.",
+      "cardTitle": "Acces de suport al platformei",
+      "cardDescription": "Permite echipei de suport a platformei să deschidă acest spațiu de lucru cu acces complet timp de 7 zile. Poți dezactiva acest lucru oricând.",
+      "enabledUntil": "Activat până la {time}",
+      "permissionRequired": "Trebuie să fii super administrator pentru a modifica accesul de suport al platformei.",
+      "enabledToast": "Accesul de suport al platformei a fost activat.",
+      "disabledToast": "Accesul de suport al platformei a fost dezactivat.",
+      "toggleError": "Ceva nu a mers bine. Vă rugăm să încercați din nou."
     }
   },
   "workspaces": {
@@ -3974,7 +4004,12 @@
   },
   "developerAccessToken": {
     "title": "Token de acces API",
-    "description": "Generează un token pentru a permite spațiului tău de lucru să acceseze API-urile publice. Păstrează acest token secret și nu-l distribui nimănui."
+    "description": "Generează un token pentru a permite spațiului tău de lucru să acceseze API-urile publice. Păstrează acest token secret și nu-l distribui nimănui.",
+    "createDialogTitle": "Creare token API",
+    "namePlaceholder": "ex. integrare Zapier",
+    "empty": "Niciun token API încă.",
+    "defaultBadge": "Implicit",
+    "allScopes": "Toate domeniile"
   },
   "contacts": {
     "title": "Contacte",
@@ -4463,11 +4498,6 @@
       "description": "Conectează mai întâi un cont de canal, apoi revino aici pentru a crea reclame.",
       "cta": "Mergi la setările canalului"
     },
-    "movedNote": {
-      "title": "Reclamele s-au mutat în Instrumente",
-      "description": "Creează și gestionează reclamele Click-to-Message din instrumentul Reclame Click-to-Message.",
-      "cta": "Deschide Reclame Click-to-Message"
-    },
     "dashboardCta": "Vezi în panoul de control Reclame"
   },
   "helpItems": {
@@ -4868,6 +4898,17 @@
     "aiSettings": {
       "title": "AI Settings",
       "description": "Central Vertex AI configuration every workspace's AI agents inherit."
+    },
+    "workspaces": {
+      "title": "Spații de lucru",
+      "description": "Spațiile de lucru al căror proprietar a activat accesul de suport al platformei pot fi deschise aici.",
+      "owner": "Proprietar",
+      "tenant": "Chiriaș",
+      "supportStatus": "Stare suport",
+      "openAsSupport": "Deschide ca suport",
+      "supportEnabledUntil": "Activat până la {time}",
+      "supportOff": "Dezactivat",
+      "searchPlaceholder": "Căutați după nume, e-mailul proprietarului sau ID"
     }
   },
   "platformBranding": {
@@ -5508,13 +5549,12 @@
   },
   "metaConversions": {
     "title": "Conversions API",
-    "description": "Trimite evenimente LeadSubmitted din conversațiile Messenger, Instagram și WhatsApp către Meta.",
+    "description": "Trimite evenimente de conversie din conversațiile Messenger, Instagram și WhatsApp către Meta.",
     "datasetId": "ID set de date",
     "reconnect": "Reconectează permisiunile",
     "connectViaFacebook": "Conectează prin Facebook",
     "unsupportedExplanation": "Acest cont Instagram a fost conectat cu Instagram Business Login. Conectează contul prin Facebook pentru a folosi Meta Conversions API.",
     "flowStep": {
-      "description": "Pune în coadă un eveniment LeadSubmitted pentru Messenger, Instagram sau WhatsApp.",
       "whatsappNote": "Evenimentele WhatsApp sunt trimise doar pentru conversațiile care au început dintr-un anunț click-to-WhatsApp."
     },
     "status": {
@@ -5541,12 +5581,50 @@
       "datasetRequired": "Salvează un ID set de date înainte de a adăuga un token de acces.",
       "invalidToken": "Acest token nu a putut accesa setul de date.",
       "invalidDatasetId": "Introdu un Dataset ID valid (doar cifre).",
-      "whatsappNotFound": "Integrarea WhatsApp nu a fost găsită."
+      "whatsappNotFound": "Integrarea WhatsApp nu a fost găsită.",
+      "testEventCodeRequired": "Salvează un cod de eveniment de test înainte de a trimite un eveniment de test.",
+      "noContactForTest": "Încă nu există un contact eligibil pe acest canal. Un eveniment de test are nevoie de un contact real căruia să i se atribuie (pentru WhatsApp, unul provenit dintr-o reclamă click-to-WhatsApp).",
+      "invalidTestEventCode": "Codul evenimentului de test poate conține doar litere, cifre, cratime sau underscore-uri (max. 64)."
     },
     "fields": {
       "eventType": {
         "label": "Tip de eveniment",
-        "leadSubmitted": "Lead trimis"
+        "leadSubmitted": "Lead trimis",
+        "purchase": "Cumpărare",
+        "initiateCheckout": "Inițiere finalizare comandă",
+        "addToCart": "Adaugă în coș",
+        "viewContent": "Vizualizare conținut",
+        "orderCreated": "Comandă creată",
+        "orderShipped": "Comandă expediată",
+        "orderDelivered": "Comandă livrată",
+        "orderCanceled": "Comandă anulată",
+        "orderReturned": "Comandă returnată",
+        "cartAbandoned": "Coș abandonat",
+        "qualifiedLead": "Client potențial calificat",
+        "ratingProvided": "Evaluare furnizată",
+        "reviewProvided": "Recenzie furnizată",
+        "addPaymentInfo": "Adăugare informații de plată",
+        "addToWishlist": "Adăugare la lista de dorințe",
+        "completeRegistration": "Înregistrare finalizată",
+        "contact": "Contact",
+        "customizeProduct": "Personalizare produs",
+        "donate": "Donează",
+        "findLocation": "Găsire locație",
+        "lead": "Client potențial",
+        "schedule": "Programare",
+        "search": "Căutare",
+        "startTrial": "Începe perioada de probă",
+        "submitApplication": "Trimitere cerere",
+        "subscribe": "Abonare",
+        "custom": "Eveniment personalizat…",
+        "groups": {
+          "commerce": "Comerț",
+          "leads": "Clienți potențiali",
+          "orders": "Comenzi",
+          "feedback": "Feedback",
+          "leadsAndSignups": "Clienți potențiali și înregistrări",
+          "other": "Altele"
+        }
       },
       "value": "Valoare",
       "valuePlaceholder": "de ex. 250",
@@ -5564,7 +5642,16 @@
         "id": "Product ID",
         "quantity": "Quantity",
         "itemPrice": "Item price"
-      }
+      },
+      "customEventName": "Numele evenimentului personalizat",
+      "customEventNamePlaceholder": "ex. MyCustomEvent",
+      "contentType": {
+        "label": "Tip de conținut",
+        "product": "Produs",
+        "product_group": "Grup de produse"
+      },
+      "contentIds": "ID-uri de conținut",
+      "contentIdsPlaceholder": "ex. 123,456"
     },
     "datasetIdPlaceholder": "Lipește ID-ul setului de date din Events Manager",
     "saveDataset": "Salvează",
@@ -5615,6 +5702,36 @@
     "limitedDataUse": {
       "label": "Limited Data Use (US privacy)",
       "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by ChatbotX."
+    },
+    "actionSource": {
+      "label": "Sursa acțiunii",
+      "help": "Unde a avut loc acest eveniment. Consultați documentația Meta despre sursa acțiunii.",
+      "business_messaging": "Mesagerie business",
+      "email": "E-mail",
+      "phone_call": "Apel telefonic",
+      "chat": "Chat",
+      "physical_store": "Magazin fizic",
+      "system_generated": "Generat de sistem",
+      "other": "Altele"
+    },
+    "dialog": {
+      "title": "Meta CAPI",
+      "advanced": "Avansat"
+    },
+    "testEvents": {
+      "title": "Evenimente de test",
+      "description": "Lipește test_event_code din Events Manager → Test events. Cât timp este setat, fiecare eveniment de pe acest canal este direcționat către vizualizarea Test events cu payload-ul complet (valoare, monedă, ID-uri de conținut) și nu este contorizat în rapoarte. Șterge-l când ai terminat.",
+      "codeLabel": "Cod eveniment de test",
+      "codePlaceholder": "ex. TEST12345",
+      "save": "Salvează codul",
+      "clear": "Șterge",
+      "saved": "Codul evenimentului de test a fost salvat.",
+      "cleared": "Codul evenimentului de test a fost șters. Evenimentele sunt din nou live.",
+      "send": "Trimite eveniment de test",
+      "sent": "Evenimentul de test a fost pus în coadă. Apare în Test events din Events Manager în decurs de un minut.",
+      "sendHint": "Trimite un exemplu de Purchase (100 USD) către cel mai recent contact de pe acest canal.",
+      "activeNotice": "Modul de test este activ: evenimentele de pe acest canal nu sunt contorizate în rapoarte până când codul este șters.",
+      "openTestEvents": "Deschide Test events"
     }
   },
   "minigames": {
@@ -5676,7 +5793,10 @@
       "jackpotBanner": "Jackpot",
       "luckyWheelHeader": "ROATA NOROCULUI",
       "gashaponHeader": "GASHAPON",
-      "comingSoon": "Previzualizarea detaliată pentru acest tip de joc va fi disponibilă în curând"
+      "comingSoon": "Previzualizarea detaliată pentru acest tip de joc va fi disponibilă în curând",
+      "drawLotsHeader": "TRAGERE LA SORȚI",
+      "scratchOffHeader": "RĂZUIEȘTE ȘI CÂȘTIGĂ",
+      "scratchOffCardTitle": "Bilete răzuibile steaua norocoasă"
     },
     "form": {
       "generalSettingsTitle": "Setări generale",
@@ -5742,7 +5862,14 @@
         "win": "A câștigat",
         "lose": "Fără premiu",
         "empty": "Nu există încă înregistrări de joc"
-      }
+      },
+      "conversationNotFound": "Nu s-a găsit nicio conversație pentru acest contact",
+      "popupBlocked": "Te rugăm să permiți ferestrele pop-up pentru acest site, apoi încearcă din nou."
+    },
+    "list": {
+      "gamesPlayed": "Jocuri jucate",
+      "participants": "Participanți",
+      "winners": "Câștigători"
     }
   },
   "mediaLibrary": {
@@ -6345,7 +6472,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -6362,7 +6491,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -6379,7 +6510,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -6396,11 +6529,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },

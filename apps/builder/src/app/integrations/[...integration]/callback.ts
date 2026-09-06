@@ -1,5 +1,6 @@
 import {
   appointmentExternalCalendarService,
+  hasWorkspaceAccess,
   instagramIntegrationService,
   integrationFacebookAdsService,
   integrationMetaCatalogService,
@@ -65,7 +66,7 @@ import { connectZaloHandler } from "@/features/integration-zalo/actions/connect-
 import { reconnectZaloHandler } from "@/features/integration-zalo/actions/reconnect-callback"
 import { integrations } from "@/integration"
 import { assertWorkspaceSuperAdmin } from "@/lib/auth/assert-workspace-super-admin"
-import { getCurrentUserId } from "@/lib/auth/utils"
+import { getCurrentUser } from "@/lib/auth/utils"
 import { buildReconnectRedirectUrl } from "@/lib/channel-reconnect"
 import {
   encryptAuth,
@@ -310,10 +311,11 @@ export const handleCallback = async (
     return redirect(cancelReferer)
   }
 
-  const userId = await getCurrentUserId()
-  if (!userId) {
+  const user = await getCurrentUser()
+  if (!user) {
     return notFound()
   }
+  const userId = user.id
 
   // A connect started from outside a workspace (a pasted link, a deep link
   // from the channels dialog before a workspace is picked) carries no
@@ -340,9 +342,9 @@ export const handleCallback = async (
 
   if (
     stateParams.workspaceId &&
-    !(await workspaceMemberService.isMember({
+    !(await hasWorkspaceAccess({
       workspaceId: stateParams.workspaceId,
-      userId,
+      user,
     }))
   ) {
     logger.info(

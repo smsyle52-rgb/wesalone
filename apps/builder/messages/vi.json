@@ -750,6 +750,17 @@
       "pendingBlockedToast": "Workspace này đã được lên lịch xóa. Hãy liên hệ quản trị viên workspace để khôi phục quyền truy cập.",
       "navDisabledTooltip": "Không khả dụng khi workspace đã được lên lịch xóa",
       "badge": "Đã lên lịch xóa"
+    },
+    "supportAccess": {
+      "bannerTitle": "Phiên hỗ trợ nền tảng",
+      "bannerDescription": "Một nhân viên hỗ trợ nền tảng có quyền truy cập tạm thời vào không gian làm việc này cho đến {time}.",
+      "cardTitle": "Quyền truy cập hỗ trợ nền tảng",
+      "cardDescription": "Cho phép nhóm hỗ trợ nền tảng mở không gian làm việc này với quyền truy cập đầy đủ trong 7 ngày. Bạn có thể tắt tính năng này bất cứ lúc nào.",
+      "enabledUntil": "Đã bật đến {time}",
+      "permissionRequired": "Bạn cần là quản trị viên cấp cao để thay đổi quyền truy cập hỗ trợ nền tảng.",
+      "enabledToast": "Đã bật quyền truy cập hỗ trợ nền tảng.",
+      "disabledToast": "Đã tắt quyền truy cập hỗ trợ nền tảng.",
+      "toggleError": "Đã xảy ra lỗi. Vui lòng thử lại."
     }
   },
   "workspaces": {
@@ -883,7 +894,8 @@
       "label": "Đại lý"
     },
     "aiAgent": {
-      "label": "AI Agent"
+      "label": "AI Agent",
+      "loadError": "Không thể tải danh sách AI Agent. Vui lòng thử lại."
     },
     "aiQueuedMessages": {
       "label": "Tin nhắn chờ AI"
@@ -2211,7 +2223,27 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "selectOptionsPlaceholder": "Select options",
+    "tokenPermission": {
+      "label": "Quyền",
+      "full": "Toàn quyền truy cập",
+      "readOnly": "Chỉ đọc"
+    },
+    "tokenScopes": {
+      "label": "Phạm vi",
+      "contacts": "Liên hệ",
+      "inbox": "Hộp thư đến",
+      "automation": "Tự động hóa",
+      "broadcasts": "Phát sóng",
+      "analytics": "Phân tích",
+      "ecommerce": "Thương mại điện tử",
+      "integrations": "Tích hợp",
+      "channels": "Kênh",
+      "minigames": "Minigame",
+      "appointments": "Lịch hẹn",
+      "media": "Phương tiện",
+      "ads": "Quảng cáo"
+    }
   },
   "flows": {
     "export": {
@@ -2353,7 +2385,6 @@
       "export": "Xuất",
       "importStarted": "Luồng đang được nhập. Kiểm tra lịch sử nhập để xem kết quả.",
       "importJsonOnly": "Chỉ tệp JSON",
-      "adsConversions": "Quảng cáo và Meta Conversions",
       "aiAgentGroup": "AI agent"
     },
     "splitTraffic": {
@@ -2990,9 +3021,8 @@
     "title": "Make",
     "setting": {
       "label": "Make",
-      "description": "Kết nối tài khoản Make.com để gửi sự kiện từ flow của bạn và nhận dữ liệu contact qua scenario của Make. Developer Access Token của workspace sẽ được tự động sao chép vào clipboard khi bạn bấm Connect — dán vào lúc tạo connection trong Make.",
-      "notConfigured": "Chưa tìm thấy link mời Make. Vui lòng thêm trong Cài đặt Nền tảng.",
-      "noWorkspaceToken": "Workspace này chưa có Developer Access Token. Hãy tạo token ở mục Workspace token phía trên rồi bấm Connect lại."
+      "description": "Kết nối tài khoản Make.com để gửi sự kiện từ flow của bạn và nhận dữ liệu contact qua scenario của Make.",
+      "notConfigured": "Chưa tìm thấy link mời Make. Vui lòng thêm trong Cài đặt Nền tảng."
     }
   },
   "integrations": {
@@ -3887,7 +3917,12 @@
   },
   "developerAccessToken": {
     "title": "Token truy cập API",
-    "description": "Tạo token để cho phép workspace của bạn truy cập API công khai. Giữ token này bí mật và không chia sẻ với ai."
+    "description": "Tạo token để cho phép workspace của bạn truy cập API công khai. Giữ token này bí mật và không chia sẻ với ai.",
+    "createDialogTitle": "Tạo mã API",
+    "namePlaceholder": "vd: tích hợp Zapier",
+    "empty": "Chưa có mã API nào.",
+    "defaultBadge": "Mặc định",
+    "allScopes": "Tất cả phạm vi"
   },
   "contacts": {
     "title": "Liên hệ",
@@ -4548,11 +4583,6 @@
       "description": "Hãy kết nối một tài khoản kênh trước, sau đó quay lại đây để tạo quảng cáo.",
       "cta": "Đi đến cài đặt kênh"
     },
-    "movedNote": {
-      "title": "Quảng cáo đã chuyển sang Công cụ",
-      "description": "Tạo và quản lý quảng cáo Click-to-Message từ công cụ Quảng cáo Click-to-Message.",
-      "cta": "Mở Quảng cáo Click-to-Message"
-    },
     "dashboardCta": "Xem trên bảng điều khiển Quảng cáo"
   },
   "ecommerce": {
@@ -4799,6 +4829,17 @@
     "aiSettings": {
       "title": "AI Settings",
       "description": "Central Vertex AI configuration every workspace's AI agents inherit."
+    },
+    "workspaces": {
+      "title": "Không gian làm việc",
+      "description": "Các không gian làm việc mà chủ sở hữu đã bật quyền truy cập hỗ trợ nền tảng có thể được mở tại đây.",
+      "owner": "Chủ sở hữu",
+      "tenant": "Người thuê",
+      "supportStatus": "Trạng thái hỗ trợ",
+      "openAsSupport": "Mở với vai trò hỗ trợ",
+      "supportEnabledUntil": "Đã bật đến {time}",
+      "supportOff": "Tắt",
+      "searchPlaceholder": "Tìm kiếm theo tên, email chủ sở hữu hoặc ID"
     }
   },
   "platformCredentials": {
@@ -5508,13 +5549,12 @@
   },
   "metaConversions": {
     "title": "Conversions API",
-    "description": "Gửi sự kiện LeadSubmitted từ hội thoại Messenger, Instagram và WhatsApp đến Meta.",
+    "description": "Gửi các sự kiện chuyển đổi từ hội thoại Messenger, Instagram và WhatsApp đến Meta.",
     "datasetId": "ID dataset",
     "reconnect": "Kết nối lại quyền",
     "connectViaFacebook": "Kết nối qua Facebook",
     "unsupportedExplanation": "Tài khoản Instagram này được kết nối bằng Instagram Business Login. Hãy kết nối tài khoản qua Facebook để dùng Meta Conversions API.",
     "flowStep": {
-      "description": "Đưa sự kiện LeadSubmitted cho Messenger, Instagram hoặc WhatsApp vào hàng đợi.",
       "whatsappNote": "Sự kiện WhatsApp chỉ được gửi cho các hội thoại bắt đầu từ quảng cáo click-to-WhatsApp."
     },
     "status": {
@@ -5541,12 +5581,50 @@
       "datasetRequired": "Hãy lưu Dataset ID trước khi thêm access token.",
       "invalidToken": "Token này không truy cập được dataset.",
       "invalidDatasetId": "Nhập Dataset ID hợp lệ (chỉ gồm chữ số).",
-      "whatsappNotFound": "Không tìm thấy tích hợp WhatsApp."
+      "whatsappNotFound": "Không tìm thấy tích hợp WhatsApp.",
+      "testEventCodeRequired": "Hãy lưu mã sự kiện thử trước khi gửi sự kiện thử.",
+      "noContactForTest": "Kênh này chưa có liên hệ phù hợp. Sự kiện thử cần một liên hệ thật để gán vào (với WhatsApp, liên hệ phải đến từ quảng cáo click-to-WhatsApp).",
+      "invalidTestEventCode": "Mã sự kiện thử chỉ được chứa chữ, số, gạch ngang hoặc gạch dưới (tối đa 64 ký tự)."
     },
     "fields": {
       "eventType": {
         "label": "Loại sự kiện",
-        "leadSubmitted": "Gửi thông tin (Lead)"
+        "leadSubmitted": "Gửi thông tin (Lead)",
+        "purchase": "Mua hàng",
+        "initiateCheckout": "Bắt đầu thanh toán",
+        "addToCart": "Thêm vào giỏ hàng",
+        "viewContent": "Xem nội dung",
+        "orderCreated": "Đơn hàng được tạo",
+        "orderShipped": "Đơn hàng đã gửi",
+        "orderDelivered": "Đơn hàng đã giao",
+        "orderCanceled": "Đơn hàng đã huỷ",
+        "orderReturned": "Đơn hàng đã trả lại",
+        "cartAbandoned": "Bỏ giỏ hàng",
+        "qualifiedLead": "Lead hợp lệ",
+        "ratingProvided": "Đã đánh giá",
+        "reviewProvided": "Đã nhận xét",
+        "addPaymentInfo": "Thêm thông tin thanh toán",
+        "addToWishlist": "Thêm vào yêu thích",
+        "completeRegistration": "Hoàn tất đăng ký",
+        "contact": "Liên hệ",
+        "customizeProduct": "Tuỳ chỉnh sản phẩm",
+        "donate": "Quyên góp",
+        "findLocation": "Tìm địa điểm",
+        "lead": "Lead",
+        "schedule": "Đặt lịch",
+        "search": "Tìm kiếm",
+        "startTrial": "Bắt đầu dùng thử",
+        "submitApplication": "Gửi đơn đăng ký",
+        "subscribe": "Đăng ký",
+        "custom": "Sự kiện tuỳ chỉnh…",
+        "groups": {
+          "commerce": "Thương mại",
+          "leads": "Lead",
+          "orders": "Đơn hàng",
+          "feedback": "Phản hồi",
+          "leadsAndSignups": "Lead & Đăng ký",
+          "other": "Khác"
+        }
       },
       "value": "Giá trị",
       "valuePlaceholder": "vd: 250",
@@ -5564,7 +5642,16 @@
         "id": "Product ID",
         "quantity": "Quantity",
         "itemPrice": "Item price"
-      }
+      },
+      "customEventName": "Tên sự kiện tuỳ chỉnh",
+      "customEventNamePlaceholder": "vd: MyCustomEvent",
+      "contentType": {
+        "label": "Loại nội dung",
+        "product": "Sản phẩm",
+        "product_group": "Nhóm sản phẩm"
+      },
+      "contentIds": "Mã nội dung",
+      "contentIdsPlaceholder": "vd: 123,456"
     },
     "datasetIdPlaceholder": "Dán Dataset ID từ Events Manager",
     "saveDataset": "Lưu",
@@ -5615,6 +5702,36 @@
     "limitedDataUse": {
       "label": "Limited Data Use (US privacy)",
       "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by ChatbotX."
+    },
+    "actionSource": {
+      "label": "Nguồn hành động",
+      "help": "Sự kiện này diễn ra ở đâu. Xem tài liệu về nguồn hành động của Meta.",
+      "business_messaging": "Nhắn tin doanh nghiệp",
+      "email": "Email",
+      "phone_call": "Cuộc gọi",
+      "chat": "Trò chuyện",
+      "physical_store": "Cửa hàng thực tế",
+      "system_generated": "Do hệ thống tạo",
+      "other": "Khác"
+    },
+    "dialog": {
+      "title": "Meta CAPI",
+      "advanced": "Nâng cao"
+    },
+    "testEvents": {
+      "title": "Sự kiện thử",
+      "description": "Dán test_event_code lấy từ Events Manager → Test events. Khi đang đặt mã, mọi sự kiện của kênh này được đưa vào màn Test events kèm đầy đủ dữ liệu (giá trị, tiền tệ, mã nội dung) và không được tính vào báo cáo. Xoá mã khi kiểm tra xong.",
+      "codeLabel": "Mã sự kiện thử",
+      "codePlaceholder": "vd: TEST12345",
+      "save": "Lưu mã",
+      "clear": "Xoá",
+      "saved": "Đã lưu mã sự kiện thử.",
+      "cleared": "Đã xoá mã sự kiện thử. Sự kiện gửi thật trở lại.",
+      "send": "Gửi sự kiện thử",
+      "sent": "Đã xếp hàng sự kiện thử. Nó sẽ hiện trong Test events của Events Manager trong khoảng một phút.",
+      "sendHint": "Gửi một sự kiện Purchase mẫu (100 USD) tới liên hệ gần nhất của kênh này.",
+      "activeNotice": "Đang ở chế độ thử: sự kiện của kênh này không được tính vào báo cáo cho tới khi xoá mã.",
+      "openTestEvents": "Mở Test events"
     }
   },
   "minigames": {
@@ -5676,7 +5793,10 @@
       "jackpotBanner": "Jackpot",
       "luckyWheelHeader": "VÒNG QUAY MAY MẮN",
       "gashaponHeader": "GASHAPON",
-      "comingSoon": "Bản xem trước chi tiết cho loại trò chơi này sẽ sớm ra mắt"
+      "comingSoon": "Bản xem trước chi tiết cho loại trò chơi này sẽ sớm ra mắt",
+      "drawLotsHeader": "RÚT THĂM",
+      "scratchOffHeader": "CÀO TRÚNG THƯỞNG",
+      "scratchOffCardTitle": "Vé cào ngôi sao may mắn"
     },
     "form": {
       "generalSettingsTitle": "Thiết lập chung",
@@ -5742,7 +5862,14 @@
         "win": "Trúng thưởng",
         "lose": "Không trúng",
         "empty": "Chưa có bản ghi lượt chơi nào"
-      }
+      },
+      "conversationNotFound": "Không tìm thấy cuộc trò chuyện nào cho liên hệ này",
+      "popupBlocked": "Vui lòng cho phép cửa sổ bật lên cho trang này rồi thử lại."
+    },
+    "list": {
+      "gamesPlayed": "Lượt chơi",
+      "participants": "Người tham gia",
+      "winners": "Người thắng cuộc"
     }
   },
   "mediaLibrary": {
@@ -6345,7 +6472,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -6362,7 +6491,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -6379,7 +6510,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -6396,11 +6529,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },

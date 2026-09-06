@@ -813,7 +813,8 @@
       "label": "エージェント"
     },
     "aiAgent": {
-      "label": "AIエージェント"
+      "label": "AIエージェント",
+      "loadError": "AIエージェントの読み込みに失敗しました。もう一度お試しください。"
     },
     "aiQueuedMessages": {
       "label": "AI待機中メッセージ"
@@ -2136,7 +2137,27 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "selectOptionsPlaceholder": "Select options",
+    "tokenPermission": {
+      "label": "権限",
+      "full": "フルアクセス",
+      "readOnly": "読み取り専用"
+    },
+    "tokenScopes": {
+      "label": "スコープ",
+      "contacts": "連絡先",
+      "inbox": "受信箱",
+      "automation": "自動化",
+      "broadcasts": "配信",
+      "analytics": "アナリティクス",
+      "ecommerce": "eコマース",
+      "integrations": "連携",
+      "channels": "チャネル",
+      "minigames": "ミニゲーム",
+      "appointments": "予約",
+      "media": "メディア",
+      "ads": "広告"
+    }
   },
   "flows": {
     "export": {
@@ -2278,7 +2299,6 @@
       "export": "エクスポート",
       "importStarted": "フローをインポート中です。結果はインポート履歴でご確認ください。",
       "importJsonOnly": "JSONファイルのみ",
-      "adsConversions": "広告とMeta Conversions",
       "aiAgentGroup": "AI agent"
     },
     "splitTraffic": {
@@ -2915,9 +2935,8 @@
     "title": "Make",
     "setting": {
       "label": "Make",
-      "description": "Make.comアカウントを接続すると、フローからイベントを送信し、Makeシナリオを通じて連絡先データを受信できます。「接続」をクリックすると、ワークスペースの開発者アクセストークンがクリップボードにコピーされます。Makeで接続を作成する際に貼り付けてください。",
-      "notConfigured": "Makeの招待リンクが見つかりません。プラットフォーム設定で追加してください。",
-      "noWorkspaceToken": "このワークスペースの開発者アクセストークンが見つかりません。上のワークスペーストークン欄で生成してから、もう一度「接続」をクリックしてください。"
+      "description": "Make.comアカウントを接続すると、フローからイベントを送信し、Makeシナリオを通じて連絡先データを受信できます。",
+      "notConfigured": "Makeの招待リンクが見つかりません。プラットフォーム設定で追加してください。"
     }
   },
   "integrations": {
@@ -2985,6 +3004,17 @@
       "pendingBlockedToast": "このワークスペースは削除予定です。アクセスを復元するには、ワークスペース管理者にお問い合わせください。",
       "navDisabledTooltip": "ワークスペースの削除が予定されている間は利用できません",
       "badge": "削除予定"
+    },
+    "supportAccess": {
+      "bannerTitle": "プラットフォームサポートセッション",
+      "bannerDescription": "プラットフォームサポート担当者が {time} までこのワークスペースに一時的にアクセスできます。",
+      "cardTitle": "プラットフォームサポートアクセス",
+      "cardDescription": "プラットフォームサポートチームがこのワークスペースを7日間フルアクセスで開けるようにします。いつでもオフにできます。",
+      "enabledUntil": "{time} まで有効",
+      "permissionRequired": "プラットフォームサポートアクセスを変更するにはスーパー管理者である必要があります。",
+      "enabledToast": "プラットフォームサポートアクセスを有効にしました。",
+      "disabledToast": "プラットフォームサポートアクセスを無効にしました。",
+      "toggleError": "問題が発生しました。もう一度お試しください。"
     }
   },
   "workspaces": {
@@ -3945,7 +3975,12 @@
   },
   "developerAccessToken": {
     "title": "APIアクセストークン",
-    "description": "ワークスペースから公開APIにアクセスするためのトークンを生成します。このトークンは秘密にし、誰とも共有しないでください。"
+    "description": "ワークスペースから公開APIにアクセスするためのトークンを生成します。このトークンは秘密にし、誰とも共有しないでください。",
+    "createDialogTitle": "APIトークンを作成",
+    "namePlaceholder": "例: Zapier連携",
+    "empty": "APIトークンはまだありません。",
+    "defaultBadge": "デフォルト",
+    "allScopes": "すべてのスコープ"
   },
   "contacts": {
     "title": "連絡先",
@@ -4480,11 +4515,6 @@
       "description": "まずチャネルアカウントを接続してから、ここに戻って広告を作成してください。",
       "cta": "チャネル設定に移動"
     },
-    "movedNote": {
-      "title": "広告はツールに移動しました",
-      "description": "Click-to-Message広告ツールからClick-to-Message広告を作成・管理できます。",
-      "cta": "Click-to-Message広告を開く"
-    },
     "dashboardCta": "広告ダッシュボードで表示"
   },
   "platformSettings": {
@@ -4621,6 +4651,17 @@
     "aiSettings": {
       "title": "AI Settings",
       "description": "Central Vertex AI configuration every workspace's AI agents inherit."
+    },
+    "workspaces": {
+      "title": "ワークスペース",
+      "description": "オーナーがプラットフォームサポートアクセスを有効にしたワークスペースはここから開けます。",
+      "owner": "オーナー",
+      "tenant": "テナント",
+      "supportStatus": "サポート状況",
+      "openAsSupport": "サポートとして開く",
+      "supportEnabledUntil": "{time} まで有効",
+      "supportOff": "オフ",
+      "searchPlaceholder": "名前、オーナーのメール、IDで検索"
     }
   },
   "platformCredentials": {
@@ -5508,13 +5549,12 @@
   },
   "metaConversions": {
     "title": "Conversions API",
-    "description": "Messenger、Instagram、WhatsApp の会話から LeadSubmitted イベントを Meta に送信します。",
+    "description": "Messenger、Instagram、WhatsApp の会話からコンバージョンイベントを Meta に送信します。",
     "datasetId": "データセットID",
     "reconnect": "権限を再連携",
     "connectViaFacebook": "Facebook 経由で連携",
     "unsupportedExplanation": "この Instagram アカウントは Instagram ビジネスログインで連携されています。Meta Conversions API を利用するには、Facebook 経由でアカウントを連携してください。",
     "flowStep": {
-      "description": "Messenger、Instagram、WhatsApp 向けに LeadSubmitted イベントをキューに追加します。",
       "whatsappNote": "WhatsApp のイベントは、Click-to-WhatsApp 広告から開始した会話でのみ送信されます。"
     },
     "status": {
@@ -5541,12 +5581,50 @@
       "datasetRequired": "アクセストークンを追加する前にデータセットIDを保存してください。",
       "invalidToken": "このトークンではデータセットにアクセスできませんでした。",
       "invalidDatasetId": "有効なデータセットID（数字のみ）を入力してください。",
-      "whatsappNotFound": "WhatsApp の連携が見つかりません。"
+      "whatsappNotFound": "WhatsApp の連携が見つかりません。",
+      "testEventCodeRequired": "テストイベントを送信する前にテストイベントコードを保存してください。",
+      "noContactForTest": "このチャネルにはまだ対象となる連絡先がありません。テストイベントには紐付け先となる実際の連絡先が必要です（WhatsApp の場合は click-to-WhatsApp 広告経由の連絡先）。",
+      "invalidTestEventCode": "テストイベントコードには英字、数字、ハイフン、アンダースコアのみ使用できます（最大64文字）。"
     },
     "fields": {
       "eventType": {
         "label": "イベントタイプ",
-        "leadSubmitted": "Lead Submitted"
+        "leadSubmitted": "Lead Submitted",
+        "purchase": "購入",
+        "initiateCheckout": "購入手続き開始",
+        "addToCart": "カートに追加",
+        "viewContent": "コンテンツ閲覧",
+        "orderCreated": "注文作成",
+        "orderShipped": "注文発送",
+        "orderDelivered": "注文配達完了",
+        "orderCanceled": "注文キャンセル",
+        "orderReturned": "注文返品",
+        "cartAbandoned": "カート放棄",
+        "qualifiedLead": "有望見込み客",
+        "ratingProvided": "評価送信",
+        "reviewProvided": "レビュー送信",
+        "addPaymentInfo": "支払い情報追加",
+        "addToWishlist": "ウィッシュリストに追加",
+        "completeRegistration": "登録完了",
+        "contact": "お問い合わせ",
+        "customizeProduct": "商品カスタマイズ",
+        "donate": "寄付",
+        "findLocation": "店舗検索",
+        "lead": "見込み客",
+        "schedule": "予約",
+        "search": "検索",
+        "startTrial": "無料体験開始",
+        "submitApplication": "申し込み送信",
+        "subscribe": "登録",
+        "custom": "カスタムイベント…",
+        "groups": {
+          "commerce": "コマース",
+          "leads": "見込み客",
+          "orders": "注文",
+          "feedback": "フィードバック",
+          "leadsAndSignups": "見込み客と登録",
+          "other": "その他"
+        }
       },
       "value": "値",
       "valuePlaceholder": "例: 250",
@@ -5564,7 +5642,16 @@
         "id": "Product ID",
         "quantity": "Quantity",
         "itemPrice": "Item price"
-      }
+      },
+      "customEventName": "カスタムイベント名",
+      "customEventNamePlaceholder": "例: MyCustomEvent",
+      "contentType": {
+        "label": "コンテンツタイプ",
+        "product": "商品",
+        "product_group": "商品グループ"
+      },
+      "contentIds": "コンテンツID",
+      "contentIdsPlaceholder": "例: 123,456"
     },
     "datasetIdPlaceholder": "Events Manager からデータセットIDを貼り付けてください",
     "saveDataset": "保存",
@@ -5615,6 +5702,36 @@
     "limitedDataUse": {
       "label": "Limited Data Use (US privacy)",
       "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by ChatbotX."
+    },
+    "actionSource": {
+      "label": "アクションのソース",
+      "help": "このイベントが発生した場所です。Metaのアクションソースのドキュメントをご覧ください。",
+      "business_messaging": "ビジネスメッセージ",
+      "email": "メール",
+      "phone_call": "電話",
+      "chat": "チャット",
+      "physical_store": "実店舗",
+      "system_generated": "システム生成",
+      "other": "その他"
+    },
+    "dialog": {
+      "title": "Meta CAPI",
+      "advanced": "詳細設定"
+    },
+    "testEvents": {
+      "title": "テストイベント",
+      "description": "Events Manager → Test events から test_event_code を貼り付けます。設定されている間、このチャネルのすべてのイベントは完全なペイロード（値、通貨、コンテンツID）とともに Test events ビューに振り分けられ、レポートにはカウントされません。完了したらクリアしてください。",
+      "codeLabel": "テストイベントコード",
+      "codePlaceholder": "例: TEST12345",
+      "save": "コードを保存",
+      "clear": "クリア",
+      "saved": "テストイベントコードを保存しました。",
+      "cleared": "テストイベントコードをクリアしました。イベントは再びライブになります。",
+      "send": "テストイベントを送信",
+      "sent": "テストイベントをキューに追加しました。1分以内に Events Manager の Test events に表示されます。",
+      "sendHint": "このチャネルの最新の連絡先にサンプルの Purchase（100 USD）を1件送信します。",
+      "activeNotice": "テストモードが有効です。コードをクリアするまで、このチャネルのイベントはレポートにカウントされません。",
+      "openTestEvents": "Test events を開く"
     }
   },
   "minigames": {
@@ -5676,7 +5793,10 @@
       "jackpotBanner": "ジャックポット",
       "luckyWheelHeader": "ラッキーホイール",
       "gashaponHeader": "ガシャポン",
-      "comingSoon": "このゲームタイプの詳細プレビューは近日公開予定です"
+      "comingSoon": "このゲームタイプの詳細プレビューは近日公開予定です",
+      "drawLotsHeader": "くじ引き",
+      "scratchOffHeader": "スクラッチで当てよう",
+      "scratchOffCardTitle": "ラッキースタースクラッチくじ"
     },
     "form": {
       "generalSettingsTitle": "一般設定",
@@ -5742,7 +5862,14 @@
         "win": "当選",
         "lose": "ハズレ",
         "empty": "プレイ記録はまだありません"
-      }
+      },
+      "conversationNotFound": "この連絡先の会話が見つかりません",
+      "popupBlocked": "このサイトのポップアップを許可してから、もう一度お試しください。"
+    },
+    "list": {
+      "gamesPlayed": "プレイ回数",
+      "participants": "参加者数",
+      "winners": "当選者数"
     }
   },
   "mediaLibrary": {
@@ -6345,7 +6472,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -6362,7 +6491,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -6379,7 +6510,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -6396,11 +6529,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },

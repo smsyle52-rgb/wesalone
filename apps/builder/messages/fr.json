@@ -813,7 +813,8 @@
       "label": "Agent"
     },
     "aiAgent": {
-      "label": "Agent IA"
+      "label": "Agent IA",
+      "loadError": "Échec du chargement des agents IA. Veuillez réessayer."
     },
     "aiQueuedMessages": {
       "label": "Messages IA en file d’attente"
@@ -2136,7 +2137,27 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "selectOptionsPlaceholder": "Select options",
+    "tokenPermission": {
+      "label": "Autorisation",
+      "full": "Accès complet",
+      "readOnly": "Lecture seule"
+    },
+    "tokenScopes": {
+      "label": "Portées",
+      "contacts": "Contacts",
+      "inbox": "Boîte de réception",
+      "automation": "Automatisation",
+      "broadcasts": "Diffusions",
+      "analytics": "Analytique",
+      "ecommerce": "E-commerce",
+      "integrations": "Intégrations",
+      "channels": "Canaux",
+      "minigames": "Mini-jeux",
+      "appointments": "Rendez-vous",
+      "media": "Médias",
+      "ads": "Publicités"
+    }
   },
   "flows": {
     "export": {
@@ -2278,7 +2299,6 @@
       "export": "Exporter",
       "importStarted": "Le flux est en cours d'importation. Consultez l'historique des imports pour voir les résultats.",
       "importJsonOnly": "Fichiers JSON uniquement",
-      "adsConversions": "Publicités et Meta Conversions",
       "aiAgentGroup": "AI agent"
     },
     "splitTraffic": {
@@ -2915,9 +2935,8 @@
     "title": "Make",
     "setting": {
       "label": "Make",
-      "description": "Connectez votre compte Make.com pour envoyer des événements depuis vos flux et recevoir des données de contact par l’intermédiaire de scénarios Make. Le jeton d’accès développeur de votre espace de travail est copié dans le presse-papiers lorsque vous cliquez sur Connecter : collez-le lors de la création de la connexion dans Make.",
-      "notConfigured": "Aucun lien d’invitation Make trouvé. Ajoutez-en un dans les paramètres de la plateforme.",
-      "noWorkspaceToken": "Aucun jeton d’accès développeur trouvé pour cet espace de travail. Générez-en un dans la section des jetons de l’espace de travail ci-dessus, puis cliquez de nouveau sur Connecter."
+      "description": "Connectez votre compte Make.com pour envoyer des événements depuis vos flux et recevoir des données de contact par l’intermédiaire de scénarios Make.",
+      "notConfigured": "Aucun lien d’invitation Make trouvé. Ajoutez-en un dans les paramètres de la plateforme."
     }
   },
   "integrations": {
@@ -3014,6 +3033,17 @@
       "pendingBlockedToast": "La suppression de cet espace de travail est planifiée. Contactez un administrateur pour restaurer l’accès.",
       "navDisabledTooltip": "Indisponible tant que la suppression est planifiée",
       "badge": "Suppression planifiée"
+    },
+    "supportAccess": {
+      "bannerTitle": "Session de support de la plateforme",
+      "bannerDescription": "Un agent de support de la plateforme a un accès temporaire à cet espace de travail jusqu'à {time}.",
+      "cardTitle": "Accès au support de la plateforme",
+      "cardDescription": "Autorisez l'équipe de support de la plateforme à ouvrir cet espace de travail avec un accès complet pendant 7 jours. Vous pouvez le désactiver à tout moment.",
+      "enabledUntil": "Activé jusqu'à {time}",
+      "permissionRequired": "Vous devez être super administrateur pour modifier l'accès au support de la plateforme.",
+      "enabledToast": "Accès au support de la plateforme activé.",
+      "disabledToast": "Accès au support de la plateforme désactivé.",
+      "toggleError": "Une erreur s'est produite. Veuillez réessayer."
     }
   },
   "workspaces": {
@@ -3974,7 +4004,12 @@
   },
   "developerAccessToken": {
     "title": "Jeton d’accès API",
-    "description": "Générez un jeton pour permettre à votre espace de travail d’accéder aux API publiques. Gardez ce jeton secret et ne le partagez avec personne."
+    "description": "Générez un jeton pour permettre à votre espace de travail d’accéder aux API publiques. Gardez ce jeton secret et ne le partagez avec personne.",
+    "createDialogTitle": "Créer un jeton API",
+    "namePlaceholder": "ex. intégration Zapier",
+    "empty": "Aucun jeton API pour le moment.",
+    "defaultBadge": "Par défaut",
+    "allScopes": "Toutes les portées"
   },
   "contacts": {
     "title": "Contacts",
@@ -4509,11 +4544,6 @@
       "description": "Connectez d'abord un compte de canal, puis revenez ici pour créer des publicités.",
       "cta": "Accéder aux paramètres du canal"
     },
-    "movedNote": {
-      "title": "Les publicités ont été déplacées vers Outils",
-      "description": "Créez et gérez les publicités Click-to-Message depuis l'outil Publicités Click-to-Message.",
-      "cta": "Ouvrir Publicités Click-to-Message"
-    },
     "dashboardCta": "Voir sur le tableau de bord Publicités"
   },
   "ecommerce": {
@@ -4621,6 +4651,17 @@
     "aiSettings": {
       "title": "AI Settings",
       "description": "Central Vertex AI configuration every workspace's AI agents inherit."
+    },
+    "workspaces": {
+      "title": "Espaces de travail",
+      "description": "Les espaces de travail dont le propriétaire a activé l'accès au support de la plateforme peuvent être ouverts ici.",
+      "owner": "Propriétaire",
+      "tenant": "Locataire",
+      "supportStatus": "Statut du support",
+      "openAsSupport": "Ouvrir en tant que support",
+      "supportEnabledUntil": "Activé jusqu'à {time}",
+      "supportOff": "Désactivé",
+      "searchPlaceholder": "Rechercher par nom, e-mail du propriétaire ou ID"
     }
   },
   "platformCredentials": {
@@ -5508,13 +5549,12 @@
   },
   "metaConversions": {
     "title": "Conversions API",
-    "description": "Envoyez des événements LeadSubmitted depuis les conversations Messenger, Instagram et WhatsApp vers Meta.",
+    "description": "Envoyez des événements de conversion depuis les conversations Messenger, Instagram et WhatsApp vers Meta.",
     "datasetId": "ID de l’ensemble de données",
     "reconnect": "Reconnecter les autorisations",
     "connectViaFacebook": "Connecter via Facebook",
     "unsupportedExplanation": "Ce compte Instagram a été connecté avec Instagram Business Login. Connectez le compte via Facebook pour utiliser Meta Conversions API.",
     "flowStep": {
-      "description": "Mettez en file d’attente un événement LeadSubmitted pour Messenger, Instagram ou WhatsApp.",
       "whatsappNote": "Les événements WhatsApp ne sont envoyés que pour les conversations démarrées à partir d’une publicité click-to-WhatsApp."
     },
     "status": {
@@ -5541,12 +5581,50 @@
       "datasetRequired": "Enregistrez un ID d’ensemble de données avant d’ajouter un jeton d’accès.",
       "invalidToken": "Ce jeton n’a pas pu accéder à l’ensemble de données.",
       "invalidDatasetId": "Saisissez un Dataset ID valide (chiffres uniquement).",
-      "whatsappNotFound": "Intégration WhatsApp introuvable."
+      "whatsappNotFound": "Intégration WhatsApp introuvable.",
+      "testEventCodeRequired": "Enregistrez un code d'événement de test avant d'envoyer un événement de test.",
+      "noContactForTest": "Aucun contact éligible sur ce canal pour l'instant. Un événement de test doit être attribué à un contact réel (pour WhatsApp, un contact issu d'une publicité click-to-WhatsApp).",
+      "invalidTestEventCode": "Le code d'événement de test ne peut contenir que des lettres, des chiffres, des tirets ou des tirets bas (64 caractères max)."
     },
     "fields": {
       "eventType": {
         "label": "Type d’événement",
-        "leadSubmitted": "Prospect soumis"
+        "leadSubmitted": "Prospect soumis",
+        "purchase": "Achat",
+        "initiateCheckout": "Démarrage du paiement",
+        "addToCart": "Ajouter au panier",
+        "viewContent": "Consultation de contenu",
+        "orderCreated": "Commande créée",
+        "orderShipped": "Commande expédiée",
+        "orderDelivered": "Commande livrée",
+        "orderCanceled": "Commande annulée",
+        "orderReturned": "Commande retournée",
+        "cartAbandoned": "Panier abandonné",
+        "qualifiedLead": "Prospect qualifié",
+        "ratingProvided": "Note fournie",
+        "reviewProvided": "Avis fourni",
+        "addPaymentInfo": "Ajout d'informations de paiement",
+        "addToWishlist": "Ajouter à la liste de souhaits",
+        "completeRegistration": "Inscription terminée",
+        "contact": "Contact",
+        "customizeProduct": "Personnalisation du produit",
+        "donate": "Faire un don",
+        "findLocation": "Recherche d'emplacement",
+        "lead": "Prospect",
+        "schedule": "Prise de rendez-vous",
+        "search": "Recherche",
+        "startTrial": "Démarrer l'essai",
+        "submitApplication": "Envoi de candidature",
+        "subscribe": "S'abonner",
+        "custom": "Événement personnalisé…",
+        "groups": {
+          "commerce": "Commerce",
+          "leads": "Prospects",
+          "orders": "Commandes",
+          "feedback": "Avis",
+          "leadsAndSignups": "Prospects et inscriptions",
+          "other": "Autres"
+        }
       },
       "value": "Valeur",
       "valuePlaceholder": "p. ex. 250",
@@ -5564,7 +5642,16 @@
         "id": "Product ID",
         "quantity": "Quantity",
         "itemPrice": "Item price"
-      }
+      },
+      "customEventName": "Nom de l'événement personnalisé",
+      "customEventNamePlaceholder": "p. ex. MyCustomEvent",
+      "contentType": {
+        "label": "Type de contenu",
+        "product": "Produit",
+        "product_group": "Groupe de produits"
+      },
+      "contentIds": "ID de contenu",
+      "contentIdsPlaceholder": "p. ex. 123,456"
     },
     "datasetIdPlaceholder": "Collez l’ID de l’ensemble de données depuis Events Manager",
     "saveDataset": "Enregistrer",
@@ -5615,6 +5702,36 @@
     "limitedDataUse": {
       "label": "Limited Data Use (US privacy)",
       "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by ChatbotX."
+    },
+    "actionSource": {
+      "label": "Source de l'action",
+      "help": "Où cet événement a eu lieu. Consultez la documentation Meta sur la source de l'action.",
+      "business_messaging": "Messagerie professionnelle",
+      "email": "E-mail",
+      "phone_call": "Appel téléphonique",
+      "chat": "Chat",
+      "physical_store": "Magasin physique",
+      "system_generated": "Généré par le système",
+      "other": "Autres"
+    },
+    "dialog": {
+      "title": "Meta CAPI",
+      "advanced": "Avancé"
+    },
+    "testEvents": {
+      "title": "Événements de test",
+      "description": "Collez le test_event_code depuis Events Manager → Test events. Tant qu'il est défini, chaque événement de ce canal est acheminé vers la vue Test events avec sa charge utile complète (valeur, devise, ID de contenu) et n'est pas comptabilisé dans les rapports. Effacez-le une fois terminé.",
+      "codeLabel": "Code d'événement de test",
+      "codePlaceholder": "ex. TEST12345",
+      "save": "Enregistrer le code",
+      "clear": "Effacer",
+      "saved": "Code d'événement de test enregistré.",
+      "cleared": "Code d'événement de test effacé. Les événements sont de nouveau en direct.",
+      "send": "Envoyer un événement de test",
+      "sent": "Événement de test mis en file d'attente. Il apparaît sous Test events dans Events Manager en moins d'une minute.",
+      "sendHint": "Envoie un exemple de Purchase (100 USD) au contact le plus récent de ce canal.",
+      "activeNotice": "Le mode test est activé : les événements de ce canal ne sont pas comptabilisés dans les rapports tant que le code n'est pas effacé.",
+      "openTestEvents": "Ouvrir Test events"
     }
   },
   "minigames": {
@@ -5676,7 +5793,10 @@
       "jackpotBanner": "Jackpot",
       "luckyWheelHeader": "ROUE DE LA CHANCE",
       "gashaponHeader": "GASHAPON",
-      "comingSoon": "Aperçu détaillé bientôt disponible pour ce type de jeu"
+      "comingSoon": "Aperçu détaillé bientôt disponible pour ce type de jeu",
+      "drawLotsHeader": "TIRAGE AU SORT",
+      "scratchOffHeader": "GRATTEZ & GAGNEZ",
+      "scratchOffCardTitle": "Cartes à gratter étoile porte-bonheur"
     },
     "form": {
       "generalSettingsTitle": "Paramètres généraux",
@@ -5742,7 +5862,14 @@
         "win": "Gagné",
         "lose": "Pas de lot",
         "empty": "Aucun registre de parties pour le moment"
-      }
+      },
+      "conversationNotFound": "Aucune conversation trouvée pour ce contact",
+      "popupBlocked": "Autorisez les fenêtres contextuelles pour ce site, puis réessayez."
+    },
+    "list": {
+      "gamesPlayed": "Parties jouées",
+      "participants": "Participants",
+      "winners": "Gagnants"
     }
   },
   "mediaLibrary": {
@@ -6345,7 +6472,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -6362,7 +6491,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -6379,7 +6510,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -6396,11 +6529,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },

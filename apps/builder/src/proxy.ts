@@ -190,6 +190,5 @@ export const config = {
     // publicRoutes, so running the middleware here costs no auth redirect.
     "/((?!webchat|zalo_verifier|chat-widget|assets|ws|storage|_next/static|_next/image|favicon.ico|avatars|.*.svg|brand|openapi.json|dynamic-image/|mini-game/).*)",
     "/api/presigned-upload",
-    "/api/whatsapp/:path*",
   ],
 }

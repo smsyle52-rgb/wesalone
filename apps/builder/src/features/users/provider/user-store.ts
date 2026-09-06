@@ -1,8 +1,9 @@
-import ky, { HTTPError } from "ky"
 import { createStore } from "zustand/vanilla"
 import type { InboxTeamResource } from "@/features/inbox-teams/schema/resource"
 import type { ListWorkspaceMembersResponse } from "@/features/workspace-members/schema/query"
-import { maxPerPageString } from "@/lib/shared-request"
+import { getClientErrorMessage } from "@/lib/orpc/client-error"
+import { client } from "@/lib/orpc/orpc"
+import { maxPerPage } from "@/lib/shared-request"
 
 export type UserState = {
   loadingWorkspaceMembers: boolean
@@ -49,10 +50,7 @@ export const createUserStore = (props: Partial<UserState>) =>
         ])
       } catch (error: unknown) {
         set({
-          error:
-            error instanceof HTTPError
-              ? error.message
-              : "Failed to fetch agents",
+          error: getClientErrorMessage(error, "Failed to fetch agents"),
         })
       } finally {
         set({ initialized: true })
@@ -69,22 +67,18 @@ export const createUserStore = (props: Partial<UserState>) =>
       set({ loadingWorkspaceMembers: true, error: null })
 
       try {
-        const searchParams = new URLSearchParams({
-          perPage: maxPerPageString,
-        })
-        const { data } = await ky
-          .get<ListWorkspaceMembersResponse>(
-            `/api/workspaces/${workspaceId}/members?${searchParams.toString()}`,
+        const { data } =
+          await client.workspaceMembersAPI.listWorkspaceMembersAuthenticatedAPI(
+            { workspaceId, perPage: maxPerPage },
           )
-          .json()
 
         set({ workspaceMembers: data })
       } catch (error: unknown) {
         set({
-          error:
-            error instanceof HTTPError
-              ? error.message
-              : "Failed to fetch workspace members",
+          error: getClientErrorMessage(
+            error,
+            "Failed to fetch workspace members",
+          ),
         })
       } finally {
         set({ loadingWorkspaceMembers: false })

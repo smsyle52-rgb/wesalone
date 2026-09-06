@@ -152,7 +152,8 @@
       "label": "Agent"
     },
     "aiAgent": {
-      "label": "AI Agent"
+      "label": "AI Agent",
+      "loadError": "載入 AI 代理失敗，請再試一次。"
     },
     "aiQueuedMessages": {
       "label": "AI 排隊訊息"
@@ -1447,7 +1448,27 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options"
+    "selectOptionsPlaceholder": "Select options",
+    "tokenPermission": {
+      "label": "權限",
+      "full": "完整存取權",
+      "readOnly": "唯讀"
+    },
+    "tokenScopes": {
+      "label": "範圍",
+      "contacts": "聯絡人",
+      "inbox": "收件匣",
+      "automation": "自動化",
+      "broadcasts": "群發",
+      "analytics": "分析",
+      "ecommerce": "電子商務",
+      "integrations": "整合",
+      "channels": "頻道",
+      "minigames": "小遊戲",
+      "appointments": "預約",
+      "media": "媒體",
+      "ads": "廣告"
+    }
   },
   "messages": {
     "sentAttachments": "已傳送 {count, plural, one {1 個附件} other {# 個附件}}",
@@ -2360,6 +2381,17 @@
       "pendingBlockedToast": "此工作區已排定刪除。請聯絡工作區管理員以還原存取。",
       "navDisabledTooltip": "排定刪除工作區時不可用",
       "badge": "排定刪除"
+    },
+    "supportAccess": {
+      "bannerTitle": "平台支援工作階段",
+      "bannerDescription": "平台支援人員對此工作區擁有臨時存取權限，直到 {time}。",
+      "cardTitle": "平台支援存取",
+      "cardDescription": "允許平台支援團隊在 7 天內以完整存取權限開啟此工作區。您可以隨時關閉此功能。",
+      "enabledUntil": "已啟用，至 {time}",
+      "permissionRequired": "您需要是超級管理員才能變更平台支援存取權限。",
+      "enabledToast": "已啟用平台支援存取。",
+      "disabledToast": "已停用平台支援存取。",
+      "toggleError": "發生錯誤，請重試。"
     }
   },
   "workspaces": {
@@ -2513,7 +2545,6 @@
       "export": "匯出",
       "importStarted": "流程匯入中，請稍後查看匯入紀錄以取得結果。",
       "importJsonOnly": "僅限 JSON 檔案",
-      "adsConversions": "廣告與 Meta Conversions",
       "aiAgentGroup": "AI agent"
     },
     "splitTraffic": {
@@ -3150,9 +3181,8 @@
     "title": "Make.com",
     "setting": {
       "label": "Make.com",
-      "description": "連接您的 Make.com 帳戶，以便從流程傳送事件，並透過 Make 情境接收聯絡人資料。當您點擊「連接」時，系統會將此工作區的開發人員存取權杖複製到剪貼簿，請在 Make 建立連線時貼上。",
-      "notConfigured": "找不到邀請連結。請在平台設定新增一個。",
-      "noWorkspaceToken": "找不到此工作區的開發人員存取權杖。在上面的工作區權杖部分產生一個，然後再按一下連接。"
+      "description": "連接您的 Make.com 帳戶，以便從流程傳送事件，並透過 Make 情境接收聯絡人資料。",
+      "notConfigured": "找不到邀請連結。請在平台設定新增一個。"
     }
   },
   "integrations": {
@@ -4007,7 +4037,12 @@
   },
   "developerAccessToken": {
     "title": "API 存取權杖",
-    "description": "產生權杖以允許您的工作區存取公共 API。請將此權杖保密，不要與任何人共享。"
+    "description": "產生權杖以允許您的工作區存取公共 API。請將此權杖保密，不要與任何人共享。",
+    "createDialogTitle": "建立 API 權杖",
+    "namePlaceholder": "例如：Zapier 整合",
+    "empty": "尚無 API 權杖。",
+    "defaultBadge": "預設",
+    "allScopes": "所有範圍"
   },
   "contacts": {
     "title": "聯絡人",
@@ -4542,11 +4577,6 @@
       "description": "請先連接一個頻道帳號，然後回到這裡建立廣告。",
       "cta": "前往頻道設定"
     },
-    "movedNote": {
-      "title": "廣告已移至工具",
-      "description": "在 Click-to-Message廣告工具 中建立和管理 Click-to-Message 廣告。",
-      "cta": "開啟Click-to-Message廣告"
-    },
     "dashboardCta": "在廣告儀表板中檢視"
   },
   "ecommerce": {
@@ -4654,6 +4684,17 @@
     "aiSettings": {
       "title": "AI Settings",
       "description": "Central Vertex AI configuration every workspace's AI agents inherit."
+    },
+    "workspaces": {
+      "title": "工作區",
+      "description": "擁有者已啟用平台支援存取的工作區可在此開啟。",
+      "owner": "擁有者",
+      "tenant": "租戶",
+      "supportStatus": "支援狀態",
+      "openAsSupport": "以支援身分開啟",
+      "supportEnabledUntil": "已啟用，至 {time}",
+      "supportOff": "已關閉",
+      "searchPlaceholder": "依名稱、擁有者電子郵件或 ID 搜尋"
     }
   },
   "platformCredentials": {
@@ -5508,13 +5549,12 @@
   },
   "metaConversions": {
     "title": "Conversions API",
-    "description": "將 Messenger、Instagram 和 WhatsApp 對話中的 LeadSubmitted 事件傳送給 Meta。",
+    "description": "將 Messenger、Instagram 和 WhatsApp 對話中的轉換事件傳送給 Meta。",
     "datasetId": "資料集 ID",
     "reconnect": "重新連接權限",
     "connectViaFacebook": "透過 Facebook 連接",
     "unsupportedExplanation": "此 Instagram 帳戶是透過 Instagram Business Login 連接的。請透過 Facebook 連接該帳戶，以使用 Meta Conversions API。",
     "flowStep": {
-      "description": "為 Messenger、Instagram 或 WhatsApp 排入一筆 LeadSubmitted 事件。",
       "whatsappNote": "WhatsApp 事件僅會針對由點擊式 WhatsApp 廣告發起的對話傳送。"
     },
     "status": {
@@ -5541,12 +5581,50 @@
       "datasetRequired": "請先儲存資料集 ID，再新增存取權杖。",
       "invalidToken": "此權杖無法存取該資料集。",
       "invalidDatasetId": "請輸入有效的 Dataset ID（僅數字）。",
-      "whatsappNotFound": "找不到 WhatsApp 整合。"
+      "whatsappNotFound": "找不到 WhatsApp 整合。",
+      "testEventCodeRequired": "傳送測試事件前,請先儲存測試事件代碼。",
+      "noContactForTest": "此渠道尚無符合條件的聯絡人。測試事件需要歸因到真實聯絡人（WhatsApp 需為來自 click-to-WhatsApp 廣告的聯絡人）。",
+      "invalidTestEventCode": "測試事件代碼只能包含字母、數字、連字號或底線(最多 64 個字元)。"
     },
     "fields": {
       "eventType": {
         "label": "事件類型",
-        "leadSubmitted": "已提交名單"
+        "leadSubmitted": "已提交名單",
+        "purchase": "購買",
+        "initiateCheckout": "開始結帳",
+        "addToCart": "加入購物車",
+        "viewContent": "檢視內容",
+        "orderCreated": "訂單已建立",
+        "orderShipped": "訂單已出貨",
+        "orderDelivered": "訂單已送達",
+        "orderCanceled": "訂單已取消",
+        "orderReturned": "訂單已退貨",
+        "cartAbandoned": "放棄購物車",
+        "qualifiedLead": "合格潛在客戶",
+        "ratingProvided": "已提供評分",
+        "reviewProvided": "已提供評論",
+        "addPaymentInfo": "新增付款資訊",
+        "addToWishlist": "加入願望清單",
+        "completeRegistration": "完成註冊",
+        "contact": "聯絡",
+        "customizeProduct": "客製化商品",
+        "donate": "捐款",
+        "findLocation": "尋找地點",
+        "lead": "潛在客戶",
+        "schedule": "預約",
+        "search": "搜尋",
+        "startTrial": "開始試用",
+        "submitApplication": "提交申請",
+        "subscribe": "訂閱",
+        "custom": "自訂事件…",
+        "groups": {
+          "commerce": "商務",
+          "leads": "潛在客戶",
+          "orders": "訂單",
+          "feedback": "意見回饋",
+          "leadsAndSignups": "潛在客戶與註冊",
+          "other": "其他"
+        }
       },
       "value": "價值",
       "valuePlaceholder": "例如 250",
@@ -5564,7 +5642,16 @@
         "id": "Product ID",
         "quantity": "Quantity",
         "itemPrice": "Item price"
-      }
+      },
+      "customEventName": "自訂事件名稱",
+      "customEventNamePlaceholder": "例如 MyCustomEvent",
+      "contentType": {
+        "label": "內容類型",
+        "product": "產品",
+        "product_group": "產品群組"
+      },
+      "contentIds": "內容 ID",
+      "contentIdsPlaceholder": "例如 123,456"
     },
     "datasetIdPlaceholder": "貼上來自 Events Manager 的資料集 ID",
     "saveDataset": "儲存",
@@ -5615,6 +5702,36 @@
     "limitedDataUse": {
       "label": "Limited Data Use (US privacy)",
       "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by ChatbotX."
+    },
+    "actionSource": {
+      "label": "動作來源",
+      "help": "此事件發生的位置。請參閱 Meta 的動作來源文件。",
+      "business_messaging": "商業訊息",
+      "email": "電子郵件",
+      "phone_call": "電話",
+      "chat": "聊天",
+      "physical_store": "實體店",
+      "system_generated": "系統產生",
+      "other": "其他"
+    },
+    "dialog": {
+      "title": "Meta CAPI",
+      "advanced": "進階"
+    },
+    "testEvents": {
+      "title": "測試事件",
+      "description": "貼上來自 Events Manager → Test events 的 test_event_code。設定期間,此頻道的每個事件都會連同完整資料(價值、貨幣、內容 ID)一併導向 Test events 檢視畫面,且不會計入報表。完成後請清除。",
+      "codeLabel": "測試事件代碼",
+      "codePlaceholder": "例如：TEST12345",
+      "save": "儲存代碼",
+      "clear": "清除",
+      "saved": "測試事件代碼已儲存。",
+      "cleared": "測試事件代碼已清除。事件已恢復正常上報。",
+      "send": "傳送測試事件",
+      "sent": "測試事件已加入佇列,一分鐘內會出現在 Events Manager 的 Test events 中。",
+      "sendHint": "向此頻道最近的聯絡人傳送一個範例 Purchase 事件(100 USD)。",
+      "activeNotice": "測試模式已開啟:在清除代碼之前,此頻道的事件不會計入報表。",
+      "openTestEvents": "開啟 Test events"
     }
   },
   "minigames": {
@@ -5676,7 +5793,10 @@
       "jackpotBanner": "拉霸機",
       "luckyWheelHeader": "幸運轉盤",
       "gashaponHeader": "扭蛋",
-      "comingSoon": "此遊戲類型的詳細預覽即將推出"
+      "comingSoon": "此遊戲類型的詳細預覽即將推出",
+      "drawLotsHeader": "抽籤",
+      "scratchOffHeader": "刮刮樂",
+      "scratchOffCardTitle": "幸運星刮刮卡"
     },
     "form": {
       "generalSettingsTitle": "一般設定",
@@ -5742,7 +5862,14 @@
         "win": "中獎",
         "lose": "未中獎",
         "empty": "尚無遊戲紀錄"
-      }
+      },
+      "conversationNotFound": "找不到該聯絡人的對話",
+      "popupBlocked": "請允許此網站彈出窗口，然後再試一次。"
+    },
+    "list": {
+      "gamesPlayed": "遊戲次數",
+      "participants": "參與人數",
+      "winners": "中獎人數"
     }
   },
   "mediaLibrary": {
@@ -6345,7 +6472,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -6362,7 +6491,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -6379,7 +6510,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -6396,11 +6529,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },
