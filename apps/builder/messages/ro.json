@@ -926,6 +926,7 @@
     "enterFieldAndPressEnter": "Introdu {field} și apasă Enter",
     "addAnother": "Adaugă altul...",
     "messagePlaceholder": "Mesaj...",
+    "newLineHint": "Shift + Enter pentru rând nou",
     "signOut": "Deconectare",
     "backToSignIn": "Înapoi la autentificare",
     "connectFeature": "Conectează {feature}",

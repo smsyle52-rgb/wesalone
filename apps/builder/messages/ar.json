@@ -110,6 +110,7 @@
     "enterFieldAndPressEnter": "أدخل {field} واضغط على Enter",
     "addAnother": "أضف آخر...",
     "messagePlaceholder": "رسالة...",
+    "newLineHint": "‏Shift + Enter لسطر جديد",
     "signOut": "تسجيل الخروج",
     "backToSignIn": "العودة لتسجيل الدخول",
     "connectFeature": "قم بتوصيل {feature}",

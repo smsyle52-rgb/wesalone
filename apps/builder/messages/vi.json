@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "Nhập {field} và nhấn Enter",
     "addAnother": "Thêm mục khác...",
     "messagePlaceholder": "Tin nhắn...",
+    "newLineHint": "Shift + Enter để xuống dòng",
     "signOut": "Đăng xuất",
     "backToSignIn": "Quay lại đăng nhập",
     "connectFeature": "Kết nối {feature}",

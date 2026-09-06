@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "יש להזין {field} וללחוץ Enter",
     "addAnother": "הוספת פריט נוסף...",
     "messagePlaceholder": "הודעה...",
+    "newLineHint": "Shift + Enter לשורה חדשה",
     "signOut": "יציאה",
     "backToSignIn": "חזרה לכניסה",
     "connectFeature": "חיבור {feature}",

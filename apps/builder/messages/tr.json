@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "{field} girin ve Enter'a basın",
     "addAnother": "Başka ekle...",
     "messagePlaceholder": "Mesaj...",
+    "newLineHint": "Yeni satır için Shift + Enter",
     "signOut": "Çıkış Yap",
     "backToSignIn": "Girişe dön",
     "connectFeature": "{feature} Bağla",

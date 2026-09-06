@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "Introduza {field} e prima Enter",
     "addAnother": "Adicionar outro...",
     "messagePlaceholder": "Mensagem...",
+    "newLineHint": "Shift + Enter para uma nova linha",
     "signOut": "Terminar sessão",
     "backToSignIn": "Voltar ao início de sessão",
     "connectFeature": "Ligar {feature}",

@@ -1722,6 +1722,7 @@
     "enterFieldAndPressEnter": "輸入 {field} 並按 Enter",
     "addAnother": "新增另一個...",
     "messagePlaceholder": "訊息...",
+    "newLineHint": "Shift + Enter 換行",
     "signOut": "登出",
     "backToSignIn": "返回登入",
     "connectFeature": "連接 {feature}",

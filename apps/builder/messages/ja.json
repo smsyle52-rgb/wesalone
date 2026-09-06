@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "{field}を入力してEnterキーを押してください",
     "addAnother": "もう1つ追加...",
     "messagePlaceholder": "メッセージ...",
+    "newLineHint": "Shift + Enter で改行",
     "signOut": "ログアウト",
     "backToSignIn": "ログインに戻る",
     "connectFeature": "{feature}を接続",

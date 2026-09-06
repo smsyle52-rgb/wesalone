@@ -110,6 +110,7 @@
     "enterFieldAndPressEnter": "Enter {field} and press Enter",
     "addAnother": "Add another...",
     "messagePlaceholder": "Message...",
+    "newLineHint": "Shift + Enter for a new line",
     "signOut": "Sign Out",
     "backToSignIn": "Back to sign in",
     "connectFeature": "Connect {feature}",

@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "Indtast {field}, og tryk på Enter",
     "addAnother": "Tilføj en anden...",
     "messagePlaceholder": "Besked...",
+    "newLineHint": "Shift + Enter for ny linje",
     "signOut": "Log ud",
     "backToSignIn": "Tilbage til login",
     "connectFeature": "Forbind {feature}",

@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "Digite {field} e pressione Enter",
     "addAnother": "Adicionar outro...",
     "messagePlaceholder": "Mensagem...",
+    "newLineHint": "Shift + Enter para uma nova linha",
     "signOut": "Sair",
     "backToSignIn": "Voltar para entrar",
     "connectFeature": "Conectar {feature}",

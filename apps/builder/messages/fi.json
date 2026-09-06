@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "Kirjoita {field} ja paina Enter",
     "addAnother": "Lisää toinen...",
     "messagePlaceholder": "Viesti...",
+    "newLineHint": "Shift + Enter uudelle riville",
     "signOut": "Kirjaudu ulos",
     "backToSignIn": "Takaisin kirjautumiseen",
     "connectFeature": "Yhdistä {feature}",

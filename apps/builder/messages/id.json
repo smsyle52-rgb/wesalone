@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "Masukkan {field} lalu tekan Enter",
     "addAnother": "Tambah lainnya...",
     "messagePlaceholder": "Pesan...",
+    "newLineHint": "Shift + Enter untuk baris baru",
     "signOut": "Keluar",
     "backToSignIn": "Kembali ke halaman masuk",
     "connectFeature": "Hubungkan {feature}",

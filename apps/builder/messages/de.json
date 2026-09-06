@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "{field} eingeben und Enter drücken",
     "addAnother": "Weiteres hinzufügen...",
     "messagePlaceholder": "Nachricht...",
+    "newLineHint": "Shift + Enter für eine neue Zeile",
     "signOut": "Abmelden",
     "backToSignIn": "Zurück zur Anmeldung",
     "connectFeature": "{feature} verbinden",

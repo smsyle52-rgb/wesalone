@@ -4,6 +4,7 @@ import type { ChannelType } from "@chatbotx.io/database/partials"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import { Form } from "@chatbotx.io/ui/components/ui/form"
 import { Textarea } from "@chatbotx.io/ui/components/ui/textarea"
+import { useIsMobile } from "@chatbotx.io/ui/hooks/use-mobile"
 import { createId } from "@chatbotx.io/utils"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks"
@@ -71,6 +72,7 @@ type SelectedMediaFile = Pick<
 export const MessageInput = () => {
   const t = useTranslations()
   const session = authClient.useSession()
+  const isMobile = useIsMobile()
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileUploadRef = useRef<HTMLInputElement>(null)
@@ -272,12 +274,15 @@ export const MessageInput = () => {
       if (e.nativeEvent.isComposing || e.key === "Process") {
         return
       }
-      if (e.key === "Enter" && e.shiftKey === false) {
+      // On a phone there is no Shift key, so Enter-to-send left the merchant
+      // with no way to write a second line at all. Touch keyboards get a plain
+      // newline; the send button is already on screen for them.
+      if (e.key === "Enter" && e.shiftKey === false && !isMobile) {
         e.preventDefault()
         sendMessage()
       }
     },
-    [sendMessage],
+    [sendMessage, isMobile],
   )
 
   const isInstagramPostComment =
@@ -463,6 +468,11 @@ export const MessageInput = () => {
                 </QuickRepliesPopover>
               )}
             />
+            {!isMobile && (
+              <p className="mt-0.5 px-1.5 text-[11px] text-muted-foreground">
+                {t("actions.newLineHint")}
+              </p>
+            )}
           </div>
           {!isInstagramPostComment && (
             <div className="px-2">

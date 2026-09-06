@@ -112,6 +112,7 @@
     "enterFieldAndPressEnter": "Voer {field} in en druk op Enter",
     "addAnother": "Nog een toevoegen...",
     "messagePlaceholder": "Bericht...",
+    "newLineHint": "Shift + Enter voor een nieuwe regel",
     "signOut": "Uitloggen",
     "backToSignIn": "Terug naar inloggen",
     "connectFeature": "{feature} verbinden",

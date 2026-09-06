@@ -1562,6 +1562,7 @@
     "enterFieldAndPressEnter": "Inserisci {field} e premi Invio",
     "addAnother": "Aggiungi altro...",
     "messagePlaceholder": "Messaggio...",
+    "newLineHint": "Shift + Invio per andare a capo",
     "signOut": "Esci",
     "backToSignIn": "Torna all'accesso",
     "connectFeature": "Connetti {feature}",
