@@ -5,13 +5,26 @@ import { exchangeLongLivedToken } from "./page"
 
 const FACEBOOK_OAUTH_BASE = "https://www.facebook.com"
 
-// Only permissions this Meta app is approved for (App Review page).
-// instagram_manage_comments / instagram_manage_engagement are NOT approved and
-// break the OAuth dialog with "Invalid Scopes".
+// Only permissions this Meta app is approved for (App Review page). Anything
+// else makes Meta answer the OAuth dialog with "Invalid Scopes" — a hard stop
+// for anyone who is an admin, developer or tester on the app, which is exactly
+// the people who try to connect a channel first. Regular merchants are not
+// blocked; Meta drops the unknown scope for them silently, which is why this
+// only ever surfaced when the owner tried it himself.
+//
+// Removed for that reason: instagram_manage_comments,
+// instagram_manage_engagement, and — seen live on v22.0/dialog/oauth on
+// 6 Sep 2026 — instagram_manage_events.
+//
+// instagram_manage_events is the Instagram Conversions API permission. Nothing
+// depends on it being *requested*: hasInstagramManageEventsScope reads what the
+// token was actually granted, so the ads tab reports the permission as missing
+// and offers the manual CAPI token instead. Put it back in this list once the
+// app has Advanced Access for it and the tab lights up on the next reconnect,
+// with no other change.
 const INSTAGRAM_SCOPES = [
   "instagram_basic",
   "instagram_manage_messages",
-  "instagram_manage_events",
   "pages_manage_metadata",
   "pages_show_list",
   "pages_messaging",
