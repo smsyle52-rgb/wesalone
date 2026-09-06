@@ -1,3 +1,4 @@
+import { META_CAPI_PARTNER_AGENT } from "@chatbotx.io/utils/meta-capi"
 import type {
   HashedCapiUserData,
   PurchaseContentItem,
@@ -223,7 +224,7 @@ export function sendConversionEvent({
         },
         json: {
           data: [buildConversionEventPayload(event)],
-          partner_agent: "ChatbotX",
+          partner_agent: META_CAPI_PARTNER_AGENT,
         },
       })
       .json()

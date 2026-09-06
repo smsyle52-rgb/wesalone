@@ -10,6 +10,19 @@
 import { z } from "zod"
 
 /**
+ * The platform name sent alongside every Conversions API request.
+ *
+ * Meta reads this to credit the integration the events came through, so it
+ * has to name us. It was two different upstream names in one product —
+ * "ChatConnectX" on the Meta-conversions path and "ChatbotX" on the WhatsApp
+ * one — which is also the evidence that it is a free-form label and not an
+ * identifier Meta validates: an identifier could not have been two values at
+ * once. If Meta assigns Wesal One a specific partner string under its Tech
+ * Provider agreement, this is the single place to put it.
+ */
+export const META_CAPI_PARTNER_AGENT = "Wesal One"
+
+/**
  * Hash-only Meta Conversions API `user_data` customer-information fields.
  * Every present field is a SHA-256 lowercase-hex digest, wrapped in a
  * single-element array, per Meta's Customer Information Parameters spec

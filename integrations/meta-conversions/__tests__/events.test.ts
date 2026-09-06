@@ -63,7 +63,7 @@ describe("Meta Conversions events API", () => {
             },
           },
         ],
-        partner_agent: "ChatConnectX",
+        partner_agent: "Wesal One",
       },
     })
   })
@@ -140,7 +140,7 @@ describe("Meta Conversions events API", () => {
             },
           },
         ],
-        partner_agent: "ChatConnectX",
+        partner_agent: "Wesal One",
       },
     })
   })
@@ -383,7 +383,7 @@ describe("Meta Conversions events API", () => {
             },
           },
         ],
-        partner_agent: "ChatConnectX",
+        partner_agent: "Wesal One",
       },
     })
   })
