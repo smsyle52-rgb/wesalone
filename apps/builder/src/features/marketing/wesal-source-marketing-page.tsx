@@ -1,14 +1,41 @@
 // @ts-nocheck
 // biome-ignore-all lint: production-parity marketing page port
 "use client"
+import { useRouter } from "next/navigation"
 import * as React from "react"
-import { LangSelector } from "@/components/lang-selector"
+import { setUserLocale } from "@/lib/locale"
 import "./wesal-marketing.css"
+import { MARKETING_EN } from "./marketing-copy-en"
+
+type MarketingLang = "ar" | "en"
+
+/**
+ * One design, two languages.
+ *
+ * The page is written in Arabic with its text inline in the markup. English
+ * visitors used to be routed to a different component altogether, which is how
+ * a reviewer could open wesal.one and never learn what the product does —
+ * Google said exactly that when it rejected a startup-credit application.
+ *
+ * The lookup is keyed on the Arabic string itself, so the source stays readable
+ * and a missing translation falls back to Arabic: visible and fixable, rather
+ * than a bare key on a live page.
+ */
+const MarketingLangContext = React.createContext<MarketingLang>("ar")
+
+function useTranslate() {
+  const lang = React.useContext(MarketingLangContext)
+  return React.useCallback(
+    (text: string) => (lang === "en" ? (MARKETING_EN[text] ?? text) : text),
+    [lang],
+  )
+}
 
 // BrandMark — شارة دائرية زجاجية بحرف W ذي ثلاث شرائح مصمتة (مطابق لشعار وصال ون)
 // كرة كحلية ثلاثية الأبعاد + أقواس زرقاء + لمعان، وحرف W بتدرّج تركوازي→أزرق.
 
 function BrandMark({ size = 44, mono = false }) {
+  const tr = useTranslate()
   const id = React.useId().replace(/:/g, "")
   const sphere = `sp-${id}`,
     rim = `rm-${id}`,
@@ -130,6 +157,7 @@ function BrandLogo({
   tone = "auto",
   className = "",
 }) {
+  const tr = useTranslate()
   // الأصل الرسمي للشعار — الصورة المرجعية نفسها
   const FULL = "/assets/wesal/wesal-logo.png" // الشارة الدائرية الكاملة (بداخلها الاسم)
   const MARK = "/assets/wesal/wesal-mark.png" // حرف W فقط (للأيقونات والـ favicon)
@@ -139,7 +167,7 @@ function BrandLogo({
   if (variant === "icon") {
     return (
       <img
-        alt="وصال ون"
+        alt={tr("وصال ون")}
         className={className}
         height={size}
         src={NAV_MARK}
@@ -158,7 +186,7 @@ function BrandLogo({
   if (variant === "appIcon") {
     return (
       <img
-        alt="وصال ون"
+        alt={tr("وصال ون")}
         className={className}
         height={size}
         src={MARK}
@@ -178,7 +206,7 @@ function BrandLogo({
   // horizontal / compact → الشارة الدائرية الكاملة (الاسم مضمّن داخلها)
   return (
     <img
-      alt="وصال ون — Wesal One"
+      alt={tr("وصال ون — Wesal One")}
       className={className}
       src={FULL}
       style={{
@@ -195,6 +223,7 @@ function BrandLogo({
 // تستخدم للهيرو وأسفل dashboard
 
 function WhatsAppIcon({ size = 28 }) {
+  const tr = useTranslate()
   return (
     <svg aria-hidden="true" height={size} viewBox="0 0 32 32" width={size}>
       <circle cx="16" cy="16" fill="#25D366" r="16" />
@@ -211,6 +240,7 @@ function WhatsAppIcon({ size = 28 }) {
 }
 
 function InstagramIcon({ size = 28 }) {
+  const tr = useTranslate()
   const id = React.useId()
   return (
     <svg aria-hidden="true" height={size} viewBox="0 0 32 32" width={size}>
@@ -247,6 +277,7 @@ function InstagramIcon({ size = 28 }) {
 }
 
 function MessengerIcon({ size = 28 }) {
+  const tr = useTranslate()
   const id = React.useId()
   return (
     <svg aria-hidden="true" height={size} viewBox="0 0 32 32" width={size}>
@@ -266,6 +297,7 @@ function MessengerIcon({ size = 28 }) {
 }
 
 function TelegramIcon({ size = 28 }) {
+  const tr = useTranslate()
   const id = React.useId()
   return (
     <svg aria-hidden="true" height={size} viewBox="0 0 32 32" width={size}>
@@ -285,6 +317,7 @@ function TelegramIcon({ size = 28 }) {
 }
 
 function ChannelIcons({ animated = true, size = 56, withLabels = false }) {
+  const tr = useTranslate()
   const items = [
     { Comp: WhatsAppIcon, name: "WhatsApp" },
     { Comp: InstagramIcon, name: "Instagram" },
@@ -330,6 +363,7 @@ function ChannelIcons({ animated = true, size = 56, withLabels = false }) {
 
 // مساعد: شارة قناة دائرية صغيرة
 function ChBadge({ kind, size = 14 }) {
+  const tr = useTranslate()
   const map = {
     wa: { bg: "#25D366", l: "W" },
     ig: { bg: "linear-gradient(135deg,#F58529,#DD2A7B,#515BD4)", l: "I" },
@@ -355,8 +389,9 @@ function ChBadge({ kind, size = 14 }) {
 
 // ============ 1) صندوق الوارد الموحد — Mini Inbox غني ============
 function MiniUIInbox() {
+  const tr = useTranslate()
   const tabs = [
-    { id: "all", l: "الكل", count: 24 },
+    { id: "all", l: tr("الكل"), count: 24 },
     { id: "wa", l: "WhatsApp", count: 12 },
     { id: "ig", l: "Instagram", count: 6 },
     { id: "mg", l: "Messenger", count: 4 },
@@ -367,41 +402,41 @@ function MiniUIInbox() {
   const allRows = [
     {
       ch: "wa",
-      n: "عميل واتساب",
-      m: "متى يتم توصيل الطلب؟",
+      n: tr("عميل واتساب"),
+      m: tr("متى يتم توصيل الطلب؟"),
       t: "11:42",
       u: 2,
       c: "#25D366",
-      status: "جديد",
+      status: tr("جديد"),
       sCol: "var(--secondary)",
       active: true,
     },
     {
       ch: "wa",
-      n: "متجر الخليج",
-      m: "تم تحديث حالة الشحن",
+      n: tr("متجر الخليج"),
+      m: tr("تم تحديث حالة الشحن"),
       t: "11:18",
       c: "#1B5CE8",
-      status: "مفتوحة",
+      status: tr("مفتوحة"),
       sCol: "var(--primary-hi)",
     },
     {
       ch: "ig",
-      n: "عميل إنستغرام",
-      m: "هل المنتج متوفر؟",
+      n: tr("عميل إنستغرام"),
+      m: tr("هل المنتج متوفر؟"),
       t: "10:50",
       u: 1,
       c: "#DD2A7B",
-      status: "تحتاج رد",
+      status: tr("تحتاج رد"),
       sCol: "#F59E0B",
     },
     {
       ch: "tg",
-      n: "استفسار توصيل",
-      m: "أحتاج تعديل العنوان",
+      n: tr("استفسار توصيل"),
+      m: tr("أحتاج تعديل العنوان"),
       t: "10:21",
       c: "#2AABEE",
-      status: "متابعة",
+      status: tr("متابعة"),
       sCol: "#8B5CF6",
     },
   ]
@@ -445,7 +480,9 @@ function MiniUIInbox() {
               <path d="M4 13h5l1 2h4l1-2h5" />
             </svg>
           </div>
-          <div className="text-[12.5px] font-extrabold">صندوق الوارد</div>
+          <div className="text-[12.5px] font-extrabold">
+            {tr("صندوق الوارد")}
+          </div>
           <span
             className="text-[9.5px] font-extrabold text-white px-1.5 py-0.5 rounded-full"
             style={{ background: "var(--primary)" }}
@@ -461,7 +498,7 @@ function MiniUIInbox() {
               boxShadow: "0 0 8px var(--secondary)",
             }}
           ></span>
-          مزامنة حيّة
+          {tr("مزامنة حيّة")}
         </div>
       </div>
 
@@ -602,16 +639,18 @@ function MiniUIInbox() {
               </svg>
             </span>
             <div className="leading-tight">
-              <div className="text-[11.5px] font-extrabold">فرز ذكي</div>
+              <div className="text-[11.5px] font-extrabold">
+                {tr("فرز ذكي")}
+              </div>
               <div className="text-[10px] text-soft">
-                تم رفع أولوية{" "}
+                {tr("تم رفع أولوية")}{" "}
                 <span
                   className="font-bold"
                   style={{ color: "var(--secondary)" }}
                 >
-                  8 محادثات
+                  {tr("8 محادثات")}
                 </span>{" "}
-                تحتاج رد سريع
+                {tr("تحتاج رد سريع")}
               </div>
             </div>
           </div>
@@ -619,7 +658,7 @@ function MiniUIInbox() {
             className="text-[10px] font-extrabold px-2.5 py-1.5 rounded-md text-white shrink-0"
             style={{ background: "var(--primary)" }}
           >
-            عرض
+            {tr("عرض")}
           </button>
         </div>
       </div>
@@ -629,68 +668,69 @@ function MiniUIInbox() {
 
 // ============ 2) فريق ومهام — Operations Board (Kanban) ============
 function MiniUITeam() {
+  const tr = useTranslate()
   const cols = [
-    { id: "new", l: "جديد", c: "var(--secondary)" },
-    { id: "wip", l: "قيد المعالجة", c: "var(--primary-hi)" },
-    { id: "wait", l: "بانتظار العميل", c: "#F59E0B" },
-    { id: "done", l: "مكتمل", c: "#10B981" },
+    { id: "new", l: tr("جديد"), c: "var(--secondary)" },
+    { id: "wip", l: tr("قيد المعالجة"), c: "var(--primary-hi)" },
+    { id: "wait", l: tr("بانتظار العميل"), c: "#F59E0B" },
+    { id: "done", l: tr("مكتمل"), c: "#10B981" },
   ]
 
   const tasks = {
     new: [
       {
         ch: "wa",
-        title: "محادثة واتساب — تحتاج رد سريع",
-        priority: "عالية",
+        title: tr("محادثة واتساب — تحتاج رد سريع"),
+        priority: tr("عالية"),
         priCol: "#EF4444",
-        assignee: "عضو الدعم 1",
-        sla: "متبقي 12د",
+        assignee: tr("عضو الدعم 1"),
+        sla: tr("متبقي 12د"),
       },
       {
         ch: "ig",
-        title: "إنستغرام — سؤال عن التوفر",
-        priority: "متوسطة",
+        title: tr("إنستغرام — سؤال عن التوفر"),
+        priority: tr("متوسطة"),
         priCol: "#F59E0B",
-        assignee: "فريق المبيعات",
-        sla: "متبقي 28د",
+        assignee: tr("فريق المبيعات"),
+        sla: tr("متبقي 28د"),
       },
     ],
     wip: [
       {
         ch: "wa",
-        title: "طلب #1842 — استفسار توصيل",
-        priority: "عالية",
+        title: tr("طلب #1842 — استفسار توصيل"),
+        priority: tr("عالية"),
         priCol: "#EF4444",
-        assignee: "فريق الشحن",
-        sla: "متبقي 8د",
+        assignee: tr("فريق الشحن"),
+        sla: tr("متبقي 8د"),
       },
       {
         ch: "mg",
-        title: "متجر الخليج — متابعة شحن",
-        priority: "متوسطة",
+        title: tr("متجر الخليج — متابعة شحن"),
+        priority: tr("متوسطة"),
         priCol: "#F59E0B",
-        assignee: "عضو الدعم 2",
-        sla: "متبقي 45د",
+        assignee: tr("عضو الدعم 2"),
+        sla: tr("متبقي 45د"),
       },
     ],
     wait: [
       {
         ch: "tg",
-        title: "تعديل عنوان الطلب",
-        priority: "منخفضة",
+        title: tr("تعديل عنوان الطلب"),
+        priority: tr("منخفضة"),
         priCol: "var(--secondary)",
-        assignee: "فريق الشحن",
-        sla: "بانتظار رد",
+        assignee: tr("فريق الشحن"),
+        sla: tr("بانتظار رد"),
       },
     ],
     done: [
       {
         ch: "ig",
-        title: "استفسار سعر الجملة",
-        priority: "متوسطة",
+        title: tr("استفسار سعر الجملة"),
+        priority: tr("متوسطة"),
         priCol: "#F59E0B",
-        assignee: "فريق المبيعات",
-        sla: "أُغلق ✓",
+        assignee: tr("فريق المبيعات"),
+        sla: tr("أُغلق ✓"),
       },
     ],
   }
@@ -733,12 +773,14 @@ function MiniUITeam() {
               <circle cx="17" cy="8" r="2.2" />
             </svg>
           </div>
-          <div className="text-[12.5px] font-extrabold">لوحة التشغيل</div>
+          <div className="text-[12.5px] font-extrabold">
+            {tr("لوحة التشغيل")}
+          </div>
           <span
             className="text-[9.5px] font-extrabold text-white px-1.5 py-0.5 rounded-full"
             style={{ background: "var(--primary)" }}
           >
-            12 مهمة نشطة
+            {tr("12 مهمة نشطة")}
           </span>
         </div>
         <button
@@ -760,7 +802,7 @@ function MiniUITeam() {
           >
             <path d="M13 2L4 14h7l-1 8 9-12h-7z" />
           </svg>
-          توزيع تلقائي
+          {tr("توزيع تلقائي")}
         </button>
       </div>
 
@@ -831,7 +873,7 @@ function MiniUITeam() {
                           "linear-gradient(135deg, var(--primary), var(--secondary))",
                       }}
                     >
-                      ع
+                      {tr("ع")}
                     </div>
                     <span className="text-[9px] text-soft truncate">
                       {t.assignee}
@@ -841,7 +883,7 @@ function MiniUITeam() {
                     className="text-[8.5px] font-bold shrink-0 flex items-center gap-0.5"
                     style={{
                       color:
-                        t.sla.includes("12") || t.sla.includes("8د")
+                        t.sla.includes("12") || t.sla.includes(tr("8د"))
                           ? "#EF4444"
                           : "var(--fg-mute)",
                     }}
@@ -899,16 +941,18 @@ function MiniUITeam() {
               </svg>
             </span>
             <div className="leading-tight min-w-0">
-              <div className="text-[11.5px] font-extrabold">اقتراح توزيع</div>
+              <div className="text-[11.5px] font-extrabold">
+                {tr("اقتراح توزيع")}
+              </div>
               <div className="text-[10px] text-soft">
-                تحويل{" "}
+                {tr("تحويل")}{" "}
                 <span
                   className="font-bold"
                   style={{ color: "var(--secondary)" }}
                 >
-                  5 محادثات
+                  {tr("5 محادثات")}
                 </span>{" "}
-                إلى فريق الشحن (كلمات: توصيل، شحن، عنوان)
+                {tr("إلى فريق الشحن (كلمات: توصيل، شحن، عنوان)")}
               </div>
             </div>
           </div>
@@ -916,7 +960,7 @@ function MiniUITeam() {
             className="text-[10px] font-extrabold px-2.5 py-1.5 rounded-md text-white shrink-0"
             style={{ background: "var(--primary)" }}
           >
-            تطبيق
+            {tr("تطبيق")}
           </button>
         </div>
       </div>
@@ -926,6 +970,7 @@ function MiniUITeam() {
 
 // ============ 3) تقارير — Analytics Dashboard ============
 function MiniChartLine({ pts, color, height = 56, animated = true }) {
+  const tr = useTranslate()
   let d = `M ${pts[0]} ${height - pts[1]}`
   for (let i = 2; i < pts.length; i += 2)
     d += ` L ${pts[i]} ${height - pts[i + 1]}`
@@ -990,6 +1035,7 @@ function MiniChartLine({ pts, color, height = 56, animated = true }) {
   )
 }
 function MiniBars({ vals, color, height = 56 }) {
+  const tr = useTranslate()
   const max = Math.max(...vals)
   return (
     <div className="flex items-end gap-1" style={{ height }}>
@@ -1009,24 +1055,25 @@ function MiniBars({ vals, color, height = 56 }) {
 }
 
 function MiniUIAnalytics() {
+  const tr = useTranslate()
   const [range, setRange] = React.useState("7")
   const ranges = [
-    { id: "1", l: "اليوم" },
-    { id: "7", l: "٧ أيام" },
-    { id: "30", l: "٣٠ يوم" },
+    { id: "1", l: tr("اليوم") },
+    { id: "7", l: tr("٧ أيام") },
+    { id: "30", l: tr("٣٠ يوم") },
   ]
 
   const kpis = [
     {
-      l: "متوسط الرد",
-      v: "2.5 د",
+      l: tr("متوسط الرد"),
+      v: tr("2.5 د"),
       d: "-22%",
       icon: "clock",
       c: "var(--secondary)",
       dir: "down-good",
     },
     {
-      l: "رضا العملاء",
+      l: tr("رضا العملاء"),
       v: "96%",
       d: "+4%",
       icon: "smile",
@@ -1034,7 +1081,7 @@ function MiniUIAnalytics() {
       dir: "up",
     },
     {
-      l: "محادثات اليوم",
+      l: tr("محادثات اليوم"),
       v: "1,250",
       d: "+18%",
       icon: "chart",
@@ -1042,7 +1089,7 @@ function MiniUIAnalytics() {
       dir: "up",
     },
     {
-      l: "مهام مكتملة",
+      l: tr("مهام مكتملة"),
       v: "87%",
       d: "+9%",
       icon: "check",
@@ -1095,7 +1142,9 @@ function MiniUIAnalytics() {
               <path d="M4 20V8M10 20V4M16 20v-8M3 20h18" />
             </svg>
           </div>
-          <div className="text-[12.5px] font-extrabold">لوحة التحليلات</div>
+          <div className="text-[12.5px] font-extrabold">
+            {tr("لوحة التحليلات")}
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           <div
@@ -1138,7 +1187,7 @@ function MiniUIAnalytics() {
             >
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
             </svg>
-            تصدير
+            {tr("تصدير")}
           </button>
         </div>
       </div>
@@ -1240,7 +1289,9 @@ function MiniUIAnalytics() {
                 <polyline points="6 14 12 8 18 14" />
               </svg>
               {k.d}
-              <span className="text-mute font-bold">عن الفترة السابقة</span>
+              <span className="text-mute font-bold">
+                {tr("عن الفترة السابقة")}
+              </span>
             </div>
           </div>
         ))}
@@ -1257,13 +1308,15 @@ function MiniUIAnalytics() {
           }}
         >
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] font-extrabold">حجم المحادثات</div>
+            <div className="text-[11px] font-extrabold">
+              {tr("حجم المحادثات")}
+            </div>
             <div className="flex items-center gap-1 text-[9.5px] text-mute">
               <span
                 className="w-1.5 h-1.5 rounded-full"
                 style={{ background: "var(--primary-hi)" }}
               ></span>
-              المحادثات
+              {tr("المحادثات")}
             </div>
           </div>
           <MiniChartLine
@@ -1275,13 +1328,13 @@ function MiniUIAnalytics() {
             ]}
           />
           <div className="flex justify-between text-[8.5px] text-mute mt-1.5">
-            <span>س</span>
-            <span>أ</span>
-            <span>ث</span>
-            <span>ر</span>
-            <span>خ</span>
-            <span>ج</span>
-            <span>س</span>
+            <span>{tr("س")}</span>
+            <span>{tr("أ")}</span>
+            <span>{tr("ث")}</span>
+            <span>{tr("ر")}</span>
+            <span>{tr("خ")}</span>
+            <span>{tr("ج")}</span>
+            <span>{tr("س")}</span>
           </div>
         </div>
 
@@ -1293,7 +1346,9 @@ function MiniUIAnalytics() {
             border: "1px solid var(--line)",
           }}
         >
-          <div className="text-[11px] font-extrabold mb-2.5">توزيع القنوات</div>
+          <div className="text-[11px] font-extrabold mb-2.5">
+            {tr("توزيع القنوات")}
+          </div>
           <div className="space-y-2.5">
             {channels.map((ch) => (
               <div key={ch.l}>
@@ -1358,13 +1413,15 @@ function MiniUIAnalytics() {
               </svg>
             </span>
             <div className="leading-tight min-w-0">
-              <div className="text-[11.5px] font-extrabold">تنبيه ذكي</div>
+              <div className="text-[11.5px] font-extrabold">
+                {tr("تنبيه ذكي")}
+              </div>
               <div className="text-[10px] text-soft">
-                ارتفع ضغط محادثات{" "}
+                {tr("ارتفع ضغط محادثات")}{" "}
                 <span className="font-bold" style={{ color: "#F59E0B" }}>
-                  واتساب 18%
+                  {tr("واتساب 18%")}
                 </span>{" "}
-                خلال آخر ساعتين
+                {tr("خلال آخر ساعتين")}
               </div>
             </div>
           </div>
@@ -1372,7 +1429,7 @@ function MiniUIAnalytics() {
             className="text-[10px] font-extrabold px-2.5 py-1.5 rounded-md text-white shrink-0"
             style={{ background: "var(--primary)" }}
           >
-            عرض التفاصيل
+            {tr("عرض التفاصيل")}
           </button>
         </div>
       </div>
@@ -1485,11 +1542,12 @@ function _FlowArrow({ vertical = false }) {
 }
 
 function MiniUIAutomation() {
+  const tr = useTranslate()
   const steps = [
     {
       step: 1,
-      title: "رسالة واردة",
-      text: "أحتاج تعديل عنوان التوصيل",
+      title: tr("رسالة واردة"),
+      text: tr("أحتاج تعديل عنوان التوصيل"),
       chip: "WhatsApp",
       chipColor: "#25D366",
       color: "#25D366",
@@ -1508,9 +1566,9 @@ function MiniUIAutomation() {
     },
     {
       step: 2,
-      title: "تحليل النية",
-      text: "نية العميل: تعديل طلب",
-      chip: "تحليل",
+      title: tr("تحليل النية"),
+      text: tr("نية العميل: تعديل طلب"),
+      chip: tr("تحليل"),
       chipColor: "var(--primary-hi)",
       color: "var(--primary-hi)",
       icon: (
@@ -1528,9 +1586,9 @@ function MiniUIAutomation() {
     },
     {
       step: 3,
-      title: "وسم ذكي",
-      text: "توصيل · طلب نشط",
-      chip: "تلقائي",
+      title: tr("وسم ذكي"),
+      text: tr("توصيل · طلب نشط"),
+      chip: tr("تلقائي"),
       chipColor: "#F59E0B",
       color: "#F59E0B",
       icon: (
@@ -1549,9 +1607,9 @@ function MiniUIAutomation() {
     },
     {
       step: 4,
-      title: "إجراء تلقائي",
-      text: "تحويل إلى فريق الشحن",
-      chip: "فريق الشحن",
+      title: tr("إجراء تلقائي"),
+      text: tr("تحويل إلى فريق الشحن"),
+      chip: tr("فريق الشحن"),
       chipColor: "#8B5CF6",
       color: "#8B5CF6",
       icon: (
@@ -1569,8 +1627,8 @@ function MiniUIAutomation() {
     },
     {
       step: 5,
-      title: "متابعة",
-      text: "إنشاء مهمة بمهلة 15د",
+      title: tr("متابعة"),
+      text: tr("إنشاء مهمة بمهلة 15د"),
       chip: "SLA",
       chipColor: "var(--secondary)",
       color: "var(--secondary)",
@@ -1630,7 +1688,7 @@ function MiniUIAutomation() {
             </svg>
           </div>
           <div className="text-[12.5px] font-extrabold">
-            مسار التشغيل التلقائي
+            {tr("مسار التشغيل التلقائي")}
           </div>
           <span
             className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-full"
@@ -1640,7 +1698,7 @@ function MiniUIAutomation() {
               color: "var(--secondary)",
             }}
           >
-            ● فعّال
+            {tr("● فعّال")}
           </span>
         </div>
         <div
@@ -1650,7 +1708,7 @@ function MiniUIAutomation() {
             border: "1px solid var(--line)",
           }}
         >
-          تعديل المسار
+          {tr("تعديل المسار")}
         </div>
       </div>
 
@@ -1702,12 +1760,14 @@ function MiniUIAutomation() {
             >
               <path d="M6 3v18M18 3v18M3 8h18M3 16h18" />
             </svg>
-            <div className="text-[11px] font-extrabold">قاعدة التشغيل</div>
+            <div className="text-[11px] font-extrabold">
+              {tr("قاعدة التشغيل")}
+            </div>
           </div>
           <div className="text-[10.5px] leading-relaxed text-soft">
             <div>
-              <span className="text-mute">إذا احتوت الرسالة على: </span>
-              {["توصيل", "شحن", "عنوان"].map((w, i) => (
+              <span className="text-mute">{tr("إذا احتوت الرسالة على:")} </span>
+              {[tr("توصيل"), tr("شحن"), tr("عنوان")].map((w, i) => (
                 <span
                   className="inline-flex items-center text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-md mx-0.5"
                   key={w}
@@ -1722,11 +1782,13 @@ function MiniUIAutomation() {
               ))}
             </div>
             <div className="mt-2 space-y-1">
-              <span className="text-mute font-bold text-[10px]">نفّذ:</span>
+              <span className="text-mute font-bold text-[10px]">
+                {tr("نفّذ:")}
+              </span>
               {[
-                "إضافة وسم: توصيل",
-                "تحويل إلى: فريق الشحن",
-                "إنشاء مهمة متابعة",
+                tr("إضافة وسم: توصيل"),
+                tr("تحويل إلى: فريق الشحن"),
+                tr("إنشاء مهمة متابعة"),
               ].map((a, i) => (
                 <div className="flex items-center gap-1.5" key={i}>
                   <span
@@ -1775,15 +1837,17 @@ function MiniUIAutomation() {
                   boxShadow: "0 0 8px var(--secondary)",
                 }}
               ></span>
-              <div className="text-[11px] font-extrabold">نتيجة التنفيذ</div>
+              <div className="text-[11px] font-extrabold">
+                {tr("نتيجة التنفيذ")}
+              </div>
             </div>
-            <span className="text-[9.5px] text-mute">منذ ٣د</span>
+            <span className="text-[9.5px] text-mute">{tr("منذ ٣د")}</span>
           </div>
           <div className="space-y-1.5">
             {[
-              { l: "تم تحويل المحادثة", v: "فريق الشحن" },
-              { l: "تم إنشاء مهمة", v: "#WSL-1842" },
-              { l: "تم تحديث حالة العميل", v: "طلب نشط" },
+              { l: tr("تم تحويل المحادثة"), v: tr("فريق الشحن") },
+              { l: tr("تم إنشاء مهمة"), v: "#WSL-1842" },
+              { l: tr("تم تحديث حالة العميل"), v: tr("طلب نشط") },
             ].map((r, i) => (
               <div
                 className="flex items-center justify-between text-[10.5px]"
@@ -1961,50 +2025,51 @@ function _SideIcon({ name, size = 16 }) {
 
 // ====== Component ======
 function PlatformDashboard() {
+  const tr = useTranslate()
   // المحادثة النشطة + داعمها للتفاعل البسيط (hover)
   const conversations = [
     {
       id: 0,
       ch: "wa",
-      name: "عميل واتساب",
-      msg: "مرحباً، أريد معرفة حالة الشحن",
-      time: "11:42 ص",
+      name: tr("عميل واتساب"),
+      msg: tr("مرحباً، أريد معرفة حالة الشحن"),
+      time: tr("11:42 ص"),
       color: "#25D366",
       unread: 2,
     },
     {
       id: 1,
       ch: "wa",
-      name: "متجر الهدى",
-      msg: "وصل استفسار جديد عن الطلب #1842",
-      time: "11:18 ص",
+      name: tr("متجر الهدى"),
+      msg: tr("وصل استفسار جديد عن الطلب #1842"),
+      time: tr("11:18 ص"),
       color: "#1B5CE8",
       unread: 0,
     },
     {
       id: 2,
       ch: "ig",
-      name: "عميل إنستغرام",
-      msg: "هل المنتج متوفر؟",
-      time: "10:50 ص",
+      name: tr("عميل إنستغرام"),
+      msg: tr("هل المنتج متوفر؟"),
+      time: tr("10:50 ص"),
       color: "#DD2A7B",
       unread: 1,
     },
     {
       id: 3,
       ch: "mg",
-      name: "متجر الخليج",
-      msg: "تم تحديث حالة الشحن",
-      time: "10:21 ص",
+      name: tr("متجر الخليج"),
+      msg: tr("تم تحديث حالة الشحن"),
+      time: tr("10:21 ص"),
       color: "#0084FF",
       unread: 0,
     },
     {
       id: 4,
       ch: "tg",
-      name: "استفسار توصيل",
-      msg: "أحتاج تعديل العنوان",
-      time: "09:48 ص",
+      name: tr("استفسار توصيل"),
+      msg: tr("أحتاج تعديل العنوان"),
+      time: tr("09:48 ص"),
       color: "#2AABEE",
       unread: 0,
     },
@@ -2045,7 +2110,8 @@ function PlatformDashboard() {
         <div className="ms-3 flex items-center gap-2">
           <BrandLogo size={16} variant="icon" />
           <div className="text-[11.5px] font-bold text-soft">
-            وصال ون <span className="text-mute">— صندوق الوارد</span>
+            {tr("وصال ون")}{" "}
+            <span className="text-mute">{tr("— صندوق الوارد")}</span>
           </div>
         </div>
         <div className="ms-auto flex items-center gap-1.5 text-[10px] text-mute">
@@ -2056,7 +2122,7 @@ function PlatformDashboard() {
               boxShadow: "0 0 8px var(--secondary)",
             }}
           ></span>
-          متّصل
+          {tr("متّصل")}
         </div>
       </div>
 
@@ -2066,10 +2132,15 @@ function PlatformDashboard() {
         style={{ borderColor: "var(--line)", background: "rgba(0,0,0,0.16)" }}
       >
         {[
-          { l: "متوسط الرد", v: "2.5 د", c: "var(--secondary)", icon: "clock" },
-          { l: "رضا العملاء", v: "96%", c: "#22D3EE", icon: "smile" },
           {
-            l: "محادثات اليوم",
+            l: tr("متوسط الرد"),
+            v: tr("2.5 د"),
+            c: "var(--secondary)",
+            icon: "clock",
+          },
+          { l: tr("رضا العملاء"), v: "96%", c: "#22D3EE", icon: "smile" },
+          {
+            l: tr("محادثات اليوم"),
             v: "1,250",
             c: "var(--primary-hi)",
             icon: "chart",
@@ -2118,18 +2189,18 @@ function PlatformDashboard() {
             </div>
             <div className="leading-tight min-w-0">
               <div className="text-[10.5px] font-bold truncate">
-                حساب المتجر
+                {tr("حساب المتجر")}
               </div>
-              <div className="text-[8.5px] text-mute">المدير</div>
+              <div className="text-[8.5px] text-mute">{tr("المدير")}</div>
             </div>
           </div>
           <nav className="space-y-1">
             {[
-              { i: "inbox", l: "صندوق الوارد", active: true, badge: 24 },
-              { i: "team", l: "الفريق" },
-              { i: "chart", l: "التقارير" },
-              { i: "bolt", l: "الأتمتة" },
-              { i: "gear", l: "الإعدادات" },
+              { i: "inbox", l: tr("صندوق الوارد"), active: true, badge: 24 },
+              { i: "team", l: tr("الفريق") },
+              { i: "chart", l: tr("التقارير") },
+              { i: "bolt", l: tr("الأتمتة") },
+              { i: "gear", l: tr("الإعدادات") },
             ].map((n) => (
               <button
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-bold transition ${n.active ? "text-white" : "text-soft hover:bg-white/5"}`}
@@ -2159,7 +2230,7 @@ function PlatformDashboard() {
             style={{ borderColor: "var(--line)" }}
           >
             <div className="text-[8.5px] text-mute mb-1.5">
-              الفريق · ٤ متاحون
+              {tr("الفريق · ٤ متاحون")}
             </div>
             <div className="flex items-center -space-x-1.5 space-x-reverse">
               {["#1B5CE8", "#22D3EE", "#F59E0B", "#8B5CF6"].map((c, i) => (
@@ -2188,22 +2259,26 @@ function PlatformDashboard() {
               style={{ background: "rgba(255,255,255,0.04)" }}
             >
               <_SideIcon name="search" size={12} />
-              <span className="text-[10.5px] text-mute">ابحث في المحادثات</span>
+              <span className="text-[10.5px] text-mute">
+                {tr("ابحث في المحادثات")}
+              </span>
             </div>
             <div className="flex items-center justify-between">
-              <div className="text-[11.5px] font-extrabold">المحادثات</div>
+              <div className="text-[11.5px] font-extrabold">
+                {tr("المحادثات")}
+              </div>
               <div className="flex gap-1 text-[8.5px]">
                 <span
                   className="px-1.5 py-0.5 rounded-full text-white font-extrabold"
                   style={{ background: "var(--primary)" }}
                 >
-                  الكل 24
+                  {tr("الكل 24")}
                 </span>
                 <span
                   className="px-1.5 py-0.5 rounded-full text-mute"
                   style={{ background: "rgba(255,255,255,0.05)" }}
                 >
-                  غير مقروءة
+                  {tr("غير مقروءة")}
                 </span>
               </div>
             </div>
@@ -2300,7 +2375,7 @@ function PlatformDashboard() {
                     boxShadow: "0 0 6px var(--secondary)",
                   }}
                 ></span>
-                نشط الآن
+                {tr("نشط الآن")}
               </div>
             </div>
             <div className="ms-auto flex items-center gap-1.5">
@@ -2322,16 +2397,18 @@ function PlatformDashboard() {
                 border: "1px solid var(--line)",
               }}
             >
-              مرحباً، أريد معرفة حالة الشحن
-              <div className="text-[8.5px] text-mute mt-0.5">11:41 ص</div>
+              {tr("مرحباً، أريد معرفة حالة الشحن")}
+              <div className="text-[8.5px] text-mute mt-0.5">
+                {tr("11:41 ص")}
+              </div>
             </div>
             <div
               className="max-w-[75%] ms-auto rounded-2xl rounded-be-md px-3 py-2 text-[11.5px] leading-relaxed text-white"
               style={{ background: "var(--primary)" }}
             >
-              أهلاً بك، طلبك قيد التجهيز وسيتم تحديثك خلال 1-3 أيام عمل.
+              {tr("أهلاً بك، طلبك قيد التجهيز وسيتم تحديثك خلال 1-3 أيام عمل.")}
               <div className="text-[8.5px] mt-0.5 text-blue-200">
-                11:43 ص ✓✓
+                {tr("11:43 ص ✓✓")}
               </div>
             </div>
             <div
@@ -2341,8 +2418,10 @@ function PlatformDashboard() {
                 border: "1px solid var(--line)",
               }}
             >
-              ممتاز، شكراً لكم 🙏
-              <div className="text-[8.5px] text-mute mt-0.5">11:44 ص</div>
+              {tr("ممتاز، شكراً لكم 🙏")}
+              <div className="text-[8.5px] text-mute mt-0.5">
+                {tr("11:44 ص")}
+              </div>
             </div>
           </div>
 
@@ -2362,23 +2441,26 @@ function PlatformDashboard() {
                 style={{ color: "var(--secondary)" }}
               >
                 <_SideIcon name="spark" size={12} />
-                ردّ ذكي مقترح
+                {tr("ردّ ذكي مقترح")}
               </div>
-              <span className="text-[9px] text-mute">مقترح داخل المنصة</span>
+              <span className="text-[9px] text-mute">
+                {tr("مقترح داخل المنصة")}
+              </span>
             </div>
             <p className="text-[11px] leading-relaxed mb-2">
-              "الطلب قيد التوصيل وسيصلك اليوم قبل المغرب. كود التتبع:{" "}
+              &ldquo;
+              {tr("الطلب قيد التوصيل وسيصلك اليوم قبل المغرب. كود التتبع:")}{" "}
               <span className="font-bold" dir="ltr">
                 WSL-2841
               </span>
-              "
+              &rdquo;
             </p>
             <div className="flex items-center gap-1.5">
               <button
                 className="text-[10px] font-extrabold text-white px-3 py-1.5 rounded-md"
                 style={{ background: "var(--primary)" }}
               >
-                استخدام الرد
+                {tr("استخدام الرد")}
               </button>
               <button
                 className="text-[10px] font-bold px-3 py-1.5 rounded-md text-soft"
@@ -2387,7 +2469,7 @@ function PlatformDashboard() {
                   border: "1px solid var(--line)",
                 }}
               >
-                تعديل
+                {tr("تعديل")}
               </button>
             </div>
           </div>
@@ -2404,7 +2486,7 @@ function PlatformDashboard() {
                 border: "1px solid var(--line)",
               }}
             >
-              اكتب رسالة...
+              {tr("اكتب رسالة...")}
             </div>
             <button
               className="w-9 h-9 grid place-items-center rounded-lg text-white"
@@ -2433,24 +2515,26 @@ function PlatformDashboard() {
                 <div className="text-[12px] font-extrabold truncate">
                   {active.name}
                 </div>
-                <div className="text-[9.5px] text-mute">عميل · QR-2841</div>
+                <div className="text-[9.5px] text-mute">
+                  {tr("عميل · QR-2841")}
+                </div>
               </div>
             </div>
             <div className="space-y-1.5 text-[10.5px]">
               {[
                 {
-                  l: "الحالة",
+                  l: tr("الحالة"),
                   v: (
                     <span
                       className="font-bold"
                       style={{ color: "var(--secondary)" }}
                     >
-                      ● جديد
+                      {tr("● جديد")}
                     </span>
                   ),
                 },
                 {
-                  l: "القناة",
+                  l: tr("القناة"),
                   v: (
                     <span className="flex items-center gap-1 font-bold">
                       <_PCh kind={active.ch} size={11} /> WhatsApp
@@ -2458,7 +2542,7 @@ function PlatformDashboard() {
                   ),
                 },
                 {
-                  l: "آخر طلب",
+                  l: tr("آخر طلب"),
                   v: (
                     <span className="font-bold font-mono" dir="ltr">
                       #1842
@@ -2480,11 +2564,13 @@ function PlatformDashboard() {
 
           {/* وسوم */}
           <div>
-            <div className="text-[10px] font-bold text-mute mb-2">الوسوم</div>
+            <div className="text-[10px] font-bold text-mute mb-2">
+              {tr("الوسوم")}
+            </div>
             <div className="flex flex-wrap gap-1.5">
               {[
-                { l: "توصيل", c: "var(--primary-hi)" },
-                { l: "طلب نشط", c: "var(--secondary)" },
+                { l: tr("توصيل"), c: "var(--primary-hi)" },
+                { l: tr("طلب نشط"), c: "var(--secondary)" },
                 { l: "VIP", c: "#F59E0B" },
               ].map((t) => (
                 <span
@@ -2513,7 +2599,7 @@ function PlatformDashboard() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5 text-[10.5px] font-extrabold">
                 <_SideIcon name="pkg" size={13} />
-                الطلب{" "}
+                {tr("الطلب")}{" "}
                 <span className="font-mono" dir="ltr">
                   #1842
                 </span>
@@ -2522,7 +2608,7 @@ function PlatformDashboard() {
                 className="text-[9px] font-bold"
                 style={{ color: "var(--secondary)" }}
               >
-                قيد التوصيل
+                {tr("قيد التوصيل")}
               </span>
             </div>
             <div
@@ -2539,17 +2625,17 @@ function PlatformDashboard() {
               />
             </div>
             <div className="flex justify-between text-[8px] text-mute mt-1.5">
-              <span>تم الطلب</span>
-              <span>تجهيز</span>
-              <span>شُحن</span>
-              <span>وصل</span>
+              <span>{tr("تم الطلب")}</span>
+              <span>{tr("تجهيز")}</span>
+              <span>{tr("شُحن")}</span>
+              <span>{tr("وصل")}</span>
             </div>
           </div>
 
           {/* إجراءات سريعة */}
           <div className="mt-auto">
             <div className="text-[10px] font-bold text-mute mb-2">
-              إجراء سريع
+              {tr("إجراء سريع")}
             </div>
             <div className="space-y-1.5">
               <button
@@ -2557,7 +2643,7 @@ function PlatformDashboard() {
                 style={{ background: "var(--primary)" }}
               >
                 <_SideIcon name="arrow" size={12} />
-                تحويل للفريق
+                {tr("تحويل للفريق")}
               </button>
               <button
                 className="w-full flex items-center justify-center gap-2 h-9 rounded-lg text-[11px] font-extrabold text-soft"
@@ -2567,7 +2653,7 @@ function PlatformDashboard() {
                 }}
               >
                 <_SideIcon name="plus" size={12} />
-                إنشاء مهمة
+                {tr("إنشاء مهمة")}
               </button>
             </div>
           </div>
@@ -2585,6 +2671,7 @@ function PlatformDashboard() {
 // the page to dark and clears a `light` choice saved by an earlier visit so a
 // returning visitor is not stuck on the retired palette. Renders nothing.
 function ForceDarkTheme() {
+  const tr = useTranslate()
   React.useEffect(() => {
     const r = document.documentElement
     const hadLight = r.classList.contains("light")
@@ -2605,11 +2692,124 @@ function ForceDarkTheme() {
   return null
 }
 
+const LANG_OPTIONS = [
+  { value: "ar", label: "العربية", short: "AR" },
+  { value: "en", label: "English", short: "EN" },
+]
+
+function GlobeIcon({ size = 16 }) {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height={size}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.7"
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z" />
+    </svg>
+  )
+}
+
 function LangPill() {
-  return <LangSelector />
+  const tr = useTranslate()
+  const lang = React.useContext(MarketingLangContext)
+  const [open, setOpen] = React.useState(false)
+  const [pending, startTransition] = React.useTransition()
+  const router = useRouter()
+  const boxRef = React.useRef(null)
+
+  React.useEffect(() => {
+    if (!open) {
+      return
+    }
+    const onPointerDown = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) {
+        setOpen(false)
+      }
+    }
+    const onKey = (e) => {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("mousedown", onPointerDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
+
+  const choose = (value) => {
+    setOpen(false)
+    if (value === lang) {
+      return
+    }
+    startTransition(async () => {
+      await setUserLocale(value)
+      router.refresh()
+    })
+  }
+
+  const current = LANG_OPTIONS.find((o) => o.value === lang) ?? LANG_OPTIONS[0]
+
+  return (
+    <div className="wesal-lang" ref={boxRef}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={tr("اللغة")}
+        className="wesal-lang-trigger"
+        disabled={pending}
+        onClick={() => setOpen((o) => !o)}
+        type="button"
+      >
+        <GlobeIcon />
+        <span className="wesal-lang-code">{current.short}</span>
+      </button>
+      {open && (
+        <ul className="wesal-lang-menu" role="listbox">
+          {LANG_OPTIONS.map((o) => (
+            <li key={o.value}>
+              <button
+                aria-selected={o.value === lang}
+                className={`wesal-lang-option${o.value === lang ? " is-current" : ""}`}
+                onClick={() => choose(o.value)}
+                role="option"
+                type="button"
+              >
+                <span>{o.label}</span>
+                {o.value === lang && (
+                  <svg
+                    aria-hidden="true"
+                    fill="none"
+                    height="14"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2.2"
+                    viewBox="0 0 24 24"
+                    width="14"
+                  >
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 function GabsterNav() {
+  const tr = useTranslate()
   const [open, setOpen] = React.useState(false)
   const [scrolled, setScrolled] = React.useState(false)
   React.useEffect(() => {
@@ -2619,12 +2819,13 @@ function GabsterNav() {
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
   const links = [
-    { l: "المنصة", h: "#preview" },
-    { l: "المزايا", h: "#features" },
-    { l: "الأسعار", h: "#pricing" },
-    { l: "قصص النجاح", h: "#stories" },
-    { l: "الموارد", h: "#resources" },
-    { l: "تواصل معنا", h: "#contact" },
+    { l: tr("المنصة"), h: "#preview" },
+    { l: tr("المزايا"), h: "#features" },
+    { l: tr("الأسعار"), h: "#pricing" },
+    { l: tr("قصص النجاح"), h: "#stories" },
+    { l: tr("الموارد"), h: "#resources" },
+    { l: tr("من نحن"), h: "/about" },
+    { l: tr("تواصل معنا"), h: "#contact" },
   ]
   return (
     <header
@@ -2642,7 +2843,7 @@ function GabsterNav() {
     >
       <div className="container-page h-16 flex items-center justify-between gap-4">
         <a
-          aria-label="وصال ون — Wesal One"
+          aria-label={tr("وصال ون — Wesal One")}
           className="shrink-0 wesal-logo-lockup"
           href="#home"
         >
@@ -2653,7 +2854,7 @@ function GabsterNav() {
             src="/assets/wesal/wesal-w.png"
           />
           <span className="wesal-logo-text">
-            <span className="wesal-logo-ar">وصال ون</span>
+            <span className="wesal-logo-ar">{tr("وصال ون")}</span>
             <span className="wesal-logo-en">Wesal One</span>
           </span>
         </a>
@@ -2676,14 +2877,20 @@ function GabsterNav() {
           </div>
           <ForceDarkTheme />
           <a
+            className="hidden sm:inline-flex items-center h-10 px-4 rounded-xl border border-line font-bold text-[13.5px] text-soft transition hover:text-[color:var(--fg)]"
+            href="/auth/sign-in"
+          >
+            {tr("تسجيل الدخول")}
+          </a>
+          <a
             className="hidden sm:inline-flex items-center h-10 px-5 rounded-xl btn-primary font-bold text-sm"
             href="/auth/sign-up"
           >
-            ابدأ الآن
+            {tr("إنشاء حساب")}
           </a>
 
           <button
-            aria-label="القائمة"
+            aria-label={tr("القائمة")}
             className="lg:hidden w-10 h-10 grid place-items-center rounded-xl border border-line text-soft"
             onClick={() => setOpen((o) => !o)}
           >
@@ -2734,7 +2941,7 @@ function GabsterNav() {
                 href="/auth/sign-up"
                 onClick={() => setOpen(false)}
               >
-                ابدأ الآن
+                {tr("ابدأ الآن")}
               </a>
             </div>
           </div>
@@ -2746,6 +2953,7 @@ function GabsterNav() {
 
 // ===== خلفية Hero — cinematic dark + glows =====
 function HeroBackdrop() {
+  const tr = useTranslate()
   return (
     <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
       <div
@@ -2791,11 +2999,14 @@ function Spark({ size = 16, color = "var(--secondary)" }) {
 
 // ===== كروت الهيرو العائمة =====
 function HeroConnectCard() {
+  const tr = useTranslate()
   const icons = [WhatsAppIcon, InstagramIcon, MessengerIcon, TelegramIcon]
   return (
     <div className="surface rounded-2xl p-4 w-[244px] shadow-[0_24px_60px_-18px_rgba(0,0,0,0.55)]">
       <div className="flex items-center justify-between">
-        <span className="font-extrabold text-[15px]">منصة أعمال متصلة</span>
+        <span className="font-extrabold text-[15px]">
+          {tr("منصة أعمال متصلة")}
+        </span>
         <svg
           fill="none"
           height="22"
@@ -2808,7 +3019,7 @@ function HeroConnectCard() {
         </svg>
       </div>
       <p className="text-[12.5px] text-mute mt-2 leading-relaxed">
-        إدارة المحادثات والعمليات من قناتك المفضّلة
+        {tr("إدارة المحادثات والعمليات من قناتك المفضّلة")}
       </p>
       <div className="flex gap-2 mt-3.5" dir="ltr">
         {icons.map((Icon, i) => (
@@ -2825,25 +3036,38 @@ function HeroConnectCard() {
 }
 
 function HeroInboxCard() {
+  const tr = useTranslate()
   const rows = [
     {
       Icon: WhatsAppIcon,
-      n: "شركة النور",
-      p: "تم استلام الطلب بنجاح",
+      n: tr("شركة النور"),
+      p: tr("تم استلام الطلب بنجاح"),
       t: "2m",
     },
-    { Icon: InstagramIcon, n: "متجر القمة", p: "هل المنتج متوفر؟", t: "5m" },
+    {
+      Icon: InstagramIcon,
+      n: tr("متجر القمة"),
+      p: tr("هل المنتج متوفر؟"),
+      t: "5m",
+    },
     {
       Icon: MessengerIcon,
-      n: "مؤسسة الرؤية",
-      p: "أرسلوا لنا التفاصيل",
+      n: tr("مؤسسة الرؤية"),
+      p: tr("أرسلوا لنا التفاصيل"),
       t: "7m",
     },
-    { Icon: TelegramIcon, n: "حلول الأعمال", p: "شكرًا على المتابعة", t: "13m" },
+    {
+      Icon: TelegramIcon,
+      n: tr("حلول الأعمال"),
+      p: tr("شكرًا على المتابعة"),
+      t: "13m",
+    },
   ]
   return (
     <div className="surface rounded-2xl p-4 w-[256px] shadow-[0_24px_60px_-18px_rgba(0,0,0,0.55)]">
-      <div className="font-extrabold text-[15px] mb-2">صندوق وارد موحّد</div>
+      <div className="font-extrabold text-[15px] mb-2">
+        {tr("صندوق وارد موحّد")}
+      </div>
       <div className="flex flex-col gap-0.5">
         {rows.map((r, i) => (
           <div
@@ -2870,7 +3094,7 @@ function HeroInboxCard() {
         href="#preview"
         style={{ color: "var(--secondary)" }}
       >
-        عرض جميع المحادثات
+        {tr("عرض جميع المحادثات")}
         <svg
           fill="none"
           height="14"
@@ -2889,9 +3113,12 @@ function HeroInboxCard() {
 }
 
 function HeroPerfCard() {
+  const tr = useTranslate()
   return (
     <div className="surface rounded-2xl p-4 w-[206px] shadow-[0_24px_60px_-18px_rgba(0,0,0,0.55)]">
-      <div className="font-extrabold text-[14px] mb-3">أداء الأذكياء</div>
+      <div className="font-extrabold text-[14px] mb-3">
+        {tr("أداء الأذكياء")}
+      </div>
       <div className="flex items-center gap-3">
         <div className="relative w-16 h-16 shrink-0">
           <svg height="64" viewBox="0 0 64 64" width="64">
@@ -2931,9 +3158,9 @@ function HeroPerfCard() {
             className="font-extrabold text-[14px] mb-0.5"
             style={{ color: "var(--fg)" }}
           >
-            معدل النجاح
+            {tr("معدل النجاح")}
           </div>
-          أداء أعلى من المتوسط
+          {tr("أداء أعلى من المتوسط")}
         </div>
       </div>
       <svg
@@ -2978,21 +3205,24 @@ function HeroPerfCard() {
         >
           <path d="M7 17L17 7M9 7h8v8" />
         </svg>
-        تحسّن هذا الأسبوع
+        {tr("تحسّن هذا الأسبوع")}
       </div>
     </div>
   )
 }
 
 function HeroTasksCard() {
+  const tr = useTranslate()
   const tasks = [
-    { l: "رد على الاستفسارات", done: true },
-    { l: "تحديث حالة الطلبات", done: true },
-    { l: "متابعة العملاء المحتملين", done: false },
+    { l: tr("رد على الاستفسارات"), done: true },
+    { l: tr("تحديث حالة الطلبات"), done: true },
+    { l: tr("متابعة العملاء المحتملين"), done: false },
   ]
   return (
     <div className="surface rounded-2xl p-4 w-[200px] shadow-[0_24px_60px_-18px_rgba(0,0,0,0.55)]">
-      <div className="font-extrabold text-[14.5px] mb-3">المهام الذكية</div>
+      <div className="font-extrabold text-[14.5px] mb-3">
+        {tr("المهام الذكية")}
+      </div>
       <div className="flex flex-col gap-2.5">
         {tasks.map((t, i) => (
           <div
@@ -3032,6 +3262,7 @@ function HeroTasksCard() {
 
 // ===== هالة + حلقات خلف الهولوغرام =====
 function HoloStage() {
+  const tr = useTranslate()
   return (
     <div className="relative mx-auto w-[280px]">
       {/* halo */}
@@ -3067,7 +3298,9 @@ function HoloStage() {
         <image-slot
           fit="cover"
           id="wesal-hero-holo"
-          placeholder="ضع صورة الهولوغرام (وكيل الذكاء الاصطناعي + اللابتوب)"
+          placeholder={tr(
+            "ضع صورة الهولوغرام (وكيل الذكاء الاصطناعي + اللابتوب)",
+          )}
           shape="rect"
           style={{
             position: "absolute",
@@ -3135,6 +3368,7 @@ const PILLS = [
 ]
 
 function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
+  const tr = useTranslate()
   const align = centered ? "center" : "right"
   return (
     <div style={{ textAlign: align }}>
@@ -3153,8 +3387,8 @@ function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
           whiteSpace: "nowrap",
         }}
       >
-        <Spark color="var(--secondary)" size={14} /> منصة ذكاء اصطناعي لإدارة
-        أعمالك ونموّك
+        <Spark color="var(--secondary)" size={14} />{" "}
+        {tr("منصة ذكاء اصطناعي لإدارة أعمالك ونموّك")}
       </div>
       <div
         style={{
@@ -3166,9 +3400,9 @@ function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
           color: "#FBFDFF",
         }}
       >
-        وكلاء ذكاء اصطناعي
+        {tr("وكلاء ذكاء اصطناعي")}
         <br />
-        يديرون{" "}
+        {tr("يديرون")}{" "}
         <span
           style={{
             background: "linear-gradient(90deg,#4D86FF,#22D3EE)",
@@ -3177,9 +3411,9 @@ function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
             color: "transparent",
           }}
         >
-          أعمالك
+          {tr("أعمالك")}
         </span>{" "}
-        باحتراف
+        {tr("باحتراف")}
       </div>
       <p
         style={{
@@ -3191,9 +3425,9 @@ function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
           marginInlineStart: centered ? "auto" : 0,
         }}
       >
-        وصال ون، منصة سهلة الاستخدام توحّد تواصل العملاء، وتدير الردود وتُسرّع
-        المبيعات وخدمة العملاء من مكان واحد. ابدأ الربط والتشغيل خلال دقائق،
-        واترك للوكلاء الأذكياء إدارة المهام المتكررة ومساعدة فريقك بكفاءة أعلى.
+        {tr(
+          "وصال ون، منصة سهلة الاستخدام توحّد تواصل العملاء، وتدير الردود وتُسرّع المبيعات وخدمة العملاء من مكان واحد. ابدأ الربط والتشغيل خلال دقائق، واترك للوكلاء الأذكياء إدارة المهام المتكررة ومساعدة فريقك بكفاءة أعلى.",
+        )}
       </p>
       <div
         style={{
@@ -3220,7 +3454,7 @@ function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
             textDecoration: "none",
           }}
         >
-          ابدأ الآن
+          {tr("ابدأ الآن")}
           <svg
             fill="none"
             height="18"
@@ -3261,7 +3495,7 @@ function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
             <rect height="18" rx="2" width="18" x="3" y="4" />
             <path d="M16 2v4M8 2v4M3 10h18" />
           </svg>
-          اطلب عرضًا تجريبيًا
+          {tr("اطلب عرضًا تجريبيًا")}
         </a>
       </div>
       <p
@@ -3271,14 +3505,15 @@ function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
           color: "var(--fg-mute, #7F8DA8)",
         }}
       >
-        ربط وتشغيل خلال دقائق &nbsp;•&nbsp; تجربة مجانية{" "}
-        <b style={{ color: "var(--fg-soft, #A9B6CE)" }}>14 يوم</b>
+        {tr("ربط وتشغيل خلال دقائق")} &nbsp;•&nbsp; {tr("تجربة مجانية")}{" "}
+        <b style={{ color: "var(--fg-soft, #A9B6CE)" }}>{tr("14 يوم")}</b>
       </p>
     </div>
   )
 }
 
 function HeroPills({ style = {} }) {
+  const tr = useTranslate()
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", ...style }}>
       {PILLS.map((p) => (
@@ -3297,7 +3532,7 @@ function HeroPills({ style = {} }) {
             fontWeight: 600,
           }}
         >
-          {p.icon} {p.l}
+          {p.icon} {tr(p.l)}
         </span>
       ))}
     </div>
@@ -3305,6 +3540,7 @@ function HeroPills({ style = {} }) {
 }
 
 function HoloImage({ style = {} }) {
+  const tr = useTranslate()
   return (
     <div style={{ position: "relative", ...style }}>
       <div
@@ -3337,6 +3573,7 @@ function HoloImage({ style = {} }) {
 
 // ===== Desktop Hero — fixed 1672×690 canvas, scaled by container width =====
 function HeroDesktop() {
+  const tr = useTranslate()
   const wrapRef = React.useRef(null)
   const [sc, setSc] = React.useState(1)
   React.useEffect(() => {
@@ -3513,6 +3750,7 @@ function HeroDesktop() {
 
 // ===== Mobile/Tablet Hero (< lg) =====
 function HeroMobile() {
+  const tr = useTranslate()
   return (
     <div
       className="lg:hidden container-page"
@@ -3555,6 +3793,7 @@ function HeroMobile() {
 
 // ===== Hero — entry point =====
 function OrbitalHero() {
+  const tr = useTranslate()
   return (
     <section
       className="relative overflow-hidden"
@@ -3593,12 +3832,13 @@ function useReveal() {
 
 // ============ Platform Preview — Dashboard + Side Panel ============
 function PlatformPreview() {
+  const tr = useTranslate()
   const [tab, setTab] = React.useState("inbox")
   const tabs = [
-    { id: "inbox", l: "صندوق الوارد" },
-    { id: "team", l: "الفريق" },
-    { id: "reports", l: "التقارير" },
-    { id: "autom", l: "الأتمتة" },
+    { id: "inbox", l: tr("صندوق الوارد") },
+    { id: "team", l: tr("الفريق") },
+    { id: "reports", l: tr("التقارير") },
+    { id: "autom", l: tr("الأتمتة") },
   ]
   return (
     <section className="platform-preview-section" id="preview">
@@ -3609,17 +3849,20 @@ function PlatformPreview() {
               className="w-6 h-px"
               style={{ background: "var(--primary)" }}
             />
-            داخل المنصة
+            {tr("داخل المنصة")}
             <span
               className="w-6 h-px"
               style={{ background: "var(--primary)" }}
             />
           </div>
           <h2 className="reveal platform-preview-title text-3xl sm:text-5xl font-extrabold leading-[1.15]">
-            نظرة على <span className="grad-text">منصة وصال ون</span>
+            {tr("نظرة على")}{" "}
+            <span className="grad-text">{tr("منصة وصال ون")}</span>
           </h2>
           <p className="reveal platform-preview-description mx-auto max-w-2xl text-[15px] text-soft">
-            صندوق وارد، فريق، تقارير، وأتمتة — كل ذلك في تجربة عربية واحدة سلسة.
+            {tr(
+              "صندوق وارد، فريق، تقارير، وأتمتة — كل ذلك في تجربة عربية واحدة سلسة.",
+            )}
           </p>
 
           {/* Tabs */}
@@ -3667,7 +3910,7 @@ function PlatformPreview() {
         </div>
 
         <p className="reveal mt-6 text-center text-[12px] text-mute">
-          حرّك مؤشر الماوس فوق اللوحة لتجربة التفاعل ↔
+          {tr("حرّك مؤشر الماوس فوق اللوحة لتجربة التفاعل ↔")}
         </p>
       </div>
     </section>
@@ -3676,6 +3919,7 @@ function PlatformPreview() {
 
 // لوحة جانبية: بيانات العميل + الوسوم + اقتراح ردّ
 function PreviewSidePanel() {
+  const tr = useTranslate()
   return (
     <aside className="flex flex-col gap-4">
       {/* بيانات العميل */}
@@ -3688,17 +3932,21 @@ function PreviewSidePanel() {
             W
           </div>
           <div className="min-w-0">
-            <div className="text-[14px] font-extrabold">عميل واتساب</div>
-            <div className="text-[11px] text-mute">عميل منذ 2024 · 12 طلب</div>
+            <div className="text-[14px] font-extrabold">
+              {tr("عميل واتساب")}
+            </div>
+            <div className="text-[11px] text-mute">
+              {tr("عميل منذ 2024 · 12 طلب")}
+            </div>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 mt-3">
           <div className="surface-soft rounded-lg p-2 border border-line">
-            <div className="text-[9px] text-mute">القيمة</div>
-            <div className="text-[12px] font-extrabold">1,420 ر.س</div>
+            <div className="text-[9px] text-mute">{tr("القيمة")}</div>
+            <div className="text-[12px] font-extrabold">{tr("1,420 ر.س")}</div>
           </div>
           <div className="surface-soft rounded-lg p-2 border border-line">
-            <div className="text-[9px] text-mute">الرضا</div>
+            <div className="text-[9px] text-mute">{tr("الرضا")}</div>
             <div
               className="text-[12px] font-extrabold"
               style={{ color: "var(--secondary)" }}
@@ -3711,12 +3959,14 @@ function PreviewSidePanel() {
 
       {/* الوسوم */}
       <div>
-        <div className="text-[11px] font-bold text-mute mb-2">الوسوم</div>
+        <div className="text-[11px] font-bold text-mute mb-2">
+          {tr("الوسوم")}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {[
             { l: "VIP", c: "#F59E0B" },
-            { l: "استفسار طلب", c: "var(--primary)" },
-            { l: "متابعة", c: "var(--secondary)" },
+            { l: tr("استفسار طلب"), c: "var(--primary)" },
+            { l: tr("متابعة"), c: "var(--secondary)" },
           ].map((t) => (
             <span
               className="text-[10px] font-bold px-2 py-1 rounded-md"
@@ -3735,12 +3985,12 @@ function PreviewSidePanel() {
       {/* حالة الطلب */}
       <div>
         <div className="text-[11px] font-bold text-mute mb-2">
-          آخر طلب · #WSL-2841
+          {tr("آخر طلب · #WSL-2841")}
         </div>
         <div className="surface-soft rounded-lg p-2.5 border border-line">
           <div className="flex items-center justify-between text-[11px]">
-            <span className="font-bold">قيد التوصيل</span>
-            <span className="text-[10px] text-mute">اليوم</span>
+            <span className="font-bold">{tr("قيد التوصيل")}</span>
+            <span className="text-[10px] text-mute">{tr("اليوم")}</span>
           </div>
           <div
             className="mt-2 h-1.5 rounded-full overflow-hidden"
@@ -3756,10 +4006,10 @@ function PreviewSidePanel() {
             />
           </div>
           <div className="flex justify-between text-[8px] text-mute mt-1">
-            <span>تم الطلب</span>
-            <span>تحت التجهيز</span>
-            <span>شُحن</span>
-            <span>وصل</span>
+            <span>{tr("تم الطلب")}</span>
+            <span>{tr("تحت التجهيز")}</span>
+            <span>{tr("شُحن")}</span>
+            <span>{tr("وصل")}</span>
           </div>
         </div>
       </div>
@@ -3787,21 +4037,24 @@ function PreviewSidePanel() {
           >
             <path d="M13 2L4 14h7l-1 8 9-12h-7z" />
           </svg>
-          اقتراح ردّ ذكي
+          {tr("اقتراح ردّ ذكي")}
         </div>
         <p className="text-[11px] leading-relaxed">
-          "أهلاً بك، طلبك قيد التجهيز وسيتم تحديثك خلال 1-3 أيام. كود التتبع:{" "}
-          <span className="font-bold">WSL-2841</span>"
+          &ldquo;
+          {tr(
+            "أهلاً بك، طلبك قيد التجهيز وسيتم تحديثك خلال 1-3 أيام. كود التتبع:",
+          )}{" "}
+          <span className="font-bold">WSL-2841</span>&rdquo;
         </p>
         <div className="flex items-center gap-1.5 mt-2">
           <button
             className="text-[10px] font-bold px-2.5 py-1 rounded-md text-white"
             style={{ background: "var(--primary)" }}
           >
-            إرسال
+            {tr("إرسال")}
           </button>
           <button className="text-[10px] font-bold px-2.5 py-1 rounded-md border border-line">
-            تعديل
+            {tr("تعديل")}
           </button>
         </div>
       </div>
@@ -3811,6 +4064,7 @@ function PreviewSidePanel() {
 
 // ============ Platform intro (header for pillars section) ============
 function PlatformIntro() {
+  const tr = useTranslate()
   return (
     <section
       className="surface-soft py-14 sm:py-20 border-y border-line"
@@ -3819,15 +4073,17 @@ function PlatformIntro() {
       <div className="container-page text-center">
         <div className="inline-flex items-center gap-2 text-[11px] font-bold tracking-wider uppercase text-mute reveal">
           <span className="w-6 h-px" style={{ background: "var(--primary)" }} />
-          القدرات
+          {tr("القدرات")}
           <span className="w-6 h-px" style={{ background: "var(--primary)" }} />
         </div>
         <h2 className="reveal mt-3 text-3xl sm:text-5xl font-extrabold leading-[1.15]">
-          أربع قدرات تعمل معاً <span className="grad-text">في منصة واحدة</span>
+          {tr("أربع قدرات تعمل معاً")}{" "}
+          <span className="grad-text">{tr("في منصة واحدة")}</span>
         </h2>
         <p className="reveal mt-4 mx-auto max-w-2xl text-[15px] sm:text-[17px] leading-[1.9] text-soft">
-          من استقبال الرسالة حتى التقرير النهائي — كل خطوة في مكانها، بلا تنقّل
-          بين تطبيقات.
+          {tr(
+            "من استقبال الرسالة حتى التقرير النهائي — كل خطوة في مكانها، بلا تنقّل بين تطبيقات.",
+          )}
         </p>
       </div>
     </section>
@@ -3915,59 +4171,68 @@ function Pillar({
 }
 
 function FeaturePillars() {
+  const tr = useTranslate()
   return (
     <>
       <PlatformIntro />
       <Pillar
         bullets={[
-          "جميع القنوات في مكان واحد",
-          "فرز ذكي حسب الأولوية",
-          "متابعة المحادثات بدون ضياع",
+          tr("جميع القنوات في مكان واحد"),
+          tr("فرز ذكي حسب الأولوية"),
+          tr("متابعة المحادثات بدون ضياع"),
         ]}
         color="var(--primary)"
-        desc="اجمع محادثات واتساب، إنستغرام، ماسنجر، وتيليجرام في واجهة واحدة، ورتّبها حسب القناة، الحالة، والأولوية."
-        kicker="Communicate · تواصل"
+        desc={tr(
+          "اجمع محادثات واتساب، إنستغرام، ماسنجر، وتيليجرام في واجهة واحدة، ورتّبها حسب القناة، الحالة، والأولوية.",
+        )}
+        kicker={tr("Communicate · تواصل")}
         side="right"
-        title="صندوق وارد موحّد لكل قنواتك"
+        title={tr("صندوق وارد موحّد لكل قنواتك")}
         visual={<MiniUIInbox />}
       />
       <Pillar
         bullets={[
-          "توزيع تلقائي حسب القناة أو الأولوية",
-          "متابعة حالة كل محادثة",
-          "تنبيهات للمهام المتأخرة",
+          tr("توزيع تلقائي حسب القناة أو الأولوية"),
+          tr("متابعة حالة كل محادثة"),
+          tr("تنبيهات للمهام المتأخرة"),
         ]}
         color="var(--secondary)"
-        desc="حوّل كل محادثة إلى مهمة واضحة، عيّنها للعضو المناسب، وتابع حالة الردود والإنجاز من لوحة تشغيل واحدة."
-        kicker="Operate · شغّل"
+        desc={tr(
+          "حوّل كل محادثة إلى مهمة واضحة، عيّنها للعضو المناسب، وتابع حالة الردود والإنجاز من لوحة تشغيل واحدة.",
+        )}
+        kicker={tr("Operate · شغّل")}
         side="left"
-        title="وزّع المحادثات والمهام على فريقك"
+        title={tr("وزّع المحادثات والمهام على فريقك")}
         visual={<MiniUITeam />}
       />
       <Pillar
         bullets={[
-          "قياس متوسط سرعة الرد",
-          "معرفة القنوات الأكثر ضغطاً",
-          "تتبع رضا العملاء والإنجاز",
+          tr("قياس متوسط سرعة الرد"),
+          tr("معرفة القنوات الأكثر ضغطاً"),
+          tr("تتبع رضا العملاء والإنجاز"),
         ]}
         color="var(--secondary)"
-        desc="تابع سرعة الرد، رضا العملاء، حجم المحادثات، وأداء القنوات من لوحة تحليلات واحدة تساعدك على اتخاذ قرارات أسرع."
-        kicker="Analyze · حلّل"
+        desc={tr(
+          "تابع سرعة الرد، رضا العملاء، حجم المحادثات، وأداء القنوات من لوحة تحليلات واحدة تساعدك على اتخاذ قرارات أسرع.",
+        )}
+        kicker={tr("Analyze · حلّل")}
         side="right"
-        title="اعرف أداء فريقك من تقارير واضحة"
+        title={tr("اعرف أداء فريقك من تقارير واضحة")}
         visual={<MiniUIAnalytics />}
       />
       <Pillar
         bullets={[
-          "تشغيل تلقائي حسب كلمات العميل",
-          "تحويل المحادثات للفريق المناسب",
-          "إنشاء مهام وردود ذكية بدون تدخل يدوي",
+          tr("تشغيل تلقائي حسب كلمات العميل"),
+          tr("تحويل المحادثات للفريق المناسب"),
+          tr("إنشاء مهام وردود ذكية بدون تدخل يدوي"),
         ]}
         color="#8B5CF6"
-        desc="أنشئ مسارات ذكية تبدأ من رسالة العميل وتنتهي بإجراء واضح: رد جاهز، وسم، تحويل للفريق، أو إنشاء مهمة متابعة."
-        kicker="Act · نفّذ"
+        desc={tr(
+          "أنشئ مسارات ذكية تبدأ من رسالة العميل وتنتهي بإجراء واضح: رد جاهز، وسم، تحويل للفريق، أو إنشاء مهمة متابعة.",
+        )}
+        kicker={tr("Act · نفّذ")}
         side="left"
-        title="حوّل المحادثات إلى إجراءات تلقائية"
+        title={tr("حوّل المحادثات إلى إجراءات تلقائية")}
         visual={<MiniUIAutomation />}
       />
     </>
@@ -3976,6 +4241,7 @@ function FeaturePillars() {
 
 // ============ Stats — glass strip متّصل بالـ Hero ============
 function StatsBar() {
+  const tr = useTranslate()
   const shield = (
     <svg
       fill="none"
@@ -4047,11 +4313,16 @@ function StatsBar() {
   )
   // ترتيب LTR: أمان (يسار) ← 98% ← +10K ← +2M ← 24/7 (يمين)
   const stats = [
-    { v: "أمان وخصوصية", l: "حماية وصلاحيات واضحة", ic: shield, lead: true },
-    { v: "تجربة مريحة", l: "تنظيم أسرع للمحادثات", ic: smile },
-    { v: "فرق وأنشطة", l: "مناسب لفرق البيع والدعم", ic: bld },
-    { v: "محادثات موحدة", l: "كل القنوات في مكان واحد", ic: chat },
-    { v: "تشغيل يومي", l: "متابعة مستمرة للعمل", ic: clock },
+    {
+      v: tr("أمان وخصوصية"),
+      l: tr("حماية وصلاحيات واضحة"),
+      ic: shield,
+      lead: true,
+    },
+    { v: tr("تجربة مريحة"), l: tr("تنظيم أسرع للمحادثات"), ic: smile },
+    { v: tr("فرق وأنشطة"), l: tr("مناسب لفرق البيع والدعم"), ic: bld },
+    { v: tr("محادثات موحدة"), l: tr("كل القنوات في مكان واحد"), ic: chat },
+    { v: tr("تشغيل يومي"), l: tr("متابعة مستمرة للعمل"), ic: clock },
   ]
   return (
     <section className="relative" style={{ zIndex: 6 }}>
@@ -4103,38 +4374,48 @@ function StatsBar() {
 
 // ============ Partners strip — شعارات متحركة ============
 function PartnersStrip() {
+  const tr = useTranslate()
   return null
 }
 
 // ============ Testimonials — شهادات الفرق والمتاجر ============
 function GabsterTestimonials() {
+  const tr = useTranslate()
   const items = [
     {
-      title: "قلّلنا ضياع المحادثات",
-      text: "أصبح الفريق يرى كل محادثات واتساب وإنستغرام من مكان واحد، وصار من السهل معرفة من يتابع كل طلب.",
-      name: "متجر الخليج",
-      role: "متجر إلكتروني",
+      title: tr("قلّلنا ضياع المحادثات"),
+      text: tr(
+        "أصبح الفريق يرى كل محادثات واتساب وإنستغرام من مكان واحد، وصار من السهل معرفة من يتابع كل طلب.",
+      ),
+      name: tr("متجر الخليج"),
+      role: tr("متجر إلكتروني"),
       c: "var(--primary-hi)",
     },
     {
-      title: "التوزيع صار أوضح",
-      text: "قبل وصال ون كانت المحادثات تتداخل بين الفريق. الآن كل محادثة لها حالة، أولوية، وعضو مسؤول عنها.",
-      name: "مركز دعم",
-      role: "فريق خدمة عملاء",
+      title: tr("التوزيع صار أوضح"),
+      text: tr(
+        "قبل وصال ون كانت المحادثات تتداخل بين الفريق. الآن كل محادثة لها حالة، أولوية، وعضو مسؤول عنها.",
+      ),
+      name: tr("مركز دعم"),
+      role: tr("فريق خدمة عملاء"),
       c: "var(--secondary)",
     },
     {
-      title: "التقارير اختصرت علينا الوقت",
-      text: "صرنا نعرف القنوات الأكثر ضغطاً ومتوسط سرعة الرد بدون تجميع يدوي للأرقام.",
-      name: "متجر الهدى",
-      role: "تجارة إلكترونية",
+      title: tr("التقارير اختصرت علينا الوقت"),
+      text: tr(
+        "صرنا نعرف القنوات الأكثر ضغطاً ومتوسط سرعة الرد بدون تجميع يدوي للأرقام.",
+      ),
+      name: tr("متجر الهدى"),
+      role: tr("تجارة إلكترونية"),
       c: "#F59E0B",
     },
     {
-      title: "المتابعة أصبحت أسهل",
-      text: "المهام والتنبيهات ساعدتنا نتابع طلبات الشحن والتعديل بدون نسيان.",
-      name: "فريق الشحن",
-      role: "عمليات وتوصيل",
+      title: tr("المتابعة أصبحت أسهل"),
+      text: tr(
+        "المهام والتنبيهات ساعدتنا نتابع طلبات الشحن والتعديل بدون نسيان.",
+      ),
+      name: tr("فريق الشحن"),
+      role: tr("عمليات وتوصيل"),
       c: "#8B5CF6",
     },
   ]
@@ -4145,12 +4426,13 @@ function GabsterTestimonials() {
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-10">
           <h2 className="reveal text-3xl sm:text-4xl font-extrabold leading-[1.2]">
-            فرق تستخدم وصال ون{" "}
-            <span className="grad-text">لتنظيم محادثاتها</span>
+            {tr("فرق تستخدم وصال ون")}{" "}
+            <span className="grad-text">{tr("لتنظيم محادثاتها")}</span>
           </h2>
           <p className="reveal mt-3 text-[14.5px] text-soft leading-relaxed">
-            من المتاجر الصغيرة إلى فرق الدعم، تساعد وصال ون على تقليل الفوضى،
-            تسريع الردود، وتحويل المحادثات إلى إجراءات قابلة للمتابعة.
+            {tr(
+              "من المتاجر الصغيرة إلى فرق الدعم، تساعد وصال ون على تقليل الفوضى، تسريع الردود، وتحويل المحادثات إلى إجراءات قابلة للمتابعة.",
+            )}
           </p>
         </div>
 
@@ -4228,9 +4510,10 @@ function GabsterTestimonials() {
 // Wesal × Gabster — Pricing + FinalCTA + Footer
 
 function PricingToggle({ yearly, setYearly }) {
+  const tr = useTranslate()
   return (
     <div
-      aria-label="نوع الاشتراك"
+      aria-label={tr("نوع الاشتراك")}
       className="inline-flex items-center gap-2 p-1 rounded-xl"
       role="tablist"
       style={{
@@ -4239,8 +4522,8 @@ function PricingToggle({ yearly, setYearly }) {
       }}
     >
       {[
-        { id: false, l: "شهري" },
-        { id: true, l: "سنوي" },
+        { id: false, l: tr("شهري") },
+        { id: true, l: tr("سنوي") },
       ].map((opt) => {
         const active = yearly === opt.id
         return (
@@ -4260,7 +4543,7 @@ function PricingToggle({ yearly, setYearly }) {
                     "0 0 12px color-mix(in srgb, var(--secondary) 60%, transparent)",
                 }}
               >
-                فوترة سنوية
+                {tr("فوترة سنوية")}
               </span>
             )}
           </button>
@@ -4281,6 +4564,7 @@ function PriceCard({
   featured,
   delay = 0,
 }) {
+  const tr = useTranslate()
   return (
     <div
       className={`pricing-card relative p-7 flex flex-col reveal ${featured ? "featured" : ""}`}
@@ -4298,7 +4582,7 @@ function PriceCard({
               "0 8px 20px -6px color-mix(in srgb, var(--primary) 50%, transparent)",
           }}
         >
-          الأكثر اختياراً
+          {tr("الأكثر اختياراً")}
         </div>
       )}
 
@@ -4377,6 +4661,7 @@ function PriceCard({
 }
 
 function Pricing() {
+  const tr = useTranslate()
   const [yearly, setYearly] = React.useState(false)
   return (
     <section className="pricing-section" id="pricing">
@@ -4384,11 +4669,13 @@ function Pricing() {
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-8">
           <h2 className="reveal text-3xl sm:text-5xl font-extrabold leading-[1.15]">
-            اختر الخطة المناسبة <span className="grad-text">لفريقك</span>
+            {tr("اختر الخطة المناسبة")}{" "}
+            <span className="grad-text">{tr("لفريقك")}</span>
           </h2>
           <p className="reveal mt-4 text-[14.5px] text-soft leading-relaxed">
-            هذه الباقات تعكس تقسيم الاشتراك الحالي داخل المنصة، ويمكنك البدء
-            بالخطة المناسبة ثم الترقية لاحقًا.
+            {tr(
+              "هذه الباقات تعكس تقسيم الاشتراك الحالي داخل المنصة، ويمكنك البدء بالخطة المناسبة ثم الترقية لاحقًا.",
+            )}
           </p>
 
           <div className="reveal mt-6 flex justify-center">
@@ -4399,104 +4686,115 @@ function Pricing() {
         {/* Cards */}
         <div className="pricing-grid mt-10">
           <PriceCard
-            cta="أنشئ حساباً"
+            cta={tr("أنشئ حساباً")}
             delay={0}
-            desc="للتجربة الأولى وفهم طريقة العمل قبل تفعيل باقة مدفوعة."
+            desc={tr("للتجربة الأولى وفهم طريقة العمل قبل تفعيل باقة مدفوعة.")}
             features={[
-              "صندوق وارد موحّد",
-              "وكيل ذكي",
-              "كتالوج المنتجات",
-              "قناة واحدة ووكيل واحد",
-              "بدء سريع بدون بطاقة",
+              tr("صندوق وارد موحّد"),
+              tr("وكيل ذكي"),
+              tr("كتالوج المنتجات"),
+              tr("قناة واحدة ووكيل واحد"),
+              tr("بدء سريع بدون بطاقة"),
             ]}
-            name="مجاني"
-            priceLabel={yearly ? "$0 / سنة" : "$0 / شهر"}
+            name={tr("مجاني")}
+            priceLabel={yearly ? tr("$0 / سنة") : tr("$0 / شهر")}
             priceNote={
               yearly
-                ? "1,000 نقطة ذكاء شهريًا مع فوترة سنوية."
-                : "1,000 نقطة ذكاء شهريًا."
+                ? tr("1,000 نقطة ذكاء شهريًا مع فوترة سنوية.")
+                : tr("1,000 نقطة ذكاء شهريًا.")
             }
           />
           <PriceCard
-            cta="ابدأ بالبداية"
+            cta={tr("ابدأ بالبداية")}
             delay={0.08}
-            desc="للأنشطة الصغيرة التي تريد تشغيل قناة فعلية مع نقطة انطلاق واضحة."
+            desc={tr(
+              "للأنشطة الصغيرة التي تريد تشغيل قناة فعلية مع نقطة انطلاق واضحة.",
+            )}
             featured
             features={[
-              "صندوق وارد موحّد",
-              "وكيل ذكي",
-              "كتالوج المنتجات",
-              "1 قناة و1 وكيل",
-              "أتمتة أساسية",
+              tr("صندوق وارد موحّد"),
+              tr("وكيل ذكي"),
+              tr("كتالوج المنتجات"),
+              tr("1 قناة و1 وكيل"),
+              tr("أتمتة أساسية"),
             ]}
-            name="البداية"
-            priceLabel={yearly ? "$182 / سنة" : "$19 / شهر"}
+            name={tr("البداية")}
+            priceLabel={yearly ? tr("$182 / سنة") : tr("$19 / شهر")}
             priceNote={
               yearly
-                ? "10,000 نقطة ذكاء شهريًا مع توفير شهرين."
-                : "10,000 نقطة ذكاء شهريًا."
+                ? tr("10,000 نقطة ذكاء شهريًا مع توفير شهرين.")
+                : tr("10,000 نقطة ذكاء شهريًا.")
             }
           />
           <PriceCard
-            cta="اختر النمو"
+            cta={tr("اختر النمو")}
             delay={0.16}
-            desc="للفرق التي تدير محادثات يومية وتحتاج قنوات أكثر وتشغيلًا أوسع."
+            desc={tr(
+              "للفرق التي تدير محادثات يومية وتحتاج قنوات أكثر وتشغيلًا أوسع.",
+            )}
             features={[
-              "صندوق وارد موحّد",
-              "وكيل ذكي",
-              "كتالوج المنتجات",
-              "3 قنوات و3 وكلاء",
-              "أتمتة متقدمة",
+              tr("صندوق وارد موحّد"),
+              tr("وكيل ذكي"),
+              tr("كتالوج المنتجات"),
+              tr("3 قنوات و3 وكلاء"),
+              tr("أتمتة متقدمة"),
             ]}
-            name="النمو"
-            priceLabel={yearly ? "$470 / سنة" : "$49 / شهر"}
+            name={tr("النمو")}
+            priceLabel={yearly ? tr("$470 / سنة") : tr("$49 / شهر")}
             priceNote={
               yearly
-                ? "40,000 نقطة ذكاء شهريًا مع توفير شهرين."
-                : "40,000 نقطة ذكاء شهريًا."
+                ? tr("40,000 نقطة ذكاء شهريًا مع توفير شهرين.")
+                : tr("40,000 نقطة ذكاء شهريًا.")
             }
           />
           <PriceCard
-            cta="ابدأ بالاحترافي"
+            cta={tr("ابدأ بالاحترافي")}
             delay={0.24}
-            desc="للفرق الأكبر التي تحتاج حدود تشغيل أعلى ومتابعة أوسع للعمل."
+            desc={tr(
+              "للفرق الأكبر التي تحتاج حدود تشغيل أعلى ومتابعة أوسع للعمل.",
+            )}
             features={[
-              "صندوق وارد موحّد",
-              "وكيل ذكي",
-              "كتالوج المنتجات",
-              "10 قنوات و10 وكلاء",
-              "أتمتة متقدمة",
+              tr("صندوق وارد موحّد"),
+              tr("وكيل ذكي"),
+              tr("كتالوج المنتجات"),
+              tr("10 قنوات و10 وكلاء"),
+              tr("أتمتة متقدمة"),
             ]}
-            name="احترافي"
-            priceLabel={yearly ? "$1344 / سنة" : "$140 / شهر"}
+            name={tr("احترافي")}
+            priceLabel={yearly ? tr("$1344 / سنة") : tr("$140 / شهر")}
             priceNote={
               yearly
-                ? "100,000 نقطة ذكاء شهريًا مع توفير شهرين."
-                : "100,000 نقطة ذكاء شهريًا."
+                ? tr("100,000 نقطة ذكاء شهريًا مع توفير شهرين.")
+                : tr("100,000 نقطة ذكاء شهريًا.")
             }
           />
           <PriceCard
-            cta="تواصل معنا"
+            cta={tr("تواصل معنا")}
             delay={0.32}
-            desc="للجهات التي تحتاج تخصيصًا في الحدود والدعم وعدد القنوات والوكلاء."
+            desc={tr(
+              "للجهات التي تحتاج تخصيصًا في الحدود والدعم وعدد القنوات والوكلاء.",
+            )}
             features={[
-              "كل مزايا المنصة",
-              "قنوات ووكلاء حسب الحاجة",
-              "حدود تشغيل مخصصة",
-              "دعم أولوية",
-              "تهيئة تناسب الفريق",
+              tr("كل مزايا المنصة"),
+              tr("قنوات ووكلاء حسب الحاجة"),
+              tr("حدود تشغيل مخصصة"),
+              tr("دعم أولوية"),
+              tr("تهيئة تناسب الفريق"),
             ]}
             href="mailto:support@wesal.one?subject=%D8%A7%D8%B3%D8%AA%D9%81%D8%B3%D8%A7%D8%B1%20%D8%B9%D9%86%20%D8%A8%D8%A7%D9%82%D8%A9%20%D8%A7%D9%84%D8%A3%D8%B9%D9%85%D8%A7%D9%84"
-            name="الأعمال"
-            priceLabel="سعر مخصص"
-            priceNote="الحدود النهائية تحدد حسب حجم الفريق وطريقة الاستخدام."
+            name={tr("الأعمال")}
+            priceLabel={tr("سعر مخصص")}
+            priceNote={tr(
+              "الحدود النهائية تحدد حسب حجم الفريق وطريقة الاستخدام.",
+            )}
           />
         </div>
 
         {/* ملاحظة */}
         <p className="reveal mt-8 text-center text-[12px] text-mute">
-          قد تتحدّث الأسعار لاحقًا داخل الفوترة، لكن تقسيم الباقات هنا يطابق شكل
-          الاشتراك الحالي داخل المنصة.
+          {tr(
+            "قد تتحدّث الأسعار لاحقًا داخل الفوترة، لكن تقسيم الباقات هنا يطابق شكل الاشتراك الحالي داخل المنصة.",
+          )}
         </p>
       </div>
     </section>
@@ -4505,30 +4803,43 @@ function Pricing() {
 
 // ====== FAQ ======
 function FAQ() {
+  const tr = useTranslate()
   const items = [
     {
-      q: "هل وصال ون مناسب للمتاجر الصغيرة؟",
-      a: "نعم. يمكنك البدء بالتجربة ثم اختيار الخطة المناسبة من تبويب الفوترة داخل مساحة العمل.",
+      q: tr("هل وصال ون مناسب للمتاجر الصغيرة؟"),
+      a: tr(
+        "نعم. يمكنك البدء بالتجربة ثم اختيار الخطة المناسبة من تبويب الفوترة داخل مساحة العمل.",
+      ),
     },
     {
-      q: "هل يدعم واتساب وإنستغرام وماسنجر؟",
-      a: "نعم، الفكرة الأساسية هي جمع محادثات القنوات المختلفة في صندوق وارد موحّد، مع ترتيبها حسب الحالة والأولوية.",
+      q: tr("هل يدعم واتساب وإنستغرام وماسنجر؟"),
+      a: tr(
+        "نعم، الفكرة الأساسية هي جمع محادثات القنوات المختلفة في صندوق وارد موحّد، مع ترتيبها حسب الحالة والأولوية.",
+      ),
     },
     {
-      q: "هل يمكن توزيع المحادثات على الفريق؟",
-      a: "نعم. يمكن تعيين المحادثات لأعضاء الفريق، متابعة حالة كل محادثة، وإنشاء مهام مرتبطة بها.",
+      q: tr("هل يمكن توزيع المحادثات على الفريق؟"),
+      a: tr(
+        "نعم. يمكن تعيين المحادثات لأعضاء الفريق، متابعة حالة كل محادثة، وإنشاء مهام مرتبطة بها.",
+      ),
     },
     {
-      q: "هل توجد ردود ذكية أو اقتراحات؟",
-      a: "نعم. يمكن للمنصة اقتراح ردود جاهزة بناءً على سياق المحادثة، مع إمكانية تعديل الرد قبل إرساله.",
+      q: tr("هل توجد ردود ذكية أو اقتراحات؟"),
+      a: tr(
+        "نعم. يمكن للمنصة اقتراح ردود جاهزة بناءً على سياق المحادثة، مع إمكانية تعديل الرد قبل إرساله.",
+      ),
     },
     {
-      q: "هل أستطيع متابعة أداء الفريق؟",
-      a: "نعم. تعرض لوحة التحليلات مؤشرات مثل متوسط سرعة الرد، حجم المحادثات، القنوات الأكثر ضغطاً، ونسبة الإنجاز.",
+      q: tr("هل أستطيع متابعة أداء الفريق؟"),
+      a: tr(
+        "نعم. تعرض لوحة التحليلات مؤشرات مثل متوسط سرعة الرد، حجم المحادثات، القنوات الأكثر ضغطاً، ونسبة الإنجاز.",
+      ),
     },
     {
-      q: "هل يمكن تخصيص الخطة حسب احتياجنا؟",
-      a: "نعم. في خطة الأعمال يمكن تخصيص القنوات، عدد الأعضاء، حدود نقاط الذكاء، والتكاملات حسب احتياج الفريق.",
+      q: tr("هل يمكن تخصيص الخطة حسب احتياجنا؟"),
+      a: tr(
+        "نعم. في خطة الأعمال يمكن تخصيص القنوات، عدد الأعضاء، حدود نقاط الذكاء، والتكاملات حسب احتياج الفريق.",
+      ),
     },
   ]
   const [open, setOpen] = React.useState(0)
@@ -4538,11 +4849,13 @@ function FAQ() {
         <div className="mx-auto" style={{ maxWidth: 880 }}>
           <div className="text-center mb-10 sm:mb-12">
             <h2 className="reveal text-3xl sm:text-5xl font-extrabold leading-[1.15]">
-              أسئلة شائعة <span className="grad-text">قبل البدء</span>
+              {tr("أسئلة شائعة")}{" "}
+              <span className="grad-text">{tr("قبل البدء")}</span>
             </h2>
             <p className="reveal mt-4 text-[14.5px] text-soft leading-relaxed max-w-xl mx-auto">
-              إجابات سريعة على أهم الأسئلة حول استخدام وصال ون لتنظيم محادثات
-              العملاء وتشغيل الفريق.
+              {tr(
+                "إجابات سريعة على أهم الأسئلة حول استخدام وصال ون لتنظيم محادثات العملاء وتشغيل الفريق.",
+              )}
             </p>
           </div>
 
@@ -4609,7 +4922,8 @@ function FAQ() {
 
 // ===== Final CTA — glass card =====
 function FinalCTABig() {
-  const trust = ["إعداد سريع", "مناسب للفرق والمتاجر", "دعم عربي"]
+  const tr = useTranslate()
+  const trust = [tr("إعداد سريع"), tr("مناسب للفرق والمتاجر"), tr("دعم عربي")]
   return (
     <section className="final-cta-section" id="cta">
       <div className="container-page">
@@ -4619,17 +4933,19 @@ function FinalCTABig() {
         >
           <div className="text-center max-w-2xl mx-auto">
             <h2 className="text-3xl sm:text-5xl font-extrabold leading-[1.15]">
-              ابدأ بتنظيم <span className="grad-text">محادثات عملائك</span>{" "}
-              اليوم
+              {tr("ابدأ بتنظيم")}{" "}
+              <span className="grad-text">{tr("محادثات عملائك")}</span>{" "}
+              {tr("اليوم")}
             </h2>
             <p className="mt-5 text-[14.5px] sm:text-[16px] text-soft leading-relaxed">
-              اجمع قنواتك، وزّع المحادثات على فريقك، وتابع الأداء من منصة واحدة
-              مصممة لتجربة عربية حديثة.
+              {tr(
+                "اجمع قنواتك، وزّع المحادثات على فريقك، وتابع الأداء من منصة واحدة مصممة لتجربة عربية حديثة.",
+              )}
             </p>
 
             <div className="final-cta-actions mt-8 flex items-center justify-center gap-3 flex-wrap">
               <a className="final-cta-btn-primary" href="/auth/sign-up">
-                ابدأ الآن
+                {tr("ابدأ الآن")}
                 <svg
                   fill="none"
                   height="14"
@@ -4647,7 +4963,7 @@ function FinalCTABig() {
                 className="final-cta-btn-ghost"
                 href="mailto:support@wesal.one?subject=%D8%AA%D9%88%D8%A7%D8%B5%D9%84%20%D9%85%D8%B9%20%D9%88%D8%B5%D8%A7%D9%84%20%D9%88%D9%86"
               >
-                تواصل معنا
+                {tr("تواصل معنا")}
               </a>
             </div>
 
@@ -4679,18 +4995,20 @@ function FinalCTABig() {
 
 // ===== Footer =====
 function GabsterFooter() {
+  const tr = useTranslate()
   const product = [
-    "المنصة",
-    "صندوق الوارد",
-    "توزيع المهام",
-    "التحليلات",
-    "الأتمتة",
+    tr("المنصة"),
+    tr("صندوق الوارد"),
+    tr("توزيع المهام"),
+    tr("التحليلات"),
+    tr("الأتمتة"),
   ]
   const company = [
-    { label: "الأسعار", href: "#pricing" },
-    { label: "قصص العملاء", href: "#stories" },
-    { label: "الموارد", href: "#resources" },
-    { label: "تواصل معنا", href: "#contact" },
+    { label: tr("من نحن"), href: "/about" },
+    { label: tr("الأسعار"), href: "#pricing" },
+    { label: tr("قصص العملاء"), href: "#stories" },
+    { label: tr("الموارد"), href: "#resources" },
+    { label: tr("تواصل معنا"), href: "#contact" },
   ]
   return (
     <footer className="footer" id="contact">
@@ -4699,22 +5017,79 @@ function GabsterFooter() {
           {/* Brand */}
           <div>
             <img
-              alt="وصال ون"
+              alt={tr("وصال ون")}
               className="h-10 w-auto object-contain"
               src="/assets/wesal/wesal-w.png"
             />
             <p className="mt-4 text-[13px] text-soft leading-relaxed max-w-sm">
-              منصة عربية لتنظيم محادثات العملاء، توزيع المهام، ومتابعة أداء
-              الفريق من مكان واحد.
+              {tr(
+                "منصة عربية لتنظيم محادثات العملاء، توزيع المهام، ومتابعة أداء الفريق من مكان واحد.",
+              )}
             </p>
             <p className="mt-3 text-[12px] text-mute">
-              مصممة لتجربة عربية RTL.
+              {tr("مصممة لتجربة عربية RTL.")}
             </p>
+            <div className="footer-social">
+              <a
+                aria-label="Facebook"
+                className="footer-social-link"
+                href="https://www.facebook.com/WesalOneAI"
+                rel="noreferrer"
+                target="_blank"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  width="17"
+                >
+                  <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5 3.66 9.15 8.44 9.94v-7.03H7.9v-2.9h2.54V9.85c0-2.52 1.5-3.91 3.77-3.91 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.78-1.63 1.57v1.89h2.78l-.45 2.9h-2.33V22c4.78-.79 8.44-4.94 8.44-9.94z" />
+                </svg>
+              </a>
+              <a
+                aria-label="WhatsApp"
+                className="footer-social-link"
+                href="https://wa.me/967775324950"
+                rel="noreferrer"
+                target="_blank"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  width="17"
+                >
+                  <path d="M12.04 2C6.6 2 2.2 6.4 2.2 11.83c0 2.08.55 4.03 1.5 5.72L2 22l4.6-1.65a9.8 9.8 0 0 0 5.44 1.63h.01c5.43 0 9.83-4.4 9.83-9.83S17.47 2 12.04 2zm5.72 13.92c-.24.68-1.4 1.3-1.94 1.35-.5.05-.97.23-3.28-.68-2.76-1.09-4.5-3.9-4.64-4.08-.13-.18-1.1-1.47-1.1-2.8 0-1.33.7-1.98.94-2.25.25-.27.54-.34.72-.34h.52c.17 0 .4-.06.62.48.24.57.8 1.98.87 2.12.07.14.12.3.02.48-.1.18-.15.3-.29.46-.14.16-.3.36-.43.48-.14.14-.29.3-.12.58.17.28.75 1.24 1.62 2.01 1.11.99 2.05 1.3 2.33 1.44.29.14.45.12.62-.07.17-.2.72-.84.91-1.13.19-.29.38-.24.64-.14.26.09 1.66.78 1.95.92.28.14.47.21.54.33.07.12.07.68-.17 1.35z" />
+                </svg>
+              </a>
+              <a
+                aria-label="Email"
+                className="footer-social-link"
+                href="mailto:support@wesal.one"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="none"
+                  height="17"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                  viewBox="0 0 24 24"
+                  width="17"
+                >
+                  <rect height="14" rx="2" width="18" x="3" y="5" />
+                  <path d="M3 7l9 6 9-6" />
+                </svg>
+              </a>
+            </div>
           </div>
 
           {/* Product */}
           <div>
-            <div className="footer-col-title">المنتج</div>
+            <div className="footer-col-title">{tr("المنتج")}</div>
             <ul className="space-y-2.5">
               {product.map((l) => (
                 <li key={l}>
@@ -4728,7 +5103,7 @@ function GabsterFooter() {
 
           {/* Company */}
           <div>
-            <div className="footer-col-title">الشركة</div>
+            <div className="footer-col-title">{tr("الشركة")}</div>
             <ul className="space-y-2.5">
               {company.map((item) => (
                 <li key={item.label}>
@@ -4742,7 +5117,7 @@ function GabsterFooter() {
 
           {/* Contact */}
           <div>
-            <div className="footer-col-title">التواصل</div>
+            <div className="footer-col-title">{tr("التواصل")}</div>
             <ul className="space-y-2.5">
               <li className="footer-contact-item">
                 <svg
@@ -4774,7 +5149,7 @@ function GabsterFooter() {
                   <path d="M20.5 13.5a8.4 8.4 0 01-1.5 4.7L20 22l-3.9-1a8.5 8.5 0 11-4.6-15.6 8.5 8.5 0 019 8.1z" />
                 </svg>
                 <span>
-                  واتساب: <span dir="ltr">+967 775 324 950</span>
+                  {tr("واتساب:")} <span dir="ltr">+967 775 324 950</span>
                 </span>
               </li>
               <li className="footer-contact-item">
@@ -4791,20 +5166,66 @@ function GabsterFooter() {
                   <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1118 0z" />
                   <circle cx="12" cy="10" r="3" />
                 </svg>
-                <span>صنعاء، اليمن</span>
+                <span>{tr("صنعاء، اليمن")}</span>
               </li>
             </ul>
           </div>
         </div>
 
         <div className="footer-bottom">
-          <div>© 2026 وصال ون. جميع الحقوق محفوظة.</div>
-          <div className="footer-bottom-links">
-            <a href="/privacy">سياسة الخصوصية</a>
-            <span>·</span>
-            <a href="/data-deletion">حذف البيانات</a>
-            <span>·</span>
-            <a href="/terms">شروط الاستخدام</a>
+          <div>{tr("© 2026 وصال ون. جميع الحقوق محفوظة.")}</div>
+          <div className="footer-legal">
+            <a className="footer-legal-link" href="/privacy">
+              <svg
+                aria-hidden="true"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+                width="14"
+              >
+                <path d="M12 3l7 3v5.5c0 4.2-2.9 8.1-7 9.5-4.1-1.4-7-5.3-7-9.5V6l7-3z" />
+                <path d="M9.5 12l1.8 1.8 3.5-3.6" />
+              </svg>
+              {tr("سياسة الخصوصية")}
+            </a>
+            <a className="footer-legal-link" href="/terms">
+              <svg
+                aria-hidden="true"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+                width="14"
+              >
+                <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z" />
+                <path d="M14 3v5h5M9 13h6M9 17h6" />
+              </svg>
+              {tr("شروط الاستخدام")}
+            </a>
+            <a className="footer-legal-link" href="/data-deletion">
+              <svg
+                aria-hidden="true"
+                fill="none"
+                height="14"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+                width="14"
+              >
+                <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+              {tr("حذف البيانات")}
+            </a>
           </div>
         </div>
       </div>
@@ -4812,23 +5233,32 @@ function GabsterFooter() {
   )
 }
 
-export default function WesalSourceMarketingPage() {
+export default function WesalSourceMarketingPage({
+  lang = "ar",
+}: {
+  lang?: MarketingLang
+}) {
   useReveal()
   return (
-    <div className="wesal-source-page page-wrap" dir="rtl">
-      <GabsterNav />
-      <main>
-        <OrbitalHero />
-        <StatsBar />
-        <PlatformPreview />
-        <FeaturePillars />
-        <PartnersStrip />
-        <GabsterTestimonials />
-        <Pricing />
-        <FAQ />
-        <FinalCTABig />
-      </main>
-      <GabsterFooter />
-    </div>
+    <MarketingLangContext.Provider value={lang}>
+      <div
+        className="wesal-source-page page-wrap"
+        dir={lang === "ar" ? "rtl" : "ltr"}
+      >
+        <GabsterNav />
+        <main>
+          <OrbitalHero />
+          <StatsBar />
+          <PlatformPreview />
+          <FeaturePillars />
+          <PartnersStrip />
+          <GabsterTestimonials />
+          <Pricing />
+          <FAQ />
+          <FinalCTABig />
+        </main>
+        <GabsterFooter />
+      </div>
+    </MarketingLangContext.Provider>
   )
 }
