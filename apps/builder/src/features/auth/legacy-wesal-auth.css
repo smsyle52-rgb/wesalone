@@ -211,15 +211,17 @@
   }
 }
 
-/* The header controls sit outside the card, so the card's dark overrides never
-   reached them and the theme switcher rendered as a white box on the navy
-   shell. Matched to the language globe beside it. */
-.legacy-auth-form header [data-slot="button"][data-variant="outline"] {
+/* Any control that lands in the auth header. Scoping this by button slot was
+   not enough: the dropdown trigger carries data-slot="dropdown-menu-trigger",
+   so it kept its white background on the navy shell. */
+.legacy-auth-form header button,
+.legacy-auth-form header [data-slot="dropdown-menu-trigger"] {
   color: var(--legacy-fg-soft);
   background: rgb(255 255 255 / 5%);
   border-color: rgb(255 255 255 / 15%);
 }
-.legacy-auth-form header [data-slot="button"][data-variant="outline"]:hover {
+.legacy-auth-form header button:hover,
+.legacy-auth-form header [data-slot="dropdown-menu-trigger"]:hover {
   color: var(--legacy-fg);
   border-color: rgb(34 211 238 / 50%);
 }

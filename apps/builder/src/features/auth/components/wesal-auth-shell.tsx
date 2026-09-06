@@ -13,7 +13,6 @@ import { usePathname } from "next/navigation"
 import { useTranslations } from "next-intl"
 import type { ReactNode } from "react"
 import { LanguageGlobe } from "@/components/language-globe"
-import { ThemeSwitcher } from "@/components/theme-switcher"
 
 const channelIcons = [
   { Icon: SiWhatsapp, background: "#25D366" },
@@ -72,9 +71,13 @@ export function WesalAuthShell({ children }: { children: ReactNode }) {
               width={271}
             />
           </Link>
+          {/* No theme switcher here: legacy-wesal-auth.css has no light
+              branch, so these pages are dark whatever the theme says. The
+              control changed nothing and rendered as a white square, because
+              its trigger carries data-slot="dropdown-menu-trigger" rather than
+              the button slot the shell overrides. */}
           <div className="flex items-center gap-2">
             <LanguageGlobe />
-            <ThemeSwitcher />
             <Link
               className="legacy-auth-site-link hidden sm:inline-flex"
               href="/"
