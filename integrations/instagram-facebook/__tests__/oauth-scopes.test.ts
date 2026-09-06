@@ -15,6 +15,16 @@ import { generateAuthUrl } from "../src/apis/auth"
  */
 const DIALOG_PATH = /\/dialog\/oauth$/
 
+/**
+ * Copied from the app's own App Review page on 6 Sep 2026 (Advanced Access,
+ * "Renewed"): public_profile, pages_show_list, pages_manage_metadata,
+ * pages_messaging, business_management, instagram_manage_messages,
+ * pages_read_engagement, whatsapp_business_management, instagram_basic — plus
+ * whatsapp_business_messaging, newly approved.
+ *
+ * instagram_manage_events is not on it, which is why the dialog refused.
+ * `public_profile` is granted by default and never needs asking for.
+ */
 const APPROVED_SCOPES = [
   "instagram_basic",
   "instagram_manage_messages",
