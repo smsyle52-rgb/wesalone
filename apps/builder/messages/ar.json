@@ -149,12 +149,12 @@
     "restore": "استعادة",
     "retry": "إعادة المحاولة",
     "unselect": "إلغاء التحديد",
-    "loadMore": "Load more",
-    "saveAsDraft": "Save as draft",
-    "schedule": "Schedule",
-    "moveToDraft": "Move to draft",
-    "stop": "Stop",
-    "resume": "Resume"
+    "loadMore": "تحميل المزيد",
+    "saveAsDraft": "حفظ كمسودّة",
+    "schedule": "جدولة",
+    "moveToDraft": "إرجاع إلى المسودّات",
+    "stop": "إيقاف",
+    "resume": "استئناف"
   },
   "errors": {
     "superAdminRequired": "يجب أن تكون مسؤولًا فائقًا لمساحة العمل للقيام بذلك."
@@ -355,8 +355,8 @@
       "sent": "تم الإرسال",
       "sending": "إرسال",
       "cancelled": "ملغاة",
-      "draft": "Draft",
-      "failed": "Failed"
+      "draft": "مسودّة",
+      "failed": "فشلت"
     },
     "stats": {
       "sent": "تم الإرسال",
@@ -447,58 +447,58 @@
       "all": "All"
     },
     "views": {
-      "table": "Table",
-      "calendar": "Calendar"
+      "table": "جدول",
+      "calendar": "تقويم"
     },
     "panel": {
-      "collapse": "Collapse panel",
-      "expand": "Expand panel"
+      "collapse": "طيّ اللوحة",
+      "expand": "توسيع اللوحة"
     },
     "empty": {
-      "title": "No broadcasts yet",
-      "description": "Create your first broadcast to reach your contacts.",
-      "filteredTitle": "No broadcasts match",
-      "filteredDescription": "Try another status or clear the search."
+      "title": "لا توجد رسائل جماعية بعد",
+      "description": "أنشئ أوّل رسالة جماعية للوصول إلى جهات اتصالك.",
+      "filteredTitle": "لا توجد نتائج مطابقة",
+      "filteredDescription": "جرّب حالة أخرى أو امسح البحث."
     },
     "scheduleDialog": {
-      "title": "Schedule broadcast",
-      "description": "Choose when \"{name}\" should be sent."
+      "title": "جدولة الرسالة الجماعية",
+      "description": "اختر متى تُرسَل «{name}»."
     },
     "deleteDialog": {
-      "title": "{count, plural, one {Delete broadcast} other {Delete broadcasts}}",
+      "title": "{count, plural, one {حذف الرسالة الجماعية} other {حذف الرسائل الجماعية}}",
       "description": "{count, plural, one {\"{name}\" will be removed. Its data is deleted in the background.} other {# broadcasts will be removed. Their data is deleted in the background.}}",
       "partial": "{deleted} of {requested} deleted — the rest changed status"
     },
     "calendar": {
-      "today": "Today",
-      "apply": "Apply",
-      "more": "+{count} more",
+      "today": "اليوم",
+      "apply": "تطبيق",
+      "more": "+{count} أخرى",
       "ranges": {
-        "month": "Month",
-        "week": "Week",
+        "month": "شهر",
+        "week": "أسبوع",
         "day": "Day",
         "custom": "Custom"
       },
       "previous": "Previous",
       "next": "Next",
       "emptyDay": "No broadcasts on this day",
-      "emptyRange": "No broadcasts in this range",
-      "jumpToDate": "Jump to date"
+      "emptyRange": "لا رسائل جماعية في هذه الفترة",
+      "jumpToDate": "الانتقال إلى تاريخ"
     },
     "fields": {
       "id": "ID"
     },
     "moveToDraftDialog": {
-      "title": "Move to draft",
-      "description": "\"{name}\" will be unscheduled and moved back to drafts."
+      "title": "إرجاع إلى المسودّات",
+      "description": "ستُلغى جدولة «{name}» وتعود إلى المسودّات."
     },
     "stopDialog": {
-      "title": "Stop broadcast",
+      "title": "إيقاف الرسالة الجماعية",
       "description": "Remaining messages for \"{name}\" stop within about a minute. A few already handed to the channel may still deliver. You can resume later — only unsent recipients will receive."
     },
     "resumeDialog": {
-      "title": "Resume broadcast",
-      "description": "\"{name}\" will continue sending to recipients who have not received it yet."
+      "title": "استئناف الرسالة الجماعية",
+      "description": "ستتابع «{name}» الإرسال إلى من لم تصلهم بعد."
     }
   },
   "condition": {
@@ -1170,10 +1170,10 @@
       "label": "وظيفة"
     },
     "gemini": {
-      "label": "الجوزاء"
+      "label": "الوكيل الذكي"
     },
     "geminiModel": {
-      "label": "نموذج الجوزاء"
+      "label": "نموذج الوكيل"
     },
     "gender": {
       "female": "أنثى",
@@ -1513,8 +1513,8 @@
       "error": "خطأ",
       "completed": "مكتمل",
       "failed": "فاشل",
-      "installing": "Installing",
-      "partial": "Partial"
+      "installing": "جارٍ التثبيت",
+      "partial": "جزئي"
     },
     "subtitle": {
       "placeholder": "أدخل العنوان الفرعي"
@@ -2164,9 +2164,9 @@
       "description": "يحدّد كم مرّة يعمل مسار الردّ الافتراضي مع نفس جهة الاتصال على القناة الواحدة.",
       "label": "تكرار تفعيل الردّ الافتراضي",
       "options": {
-        "allTime": "All time",
-        "oncePerHour": "Once per 1h",
-        "oncePerDay": "Once per 24h"
+        "allTime": "في كل مرّة",
+        "oncePerHour": "مرّة كل ساعة",
+        "oncePerDay": "مرّة كل ٢٤ ساعة"
       }
     },
     "javascriptCode": {
@@ -2222,7 +2222,7 @@
       "ctid": "CTID"
     },
     "adSource": {
-      "label": "Ad source"
+      "label": "مصدر الإعلان"
     },
     "tokenPermission": {
       "label": "الصلاحية",
@@ -2290,7 +2290,7 @@
       "broadcastActions": "إجراءات البث",
       "callApi": "طلب واجهة برمجة التطبيقات الخارجية",
       "make": "Make",
-      "triggerN8n": "Trigger n8n",
+      "triggerN8n": "تشغيل n8n",
       "triggers": "المشغّلات",
       "questionnaires": "الاستبيانات",
       "setUpCoupon": "إعداد كوبون",
@@ -2373,7 +2373,7 @@
       "splitTraffic": "تقسيم حركة المرور",
       "aiEditImage": "تحرير الصورة بالذكاء الاصطناعي",
       "whatsappFlow": "تدفق WhatsApp",
-      "sendMetaCapiEvent": "Send Meta CAPI Event",
+      "sendMetaCapiEvent": "إرسال حدث Meta CAPI",
       "executeJavascript": "تنفيذ JavaScript",
       "appointmentScheduling": "جدولة المواعيد",
       "import": "استيراد التدفق",
@@ -2511,9 +2511,9 @@
     },
     "connect": {
       "description": "استجب للمستخدمين بشكل طبيعي باستخدام الذكاء الاصطناعي المدعوم ببيانات عملك.",
-      "label": "Google الجوزاء"
+      "label": "الوكيل الذكي"
     },
-    "title": "Google الجوزاء"
+    "title": "الوكيل الذكي"
   },
   "general": {
     "title": "عام"
@@ -3187,8 +3187,8 @@
     "reconnect": "أعد الاتصال",
     "title": "Instagram",
     "tabs": {
-      "generalSettings": "General Settings",
-      "conversionsApi": "Ads Optimization"
+      "generalSettings": "الإعدادات العامة",
+      "conversionsApi": "تحسين الإعلانات"
     }
   },
   "coexist": {
@@ -3250,7 +3250,7 @@
     "tabs": {
       "generalSettings": "الإعدادات العامة",
       "messageTemplates": "قوالب الرسائل",
-      "conversionsApi": "Ads Optimization"
+      "conversionsApi": "تحسين الإعلانات"
     },
     "messageTemplate": {
       "params": {
@@ -3686,7 +3686,7 @@
       "messageTemplates": "قوالب الرسائل",
       "profile": "الملف الشخصي",
       "usefulLinks": "روابط مفيدة",
-      "conversionsApi": "Ads Optimization",
+      "conversionsApi": "تحسين الإعلانات",
       "settings": "الإعدادات"
     },
     "accountHealths": {
@@ -3921,7 +3921,7 @@
       "startAnotherFlow": "ابدأ تدفقًا آخر",
       "notifyAdmins": "إخطار المسؤولين",
       "transferConversationToHuman": "نقل المحادثة إلى الإنسان",
-      "sendMetaCapiEvent": "Send Meta CAPI Event"
+      "sendMetaCapiEvent": "إرسال حدث Meta CAPI"
     },
     "triggerGoesOff": "ينطفئ الزناد",
     "before": "قبل",
@@ -4097,9 +4097,9 @@
   },
   "aiProviders": {
     "openai": "OpenAI",
-    "gemini": "الجوزاء",
-    "claude": "كلود",
-    "deepseek": "ديب سيك",
+    "gemini": "الوكيل الذكي",
+    "claude": "Claude",
+    "deepseek": "DeepSeek",
     "openrouter": "OpenRouter",
     "openaiCompatible": "متوافق مع OpenAI",
     "google": "Google Cloud"
@@ -4313,11 +4313,11 @@
     "title": "جدولة المواعيد",
     "description": "إنشاء وإدارة جدولة مواعيدك.",
     "flowModes": {
-      "bookFromCustomField": "Book appointment",
-      "checkAvailabilityFromCustomField": "Check availability",
-      "book": "Open booking page",
-      "checkAvailability": "Open availability page",
-      "cancel": "Cancel appointment"
+      "bookFromCustomField": "حجز موعد",
+      "checkAvailabilityFromCustomField": "التحقّق من الأوقات المتاحة",
+      "book": "فتح صفحة الحجز",
+      "checkAvailability": "فتح صفحة الأوقات المتاحة",
+      "cancel": "إلغاء الموعد"
     },
     "fields": {
       "mode": "الوضع",
@@ -5183,20 +5183,20 @@
   "metaConversions": {
     "title": "Conversions API",
     "description": "أرسِل أحداث «تسجيل عميل محتمل» من محادثات ماسنجر وإنستغرام وواتساب إلى ميتا.",
-    "datasetId": "Dataset ID",
-    "reconnect": "Reconnect permissions",
-    "connectViaFacebook": "Connect via Facebook",
+    "datasetId": "معرّف مجموعة البيانات",
+    "reconnect": "إعادة ربط الأذونات",
+    "connectViaFacebook": "الربط عبر فيسبوك",
     "unsupportedExplanation": "هذا الحساب مربوط عبر تسجيل دخول إنستغرام للأعمال. وواجهة التحويلات تتطلّب الربط عبر فيسبوك.",
     "flowStep": {
       "whatsappNote": "أحداث واتساب تُرسَل فقط للمحادثات التي بدأت من إعلان «انقر للمراسلة عبر واتساب»."
     },
     "status": {
       "title": "Meta Conversions API",
-      "ready": "Ready",
-      "missingPermission": "Permission needed",
-      "unverified": "Unverified",
-      "unsupported": "Unsupported",
-      "notConnected": "Not connected"
+      "ready": "جاهز",
+      "missingPermission": "يحتاج إذنًا",
+      "unverified": "غير موثّق",
+      "unsupported": "غير مدعوم",
+      "notConnected": "غير مربوط"
     },
     "statusDescriptions": {
       "ready": "هذا التكامل يملك صلاحية ميتا المطلوبة لأحداث واجهة التحويلات.",
@@ -5267,14 +5267,14 @@
       "contentCategoryPlaceholder": "فئة المحتوى المرتبط بالحدث",
       "contentName": "اسم المحتوى",
       "contentNamePlaceholder": "اسم الصفحة أو المنتج المرتبط بالحدث",
-      "orderId": "Order ID",
+      "orderId": "رقم الطلب",
       "orderIdPlaceholder": "e.g. ORDER-12345",
       "contents": {
-        "label": "Line items",
-        "item": "line item",
-        "id": "Product ID",
-        "quantity": "Quantity",
-        "itemPrice": "Item price"
+        "label": "بنود الطلب",
+        "item": "بند",
+        "id": "معرّف المنتج",
+        "quantity": "الكمية",
+        "itemPrice": "سعر البند"
       },
       "customEventName": "اسم الحدث المخصص",
       "customEventNamePlaceholder": "مثال: MyCustomEvent",
@@ -5333,8 +5333,8 @@
       "connect": "ربط"
     },
     "limitedDataUse": {
-      "label": "Limited Data Use (US privacy)",
-      "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by ChatbotX."
+      "label": "الاستخدام المحدود للبيانات (خصوصية أمريكية)",
+      "description": "تقييد استخدام Meta لبيانات الأحداث للمستخدمين في الولايات الأمريكية المعنيّة. تكتشف Meta موقع المستخدم من الحدث نفسه، ووصال ون لا ترسل أي بيانات موقع."
     },
     "actionSource": {
       "label": "مصدر الإجراء",
@@ -5751,9 +5751,7 @@
       "sections": [
         {
           "title": "المحادثات والفريق",
-          "body": [
-            "صندوق وارد موحد مع توزيع المحادثات والصلاحيات."
-          ]
+          "body": ["صندوق وارد موحد مع توزيع المحادثات والصلاحيات."]
         },
         {
           "title": "الوكلاء والتجارة",
@@ -5770,15 +5768,11 @@
       "sections": [
         {
           "title": "قنوات Meta",
-          "body": [
-            "واتساب وإنستغرام وماسنجر في صندوق وارد موحد."
-          ]
+          "body": ["واتساب وإنستغرام وماسنجر في صندوق وارد موحد."]
         },
         {
           "title": "تيليجرام والويب",
-          "body": [
-            "تيليجرام وWebchat والتكاملات الأخرى من لوحة واحدة."
-          ]
+          "body": ["تيليجرام وWebchat والتكاملات الأخرى من لوحة واحدة."]
         }
       ]
     },
@@ -5789,9 +5783,7 @@
       "sections": [
         {
           "title": "رسالتنا",
-          "body": [
-            "منح صاحب النشاط نظامًا واضحًا لخدمة العملاء والمبيعات."
-          ]
+          "body": ["منح صاحب النشاط نظامًا واضحًا لخدمة العملاء والمبيعات."]
         },
         {
           "title": "التزامنا",
@@ -5808,15 +5800,11 @@
       "sections": [
         {
           "title": "البريد",
-          "body": [
-            "support@wesal.one"
-          ]
+          "body": ["support@wesal.one"]
         },
         {
           "title": "واتساب",
-          "body": [
-            "+967 775 324 950"
-          ]
+          "body": ["+967 775 324 950"]
         }
       ]
     },
@@ -5908,9 +5896,7 @@
         },
         {
           "title": "النسخ الاحتياطية",
-          "body": [
-            "قد تبقى نسخ مؤقتة حتى انتهاء دورة النسخ الاحتياطي."
-          ]
+          "body": ["قد تبقى نسخ مؤقتة حتى انتهاء دورة النسخ الاحتياطي."]
         },
         {
           "title": "بعد الحذف",
@@ -6221,7 +6207,7 @@
       "date": "التاريخ"
     },
     "providers": {
-      "googleCalendar": "Google Calendar"
+      "googleCalendar": "تقويم Google"
     },
     "dialogs": {
       "editTitle": "تعديل معرف التقويم",
