@@ -6,17 +6,14 @@ import {
   CardContent,
   CardHeader,
 } from "@chatbotx.io/ui/components/ui/card"
-import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import SSOSignIn from "@/features/auth/sso-sign-in"
+import { withCallbackUrlParam } from "@/lib/safe-callback-url"
 import { useTenantSettings } from "../tenant"
 import { EmailPasswordSignIn } from "./components/email-password-sign-in"
 import { MagicLinkSignIn } from "./components/magic-link-signin"
-import {
-  AcceptTermsAndPolicy,
-  AuthHeader,
-  OrSeparator,
-} from "./components/shared"
+import { AuthHeader, AuthModeTabs, OrSeparator } from "./components/shared"
 
 export type SignInFormProps = {
   callbackUrl?: string
@@ -30,12 +27,18 @@ export const SignInForm = ({
   ...props
 }: SignInFormProps) => {
   const t = useTranslations()
-  const { name, policyUrl, termsOfServiceUrl } = useTenantSettings()
+  const { name } = useTenantSettings()
+  const searchParams = useSearchParams()
+  const signUpHref = withCallbackUrlParam(
+    "/auth/sign-up",
+    searchParams.get("callbackURL"),
+  )
 
   return (
     <div className="flex flex-col gap-6" {...props}>
       <Card>
-        <CardHeader className="text-center">
+        <CardHeader className="gap-4 text-center">
+          <AuthModeTabs mode="sign-in" signUpHref={signUpHref} />
           <AuthHeader title={t("auth.signInTitle", { name })} />
         </CardHeader>
 
@@ -55,23 +58,11 @@ export const SignInForm = ({
 
             <EmailPasswordSignIn />
 
-            <OrSeparator />
+            <OrSeparator label={t("auth.orUseMagicLink")} />
             <MagicLinkSignIn />
-
-            <div className="text-center font-medium text-foreground/60 text-sm">
-              {t("auth.dontHaveAnAccount")}{" "}
-              <Link className="text-foreground underline" href="/auth/sign-up">
-                {t("auth.signUp")}
-              </Link>
-            </div>
           </div>
         </CardContent>
       </Card>
-
-      <AcceptTermsAndPolicy
-        privacyPolicy={policyUrl ?? "/privacy"}
-        termsOfService={termsOfServiceUrl ?? "/terms"}
-      />
     </div>
   )
 }

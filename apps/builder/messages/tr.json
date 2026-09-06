@@ -3483,7 +3483,12 @@
     "resendVerification": "Resend verification email",
     "verificationResent": "Verification email sent. Check your inbox.",
     "signedInSuccessfully": "Signed in successfully",
-    "verifyEmailSentTo": "We sent a verification link to {email}. Open it to activate your account."
+    "verifyEmailSentTo": "We sent a verification link to {email}. Open it to activate your account.",
+    "tabs": {
+      "signIn": "Sign in",
+      "signUp": "Create account"
+    },
+    "orUseMagicLink": "or"
   },
   "emailTopics": {
     "title": "E-posta Konuları"

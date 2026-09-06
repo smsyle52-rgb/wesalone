@@ -1,51 +1,67 @@
 "use client"
 
 import { CardTitle } from "@chatbotx.io/ui/components/ui/card"
-import Image from "next/image"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
-import { useEffect, useState } from "react"
-import { LangSelector } from "@/components/lang-selector"
-import { useTenantSettings } from "@/features/tenant"
-import { useCurrentTheme } from "@/hooks/use-current-theme"
 
 export type AuthHeaderProps = {
   title: string
 }
 
-export const AuthHeader = ({ title }: AuthHeaderProps) => {
-  const currentTheme = useCurrentTheme()
-  const [mounted, setMounted] = useState(false)
-  const { name, logoLightUrl, logoDarkUrl } = useTenantSettings()
+/**
+ * Just the title.
+ *
+ * It used to draw the brand logo and a language selector as well — both of
+ * which the surrounding shell already renders, so the page carried two of
+ * each. The logo also reserved a blank 271×80 box until the theme resolved on
+ * the client, which is the empty white rectangle that sat above the form.
+ */
+export const AuthHeader = ({ title }: AuthHeaderProps) => (
+  <CardTitle className="font-bold text-foreground text-xl">{title}</CardTitle>
+)
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+/**
+ * Sign in and create account as two visible choices.
+ *
+ * Both pages existed, but the only way across was one line of small grey text
+ * under the form, so the page read as if signing in were the only option.
+ */
+export const AuthModeTabs = ({
+  mode,
+  signInHref = "/auth/sign-in",
+  signUpHref = "/auth/sign-up",
+}: {
+  mode: "sign-in" | "sign-up"
+  signInHref?: string
+  signUpHref?: string
+}) => {
+  const t = useTranslations()
 
-  const logoUrl = currentTheme === "dark" ? logoLightUrl : logoDarkUrl
+  const tab = (active: boolean) =>
+    [
+      "flex-1 rounded-lg px-4 py-2.5 text-center font-bold text-sm transition",
+      active
+        ? "bg-background text-foreground shadow-sm"
+        : "text-foreground/60 hover:text-foreground",
+    ].join(" ")
 
   return (
-    <>
-      <div className="flex justify-end">
-        <LangSelector />
-      </div>
-
-      <div className="flex items-center justify-center gap-4">
-        {mounted ? (
-          <Image
-            alt={name}
-            height={80}
-            priority={true}
-            src={logoUrl}
-            width={271}
-          />
-        ) : (
-          <div className="h-20 w-[271px]" />
-        )}
-      </div>
-
-      <CardTitle className="text-slate-600 text-xl">{title}</CardTitle>
-    </>
+    <div className="flex gap-1 rounded-xl bg-muted p-1">
+      <Link
+        aria-current={mode === "sign-in" ? "page" : undefined}
+        className={tab(mode === "sign-in")}
+        href={signInHref}
+      >
+        {t("auth.tabs.signIn")}
+      </Link>
+      <Link
+        aria-current={mode === "sign-up" ? "page" : undefined}
+        className={tab(mode === "sign-up")}
+        href={signUpHref}
+      >
+        {t("auth.tabs.signUp")}
+      </Link>
+    </div>
   )
 }
 

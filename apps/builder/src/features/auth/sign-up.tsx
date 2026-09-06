@@ -6,7 +6,6 @@ import {
   CardContent,
   CardHeader,
 } from "@chatbotx.io/ui/components/ui/card"
-import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import SSOSignUp from "@/features/auth/sso-sign-in"
@@ -16,6 +15,7 @@ import { EmailPasswordSignUp } from "./components/email-password-sign-up"
 import {
   AcceptTermsAndPolicy,
   AuthHeader,
+  AuthModeTabs,
   OrSeparator,
 } from "./components/shared"
 
@@ -39,7 +39,8 @@ export const SignUpForm = ({
   return (
     <div className="flex flex-col gap-6" {...props}>
       <Card>
-        <CardHeader className="text-center">
+        <CardHeader className="gap-4 text-center">
+          <AuthModeTabs mode="sign-up" signInHref={signInHref} />
           <AuthHeader title={t("auth.signUpTitle", { name })} />
         </CardHeader>
 
@@ -59,13 +60,6 @@ export const SignUpForm = ({
             )}
 
             <EmailPasswordSignUp />
-
-            <div className="text-center font-medium text-foreground/60 text-sm">
-              {t("auth.alreadyHaveAnAccount")}{" "}
-              <Link className="text-foreground underline" href={signInHref}>
-                {t("auth.signIn")}
-              </Link>
-            </div>
           </div>
         </CardContent>
       </Card>
