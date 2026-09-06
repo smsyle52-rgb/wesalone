@@ -29,7 +29,7 @@ const toExportFileName = (name: string): string => {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "flow"
-  return `${slug}.chatbotx-flow.json`
+  return `${slug}.wesal-one-flow.json`
 }
 
 export async function GET(

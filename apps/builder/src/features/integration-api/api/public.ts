@@ -13,7 +13,7 @@ export const channelsPublicRouter = {
     .route({
       method: "POST",
       path: "/v1/channels/api/messages",
-      summary: "Send an inbound message from your application to ChatbotX",
+      summary: "Send an inbound message from your application to Wesal One",
       description:
         "`message.sourceId` is the idempotency key — sending the same value twice for the same contact does not create a duplicate message. Always send a stable id, never a random one per retry.",
       tags: ["API Channel"],
@@ -45,7 +45,7 @@ export const channelsPublicRouter = {
     .route({
       method: "POST",
       path: "/v1/channels/api/typing",
-      summary: "Notify ChatbotX that the contact is typing",
+      summary: "Notify Wesal One that the contact is typing",
       tags: ["API Channel"],
       successStatus: 204,
     })
@@ -72,7 +72,7 @@ export const channelsPublicRouter = {
     .route({
       method: "POST",
       path: "/v1/channels/api/read",
-      summary: "Notify ChatbotX that the contact read our messages",
+      summary: "Notify Wesal One that the contact read our messages",
       tags: ["API Channel"],
       successStatus: 204,
     })
@@ -101,7 +101,7 @@ export const channelsPublicRouter = {
       path: "/v1/channels/api/delivery-status",
       summary: "Report delivery status for an outbound message",
       description:
-        "`messageId` correlates to the id ChatbotX received back in the outbound callback response, if one was supplied.",
+        "`messageId` correlates to the id Wesal One received back in the outbound callback response, if one was supplied.",
       tags: ["API Channel"],
       successStatus: 204,
     })

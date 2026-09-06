@@ -28,7 +28,7 @@ export async function downloadFlowExport(
 
     const disposition = response.headers.get("Content-Disposition") ?? ""
     const fileNameMatch = CONTENT_DISPOSITION_FILENAME_REGEX.exec(disposition)
-    const fileName = fileNameMatch?.[1] ?? `${flow.name}.chatbotx-flow.json`
+    const fileName = fileNameMatch?.[1] ?? `${flow.name}.wesal-one-flow.json`
 
     const blob = await response.blob()
     const url = URL.createObjectURL(blob)

@@ -19,7 +19,7 @@ async function main() {
     .insert(userModel)
     .values({
       email: "demo@example.com",
-      name: "Demo ChatbotX",
+      name: "Demo Wesal One",
       emailVerified: true,
     })
     .returning()

@@ -16,7 +16,7 @@ export const env = createEnv({
     CHATBOTX_MCP_SERVER_INSTRUCTIONS: z
       .string()
       .default(
-        "This MCP server is connected to the user's live ChatbotX workspace. Whenever the user asks about anything related to their ChatbotX workspace — tags, contacts, conversations, broadcasts, flows, sequences, team members, inboxes, or any workspace data — you MUST use the available MCP tools to fetch real-time data. Do NOT answer from training knowledge or provide ChatbotX product documentation.",
+        "This MCP server is connected to the user's live Wesal One workspace. Whenever the user asks about anything related to their Wesal One workspace — tags, contacts, conversations, broadcasts, flows, sequences, team members, inboxes, or any workspace data — you MUST use the available MCP tools to fetch real-time data. Do NOT answer from training knowledge or provide Wesal One product documentation.",
       ),
   },
   runtimeEnv: process.env,

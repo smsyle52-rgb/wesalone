@@ -141,7 +141,7 @@ export const adsCampaignAuthenticatedAPI = {
       method: "GET",
       path: "/workspaces/{workspaceId}/ads-campaign/messaging-ads",
       summary:
-        "List messaging ads created from ChatbotX for one channel integration, with Meta's live effective_status",
+        "List messaging ads created from Wesal One for one channel integration, with Meta's live effective_status",
       tags: ["AdsCampaign"],
     })
     .input(

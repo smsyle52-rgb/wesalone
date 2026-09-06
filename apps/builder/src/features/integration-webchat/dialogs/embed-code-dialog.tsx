@@ -30,7 +30,7 @@ export function EmbedCodeDialog({ webchat, children }: EmbedCodeDialogProps) {
   const baseUrl =
     appUrl || (typeof window === "undefined" ? "" : window.location.origin)
 
-  const embedCode = `<!-- ChatbotX Widget -->
+  const embedCode = `<!-- Wesal One Widget -->
 <script src="${baseUrl}/chat-widget/plugin.js" crossorigin="anonymous" async
   type="module" onload="window.csmChatWidget?.init({
     webchatId: '${webchat.id}',
