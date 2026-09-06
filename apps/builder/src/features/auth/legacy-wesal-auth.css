@@ -210,3 +210,16 @@
     animation: none !important;
   }
 }
+
+/* The header controls sit outside the card, so the card's dark overrides never
+   reached them and the theme switcher rendered as a white box on the navy
+   shell. Matched to the language globe beside it. */
+.legacy-auth-form header [data-slot="button"][data-variant="outline"] {
+  color: var(--legacy-fg-soft);
+  background: rgb(255 255 255 / 5%);
+  border-color: rgb(255 255 255 / 15%);
+}
+.legacy-auth-form header [data-slot="button"][data-variant="outline"]:hover {
+  color: var(--legacy-fg);
+  border-color: rgb(34 211 238 / 50%);
+}

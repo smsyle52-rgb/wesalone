@@ -37,16 +37,19 @@ export const AuthModeTabs = ({
 }) => {
   const t = useTranslations()
 
+  // Written against the dark shell rather than the app theme tokens: this
+  // surface stays dark whatever the app theme resolves to, and `bg-muted`
+  // there produced a white pill on a navy card.
   const tab = (active: boolean) =>
     [
       "flex-1 rounded-lg px-4 py-2.5 text-center font-bold text-sm transition",
       active
-        ? "bg-background text-foreground shadow-sm"
-        : "text-foreground/60 hover:text-foreground",
+        ? "bg-white/10 text-white shadow-sm"
+        : "text-slate-400 hover:text-slate-200",
     ].join(" ")
 
   return (
-    <div className="flex gap-1 rounded-xl bg-muted p-1">
+    <div className="flex gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
       <Link
         aria-current={mode === "sign-in" ? "page" : undefined}
         className={tab(mode === "sign-in")}

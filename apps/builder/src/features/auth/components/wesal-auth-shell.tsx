@@ -12,7 +12,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTranslations } from "next-intl"
 import type { ReactNode } from "react"
-import { LangSelector } from "@/components/lang-selector"
+import { LanguageGlobe } from "@/components/language-globe"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 
 const channelIcons = [
@@ -73,7 +73,7 @@ export function WesalAuthShell({ children }: { children: ReactNode }) {
             />
           </Link>
           <div className="flex items-center gap-2">
-            <LangSelector />
+            <LanguageGlobe />
             <ThemeSwitcher />
             <Link
               className="legacy-auth-site-link hidden sm:inline-flex"
