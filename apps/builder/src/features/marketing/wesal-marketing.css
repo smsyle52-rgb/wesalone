@@ -22,8 +22,20 @@
     transparent 80%
   );
 }
-/* Light mode — only when user explicitly toggles */
-html.light .wesal-source-page {
+/* ===== Light mode — unreachable on purpose =====
+ *
+ * This page is dark-first, and it used to force that by adding `dark` to
+ * <html> from an effect. It lost: next-themes owns that class (attribute
+ * "class", defaultTheme "light") and writes `light` back, so production
+ * served the pale variant to everyone — the palest thing on the site and the
+ * first complaint about it. Evidence: localStorage carried `wesal-theme:
+ * dark` from the effect while <html> still read `class="light"`.
+ *
+ * Rather than fight for a class this stylesheet does not own, the light
+ * branch below is scoped to `.wesal-marketing-light`, which nothing sets.
+ * The rules stay readable and revivable; they simply never fire.
+ */
+html.light.wesal-marketing-light .wesal-source-page {
   --bg: #f8fafc;
   --bg-soft: #eef2fa;
   --bg-muted: #e5ecf7;
@@ -117,7 +129,7 @@ html.light .wesal-source-page {
   color: #22d3ee;
   letter-spacing: 0.14em;
 }
-html.light .wesal-source-page .wesal-logo-en {
+html.light.wesal-marketing-light .wesal-source-page .wesal-logo-en {
   color: #2563eb;
 }
 @media (max-width: 640px) {
@@ -418,7 +430,7 @@ html:not(.light) .wesal-source-page .to-teal-50 {
     ),
     linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 100%);
 }
-html.light .platform-preview-section {
+html.light.wesal-marketing-light .platform-preview-section {
   background:
     radial-gradient(circle at 30% 0%, rgba(27, 92, 232, 0.08), transparent 34%),
     radial-gradient(
@@ -518,7 +530,7 @@ html.light .platform-preview-section {
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
-html.light .mini-inbox-card {
+html.light.wesal-marketing-light .mini-inbox-card {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(15, 23, 42, 0.08);
   box-shadow:
@@ -556,7 +568,7 @@ html.light .mini-inbox-card {
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
-html.light .operations-board {
+html.light.wesal-marketing-light .operations-board {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(15, 23, 42, 0.08);
   box-shadow:
@@ -606,7 +618,7 @@ html.light .operations-board {
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
-html.light .analytics-dashboard {
+html.light.wesal-marketing-light .analytics-dashboard {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(15, 23, 42, 0.08);
   box-shadow:
@@ -663,7 +675,7 @@ html.light .analytics-dashboard {
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
-html.light .automation-flow-card {
+html.light.wesal-marketing-light .automation-flow-card {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(15, 23, 42, 0.08);
   box-shadow:
@@ -734,7 +746,7 @@ html.light .automation-flow-card {
     rgba(8, 17, 39, 0.35);
   border-top: 1px solid var(--line);
 }
-html.light .trust-section {
+html.light.wesal-marketing-light .trust-section {
   background:
     radial-gradient(circle at 50% 0%, rgba(27, 92, 232, 0.06), transparent 35%),
     #f8fafc;
@@ -772,12 +784,12 @@ html.light .trust-section {
   border-color: rgba(34, 211, 238, 0.32);
   transform: translateY(-2px);
 }
-html.light .trust-logo {
+html.light.wesal-marketing-light .trust-logo {
   color: rgba(15, 23, 42, 0.62);
   background: rgba(255, 255, 255, 0.78);
   border-color: rgba(15, 23, 42, 0.08);
 }
-html.light .trust-logo:hover {
+html.light.wesal-marketing-light .trust-logo:hover {
   color: rgba(15, 23, 42, 0.95);
   background: rgba(27, 92, 232, 0.06);
   border-color: rgba(27, 92, 232, 0.32);
@@ -791,7 +803,7 @@ html.light .trust-logo:hover {
     radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.06), transparent 36%),
     rgba(8, 17, 39, 0.24);
 }
-html.light .testimonials-section {
+html.light.wesal-marketing-light .testimonials-section {
   background:
     radial-gradient(circle at 50% 0%, rgba(27, 92, 232, 0.05), transparent 36%),
     #f8fafc;
@@ -813,7 +825,7 @@ html.light .testimonials-section {
   border-color: color-mix(in srgb, var(--secondary) 32%, transparent);
   transform: translateY(-2px);
 }
-html.light .testimonial-card {
+html.light.wesal-marketing-light .testimonial-card {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(15, 23, 42, 0.08);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
@@ -847,7 +859,7 @@ html.light .testimonial-card {
     ),
     rgba(8, 17, 39, 0.32);
 }
-html.light .pricing-section {
+html.light.wesal-marketing-light .pricing-section {
   background:
     radial-gradient(circle at 50% 0%, rgba(27, 92, 232, 0.07), transparent 38%),
     #f8fafc;
@@ -877,12 +889,12 @@ html.light .pricing-section {
     0 32px 90px rgba(0, 0, 0, 0.28),
     0 0 90px color-mix(in srgb, var(--secondary) 16%, transparent);
 }
-html.light .pricing-card {
+html.light.wesal-marketing-light .pricing-card {
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(15, 23, 42, 0.08);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
 }
-html.light .pricing-card.featured {
+html.light.wesal-marketing-light .pricing-card.featured {
   border-color: rgba(37, 99, 235, 0.28);
   box-shadow:
     0 28px 80px rgba(37, 99, 235, 0.12),
@@ -920,7 +932,7 @@ html.light .pricing-card.featured {
     radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.05), transparent 36%),
     rgba(8, 17, 39, 0.24);
 }
-html.light .faq-section {
+html.light.wesal-marketing-light .faq-section {
   background:
     radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.05), transparent 36%),
     #f8fafc;
@@ -945,16 +957,16 @@ html.light .faq-section {
   border-color: color-mix(in srgb, var(--secondary) 32%, transparent);
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
 }
-html.light .faq-item {
+html.light.wesal-marketing-light .faq-item {
   background: rgba(255, 255, 255, 0.84);
   border-color: rgba(15, 23, 42, 0.08);
   box-shadow: 0 18px 50px rgba(15, 23, 42, 0.05);
 }
-html.light .faq-item:hover {
+html.light.wesal-marketing-light .faq-item:hover {
   background: rgba(255, 255, 255, 0.95);
   border-color: rgba(37, 99, 235, 0.22);
 }
-html.light .faq-item.open {
+html.light.wesal-marketing-light .faq-item.open {
   background: #ffffff;
   border-color: rgba(37, 99, 235, 0.28);
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
@@ -979,7 +991,7 @@ html.light .faq-item.open {
     radial-gradient(circle at 50% 20%, rgba(37, 99, 235, 0.1), transparent 36%),
     rgba(8, 17, 39, 0.22);
 }
-html.light .final-cta-section {
+html.light.wesal-marketing-light .final-cta-section {
   background:
     radial-gradient(circle at 50% 20%, rgba(37, 99, 235, 0.07), transparent 36%),
     #f8fafc;
@@ -999,7 +1011,7 @@ html.light .final-cta-section {
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
 }
-html.light .final-cta-card {
+html.light.wesal-marketing-light .final-cta-card {
   background: rgba(255, 255, 255, 0.84);
   border-color: rgba(15, 23, 42, 0.08);
   box-shadow:
@@ -1049,7 +1061,7 @@ html.light .final-cta-card {
     transparent 78%
   );
 }
-html.light .final-cta-card::after {
+html.light.wesal-marketing-light .final-cta-card::after {
   opacity: 0.1;
 }
 .final-cta-card > * {
@@ -1117,7 +1129,7 @@ html.light .final-cta-card::after {
   border-color: color-mix(in srgb, var(--secondary) 35%, transparent);
   transform: translateY(-2px);
 }
-html.light .final-cta-btn-ghost {
+html.light.wesal-marketing-light .final-cta-btn-ghost {
   background: rgba(15, 23, 42, 0.02);
 }
 
@@ -1158,7 +1170,7 @@ html.light .final-cta-btn-ghost {
     rgba(8, 17, 39, 0.4);
   border-top: 1px solid var(--line);
 }
-html.light .footer {
+html.light.wesal-marketing-light .footer {
   background:
     radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.05), transparent 36%),
     #f8fafc;
@@ -1185,10 +1197,10 @@ html.light .footer {
   color: rgba(34, 211, 238, 0.95);
   transform: translateX(-2px);
 }
-html.light .footer-link {
+html.light.wesal-marketing-light .footer-link {
   color: rgba(15, 23, 42, 0.62);
 }
-html.light .footer-link:hover {
+html.light.wesal-marketing-light .footer-link:hover {
   color: rgba(37, 99, 235, 0.95);
 }
 .footer-contact-item {
@@ -1199,7 +1211,7 @@ html.light .footer-link:hover {
   line-height: 1.7;
   color: rgba(203, 213, 225, 0.78);
 }
-html.light .footer-contact-item {
+html.light.wesal-marketing-light .footer-contact-item {
   color: rgba(15, 23, 42, 0.7);
 }
 /* biome-ignore lint/style/noDescendingSpecificity: preserved from the production Wesal marketing stylesheet. */
@@ -1309,7 +1321,7 @@ html.light .footer-contact-item {
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
-html.light .stats-strip {
+html.light.wesal-marketing-light .stats-strip {
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(15, 23, 42, 0.08);
   box-shadow:
@@ -1614,4 +1626,11 @@ html.light .stats-strip {
 .footer-legal-link svg {
   flex-shrink: 0;
   color: var(--secondary);
+}
+
+/* The call-to-action arrows are drawn pointing left, which is "forward" in
+   Arabic and backwards in English. Mirror them with the reading direction
+   rather than shipping a second set of paths. */
+[dir="ltr"] .wesal-dir-arrow {
+  transform: scaleX(-1);
 }

@@ -23,6 +23,16 @@ type MarketingLang = "ar" | "en"
  */
 const MarketingLangContext = React.createContext<MarketingLang>("ar")
 
+/**
+ * The mock-ups and the hero stage had their direction and alignment baked in
+ * as right-to-left. Left that way, English renders
+ * right-to-left inside them — punctuation lands at the wrong end of the
+ * sentence, which is the first thing a reviewer notices.
+ */
+function useDirection() {
+  return React.useContext(MarketingLangContext) === "ar" ? "rtl" : "ltr"
+}
+
 function useTranslate() {
   const lang = React.useContext(MarketingLangContext)
   return React.useCallback(
@@ -389,6 +399,7 @@ function ChBadge({ kind, size = 14 }) {
 
 // ============ 1) صندوق الوارد الموحد — Mini Inbox غني ============
 function MiniUIInbox() {
+  const dir = useDirection()
   const tr = useTranslate()
   const tabs = [
     { id: "all", l: tr("الكل"), count: 24 },
@@ -443,7 +454,7 @@ function MiniUIInbox() {
   const rows = tab === "all" ? allRows : allRows.filter((r) => r.ch === tab)
 
   return (
-    <div className="mini-inbox-card relative" dir="rtl">
+    <div className="mini-inbox-card relative" dir={dir}>
       {/* glow ناعم خلف الواجهة */}
       <div
         className="absolute -inset-6 -z-10 pointer-events-none"
@@ -668,6 +679,7 @@ function MiniUIInbox() {
 
 // ============ 2) فريق ومهام — Operations Board (Kanban) ============
 function MiniUITeam() {
+  const dir = useDirection()
   const tr = useTranslate()
   const cols = [
     { id: "new", l: tr("جديد"), c: "var(--secondary)" },
@@ -736,7 +748,7 @@ function MiniUITeam() {
   }
 
   return (
-    <div className="operations-board relative" dir="rtl">
+    <div className="operations-board relative" dir={dir}>
       {/* glow خلف الواجهة */}
       <div
         className="absolute -inset-6 -z-10 pointer-events-none"
@@ -1055,6 +1067,7 @@ function MiniBars({ vals, color, height = 56 }) {
 }
 
 function MiniUIAnalytics() {
+  const dir = useDirection()
   const tr = useTranslate()
   const [range, setRange] = React.useState("7")
   const ranges = [
@@ -1106,7 +1119,7 @@ function MiniUIAnalytics() {
   ]
 
   return (
-    <div className="analytics-dashboard relative" dir="rtl">
+    <div className="analytics-dashboard relative" dir={dir}>
       {/* glow خلف الواجهة */}
       <div
         className="absolute -inset-6 -z-10 pointer-events-none"
@@ -1542,6 +1555,7 @@ function _FlowArrow({ vertical = false }) {
 }
 
 function MiniUIAutomation() {
+  const dir = useDirection()
   const tr = useTranslate()
   const steps = [
     {
@@ -1649,7 +1663,7 @@ function MiniUIAutomation() {
   ]
 
   return (
-    <div className="automation-flow-card relative" dir="rtl">
+    <div className="automation-flow-card relative" dir={dir}>
       {/* glow خلف الواجهة */}
       <div
         className="absolute -inset-6 -z-10 pointer-events-none"
@@ -1713,7 +1727,7 @@ function MiniUIAutomation() {
       </div>
 
       {/* Flow — أفقي على الديسكتوب، عمودي على الجوال */}
-      <div className="p-4 automation-flow" dir="rtl">
+      <div className="p-4 automation-flow" dir={dir}>
         {/* Desktop: horizontal RTL */}
         <div className="hidden md:flex items-stretch gap-0 overflow-x-auto pb-2 mini-flow-scroll">
           {steps.map((s, i) => (
@@ -2670,22 +2684,20 @@ function PlatformDashboard() {
 // anyone who toggled it (including a reviewer). The toggle is gone; this pins
 // the page to dark and clears a `light` choice saved by an earlier visit so a
 // returning visitor is not stuck on the retired palette. Renders nothing.
+/**
+ * Kept only to set the form-control and scrollbar colours to match the page.
+ *
+ * It used to add `dark` to <html> as well, and lost that class to
+ * next-themes on every render, so production served the light palette to
+ * everyone. The palette is now pinned in the stylesheet instead, which is
+ * where it belongs; nothing here fights for a class this page does not own.
+ */
 function ForceDarkTheme() {
-  const tr = useTranslate()
   React.useEffect(() => {
-    const r = document.documentElement
-    const hadLight = r.classList.contains("light")
-    r.classList.remove("light")
-    r.classList.add("dark")
-    try {
-      localStorage.setItem("wesal-theme", "dark")
-    } catch {
-      // Private mode or blocked storage: the class above is what matters.
-    }
-
+    const previous = document.documentElement.style.colorScheme
+    document.documentElement.style.colorScheme = "dark"
     return () => {
-      r.classList.remove("dark")
-      if (hadLight) r.classList.add("light")
+      document.documentElement.style.colorScheme = previous
     }
   }, [])
 
@@ -3096,6 +3108,7 @@ function HeroInboxCard() {
       >
         {tr("عرض جميع المحادثات")}
         <svg
+          className="wesal-dir-arrow"
           fill="none"
           height="14"
           stroke="currentColor"
@@ -3369,7 +3382,7 @@ const PILLS = [
 
 function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
   const tr = useTranslate()
-  const align = centered ? "center" : "right"
+  const align = centered ? "center" : "start"
   return (
     <div style={{ textAlign: align }}>
       <div
@@ -3456,6 +3469,7 @@ function HeroText({ centered = false, fs = "clamp(30px,4vw,48px)" }) {
         >
           {tr("ابدأ الآن")}
           <svg
+            className="wesal-dir-arrow"
             fill="none"
             height="18"
             stroke="currentColor"
@@ -3573,6 +3587,7 @@ function HoloImage({ style = {} }) {
 
 // ===== Desktop Hero — fixed 1672×690 canvas, scaled by container width =====
 function HeroDesktop() {
+  const dir = useDirection()
   const tr = useTranslate()
   const wrapRef = React.useRef(null)
   const [sc, setSc] = React.useState(1)
@@ -3723,9 +3738,9 @@ function HeroDesktop() {
             right: 30,
             top: 40,
             width: 625,
-            textAlign: "right",
+            textAlign: "start",
             zIndex: 6,
-            direction: "rtl",
+            direction: dir,
           }}
         >
           <HeroText fs="60px" />
@@ -3737,7 +3752,7 @@ function HeroDesktop() {
             position: "absolute",
             right: 30,
             top: 592,
-            direction: "rtl",
+            direction: dir,
             zIndex: 6,
           }}
         >
@@ -4241,6 +4256,7 @@ function FeaturePillars() {
 
 // ============ Stats — glass strip متّصل بالـ Hero ============
 function StatsBar() {
+  const dir = useDirection()
   const tr = useTranslate()
   const shield = (
     <svg
@@ -4334,7 +4350,7 @@ function StatsBar() {
           {stats.map((s, i) => (
             <div
               className={`reveal relative flex items-center justify-center gap-3.5 ${s.lead ? "flex-row-reverse" : "flex-row"}`}
-              dir="rtl"
+              dir={dir}
               key={s.l}
             >
               <span
@@ -4643,6 +4659,7 @@ function PriceCard({
       >
         {cta}
         <svg
+          className="wesal-dir-arrow"
           className="ms-1.5"
           fill="none"
           height="13"
@@ -4947,6 +4964,7 @@ function FinalCTABig() {
               <a className="final-cta-btn-primary" href="/auth/sign-up">
                 {tr("ابدأ الآن")}
                 <svg
+                  className="wesal-dir-arrow"
                   fill="none"
                   height="14"
                   stroke="currentColor"
