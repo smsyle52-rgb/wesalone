@@ -154,10 +154,12 @@
     "schedule": "Schedule",
     "moveToDraft": "Move to draft",
     "stop": "Stop",
-    "resume": "Resume"
+    "resume": "Resume",
+    "tryAgain": "Try again"
   },
   "errors": {
-    "superAdminRequired": "You need to be a workspace super admin to do this."
+    "superAdminRequired": "You need to be a workspace super admin to do this.",
+    "unexpected": "Something went wrong"
   },
   "states": {
     "success": "Success",
@@ -2398,8 +2400,8 @@
       "connect": "Connect"
     },
     "limitedDataUse": {
-      "label": "Limited Data Use (US privacy)",
-      "description": "Restrict Meta's use of event data for users in applicable US states. Meta auto-detects the user's location from this event; no location data is sent by Wesal One."
+      "label": "Limited Data Use (US state privacy laws)",
+      "description": "A Meta option that applies only to the privacy laws of certain US states. Leave it off unless you have customers inside the United States — it has no effect on customers in Yemen or the Gulf. When on, Meta restricts its use of event data for people it detects in those states; Wesal One sends no location data either way."
     },
     "actionSource": {
       "label": "Action source",
@@ -2684,12 +2686,14 @@
     "sendMultipleImages": {
       "removeImage": "Remove image",
       "selectImage": "Select Images"
-    }
+    },
+    "startNode": "Start"
   },
   "folders": {
     "heading": {
       "title": "Folders"
-    }
+    },
+    "root": "Root"
   },
   "gemini": {
     "autoReply": {
@@ -4010,6 +4014,10 @@
         "title": "Automatic Events",
         "description": "Automatically send conversion events from this WhatsApp number to Meta. If the permission is missing, reconnect the account to grant it."
       }
+    },
+    "ecommerce": {
+      "title": "Sell your products on WhatsApp",
+      "manageProducts": "Manage your products"
     }
   },
   "zalo": {
@@ -5751,7 +5759,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -5768,7 +5778,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -5785,7 +5797,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -5802,11 +5816,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },

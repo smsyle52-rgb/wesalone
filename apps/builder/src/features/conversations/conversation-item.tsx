@@ -33,6 +33,7 @@ import { readConversationAction } from "./actions/read-conversation.action"
 import { resolveLastMessagePreview } from "./queries/resolve-last-message-preview"
 import type { ListConversationItemResource } from "./schema/resource"
 import { adBadgeLabelKey, selectAdBadge } from "./utils/ad-badge"
+import { useDateFnsLocale } from "@/hooks/use-date-fns-locale"
 
 type ConversationItemProps = {
   conversation: ListConversationItemResource
@@ -139,6 +140,7 @@ export default function ConversationItem({
   conversation,
   onSelect,
 }: ConversationItemProps) {
+  const dateLocale = useDateFnsLocale()
   const t = useTranslations()
   const { activeConversationId, readConversation } = useChatStore(
     (state) => state,
@@ -289,7 +291,9 @@ export default function ConversationItem({
             )}
             <span className="text-neutral-400">
               {conversation.lastActivityAt
-                ? formatDistanceToNowStrict(conversation.lastActivityAt)
+                ? formatDistanceToNowStrict(conversation.lastActivityAt, {
+                    locale: dateLocale,
+                  })
                 : " "}
             </span>
           </div>

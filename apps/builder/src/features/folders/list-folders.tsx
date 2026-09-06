@@ -5,6 +5,7 @@ import { Button } from "@chatbotx.io/ui/components/ui/button"
 import { ScrollArea } from "@chatbotx.io/ui/components/ui/scroll-area"
 import { FolderIcon, PencilIcon, TrashIcon } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { use, useCallback, useState } from "react"
 import { AppBreadcrumb } from "@/components/app-breadcrumb"
 import { CreateFolderDialog } from "./create-folder-dialog"
@@ -26,6 +27,7 @@ type ListFoldersProps = {
 
 const ListFolders = (props: ListFoldersProps) => {
   const { workspaceId, folderType, promises } = props
+  const t = useTranslations()
 
   const [{ folder, parents }, { data: folders }] = use(promises)
   const router = useRouter()
@@ -67,14 +69,14 @@ const ListFolders = (props: ListFoldersProps) => {
           <AppBreadcrumb
             items={[
               {
-                label: "Root",
+                label: t("folders.root"),
                 element: (
                   <Button
                     className="p-0 hover:bg-transparent"
                     onClick={() => setFolderId(null)}
                     variant="ghost"
                   >
-                    Root
+                    {t("folders.root")}
                   </Button>
                 ),
               },

@@ -154,10 +154,12 @@
     "schedule": "Schedule",
     "moveToDraft": "Move to draft",
     "stop": "Stop",
-    "resume": "Resume"
+    "resume": "Resume",
+    "tryAgain": "Try again"
   },
   "errors": {
-    "superAdminRequired": "Você precisa ser um superadministrador do espaço de trabalho para fazer isso."
+    "superAdminRequired": "Você precisa ser um superadministrador do espaço de trabalho para fazer isso.",
+    "unexpected": "Something went wrong"
   },
   "states": {
     "success": "Sucesso",
@@ -2411,12 +2413,14 @@
     "sendText": {
       "tiktokTitleTruncated": "Quando há botões anexados, o TikTok envia apenas os primeiros 40 caracteres desta mensagem — o restante será cortado."
     },
-    "dataWasSaved": "Dados salvos"
+    "dataWasSaved": "Dados salvos",
+    "startNode": "Start"
   },
   "folders": {
     "heading": {
       "title": "Pastas"
-    }
+    },
+    "root": "Root"
   },
   "gemini": {
     "autoReply": {
@@ -3799,6 +3803,10 @@
         "title": "Eventos Automáticos",
         "description": "Envie automaticamente eventos de conversão deste número do WhatsApp para a Meta. Se a permissão estiver faltando, reconecte a conta para concedê-la."
       }
+    },
+    "ecommerce": {
+      "title": "Sell your products on WhatsApp",
+      "manageProducts": "Manage your products"
     }
   },
   "zalo": {
@@ -6472,7 +6480,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -6489,7 +6499,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -6506,7 +6518,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -6523,11 +6537,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },

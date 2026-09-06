@@ -34,6 +34,7 @@ import type { ExportContactsFilter } from "./schema/action"
 import type { ListContactsResponse } from "./schema/query"
 import type { ContactResource } from "./schema/resource"
 import { getLatestContactLastReadAt } from "./utils"
+import { useDateFnsLocale } from "@/hooks/use-date-fns-locale"
 
 /**
  * One contact rendered as a card, for the narrow-viewport view of the table.
@@ -118,6 +119,7 @@ export function ContactsTable({
   workspaceId,
   promises,
 }: ContactsTableProps) {
+  const dateLocale = useDateFnsLocale()
   const t = useTranslations()
   const formatter = useFormatter()
   const searchParams = useSearchParams()
@@ -382,7 +384,10 @@ export function ContactsTable({
           return (
             <div>
               {lastReadAt
-                ? formatDistanceToNow(lastReadAt, { addSuffix: true })
+                ? formatDistanceToNow(lastReadAt, {
+                    addSuffix: true,
+                    locale: dateLocale,
+                  })
                 : null}
             </div>
           )
@@ -409,7 +414,7 @@ export function ContactsTable({
         enableHiding: false,
       },
     ],
-    [workspaceId, t],
+    [workspaceId, t, dateLocale],
   )
 
   const { table } = useDataTable({

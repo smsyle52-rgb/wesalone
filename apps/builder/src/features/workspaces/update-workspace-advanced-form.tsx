@@ -15,6 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks"
 import { Loader2Icon } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { useMemo } from "react"
 import { toast } from "sonner"
 import { SettingRow } from "@/components/setting-row"
 import type { WorkspaceResource } from "@/features/workspaces/schema/resource"
@@ -66,6 +67,20 @@ export function UpdateWorkspaceAdvancedForm({
   workspace: WorkspaceResource
 }) {
   const t = useTranslations()
+
+  // Country names come from `countries-and-timezones` and are English-only;
+  // only the "unknown" entry is ours to translate, and it is the one every
+  // workspace starts on, so it was the English word on an otherwise Arabic
+  // settings page.
+  const countryOptions = useMemo(
+    () =>
+      allCountryOptions.map((option) =>
+        option.value === UNKNOWN_COUNTRY
+          ? { ...option, label: t("analytics.unknown") }
+          : option,
+      ),
+    [t],
+  )
   const flowOptions = useFlowSelectOptions()
   const defaultReplyFrequencyOptions = defaultReplyFrequencies.options.map(
     (frequency) => ({
@@ -181,7 +196,7 @@ export function UpdateWorkspaceAdvancedForm({
               <ComboboxField
                 emptyText={t("actions.noRecordFound")}
                 name="targetCountry"
-                options={allCountryOptions}
+                options={countryOptions}
                 placeholder={t("actions.pleaseSelect")}
               />
             </SettingRow>

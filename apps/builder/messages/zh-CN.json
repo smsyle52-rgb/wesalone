@@ -158,7 +158,8 @@
     "schedule": "Schedule",
     "moveToDraft": "Move to draft",
     "stop": "Stop",
-    "resume": "Resume"
+    "resume": "Resume",
+    "tryAgain": "Try again"
   },
   "activeCampaign": {
     "automations": {
@@ -1304,7 +1305,8 @@
     "unknownContact": "未知联系人"
   },
   "errors": {
-    "superAdminRequired": "您必须是工作区超级管理员才能执行此操作。"
+    "superAdminRequired": "您必须是工作区超级管理员才能执行此操作。",
+    "unexpected": "Something went wrong"
   },
   "extensionsMe": {
     "actions": {
@@ -3225,12 +3227,14 @@
     "sendText": {
       "tiktokTitleTruncated": "附加按钮后，TikTok 只会发送这条消息的前 40 个字符——其余部分将被截断。"
     },
-    "dataWasSaved": "数据已保存"
+    "dataWasSaved": "数据已保存",
+    "startNode": "Start"
   },
   "folders": {
     "heading": {
       "title": "文件夹"
-    }
+    },
+    "root": "Root"
   },
   "gemini": {
     "autoReply": {
@@ -5205,6 +5209,10 @@
         "title": "Automatic Events",
         "description": "自动将此 WhatsApp 号码的转化事件发送到 Meta。如果缺少权限,请重新连接账户以授予权限。"
       }
+    },
+    "ecommerce": {
+      "title": "Sell your products on WhatsApp",
+      "manageProducts": "Manage your products"
     }
   },
   "workspace": {
@@ -6472,7 +6480,9 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": ["A unified inbox with assignment and permissions."]
+          "body": [
+            "A unified inbox with assignment and permissions."
+          ]
         },
         {
           "title": "Agents and commerce",
@@ -6489,7 +6499,9 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
+          "body": [
+            "WhatsApp, Instagram and Messenger in a unified inbox."
+          ]
         },
         {
           "title": "Telegram and web",
@@ -6506,7 +6518,9 @@
       "sections": [
         {
           "title": "Mission",
-          "body": ["Give businesses a clear customer service and sales system."]
+          "body": [
+            "Give businesses a clear customer service and sales system."
+          ]
         },
         {
           "title": "Commitment",
@@ -6523,11 +6537,15 @@
       "sections": [
         {
           "title": "Email",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "WhatsApp",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },

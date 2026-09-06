@@ -37,7 +37,7 @@ export const NodeViewer = memo((props: NodeViewerProps) => {
         {data.isStartNode && (
           <div className="inline-flex items-center gap-1 rounded-xl border bg-destructive px-1.5 py-0.5 text-sm text-white">
             <PlayCircleIcon className="text-sm" size={16} />
-            Start
+            {t("flows.startNode")}
           </div>
         )}
       </div>
