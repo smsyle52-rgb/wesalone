@@ -1,7 +1,8 @@
 import {
   type Context,
-  guessFileTypeFromMimeType,
+  defaultMimeTypeForFileType,
   type IncomingAttachment,
+  resolveIncomingFileType,
 } from "@chatbotx.io/sdk"
 import { createId } from "@chatbotx.io/utils"
 import fetch from "cross-fetch"
@@ -167,8 +168,9 @@ export const getMessageAttachmentEntity = async ({
 
   const originPath = `${ctx.storagePrefix}/${createId()}`
   const bytes = await response.arrayBuffer()
-  const mimeType = response.headers.get("content-type") ?? "image/png"
-  const fileType = guessFileTypeFromMimeType(mimeType)
+  const headerMimeType = response.headers.get("content-type")
+  const fileType = resolveIncomingFileType(headerMimeType, attachment.type)
+  const mimeType = headerMimeType ?? defaultMimeTypeForFileType(fileType)
 
   await ctx.uploader?.putObject(originPath, Buffer.from(bytes), {
     ACL: "public-read",
