@@ -45,8 +45,13 @@ export const workspaceTokenAuthMidddleware = base.middleware(
     const url = context.url ? new URL(context.url) : null
     const apiKeyToken = url?.searchParams.get("token") ?? null
     const token = bearerToken ?? apiKeyToken
+    // `status: 401` is not decoration: oRPC maps an unrecognised code to 500,
+    // so a missing or wrong token answered "500 Internal Server Error". Every
+    // HTTP client and uptime monitor reads 5xx as "their server is broken" and
+    // retries, so a developer's own bad token looked like a platform outage —
+    // measured against the live API on 8 Sep 2026, before this line.
     if (!token) {
-      throw new ORPCError("INVALID_CHATBOT_TOKEN")
+      throw new ORPCError("INVALID_CHATBOT_TOKEN", { status: 401 })
     }
     if (!bearerToken && apiKeyToken) {
       logger.warn(
@@ -81,12 +86,12 @@ export const workspaceTokenAuthMidddleware = base.middleware(
           { err: error, tokenHash },
           "Workspace token cache pointed at a purged workspace",
         )
-        throw new ORPCError("INVALID_CHATBOT_TOKEN")
+        throw new ORPCError("INVALID_CHATBOT_TOKEN", { status: 401 })
       }
       throw error
     }
     if (!auth) {
-      throw new ORPCError("INVALID_CHATBOT_TOKEN")
+      throw new ORPCError("INVALID_CHATBOT_TOKEN", { status: 401 })
     }
     const { workspace, apiToken } = auth
 

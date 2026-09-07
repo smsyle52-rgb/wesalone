@@ -207,6 +207,28 @@ export async function processAutomatedResponse(
           },
         })
       }
+      // The loudest silence on the platform. `findDefault` matches only an
+      // agent with `isDefault`, with no fallback, so a workspace that built an
+      // agent but never marked it default drops every inbound message here —
+      // and, because this sits 130 lines above `transcribeAudioAttachments`,
+      // its voice notes are never even transcribed. Measured on 8 Sep 2026:
+      // one workspace had swallowed 19,825 customer messages over nine days
+      // with not one line at any level to show for it, and four workspaces
+      // were in this state at once. Upstream returns silently here too; the
+      // difference is that Wesal One runs the platform for merchants who are
+      // not watching their own agent.
+      logger.warn(
+        {
+          conversationId: conversation.id,
+          defaultReplyResult,
+          hasDefaultReplyFlow: Boolean(workspace.defaultReply),
+          messageId,
+          workspaceId: conversation.workspaceId,
+        },
+        defaultReplyResult === "triggered"
+          ? "[automated-response] no default AI agent — answered with the default reply flow"
+          : "[automated-response] no default AI agent and no default reply flow — the message goes unanswered",
+      )
       return
     }
 
