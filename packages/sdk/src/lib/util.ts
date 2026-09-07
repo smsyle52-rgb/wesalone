@@ -65,14 +65,21 @@ export function resolveIncomingFileType(
     ? DECLARED_ATTACHMENT_FILE_TYPES[declaredType]
     : undefined
 
-  if (!headerMimeType) {
-    return declared ?? "file"
+  // The declared kind wins outright, not just when the header is unhelpful.
+  // Instagram ships a voice note inside an MP4 container, so its CDN answers
+  // `video/mp4` — a perfectly specific content type that happens to describe
+  // the packaging rather than the content. Trusting it filed a voice note as
+  // `video`, which the automated-response handler ignores just as completely
+  // as it ignored `file` (verified against production on 8 Sep 2026: a voice
+  // note sent minutes after the first fix shipped landed as
+  // `video`/`video/mp4`). Meta's `attachment.type` is the semantic truth about
+  // what the customer sent; the container type is incidental. Kinds absent
+  // from the map carry no media of their own and still defer to the header.
+  if (declared) {
+    return declared
   }
 
-  const guessed = guessFileTypeFromMimeType(headerMimeType)
-  // `guessed === "file"` covers both `application/octet-stream` and any other
-  // non-media content type the CDN returns for real media.
-  return guessed === "file" ? (declared ?? guessed) : guessed
+  return headerMimeType ? guessFileTypeFromMimeType(headerMimeType) : "file"
 }
 
 /**

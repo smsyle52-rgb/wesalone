@@ -22,11 +22,24 @@ describe("resolveIncomingFileType", () => {
     )
   })
 
-  test("a real media content type still wins over the declared kind", () => {
+  test("an Instagram voice note in an mp4 container is audio, not video", () => {
+    // The header is specific and still wrong: it describes the container, not
+    // the content. This is the case the first fix missed.
+    expect(resolveIncomingFileType("video/mp4", "audio")).toBe("audio")
+  })
+
+  test("the declared kind wins over a real media content type", () => {
     expect(resolveIncomingFileType("audio/ogg; codecs=opus", "file")).toBe(
+      "file",
+    )
+    expect(resolveIncomingFileType("image/jpeg", "video")).toBe("video")
+  })
+
+  test("with no declared kind the header still decides", () => {
+    expect(resolveIncomingFileType("audio/ogg; codecs=opus", null)).toBe(
       "audio",
     )
-    expect(resolveIncomingFileType("image/jpeg", "file")).toBe("image")
+    expect(resolveIncomingFileType("image/jpeg", undefined)).toBe("image")
   })
 
   test("reels and stickers map onto our own file types", () => {
