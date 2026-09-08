@@ -25,6 +25,7 @@ import {
   toVisiblePoints,
 } from "../point-wallet/service"
 import {
+  actualCostMicroUsd,
   defaultReservationMicroPoints,
   type LanguageUsage,
   languageUsageMicroPoints,
@@ -287,6 +288,17 @@ const settleMicroPoints = async (props: {
         cachedInputUnits: props.cachedInputUnits?.toString() ?? null,
         reasoningUnits: props.reasoningUnits?.toString() ?? null,
         usage: props.usage,
+        // What the call cost us, beside what it charged the merchant. The
+        // column shipped with the table and was never written, so margin was
+        // unknowable: on 8 Sep 2026 all 10,608 settled events of the previous
+        // 30 days carried a null here. `actualCostMicroUsd` returns null for a
+        // model with no published rate rather than guessing, so an unpriced
+        // call stays visibly unpriced instead of quietly skewing the figures.
+        actualCostMicroUsd:
+          actualCostMicroUsd(event.model, {
+            inputUnits: props.inputUnits,
+            outputUnits: props.outputUnits,
+          })?.toString() ?? null,
         settledAt: new Date(),
         error: null,
       })

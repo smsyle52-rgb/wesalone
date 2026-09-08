@@ -88,3 +88,58 @@ export const defaultReservationMicroPoints = (
       return 50n * MICRO_POINTS_PER_POINT
   }
 }
+
+/**
+ * What a call actually costs us, in USD — the number the points catalog above
+ * deliberately does not carry.
+ *
+ * `BillableUsageEvent.actualCostMicroUsd` existed from the start and was never
+ * written: 10,608 settled events over the 30 days to 8 Sep 2026, zero with a
+ * cost. Pricing was therefore guesswork — there was no way to tell a workspace
+ * that earns from one that loses, or to know what a plan's grant is worth.
+ *
+ * Rates are USD per 1,000,000 tokens, transcribed from Google's published
+ * Vertex AI pricing (checked 8 Sep 2026). Gemini 3.x Flash carries introductory
+ * pricing through 31 Dec 2026; from 1 Jan 2027 it doubles to 1.50 / 7.50, which
+ * is why this table is versioned and dated rather than inlined at the call site.
+ *
+ * A model absent from this table yields `null`, never a guess: an unpriced call
+ * is recorded as unknown, so the gap stays visible instead of quietly polluting
+ * the margin figures. Cached input bills at the uncached rate here — a
+ * deliberate over-estimate, so the recorded cost is never lower than reality.
+ */
+export const COST_CATALOG_VERSION = "2026-09-08.vertex-intro"
+
+const MICRO_USD_PER_USD = 1_000_000
+const TOKENS_PER_UNIT_PRICE = 1_000_000
+
+type ModelPriceUsd = { inputPerMillion: number; outputPerMillion: number }
+
+const MODEL_PRICE_USD: Record<string, ModelPriceUsd> = {
+  "gemini-3.7-flash": { inputPerMillion: 0.75, outputPerMillion: 3.75 },
+}
+
+export type ActualCostUnits = {
+  inputUnits?: number
+  outputUnits?: number
+}
+
+/**
+ * Returns the call's cost in micro-USD, or `null` when the model has no
+ * published rate in this catalog.
+ */
+export const actualCostMicroUsd = (
+  model: string | null | undefined,
+  units: ActualCostUnits,
+): bigint | null => {
+  const price = model ? MODEL_PRICE_USD[model] : undefined
+  if (!price) {
+    return null
+  }
+  const input = safeUnits(units.inputUnits)
+  const output = safeUnits(units.outputUnits)
+  const usd =
+    (input / TOKENS_PER_UNIT_PRICE) * price.inputPerMillion +
+    (output / TOKENS_PER_UNIT_PRICE) * price.outputPerMillion
+  return BigInt(Math.round(usd * MICRO_USD_PER_USD))
+}
