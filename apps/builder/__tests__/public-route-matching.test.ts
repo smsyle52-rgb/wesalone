@@ -23,7 +23,6 @@ describe("isPublicRoute", () => {
       "/auth/sign-up",
       "/api/health",
       "/integrations/whatsapp/callback",
-      "/channels/create",
       "/r/123/my-link",
       "/l/123/456",
       "/data-deletion",
@@ -69,6 +68,22 @@ describe("isPublicRoute", () => {
     ]) {
       expect(isPublicRoute(pathname), pathname).toBe(false)
     }
+  })
+
+  test("keeps the connect flow private even though /channels is public", () => {
+    // `/channels` is the marketing page; `/channels/create` beneath it is the
+    // authenticated connect flow, and was public from 14 Aug to 9 Sep 2026.
+    // Signed out it answered 404 instead of the sign-in redirect, so a
+    // merchant whose session lapsed mid-connect was told the page does not
+    // exist. Meta's own callback lands on `/integrations/...`, not here, so
+    // gating this path does not touch the OAuth return.
+    for (const pathname of [
+      "/channels/create",
+      "/channels/create/messenger",
+    ]) {
+      expect(isPublicRoute(pathname), pathname).toBe(false)
+    }
+    expect(isPublicRoute("/channels")).toBe(true)
   })
 
   test("keeps workspace paths private", () => {

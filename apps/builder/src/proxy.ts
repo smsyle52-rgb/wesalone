@@ -10,10 +10,20 @@ import { LOCALE_COOKIE, LOCALE_QUERY_PARAM, parseLocale } from "@/i18n/config"
 import { auth } from "@/lib/auth/auth"
 import { httpLogger } from "./lib/log"
 
+// Checked BEFORE publicRoutes, and the only way to keep an authenticated page
+// underneath a public one. `/channels` is the marketing page and must stay
+// reachable signed out, but segment matching then opens everything below it —
+// including `/channels/create`, the channel-connect flow. That flow was listed
+// as public on 14 Aug 2026 among a batch of marketing pages, so a merchant
+// arriving without a valid session cookie (expired, or returning from Meta's
+// window in a browser that dropped it) reached the page itself, which answers
+// `notFound()` — a "page not found" screen in the middle of onboarding, where
+// every other private page redirects to sign-in and comes back.
+const protectedRoutes = ["/channels/create"]
+
 const publicRoutes = [
   "/about",
   "/channels",
-  "/channels/create",
   "/features",
   "/data-deletion",
   // Meta's app settings point at /privacy and /terms, and it requires both to
@@ -167,6 +177,11 @@ function buildSigninUrl(
 export function isPublicRoute(pathname: string) {
   if (pathname === "/") {
     return true
+  }
+  for (const route of protectedRoutes) {
+    if (pathname === route || pathname.startsWith(`${route}/`)) {
+      return false
+    }
   }
   for (const route of publicRoutes) {
     // Match whole path segments only. A bare startsWith() let the short-link
