@@ -65,12 +65,20 @@ describe("onUserCreated quota bootstrap", () => {
     expect(calls).toEqual(["bootstrap", "enqueue"])
   })
 
-  test("skips bootstrap and enqueue outside cloud", async () => {
+  // Wesal One runs the community edition but is itself the platform for its
+  // merchants, so a sign-up here still needs a plan, a wallet and a balance.
+  // Guarding the bootstrap on `isCloud()` left 43 of 44 September 2026
+  // sign-ups with none of the three. The queue half stays cloud-only: its
+  // consumer, the private `quota-worker`, does not run off-cloud.
+  test("stamps the bootstrap plan outside cloud, without enqueueing", async () => {
     isCloud.mockReturnValue(false)
 
     await onUserCreated(user())
 
-    expect(ensureBootstrapPlan).not.toHaveBeenCalled()
+    expect(ensureBootstrapPlan).toHaveBeenCalledWith({
+      userId: "user-1",
+      tenantId: undefined,
+    })
     expect(quotaQueueAdd).not.toHaveBeenCalled()
   })
 
