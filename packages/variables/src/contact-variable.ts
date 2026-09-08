@@ -107,12 +107,34 @@ const couponResolver: VariableResolver = {
     await resolveCouponVariable(context, variable),
 }
 
+// Last resort, and deliberately last: a field the merchant defined but this
+// contact never filled has no row in `customFieldsMap`, so every resolver above
+// declines it and `interpolate` hands the raw `{{name}}` to the customer. An
+// unanswered field is empty, not literal — it renders "" exactly like a field
+// answered with an empty string. Ordering matters: a workspace field named
+// after a system field (`first_name`) must still resolve through
+// `systemFieldResolver`, and a field the contact *did* fill through
+// `customFieldResolver`; this one only ever sees what they both passed over.
+const unsetCustomFieldResolver: VariableResolver = {
+  matches: (variable, context) => {
+    const names = context.workspaceCustomFieldNames
+    if (!names) {
+      return false
+    }
+    return variable.startsWith(RAW_CUSTOM_FIELD_VARIABLE_PREFIX)
+      ? names.has(toRawCustomFieldName(variable))
+      : names.has(variable)
+  },
+  resolve: () => "",
+}
+
 const variableResolvers = [
   systemFieldResolver,
   rawCustomFieldResolver,
   botFieldResolver,
   customFieldResolver,
   couponResolver,
+  unsetCustomFieldResolver,
 ] as const satisfies readonly VariableResolver[]
 
 type GetAllProps = {
@@ -219,6 +241,33 @@ const loadBotFields = async (
     },
   )
 
+const CUSTOM_FIELD_NAMES_CACHE_TTL_SECONDS = 5 * 60
+
+/**
+ * Cached like `loadBotFields`, and for the same reason: this runs on every
+ * send, while a merchant adds a custom field perhaps once a month. The tag
+ * matches the one `customFieldService.invalidate` already publishes, so a
+ * renamed or deleted field drops out without a second invalidation path.
+ */
+const loadWorkspaceCustomFieldNames = async (
+  workspaceId: string,
+): Promise<ReadonlySet<string>> =>
+  await withCache(
+    `custom-fields:${workspaceId}:variable-names`,
+    async () => {
+      const rows = await db.query.customFieldModel.findMany({
+        where: { workspaceId },
+        columns: { name: true },
+      })
+
+      return new Set(rows.map((row) => row.name))
+    },
+    {
+      ttl: CUSTOM_FIELD_NAMES_CACHE_TTL_SECONDS,
+      tags: ["custom-fields", `custom-fields:${workspaceId}`],
+    },
+  )
+
 export const contactVariableService = {
   getAll: async (input: GetAllProps): Promise<ReplaceVariableProps> => {
     const [contact, contactInbox, customFieldsMap] = await Promise.all([
@@ -226,13 +275,15 @@ export const contactVariableService = {
       loadInbox(input.contactInbox),
       loadFields(input.contactId),
     ])
-    const [workspace, botFieldsMap] = await Promise.all([
-      loadWorkspace({
-        contact,
-        workspace: input.workspace,
-      }),
-      loadBotFields(contact.workspaceId),
-    ])
+    const [workspace, botFieldsMap, workspaceCustomFieldNames] =
+      await Promise.all([
+        loadWorkspace({
+          contact,
+          workspace: input.workspace,
+        }),
+        loadBotFields(contact.workspaceId),
+        loadWorkspaceCustomFieldNames(contact.workspaceId),
+      ])
 
     return {
       contact,
@@ -241,6 +292,7 @@ export const contactVariableService = {
       appointmentId: input.appointmentId,
       customFieldsMap,
       botFieldsMap,
+      workspaceCustomFieldNames,
       workspace,
     }
   },

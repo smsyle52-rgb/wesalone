@@ -13,6 +13,7 @@ const {
   mockBotFieldFindMany,
   mockContactCustomFieldFindMany,
   mockContactFindFirst,
+  mockCustomFieldFindMany,
   mockContactInboxFindFirst,
   mockFindLatestLastIncomingMessageAt,
   mockListIncomingTextsByContactInbox,
@@ -22,6 +23,7 @@ const {
   mockBotFieldFindMany: vi.fn().mockResolvedValue([]),
   mockContactCustomFieldFindMany: vi.fn(),
   mockContactFindFirst: vi.fn(),
+  mockCustomFieldFindMany: vi.fn().mockResolvedValue([]),
   mockContactInboxFindFirst: vi.fn(),
   mockWorkspaceFind: vi.fn(),
   mockFindLatestLastIncomingMessageAt: vi.fn(),
@@ -78,6 +80,9 @@ vi.mock("@chatbotx.io/database/client", () => ({
       },
       contactCustomFieldModel: {
         findMany: mockContactCustomFieldFindMany,
+      },
+      customFieldModel: {
+        findMany: mockCustomFieldFindMany,
       },
       botFieldModel: {
         findMany: mockBotFieldFindMany,
@@ -141,11 +146,15 @@ const createBotFieldsMap = (
 const createVariables = (
   fields: Array<Partial<ContactCustomFieldValue> & { key: string }> = [],
   botFields: Array<{ id: string; type?: string; value: string | null }> = [],
+  // Names the workspace defines. Defaults to exactly the fields this contact
+  // filled, so a name absent from both stays an unknown token as before.
+  definedFieldNames: string[] = fields.map((field) => field.key),
 ) => ({
   contact,
   contactInbox,
   customFieldsMap: createCustomFieldsMap(fields),
   botFieldsMap: createBotFieldsMap(botFields),
+  workspaceCustomFieldNames: new Set(definedFieldNames),
   workspace,
 })
 
@@ -482,6 +491,62 @@ describe("contactVariableService.replaceAll gender language", () => {
   })
 })
 
+/**
+ * A custom field the merchant defined but this contact never filled has no
+ * `ContactCustomField` row, so it was absent from `customFieldsMap`, matched no
+ * resolver, and `interpolate` returned the token unchanged. On 3 Sep 2026 that
+ * sent 13 of one merchant's customers a message whose entire body was the
+ * literal text `{{zain_auto_reply}}`.
+ */
+describe("custom fields defined but never filled", () => {
+  test("renders an unanswered field as empty, not as its own token", async () => {
+    await expect(
+      contactVariableService.replaceAll({
+        text: "{{zain_auto_reply}}",
+        variables: createVariables([], [], ["zain_auto_reply"]),
+      }),
+    ).resolves.toBe("")
+  })
+
+  test("still leaves a name the workspace never defined alone", async () => {
+    // The distinction is the whole fix: an undefined name is a typo worth
+    // showing the merchant, an unanswered field is simply empty.
+    await expect(
+      contactVariableService.replaceAll({
+        text: "{{zain_auto_replie}}",
+        variables: createVariables([], [], ["zain_auto_reply"]),
+      }),
+    ).resolves.toBe("{{zain_auto_replie}}")
+  })
+
+  test("a filled field still wins over the empty fallback", async () => {
+    await expect(
+      contactVariableService.replaceAll({
+        text: "Plan: {{plan}}.",
+        variables: createVariables([{ key: "plan", value: "gold" }]),
+      }),
+    ).resolves.toBe("Plan: gold.")
+  })
+
+  test("a system field name defined as a custom field still resolves system-first", async () => {
+    await expect(
+      contactVariableService.replaceAll({
+        text: "Hi {{first_name}}.",
+        variables: createVariables([], [], ["first_name"]),
+      }),
+    ).resolves.toBe("Hi Ada.")
+  })
+
+  test("the raw: form of an unanswered field is empty too", async () => {
+    await expect(
+      contactVariableService.replaceAll({
+        text: "[{{raw:zain_auto_reply}}]",
+        variables: createVariables([], [], ["zain_auto_reply"]),
+      }),
+    ).resolves.toBe("[]")
+  })
+})
+
 describe("contactVariableService.getAll", () => {
   test("uses a provided contact inbox object and skips the inbox query", async () => {
     mockContactFindFirst.mockResolvedValue(contact)
@@ -565,5 +630,27 @@ describe("contactVariableService.getAll", () => {
       type: "shortText",
       value: "9am - 5pm",
     })
+  })
+
+  test("collects every custom-field name the workspace defines", async () => {
+    mockContactFindFirst.mockResolvedValue(contact)
+    mockContactCustomFieldFindMany.mockResolvedValue([])
+    mockCustomFieldFindMany.mockResolvedValue([
+      { name: "zain_auto_reply" },
+      { name: "plan" },
+    ])
+
+    const result = await contactVariableService.getAll({
+      contactId: "contact-1",
+      contactInbox,
+      workspace,
+    })
+
+    expect(mockCustomFieldFindMany).toHaveBeenCalledWith({
+      where: { workspaceId: "workspace-1" },
+      columns: { name: true },
+    })
+    expect(result.workspaceCustomFieldNames?.has("zain_auto_reply")).toBe(true)
+    expect(result.workspaceCustomFieldNames?.has("plan")).toBe(true)
   })
 })

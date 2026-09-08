@@ -8,10 +8,12 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const {
   mockBotFieldFindMany,
+  mockCustomFieldFindMany,
   mockContactCustomFieldFindMany,
   mockContactFindFirst,
 } = vi.hoisted(() => ({
   mockBotFieldFindMany: vi.fn(),
+  mockCustomFieldFindMany: vi.fn().mockResolvedValue([]),
   mockContactCustomFieldFindMany: vi.fn().mockResolvedValue([]),
   mockContactFindFirst: vi.fn(),
 }))
@@ -54,6 +56,7 @@ vi.mock("@chatbotx.io/database/client", () => ({
       contactInboxModel: { findFirst: vi.fn() },
       contactCustomFieldModel: { findMany: mockContactCustomFieldFindMany },
       botFieldModel: { findMany: mockBotFieldFindMany },
+      customFieldModel: { findMany: mockCustomFieldFindMany },
     },
   },
 }))
