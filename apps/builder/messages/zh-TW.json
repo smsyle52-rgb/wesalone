@@ -4857,7 +4857,8 @@
       "payment_review": "Needs review",
       "refunded": "Refunded",
       "cancelled": "Cancelled",
-      "expired": "Expired"
+      "expired": "Expired",
+      "confirmed": "已確認"
     },
     "paymentStatus": {
       "pending": "Pending",
@@ -4908,6 +4909,12 @@
       "expiresAt": "Checkout expires",
       "paymentReviewTitle": "This order needs manual review",
       "paymentReviewDescription": "A payment event arrived after this order had already expired or was otherwise resolved. No money has been silently applied — check the payment history below before taking any action."
+    },
+    "actions": {
+      "confirm": "確認訂單",
+      "cancel": "取消",
+      "confirmed": "訂單已確認",
+      "cancelled": "訂單已取消"
     }
   },
   "products": {

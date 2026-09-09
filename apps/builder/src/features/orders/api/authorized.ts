@@ -126,6 +126,58 @@ export const ordersAuthorizedAPI = {
       })) as OrderResource
     }),
 
+  confirmOrderAPI: authorizedAPI
+    .route({
+      method: "POST",
+      path: "/workspaces/{workspaceId}/orders/{orderId}/confirm",
+      summary: "Confirm a draft order the agent recorded",
+      tags: ["Orders"],
+    })
+    .input(z.object({ workspaceId: z.string(), orderId: z.string() }))
+    .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
+    .output(orderResource)
+    .handler(async ({ input, context }) => {
+      await requireEcommercePermission({
+        workspaceId: context.workspace.id,
+        userId: context.user.id,
+      })
+      await orderService.confirm({
+        workspaceId: context.workspace.id,
+        orderId: input.orderId,
+      })
+      // Re-read rather than return the UPDATE's row: the resource carries the
+      // items and payments the page renders, which the update does not.
+      return (await orderService.getById({
+        workspaceId: context.workspace.id,
+        orderId: input.orderId,
+      })) as OrderResource
+    }),
+
+  cancelOrderAPI: authorizedAPI
+    .route({
+      method: "POST",
+      path: "/workspaces/{workspaceId}/orders/{orderId}/cancel",
+      summary: "Cancel a draft or confirmed order",
+      tags: ["Orders"],
+    })
+    .input(z.object({ workspaceId: z.string(), orderId: z.string() }))
+    .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
+    .output(orderResource)
+    .handler(async ({ input, context }) => {
+      await requireEcommercePermission({
+        workspaceId: context.workspace.id,
+        userId: context.user.id,
+      })
+      await orderService.cancel({
+        workspaceId: context.workspace.id,
+        orderId: input.orderId,
+      })
+      return (await orderService.getById({
+        workspaceId: context.workspace.id,
+        orderId: input.orderId,
+      })) as OrderResource
+    }),
+
   checkoutOrderAPI: authorizedAPI
     .route({
       method: "POST",

@@ -550,6 +550,55 @@ class OrderService extends BaseService {
     })
   }
 
+  /**
+   * The merchant accepting a draft the agent recorded.
+   *
+   * Deliberately not `checkout`: that opens a payment-provider session and
+   * reserves stock, which is meaningless for a wholesaler whose catalogue
+   * carries no prices and who is paid in cash on delivery. Confirming holds
+   * no stock and takes no money — it records a decision.
+   *
+   * The transition is one conditional UPDATE guarded on `status = 'draft'`,
+   * so two people pressing the button at once produce one confirmation: the
+   * loser matches zero rows and is told the order already moved, rather than
+   * silently overwriting the winner.
+   */
+  async confirm(props: {
+    workspaceId: string
+    orderId: string
+  }): Promise<OrderModel> {
+    const { workspaceId, orderId } = props
+
+    const [updated] = await db
+      .update(orderModel)
+      .set({ status: "confirmed" })
+      .where(
+        and(
+          eq(orderModel.id, orderId),
+          eq(orderModel.workspaceId, workspaceId),
+          eq(orderModel.status, "draft"),
+        ),
+      )
+      .returning()
+
+    if (updated) {
+      return updated
+    }
+
+    // Nothing matched: either the order is not this workspace's, or it had
+    // already left `draft`. Say which — "not found" for someone else's order
+    // is the honest answer, and a state conflict is actionable.
+    const current = await db.query.orderModel.findFirst({
+      where: { id: orderId, workspaceId },
+    })
+    if (!current) {
+      throw notFoundException("Order not found")
+    }
+    throw orderStateConflictException(
+      `Order is ${current.status}; only a draft can be confirmed`,
+    )
+  }
+
   async cancel(props: {
     workspaceId: string
     orderId: string
@@ -563,7 +612,14 @@ class OrderService extends BaseService {
       if (!order) {
         throw notFoundException("Order not found")
       }
-      if (order.status !== "draft" && order.status !== "pending_payment") {
+      // `confirmed` is cancellable for the same reason `draft` is: the
+      // merchant said yes and the customer then changed their mind, and no
+      // money has moved in either state.
+      if (
+        order.status !== "draft" &&
+        order.status !== "confirmed" &&
+        order.status !== "pending_payment"
+      ) {
         throw orderStateConflictException(
           `Order is ${order.status}; cannot cancel`,
         )

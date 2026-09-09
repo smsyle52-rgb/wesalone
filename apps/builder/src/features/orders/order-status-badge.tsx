@@ -14,6 +14,11 @@ function createOrderStatusBadgeMap(
 ): Record<OrderStatusType, ReactNode> {
   return {
     draft: <Badge variant="outline">{t("orders.status.draft")}</Badge>,
+    confirmed: (
+      <Badge className="bg-blue-500" variant="default">
+        {t("orders.status.confirmed")}
+      </Badge>
+    ),
     pending_payment: (
       <Badge variant="secondary">{t("orders.status.pending_payment")}</Badge>
     ),

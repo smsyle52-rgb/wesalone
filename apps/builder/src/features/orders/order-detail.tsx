@@ -34,6 +34,7 @@ import {
   OrderStatusBadge,
   PaymentStatusBadge,
 } from "@/features/orders/order-status-badge"
+import { OrderActions } from "@/features/orders/order-actions"
 import type { getOrderDetail } from "@/features/orders/queries"
 import { useTenantSettings } from "@/features/tenant"
 
@@ -94,6 +95,11 @@ export function OrderDetail({ order, contact, workspaceId }: OrderDetailProps) {
           })}
         </h1>
         <OrderStatusBadge status={order.status} />
+        <OrderActions
+          orderId={order.id}
+          status={order.status}
+          workspaceId={workspaceId}
+        />
       </div>
 
       {order.status === "payment_review" && (

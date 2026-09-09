@@ -4843,7 +4843,8 @@
       "payment_review": "Needs review",
       "refunded": "Refunded",
       "cancelled": "Cancelled",
-      "expired": "Expired"
+      "expired": "Expired",
+      "confirmed": "Confirmată"
     },
     "paymentStatus": {
       "pending": "Pending",
@@ -4894,6 +4895,12 @@
       "expiresAt": "Checkout expires",
       "paymentReviewTitle": "This order needs manual review",
       "paymentReviewDescription": "A payment event arrived after this order had already expired or was otherwise resolved. No money has been silently applied — check the payment history below before taking any action."
+    },
+    "actions": {
+      "confirm": "Confirmă comanda",
+      "cancel": "Anulează",
+      "confirmed": "Comandă confirmată",
+      "cancelled": "Comandă anulată"
     }
   },
   "platformAdmin": {

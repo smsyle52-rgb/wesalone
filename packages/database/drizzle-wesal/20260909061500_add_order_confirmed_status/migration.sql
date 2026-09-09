@@ -1,0 +1,16 @@
+-- A merchant-facing "confirmed" step between draft and money.
+--
+-- The agent records every order as `draft` and the merchant confirms it — but
+-- the order page shipped read-only, so a draft could never move. The only
+-- forward path in the API was `checkoutOrder`, which opens a payment-provider
+-- session; useless to a wholesaler whose 95 products carry no price and who is
+-- paid in cash on delivery.
+--
+-- `pending_payment` was the alternative and it lies to that merchant: nothing
+-- is pending payment when the customer pays the driver. `confirmed` says what
+-- the merchant actually did.
+--
+-- Safe inside the migration transaction: PostgreSQL 12+ allows ADD VALUE there
+-- as long as the new label is not USED in the same transaction, and nothing
+-- below uses it.
+ALTER TYPE "orderStatus" ADD VALUE IF NOT EXISTS 'confirmed' AFTER 'draft';
