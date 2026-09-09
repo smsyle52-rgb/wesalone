@@ -215,7 +215,10 @@ export function OrdersTable({
                   }
                 >
                   <TableCell className="font-medium">
-                    #{order.id.slice(-8)}
+                    {/* The merchant-facing number the agent also says out loud.
+                        `id.slice(-8)` used to show here while the agent read
+                        the full 17-digit id, so the two never matched. */}
+                    #{order.orderNumber ?? order.id.slice(-8)}
                   </TableCell>
                   <TableCell>
                     {order.contact ? (

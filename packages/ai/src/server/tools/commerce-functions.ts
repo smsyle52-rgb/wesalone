@@ -395,7 +395,13 @@ const buildCreateOrder: Builder = (options) =>
         const summary = lines
           .map((line) => `${line.quantity} × ${line.product.name}`)
           .join(", ")
-        return `Draft order ${order.id} recorded for this customer: ${summary}. Total ${detail.total} ${lines[0]?.product.currency ?? ""}. The merchant confirms it before anything ships.`
+        // Say the short number, never the snowflake id: it is the only one
+        // the merchant's own order list shows, so it is the only one a
+        // customer can quote back and have found. `orderNumber` is nullable
+        // for rows drafted before the column existed; a fresh draft always
+        // has one, and the id is the last resort rather than a crash.
+        const reference = order.orderNumber ?? order.id
+        return `Draft order #${reference} recorded for this customer: ${summary}. Total ${detail.total} ${lines[0]?.product.currency ?? ""}. Tell the customer this order number. The merchant confirms it before anything ships.`
       } catch (error) {
         logger.error(
           { error, workspaceId: context.workspaceId },
@@ -417,9 +423,11 @@ const buildGetOrderStatus: Builder = (options) =>
         return "Orders cannot be looked up right now."
       }
       try {
-        const order = await orderService.getById({
+        // Customers quote the short number they were given; older ones may
+        // still quote a raw id.
+        const order = await orderService.getByNumberOrId({
           workspaceId: context.workspaceId,
-          orderId: args.orderId,
+          reference: args.orderId,
         })
         // An order id alone is enough to read someone else's order if the
         // lookup is not tied to the person asking, so it is.
@@ -429,7 +437,7 @@ const buildGetOrderStatus: Builder = (options) =>
         const items = order.items
           .map((item) => `${item.quantity} × ${item.product?.name ?? "item"}`)
           .join(", ")
-        return `Order ${order.id}: ${order.status}. ${items}. Total ${order.total}.`
+        return `Order #${order.orderNumber ?? order.id}: ${order.status}. ${items}. Total ${order.total}.`
       } catch {
         return `No order numbered ${args.orderId} for this customer.`
       }

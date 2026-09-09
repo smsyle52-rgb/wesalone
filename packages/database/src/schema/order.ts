@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm"
 import {
   check,
   index,
+  integer,
   numeric,
   pgEnum,
   pgTable,
@@ -28,6 +29,13 @@ export const orderModel = pgTable(
   {
     ...sharedColumns,
     status: orderStatus().default("draft").notNull(),
+    // Short per-merchant counter starting at 5000, the only order number any
+    // human sees. `id` is a 17-digit snowflake: the agent used to read it out
+    // in full while the merchant's list showed `id.slice(-8)`, so a customer
+    // quoting "their" order number named something the merchant could not
+    // find. Nullable because the column predates its backfill and because a
+    // NULL never blocks the unique index below.
+    orderNumber: integer(),
     contactId: bigintAsString().references(() => contactModel.id, {
       onDelete: "set null",
       onUpdate: "cascade",
@@ -69,6 +77,10 @@ export const orderModel = pgTable(
       "btree",
       table.workspaceId.asc().nullsLast(),
       table.status.asc().nullsLast(),
+    ),
+    uniqueIndex("Order_workspaceId_orderNumber_key").on(
+      table.workspaceId,
+      table.orderNumber,
     ),
     uniqueIndex("Order_workspaceId_idempotencyKey_key")
       .on(table.workspaceId, table.idempotencyKey)

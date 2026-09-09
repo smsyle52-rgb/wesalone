@@ -7,6 +7,7 @@ import {
   isUniqueViolationError,
   lte,
   relationsFilterToSQL,
+  sql,
 } from "@chatbotx.io/database/client"
 import type { OrderStatusType } from "@chatbotx.io/database/partials"
 import {
@@ -39,6 +40,17 @@ import { inventoryService } from "../inventory"
 import type { PaymentProviderAdapter } from "../payment/provider"
 import { getPaymentProvider } from "../payment/registry"
 import { withBlockedOwnerGuard } from "../workspace-lifecycle/with-blocked-owner-guard"
+
+/** First order number a merchant ever sees. Their request: #1 looks new. */
+const FIRST_ORDER_NUMBER = 5000
+
+/**
+ * Next free order number for one workspace, as SQL so the read and the write
+ * happen in a single INSERT. Counted per workspace — a merchant's first order
+ * is 5000 regardless of what other merchants have done.
+ */
+const nextOrderNumberSQL = (workspaceId: string) =>
+  sql<number>`(select coalesce(max("orderNumber"), ${FIRST_ORDER_NUMBER - 1}) + 1 from "Order" where "workspaceId" = ${workspaceId})`
 
 const CHECKOUT_RESERVATION_TTL_MINUTES = 15
 const EXPIRE_BATCH_SIZE = 100
@@ -133,6 +145,12 @@ class OrderService extends BaseService {
           contactId: contactId ?? null,
           status: "draft",
           idempotencyKey: idempotencyKey ?? null,
+          // The merchant-facing number, allocated inside the INSERT so it is
+          // read and written in one statement. Two concurrent drafts in the
+          // same workspace can still pick the same value; that collides on
+          // `Order_workspaceId_orderNumber_key` and is retried below rather
+          // than papered over with a lock on every order creation.
+          orderNumber: nextOrderNumberSQL(workspaceId),
         })
         .returning()
       if (!order) {
@@ -146,6 +164,26 @@ class OrderService extends BaseService {
         })
         if (existing) {
           return existing
+        }
+      }
+      // A lost race on the order-number counter, not a duplicate request: the
+      // row was never written, so re-running the insert allocates the next
+      // free number. One retry — a second collision means something other
+      // than concurrency, and swallowing it would hide it.
+      if (isUniqueViolationError(error)) {
+        const [retried] = await tx
+          .insert(orderModel)
+          .values({
+            id: createId(),
+            workspaceId,
+            contactId: contactId ?? null,
+            status: "draft",
+            idempotencyKey: idempotencyKey ?? null,
+            orderNumber: nextOrderNumberSQL(workspaceId),
+          })
+          .returning()
+        if (retried) {
+          return retried
         }
       }
       throw error
@@ -168,6 +206,39 @@ class OrderService extends BaseService {
       throw notFoundException("Order not found")
     }
     return order as OrderDetail
+  }
+
+  /**
+   * Look an order up by whatever the customer quoted: the short merchant-facing
+   * `orderNumber` (5000, 5001…) or the raw snowflake id. The agent only ever
+   * says the short one now, but orders drafted before this column existed were
+   * announced by id, and a customer holding one of those must still be findable.
+   *
+   * The number branch is tried first and only for values in `orderNumber`'s
+   * range — a 17-digit id would overflow `integer` and error in Postgres rather
+   * than simply miss.
+   */
+  async getByNumberOrId(props: {
+    workspaceId: string
+    reference: string
+  }): Promise<OrderDetail> {
+    const { workspaceId, reference } = props
+    const trimmed = reference.trim()
+
+    if (/^\d{1,9}$/.test(trimmed)) {
+      const byNumber = await db.query.orderModel.findFirst({
+        where: { workspaceId, orderNumber: Number(trimmed) },
+        with: {
+          items: { with: { product: true, productVariant: true } },
+          payments: { orderBy: { createdAt: "desc" } },
+        },
+      })
+      if (byNumber) {
+        return byNumber as OrderDetail
+      }
+    }
+
+    return await this.getById({ workspaceId, orderId: trimmed })
   }
 
   async list(props: {

@@ -89,7 +89,9 @@ export function OrderDetail({ order, contact, workspaceId }: OrderDetailProps) {
           variant="ghost"
         />
         <h1 className="font-semibold text-lg">
-          {t("orders.detail.title", { id: order.id.slice(-8) })}
+          {t("orders.detail.title", {
+            id: order.orderNumber ?? order.id.slice(-8),
+          })}
         </h1>
         <OrderStatusBadge status={order.status} />
       </div>
