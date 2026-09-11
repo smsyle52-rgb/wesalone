@@ -1,5 +1,6 @@
 "use server"
 
+import { platformSubscriptionService } from "@chatbotx.io/business"
 import { getAuditActor } from "@chatbotx.io/business/audit"
 import { and, db, eq } from "@chatbotx.io/database/client"
 import {
@@ -43,6 +44,10 @@ export const importContactsAction = workspaceActionClient
           _errors: ["Unauthorized"],
         })
       }
+
+      // Bulk contact import feeds broadcasts, so it is a paid-plan feature too.
+      // Contacts created by inbound messages or added by hand stay free.
+      await platformSubscriptionService.assertPaidPlanForWorkspace(workspaceId)
 
       const file = await db.query.fileModel.findFirst({
         where: { id: parsedInput.fileId, workspaceId },

@@ -1819,6 +1819,12 @@
       "bannerCta": "Aggiorna",
       "createDisabled": "La creazione di {feature} è disabilitata finché non passi a un piano superiore."
     },
+    "paidPlanRequired": {
+      "title": "Funzione dei piani a pagamento",
+      "broadcastsDescription": "Le trasmissioni sono disponibili solo con i piani a pagamento. Passa a un piano superiore per inviare campagne ai tuoi contatti.",
+      "contactImportDescription": "L'importazione dei contatti è disponibile solo con i piani a pagamento. Passa a un piano superiore per importare i tuoi elenchi di contatti.",
+      "cta": "Vedi i piani"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

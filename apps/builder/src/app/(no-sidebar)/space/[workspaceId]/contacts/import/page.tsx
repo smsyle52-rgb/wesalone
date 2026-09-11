@@ -1,5 +1,6 @@
 import { getIdFromParams } from "@chatbotx.io/utils"
 import { notFound } from "next/navigation"
+import { PaidPlanRequiredBanner } from "@/components/paid-plan-required-banner"
 import { ImportContactsForm } from "@/features/contacts/import-contact-form"
 import { CustomFieldStoreProvider } from "@/features/custom-fields/provider/custom-field-store-context"
 import { ImportForm } from "@/features/import/components/import-form"
@@ -26,6 +27,10 @@ export default async function ImportContactsPage({
           workspaceId={workspaceId}
         >
           <ImportForm>
+            <PaidPlanRequiredBanner
+              feature="contactImport"
+              workspaceId={workspaceId}
+            />
             <ImportContactsForm workspaceId={workspaceId} />
           </ImportForm>
         </CustomFieldStoreProvider>

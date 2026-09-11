@@ -348,6 +348,12 @@
       "bannerCta": "Upgrade",
       "createDisabled": "Creating new {feature} is disabled until you upgrade your plan."
     },
+    "paidPlanRequired": {
+      "title": "Paid plan feature",
+      "broadcastsDescription": "Broadcasts are available on paid plans only. Upgrade to send campaigns to your contacts.",
+      "contactImportDescription": "Contact import is available on paid plans only. Upgrade to import your contact lists.",
+      "cta": "View plans"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

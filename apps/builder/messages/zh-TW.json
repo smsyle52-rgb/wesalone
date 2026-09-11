@@ -1979,6 +1979,12 @@
       "bannerCta": "升級",
       "createDisabled": "建立新的 {feature} 將被停用，直到您升級您的方案。"
     },
+    "paidPlanRequired": {
+      "title": "付費方案功能",
+      "broadcastsDescription": "群發訊息僅適用於付費方案。升級後即可向聯絡人傳送行銷活動。",
+      "contactImportDescription": "匯入聯絡人僅適用於付費方案。升級後即可匯入聯絡人清單。",
+      "cta": "查看方案"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

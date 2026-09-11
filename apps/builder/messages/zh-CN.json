@@ -701,6 +701,12 @@
       "bannerTitle": "已达到每月活跃联系人限制",
       "createDisabled": "创建新的 {feature} 将被停用，直到您升级您的方案。"
     },
+    "paidPlanRequired": {
+      "title": "付费套餐功能",
+      "broadcastsDescription": "群发消息仅适用于付费套餐。升级后即可向联系人发送营销活动。",
+      "contactImportDescription": "导入联系人仅适用于付费套餐。升级后即可导入联系人列表。",
+      "cta": "查看套餐"
+    },
     "pastDue": {
       "message": "您上次付款失败。请更新付款方式以保持工作区可用。"
     },

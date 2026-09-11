@@ -348,6 +348,12 @@
       "bannerCta": "Päivitä",
       "createDisabled": "Uuden kohteen {feature} luominen on poistettu käytöstä, kunnes päivität tilauksesi."
     },
+    "paidPlanRequired": {
+      "title": "Maksullisten pakettien ominaisuus",
+      "broadcastsDescription": "Joukkoviestit ovat käytettävissä vain maksullisissa paketeissa. Päivitä pakettisi lähettääksesi kampanjoita yhteystiedoillesi.",
+      "contactImportDescription": "Yhteystietojen tuonti on käytettävissä vain maksullisissa paketeissa. Päivitä pakettisi tuodaksesi yhteystietoluettelosi.",
+      "cta": "Näytä paketit"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

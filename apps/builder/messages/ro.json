@@ -1162,6 +1162,12 @@
       "bannerCta": "Actualizează",
       "createDisabled": "Crearea unui nou {feature} este dezactivată până când actualizezi planul."
     },
+    "paidPlanRequired": {
+      "title": "Funcție pentru planurile plătite",
+      "broadcastsDescription": "Mesajele în masă sunt disponibile doar în planurile plătite. Fă upgrade pentru a trimite campanii contactelor tale.",
+      "contactImportDescription": "Importul de contacte este disponibil doar în planurile plătite. Fă upgrade pentru a importa listele tale de contacte.",
+      "cta": "Vezi planurile"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

@@ -1,5 +1,6 @@
 "use server"
 
+import { platformSubscriptionService } from "@chatbotx.io/business"
 import { auditService } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { db, findOrFail } from "@chatbotx.io/database/client"
@@ -25,6 +26,8 @@ export const resendBroadcast = async (ctx: {
   workspaceId: string
   id: string
 }) => {
+  await platformSubscriptionService.assertPaidPlanForWorkspace(ctx.workspaceId)
+
   const broadcast = await findOrFail({
     table: broadcastModel,
     where: {

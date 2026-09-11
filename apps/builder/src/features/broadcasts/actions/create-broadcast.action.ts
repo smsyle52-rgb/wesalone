@@ -1,6 +1,9 @@
 "use server"
 
-import { broadcastService } from "@chatbotx.io/business"
+import {
+  broadcastService,
+  platformSubscriptionService,
+} from "@chatbotx.io/business"
 import { auditService } from "@chatbotx.io/business/audit"
 import { db } from "@chatbotx.io/database/client"
 import { findBroadcastChannelCapability } from "@chatbotx.io/database/partials"
@@ -22,6 +25,10 @@ export const createBroadcastAction = workspaceActionClient
       bindArgsParsedInputs: [workspaceId],
       parsedInput,
     } = props
+
+    // Broadcasts are a paid-plan feature — drafts included, so a free
+    // workspace never builds a campaign it could not launch.
+    await platformSubscriptionService.assertPaidPlanForWorkspace(workspaceId)
 
     let broadcastName = "Broadcast"
     const userAndWorkspace = await getCurrentUserAndTargetWorkspace(workspaceId)

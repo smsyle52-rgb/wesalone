@@ -49,6 +49,8 @@ const {
   getCurrentUserAndTargetWorkspace: vi.fn(),
   canViewContactEmailAndPhone: vi.fn(),
 }))
+// Plain object, not vi.fn(): the preset's clearMocks/restoreMocks would wipe it.
+const planGate = vi.hoisted(() => ({ paid: true }))
 
 vi.mock("@/lib/safe-action", () => ({
   workspaceActionClient: workspaceActionClientChain,
@@ -56,6 +58,12 @@ vi.mock("@/lib/safe-action", () => ({
 }))
 vi.mock("@chatbotx.io/business", () => ({
   broadcastService: { scheduleDraft, softDeleteBroadcasts, updateDraft },
+  platformSubscriptionService: {
+    assertPaidPlanForWorkspace: () =>
+      planGate.paid
+        ? Promise.resolve()
+        : Promise.reject(new Error("available on paid plans only")),
+  },
 }))
 vi.mock("@chatbotx.io/business/audit", () => ({
   auditService: { record: (...args: unknown[]) => recordAuditLog(...args) },
@@ -78,6 +86,7 @@ const { scheduleBroadcastSchema } = await import(
 )
 
 beforeEach(() => {
+  planGate.paid = true
   scheduleDraft.mockReset()
   softDeleteBroadcasts.mockReset()
   updateDraft.mockReset()
@@ -188,6 +197,19 @@ describe("scheduleBroadcastAction", () => {
       "2030-01-01T09:30:00.000Z",
     )
     // A future schedule is not a launch yet — the send has not happened.
+    expect(recordAuditLog).not.toHaveBeenCalled()
+  })
+
+  test("refuses to launch a draft for a workspace without a paid plan", async () => {
+    planGate.paid = false
+
+    await expect(
+      scheduleHandler({
+        bindArgsParsedInputs: ["ws-1", "b-1"],
+        parsedInput: { schedulesType: "now", schedulesAt: null },
+      }),
+    ).rejects.toThrow("paid plans only")
+    expect(scheduleDraft).not.toHaveBeenCalled()
     expect(recordAuditLog).not.toHaveBeenCalled()
   })
 })

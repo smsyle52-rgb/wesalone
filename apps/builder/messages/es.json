@@ -348,6 +348,12 @@
       "bannerCta": "Mejorar",
       "createDisabled": "La creación de {feature} está desactivada hasta que mejores tu plan."
     },
+    "paidPlanRequired": {
+      "title": "Función de planes de pago",
+      "broadcastsDescription": "Las difusiones solo están disponibles en los planes de pago. Mejora tu plan para enviar campañas a tus contactos.",
+      "contactImportDescription": "La importación de contactos solo está disponible en los planes de pago. Mejora tu plan para importar tus listas de contactos.",
+      "cta": "Ver planes"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

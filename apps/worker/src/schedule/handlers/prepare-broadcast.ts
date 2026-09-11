@@ -1,4 +1,8 @@
-import { broadcastService, conversationService } from "@chatbotx.io/business"
+import {
+  broadcastService,
+  conversationService,
+  platformSubscriptionService,
+} from "@chatbotx.io/business"
 import { and, db, eq, isNull } from "@chatbotx.io/database/client"
 import {
   type BroadcastStatus,
@@ -41,6 +45,26 @@ export const prepareBroadcast = async (broadcastId: string) => {
   }
 
   if (await isBlockedWorkspace(broadcast.workspaceId)) {
+    return
+  }
+
+  // Broadcasts are a paid-plan feature. The builder actions already refuse a
+  // free workspace; this catches anything scheduled before the gate existed
+  // or through another path. Cancelled, not skipped: `enqueueBroadcast`
+  // rescans `scheduled` rows every minute.
+  if (
+    !(await platformSubscriptionService.hasPaidPlanForWorkspace(
+      broadcast.workspaceId,
+    ))
+  ) {
+    await broadcastService.cancelScheduled({
+      workspaceId: broadcast.workspaceId,
+      broadcastId,
+    })
+    logger.warn(
+      { broadcastId, workspaceId: broadcast.workspaceId },
+      "Broadcast cancelled: workspace has no paid plan",
+    )
     return
   }
 

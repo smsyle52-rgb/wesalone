@@ -348,6 +348,12 @@
       "bannerCta": "Atualizar",
       "createDisabled": "A criação de novos recursos de {feature} está desativada até atualizar o seu plano."
     },
+    "paidPlanRequired": {
+      "title": "Funcionalidade de planos pagos",
+      "broadcastsDescription": "As difusões estão disponíveis apenas nos planos pagos. Atualize o seu plano para enviar campanhas aos seus contactos.",
+      "contactImportDescription": "A importação de contactos está disponível apenas nos planos pagos. Atualize o seu plano para importar as suas listas de contactos.",
+      "cta": "Ver planos"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

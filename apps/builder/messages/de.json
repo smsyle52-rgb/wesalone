@@ -348,6 +348,12 @@
       "bannerCta": "Upgraden",
       "createDisabled": "Das Erstellen neuer Elemente für {feature} ist deaktiviert, bis Sie Ihren Tarif upgraden."
     },
+    "paidPlanRequired": {
+      "title": "Funktion für kostenpflichtige Pläne",
+      "broadcastsDescription": "Broadcasts sind nur in kostenpflichtigen Plänen verfügbar. Führe ein Upgrade durch, um Kampagnen an deine Kontakte zu senden.",
+      "contactImportDescription": "Der Kontaktimport ist nur in kostenpflichtigen Plänen verfügbar. Führe ein Upgrade durch, um deine Kontaktlisten zu importieren.",
+      "cta": "Pläne ansehen"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

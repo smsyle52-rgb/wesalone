@@ -397,6 +397,25 @@ class BroadcastService extends BaseService {
   }
 
   /**
+   * `scheduled` -> `cancelled`, for a broadcast that must never be prepared.
+   * `contactCount` stays null, so `resumeSending` can never revive it.
+   * Returns whether this call made the transition.
+   */
+  async cancelScheduled(input: {
+    workspaceId: string
+    broadcastId: string
+  }): Promise<boolean> {
+    const rows = await db
+      .update(broadcastModel)
+      .set({ status: broadcastStatuses.enum.cancelled })
+      .where(
+        this.transitionScope(input.workspaceId, input.broadcastId, "scheduled"),
+      )
+      .returning({ id: broadcastModel.id })
+    return rows.length > 0
+  }
+
+  /**
    * `cancelled` -> `sending`, in a single pinned UPDATE. Clearing
    * `handoffCompletedAt` here (rather than a separate statement) closes both
    * the stop-after-handoff hole and the finalize race: `completeSending`

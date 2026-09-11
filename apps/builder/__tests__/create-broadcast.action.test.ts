@@ -38,6 +38,22 @@ const {
   }
 })
 
+// Plain object, not vi.fn(): `vi.clearAllMocks()` below would wipe it.
+const planGate = vi.hoisted(() => ({ paid: true }))
+
+vi.mock("@chatbotx.io/business", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@chatbotx.io/business")>()
+  return {
+    ...actual,
+    platformSubscriptionService: {
+      assertPaidPlanForWorkspace: () =>
+        planGate.paid
+          ? Promise.resolve()
+          : Promise.reject(new Error("available on paid plans only")),
+    },
+  }
+})
+
 vi.mock("@chatbotx.io/business/audit", () => ({
   auditService: { record: (...args: unknown[]) => mockRecordAuditLog(...args) },
 }))
@@ -125,6 +141,7 @@ const { createBroadcastAction } = await import(
 const WORKSPACE_ID = "ws-1"
 
 beforeEach(() => {
+  planGate.paid = true
   mockIntegrationMessengerFindFirst.mockResolvedValue({ id: "int-1" })
   mockIntegrationWhatsappFindFirst.mockResolvedValue({ id: "wa-int-1" })
 })
@@ -136,6 +153,31 @@ const baseInput = {
   schedulesAt: null,
   contactFilter: null,
 }
+
+describe("createBroadcastAction — paid-plan gate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockInsertValues.mockReturnValue({ returning: mockInsertReturning })
+    mockDbInsert.mockReturnValue({ values: mockInsertValues })
+  })
+
+  test.each([
+    ["a send", false],
+    ["a draft", true],
+  ])("refuses %s for a workspace without a paid plan", async (_label, saveAsDraft) => {
+    planGate.paid = false
+    mockFlowFindFirst.mockResolvedValue({ id: "flow-123", name: "My Flow" })
+
+    await expect(
+      (createBroadcastAction as (props: unknown) => Promise<unknown>)({
+        bindArgsParsedInputs: [WORKSPACE_ID],
+        parsedInput: { ...baseInput, flowId: "flow-123", saveAsDraft },
+      }),
+    ).rejects.toThrow("paid plans only")
+    expect(mockDbInsert).not.toHaveBeenCalled()
+    expect(mockRecordAuditLog).not.toHaveBeenCalled()
+  })
+})
 
 describe("createBroadcastAction — flowId validation", () => {
   beforeEach(() => {

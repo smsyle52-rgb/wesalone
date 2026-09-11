@@ -1,4 +1,7 @@
-import { inboxService } from "@chatbotx.io/business"
+import {
+  inboxService,
+  platformSubscriptionService,
+} from "@chatbotx.io/business"
 import { notFoundException } from "@chatbotx.io/business/errors"
 import { db } from "@chatbotx.io/database/client"
 import type { ContactImportMeta } from "@chatbotx.io/database/partials"
@@ -14,6 +17,9 @@ export const contactImportService = {
     workspaceId: string,
     input: ImportContactsRequest,
   ): Promise<{ importId: string }> {
+    // Same paid-plan gate as `importContactsAction`, for the public API.
+    await platformSubscriptionService.assertPaidPlanForWorkspace(workspaceId)
+
     const file = await db.query.fileModel.findFirst({
       where: { id: input.fileId, workspaceId },
     })

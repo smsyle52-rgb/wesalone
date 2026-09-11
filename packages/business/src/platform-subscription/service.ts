@@ -8,7 +8,7 @@ import {
   userQuotaModel,
 } from "@chatbotx.io/database/schema"
 import type { PlatformSubscriptionModel } from "@chatbotx.io/database/types"
-import { ChatbotXException } from "../errors"
+import { ChatbotXException, paidPlanRequiredException } from "../errors"
 import {
   findWesalOnePlan,
   getPlanPriceCents,
@@ -50,7 +50,38 @@ export const currentMonthlyPeriod = (
   return { periodStart, periodEnd }
 }
 
+const PAID_SUBSCRIPTION_STATUSES: ReadonlySet<string> = new Set([
+  "active",
+  "cancel_at_period_end",
+])
+
+/**
+ * Whether a subscription unlocks the paid-plan features (broadcasts and
+ * contact import): any non-free plan that is still `active` or
+ * `cancel_at_period_end`. `periodEnd` is deliberately not consulted — the
+ * billing-lifecycle scheduler that marks lapsed subscriptions `expired` is not
+ * registered, so a stale date would lock paying merchants out.
+ */
+export const isPaidSubscription = (
+  subscription: Pick<PlatformSubscriptionModel, "planSlug" | "status"> | null,
+): boolean =>
+  Boolean(
+    subscription &&
+      subscription.planSlug !== "free" &&
+      PAID_SUBSCRIPTION_STATUSES.has(subscription.status),
+  )
+
 class PlatformSubscriptionService {
+  async hasPaidPlanForWorkspace(workspaceId: string): Promise<boolean> {
+    return isPaidSubscription(await this.getForWorkspace(workspaceId))
+  }
+
+  async assertPaidPlanForWorkspace(workspaceId: string): Promise<void> {
+    if (!(await this.hasPaidPlanForWorkspace(workspaceId))) {
+      throw paidPlanRequiredException()
+    }
+  }
+
   async getForWorkspace(
     workspaceId: string,
   ): Promise<PlatformSubscriptionModel | null> {

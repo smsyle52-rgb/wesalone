@@ -348,6 +348,12 @@
       "bannerCta": "Yükselt",
       "createDisabled": "Planınızı yükseltene kadar yeni {feature} oluşturma devre dışıdır."
     },
+    "paidPlanRequired": {
+      "title": "Ücretli plan özelliği",
+      "broadcastsDescription": "Toplu mesajlar yalnızca ücretli planlarda kullanılabilir. Kişilerinize kampanya göndermek için planınızı yükseltin.",
+      "contactImportDescription": "Kişi içe aktarma yalnızca ücretli planlarda kullanılabilir. Kişi listelerinizi içe aktarmak için planınızı yükseltin.",
+      "cta": "Planları görüntüle"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

@@ -102,6 +102,56 @@ describe("currentMonthlyPeriod", () => {
   })
 })
 
+describe("platformSubscriptionService paid-plan gate", () => {
+  test.each([
+    ["no subscription", null, false],
+    ["free", { planSlug: "free", status: "active" }, false],
+    ["starter active", { planSlug: "starter", status: "active" }, true],
+    [
+      "growth cancelling at period end",
+      { planSlug: "growth", status: "cancel_at_period_end" },
+      true,
+    ],
+    ["starter expired", { planSlug: "starter", status: "expired" }, false],
+  ])("%s → paid=%s", async (_label, row, expected) => {
+    subscriptionRow = row
+
+    await expect(
+      platformSubscriptionService.hasPaidPlanForWorkspace("workspace-1"),
+    ).resolves.toBe(expected)
+  })
+
+  test("keeps an active paid plan open even when periodEnd has passed", async () => {
+    // The lifecycle scheduler that would mark it `expired` is not running, so
+    // a stale date alone must not lock a paying merchant out.
+    subscriptionRow = {
+      planSlug: "growth",
+      status: "active",
+      periodEnd: new Date("2026-09-02T00:00:00.000Z"),
+    }
+
+    await expect(
+      platformSubscriptionService.hasPaidPlanForWorkspace("workspace-1"),
+    ).resolves.toBe(true)
+  })
+
+  test("rejects a free workspace with the paidPlanRequired code", async () => {
+    subscriptionRow = { planSlug: "free", status: "active" }
+
+    await expect(
+      platformSubscriptionService.assertPaidPlanForWorkspace("workspace-1"),
+    ).rejects.toMatchObject({ code: "paidPlanRequired", httpStatusCode: 403 })
+  })
+
+  test("lets a paid workspace through", async () => {
+    subscriptionRow = { planSlug: "starter", status: "active" }
+
+    await expect(
+      platformSubscriptionService.assertPaidPlanForWorkspace("workspace-1"),
+    ).resolves.toBeUndefined()
+  })
+})
+
 describe("platformSubscriptionService cancellation", () => {
   test("schedules a paid subscription for cancellation at period end", async () => {
     subscriptionRow = {

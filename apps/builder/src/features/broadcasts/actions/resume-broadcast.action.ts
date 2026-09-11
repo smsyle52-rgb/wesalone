@@ -1,6 +1,9 @@
 "use server"
 
-import { broadcastService } from "@chatbotx.io/business"
+import {
+  broadcastService,
+  platformSubscriptionService,
+} from "@chatbotx.io/business"
 import { auditService } from "@chatbotx.io/business/audit"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { workspaceActionClient } from "@/lib/safe-action"
@@ -11,6 +14,8 @@ export const resumeBroadcastAction = workspaceActionClient
     const {
       bindArgsParsedInputs: [workspaceId, id],
     } = props
+
+    await platformSubscriptionService.assertPaidPlanForWorkspace(workspaceId)
 
     const result = await broadcastService.resumeSending({
       workspaceId,

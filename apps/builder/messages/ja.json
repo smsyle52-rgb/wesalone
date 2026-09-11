@@ -348,6 +348,12 @@
       "bannerCta": "アップグレード",
       "createDisabled": "プランをアップグレードするまで、新しい{feature}は作成できません。"
     },
+    "paidPlanRequired": {
+      "title": "有料プランの機能",
+      "broadcastsDescription": "一斉配信は有料プランでのみご利用いただけます。アップグレードして連絡先にキャンペーンを送信しましょう。",
+      "contactImportDescription": "連絡先のインポートは有料プランでのみご利用いただけます。アップグレードして連絡先リストをインポートしましょう。",
+      "cta": "プランを見る"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

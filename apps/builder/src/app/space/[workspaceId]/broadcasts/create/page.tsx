@@ -1,6 +1,7 @@
 import { getIdFromParams } from "@chatbotx.io/utils"
 import { notFound } from "next/navigation"
 import type { SearchParams } from "nuqs/server"
+import { PaidPlanRequiredBanner } from "@/components/paid-plan-required-banner"
 import { CreateBroadcastForm } from "@/features/broadcasts/create-broadcast-form"
 import { parseCreateBroadcastPrefill } from "@/features/broadcasts/schema/create-broadcast-prefill"
 import { canViewContactEmailAndPhone } from "@/features/contacts/permissions"
@@ -60,6 +61,10 @@ export default async function CreateBroadcastPage({
                         autoInitialize={false}
                         workspaceId={workspaceId}
                       >
+                        <PaidPlanRequiredBanner
+                          feature="broadcasts"
+                          workspaceId={workspaceId}
+                        />
                         <CreateBroadcastForm
                           canViewEmailAndPhone={canViewEmailAndPhone}
                           initialChannel={prefill.channel}

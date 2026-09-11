@@ -348,6 +348,12 @@
       "bannerCta": "Tingkatkan",
       "createDisabled": "Pembuatan {feature} baru dinonaktifkan hingga Anda meningkatkan paket."
     },
+    "paidPlanRequired": {
+      "title": "Fitur paket berbayar",
+      "broadcastsDescription": "Siaran hanya tersedia di paket berbayar. Tingkatkan paket Anda untuk mengirim kampanye ke kontak Anda.",
+      "contactImportDescription": "Impor kontak hanya tersedia di paket berbayar. Tingkatkan paket Anda untuk mengimpor daftar kontak Anda.",
+      "cta": "Lihat paket"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

@@ -9,6 +9,8 @@ const loggerInfoSpy = vi.fn()
 const loggerWarnSpy = vi.fn()
 const purgeBroadcastRecipientsSpy = vi.fn()
 const blockedWorkspaceIds = new Set<string>()
+const unpaidWorkspaceIds = new Set<string>()
+const cancelScheduledSpy = vi.fn()
 
 type UpdateCall = {
   table: unknown
@@ -34,6 +36,11 @@ vi.mock("@chatbotx.io/business", () => ({
   ) => (blockedWorkspaceIds.has(String(workspaceId)) ? undefined : fn()),
   broadcastService: {
     forEachAudienceChunk: (...args: unknown[]) => forEachAudienceChunk(...args),
+    cancelScheduled: (...args: unknown[]) => cancelScheduledSpy(...args),
+  },
+  platformSubscriptionService: {
+    hasPaidPlanForWorkspace: (workspaceId: unknown) =>
+      Promise.resolve(!unpaidWorkspaceIds.has(String(workspaceId))),
   },
   conversationService: {
     findDMByContactIds: (...args: unknown[]) => findDMByContactIds(...args),
@@ -155,6 +162,9 @@ beforeEach(() => {
   })
   promotionReturningRows = [{ id: BROADCAST_ID }]
   blockedWorkspaceIds.clear()
+  unpaidWorkspaceIds.clear()
+  cancelScheduledSpy.mockReset()
+  cancelScheduledSpy.mockResolvedValue(true)
 })
 
 describe("prepareBroadcast", () => {
@@ -179,6 +189,31 @@ describe("prepareBroadcast", () => {
     expect(insertCalls).toHaveLength(0)
     expect(forEachAudienceChunk).not.toHaveBeenCalled()
     expect(scheduleAddSpy).not.toHaveBeenCalled()
+  })
+
+  test("cancels instead of sending when the workspace has no paid plan", async () => {
+    findFirstBroadcast.mockResolvedValue(baseBroadcast())
+    unpaidWorkspaceIds.add(WORKSPACE_ID)
+
+    await prepareBroadcast(BROADCAST_ID)
+
+    expect(cancelScheduledSpy).toHaveBeenCalledWith({
+      workspaceId: WORKSPACE_ID,
+      broadcastId: BROADCAST_ID,
+    })
+    expect(purgeBroadcastRecipientsSpy).not.toHaveBeenCalled()
+    expect(forEachAudienceChunk).not.toHaveBeenCalled()
+    expect(updateCalls).toHaveLength(0)
+    expect(scheduleAddSpy).not.toHaveBeenCalled()
+  })
+
+  test("does not cancel a paid workspace's broadcast", async () => {
+    findFirstBroadcast.mockResolvedValue(baseBroadcast())
+
+    await prepareBroadcast(BROADCAST_ID)
+
+    expect(cancelScheduledSpy).not.toHaveBeenCalled()
+    expect(forEachAudienceChunk).toHaveBeenCalled()
   })
 
   test("forwards parsed targeting inputs to broadcastService.forEachAudienceChunk", async () => {

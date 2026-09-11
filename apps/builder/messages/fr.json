@@ -348,6 +348,12 @@
       "bannerCta": "Changer de forfait",
       "createDisabled": "La création de {feature} est désactivée jusqu’à ce que vous changiez de forfait."
     },
+    "paidPlanRequired": {
+      "title": "Fonctionnalité des forfaits payants",
+      "broadcastsDescription": "Les diffusions sont disponibles uniquement avec les forfaits payants. Passez à un forfait supérieur pour envoyer des campagnes à vos contacts.",
+      "contactImportDescription": "L'importation de contacts est disponible uniquement avec les forfaits payants. Passez à un forfait supérieur pour importer vos listes de contacts.",
+      "cta": "Voir les forfaits"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

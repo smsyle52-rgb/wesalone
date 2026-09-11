@@ -348,6 +348,12 @@
       "bannerCta": "Nâng cấp",
       "createDisabled": "Tạo {feature} mới đã bị vô hiệu hóa cho đến khi bạn nâng cấp gói."
     },
+    "paidPlanRequired": {
+      "title": "Tính năng của gói trả phí",
+      "broadcastsDescription": "Tin nhắn hàng loạt chỉ có trong các gói trả phí. Nâng cấp để gửi chiến dịch đến danh bạ của bạn.",
+      "contactImportDescription": "Nhập danh bạ chỉ có trong các gói trả phí. Nâng cấp để nhập danh sách liên hệ của bạn.",
+      "cta": "Xem các gói"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

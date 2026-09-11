@@ -494,6 +494,12 @@
       "bannerTitle": "Gränsen för aktiva kontakter per månad har nåtts",
       "createDisabled": "Det går inte att skapa nya {feature} förrän du uppgraderar abonnemanget."
     },
+    "paidPlanRequired": {
+      "title": "Funktion i betalda abonnemang",
+      "broadcastsDescription": "Utskick är endast tillgängliga i betalda abonnemang. Uppgradera för att skicka kampanjer till dina kontakter.",
+      "contactImportDescription": "Import av kontakter är endast tillgänglig i betalda abonnemang. Uppgradera för att importera dina kontaktlistor.",
+      "cta": "Visa abonnemang"
+    },
     "pastDue": {
       "message": "Din senaste betalning misslyckades. Uppdatera betalningsmetoden för att hålla arbetsytan aktiv."
     },

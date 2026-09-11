@@ -348,6 +348,12 @@
       "bannerCta": "Fazer upgrade",
       "createDisabled": "A criação de novos recursos de {feature} está desativada até que você faça upgrade do plano."
     },
+    "paidPlanRequired": {
+      "title": "Recurso de planos pagos",
+      "broadcastsDescription": "As transmissões estão disponíveis apenas nos planos pagos. Faça upgrade para enviar campanhas aos seus contatos.",
+      "contactImportDescription": "A importação de contatos está disponível apenas nos planos pagos. Faça upgrade para importar suas listas de contatos.",
+      "cta": "Ver planos"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

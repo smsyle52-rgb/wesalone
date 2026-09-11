@@ -44,6 +44,8 @@ const {
   softDeleteBroadcasts: vi.fn(),
   recordAuditLog: vi.fn(),
 }))
+// Plain object, not vi.fn(): the preset's clearMocks/restoreMocks would wipe it.
+const planGate = vi.hoisted(() => ({ paid: true }))
 
 vi.mock("@/lib/safe-action", () => ({
   workspaceActionClient: workspaceActionClientChain,
@@ -55,6 +57,12 @@ vi.mock("@chatbotx.io/business", () => ({
     stopSending,
     resumeSending,
     softDeleteBroadcasts,
+  },
+  platformSubscriptionService: {
+    assertPaidPlanForWorkspace: () =>
+      planGate.paid
+        ? Promise.resolve()
+        : Promise.reject(new Error("available on paid plans only")),
   },
 }))
 vi.mock("@chatbotx.io/business/audit", () => ({
@@ -76,6 +84,7 @@ const [
 ] = capturedActions
 
 beforeEach(() => {
+  planGate.paid = true
   moveToDraft.mockReset()
   stopSending.mockReset()
   resumeSending.mockReset()
@@ -149,6 +158,15 @@ describe("stopBroadcastAction", () => {
     ).rejects.toThrow("Broadcast is not in progress")
     expect(recordAuditLog).not.toHaveBeenCalled()
   })
+
+  test("stays available without a paid plan — a merchant can always stop a send", async () => {
+    planGate.paid = false
+    stopSending.mockResolvedValue({ id: "b-2" })
+
+    await expect(
+      stopHandler({ bindArgsParsedInputs: ["ws-1", "b-2"] }),
+    ).resolves.toEqual({ id: "b-2" })
+  })
 })
 
 describe("resumeBroadcastAction", () => {
@@ -181,6 +199,16 @@ describe("resumeBroadcastAction", () => {
     await expect(
       resumeHandler({ bindArgsParsedInputs: ["ws-1", "b-3"] }),
     ).rejects.toThrow("Broadcast is not stopped")
+    expect(recordAuditLog).not.toHaveBeenCalled()
+  })
+
+  test("refuses to resume sending for a workspace without a paid plan", async () => {
+    planGate.paid = false
+
+    await expect(
+      resumeHandler({ bindArgsParsedInputs: ["ws-1", "b-3"] }),
+    ).rejects.toThrow("paid plans only")
+    expect(resumeSending).not.toHaveBeenCalled()
     expect(recordAuditLog).not.toHaveBeenCalled()
   })
 })

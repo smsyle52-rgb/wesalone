@@ -179,3 +179,10 @@ export const workspaceLimitReachedException = () =>
     "Workspace limit reached for this plan",
     "workspaceLimitReached",
   )
+
+export const paidPlanRequiredException = () =>
+  new ChatbotXException(
+    "Broadcasts and contact import are available on paid plans only",
+    "paidPlanRequired",
+    403,
+  )

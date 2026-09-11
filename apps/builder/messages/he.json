@@ -4947,6 +4947,12 @@
       "bannerCta": "שדרוג",
       "createDisabled": "יצירת {feature} חדשה מושבתת עד לשדרוג התוכנית."
     },
+    "paidPlanRequired": {
+      "title": "תכונה של תוכניות בתשלום",
+      "broadcastsDescription": "שידורים זמינים רק בתוכניות בתשלום. שדרגו כדי לשלוח קמפיינים לאנשי הקשר שלכם.",
+      "contactImportDescription": "ייבוא אנשי קשר זמין רק בתוכניות בתשלום. שדרגו כדי לייבא את רשימות אנשי הקשר שלכם.",
+      "cta": "צפייה בתוכניות"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

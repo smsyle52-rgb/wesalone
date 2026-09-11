@@ -53,6 +53,18 @@ vi.mock("@chatbotx.io/business/errors", () => ({
   ChatbotXException: MockChatbotXException,
 }))
 
+// Plain object, not vi.fn(): `vi.clearAllMocks()` below would wipe it.
+const planGate = vi.hoisted(() => ({ paid: true }))
+
+vi.mock("@chatbotx.io/business", () => ({
+  platformSubscriptionService: {
+    assertPaidPlanForWorkspace: () =>
+      planGate.paid
+        ? Promise.resolve()
+        : Promise.reject(new Error("available on paid plans only")),
+  },
+}))
+
 vi.mock("@/lib/auth/utils", () => ({
   getCurrentUserAndTargetWorkspace: vi.fn().mockResolvedValue({
     targetWorkspaceMember: { permissions: ["emailAndPhone"] },
@@ -109,6 +121,7 @@ const baseBroadcast = {
 describe("resendBroadcast", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    planGate.paid = true
     mockTxInsertValues.mockReturnValue({ returning: mockTxInsertReturning })
     mockTxInsert.mockReturnValue({ values: mockTxInsertValues })
     mockTxInsertReturning.mockResolvedValue([
@@ -119,6 +132,18 @@ describe("resendBroadcast", () => {
         fn({ insert: mockTxInsert }),
     )
     mockCreateId.mockReturnValue("new-bc-id")
+  })
+
+  test("refuses a workspace without a paid plan before reading or inserting", async () => {
+    planGate.paid = false
+    mockFindOrFail.mockResolvedValue(baseBroadcast)
+
+    await expect(
+      resendBroadcast({ workspaceId: WORKSPACE_ID, id: BROADCAST_ID }),
+    ).rejects.toThrow("paid plans only")
+    expect(mockFindOrFail).not.toHaveBeenCalled()
+    expect(mockDbTransaction).not.toHaveBeenCalled()
+    expect(mockRecordAuditLog).not.toHaveBeenCalled()
   })
 
   test("throws ChatbotXException when broadcast status is not 'sent'", async () => {

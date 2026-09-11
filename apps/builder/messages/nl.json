@@ -348,6 +348,12 @@
       "bannerCta": "Upgraden",
       "createDisabled": "Het maken van een nieuwe {feature} is uitgeschakeld totdat je je abonnement upgradet."
     },
+    "paidPlanRequired": {
+      "title": "Functie voor betaalde abonnementen",
+      "broadcastsDescription": "Broadcasts zijn alleen beschikbaar in betaalde abonnementen. Upgrade om campagnes naar je contacten te sturen.",
+      "contactImportDescription": "Contacten importeren is alleen beschikbaar in betaalde abonnementen. Upgrade om je contactlijsten te importeren.",
+      "cta": "Abonnementen bekijken"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {

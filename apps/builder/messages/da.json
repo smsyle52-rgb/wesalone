@@ -348,6 +348,12 @@
       "bannerCta": "Opgrader",
       "createDisabled": "Oprettelse af nye {feature} er deaktiveret, indtil du opgraderer dit abonnement."
     },
+    "paidPlanRequired": {
+      "title": "Funktion i betalte abonnementer",
+      "broadcastsDescription": "Broadcasts er kun tilgængelige i betalte abonnementer. Opgrader for at sende kampagner til dine kontakter.",
+      "contactImportDescription": "Import af kontakter er kun tilgængelig i betalte abonnementer. Opgrader for at importere dine kontaktlister.",
+      "cta": "Se abonnementer"
+    },
     "navTitle": "Billing & Subscription"
   },
   "broadcasts": {
