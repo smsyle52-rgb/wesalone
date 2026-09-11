@@ -5084,6 +5084,15 @@
     },
     "marketingMessageLite": "行销消息 Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "创建模板",
+        "reviewNote": "Meta 会审核模板，通常需要几分钟到几小时。获批后即可在群发消息中使用。",
+        "nameHint": "仅限小写英文字母、数字和 _，例如 offer_sep",
+        "footer": "页脚（可选）",
+        "quickReply": "快速回复",
+        "submitted": "模板已提交给 Meta 审核",
+        "rejected": "Meta 拒绝了此模板。请检查文本后重试。"
+      },
       "carouselImage": {
         "label": "轮播影像"
       },

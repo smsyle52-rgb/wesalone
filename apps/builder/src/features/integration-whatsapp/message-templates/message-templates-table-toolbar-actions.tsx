@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl"
 import { useAction } from "next-safe-action/hooks"
 import { toast } from "sonner"
 import { syncMessageTemplateAction } from "./actions/sync-message-templates"
+import { CreateWhatsappMessageTemplateDialog } from "./create-message-template-dialog"
 
 export function WhatsappMessageTemplatesTableToolbarActions({
   workspaceId,
@@ -35,6 +36,10 @@ export function WhatsappMessageTemplatesTableToolbarActions({
 
   return (
     <div className="flex items-center gap-2">
+      <CreateWhatsappMessageTemplateDialog
+        integrationWhatsappId={integrationWhatsappId}
+        workspaceId={workspaceId}
+      />
       <Button
         disabled={isPending}
         onClick={() => execute()}

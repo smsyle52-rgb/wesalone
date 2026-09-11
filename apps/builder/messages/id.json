@@ -3617,6 +3617,15 @@
     },
     "marketingMessageLite": "Marketing Message Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Buat template",
+        "reviewNote": "Meta meninjau template, biasanya dalam hitungan menit hingga jam. Template muncul di siaran setelah disetujui.",
+        "nameHint": "Hanya huruf Inggris kecil, angka, dan _, mis. offer_sep",
+        "footer": "Footer (opsional)",
+        "quickReply": "Balasan cepat",
+        "submitted": "Template dikirim ke Meta untuk ditinjau",
+        "rejected": "Meta menolak template ini. Periksa teksnya lalu coba lagi."
+      },
       "carouselImage": {
         "label": "Gambar Korsel"
       },

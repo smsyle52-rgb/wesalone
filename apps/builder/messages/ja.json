@@ -3588,6 +3588,15 @@
     },
     "marketingMessageLite": "Marketing Message Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "テンプレートを作成",
+        "reviewNote": "Metaがテンプレートを審査します。通常は数分から数時間です。承認後に一斉配信で使えるようになります。",
+        "nameHint": "英小文字・数字・_ のみ（例: offer_sep）",
+        "footer": "フッター（任意）",
+        "quickReply": "クイック返信",
+        "submitted": "テンプレートをMetaの審査に送信しました",
+        "rejected": "Metaがこのテンプレートを却下しました。本文を見直して再度お試しください。"
+      },
       "carouselImage": {
         "label": "カルーセル画像"
       },

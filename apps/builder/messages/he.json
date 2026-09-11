@@ -1733,6 +1733,15 @@
     },
     "marketingMessageLite": "Marketing Message Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "יצירת תבנית",
+        "reviewNote": "Meta בודקת את התבנית, בדרך כלל תוך דקות עד שעות. התבנית מופיעה בשידורים לאחר האישור.",
+        "nameHint": "אותיות אנגליות קטנות, ספרות ו-_ בלבד, למשל offer_sep",
+        "footer": "כותרת תחתונה (אופציונלי)",
+        "quickReply": "תשובה מהירה",
+        "submitted": "התבנית נשלחה ל-Meta לבדיקה",
+        "rejected": "Meta דחתה את התבנית. בדקו את הטקסט ונסו שוב."
+      },
       "carouselImage": {
         "label": "תמונת קרוסלה"
       },

@@ -3617,6 +3617,15 @@
     },
     "marketingMessageLite": "Marketing Message Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Crea modello",
+        "reviewNote": "Meta esamina il modello, di solito in pochi minuti o ore. Compare nelle trasmissioni dopo l'approvazione.",
+        "nameHint": "Solo lettere inglesi minuscole, numeri e _, es. offer_sep",
+        "footer": "Piè di pagina (facoltativo)",
+        "quickReply": "Risposta rapida",
+        "submitted": "Modello inviato a Meta per la revisione",
+        "rejected": "Meta ha rifiutato questo modello. Controlla il testo e riprova."
+      },
       "carouselImage": {
         "label": "Immagine del carosello"
       },

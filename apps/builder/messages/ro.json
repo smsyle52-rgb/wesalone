@@ -3617,6 +3617,15 @@
     },
     "marketingMessageLite": "Marketing Message Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Creează șablon",
+        "reviewNote": "Meta examinează șablonul, de obicei în câteva minute sau ore. Apare în mesajele în masă după aprobare.",
+        "nameHint": "Doar litere englezești mici, cifre și _, de ex. offer_sep",
+        "footer": "Subsol (opțional)",
+        "quickReply": "Răspuns rapid",
+        "submitted": "Șablonul a fost trimis la Meta pentru examinare",
+        "rejected": "Meta a respins acest șablon. Verifică textul și încearcă din nou."
+      },
       "carouselImage": {
         "label": "Imagine carusel"
       },

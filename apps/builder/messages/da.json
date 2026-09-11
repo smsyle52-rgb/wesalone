@@ -3617,6 +3617,15 @@
     },
     "marketingMessageLite": "Marketing Besked Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Opret skabelon",
+        "reviewNote": "Meta gennemgår skabelonen, normalt inden for minutter til timer. Den vises i broadcasts, når den er godkendt.",
+        "nameHint": "Kun små engelske bogstaver, tal og _, f.eks. offer_sep",
+        "footer": "Sidefod (valgfri)",
+        "quickReply": "Hurtigt svar",
+        "submitted": "Skabelonen er sendt til Meta til gennemgang",
+        "rejected": "Meta afviste denne skabelon. Gennemgå teksten, og prøv igen."
+      },
       "carouselImage": {
         "label": "Carousel Billede"
       },

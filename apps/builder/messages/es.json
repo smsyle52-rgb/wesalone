@@ -3617,6 +3617,15 @@
     },
     "marketingMessageLite": "Marketing Mensaje Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Crear plantilla",
+        "reviewNote": "Meta revisa la plantilla, normalmente en minutos u horas. Aparece en las difusiones una vez aprobada.",
+        "nameHint": "Solo letras inglesas minúsculas, números y _, p. ej. offer_sep",
+        "footer": "Pie de página (opcional)",
+        "quickReply": "Respuesta rápida",
+        "submitted": "Plantilla enviada a Meta para revisión",
+        "rejected": "Meta rechazó esta plantilla. Revisa el texto e inténtalo de nuevo."
+      },
       "carouselImage": {
         "label": "Carousel Imagen"
       },

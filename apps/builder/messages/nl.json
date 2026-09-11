@@ -3617,6 +3617,15 @@
     },
     "marketingMessageLite": "Marketing Messages Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Sjabloon maken",
+        "reviewNote": "Meta beoordeelt het sjabloon meestal binnen minuten tot uren. Na goedkeuring verschijnt het bij broadcasts.",
+        "nameHint": "Alleen kleine Engelse letters, cijfers en _, bijv. offer_sep",
+        "footer": "Voettekst (optioneel)",
+        "quickReply": "Snel antwoord",
+        "submitted": "Sjabloon ter beoordeling naar Meta verzonden",
+        "rejected": "Meta heeft dit sjabloon afgewezen. Controleer de tekst en probeer het opnieuw."
+      },
       "carouselImage": {
         "label": "Carrouselafbeelding"
       },

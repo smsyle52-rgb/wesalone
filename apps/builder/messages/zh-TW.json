@@ -3650,6 +3650,15 @@
     },
     "marketingMessageLite": "行銷訊息 Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "建立範本",
+        "reviewNote": "Meta 會審核範本，通常需要幾分鐘到幾小時。核准後即可在群發訊息中使用。",
+        "nameHint": "僅限小寫英文字母、數字和 _，例如 offer_sep",
+        "footer": "頁尾（選填）",
+        "quickReply": "快速回覆",
+        "submitted": "範本已送交 Meta 審核",
+        "rejected": "Meta 拒絕了此範本。請檢查文字後再試一次。"
+      },
       "carouselImage": {
         "label": "輪播影像"
       },

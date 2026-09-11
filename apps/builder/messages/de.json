@@ -3617,6 +3617,15 @@
     },
     "marketingMessageLite": "Marketing Message Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Vorlage erstellen",
+        "reviewNote": "Meta prüft die Vorlage meist innerhalb von Minuten bis Stunden. Nach der Freigabe erscheint sie in Broadcasts.",
+        "nameHint": "Nur kleine englische Buchstaben, Ziffern und _, z. B. offer_sep",
+        "footer": "Fußzeile (optional)",
+        "quickReply": "Schnellantwort",
+        "submitted": "Vorlage zur Prüfung an Meta gesendet",
+        "rejected": "Meta hat diese Vorlage abgelehnt. Prüfe den Text und versuche es erneut."
+      },
       "carouselImage": {
         "label": "Karussellbild"
       },

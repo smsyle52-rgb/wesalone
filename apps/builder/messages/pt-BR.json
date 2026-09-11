@@ -3588,6 +3588,15 @@
     },
     "marketingMessageLite": "Marketing Message Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Criar modelo",
+        "reviewNote": "A Meta analisa o modelo, geralmente em minutos ou horas. Ele aparece nas transmissões após a aprovação.",
+        "nameHint": "Apenas letras inglesas minúsculas, números e _, ex. offer_sep",
+        "footer": "Rodapé (opcional)",
+        "quickReply": "Resposta rápida",
+        "submitted": "Modelo enviado à Meta para análise",
+        "rejected": "A Meta rejeitou este modelo. Revise o texto e tente novamente."
+      },
       "carouselImage": {
         "label": "Imagem do carrossel"
       },

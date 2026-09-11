@@ -26,13 +26,13 @@ const templateButtonSchema = z.discriminatedUnion("type", [
   }),
 ])
 
-function extractPlaceholders(text: string): string[] {
+export function extractPlaceholders(text: string): string[] {
   return [...new Set(text.match(NUMERIC_PLACEHOLDER_PATTERN) ?? [])].sort(
     (a, b) => Number(a.replace(/\D/g, "")) - Number(b.replace(/\D/g, "")),
   )
 }
 
-function addPlaceholderIssues({
+export function addPlaceholderIssues({
   ctx,
   path,
   text,

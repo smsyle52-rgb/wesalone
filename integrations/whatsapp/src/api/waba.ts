@@ -128,10 +128,16 @@ export const listMessageTemplates = (
   })
 }
 
+/** Meta answers a template creation with only its id, review status and category. */
+export type CreateMessageTemplateResponse = Pick<
+  MessageTemplateEntity,
+  "id" | "status" | "category"
+>
+
 export const createMessageTemplate = (
   auth: WhatsappAuthValue,
   data: CreateMessageTemplateProps,
-): Promise<MessageTemplateEntity> => {
+): Promise<CreateMessageTemplateResponse> => {
   const { version = DEFAULT_API_VERSION } = auth
 
   return rescue(() =>

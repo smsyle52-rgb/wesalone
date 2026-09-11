@@ -5091,6 +5091,15 @@
     },
     "marketingMessageLite": "Marketing Messages Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Skapa mall",
+        "reviewNote": "Meta granskar mallen, oftast inom några minuter till timmar. Den visas i utskick när den har godkänts.",
+        "nameHint": "Endast små engelska bokstäver, siffror och _, t.ex. offer_sep",
+        "footer": "Sidfot (valfritt)",
+        "quickReply": "Snabbsvar",
+        "submitted": "Mallen har skickats till Meta för granskning",
+        "rejected": "Meta avvisade mallen. Granska texten och försök igen."
+      },
       "carouselImage": {
         "label": "Karusellbild"
       },

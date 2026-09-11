@@ -3617,6 +3617,15 @@
     },
     "marketingMessageLite": "Tin nhắn tiếp thị Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Tạo mẫu",
+        "reviewNote": "Meta xét duyệt mẫu, thường trong vài phút đến vài giờ. Mẫu xuất hiện trong tin nhắn hàng loạt sau khi được duyệt.",
+        "nameHint": "Chỉ chữ tiếng Anh viết thường, số và _, ví dụ offer_sep",
+        "footer": "Chân trang (tùy chọn)",
+        "quickReply": "Trả lời nhanh",
+        "submitted": "Đã gửi mẫu cho Meta xét duyệt",
+        "rejected": "Meta đã từ chối mẫu này. Hãy xem lại nội dung và thử lại."
+      },
       "carouselImage": {
         "label": "Hình ảnh carousel"
       },

@@ -3617,6 +3617,15 @@
     },
     "marketingMessageLite": "Pazarlama Mesajı Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Şablon oluştur",
+        "reviewNote": "Meta şablonu genellikle dakikalar ile saatler içinde inceler. Onaylandıktan sonra toplu mesajlarda görünür.",
+        "nameHint": "Yalnızca küçük İngilizce harfler, rakamlar ve _, ör. offer_sep",
+        "footer": "Alt bilgi (isteğe bağlı)",
+        "quickReply": "Hızlı yanıt",
+        "submitted": "Şablon incelenmek üzere Meta'ya gönderildi",
+        "rejected": "Meta bu şablonu reddetti. Metni gözden geçirip tekrar deneyin."
+      },
       "carouselImage": {
         "label": "Karusel Görseli"
       },

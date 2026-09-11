@@ -3617,6 +3617,15 @@
     },
     "marketingMessageLite": "Marketing Message Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Luo pohja",
+        "reviewNote": "Meta tarkistaa pohjan yleensä minuuteissa tai tunneissa. Se näkyy joukkoviesteissä hyväksynnän jälkeen.",
+        "nameHint": "Vain pienet englanninkieliset kirjaimet, numerot ja _, esim. offer_sep",
+        "footer": "Alatunniste (valinnainen)",
+        "quickReply": "Pikavastaus",
+        "submitted": "Pohja lähetettiin Metalle tarkistettavaksi",
+        "rejected": "Meta hylkäsi tämän pohjan. Tarkista teksti ja yritä uudelleen."
+      },
       "carouselImage": {
         "label": "Karusellikuva"
       },

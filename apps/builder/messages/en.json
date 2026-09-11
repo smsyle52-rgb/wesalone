@@ -3799,6 +3799,15 @@
     },
     "marketingMessageLite": "Marketing Message Lite",
     "messageTemplate": {
+      "create": {
+        "trigger": "Create template",
+        "reviewNote": "Meta reviews the template, usually within minutes to hours. It appears in broadcasts once approved.",
+        "nameHint": "Lowercase English letters, numbers and _ only, e.g. offer_sep",
+        "footer": "Footer (optional)",
+        "quickReply": "Quick reply",
+        "submitted": "Template sent to Meta for review",
+        "rejected": "Meta rejected this template. Review the text and try again."
+      },
       "carouselImage": {
         "label": "Carousel Image"
       },
