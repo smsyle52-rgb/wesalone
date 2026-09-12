@@ -17,7 +17,11 @@ RUN turbo prune builder --docker
 
 # Install dependencies
 FROM base AS deps
-ENV NODE_OPTIONS="--max-old-space-size=6144"
+# 8192, raised from 6144 on 12 Sep: the ChatbotX merge grew the app enough that
+# `next build` died with "Ineffective mark-compacts near heap limit" at 6144
+# (run 34702430490). The CI job hosting this build allocates 8G of swap on top
+# of the runner's 16G, so the larger heap has somewhere to go.
+ENV NODE_OPTIONS="--max-old-space-size=8192"
 
 WORKDIR /app
 COPY --from=pre /app/out/json/ .
