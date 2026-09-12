@@ -256,6 +256,7 @@
     "dateFilterPreset": "Filtro de fecha predefinido",
     "noResults": "Sin resultados.",
     "noData": "Sin datos",
+    "retentionNotice": "Solo se conservan los datos de los últimos {days} días.",
     "comingSoon": "Próximamente",
     "unknown": "Desconocido",
     "pagination": {
@@ -265,10 +266,20 @@
       "firstPage": "Ir a la primera página",
       "previousPage": "Ir a la página anterior",
       "nextPage": "Ir a la página siguiente",
-      "lastPage": "Ir a la última página"
+      "lastPage": "Ir a la última página",
+      "totalRows": "{total} fila(s)"
     },
     "sessionsThroughTheRef": "Sesiones diarias mediante la referencia «{ref}»",
-    "sessionsThroughTheMagicLink": "Sesiones diarias mediante el enlace mágico «{ref}»"
+    "sessionsThroughTheMagicLink": "Sesiones diarias mediante el enlace mágico «{ref}»",
+    "repliesToComments": "Respuestas a comentarios",
+    "repliesByDate": "Respuestas por fecha",
+    "userCommentsOnThisPost": "Comentarios de usuarios en esta publicación",
+    "botRepliesToComments": "Respuestas del bot a comentarios",
+    "comment": "Comentario",
+    "message": "Mensaje",
+    "searchByDate": "Buscar por fecha...",
+    "publicReply": "Respuesta pública",
+    "privateReply": "Respuesta privada"
   },
   "flowAnalytics": {
     "nodes": {
@@ -727,7 +738,59 @@
       "resultSuccess": "Se actualizaron {refreshed} canal(es).",
       "resultWithFailures": "Se actualizaron {refreshed} canal(es), {failed} fallaron."
     },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
+    "connectMany": {
+      "coexist": {
+        "running": "Iniciando la sincronización del historial…",
+        "done": "Sincronización del historial iniciada",
+        "failed": "Error al sincronizar el historial"
+      },
+      "selectAll": "Seleccionar todo",
+      "selected": "{count}/{max} seleccionados",
+      "dialogTitleRunning": "Conectando {count} {feature}…",
+      "dialogTitleDone": "Conectados {connected} de {total}",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "{done} de {total} completados",
+      "status": {
+        "waiting": "En espera",
+        "connecting": "Conectando…",
+        "connected": "Conectado",
+        "duplicated": "Ya conectado",
+        "limitReached": "Límite alcanzado",
+        "failed": "Fallido",
+        "timedOut": "Tiempo agotado",
+        "cancelled": "Cancelado"
+      },
+      "reason": {
+        "notSelectable": "Este elemento no se puede seleccionar.",
+        "channelLimit": "Se alcanzó el límite de canales.",
+        "workspaceLimit": "Se alcanzó el límite del espacio de trabajo.",
+        "providerRejected": "El proveedor rechazó esta solicitud.",
+        "unknown": "Algo salió mal.",
+        "followUpFailed": "Configuración incompleta: complétala desde los ajustes del canal."
+      },
+      "sessionError": {
+        "sessionExpired": "Tu sesión expiró. Vuelve a conectarte.",
+        "notMember": "Ya no eres miembro de este espacio de trabajo.",
+        "trialExpired": "Tu período de prueba ha finalizado.",
+        "macLimitReached": "Has alcanzado el límite de tu cuenta.",
+        "credentialMissing": "Faltan credenciales. Vuelve a conectarte."
+      },
+      "cancelRemaining": "Cancelar restantes",
+      "retryFailed": "Reintentar ({count})",
+      "retry": "Reintentar",
+      "goToChannels": "Ir a canales",
+      "close": "Cerrar",
+      "leaveNotice": "Puedes salir; las cuentas conectadas se conservan",
+      "stepConnecting": "Conectando",
+      "stepCoexist": "Sincronizar historial",
+      "validation": {
+        "min": "Selecciona al menos 1",
+        "max": "Puedes seleccionar hasta {max}",
+        "duplicate": "Selección duplicada"
+      },
+      "progressLabel": "Progreso"
+    }
   },
   "workspace": {
     "schedule": {
@@ -1384,12 +1447,15 @@
       "label": "Operación"
     },
     "outputCustomField": {
-      "label": "Campo personalizado de salida"
+      "label": "Campo personalizado de salida",
+      "javascriptOptional": "Opcional. Guarda el valor completo. Usa el mapeo de rutas JSON de arriba para escribir campos individuales.",
+      "javascriptDumpLabel": "JSON completo de salida (opcional)"
     },
     "javascriptCode": {
       "label": "Código JavaScript",
       "placeholder": "return (input.first_name || 'there').toUpperCase()",
-      "description": "Usa JavaScript puro y devuelve un valor. La red, los archivos, las API y las bibliotecas externas no están disponibles. Los datos del contacto y del sistema están disponibles en el objeto `input`."
+      "description": "Usa JavaScript puro y devuelve un valor. La red, los archivos, las API y las bibliotecas externas no están disponibles. Los datos del contacto y del sistema están disponibles en el objeto `input`.",
+      "objectMapping": "Mapea cualquier ruta JSON del valor devuelto a cualquier campo personalizado, igual que en Solicitud de API externa. Tú eliges las rutas y los campos."
     },
     "httpMethod": {
       "label": "Método"
@@ -1745,7 +1811,8 @@
       "date": "Fecha",
       "datetime": "Fechahora",
       "location": "Ubicación",
-      "anyInput": "Any Entrada"
+      "anyInput": "Any Entrada",
+      "locationDescription": "En WhatsApp envía el botón nativo Enviar ubicación de Meta y espera el pin. En otros canales envía el texto; un pin compartido o lat,lng escrito también completa el paso."
     },
     "workspaceMember": {
       "label": "Espacio de trabajo Miembro"
@@ -1879,6 +1946,12 @@
     },
     "messengerChannel": {
       "label": "Messenger Canal"
+    },
+    "whatsappChannels": {
+      "label": "Canales de WhatsApp"
+    },
+    "messengerChannels": {
+      "label": "Páginas de Messenger"
     },
     "messages": {
       "label": "Mensajes"
@@ -2208,6 +2281,26 @@
         "done": "Listo"
       }
     },
+    "tokenPermission": {
+      "label": "Permiso",
+      "full": "Acceso completo",
+      "readOnly": "Solo lectura"
+    },
+    "tokenScopes": {
+      "label": "Ámbitos",
+      "contacts": "Contactos",
+      "inbox": "Bandeja de entrada",
+      "automation": "Automatización",
+      "broadcasts": "Difusiones",
+      "analytics": "Analítica",
+      "ecommerce": "Comercio electrónico",
+      "integrations": "Integraciones",
+      "channels": "Canales",
+      "minigames": "Minijuegos",
+      "appointments": "Citas",
+      "media": "Medios",
+      "ads": "Anuncios"
+    },
     "adReferral": {
       "label": "Ads",
       "ctwa": "CTWA",
@@ -2231,27 +2324,7 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
-    "tokenPermission": {
-      "label": "Permiso",
-      "full": "Acceso completo",
-      "readOnly": "Solo lectura"
-    },
-    "tokenScopes": {
-      "label": "Ámbitos",
-      "contacts": "Contactos",
-      "inbox": "Bandeja de entrada",
-      "automation": "Automatización",
-      "broadcasts": "Difusiones",
-      "analytics": "Analítica",
-      "ecommerce": "Comercio electrónico",
-      "integrations": "Integraciones",
-      "channels": "Canales",
-      "minigames": "Minijuegos",
-      "appointments": "Citas",
-      "media": "Medios",
-      "ads": "Anuncios"
-    }
+    "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
     "export": {
@@ -2506,7 +2579,11 @@
       "tiktokTitleTruncated": "Cuando se adjuntan botones, TikTok solo envía los primeros 40 caracteres de este mensaje; el resto se recortará."
     },
     "dataWasSaved": "Datos guardados",
-    "startNode": "Start"
+    "startNode": "Start",
+    "media": {
+      "stepUnsupportedOnChannel": "Este canal no puede enviar este tipo de contenido: el paso se omite allí. Quítalo o cambia el nodo a un canal que lo admita.",
+      "buttonsSkippedOnChannel": "Este canal no puede enviar botones junto con un mensaje multimedia: allí se omiten. Colócalos en un paso de texto posterior."
+    }
   },
   "folders": {
     "heading": {
@@ -3192,7 +3269,9 @@
     "waTemplateMpmTooManySections": "Un botón multiproducto puede tener como máximo 10 secciones. Elimina algunas secciones antes de publicar.",
     "waTemplateMpmTooManyProducts": "Un botón multiproducto puede tener como máximo 30 productos en total. Elimina algunos productos antes de publicar.",
     "waTemplateLtoExpirationRequired": "Elige una fecha de vencimiento para la oferta por tiempo limitado antes de enviar.",
-    "waTemplateMpmIncompleteProducts": "Cada sección necesita al menos un producto seleccionado: elimina las filas vacías o elige un producto."
+    "waTemplateMpmIncompleteProducts": "Cada sección necesita al menos un producto seleccionado: elimina las filas vacías o elige un producto.",
+    "mediaStepUnsupported": "Este canal no puede enviar este tipo de contenido. Quita el paso o apunta este nodo a un canal que lo admita.",
+    "mediaButtonsUnsupported": "Este canal no puede enviar botones junto con un mensaje multimedia. Quita los botones o muévelos a un paso de texto posterior."
   },
   "instagram": {
     "description": "This integración lets tú Crear Instagram bots.",
@@ -3204,6 +3283,12 @@
     "tabs": {
       "generalSettings": "Ajustes generales",
       "conversionsApi": "Optimización de anuncios"
+    },
+    "selectPage": {
+      "noAccountsTitle": "No se encontraron cuentas de Instagram",
+      "noAccountsDescription": "No se encontraron cuentas de empresa de Instagram en las páginas de Facebook que administras. Vuelve a conectar Instagram y concede todos los permisos solicitados.",
+      "alreadyConnectedNote": "Esta cuenta ya está conectada",
+      "tryAgain": "Intenta volver a conectar"
     }
   },
   "coexist": {
@@ -3249,7 +3334,6 @@
     "defaultPersona": "Predeterminado Persona",
     "reconnect": "Volver a conectar",
     "reconnectDescription": "Always reConectar tu bot si tu Messenger bot es not responding, o si tú son seem cualquier permiso error en el error log.",
-    "selectFacebookPage": "Seleccionar Facebook Página",
     "selectPage": {
       "noPagesTitle": "No Facebook Páginas found",
       "noPagesDescription": "Páginas inside un Empresa Manager require Empresa Manager access during connection. ReConectar Messenger y grant todos requested permisos.",
@@ -3303,6 +3387,7 @@
         "result": {
           "title": "Resultados de la clonación",
           "succeededTitle": "Correcto",
+          "pendingTitle": "Pendiente de revisión de Meta",
           "close": "Cerrar"
         }
       }
@@ -3513,6 +3598,7 @@
   "validation": {
     "maxSize": "Archivo size exceeds maximum limit",
     "maxItemsReached": "Maximum {max} {feature} todosowed per espacio de trabajo",
+    "maxCharacters": "Máximo {max} caracteres.",
     "invalidApiKey": "No válido API clave",
     "maxMustBeGreaterThanMin": "{maxField} must be greater than o equal un {minField}"
   },
@@ -3562,7 +3648,8 @@
       "verifyToken": "Token de verificación del webhook",
       "qrCodeHint": "Scan el QR código un Abrir el webhook URL",
       "moreSettings": "Más ajustes",
-      "goToInbox": "Ir allí"
+      "goToInbox": "Ir allí",
+      "multipleTitle": "¡Tus bandejas de entrada de WhatsApp están listas!"
     },
     "phoneVerification": {
       "title": "Verificar WhatsApp teléfono number",
@@ -3575,7 +3662,8 @@
       "actions": {
         "sendCode": "Enviar código",
         "resendIn": "ReEnviar en {seconds}s",
-        "verify": "Verificar y register"
+        "verify": "Registrar",
+        "skip": "Omitir"
       },
       "fields": {
         "code": {
@@ -3593,18 +3681,12 @@
         "codeNotSent": "WhatsApp verification código podría not be sent.",
         "codeNotVerified": "WhatsApp verification código podría not be verificado.",
         "registrationFailed": "WhatsApp teléfono number verification ftodosó."
-      }
+      },
+      "queueProgress": "Verificando {current} de {total}"
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "WhatsApp access token es obligatorio.",
         "appSettingsNotFound": "WhatsApp app ajustes were no encontrado.",
-        "failedToPersistIntegration": "Failed un Guardar el WhatsApp integración.",
-        "noPhoneNumberFound": "No WhatsApp teléfono number was found.",
-        "noPhoneNumbersFound": "No teléfono numbers were found para este WhatsApp Empresa Cuenta.",
-        "phoneNumberNotFound": "Selected WhatsApp teléfono number was no encontrado.",
-        "unableToVerifyToken": "Unable un verificar el WhatsApp token.",
-        "wabaMismatch": "Selected WhatsApp Empresa Cuenta hace not match el authorization.",
         "wabaResolveFailed": "Could not resolve el WhatsApp Empresa Cuenta desde el authorization."
       }
     },
@@ -3846,16 +3928,12 @@
       "label": "Plantilla Header"
     },
     "transferPhoneNumber": "Transfer teléfono desde another Whatsapp proveedor",
-    "signupSessionExpired": "Your WhatsApp signup session tiene caducado. Por favor, start el connection again.",
-    "capi": {
-      "automaticEvents": {
-        "title": "Eventos automáticos",
-        "description": "Envía automáticamente eventos de conversión desde este número de WhatsApp a Meta. Si falta el permiso, vuelve a conectar la cuenta para concederlo."
-      }
-    },
     "ecommerce": {
       "title": "Sell your products on WhatsApp",
       "manageProducts": "Manage your products"
+    },
+    "selectPage": {
+      "tryAgain": "Intenta volver a conectar"
     }
   },
   "zalo": {
@@ -4054,6 +4132,60 @@
     "exportAllNotice": "Todos contactoos matching el current filter se be exported.",
     "exportTakingLong": "Export es taking longer than expected",
     "exportTakingLongDescription": "The export es still processing. tú puede Cerrar este dialog y check back en un few minutos desde el export history."
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
   },
   "auditLogs": {
     "title": "Registros de auditoría",
@@ -5491,10 +5623,19 @@
       "confirmationFlowId": "Flujo de confirmación",
       "cancellationFlowId": "Flujo de cancelación",
       "externalConnectionId": "Calendario externo",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
       "reminders": "Recordatorios",
       "reminderTimingValue": "Valor",
       "reminderTimingUnit": "Unidad"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
     "locationTypes": {
       "inPerson": "Reunión presencial",
       "phoneCall": "Llamada telefónica",
@@ -5837,7 +5978,8 @@
       "generalSettingsTitle": "Configuración general",
       "appearanceTitle": "Apariencia",
       "playerSettingsTitle": "Configuración del jugador",
-      "prizeSettingsTitle": "Configuración de premios"
+      "prizeSettingsTitle": "Configuración de premios",
+      "validationFailed": "Corrige los campos resaltados antes de guardar."
     },
     "generalSettings": {
       "showName": "Visible",
@@ -5845,10 +5987,7 @@
       "rulesDescription": "Descripción de las reglas",
       "openerTags": "Etiquetar a los contactos que abren el enlace del juego",
       "playerTags": "Etiquetar a los jugadores",
-      "newFriendTags": "Etiquetar a los nuevos amigos",
-      "shareEnabled": "Permitir compartir con amigos",
-      "shareMessage": "Mensaje para compartir",
-      "shareMessageHint": "Usa '{{shareUrl}}' para insertar el enlace real del juego — por favor, no lo elimines."
+      "newFriendTags": "Etiquetar a los nuevos amigos"
     },
     "appearance": {
       "backgroundColor": "Color de fondo",
@@ -5864,6 +6003,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "Número de intentos de sorteo por persona",
+      "maxSharesPerPerson": "Máx. tiradas extra por referidos",
+      "maxSharesPerPersonHint": "Cada amigo que se una mediante el enlace de invitación de este jugador y te escriba le da 1 tirada extra, hasta este límite. Pon 0 para desactivar las bonificaciones por recomendación. Las tiradas extra deben usarse antes del siguiente reinicio.",
+      "sharingNode": "Paso de compartir",
+      "sharingNodeHint": "El paso del flujo que se ejecuta cuando un amigo abre el enlace para compartir de este jugador. Déjalo vacío para ocultar el botón Compartir.",
       "resetPolicyLabel": "Reiniciar intentos",
       "resetNever": "No reiniciar el número de intentos",
       "resetEveryNDays": "Reiniciar el número de intentos cada",
@@ -5882,29 +6025,32 @@
       "forbiddenTitle": "Acceso denegado",
       "forbiddenDescription": "Este enlace no es válido o ha caducado.",
       "comingSoonTitle": "Próximamente",
-      "comingSoonDescription": "Este tipo de minijuego aún no está disponible."
+      "comingSoonDescription": "Este tipo de minijuego aún no está disponible.",
+      "rateLimited": "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo."
+    },
+    "list": {
+      "gamesPlayed": "Partidas jugadas",
+      "participants": "Participantes",
+      "winners": "Ganadores",
+      "shares": "Referidos"
     },
     "history": {
       "title": "Historial",
       "played": "Jugadas",
       "remaining": "Tiradas restantes",
+      "shares": "Referidos",
       "openedAt": "Primera apertura",
       "lastPlayedAt": "Última jugada",
       "unknownContact": "Contacto desconocido",
+      "conversationNotFound": "No se encontró ninguna conversación para este contacto",
+      "popupBlocked": "Por favor, todosow pop-ups para este site, then try again.",
       "record": "Registro",
       "recordDialog": {
         "title": "Registro de jugadas",
         "win": "Ganó",
         "lose": "Sin premio",
         "empty": "Aún no hay registros de jugadas"
-      },
-      "conversationNotFound": "No se encontró ninguna conversación para este contacto",
-      "popupBlocked": "Por favor, todosow pop-ups para este site, then try again."
-    },
-    "list": {
-      "gamesPlayed": "Partidas jugadas",
-      "participants": "Participantes",
-      "winners": "Ganadores"
+      }
     }
   },
   "mediaLibrary": {

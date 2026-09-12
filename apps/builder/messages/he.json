@@ -256,6 +256,7 @@
     "dateFilterPreset": "הגדרה מוכנה של מסנן תאריכים",
     "noResults": "אין תוצאות.",
     "noData": "אין נתונים",
+    "retentionNotice": "נשמרים רק הנתונים מ-{days} הימים האחרונים.",
     "comingSoon": "בקרוב",
     "unknown": "לא ידוע",
     "pagination": {
@@ -265,10 +266,20 @@
       "firstPage": "מעבר לעמוד הראשון",
       "previousPage": "מעבר לעמוד הקודם",
       "nextPage": "מעבר לעמוד הבא",
-      "lastPage": "מעבר לעמוד האחרון"
+      "lastPage": "מעבר לעמוד האחרון",
+      "totalRows": "{total} שורות"
     },
     "sessionsThroughTheRef": "הפעלות דרך ההפניה \"{ref}\" ליום",
-    "sessionsThroughTheMagicLink": "הפעלות דרך קישור הקסם \"{ref}\" ליום"
+    "sessionsThroughTheMagicLink": "הפעלות דרך קישור הקסם \"{ref}\" ליום",
+    "repliesToComments": "תגובות לתגובות",
+    "repliesByDate": "תגובות לפי תאריך",
+    "userCommentsOnThisPost": "תגובות משתמשים בפוסט זה",
+    "botRepliesToComments": "תגובות הבוט לתגובות",
+    "comment": "תגובה",
+    "message": "הודעה",
+    "searchByDate": "חיפוש לפי תאריך...",
+    "publicReply": "תגובה פומבית",
+    "privateReply": "תגובה פרטית"
   },
   "flowAnalytics": {
     "nodes": {
@@ -536,7 +547,11 @@
       "tiktokTitleTruncated": "כאשר מצורפים כפתורים, טיקטוק שולח רק את 40 התווים הראשונים של ההודעה הזו — השאר ייחתך."
     },
     "dataWasSaved": "הנתונים נשמרו",
-    "startNode": "Start"
+    "startNode": "Start",
+    "media": {
+      "stepUnsupportedOnChannel": "ערוץ זה לא יכול לשלוח סוג מדיה זה — השלב ידולג שם. הסר אותו או העבר את הצומת לערוץ שתומך בכך.",
+      "buttonsSkippedOnChannel": "ערוץ זה לא יכול לשלוח כפתורים עם הודעת מדיה — הם ידולגו שם. הוסף אותם לשלב טקסט שלאחר מכן."
+    }
   },
   "folders": {
     "heading": {
@@ -1128,7 +1143,59 @@
       "resultSuccess": "רוענן {refreshed} ערוצים.",
       "resultWithFailures": "רוענן {refreshed} ערוצים, {failed} נכשלו."
     },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
+    "connectMany": {
+      "coexist": {
+        "running": "מתחיל סנכרון היסטוריה…",
+        "done": "סנכרון ההיסטוריה התחיל",
+        "failed": "סנכרון ההיסטוריה נכשל"
+      },
+      "selectAll": "בחר הכול",
+      "selected": "{count}/{max} נבחרו",
+      "dialogTitleRunning": "מחבר {count} {feature}…",
+      "dialogTitleDone": "חוברו {connected} מתוך {total}",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "{done} מתוך {total} הושלמו",
+      "status": {
+        "waiting": "ממתין",
+        "connecting": "מתחבר…",
+        "connected": "מחובר",
+        "duplicated": "כבר מחובר",
+        "limitReached": "המגבלה הושגה",
+        "failed": "נכשל",
+        "timedOut": "פג הזמן הקצוב",
+        "cancelled": "בוטל"
+      },
+      "reason": {
+        "notSelectable": "לא ניתן לבחור פריט זה.",
+        "channelLimit": "המגבלה של הערוצים הושגה.",
+        "workspaceLimit": "המגבלה של סביבת העבודה הושגה.",
+        "providerRejected": "הספק דחה את הבקשה הזו.",
+        "unknown": "משהו השתבש.",
+        "followUpFailed": "ההגדרה לא הושלמה — סיים אותה מהגדרות הערוץ."
+      },
+      "sessionError": {
+        "sessionExpired": "פג תוקף ההפעלה שלך. יש להתחבר שוב.",
+        "notMember": "אינך עוד חבר בסביבת עבודה זו.",
+        "trialExpired": "תקופת הניסיון שלך הסתיימה.",
+        "macLimitReached": "הגעת למגבלת החשבון שלך.",
+        "credentialMissing": "חסרים פרטי גישה. יש להתחבר שוב."
+      },
+      "cancelRemaining": "בטל את השאר",
+      "retryFailed": "נסה שוב ({count})",
+      "retry": "נסה שוב",
+      "goToChannels": "עבור לערוצים",
+      "close": "סגור",
+      "leaveNotice": "אפשר לצאת; החשבונות המחוברים יישמרו",
+      "stepConnecting": "מתחבר",
+      "stepCoexist": "סנכרון היסטוריה",
+      "validation": {
+        "min": "בחר לפחות פריט אחד",
+        "max": "ניתן לבחור עד {max}",
+        "duplicate": "בחירה כפולה"
+      },
+      "progressLabel": "התקדמות"
+    }
   },
   "workspace": {
     "schedule": {
@@ -1308,7 +1375,9 @@
     "waTemplateMpmTooManySections": "לכפתור רב-מוצרים יכולים להיות עד 10 מקטעים לכל היותר. הסר מקטעים לפני הפרסום.",
     "waTemplateMpmTooManyProducts": "לכפתור רב-מוצרים יכולים להיות עד 30 מוצרים בסך הכל. הסר מוצרים לפני הפרסום.",
     "waTemplateLtoExpirationRequired": "בחרו תאריך תפוגה למבצע המוגבל בזמן לפני השליחה.",
-    "waTemplateMpmIncompleteProducts": "כל מקטע צריך לפחות מוצר אחד שנבחר — הסירו שורות ריקות או בחרו להן מוצר."
+    "waTemplateMpmIncompleteProducts": "כל מקטע צריך לפחות מוצר אחד שנבחר — הסירו שורות ריקות או בחרו להן מוצר.",
+    "mediaStepUnsupported": "ערוץ זה לא יכול לשלוח סוג מדיה זה. הסר את השלב או הפנה את הצומת לערוץ שתומך בכך.",
+    "mediaButtonsUnsupported": "ערוץ זה לא יכול לשלוח כפתורים עם הודעת מדיה. הסר את הכפתורים או העבר אותם לשלב טקסט שלאחר שלב זה."
   },
   "instagram": {
     "description": "שילוב זה מאפשר ליצור בוטים ל-Instagram.",
@@ -1320,6 +1389,12 @@
     "tabs": {
       "generalSettings": "הגדרות כלליות",
       "conversionsApi": "אופטימיזציית מודעות"
+    },
+    "selectPage": {
+      "noAccountsTitle": "לא נמצאו חשבונות אינסטגרם",
+      "noAccountsDescription": "לא נמצאו חשבונות עסקיים באינסטגרם בדפי הפייסבוק שאתה מנהל. חבר מחדש את אינסטגרם ואשר את כל ההרשאות המבוקשות.",
+      "alreadyConnectedNote": "חשבון זה כבר מחובר",
+      "tryAgain": "ניסיון חיבור מחדש"
     }
   },
   "messenger": {
@@ -1339,7 +1414,6 @@
     "defaultPersona": "פרסונת ברירת מחדל",
     "reconnect": "חיבור מחדש",
     "reconnectDescription": "חברו מחדש את הבוט בכל פעם שבוט Messenger אינו מגיב או כאשר מופיעה שגיאת הרשאה ביומן השגיאות.",
-    "selectFacebookPage": "בחירת דף Facebook",
     "selectPage": {
       "noPagesTitle": "לא נמצאו דפי Facebook",
       "noPagesDescription": "דפים בתוך Business Manager דורשים גישה ל-Business Manager במהלך החיבור. חברו מחדש את Messenger והעניקו את כל ההרשאות המבוקשות.",
@@ -1393,6 +1467,7 @@
         "result": {
           "title": "תוצאות השכפול",
           "succeededTitle": "הצליח",
+          "pendingTitle": "ממתין לבדיקת Meta",
           "close": "סגירה"
         }
       }
@@ -1629,6 +1704,7 @@
   "validation": {
     "maxSize": "גודל הקובץ חורג מהמגבלה המרבית",
     "maxItemsReached": "מותר לכל היותר {max} {feature} בכל סביבת עבודה",
+    "maxCharacters": "מקסימום {max} תווים.",
     "invalidApiKey": "מפתח API לא תקין",
     "maxMustBeGreaterThanMin": "{maxField} חייב להיות גדול או שווה ל-{minField}"
   },
@@ -1678,7 +1754,8 @@
       "verifyToken": "אסימון אימות Webhook",
       "qrCodeHint": "סרקו את קוד ה-QR כדי לפתוח את כתובת ה-Webhook",
       "moreSettings": "הגדרות נוספות",
-      "goToInbox": "מעבר לתיבת הדואר הנכנס"
+      "goToInbox": "מעבר לתיבת הדואר הנכנס",
+      "multipleTitle": "תיבות ה-WhatsApp שלך מוכנות!"
     },
     "phoneVerification": {
       "title": "אימות מספר טלפון WhatsApp",
@@ -1691,7 +1768,8 @@
       "actions": {
         "sendCode": "שליחת קוד",
         "resendIn": "שליחה מחדש בעוד {seconds} שניות",
-        "verify": "אימות ורישום"
+        "verify": "רישום",
+        "skip": "דלג"
       },
       "fields": {
         "code": {
@@ -1709,18 +1787,12 @@
         "codeNotSent": "לא ניתן היה לשלוח את קוד האימות של WhatsApp.",
         "codeNotVerified": "לא ניתן היה לאמת את קוד האימות של WhatsApp.",
         "registrationFailed": "אימות מספר הטלפון של WhatsApp נכשל."
-      }
+      },
+      "queueProgress": "מאמת {current} מתוך {total}"
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "נדרש אסימון גישה של WhatsApp.",
         "appSettingsNotFound": "הגדרות אפליקציית WhatsApp לא נמצאו.",
-        "failedToPersistIntegration": "שמירת השילוב עם WhatsApp נכשלה.",
-        "noPhoneNumberFound": "לא נמצא מספר טלפון של WhatsApp.",
-        "noPhoneNumbersFound": "לא נמצאו מספרי טלפון עבור חשבון WhatsApp Business זה.",
-        "phoneNumberNotFound": "מספר הטלפון שנבחר ב-WhatsApp לא נמצא.",
-        "unableToVerifyToken": "לא ניתן לאמת את אסימון WhatsApp.",
-        "wabaMismatch": "חשבון WhatsApp Business שנבחר אינו תואם להרשאה.",
         "wabaResolveFailed": "לא ניתן היה לזהות את חשבון WhatsApp Business מתוך ההרשאה."
       }
     },
@@ -1962,16 +2034,12 @@
       "label": "כותרת התבנית"
     },
     "transferPhoneNumber": "העברת מספר טלפון מספק WhatsApp אחר",
-    "signupSessionExpired": "פג תוקף הפעלת ההרשמה ל-WhatsApp. התחילו את החיבור מחדש.",
-    "capi": {
-      "automaticEvents": {
-        "title": "אירועים אוטומטיים",
-        "description": "שלח אירועי המרה ממספר וואטסאפ זה אל Meta באופן אוטומטי. אם ההרשאה חסרה, חבר מחדש את החשבון כדי להעניק אותה."
-      }
-    },
     "ecommerce": {
       "title": "Sell your products on WhatsApp",
       "manageProducts": "Manage your products"
+    },
+    "selectPage": {
+      "tryAgain": "ניסיון חיבור מחדש"
     }
   },
   "zalo": {
@@ -2170,6 +2238,60 @@
     "exportAllNotice": "כל אנשי הקשר שתואמים למסנן הנוכחי ייוצאו.",
     "exportTakingLong": "הייצוא נמשך זמן רב מהצפוי",
     "exportTakingLongDescription": "הייצוא עדיין בעיבוד. ניתן לסגור חלון זה ולבדוק שוב בעוד מספר דקות בהיסטוריית הייצוא."
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
   },
   "auditLogs": {
     "title": "יומני ביקורת",
@@ -4040,12 +4162,15 @@
       "label": "פעולה"
     },
     "outputCustomField": {
-      "label": "שדה פלט מותאם אישית"
+      "label": "שדה פלט מותאם אישית",
+      "javascriptOptional": "אופציונלי. שומר את כל ערך ההחזרה. השתמשו במיפוי נתיבי JSON למעלה כדי לכתוב שדות בודדים.",
+      "javascriptDumpLabel": "פלט JSON מלא (אופציונלי)"
     },
     "javascriptCode": {
       "label": "קוד JavaScript",
       "placeholder": "return (input.first_name || 'there').toUpperCase()",
-      "description": "השתמשו ב-JavaScript טהור והחזירו ערך. רשת, קבצים, ממשקי API וספריות חיצוניות אינם זמינים. נתוני איש הקשר והמערכת זמינים באובייקט `input`."
+      "description": "השתמשו ב-JavaScript טהור והחזירו ערך. רשת, קבצים, ממשקי API וספריות חיצוניות אינם זמינים. נתוני איש הקשר והמערכת זמינים באובייקט `input`.",
+      "objectMapping": "מפו נתיב JSON כלשהו מהערך המוחזר לשדה מותאם אישית כלשהו, באותו אופן כמו בקשת API חיצונית. אתם בוחרים את הנתיבים ואת השדות."
     },
     "httpMethod": {
       "label": "שיטה"
@@ -4401,7 +4526,8 @@
       "date": "תאריך",
       "datetime": "תאריך ושעה",
       "location": "מיקום",
-      "anyInput": "כל קלט"
+      "anyInput": "כל קלט",
+      "locationDescription": "ב-WhatsApp זה שולח את כפתור שלח מיקום המקורי של Meta וממתין לסיכה. בערוצים אחרים ההודעה נשלחת כטקסט; סיכה משותפת או lat,lng שהוקלדו גם מסיימים את השלב."
     },
     "workspaceMember": {
       "label": "חבר בסביבת העבודה"
@@ -4535,6 +4661,12 @@
     },
     "messengerChannel": {
       "label": "ערוץ Messenger"
+    },
+    "whatsappChannels": {
+      "label": "ערוצי WhatsApp"
+    },
+    "messengerChannels": {
+      "label": "דפי Messenger"
     },
     "messages": {
       "label": "הודעות"
@@ -4864,6 +4996,26 @@
         "done": "בוצע"
       }
     },
+    "tokenPermission": {
+      "label": "הרשאה",
+      "full": "גישה מלאה",
+      "readOnly": "קריאה בלבד"
+    },
+    "tokenScopes": {
+      "label": "היקפים",
+      "contacts": "אנשי קשר",
+      "inbox": "תיבת דואר נכנס",
+      "automation": "אוטומציה",
+      "broadcasts": "שידורים",
+      "analytics": "אנליטיקה",
+      "ecommerce": "מסחר אלקטרוני",
+      "integrations": "אינטגרציות",
+      "channels": "ערוצים",
+      "minigames": "משחונים",
+      "appointments": "פגישות",
+      "media": "מדיה",
+      "ads": "מודעות"
+    },
     "adReferral": {
       "label": "Ads",
       "ctwa": "CTWA",
@@ -4887,27 +5039,7 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
-    "tokenPermission": {
-      "label": "הרשאה",
-      "full": "גישה מלאה",
-      "readOnly": "קריאה בלבד"
-    },
-    "tokenScopes": {
-      "label": "היקפים",
-      "contacts": "אנשי קשר",
-      "inbox": "תיבת דואר נכנס",
-      "automation": "אוטומציה",
-      "broadcasts": "שידורים",
-      "analytics": "אנליטיקה",
-      "ecommerce": "מסחר אלקטרוני",
-      "integrations": "אינטגרציות",
-      "channels": "ערוצים",
-      "minigames": "משחונים",
-      "appointments": "פגישות",
-      "media": "מדיה",
-      "ads": "מודעות"
-    }
+    "selectOptionsPlaceholder": "Select options"
   },
   "billing": {
     "title": "חיוב",
@@ -5491,10 +5623,19 @@
       "confirmationFlowId": "תהליך אישור",
       "cancellationFlowId": "תהליך ביטול",
       "externalConnectionId": "יומן חיצוני",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
       "reminders": "תזכורות",
       "reminderTimingValue": "ערך",
       "reminderTimingUnit": "יחידה"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
     "locationTypes": {
       "inPerson": "פגישה פרונטלית",
       "phoneCall": "שיחת טלפון",
@@ -5837,7 +5978,8 @@
       "generalSettingsTitle": "הגדרות כלליות",
       "appearanceTitle": "מראה",
       "playerSettingsTitle": "הגדרות שחקן",
-      "prizeSettingsTitle": "הגדרות פרסים"
+      "prizeSettingsTitle": "הגדרות פרסים",
+      "validationFailed": "יש לתקן את השדות המסומנים לפני השמירה."
     },
     "generalSettings": {
       "showName": "גלוי",
@@ -5845,10 +5987,7 @@
       "rulesDescription": "תיאור החוקים",
       "openerTags": "תיוג אנשי קשר שפותחים את קישור המשחק",
       "playerTags": "תיוג שחקנים",
-      "newFriendTags": "תיוג חברים חדשים",
-      "shareEnabled": "אפשרו שיתוף עם חברים",
-      "shareMessage": "הודעת שיתוף",
-      "shareMessageHint": "השתמשו ב-'{{shareUrl}}' כדי להוסיף את קישור המשחק בפועל — נא לא להסיר אותו."
+      "newFriendTags": "תיוג חברים חדשים"
     },
     "appearance": {
       "backgroundColor": "צבע רקע",
@@ -5864,6 +6003,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "מספר הזדמנויות הגרלה לכל אדם",
+      "maxSharesPerPerson": "מקסימום הגרלות בונוס מהפניות",
+      "maxSharesPerPersonHint": "כל חבר שמצטרף דרך קישור ההזמנה של השחקן הזה ושולח לך הודעה מזכה אותו בהגרלה נוספת אחת, עד למגבלה הזו. הגדר 0 כדי לכבות בונוסי הפניה. יש להשתמש בהגרלות הבונוס לפני האיפוס הבא.",
+      "sharingNode": "שלב שיתוף",
+      "sharingNodeHint": "שלב התהליך שרץ כאשר חבר פותח את קישור השיתוף של שחקן זה. השאר ריק כדי להסתיר את כפתור השיתוף.",
       "resetPolicyLabel": "איפוס הגרלות",
       "resetNever": "אין לאפס את מספר ההגרלות",
       "resetEveryNDays": "איפוס מספר ההגרלות כל",
@@ -5882,29 +6025,32 @@
       "forbiddenTitle": "הגישה נדחתה",
       "forbiddenDescription": "קישור זה אינו תקף או שפג תוקפו.",
       "comingSoonTitle": "בקרוב",
-      "comingSoonDescription": "לא ניתן עדיין לשחק בסוג מיני-משחק זה."
+      "comingSoonDescription": "לא ניתן עדיין לשחק בסוג מיני-משחק זה.",
+      "rateLimited": "יותר מדי בקשות. המתן רגע ונסה שוב."
+    },
+    "list": {
+      "gamesPlayed": "משחקים ששוחקו",
+      "participants": "משתתפים",
+      "winners": "זוכים",
+      "shares": "הפניות"
     },
     "history": {
       "title": "היסטוריה",
       "played": "משחקים",
       "remaining": "הגרלות שנותרו",
+      "shares": "הפניות",
       "openedAt": "נפתח לראשונה",
       "lastPlayedAt": "שוחק לאחרונה",
       "unknownContact": "איש קשר לא ידוע",
+      "conversationNotFound": "לא נמצאה שיחה עבור איש קשר זה",
+      "popupBlocked": "אפשרו חלונות קופצים באתר זה ונסו שוב.",
       "record": "רשומה",
       "recordDialog": {
         "title": "רשומת משחקים",
         "win": "זכה",
         "lose": "ללא פרס",
         "empty": "אין עדיין רשומות משחק"
-      },
-      "conversationNotFound": "לא נמצאה שיחה עבור איש קשר זה",
-      "popupBlocked": "אפשרו חלונות קופצים באתר זה ונסו שוב."
-    },
-    "list": {
-      "gamesPlayed": "משחקים ששוחקו",
-      "participants": "משתתפים",
-      "winners": "זוכים"
+      }
     }
   },
   "mediaLibrary": {

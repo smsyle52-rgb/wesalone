@@ -511,6 +511,7 @@
     "newContactsByCountry": "依国家／地区分类的新联系人",
     "newContactsBySource": "依来源分类的新联系人",
     "noData": "无数据",
+    "retentionNotice": "仅保留最近 {days} 天的数据。",
     "noResults": "无结果。",
     "pagination": {
       "firstPage": "前往第一页",
@@ -519,7 +520,8 @@
       "pageOf": "第 {page} 页（共 {pageCount}）",
       "previousPage": "前往上一页",
       "rowsPerPage": "每页列数",
-      "selectedRows": "已选取 {selected} / {total} 列。"
+      "selectedRows": "已选取 {selected} / {total} 列。",
+      "totalRows": "{total} 行"
     },
     "percentage": "百分比",
     "responseCount": "回应计数",
@@ -532,7 +534,16 @@
     "totalContacts": "联系人总数",
     "uniqueConversationsByAdmins": "真人客服的不重复对话",
     "uniqueConversationsByAdminsHelp": "真人客服至少发送一则消息的联系人数量。",
-    "unknown": "未知"
+    "unknown": "未知",
+    "repliesToComments": "评论回复数",
+    "repliesByDate": "按日期统计回复",
+    "userCommentsOnThisPost": "用户在此帖子的评论",
+    "botRepliesToComments": "机器人的评论回复",
+    "comment": "评论",
+    "message": "消息",
+    "searchByDate": "按日期搜索...",
+    "publicReply": "公开回复",
+    "privateReply": "私信回复"
   },
   "appointmentScheduling": {
     "description": "创建并管理您的预约安排。",
@@ -930,7 +941,59 @@
       "description": "以下频道未能自动刷新其访问权杖。请重新连接，以持续收发消息。",
       "title": "紧急"
     },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
+    "connectMany": {
+      "coexist": {
+        "running": "正在开始同步历史记录…",
+        "done": "已开始同步历史记录",
+        "failed": "历史记录同步失败"
+      },
+      "selectAll": "全选",
+      "selected": "已选择 {count}/{max}",
+      "dialogTitleRunning": "正在连接 {count} 个{feature}…",
+      "dialogTitleDone": "已连接 {connected}/{total}",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "已完成 {done}/{total}",
+      "status": {
+        "waiting": "等待中",
+        "connecting": "连接中…",
+        "connected": "已连接",
+        "duplicated": "已连接过",
+        "limitReached": "已达上限",
+        "failed": "失败",
+        "timedOut": "已超时",
+        "cancelled": "已取消"
+      },
+      "reason": {
+        "notSelectable": "该项目无法选择。",
+        "channelLimit": "已达渠道上限。",
+        "workspaceLimit": "已达工作区上限。",
+        "providerRejected": "服务提供方拒绝了此请求。",
+        "unknown": "出现问题。",
+        "followUpFailed": "设置未完成——请在渠道设置中完成。"
+      },
+      "sessionError": {
+        "sessionExpired": "您的会话已过期，请重新连接。",
+        "notMember": "您已不再是该工作区的成员。",
+        "trialExpired": "您的试用期已结束。",
+        "macLimitReached": "您已达到账户上限。",
+        "credentialMissing": "凭据缺失，请重新连接。"
+      },
+      "cancelRemaining": "取消其余项",
+      "retryFailed": "重试（{count}）",
+      "retry": "重试",
+      "goToChannels": "前往渠道",
+      "close": "关闭",
+      "leaveNotice": "您可以离开此页面，已连接的账号将保留",
+      "stepConnecting": "连接中",
+      "stepCoexist": "同步历史记录",
+      "validation": {
+        "min": "至少选择 1 个",
+        "max": "最多可选择 {max} 个",
+        "duplicate": "选择重复"
+      },
+      "progressLabel": "进度"
+    }
   },
   "claude": {
     "autoReply": {
@@ -1171,6 +1234,60 @@
     "exportTakingLongDescription": "导出仍在处理中。您可以关闭此对话框，并在几分钟后返回查看导出历史记录。",
     "linkCopied": "链接已拷贝到剪贴板",
     "title": "联系人"
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
   },
   "coupons": {
     "actions": {
@@ -2071,7 +2188,8 @@
     "javascriptCode": {
       "description": "使用纯 JavaScript 并返回一个值。网络、文件、API 和外部库均不可用。可通过 `input` 对象访问联系人和系统数据。",
       "label": "JavaScript 代码",
-      "placeholder": "return (input.first_name || 'there').toUpperCase()"
+      "placeholder": "return (input.first_name || 'there').toUpperCase()",
+      "objectMapping": "将返回值中的任意 JSON 路径映射到任意自定义字段，方式与外部 API 请求相同。路径和字段由你选择。"
     },
     "jsonPath": {
       "placeholder": "输入 JSON 路径",
@@ -2278,6 +2396,12 @@
     "messengerChannel": {
       "label": "Messenger 频道"
     },
+    "whatsappChannels": {
+      "label": "WhatsApp 渠道"
+    },
+    "messengerChannels": {
+      "label": "Messenger 主页"
+    },
     "messengerTemplateId": {
       "label": "Messenger 范本"
     },
@@ -2363,7 +2487,9 @@
       "used": "已使用"
     },
     "outputCustomField": {
-      "label": "输出自订字段"
+      "label": "输出自订字段",
+      "javascriptOptional": "可选。保存整个返回值。使用上方的 JSON 路径映射写入各个字段。",
+      "javascriptDumpLabel": "完整 JSON 输出（可选）"
     },
     "outputFieldId": {
       "label": "将结果保存到自订字段"
@@ -2513,7 +2639,8 @@
       "location": "位置",
       "number": "号码",
       "phone": "电话",
-      "text": "文本"
+      "text": "文本",
+      "locationDescription": "在 WhatsApp 上，此步骤会发送 Meta 原生的“发送位置”按钮并等待图钉。其他渠道以文本形式发送提示；共享图钉或输入 lat,lng 也可完成该步骤。"
     },
     "requestBody": {
       "keyPlaceholder": "字段",
@@ -2928,6 +3055,26 @@
         "done": "完成"
       }
     },
+    "tokenPermission": {
+      "label": "权限",
+      "full": "完全访问",
+      "readOnly": "只读"
+    },
+    "tokenScopes": {
+      "label": "作用域",
+      "contacts": "联系人",
+      "inbox": "收件箱",
+      "automation": "自动化",
+      "broadcasts": "群发",
+      "analytics": "分析",
+      "ecommerce": "电子商务",
+      "integrations": "集成",
+      "channels": "渠道",
+      "minigames": "小游戏",
+      "appointments": "预约",
+      "media": "媒体",
+      "ads": "广告"
+    },
     "adReferral": {
       "label": "Ads",
       "ctwa": "CTWA",
@@ -2951,27 +3098,7 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
-    "tokenPermission": {
-      "label": "权限",
-      "full": "完全访问",
-      "readOnly": "只读"
-    },
-    "tokenScopes": {
-      "label": "作用域",
-      "contacts": "联系人",
-      "inbox": "收件箱",
-      "automation": "自动化",
-      "broadcasts": "群发",
-      "analytics": "分析",
-      "ecommerce": "电子商务",
-      "integrations": "集成",
-      "channels": "渠道",
-      "minigames": "小游戏",
-      "appointments": "预约",
-      "media": "媒体",
-      "ads": "广告"
-    }
+    "selectOptionsPlaceholder": "Select options"
   },
   "flowAnalytics": {
     "nodes": {
@@ -3239,7 +3366,11 @@
       "tiktokTitleTruncated": "附加按钮后，TikTok 只会发送这条消息的前 40 个字符——其余部分将被截断。"
     },
     "dataWasSaved": "数据已保存",
-    "startNode": "Start"
+    "startNode": "Start",
+    "media": {
+      "stepUnsupportedOnChannel": "此渠道无法发送该类型的媒体，此步骤会被跳过。请删除该步骤，或将节点切换到支持的渠道。",
+      "buttonsSkippedOnChannel": "此渠道无法随媒体消息发送按钮，按钮会被跳过。请改为放在后面的文本步骤中。"
+    }
   },
   "folders": {
     "heading": {
@@ -3350,6 +3481,12 @@
     "tabs": {
       "generalSettings": "常规设置",
       "conversionsApi": "广告优化"
+    },
+    "selectPage": {
+      "noAccountsTitle": "未找到 Instagram 账户",
+      "noAccountsDescription": "在您管理的 Facebook 主页中未找到 Instagram 商业账户。请重新连接 Instagram 并授予所有请求的权限。",
+      "alreadyConnectedNote": "该账户已连接",
+      "tryAgain": "尝试重新连接"
     }
   },
   "instagramCommentAutomation": {
@@ -3762,7 +3899,9 @@
     "waTemplateMpmTooManySections": "多商品按钮最多可包含 10 个版块。请在发布前移除部分版块。",
     "waTemplateMpmTooManyProducts": "多商品按钮总共最多可包含 30 个商品。请在发布前移除部分商品。",
     "waTemplateLtoExpirationRequired": "发送前请为限时优惠选择到期时间。",
-    "waTemplateMpmIncompleteProducts": "每个分组至少需要一个已选择的商品——请删除空行或为其选择商品。"
+    "waTemplateMpmIncompleteProducts": "每个分组至少需要一个已选择的商品——请删除空行或为其选择商品。",
+    "mediaStepUnsupported": "此渠道无法发送该类型的媒体。请删除该步骤，或将此节点指向支持的渠道。",
+    "mediaButtonsUnsupported": "此渠道无法随媒体消息发送按钮。请删除按钮，或将其移到此步骤之后的文本步骤中。"
   },
   "messenger": {
     "botProfile": "机器人个人数据",
@@ -3782,6 +3921,7 @@
         "result": {
           "close": "关闭",
           "succeededTitle": "成功",
+          "pendingTitle": "等待 Meta 审核",
           "title": "拷贝结果"
         },
         "succeededCount": "{count} 频道已成功拷贝",
@@ -3819,7 +3959,6 @@
     "personasDescription": "此设置可让您为机器人设置不同的名称和影像",
     "reconnect": "重新连接",
     "reconnectDescription": "请务必重新连接您的机器人。",
-    "selectFacebookPage": "选择Facebook 页",
     "selectPage": {
       "alreadyConnectedNote": "该页面已连接",
       "bmLookupFailedDescription": "重新连接Messenger 并授予商务管理平台访问权限，以便可以列出通过商务管理平台管理的页面。",
@@ -4894,6 +5033,7 @@
   "validation": {
     "invalidApiKey": "API 密钥无效",
     "maxItemsReached": "最大 {max}{feature}",
+    "maxCharacters": "最多 {max} 个字符。",
     "maxMustBeGreaterThanMin": "{maxField} 必须大于或等于 {minField}",
     "maxSize": "文件大小超出上限"
   },
@@ -5052,14 +5192,7 @@
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "必须提供 WhatsApp Access Token。",
         "appSettingsNotFound": "WhatsApp应用程序设置。",
-        "failedToPersistIntegration": "无法保存WhatsApp 集成。",
-        "noPhoneNumberFound": "找不到 WhatsApp 电话号码。",
-        "noPhoneNumbersFound": "找不到此 WhatsApp 企业帐户的电话号码。",
-        "phoneNumberNotFound": "所选WhatsApp 电话号码找不到。",
-        "unableToVerifyToken": "无法验证WhatsApp 权杖。",
-        "wabaMismatch": "所选WhatsApp 企业帐户与授权不符。",
         "wabaResolveFailed": "无法从授权解析WhatsApp 企业帐号。"
       }
     },
@@ -5080,7 +5213,8 @@
       "qrCodeHint": "扫描 QR Code 以打开 webhook URL",
       "title": "您的 WhatsApp 收件匣已准备好！",
       "verifyToken": "Webhook 验证权杖",
-      "webhookUrl": "Webhook URL"
+      "webhookUrl": "Webhook URL",
+      "multipleTitle": "您的 WhatsApp 收件箱已就绪！"
     },
     "marketingMessageLite": "行销消息 Lite",
     "messageTemplate": {
@@ -5163,7 +5297,8 @@
       "actions": {
         "resendIn": "在 {seconds} 内重新发送",
         "sendCode": "发送代码",
-        "verify": "验证并注册"
+        "verify": "注册",
+        "skip": "跳过"
       },
       "description": "向Meta要求验证码，在此输入验证码，电话号码将自动注册。",
       "errorTitle": "需要电话号码验证",
@@ -5188,7 +5323,8 @@
         "sms": "短信",
         "voice": "语音通话"
       },
-      "title": "验证WhatsApp电话号码"
+      "title": "验证WhatsApp电话号码",
+      "queueProgress": "正在验证 {current}/{total}"
     },
     "reconnect": {
       "errors": {
@@ -5212,7 +5348,6 @@
     "showHeader": {
       "label": "显示标题"
     },
-    "signupSessionExpired": "您的WhatsApp注册会话已过期。请重新开始连接。",
     "tabs": {
       "accountHealths": "帐户健康状况",
       "automation": "自动化",
@@ -5231,15 +5366,12 @@
       "label": "范本标头"
     },
     "transferPhoneNumber": "从其他 Whatsapp 供应商转接电话",
-    "capi": {
-      "automaticEvents": {
-        "title": "Automatic Events",
-        "description": "自动将此 WhatsApp 号码的转化事件发送到 Meta。如果缺少权限,请重新连接账户以授予权限。"
-      }
-    },
     "ecommerce": {
       "title": "Sell your products on WhatsApp",
       "manageProducts": "Manage your products"
+    },
+    "selectPage": {
+      "tryAgain": "尝试重新连接"
     }
   },
   "workspace": {
@@ -5583,10 +5715,19 @@
       "confirmationFlowId": "确认流程",
       "cancellationFlowId": "取消流程",
       "externalConnectionId": "外部日历",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
       "reminders": "提醒",
       "reminderTimingValue": "数值",
       "reminderTimingUnit": "单位"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
     "locationTypes": {
       "inPerson": "线下会面",
       "phoneCall": "电话通话",
@@ -5813,7 +5954,8 @@
       "generalSettingsTitle": "常规设置",
       "appearanceTitle": "外观",
       "playerSettingsTitle": "玩家设置",
-      "prizeSettingsTitle": "奖品设置"
+      "prizeSettingsTitle": "奖品设置",
+      "validationFailed": "保存前请修正标红的字段。"
     },
     "generalSettings": {
       "showName": "可见",
@@ -5821,10 +5963,7 @@
       "rulesDescription": "规则说明",
       "openerTags": "为打开游戏链接的联系人打标签",
       "playerTags": "为参与者打标签",
-      "newFriendTags": "为新好友打标签",
-      "shareEnabled": "允许与好友分享",
-      "shareMessage": "分享消息",
-      "shareMessageHint": "使用 '{{shareUrl}}' 插入实际的游戏链接，请勿删除。"
+      "newFriendTags": "为新好友打标签"
     },
     "appearance": {
       "backgroundColor": "背景颜色",
@@ -5840,6 +5979,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "每人可抽奖次数",
+      "maxSharesPerPerson": "推荐可获得的最多奖励次数",
+      "maxSharesPerPersonHint": "每有一位好友通过该玩家的邀请链接加入并给你发消息，该玩家就多获得 1 次抽奖机会，最多不超过此上限。设为 0 可关闭推荐奖励。奖励次数须在下次重置前使用。",
+      "sharingNode": "分享步骤",
+      "sharingNodeHint": "好友打开该玩家的分享链接时运行的流程步骤。留空则隐藏分享按钮。",
       "resetPolicyLabel": "重置抽奖次数",
       "resetNever": "不重置抽奖次数",
       "resetEveryNDays": "每隔以下天数重置抽奖次数",
@@ -5858,29 +6001,32 @@
       "forbiddenTitle": "访问被拒绝",
       "forbiddenDescription": "此链接无效或已过期。",
       "comingSoonTitle": "即将推出",
-      "comingSoonDescription": "此类型的小游戏暂时无法玩。"
+      "comingSoonDescription": "此类型的小游戏暂时无法玩。",
+      "rateLimited": "请求过于频繁，请稍候再试。"
+    },
+    "list": {
+      "gamesPlayed": "游戏次数",
+      "participants": "参与人数",
+      "winners": "中奖人数",
+      "shares": "推荐人数"
     },
     "history": {
       "title": "历史记录",
       "played": "已玩次数",
       "remaining": "剩余次数",
+      "shares": "推荐人数",
       "openedAt": "首次打开",
       "lastPlayedAt": "最近游玩",
       "unknownContact": "未知联系人",
+      "conversationNotFound": "未找到该联系人的会话",
+      "popupBlocked": "请允许此网站弹出窗口，然后再试一次。",
       "record": "记录",
       "recordDialog": {
         "title": "游戏记录",
         "win": "中奖",
         "lose": "未中奖",
         "empty": "暂无游戏记录"
-      },
-      "conversationNotFound": "未找到该联系人的会话",
-      "popupBlocked": "请允许此网站弹出窗口，然后再试一次。"
-    },
-    "list": {
-      "gamesPlayed": "游戏次数",
-      "participants": "参与人数",
-      "winners": "中奖人数"
+      }
     }
   },
   "userDataWebview": {

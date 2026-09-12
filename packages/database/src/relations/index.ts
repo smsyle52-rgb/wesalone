@@ -29,6 +29,7 @@ import { automationThrottleRelations } from "./automation-throttle"
 import { billableUsageEventRelations } from "./billable-usage-event"
 import { botFieldRelations } from "./bot-field"
 import { broadcastRelations } from "./broadcast"
+import { broadcastTargetRelations } from "./broadcast-target"
 import { coexistSyncRunRelations } from "./coexist-sync-run"
 import { contactRelations } from "./contact"
 import { contactCustomFieldRelations } from "./contact-custom-field"
@@ -57,6 +58,7 @@ import { externalWebhookRelations } from "./external-webhook"
 import { facebookLeadAdsAutomationRelations } from "./facebook-lead-ads-automation"
 import { facebookLeadAdsLeadRelations } from "./facebook-lead-ads-lead"
 import { fbCommentAutomationRelations } from "./fb-comment-automation"
+import { fbCommentAutomationEventRelations } from "./fb-comment-automation-event"
 import { fbCommentAutomationReplyRelations } from "./fb-comment-automation-reply"
 import { fileRelations } from "./file"
 import { flowRelations } from "./flow"
@@ -152,6 +154,7 @@ import { userDeviceTokenRelations } from "./user-device-token"
 import { userPersistentMenuRelations } from "./user-persistent-menu"
 import { webhookRelations } from "./webhook"
 import { webhookExecutionRelations } from "./webhook-execution"
+import { whatsappBusinessAccountRelations } from "./whatsapp-business-account"
 import { whatsappFlowRelations } from "./whatsapp-flow"
 import { whatsappMessageTemplateRelations } from "./whatsapp-message-template"
 import { whatsappSignupSessionRelations } from "./whatsapp-signup-session"
@@ -201,6 +204,7 @@ export const relations = {
   ...customFieldRelations,
   ...dynamicImageRelations,
   ...broadcastRelations,
+  ...broadcastTargetRelations,
   ...inboxTeamRelations,
   ...inboxRelations,
   ...conversationParticipantRelations,
@@ -225,11 +229,13 @@ export const relations = {
   ...facebookLeadAdsAutomationRelations,
   ...facebookLeadAdsLeadRelations,
   ...fbCommentAutomationRelations,
+  ...fbCommentAutomationEventRelations,
   ...fbCommentAutomationReplyRelations,
   ...auditLogRelations,
   ...sessionRelations,
   ...spreadsheetRelations,
   ...whatsappFlowRelations,
+  ...whatsappBusinessAccountRelations,
   ...integrationWhatsappRelations,
   ...whatsappMessageTemplateRelations,
   ...workspaceMemberRelations,

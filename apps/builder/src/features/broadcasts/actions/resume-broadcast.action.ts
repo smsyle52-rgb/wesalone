@@ -1,10 +1,6 @@
 "use server"
 
-import {
-  broadcastService,
-  platformSubscriptionService,
-} from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
+import { broadcastService } from "@chatbotx.io/business"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { workspaceActionClient } from "@/lib/safe-action"
 
@@ -15,18 +11,10 @@ export const resumeBroadcastAction = workspaceActionClient
       bindArgsParsedInputs: [workspaceId, id],
     } = props
 
-    await platformSubscriptionService.assertPaidPlanForWorkspace(workspaceId)
-
-    const result = await broadcastService.resumeSending({
+    // The service owns the transition guard and the audit record — shared
+    // with the public API's `resume` route.
+    return await broadcastService.resumeSending({
       workspaceId,
       broadcastId: id,
     })
-
-    await auditService.record({
-      workspaceId,
-      action: "broadcast_resumed",
-      detail: `resumed a broadcast (#${result.id})`,
-    })
-
-    return result
   })

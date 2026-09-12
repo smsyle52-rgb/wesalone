@@ -1,14 +1,16 @@
 "use server"
 
-import { buildContext } from "@chatbotx.io/business"
+import {
+  buildContext,
+  integrationWhatsappService,
+  whatsappMessageTemplateService,
+} from "@chatbotx.io/business"
 import type { WhatsappAuthValue } from "@chatbotx.io/integration-whatsapp"
 import { zodBigintAsString } from "@chatbotx.io/utils"
-import { findIntegrationWhatsapp } from "@/features/integration-whatsapp/queries"
 import { integrations } from "@/integration"
 import { logger } from "@/lib/log"
 import { workspaceActionClient } from "@/lib/safe-action"
 import { buildWhatsappMessageTemplateComponents } from "../lib/build-template-components"
-import { syncWhatsappMessageTemplatesForIntegration } from "../lib/sync-message-templates"
 import { createWhatsappMessageTemplateRequest } from "../schema/create-message-template"
 
 /**
@@ -27,10 +29,14 @@ export const createWhatsappMessageTemplateAction = workspaceActionClient
 
     // Scoped by workspace AND id: a workspace may have several numbers, and a
     // foreign id must never reach another workspace's WhatsApp account.
-    const integrationWhatsapp = await findIntegrationWhatsapp({
-      workspaceId,
-      id: integrationWhatsappId,
-    })
+    const integrationWhatsapp =
+      await integrationWhatsappService.findByIdForWorkspace({
+        workspaceId,
+        id: integrationWhatsappId,
+      })
+    if (!integrationWhatsapp) {
+      throw new Error("Whatsapp integration not found")
+    }
 
     const ctx = await buildContext({
       workspaceId,
@@ -57,9 +63,13 @@ export const createWhatsappMessageTemplateAction = workspaceActionClient
     // The template already exists at Meta at this point. A failed mirror must
     // not report the creation as failed — "Synchronize" recovers it.
     try {
-      await syncWhatsappMessageTemplatesForIntegration({
-        workspaceId,
-        integrationWhatsapp,
+      const res = await integrations.whatsapp.runAction(
+        "listMessageTemplates",
+        { ctx },
+      )
+      await whatsappMessageTemplateService.syncFromMeta({
+        integrationWhatsappId: integrationWhatsapp.id,
+        templates: res.data,
       })
     } catch (err) {
       logger.warn(

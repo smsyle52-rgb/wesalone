@@ -1,14 +1,48 @@
 import {
   and,
+  type DatabaseClient,
   db,
   eq,
   findOrFail,
   inArray,
   sql,
 } from "@chatbotx.io/database/client"
-import type { IntegrationUserInfo } from "@chatbotx.io/database/partials"
-import { integrationMessengerModel } from "@chatbotx.io/database/schema"
+import {
+  channelTypes,
+  type IntegrationUserInfo,
+  type MessengerPersistentMenu,
+} from "@chatbotx.io/database/partials"
+import { integrationMessengerRepository } from "@chatbotx.io/database/repositories"
+import {
+  integrationMessengerModel,
+  tagChannelModel,
+} from "@chatbotx.io/database/schema"
+import type { IntegrationMessengerModel } from "@chatbotx.io/database/types"
+import { createId } from "@chatbotx.io/utils"
 import { BaseService } from "../base.service"
+import {
+  auditChannelConnected,
+  connectChannelIntegration,
+  runConnectTransaction,
+} from "../inbox/connect-channel"
+import { isWorkspaceAdminMember } from "../workspace-member/predicates"
+import { workspaceMemberService } from "../workspace-member/service"
+
+export type ConnectPageInput = {
+  actorUserId: string
+  ownerId: string
+  workspaceId: string
+  page: { pageId: string; pageName: string }
+  auth: unknown
+  persistentMenus: MessengerPersistentMenu[]
+}
+
+export type ConnectPageResult = {
+  workspaceId: string
+  integrationId: string
+  wasCreated: boolean
+  integration: IntegrationMessengerModel
+}
 
 class MessengerIntegrationService extends BaseService {
   findByInboxId(inboxId: string) {
@@ -124,17 +158,69 @@ class MessengerIntegrationService extends BaseService {
    * `IntegrationMessenger.pageId` is unique platform-wide, so a match means the
    * page cannot be connected again anywhere.
    */
-  async findConnectedPageIds(pageIds: string[]): Promise<string[]> {
-    if (pageIds.length === 0) {
-      return []
+  findConnectedPageIds(pageIds: string[]): Promise<Set<string>> {
+    return integrationMessengerRepository.findConnectedPageIds(pageIds)
+  }
+
+  /**
+   * Persists a Messenger page connect: one `db.transaction` (via
+   * `connectChannelIntegration` → `integrationMessengerRepository.insert`)
+   * that settles with the write — nothing after it may reject, so a
+   * failing audit dispatch is logged, never thrown. Workspace is always
+   * required (the OAuth callback stores it in the cookie before this runs).
+   */
+  async connectPage(input: ConnectPageInput): Promise<ConnectPageResult> {
+    const { integration, wasCreated } = await this.insertPage(input)
+
+    if (wasCreated) {
+      await auditChannelConnected({
+        channel: "messenger",
+        actorUserId: input.actorUserId,
+        workspaceId: input.workspaceId,
+        integrationId: integration.id,
+      })
     }
 
-    const rows = await db
-      .select({ pageId: integrationMessengerModel.pageId })
-      .from(integrationMessengerModel)
-      .where(inArray(integrationMessengerModel.pageId, pageIds))
+    return {
+      workspaceId: input.workspaceId,
+      integrationId: integration.id,
+      wasCreated,
+      integration,
+    }
+  }
 
-    return rows.map((row) => row.pageId)
+  private insertPage(input: ConnectPageInput): Promise<{
+    integration: IntegrationMessengerModel
+    wasCreated: boolean
+  }> {
+    return runConnectTransaction("messenger", async (tx) => {
+      const { integration, wasCreated } = await connectChannelIntegration({
+        tx,
+        ownerId: input.ownerId,
+        inboxData: {
+          id: createId(),
+          workspaceId: input.workspaceId,
+          name: input.page.pageName,
+          channel: "messenger",
+          sourceId: input.page.pageId,
+        },
+        insertIntegration: (inboxId) =>
+          integrationMessengerRepository.insert(
+            {
+              id: createId(),
+              workspaceId: input.workspaceId,
+              inboxId,
+              pageId: input.page.pageId,
+              auth: input.auth,
+              name: input.page.pageName,
+              persistentMenus: input.persistentMenus,
+            },
+            tx,
+          ),
+      })
+
+      return { integration, wasCreated }
+    })
   }
 
   /**
@@ -159,6 +245,124 @@ class MessengerIntegrationService extends BaseService {
       .limit(1)
 
     return rows.length > 0
+  }
+
+  /**
+   * Load by id with NO workspace scope — delegates to the repository.
+   * Callers that separately have a `workspaceId` must compare it themselves
+   * (see `coexist/messenger-sync.ts`'s explicit-mismatch branch); this must
+   * NOT be used as a substitute for `findByIdForWorkspace`.
+   */
+  findById(props: { id: string }) {
+    return integrationMessengerRepository.findById(props)
+  }
+
+  /**
+   * Load by Facebook page id with NO workspace scope — for inbound webhooks
+   * that have not yet resolved a workspace (e.g. inbox-label sync).
+   */
+  findByPageIdUnscoped(props: { pageId: string }) {
+    return integrationMessengerRepository.findByPageIdUnscoped(props)
+  }
+
+  listByWorkspaceIdOrId(
+    where: Partial<Pick<IntegrationMessengerModel, "id" | "workspaceId">>,
+  ) {
+    return db.query.integrationMessengerModel.findMany({
+      where,
+      orderBy: { createdAt: "asc" },
+    })
+  }
+
+  async updateTagSync(props: {
+    workspaceId: string
+    integrationId: string
+    enabled: boolean
+  }): Promise<Date | null> {
+    const updated = await db
+      .update(integrationMessengerModel)
+      .set({ syncTagEnabledAt: props.enabled ? new Date() : null })
+      .where(
+        and(
+          eq(integrationMessengerModel.id, props.integrationId),
+          eq(integrationMessengerModel.workspaceId, props.workspaceId),
+        ),
+      )
+      .returning({
+        syncTagEnabledAt: integrationMessengerModel.syncTagEnabledAt,
+      })
+
+    return updated[0]?.syncTagEnabledAt ?? null
+  }
+
+  async updateProfileFields(
+    props: { id: string },
+    data: Record<string, unknown>,
+    tx: DatabaseClient,
+  ) {
+    await tx
+      .update(integrationMessengerModel)
+      .set(data)
+      .where(eq(integrationMessengerModel.id, props.id))
+  }
+
+  /**
+   * Every Messenger page the user may clone a template onto: the pages of
+   * all workspaces where the user is an admin (owner or `superAdmin`),
+   * minus the source Facebook Page itself — it may be connected in more than
+   * one workspace, so the exclusion is by `pageId`, not by integration id.
+   * The same list feeds the picker and authorizes the clone action; the
+   * action passes `authoritative` so a just-revoked membership can never be
+   * served from cache across a workspace boundary.
+   */
+  async listCloneTargetsForUser(input: {
+    userId: string
+    excludePageId?: string | null
+    /** Read memberships uncached — required whenever the list authorizes a write. */
+    authoritative?: boolean
+  }): Promise<IntegrationMessengerModel[]> {
+    const members = input.authoritative
+      ? await workspaceMemberService.listByUserIdUncached({
+          userId: input.userId,
+        })
+      : await workspaceMemberService.listByUserId({ userId: input.userId })
+    const adminWorkspaceIds = Array.from(
+      new Set(
+        members
+          .filter(isWorkspaceAdminMember)
+          .map((member) => member.workspaceId),
+      ),
+    )
+    if (adminWorkspaceIds.length === 0) {
+      return []
+    }
+
+    return await db.query.integrationMessengerModel.findMany({
+      where: {
+        workspaceId: { in: adminWorkspaceIds },
+        pageId: input.excludePageId ? { ne: input.excludePageId } : undefined,
+      },
+      orderBy: { name: "asc" },
+    })
+  }
+
+  /**
+   * Deletes the integration row and its polymorphic TagChannel entries within
+   * the caller's transaction. Coexist teardown, remote unsubscribe, and inbox
+   * disconnect stay orchestrated by the caller.
+   */
+  async disconnect(props: { id: string; tx: DatabaseClient }) {
+    await props.tx
+      .delete(tagChannelModel)
+      .where(
+        and(
+          eq(tagChannelModel.channelType, channelTypes.enum.messenger),
+          eq(tagChannelModel.integrationId, props.id),
+        ),
+      )
+    await props.tx
+      .delete(integrationMessengerModel)
+      .where(eq(integrationMessengerModel.id, props.id))
   }
 }
 

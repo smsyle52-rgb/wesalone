@@ -243,7 +243,17 @@ class AiAgentService extends BaseService {
     workspaceId: string,
     data: CreateAIAgentRequest,
     tx?: DatabaseClient,
-  ): Promise<void> {
+  ): Promise<string> {
+    const created = await this.createAndReturn(workspaceId, data, tx)
+    return created.id
+  }
+
+  async createAndReturn(
+    workspaceId: string,
+    data: CreateAIAgentRequest,
+    tx?: DatabaseClient,
+  ): Promise<AIAgentModel> {
+    // Wesal One: the plan caps AI agents (shared by the builder and public API).
     await userQuotaService.assertPlanResourceCapacity(workspaceId, "agents")
 
     const id = createId()
@@ -256,35 +266,46 @@ class AiAgentService extends BaseService {
           .where(eq(aiAgentModel.workspaceId, workspaceId))
       }
       const { webSearchAuthorizedDomains, ...rest } = data
-      await client.insert(aiAgentModel).values({
-        ...rest,
-        webSearchAuthorizedDomains: normalizeWebSearchDomains(
-          webSearchAuthorizedDomains,
-        ),
-        workspaceId,
-        id,
-      })
+      const [inserted] = await client
+        .insert(aiAgentModel)
+        .values({
+          ...rest,
+          webSearchAuthorizedDomains: normalizeWebSearchDomains(
+            webSearchAuthorizedDomains,
+          ),
+          workspaceId,
+          id,
+        })
+        .returning()
+      return inserted
     }
 
-    await (tx ? execute(tx) : db.transaction(execute))
+    const created = await (tx ? execute(tx) : db.transaction(execute))
 
     await this.invalidateCacheTags(this.getWorkspaceCacheTag(workspaceId))
 
     if (!tx) {
       await this.audit("create", `created a new AI Agent (#${id})`)
     }
+
+    return created
   }
 
   async updateAIAgent(
     ctx: { workspaceId: string; id: string },
     data: UpdateAIAgentRequest,
-  ): Promise<void> {
+  ): Promise<AIAgentModel> {
     const aiAgent = await this.findBy({
       where: { id: ctx.id, workspaceId: ctx.workspaceId },
     })
 
     if (!aiAgent) {
       throw notFoundException("AI agent not found")
+    }
+
+    const hasChanges = Object.values(data).some((value) => value !== undefined)
+    if (!hasChanges) {
+      return aiAgent
     }
 
     await db.transaction(async (tx) => {
@@ -321,7 +342,7 @@ class AiAgentService extends BaseService {
             : `unset default an AI Agent (#${aiAgent.id})`,
         )
       }
-      return
+      return await this.requireUpdatedAgent(ctx)
     }
 
     const changedGroups: AIAgentChangeGroup[] = []
@@ -349,12 +370,27 @@ class AiAgentService extends BaseService {
         "update",
         `${buildChangeGroupMessage(changedGroups)} (#${aiAgent.id})`,
       )
-      return
+      return await this.requireUpdatedAgent(ctx)
     }
 
     if (hasOtherFieldChanges(aiAgent, data)) {
       await this.audit("update", `updated an AI Agent (#${aiAgent.id})`)
     }
+
+    return await this.requireUpdatedAgent(ctx)
+  }
+
+  private async requireUpdatedAgent(ctx: {
+    workspaceId: string
+    id: string
+  }): Promise<AIAgentModel> {
+    const updated = await this.findBy({
+      where: { id: ctx.id, workspaceId: ctx.workspaceId },
+    })
+    if (!updated) {
+      throw notFoundException("AI agent not found")
+    }
+    return updated
   }
 
   /**

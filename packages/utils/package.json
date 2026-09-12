@@ -23,9 +23,12 @@
     "./custom-field": "./src/custom-field.ts",
     "./datetime": "./src/datetime.ts",
     "./error-log": "./src/error-log.ts",
+    "./graph-error": "./src/graph-error.ts",
     "./id": "./src/id.ts",
     "./meta-capi": "./src/meta-capi.ts",
+    "./referral": "./src/referral.ts",
     "./temporal-input": "./src/temporal-input/index.ts",
+    "./timezone": "./src/timezone.ts",
     "./variables": "./src/variables.ts",
     "./zod": "./src/zod.ts"
   },

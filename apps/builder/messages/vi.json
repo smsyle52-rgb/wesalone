@@ -256,6 +256,7 @@
     "dateFilterPreset": "Bộ lọc ngày đặt sẵn",
     "noResults": "Không có kết quả.",
     "noData": "Không có dữ liệu",
+    "retentionNotice": "Chỉ lưu dữ liệu trong {days} ngày gần nhất.",
     "comingSoon": "Sắp ra mắt",
     "unknown": "Không xác định",
     "pagination": {
@@ -265,10 +266,20 @@
       "firstPage": "Đi tới trang đầu",
       "previousPage": "Đi tới trang trước",
       "nextPage": "Đi tới trang sau",
-      "lastPage": "Đi tới trang cuối"
+      "lastPage": "Đi tới trang cuối",
+      "totalRows": "{total} hàng"
     },
     "sessionsThroughTheRef": "Phiên qua Ref \"{ref}\" mỗi ngày",
-    "sessionsThroughTheMagicLink": "Phiên qua Magic Link \"{ref}\" mỗi ngày"
+    "sessionsThroughTheMagicLink": "Phiên qua Magic Link \"{ref}\" mỗi ngày",
+    "repliesToComments": "Lượt phản hồi bình luận",
+    "repliesByDate": "Phản hồi theo ngày",
+    "userCommentsOnThisPost": "Bình luận của khách trên bài viết",
+    "botRepliesToComments": "Tin nhắn bot đã trả lời",
+    "comment": "Bình luận",
+    "message": "Tin nhắn",
+    "searchByDate": "Tìm theo ngày...",
+    "publicReply": "Trả lời công khai",
+    "privateReply": "Trả lời riêng"
   },
   "flowAnalytics": {
     "nodes": {
@@ -727,7 +738,59 @@
       "resultSuccess": "Đã làm mới {refreshed} channel.",
       "resultWithFailures": "Đã làm mới {refreshed} channel, {failed} bị lỗi."
     },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
+    "connectMany": {
+      "coexist": {
+        "running": "Đang bắt đầu đồng bộ lịch sử…",
+        "done": "Đã bắt đầu đồng bộ lịch sử",
+        "failed": "Đồng bộ lịch sử thất bại"
+      },
+      "selectAll": "Chọn tất cả",
+      "selected": "Đã chọn {count}/{max}",
+      "dialogTitleRunning": "Đang kết nối {count} {feature}…",
+      "dialogTitleDone": "Đã kết nối {connected}/{total}",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "Đã hoàn tất {done}/{total}",
+      "status": {
+        "waiting": "Đang chờ",
+        "connecting": "Đang kết nối…",
+        "connected": "Đã kết nối",
+        "duplicated": "Đã được kết nối",
+        "limitReached": "Đã đạt giới hạn",
+        "failed": "Thất bại",
+        "timedOut": "Hết thời gian chờ",
+        "cancelled": "Đã hủy"
+      },
+      "reason": {
+        "notSelectable": "Không thể chọn mục này.",
+        "channelLimit": "Đã đạt giới hạn kênh.",
+        "workspaceLimit": "Đã đạt giới hạn không gian làm việc.",
+        "providerRejected": "Nhà cung cấp đã từ chối yêu cầu này.",
+        "unknown": "Đã xảy ra lỗi.",
+        "followUpFailed": "Thiết lập chưa hoàn tất — hãy hoàn tất trong cài đặt kênh."
+      },
+      "sessionError": {
+        "sessionExpired": "Phiên của bạn đã hết hạn. Vui lòng kết nối lại.",
+        "notMember": "Bạn không còn là thành viên của không gian làm việc này.",
+        "trialExpired": "Thời gian dùng thử của bạn đã hết hạn.",
+        "macLimitReached": "Bạn đã đạt giới hạn tài khoản.",
+        "credentialMissing": "Thiếu thông tin xác thực. Vui lòng kết nối lại."
+      },
+      "cancelRemaining": "Hủy phần còn lại",
+      "retryFailed": "Thử lại ({count})",
+      "retry": "Thử lại",
+      "goToChannels": "Đến các kênh",
+      "close": "Đóng",
+      "leaveNotice": "Bạn có thể rời đi; các tài khoản đã kết nối vẫn được giữ lại",
+      "stepConnecting": "Đang kết nối",
+      "stepCoexist": "Đồng bộ lịch sử",
+      "validation": {
+        "min": "Chọn ít nhất 1",
+        "max": "Bạn có thể chọn tối đa {max}",
+        "duplicate": "Lựa chọn trùng lặp"
+      },
+      "progressLabel": "Tiến trình"
+    }
   },
   "workspace": {
     "schedule": {
@@ -1357,12 +1420,15 @@
       "label": "Hoạt động"
     },
     "outputCustomField": {
-      "label": "Trường tùy chỉnh đầu ra"
+      "label": "Trường tùy chỉnh đầu ra",
+      "javascriptOptional": "Tùy chọn. Lưu toàn bộ giá trị trả về. Dùng ánh xạ đường dẫn JSON ở trên để ghi từng trường.",
+      "javascriptDumpLabel": "Toàn bộ JSON đầu ra (tùy chọn)"
     },
     "javascriptCode": {
       "label": "Mã JavaScript",
       "placeholder": "return (input.first_name || 'there').toUpperCase()",
-      "description": "Dùng JavaScript thuần túy và trả về một giá trị. Không thể dùng mạng, tệp, API hoặc thư viện bên ngoài. Dữ liệu liên hệ và hệ thống có sẵn trong đối tượng `input`."
+      "description": "Dùng JavaScript thuần túy và trả về một giá trị. Không thể dùng mạng, tệp, API hoặc thư viện bên ngoài. Dữ liệu liên hệ và hệ thống có sẵn trong đối tượng `input`.",
+      "objectMapping": "Ánh xạ bất kỳ đường dẫn JSON nào từ giá trị trả về sang bất kỳ trường tùy chỉnh nào, giống Yêu cầu API bên ngoài. Bạn chọn đường dẫn và trường."
     },
     "httpMethod": {
       "label": "Phương thức"
@@ -1712,7 +1778,8 @@
       "date": "Ngày",
       "datetime": "Ngày giờ",
       "location": "Vị trí",
-      "anyInput": "Mọi định dạng"
+      "anyInput": "Mọi định dạng",
+      "locationDescription": "Trên WhatsApp, bước này gửi nút Gửi vị trí gốc của Meta và chờ ghim. Kênh khác gửi lời nhắc dạng chữ; ghim hoặc lat,lng vẫn hoàn tất bước."
     },
     "workspaceMember": {
       "label": "Thành viên workspace"
@@ -1886,6 +1953,12 @@
     },
     "messengerChannel": {
       "label": "Kênh Messenger"
+    },
+    "whatsappChannels": {
+      "label": "Kênh WhatsApp"
+    },
+    "messengerChannels": {
+      "label": "Trang Messenger"
     },
     "messages": {
       "label": "Tin nhắn"
@@ -2208,6 +2281,26 @@
         "done": "Xong"
       }
     },
+    "tokenPermission": {
+      "label": "Quyền",
+      "full": "Toàn quyền truy cập",
+      "readOnly": "Chỉ đọc"
+    },
+    "tokenScopes": {
+      "label": "Phạm vi",
+      "contacts": "Liên hệ",
+      "inbox": "Hộp thư đến",
+      "automation": "Tự động hóa",
+      "broadcasts": "Phát sóng",
+      "analytics": "Phân tích",
+      "ecommerce": "Thương mại điện tử",
+      "integrations": "Tích hợp",
+      "channels": "Kênh",
+      "minigames": "Minigame",
+      "appointments": "Lịch hẹn",
+      "media": "Phương tiện",
+      "ads": "Quảng cáo"
+    },
     "adReferral": {
       "label": "Ads",
       "ctwa": "CTWA",
@@ -2231,27 +2324,7 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
-    "tokenPermission": {
-      "label": "Quyền",
-      "full": "Toàn quyền truy cập",
-      "readOnly": "Chỉ đọc"
-    },
-    "tokenScopes": {
-      "label": "Phạm vi",
-      "contacts": "Liên hệ",
-      "inbox": "Hộp thư đến",
-      "automation": "Tự động hóa",
-      "broadcasts": "Phát sóng",
-      "analytics": "Phân tích",
-      "ecommerce": "Thương mại điện tử",
-      "integrations": "Tích hợp",
-      "channels": "Kênh",
-      "minigames": "Minigame",
-      "appointments": "Lịch hẹn",
-      "media": "Phương tiện",
-      "ads": "Quảng cáo"
-    }
+    "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
     "export": {
@@ -2506,7 +2579,11 @@
       "tiktokTitleTruncated": "Khi có gắn nút, TikTok chỉ gửi tối đa 40 ký tự đầu của tin nhắn này — phần còn lại sẽ bị cắt bỏ."
     },
     "dataWasSaved": "Đã lưu dữ liệu",
-    "startNode": "Start"
+    "startNode": "Start",
+    "media": {
+      "stepUnsupportedOnChannel": "Kênh này không gửi được loại media này — bước sẽ bị bỏ qua. Hãy xoá bước, hoặc đổi node sang kênh có hỗ trợ.",
+      "buttonsSkippedOnChannel": "Kênh này không gửi được nút kèm tin nhắn media — các nút sẽ bị bỏ qua. Hãy đặt chúng ở bước văn bản ngay sau."
+    }
   },
   "folders": {
     "heading": {
@@ -3192,7 +3269,9 @@
     "waTemplateMpmTooManySections": "Nút đa sản phẩm chỉ được có tối đa 10 phần. Hãy xóa bớt phần trước khi xuất bản.",
     "waTemplateMpmTooManyProducts": "Nút đa sản phẩm chỉ được có tối đa 30 sản phẩm. Hãy xóa bớt sản phẩm trước khi xuất bản.",
     "waTemplateLtoExpirationRequired": "Chọn thời điểm hết hạn cho ưu đãi có thời hạn trước khi gửi.",
-    "waTemplateMpmIncompleteProducts": "Mỗi nhóm cần ít nhất một sản phẩm đã chọn — xóa dòng trống hoặc chọn sản phẩm cho dòng đó."
+    "waTemplateMpmIncompleteProducts": "Mỗi nhóm cần ít nhất một sản phẩm đã chọn — xóa dòng trống hoặc chọn sản phẩm cho dòng đó.",
+    "mediaStepUnsupported": "Kênh này không gửi được loại media này. Hãy xoá bước, hoặc trỏ node này sang kênh có hỗ trợ.",
+    "mediaButtonsUnsupported": "Kênh này không gửi được nút kèm tin nhắn media. Hãy xoá các nút, hoặc chuyển sang một bước văn bản ngay sau bước này."
   },
   "instagram": {
     "description": "Tích hợp này cho phép bạn tạo bot Instagram.",
@@ -3204,6 +3283,12 @@
     "tabs": {
       "generalSettings": "Cài đặt chung",
       "conversionsApi": "Tối ưu quảng cáo"
+    },
+    "selectPage": {
+      "noAccountsTitle": "Không tìm thấy tài khoản Instagram",
+      "noAccountsDescription": "Không tìm thấy tài khoản Instagram Doanh nghiệp nào trên các Trang Facebook bạn quản lý. Hãy kết nối lại Instagram và cấp tất cả quyền được yêu cầu.",
+      "alreadyConnectedNote": "Tài khoản này đã được kết nối",
+      "tryAgain": "Kết nối lại"
     }
   },
   "coexist": {
@@ -3249,7 +3334,6 @@
     "defaultPersona": "Nhân cách mặc định",
     "reconnect": "Kết nối lại",
     "reconnectDescription": "Luôn kết nối lại bot của bạn nếu bot Messenger không phản hồi, hoặc nếu bạn thấy bất kỳ lỗi quyền nào trong nhật ký lỗi.",
-    "selectFacebookPage": "Chọn trang Facebook",
     "selectPage": {
       "noPagesTitle": "Không tìm thấy trang Facebook",
       "noPagesDescription": "Các trang nằm trong Business Manager cần được cấp quyền Business Manager khi kết nối. Hãy kết nối lại Messenger và cấp tất cả quyền được yêu cầu.",
@@ -3303,6 +3387,7 @@
         "result": {
           "title": "Kết quả nhân bản",
           "succeededTitle": "Thành công",
+          "pendingTitle": "Đang chờ Meta duyệt",
           "close": "Đóng"
         }
       }
@@ -3513,6 +3598,7 @@
   "validation": {
     "maxSize": "Kích thước tệp vượt quá giới hạn tối đa",
     "maxItemsReached": "Tối đa {max} {feature} cho mỗi workspace",
+    "maxCharacters": "Tối đa {max} ký tự.",
     "invalidApiKey": "API key không hợp lệ",
     "maxMustBeGreaterThanMin": "{maxField} phải lớn hơn hoặc bằng {minField}"
   },
@@ -3562,7 +3648,8 @@
       "verifyToken": "Mã xác minh webhook",
       "qrCodeHint": "Quét mã QR để mở URL webhook",
       "moreSettings": "Cài đặt thêm",
-      "goToInbox": "Đưa tôi đến đó"
+      "goToInbox": "Đưa tôi đến đó",
+      "multipleTitle": "Hộp thư WhatsApp của bạn đã sẵn sàng!"
     },
     "phoneVerification": {
       "title": "Xác minh số điện thoại WhatsApp",
@@ -3575,7 +3662,8 @@
       "actions": {
         "sendCode": "Gửi mã",
         "resendIn": "Gửi lại sau {seconds}s",
-        "verify": "Xác minh và đăng ký"
+        "verify": "Đăng ký",
+        "skip": "Bỏ qua"
       },
       "fields": {
         "code": {
@@ -3593,18 +3681,12 @@
         "codeNotSent": "Không gửi được mã xác minh WhatsApp.",
         "codeNotVerified": "Không xác minh được mã WhatsApp.",
         "registrationFailed": "Xác minh số điện thoại WhatsApp không thành công."
-      }
+      },
+      "queueProgress": "Đang xác minh {current}/{total}"
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "Thiếu access token WhatsApp.",
         "appSettingsNotFound": "Không tìm thấy cấu hình ứng dụng WhatsApp.",
-        "failedToPersistIntegration": "Không lưu được kết nối WhatsApp.",
-        "noPhoneNumberFound": "Không tìm thấy số điện thoại WhatsApp.",
-        "noPhoneNumbersFound": "Không tìm thấy số điện thoại trong WhatsApp Business Account này.",
-        "phoneNumberNotFound": "Không tìm thấy số điện thoại WhatsApp đã chọn.",
-        "unableToVerifyToken": "Không xác minh được token WhatsApp.",
-        "wabaMismatch": "WhatsApp Business Account đã chọn không khớp với quyền đã cấp.",
         "wabaResolveFailed": "Không xác định được WhatsApp Business Account từ quyền đã cấp."
       }
     },
@@ -3846,16 +3928,12 @@
       "label": "Tiêu đề mẫu"
     },
     "transferPhoneNumber": "Chuyển số điện thoại từ nhà cung cấp WhatsApp khác",
-    "signupSessionExpired": "Phiên đăng ký WhatsApp đã hết hạn. Vui lòng bắt đầu kết nối lại.",
-    "capi": {
-      "automaticEvents": {
-        "title": "Automatic Events",
-        "description": "Tự động gửi sự kiện chuyển đổi từ số WhatsApp này đến Meta. Nếu thiếu quyền, hãy kết nối lại tài khoản để cấp quyền."
-      }
-    },
     "ecommerce": {
       "title": "Sell your products on WhatsApp",
       "manageProducts": "Manage your products"
+    },
+    "selectPage": {
+      "tryAgain": "Kết nối lại"
     }
   },
   "zalo": {
@@ -3967,6 +4045,60 @@
     "countExact": "{count} liên hệ",
     "countCapped": "{count}+ liên hệ",
     "exportAllNotice": "Tất cả liên hệ khớp với bộ lọc hiện tại sẽ được xuất."
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Nhập từ tệp",
+      "automaticScan": "Quét Khách Hàng Tự Động"
+    },
+    "title": "Quét Khách Hàng Tự Động",
+    "submit": "Quét tự động",
+    "fields": {
+      "inbox": "Hộp thư",
+      "scanFrom": "Quét Inbox từ thời gian"
+    },
+    "hint": {
+      "range": "Hệ thống sẽ quét khách hàng đã từng inbox page từ {from} đến hiện tại.",
+      "beforeChoose": "Sau khi quét, bạn phải chờ sau 24h tiếp theo mới tiếp tục sử dụng được tính năng này."
+    },
+    "status": {
+      "idle": "Chưa có lượt quét nào được chạy cho hộp thư này. Chọn ngày bắt đầu và chạy lượt Quét khách hàng tự động đầu tiên.",
+      "running": "Hệ thống đang tự động quét, thời gian ước tính hoàn thành vào lúc {eta}",
+      "nextScan": "Thời gian quét tiếp theo: {at}",
+      "finished": "Hệ thống đã hoàn thành yêu cầu quét khách hàng lần cuối vào lúc {at}.",
+      "total": "Tổng số khách hàng quét được: {count}",
+      "waitCooldown": "Bạn phải chờ sau 24h tiếp theo mới tiếp tục sử dụng được tính năng này.",
+      "failed": "Lượt quét gần nhất đã thất bại. Bạn có thể thử lại sau khi hết thời gian chờ.",
+      "partial": "Lượt quét gần nhất chỉ hoàn tất một phần — một số cuộc hội thoại không thể nhập được."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Thời gian quét từ phải ở trong quá khứ.",
+      "contactScanInboxNotFound": "Không tìm thấy hộp thư.",
+      "contactScanChannelUnsupported": "Kênh này không hỗ trợ Quét khách hàng tự động.",
+      "contactScanIntegrationDisconnected": "Hộp thư này chưa được kết nối.",
+      "contactScanCooldown": "Hộp thư này vừa được quét gần đây. Vui lòng đợi trước khi quét lại.",
+      "contactScanAlreadyRunning": "Đã có một lượt quét đang chạy cho hộp thư này.",
+      "contactScanForbidden": "Bạn không có quyền chạy Quét khách hàng tự động."
+    },
+    "histories": {
+      "title": "Lịch sử quét",
+      "columns": {
+        "channel": "Kênh",
+        "scanFrom": "Quét từ",
+        "importedContacts": "Liên hệ đã nhập",
+        "scannedConversations": "Cuộc hội thoại đã quét",
+        "finishedAt": "Hoàn tất lúc",
+        "error": "Lỗi"
+      },
+      "status": {
+        "init": "Đang chờ",
+        "running": "Đang chạy",
+        "succeeded": "Thành công",
+        "partial": "Một phần",
+        "failed": "Thất bại"
+      },
+      "empty": "Chưa có lượt quét nào được chạy."
+    }
   },
   "errorLogs": {
     "title": "Nhật ký lỗi",
@@ -4691,10 +4823,19 @@
       "confirmationFlowId": "Flow xác nhận",
       "cancellationFlowId": "Flow huỷ lịch",
       "externalConnectionId": "Lịch bên ngoài",
+      "externalEventTitleTemplate": "Mẫu tiêu đề sự kiện",
+      "externalEventDescriptionTemplate": "Mẫu mô tả sự kiện",
+      "externalEventAttendeesTemplate": "Mẫu người tham dự",
       "reminders": "Nhắc hẹn",
       "reminderTimingValue": "Giá trị",
       "reminderTimingUnit": "Đơn vị"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Lịch hẹn: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Thêm chi tiết lịch hẹn hoặc biến",
+      "externalEventAttendeesTemplate": "mot@example.com, hai@example.com"
+    },
+    "externalEventDisclosure": "Giá trị mẫu và người tham dự sẽ được chia sẻ với Google Calendar đã kết nối. Người tham dự sẽ nhận lời mời và cập nhật huỷ lịch từ Google.",
     "locationTypes": {
       "inPerson": "Gặp trực tiếp",
       "phoneCall": "Gọi điện thoại",
@@ -5837,7 +5978,8 @@
       "generalSettingsTitle": "Thiết lập chung",
       "appearanceTitle": "Giao diện",
       "playerSettingsTitle": "Cài đặt người chơi",
-      "prizeSettingsTitle": "Thiết lập giải thưởng"
+      "prizeSettingsTitle": "Thiết lập giải thưởng",
+      "validationFailed": "Vui lòng sửa các trường được đánh dấu trước khi lưu."
     },
     "generalSettings": {
       "showName": "Hiển thị",
@@ -5845,10 +5987,7 @@
       "rulesDescription": "Mô tả thể lệ",
       "openerTags": "Gắn thẻ liên hệ mở link minigame",
       "playerTags": "Gắn thẻ người chơi",
-      "newFriendTags": "Gắn thẻ bạn bè mới",
-      "shareEnabled": "Cho phép chia sẻ với bạn bè",
-      "shareMessage": "Nội dung chia sẻ",
-      "shareMessageHint": "Sử dụng '{{shareUrl}}' để chèn link minigame thực tế — vui lòng không xóa nó."
+      "newFriendTags": "Gắn thẻ bạn bè mới"
     },
     "appearance": {
       "backgroundColor": "Màu nền",
@@ -5864,6 +6003,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "Số lượt quay may mắn mỗi người",
+      "maxSharesPerPerson": "Số lượt thưởng tối đa từ giới thiệu",
+      "maxSharesPerPersonHint": "Mỗi người bạn tham gia qua link mời của người chơi này và nhắn tin cho bạn sẽ giúp họ nhận thêm 1 lượt, tối đa bằng giới hạn này. Đặt 0 để tắt thưởng giới thiệu. Lượt thưởng phải dùng trước lần đặt lại kế tiếp.",
+      "sharingNode": "Bước chia sẻ",
+      "sharingNodeHint": "Bước flow sẽ chạy khi một người bạn mở link chia sẻ của người chơi này. Để trống để ẩn nút Chia sẻ.",
       "resetPolicyLabel": "Đặt lại lượt quay",
       "resetNever": "Không đặt lại số lượt quay",
       "resetEveryNDays": "Đặt lại số lượt quay mỗi",
@@ -5882,29 +6025,32 @@
       "forbiddenTitle": "Không có quyền truy cập",
       "forbiddenDescription": "Liên kết này không hợp lệ hoặc đã hết hạn.",
       "comingSoonTitle": "Sắp ra mắt",
-      "comingSoonDescription": "Loại minigame này chưa thể chơi được."
+      "comingSoonDescription": "Loại minigame này chưa thể chơi được.",
+      "rateLimited": "Bạn thao tác quá nhanh. Vui lòng đợi một lát rồi thử lại."
+    },
+    "list": {
+      "gamesPlayed": "Lượt chơi",
+      "participants": "Người tham gia",
+      "winners": "Người thắng cuộc",
+      "shares": "Lượt giới thiệu"
     },
     "history": {
       "title": "Lịch sử",
       "played": "Lượt đã chơi",
       "remaining": "Lượt còn lại",
+      "shares": "Lượt giới thiệu",
       "openedAt": "Mở lần đầu",
       "lastPlayedAt": "Chơi gần nhất",
       "unknownContact": "Liên hệ không xác định",
+      "conversationNotFound": "Không tìm thấy cuộc trò chuyện nào cho liên hệ này",
+      "popupBlocked": "Vui lòng cho phép cửa sổ bật lên cho trang này rồi thử lại.",
       "record": "Bản ghi",
       "recordDialog": {
         "title": "Bản ghi lượt chơi",
         "win": "Trúng thưởng",
         "lose": "Không trúng",
         "empty": "Chưa có bản ghi lượt chơi nào"
-      },
-      "conversationNotFound": "Không tìm thấy cuộc trò chuyện nào cho liên hệ này",
-      "popupBlocked": "Vui lòng cho phép cửa sổ bật lên cho trang này rồi thử lại."
-    },
-    "list": {
-      "gamesPlayed": "Lượt chơi",
-      "participants": "Người tham gia",
-      "winners": "Người thắng cuộc"
+      }
     }
   },
   "mediaLibrary": {

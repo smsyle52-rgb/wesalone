@@ -3,10 +3,23 @@ import {
   parseLiveCount,
   tenantService,
   userQuotaService,
+  userService,
   WORKSPACE_USAGE_LABEL,
   workspaceUsageService,
 } from "@chatbotx.io/business"
-import { count, db, eq, sql } from "@chatbotx.io/database/client"
+// NOTE: this handler is only partially migrated to the service layer — the
+// ghost-id existence check now goes through `userService.listExistingIds`,
+// but the reconcile/count/upsert queries below still use `db` directly.
+// That's an intentional legacy exception (see `.agents/rules/data-access.md`
+// § "Existing exceptions"), not an inconsistency to "fix" incidentally —
+// migrating the rest is separate scope.
+import {
+  count,
+  db,
+  eq,
+  isForeignKeyViolationError,
+  sql,
+} from "@chatbotx.io/database/client"
 import {
   contactModel,
   inboxModel,
@@ -79,7 +92,23 @@ export const syncUserQuota = async (): Promise<void> => {
   const BATCH_SIZE = 50
   for (let i = 0; i < allUserIds.length; i += BATCH_SIZE) {
     const batch = allUserIds.slice(i, i + BATCH_SIZE)
-    await Promise.all(batch.map(reconcileUser))
+
+    // A live-counter key can outlive the user it belonged to: deleting a User
+    // cascades its `UserQuota` row but not the Redis key. Reconciling such a
+    // ghost id would violate the `UserQuota → User` foreign key on every run, so
+    // filter the batch against the User table (one indexed lookup per 50 ids)
+    // and drop the stale keys instead of walking them again.
+    const existingIds = new Set(await userService.listExistingIds(batch))
+
+    await Promise.all(
+      batch
+        .filter((id) => !existingIds.has(id))
+        .map((id) => userQuotaService.clearLiveCounters(id)),
+    )
+
+    await Promise.all(
+      batch.filter((id) => existingIds.has(id)).map(reconcileUser),
+    )
   }
 }
 
@@ -298,6 +327,18 @@ export const reconcileUser = async (userId: string): Promise<void> => {
 
     await userQuotaService.invalidate(userId)
   } catch (err) {
+    // A user deleted between the existence filter and this upsert races the
+    // `UserQuota → User` foreign key (covers both the per-user insert and the
+    // owner-pool insert). Treat it as a benign skip: clear the stale live key so
+    // the next run doesn't walk the ghost again, and don't raise an error.
+    if (isForeignKeyViolationError(err, "UserQuota_userId_User_id_fkey")) {
+      await userQuotaService.clearLiveCounters(userId)
+      logger.info(
+        { userId },
+        "user-quota: skipped reconcile for a user that no longer exists",
+      )
+      return
+    }
     logger.error({ err, userId }, "user-quota: failed to reconcile user quota")
   }
 }

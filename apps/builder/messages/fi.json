@@ -256,6 +256,7 @@
     "dateFilterPreset": "Päivämääräsuodattimen esiasetus",
     "noResults": "Ei tuloksia.",
     "noData": "Ei tietoja",
+    "retentionNotice": "Vain viimeisten {days} päivän tiedot säilytetään.",
     "comingSoon": "Tulossa pian",
     "unknown": "Tuntematon",
     "pagination": {
@@ -265,10 +266,20 @@
       "firstPage": "Siirry ensimmäiselle sivulle",
       "previousPage": "Siirry edelliselle sivulle",
       "nextPage": "Siirry seuraavalle sivulle",
-      "lastPage": "Siirry viimeiselle sivulle"
+      "lastPage": "Siirry viimeiselle sivulle",
+      "totalRows": "{total} riviä"
     },
     "sessionsThroughTheRef": "Istunnot viitteen \"{ref}\" kautta päivässä",
-    "sessionsThroughTheMagicLink": "Istunnot taikalinkin \"{ref}\" kautta päivässä"
+    "sessionsThroughTheMagicLink": "Istunnot taikalinkin \"{ref}\" kautta päivässä",
+    "repliesToComments": "Vastaukset kommentteihin",
+    "repliesByDate": "Vastaukset päivittäin",
+    "userCommentsOnThisPost": "Käyttäjien kommentit tässä julkaisussa",
+    "botRepliesToComments": "Botin vastaukset kommentteihin",
+    "comment": "Kommentti",
+    "message": "Viesti",
+    "searchByDate": "Hae päivämäärällä...",
+    "publicReply": "Julkinen vastaus",
+    "privateReply": "Yksityinen vastaus"
   },
   "flowAnalytics": {
     "nodes": {
@@ -1298,12 +1309,15 @@
       "label": "Operaatio"
     },
     "outputCustomField": {
-      "label": "Tulosteen mukautettu kenttä"
+      "label": "Tulosteen mukautettu kenttä",
+      "javascriptOptional": "Valinnainen. Tallentaa koko paluuarvon. Kirjoita yksittäiset kentät yllä olevalla JSON-polkukartoituksella.",
+      "javascriptDumpLabel": "Koko JSON-tuloste (valinnainen)"
     },
     "javascriptCode": {
       "label": "JavaScript-koodi",
       "placeholder": "return (input.first_name || 'there').toUpperCase()",
-      "description": "Käytä puhdasta JavaScriptiä ja palauta arvo. Verkko, tiedostot, API:t ja ulkoiset kirjastot eivät ole käytettävissä. Yhteystiedot ja järjestelmätiedot ovat saatavilla `input`-objektissa."
+      "description": "Käytä puhdasta JavaScriptiä ja palauta arvo. Verkko, tiedostot, API:t ja ulkoiset kirjastot eivät ole käytettävissä. Yhteystiedot ja järjestelmätiedot ovat saatavilla `input`-objektissa.",
+      "objectMapping": "Kartoita mikä tahansa JSON-polku paluuarvosta mihin tahansa mukautettuun kenttään, samoin kuin ulkoisessa API-pyynnössä. Sinä valitset polut ja kentät."
     },
     "httpMethod": {
       "label": "Menetelmä"
@@ -1659,7 +1673,8 @@
       "date": "Päivämäärä",
       "datetime": "Päivämäärä ja aika",
       "location": "Sijainti",
-      "anyInput": "Mikä tahansa syöte"
+      "anyInput": "Mikä tahansa syöte",
+      "locationDescription": "WhatsAppissa tämä lähettää Metan alkuperäisen Lähetä sijainti -painikkeen ja odottaa nastaa. Muut kanavat lähettävät kehotteen tekstinä; jaettu nasta tai kirjoitettu lat,lng suorittaa vaiheen myös."
     },
     "workspaceMember": {
       "label": "Työtilan jäsen"
@@ -1793,6 +1808,12 @@
     },
     "messengerChannel": {
       "label": "Messenger-kanava"
+    },
+    "whatsappChannels": {
+      "label": "WhatsApp-kanavat"
+    },
+    "messengerChannels": {
+      "label": "Messenger-sivut"
     },
     "messages": {
       "label": "Viestit"
@@ -2122,6 +2143,26 @@
         "done": "Valmis"
       }
     },
+    "tokenPermission": {
+      "label": "Käyttöoikeus",
+      "full": "Täysi käyttöoikeus",
+      "readOnly": "Vain luku"
+    },
+    "tokenScopes": {
+      "label": "Käyttöoikeudet",
+      "contacts": "Yhteystiedot",
+      "inbox": "Saapuneet",
+      "automation": "Automaatio",
+      "broadcasts": "Joukkoviestit",
+      "analytics": "Analytiikka",
+      "ecommerce": "Verkkokauppa",
+      "integrations": "Integraatiot",
+      "channels": "Kanavat",
+      "minigames": "Minipelit",
+      "appointments": "Tapaamiset",
+      "media": "Media",
+      "ads": "Mainokset"
+    },
     "adReferral": {
       "label": "Ads",
       "ctwa": "CTWA",
@@ -2145,27 +2186,7 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
-    "tokenPermission": {
-      "label": "Käyttöoikeus",
-      "full": "Täysi käyttöoikeus",
-      "readOnly": "Vain luku"
-    },
-    "tokenScopes": {
-      "label": "Käyttöoikeudet",
-      "contacts": "Yhteystiedot",
-      "inbox": "Saapuneet",
-      "automation": "Automaatio",
-      "broadcasts": "Joukkoviestit",
-      "analytics": "Analytiikka",
-      "ecommerce": "Verkkokauppa",
-      "integrations": "Integraatiot",
-      "channels": "Kanavat",
-      "minigames": "Minipelit",
-      "appointments": "Tapaamiset",
-      "media": "Media",
-      "ads": "Mainokset"
-    }
+    "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
     "export": {
@@ -2420,7 +2441,11 @@
       "tiktokTitleTruncated": "Kun painikkeita on liitetty, TikTok lähettää vain tämän viestin ensimmäiset 40 merkkiä — loput katkaistaan."
     },
     "dataWasSaved": "Tiedot tallennettiin",
-    "startNode": "Start"
+    "startNode": "Start",
+    "media": {
+      "stepUnsupportedOnChannel": "Tämä kanava ei voi lähettää tätä mediatyyppiä – vaihe ohitetaan siellä. Poista se tai vaihda solmun kanava sellaiseen, joka tukee sitä.",
+      "buttonsSkippedOnChannel": "Tämä kanava ei voi lähettää painikkeita mediaviestin mukana – ne ohitetaan siellä. Sijoita ne sen sijaan seuraavaan tekstivaiheeseen."
+    }
   },
   "folders": {
     "heading": {
@@ -3012,7 +3037,59 @@
       "resultSuccess": "Päivitettiin {refreshed} kanava(a).",
       "resultWithFailures": "Päivitettiin {refreshed} kanava(a), {failed} epäonnistui."
     },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
+    "connectMany": {
+      "coexist": {
+        "running": "Aloitetaan historian synkronointia…",
+        "done": "Historian synkronointi aloitettu",
+        "failed": "Historian synkronointi epäonnistui"
+      },
+      "selectAll": "Valitse kaikki",
+      "selected": "{count}/{max} valittu",
+      "dialogTitleRunning": "Yhdistetään {count} {feature}…",
+      "dialogTitleDone": "Yhdistetty {connected}/{total}",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "{done}/{total} valmiina",
+      "status": {
+        "waiting": "Odottaa",
+        "connecting": "Yhdistetään…",
+        "connected": "Yhdistetty",
+        "duplicated": "Jo yhdistetty",
+        "limitReached": "Raja saavutettu",
+        "failed": "Epäonnistui",
+        "timedOut": "Aikakatkaisu",
+        "cancelled": "Peruttu"
+      },
+      "reason": {
+        "notSelectable": "Tätä kohdetta ei voi valita.",
+        "channelLimit": "Kanavaraja saavutettu.",
+        "workspaceLimit": "Työtilan raja saavutettu.",
+        "providerRejected": "Palveluntarjoaja hylkäsi pyynnön.",
+        "unknown": "Jotain meni pieleen.",
+        "followUpFailed": "Asetus on kesken – viimeistele kanavan asetuksista."
+      },
+      "sessionError": {
+        "sessionExpired": "Istuntosi vanheni. Yhdistä uudelleen.",
+        "notMember": "Et ole enää tämän työtilan jäsen.",
+        "trialExpired": "Kokeilujaksosi on päättynyt.",
+        "macLimitReached": "Olet saavuttanut tilisi rajan.",
+        "credentialMissing": "Tunnukset puuttuvat. Yhdistä uudelleen."
+      },
+      "cancelRemaining": "Peruuta loput",
+      "retryFailed": "Yritä uudelleen ({count})",
+      "retry": "Yritä uudelleen",
+      "goToChannels": "Siirry kanaviin",
+      "close": "Sulje",
+      "leaveNotice": "Voit poistua; yhdistetyt tilit säilyvät",
+      "stepConnecting": "Yhdistäminen",
+      "stepCoexist": "Synkronoi historia",
+      "validation": {
+        "min": "Valitse vähintään 1",
+        "max": "Voit valita enintään {max}",
+        "duplicate": "Kaksoisvalinta"
+      },
+      "progressLabel": "Edistyminen"
+    }
   },
   "workspace": {
     "schedule": {
@@ -3192,7 +3269,9 @@
     "waTemplateMpmTooManySections": "Usean tuotteen painikkeessa voi olla enintään 10 osiota. Poista osioita ennen julkaisua.",
     "waTemplateMpmTooManyProducts": "Usean tuotteen painikkeessa voi olla yhteensä enintään 30 tuotetta. Poista tuotteita ennen julkaisua.",
     "waTemplateLtoExpirationRequired": "Valitse määräaikaisen tarjouksen päättymisaika ennen lähettämistä.",
-    "waTemplateMpmIncompleteProducts": "Jokaisessa osiossa on oltava vähintään yksi valittu tuote — poista tyhjät rivit tai valitse niille tuote."
+    "waTemplateMpmIncompleteProducts": "Jokaisessa osiossa on oltava vähintään yksi valittu tuote — poista tyhjät rivit tai valitse niille tuote.",
+    "mediaStepUnsupported": "Tämä kanava ei voi lähettää tätä mediatyyppiä. Poista vaihe tai osoita tämä solmu kanavalle, joka tukee sitä.",
+    "mediaButtonsUnsupported": "Tämä kanava ei voi lähettää painikkeita mediaviestin mukana. Poista painikkeet tai siirrä ne tämän jälkeiseen tekstivaiheeseen."
   },
   "instagram": {
     "description": "Tämän integraation avulla voit luoda Instagram-botteja.",
@@ -3204,6 +3283,12 @@
     "tabs": {
       "generalSettings": "Yleiset asetukset",
       "conversionsApi": "Mainosten optimointi"
+    },
+    "selectPage": {
+      "noAccountsTitle": "Instagram-tilejä ei löytynyt",
+      "noAccountsDescription": "Hallinnoimiltasi Facebook-sivuilta ei löytynyt Instagram-yritystilejä. Yhdistä Instagram uudelleen ja myönnä kaikki pyydetyt käyttöoikeudet.",
+      "alreadyConnectedNote": "Tämä tili on jo yhdistetty",
+      "tryAgain": "Yritä yhdistää uudelleen"
     }
   },
   "coexist": {
@@ -3249,7 +3334,6 @@
     "defaultPersona": "Oletuspersoona",
     "reconnect": "Yhdistä uudelleen",
     "reconnectDescription": "Yhdistä botti aina uudelleen, jos Messenger-bottisi ei vastaa tai jos virhelokissa näkyy käyttöoikeusvirheitä.",
-    "selectFacebookPage": "Valitse Facebook-sivu",
     "selectPage": {
       "noPagesTitle": "Facebook-sivuja ei löytynyt",
       "noPagesDescription": "Business Managerin sivut edellyttävät Business Manager -käyttöoikeutta yhdistämisen aikana. Yhdistä Messenger uudelleen ja myönnä kaikki pyydetyt oikeudet.",
@@ -3303,6 +3387,7 @@
         "result": {
           "title": "Kloonauksen tulokset",
           "succeededTitle": "Onnistui",
+          "pendingTitle": "Odottaa Metan tarkistusta",
           "close": "Sulje"
         }
       }
@@ -3513,6 +3598,7 @@
   "validation": {
     "maxSize": "Tiedoston koko ylittää enimmäisrajan",
     "maxItemsReached": "Työtilassa sallitaan enintään {max} kohdetta {feature}",
+    "maxCharacters": "Enintään {max} merkkiä.",
     "invalidApiKey": "Virheellinen API-avain",
     "maxMustBeGreaterThanMin": "Kentän {maxField} arvon on oltava vähintään kentän {minField} arvo"
   },
@@ -3562,7 +3648,8 @@
       "verifyToken": "Webhook-vahvistustunnus",
       "qrCodeHint": "Avaa webhook-URL skannaamalla QR-koodi",
       "moreSettings": "Lisää asetuksia",
-      "goToInbox": "Siirry sinne"
+      "goToInbox": "Siirry sinne",
+      "multipleTitle": "WhatsApp-postilaatikkosi ovat valmiit!"
     },
     "phoneVerification": {
       "title": "Vahvista WhatsApp-puhelinnumero",
@@ -3575,7 +3662,8 @@
       "actions": {
         "sendCode": "Lähetä koodi",
         "resendIn": "Lähetä uudelleen {seconds} s kuluttua",
-        "verify": "Vahvista ja rekisteröi"
+        "verify": "Rekisteröi",
+        "skip": "Ohita"
       },
       "fields": {
         "code": {
@@ -3593,18 +3681,12 @@
         "codeNotSent": "WhatsApp-vahvistuskoodia ei voitu lähettää.",
         "codeNotVerified": "WhatsApp-vahvistuskoodia ei voitu vahvistaa.",
         "registrationFailed": "WhatsApp-puhelinnumeron vahvistus epäonnistui."
-      }
+      },
+      "queueProgress": "Vahvistetaan {current}/{total}"
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "WhatsApp-käyttöoikeustunnus vaaditaan.",
         "appSettingsNotFound": "WhatsApp-sovelluksen asetuksia ei löytynyt.",
-        "failedToPersistIntegration": "WhatsApp-integraation tallentaminen epäonnistui.",
-        "noPhoneNumberFound": "WhatsApp-puhelinnumeroa ei löytynyt.",
-        "noPhoneNumbersFound": "Tälle WhatsApp Business -tilille ei löytynyt puhelinnumeroita.",
-        "phoneNumberNotFound": "Valittua WhatsApp-puhelinnumeroa ei löytynyt.",
-        "unableToVerifyToken": "WhatsApp-tunnusta ei voitu vahvistaa.",
-        "wabaMismatch": "Valittu WhatsApp Business -tili ei vastaa valtuutusta.",
         "wabaResolveFailed": "WhatsApp Business -tiliä ei voitu selvittää valtuutuksesta."
       }
     },
@@ -3846,16 +3928,12 @@
       "label": "Mallin ylätunniste"
     },
     "transferPhoneNumber": "Siirrä puhelin toiselta WhatsApp-palveluntarjoajalta",
-    "signupSessionExpired": "WhatsApp-rekisteröinti-istuntosi on vanhentunut. Aloita yhdistäminen uudelleen.",
-    "capi": {
-      "automaticEvents": {
-        "title": "Automaattiset tapahtumat",
-        "description": "Lähetä konversiotapahtumat tästä WhatsApp-numerosta automaattisesti Metalle. Jos lupa puuttuu, yhdistä tili uudelleen myöntääksesi sen."
-      }
-    },
     "ecommerce": {
       "title": "Sell your products on WhatsApp",
       "manageProducts": "Manage your products"
+    },
+    "selectPage": {
+      "tryAgain": "Yritä yhdistää uudelleen"
     }
   },
   "zalo": {
@@ -4054,6 +4132,60 @@
     "exportAllNotice": "Kaikki nykyistä suodatinta vastaavat yhteystiedot viedään.",
     "exportTakingLong": "Vienti kestää odotettua kauemmin",
     "exportTakingLongDescription": "Vientiä käsitellään edelleen. Voit sulkea tämän valintaikkunan ja tarkistaa tilanteen muutaman minuutin kuluttua vientihistoriasta."
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
   },
   "auditLogs": {
     "title": "Tarkastuslokit",
@@ -5491,10 +5623,19 @@
       "confirmationFlowId": "Vahvistus-flow",
       "cancellationFlowId": "Peruutus-flow",
       "externalConnectionId": "Ulkoinen kalenteri",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
       "reminders": "Muistutukset",
       "reminderTimingValue": "Arvo",
       "reminderTimingUnit": "Yksikkö"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
     "locationTypes": {
       "inPerson": "Tapaaminen paikan päällä",
       "phoneCall": "Puhelu",
@@ -5837,7 +5978,8 @@
       "generalSettingsTitle": "Yleiset asetukset",
       "appearanceTitle": "Ulkoasu",
       "playerSettingsTitle": "Pelaaja-asetukset",
-      "prizeSettingsTitle": "Palkintoasetukset"
+      "prizeSettingsTitle": "Palkintoasetukset",
+      "validationFailed": "Korjaa korostetut kentät ennen tallentamista."
     },
     "generalSettings": {
       "showName": "Näkyvä",
@@ -5845,10 +5987,7 @@
       "rulesDescription": "Sääntöjen kuvaus",
       "openerTags": "Merkitse kontaktit, jotka avaavat pelin linkin",
       "playerTags": "Merkitse pelaajat",
-      "newFriendTags": "Merkitse uudet ystävät",
-      "shareEnabled": "Salli jakaminen ystävien kanssa",
-      "shareMessage": "Jakoviesti",
-      "shareMessageHint": "Käytä merkintää '{{shareUrl}}' lisätäksesi todellisen pelilinkin — älä poista sitä."
+      "newFriendTags": "Merkitse uudet ystävät"
     },
     "appearance": {
       "backgroundColor": "Taustaväri",
@@ -5864,6 +6003,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "Arvontakertojen määrä per henkilö",
+      "maxSharesPerPerson": "Suosituksista saatavien bonusarvontojen enimmäismäärä",
+      "maxSharesPerPersonHint": "Jokainen ystävä, joka liittyy tämän pelaajan kutsulinkin kautta ja lähettää sinulle viestin, tuo hänelle 1 lisäarvonnan, tähän rajaan asti. Aseta 0 poistaaksesi suositusbonukset käytöstä. Bonusarvonnat on käytettävä ennen seuraavaa nollausta.",
+      "sharingNode": "Jakamisen vaihe",
+      "sharingNodeHint": "Flow-vaihe, joka suoritetaan kun ystävä avaa tämän pelaajan jakolinkin. Jätä tyhjäksi piilottaaksesi Jaa-painikkeen.",
       "resetPolicyLabel": "Nollaa arvonnat",
       "resetNever": "Älä nollaa arvontojen määrää",
       "resetEveryNDays": "Nollaa arvontojen määrä joka",
@@ -5882,29 +6025,32 @@
       "forbiddenTitle": "Pääsy evätty",
       "forbiddenDescription": "Tämä linkki on virheellinen tai vanhentunut.",
       "comingSoonTitle": "Tulossa pian",
-      "comingSoonDescription": "Tätä minipelityyppiä ei voi vielä pelata."
+      "comingSoonDescription": "Tätä minipelityyppiä ei voi vielä pelata.",
+      "rateLimited": "Liian monta pyyntöä. Odota hetki ja yritä uudelleen."
+    },
+    "list": {
+      "gamesPlayed": "Pelatut pelit",
+      "participants": "Osallistujat",
+      "winners": "Voittajat",
+      "shares": "Suositukset"
     },
     "history": {
       "title": "Historia",
       "played": "Pelikerrat",
       "remaining": "Jäljellä olevat arvonnat",
+      "shares": "Suositukset",
       "openedAt": "Avattu ensimmäisen kerran",
       "lastPlayedAt": "Viimeksi pelattu",
       "unknownContact": "Tuntematon kontakti",
+      "conversationNotFound": "Tälle yhteystiedolle ei löytynyt keskustelua",
+      "popupBlocked": "Salli tämän sivuston ponnahdusikkunat ja yritä uudelleen.",
       "record": "Tapahtumat",
       "recordDialog": {
         "title": "Pelitapahtumat",
         "win": "Voitti",
         "lose": "Ei palkintoa",
         "empty": "Ei pelitapahtumia vielä"
-      },
-      "conversationNotFound": "Tälle yhteystiedolle ei löytynyt keskustelua",
-      "popupBlocked": "Salli tämän sivuston ponnahdusikkunat ja yritä uudelleen."
-    },
-    "list": {
-      "gamesPlayed": "Pelatut pelit",
-      "participants": "Osallistujat",
-      "winners": "Voittajat"
+      }
     }
   },
   "mediaLibrary": {

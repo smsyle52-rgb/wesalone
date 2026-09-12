@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 import { describe, expect, test } from "vitest"
 
@@ -23,12 +23,22 @@ function collectPublicApiFiles(dir: string, results: string[] = []) {
 
     if (stat.isDirectory()) {
       collectPublicApiFiles(fullPath, results)
-    } else if (entry === PUBLIC_API_FILENAME) {
+      // `schema/public.ts` shares the filename but is never a router — only
+      // `api/public.ts` publishes a surface.
+    } else if (entry === PUBLIC_API_FILENAME && dir.endsWith(`${"api"}`)) {
       results.push(fullPath)
     }
   }
 
   return results
+}
+
+const specifierFor = (filePath: string): string => {
+  const relativePath = relative(SRC_ROOT, filePath)
+    .replace(TS_EXTENSION_PATTERN, "")
+    .split("\\")
+    .join("/")
+  return `@/${relativePath}`
 }
 
 describe("public router boundary", () => {
@@ -39,28 +49,58 @@ describe("public router boundary", () => {
   // "silently unreachable". This test catches either a new feature's
   // public.ts never being wired in, or public.ts's import being
   // deleted/renamed without removing the source file.
-  test("every features/**/api/public.ts file is imported in routers/public.ts", () => {
+  test("every features/**/api/public.ts file is registered — directly in routers/public.ts, or composed into a file that is", () => {
+    // `src/enterprise` is deleted in this fork (commercial license), so it is
+    // scanned only when present.
+    const enterpriseRoot = join(SRC_ROOT, "enterprise")
     const publicApiFiles = [
       ...collectPublicApiFiles(join(SRC_ROOT, "features")),
-      ...collectPublicApiFiles(join(SRC_ROOT, "enterprise")),
+      ...(existsSync(enterpriseRoot)
+        ? collectPublicApiFiles(enterpriseRoot)
+        : []),
     ]
 
     expect(publicApiFiles.length).toBeGreaterThan(0)
 
     const publicRouterSource = readFileSync(PUBLIC_ROUTER_FILE, "utf8")
 
-    const missing = publicApiFiles.filter((filePath) => {
-      // routers/public.ts imports by module specifier without extension,
-      // e.g. "@/features/tags/api/public" for
-      // src/features/tags/api/public.ts.
-      const relativePath = relative(SRC_ROOT, filePath)
-        .replace(TS_EXTENSION_PATTERN, "")
-        .split("\\")
-        .join("/")
-      const specifier = `@/${relativePath}`
+    // A file counts as registered if routers/public.ts imports it directly,
+    // or if some OTHER already-registered public.ts imports it (one level of
+    // sub-router composition — e.g. contact-notes/api/public.ts is merged
+    // into contacts/api/public.ts, not registered separately).
+    const sourceByFile = new Map(
+      publicApiFiles.map((filePath) => [
+        filePath,
+        readFileSync(filePath, "utf8"),
+      ]),
+    )
 
-      return !publicRouterSource.includes(specifier)
-    })
+    const isRegistered = (
+      filePath: string,
+      seen = new Set<string>(),
+    ): boolean => {
+      if (seen.has(filePath)) {
+        return false
+      }
+      seen.add(filePath)
+
+      const specifier = specifierFor(filePath)
+      if (publicRouterSource.includes(specifier)) {
+        return true
+      }
+      return publicApiFiles.some((otherFile) => {
+        if (otherFile === filePath) {
+          return false
+        }
+        const otherSource = sourceByFile.get(otherFile)
+        return (
+          Boolean(otherSource?.includes(specifier)) &&
+          isRegistered(otherFile, seen)
+        )
+      })
+    }
+
+    const missing = publicApiFiles.filter((filePath) => !isRegistered(filePath))
 
     expect(missing).toEqual([])
   })

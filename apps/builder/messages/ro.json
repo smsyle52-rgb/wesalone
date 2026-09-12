@@ -252,7 +252,11 @@
       "tiktokTitleTruncated": "Când sunt atașate butoane, TikTok trimite doar primele 40 de caractere din acest mesaj — restul va fi trunchiat."
     },
     "dataWasSaved": "Datele au fost salvate",
-    "startNode": "Start"
+    "startNode": "Start",
+    "media": {
+      "stepUnsupportedOnChannel": "Acest canal nu poate trimite acest tip de conținut media — pasul este ignorat acolo. Elimină-l sau schimbă nodul pe un canal compatibil.",
+      "buttonsSkippedOnChannel": "Acest canal nu poate trimite butoane împreună cu un mesaj media — acolo sunt ignorate. Adaugă-le într-un pas text ulterior."
+    }
   },
   "folders": {
     "heading": {
@@ -1070,6 +1074,7 @@
     "dateFilterPreset": "Presetare filtru de dată",
     "noResults": "Niciun rezultat.",
     "noData": "Nu există date",
+    "retentionNotice": "Se păstrează doar datele din ultimele {days} zile.",
     "comingSoon": "În curând",
     "unknown": "Necunoscut",
     "pagination": {
@@ -1079,10 +1084,20 @@
       "firstPage": "Mergi la prima pagină",
       "previousPage": "Mergi la pagina anterioară",
       "nextPage": "Mergi la pagina următoare",
-      "lastPage": "Mergi la ultima pagină"
+      "lastPage": "Mergi la ultima pagină",
+      "totalRows": "{total} rând(uri)"
     },
     "sessionsThroughTheRef": "Sesiuni prin referința „{ref}” pe zi",
-    "sessionsThroughTheMagicLink": "Sesiuni prin linkul magic „{ref}” pe zi"
+    "sessionsThroughTheMagicLink": "Sesiuni prin linkul magic „{ref}” pe zi",
+    "repliesToComments": "Răspunsuri la comentarii",
+    "repliesByDate": "Răspunsuri după dată",
+    "userCommentsOnThisPost": "Comentariile utilizatorilor la această postare",
+    "botRepliesToComments": "Răspunsurile botului la comentarii",
+    "comment": "Comentariu",
+    "message": "Mesaj",
+    "searchByDate": "Caută după dată...",
+    "publicReply": "Răspuns public",
+    "privateReply": "Răspuns privat"
   },
   "flowAnalytics": {
     "nodes": {
@@ -2112,12 +2127,15 @@
       "label": "Operațiune"
     },
     "outputCustomField": {
-      "label": "Câmp personalizat de ieșire"
+      "label": "Câmp personalizat de ieșire",
+      "javascriptOptional": "Opțional. Salvează întreaga valoare returnată. Folosește maparea căilor JSON de mai sus pentru a scrie câmpuri individuale.",
+      "javascriptDumpLabel": "Ieșire JSON completă (opțional)"
     },
     "javascriptCode": {
       "label": "Cod JavaScript",
       "placeholder": "return (input.first_name || 'there').toUpperCase()",
-      "description": "Utilizați JavaScript pur și returnați o valoare. Rețeaua, fișierele, API-urile și bibliotecile externe nu sunt disponibile. Datele contactului și ale sistemului sunt disponibile în obiectul `input`."
+      "description": "Utilizați JavaScript pur și returnați o valoare. Rețeaua, fișierele, API-urile și bibliotecile externe nu sunt disponibile. Datele contactului și ale sistemului sunt disponibile în obiectul `input`.",
+      "objectMapping": "Mapează orice cale JSON din valoarea returnată pe orice câmp personalizat, la fel ca la Cererea API externă. Tu alegi căile și câmpurile."
     },
     "httpMethod": {
       "label": "Metodă"
@@ -2473,7 +2491,8 @@
       "date": "Dată",
       "datetime": "Dată și oră",
       "location": "Locație",
-      "anyInput": "Orice intrare"
+      "anyInput": "Orice intrare",
+      "locationDescription": "Pe WhatsApp trimite butonul nativ Trimite locația de la Meta și așteaptă pinul. Alte canale trimit solicitarea ca text; un pin partajat sau lat,lng introduse tot finalizează pasul."
     },
     "workspaceMember": {
       "label": "Membru al spațiului de lucru"
@@ -2607,6 +2626,12 @@
     },
     "messengerChannel": {
       "label": "Canal Messenger"
+    },
+    "whatsappChannels": {
+      "label": "Canale WhatsApp"
+    },
+    "messengerChannels": {
+      "label": "Pagini Messenger"
     },
     "messages": {
       "label": "Mesaje"
@@ -2936,6 +2961,26 @@
         "done": "Finalizat"
       }
     },
+    "tokenPermission": {
+      "label": "Permisiune",
+      "full": "Acces complet",
+      "readOnly": "Doar citire"
+    },
+    "tokenScopes": {
+      "label": "Domenii",
+      "contacts": "Contacte",
+      "inbox": "Inbox",
+      "automation": "Automatizare",
+      "broadcasts": "Difuzări",
+      "analytics": "Analitice",
+      "ecommerce": "Comerț electronic",
+      "integrations": "Integrări",
+      "channels": "Canale",
+      "minigames": "Minijocuri",
+      "appointments": "Programări",
+      "media": "Media",
+      "ads": "Reclame"
+    },
     "adReferral": {
       "label": "Ads",
       "ctwa": "CTWA",
@@ -2959,27 +3004,7 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
-    "tokenPermission": {
-      "label": "Permisiune",
-      "full": "Acces complet",
-      "readOnly": "Doar citire"
-    },
-    "tokenScopes": {
-      "label": "Domenii",
-      "contacts": "Contacte",
-      "inbox": "Inbox",
-      "automation": "Automatizare",
-      "broadcasts": "Difuzări",
-      "analytics": "Analitice",
-      "ecommerce": "Comerț electronic",
-      "integrations": "Integrări",
-      "channels": "Canale",
-      "minigames": "Minijocuri",
-      "appointments": "Programări",
-      "media": "Media",
-      "ads": "Reclame"
-    }
+    "selectOptionsPlaceholder": "Select options"
   },
   "channels": {
     "title": "Canale",
@@ -3012,7 +3037,59 @@
       "resultSuccess": "{refreshed} canal(e) reîmprospătat(e).",
       "resultWithFailures": "{refreshed} canal(e) reîmprospătat(e), {failed} eșuat(e)."
     },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
+    "connectMany": {
+      "coexist": {
+        "running": "Se pornește sincronizarea istoricului…",
+        "done": "Sincronizarea istoricului a început",
+        "failed": "Sincronizarea istoricului a eșuat"
+      },
+      "selectAll": "Selectează tot",
+      "selected": "{count}/{max} selectate",
+      "dialogTitleRunning": "Se conectează {count} {feature}…",
+      "dialogTitleDone": "Conectate {connected} din {total}",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "{done} din {total} finalizate",
+      "status": {
+        "waiting": "În așteptare",
+        "connecting": "Se conectează…",
+        "connected": "Conectat",
+        "duplicated": "Deja conectat",
+        "limitReached": "Limită atinsă",
+        "failed": "Eșuat",
+        "timedOut": "Timp expirat",
+        "cancelled": "Anulat"
+      },
+      "reason": {
+        "notSelectable": "Acest element nu poate fi selectat.",
+        "channelLimit": "Limita de canale a fost atinsă.",
+        "workspaceLimit": "Limita spațiului de lucru a fost atinsă.",
+        "providerRejected": "Furnizorul a respins această solicitare.",
+        "unknown": "Ceva nu a funcționat corect.",
+        "followUpFailed": "Configurare incompletă — finalizeaz-o din setările canalului."
+      },
+      "sessionError": {
+        "sessionExpired": "Sesiunea ta a expirat. Te rugăm să te reconectezi.",
+        "notMember": "Nu mai ești membru al acestui spațiu de lucru.",
+        "trialExpired": "Perioada de probă a expirat.",
+        "macLimitReached": "Ai atins limita contului tău.",
+        "credentialMissing": "Lipsesc datele de autentificare. Te rugăm să te reconectezi."
+      },
+      "cancelRemaining": "Anulează restul",
+      "retryFailed": "Reîncearcă ({count})",
+      "retry": "Reîncearcă",
+      "goToChannels": "Mergi la canale",
+      "close": "Închide",
+      "leaveNotice": "Poți părăsi pagina; conturile conectate rămân",
+      "stepConnecting": "Se conectează",
+      "stepCoexist": "Sincronizează istoricul",
+      "validation": {
+        "min": "Selectează cel puțin 1",
+        "max": "Poți selecta până la {max}",
+        "duplicate": "Selecție duplicată"
+      },
+      "progressLabel": "Progres"
+    }
   },
   "workspace": {
     "schedule": {
@@ -3192,7 +3269,9 @@
     "waTemplateMpmTooManySections": "Un buton multi-produs poate avea cel mult 10 secțiuni. Elimină câteva secțiuni înainte de publicare.",
     "waTemplateMpmTooManyProducts": "Un buton multi-produs poate avea în total cel mult 30 de produse. Elimină câteva produse înainte de publicare.",
     "waTemplateLtoExpirationRequired": "Alege o dată de expirare pentru oferta pe timp limitat înainte de a trimite.",
-    "waTemplateMpmIncompleteProducts": "Fiecare secțiune are nevoie de cel puțin un produs selectat — elimină rândurile goale sau alege un produs."
+    "waTemplateMpmIncompleteProducts": "Fiecare secțiune are nevoie de cel puțin un produs selectat — elimină rândurile goale sau alege un produs.",
+    "mediaStepUnsupported": "Acest canal nu poate trimite acest tip de conținut media. Elimină pasul sau îndreaptă acest nod spre un canal compatibil.",
+    "mediaButtonsUnsupported": "Acest canal nu poate trimite butoane împreună cu un mesaj media. Elimină butoanele sau mută-le într-un pas text de după acesta."
   },
   "instagram": {
     "description": "Această integrare îți permite să creezi boți Instagram.",
@@ -3204,6 +3283,12 @@
     "tabs": {
       "generalSettings": "Setări generale",
       "conversionsApi": "Optimizare anunțuri"
+    },
+    "selectPage": {
+      "noAccountsTitle": "Nu s-a găsit niciun cont Instagram",
+      "noAccountsDescription": "Nu s-a găsit niciun cont de afaceri Instagram pe paginile de Facebook pe care le administrezi. Reconectează Instagram și acordă toate permisiunile solicitate.",
+      "alreadyConnectedNote": "Acest cont este deja conectat",
+      "tryAgain": "Încearcă să te reconectezi"
     }
   },
   "coexist": {
@@ -3249,7 +3334,6 @@
     "defaultPersona": "Persona implicită",
     "reconnect": "Reconectează",
     "reconnectDescription": "Reconectează întotdeauna botul dacă botul tău Messenger nu răspunde sau dacă vezi vreo eroare de permisiune în jurnalul de erori.",
-    "selectFacebookPage": "Selectează pagina Facebook",
     "selectPage": {
       "noPagesTitle": "Nicio pagină de Facebook găsită",
       "noPagesDescription": "Paginile din interiorul unui Business Manager necesită acces Business Manager în timpul conectării. Reconectează Messenger și acordă toate permisiunile solicitate.",
@@ -3303,6 +3387,7 @@
         "result": {
           "title": "Rezultate duplicare",
           "succeededTitle": "Reușite",
+          "pendingTitle": "În așteptarea verificării Meta",
           "close": "Închide"
         }
       }
@@ -3513,6 +3598,7 @@
   "validation": {
     "maxSize": "Dimensiunea fișierului depășește limita maximă",
     "maxItemsReached": "Sunt permise maximum {max} {feature} per spațiu de lucru",
+    "maxCharacters": "Maximum {max} caractere.",
     "invalidApiKey": "Cheie API invalidă",
     "maxMustBeGreaterThanMin": "{maxField} trebuie să fie mai mare sau egal cu {minField}"
   },
@@ -3562,7 +3648,8 @@
       "verifyToken": "Token de verificare webhook",
       "qrCodeHint": "Scanează codul QR pentru a deschide URL-ul webhook-ului",
       "moreSettings": "Mai multe setări",
-      "goToInbox": "Du-mă acolo"
+      "goToInbox": "Du-mă acolo",
+      "multipleTitle": "Căsuțele tale WhatsApp sunt pregătite!"
     },
     "phoneVerification": {
       "title": "Verifică numărul de telefon WhatsApp",
@@ -3575,7 +3662,8 @@
       "actions": {
         "sendCode": "Trimite codul",
         "resendIn": "Retrimite în {seconds}s",
-        "verify": "Verifică și înregistrează"
+        "verify": "Înregistrează",
+        "skip": "Omite"
       },
       "fields": {
         "code": {
@@ -3593,18 +3681,12 @@
         "codeNotSent": "Codul de verificare WhatsApp nu a putut fi trimis.",
         "codeNotVerified": "Codul de verificare WhatsApp nu a putut fi verificat.",
         "registrationFailed": "Verificarea numărului de telefon WhatsApp a eșuat."
-      }
+      },
+      "queueProgress": "Se verifică {current} din {total}"
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "Tokenul de acces WhatsApp este necesar.",
         "appSettingsNotFound": "Setările aplicației WhatsApp nu au fost găsite.",
-        "failedToPersistIntegration": "Salvarea integrării WhatsApp a eșuat.",
-        "noPhoneNumberFound": "Nu a fost găsit niciun număr de telefon WhatsApp.",
-        "noPhoneNumbersFound": "Nu au fost găsite numere de telefon pentru acest Cont WhatsApp Business.",
-        "phoneNumberNotFound": "Numărul de telefon WhatsApp selectat nu a fost găsit.",
-        "unableToVerifyToken": "Tokenul WhatsApp nu a putut fi verificat.",
-        "wabaMismatch": "Contul WhatsApp Business selectat nu corespunde autorizației.",
         "wabaResolveFailed": "Contul WhatsApp Business nu a putut fi determinat din autorizație."
       }
     },
@@ -3846,16 +3928,12 @@
       "label": "Antet șablon"
     },
     "transferPhoneNumber": "Transferă numărul de telefon de la un alt furnizor WhatsApp",
-    "signupSessionExpired": "Sesiunea ta de înregistrare WhatsApp a expirat. Te rugăm să începi din nou conectarea.",
-    "capi": {
-      "automaticEvents": {
-        "title": "Evenimente Automate",
-        "description": "Trimite automat evenimente de conversie de la acest număr WhatsApp către Meta. Dacă lipsește permisiunea, reconectează contul pentru a o acorda."
-      }
-    },
     "ecommerce": {
       "title": "Sell your products on WhatsApp",
       "manageProducts": "Manage your products"
+    },
+    "selectPage": {
+      "tryAgain": "Încearcă să te reconectezi"
     }
   },
   "zalo": {
@@ -4054,6 +4132,60 @@
     "exportAllNotice": "Toate contactele care corespund filtrului curent vor fi exportate.",
     "exportTakingLong": "Exportul durează mai mult decât era de așteptat",
     "exportTakingLongDescription": "Exportul este încă în curs de procesare. Poți închide acest dialog și poți reveni peste câteva minute din istoricul exporturilor."
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
   },
   "auditLogs": {
     "title": "Jurnale de audit",
@@ -5491,10 +5623,19 @@
       "confirmationFlowId": "Flux de confirmare",
       "cancellationFlowId": "Flux de anulare",
       "externalConnectionId": "Calendar extern",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
       "reminders": "Mementouri",
       "reminderTimingValue": "Valoare",
       "reminderTimingUnit": "Unitate"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
     "locationTypes": {
       "inPerson": "Întâlnire în persoană",
       "phoneCall": "Apel telefonic",
@@ -5837,7 +5978,8 @@
       "generalSettingsTitle": "Setări generale",
       "appearanceTitle": "Aspect",
       "playerSettingsTitle": "Setări jucător",
-      "prizeSettingsTitle": "Setări premii"
+      "prizeSettingsTitle": "Setări premii",
+      "validationFailed": "Corectați câmpurile evidențiate înainte de a salva."
     },
     "generalSettings": {
       "showName": "Vizibil",
@@ -5845,10 +5987,7 @@
       "rulesDescription": "Descrierea regulilor",
       "openerTags": "Etichetează contactele care deschid linkul jocului",
       "playerTags": "Etichetează jucătorii",
-      "newFriendTags": "Etichetează prietenii noi",
-      "shareEnabled": "Permite distribuirea către prieteni",
-      "shareMessage": "Mesaj de distribuire",
-      "shareMessageHint": "Folosește '{{shareUrl}}' pentru a introduce linkul real al jocului — te rugăm să nu îl elimini."
+      "newFriendTags": "Etichetează prietenii noi"
     },
     "appearance": {
       "backgroundColor": "Culoare fundal",
@@ -5864,6 +6003,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "Numărul de șanse de tragere norocoasă per persoană",
+      "maxSharesPerPerson": "Nr. maxim de extrageri bonus din recomandări",
+      "maxSharesPerPersonHint": "Fiecare prieten care se alătură prin linkul de invitație al acestui jucător și îți trimite un mesaj îi aduce 1 extragere în plus, până la această limită. Setează 0 pentru a dezactiva bonusurile de recomandare. Extragerile bonus trebuie folosite înainte de următoarea resetare.",
+      "sharingNode": "Pas de partajare",
+      "sharingNodeHint": "Pasul din flux care rulează atunci când un prieten deschide linkul de partajare al acestui jucător. Lasă gol pentru a ascunde butonul Partajează.",
       "resetPolicyLabel": "Resetare trageri",
       "resetNever": "Nu reseta numărul de trageri",
       "resetEveryNDays": "Resetează numărul de trageri la fiecare",
@@ -5882,29 +6025,32 @@
       "forbiddenTitle": "Acces refuzat",
       "forbiddenDescription": "Acest link este invalid sau a expirat.",
       "comingSoonTitle": "În curând",
-      "comingSoonDescription": "Acest tip de minijoc nu poate fi jucat încă."
+      "comingSoonDescription": "Acest tip de minijoc nu poate fi jucat încă.",
+      "rateLimited": "Prea multe cereri. Așteaptă un moment și încearcă din nou."
+    },
+    "list": {
+      "gamesPlayed": "Jocuri jucate",
+      "participants": "Participanți",
+      "winners": "Câștigători",
+      "shares": "Recomandări"
     },
     "history": {
       "title": "Istoric",
       "played": "Jocuri",
       "remaining": "Extrageri rămase",
+      "shares": "Recomandări",
       "openedAt": "Prima deschidere",
       "lastPlayedAt": "Ultimul joc",
       "unknownContact": "Contact necunoscut",
+      "conversationNotFound": "Nu s-a găsit nicio conversație pentru acest contact",
+      "popupBlocked": "Te rugăm să permiți ferestrele pop-up pentru acest site, apoi încearcă din nou.",
       "record": "Înregistrare",
       "recordDialog": {
         "title": "Înregistrări de joc",
         "win": "A câștigat",
         "lose": "Fără premiu",
         "empty": "Nu există încă înregistrări de joc"
-      },
-      "conversationNotFound": "Nu s-a găsit nicio conversație pentru acest contact",
-      "popupBlocked": "Te rugăm să permiți ferestrele pop-up pentru acest site, apoi încearcă din nou."
-    },
-    "list": {
-      "gamesPlayed": "Jocuri jucate",
-      "participants": "Participanți",
-      "winners": "Câștigători"
+      }
     }
   },
   "mediaLibrary": {

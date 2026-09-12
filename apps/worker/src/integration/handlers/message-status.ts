@@ -1,7 +1,7 @@
 import { buildContext, conversationService } from "@chatbotx.io/business"
-import { db } from "@chatbotx.io/database/client"
 import type { IntegrationType } from "@chatbotx.io/database/partials"
 import {
+  contactInboxRepository,
   createMessageRepository,
   getSafeSinceTime,
 } from "@chatbotx.io/database/repositories"
@@ -16,6 +16,7 @@ import {
   IntegrationJobAction,
   type IntegrationJobMessageStatus,
 } from "@chatbotx.io/worker-config"
+import type { Job } from "bullmq"
 import { logger } from "../../lib/logger"
 import {
   allIntegrations,
@@ -30,13 +31,7 @@ type StatusContactInboxWhere = { inboxId: string } & (
 )
 
 const findStatusContactInbox = (where: StatusContactInboxWhere) =>
-  db.query.contactInboxModel.findFirst({
-    where,
-    with: {
-      conversation: true,
-      contact: true,
-    },
-  })
+  contactInboxRepository.findWithConversationAndContact({ where })
 
 /**
  * Resolves the ContactInbox a delivery/read status belongs to. The status
@@ -62,6 +57,7 @@ const resolveStatusContactInbox = async (
 
 export const handleMessageStatus = async (
   job: IntegrationJobMessageStatus["data"],
+  parentJob?: Job,
 ) => {
   const { integrationType, integrationIdentifier, payload } = job
 
@@ -219,13 +215,16 @@ export const handleMessageStatus = async (
       return
     }
 
-    await runFlowPostback({
-      conversationId: message.conversationId,
-      action: button.postback,
-      ref: null,
-      contactInboxId: contactInbox.id,
-      webhookType: IntegrationJobAction.messageStatus,
-    })
+    await runFlowPostback(
+      {
+        conversationId: message.conversationId,
+        action: button.postback,
+        ref: null,
+        contactInboxId: contactInbox.id,
+        webhookType: IntegrationJobAction.messageStatus,
+      },
+      { flowExecutionKey: parentJob?.id },
+    )
   } catch (error) {
     logger.error(
       error,

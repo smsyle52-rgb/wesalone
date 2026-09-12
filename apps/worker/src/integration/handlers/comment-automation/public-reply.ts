@@ -10,6 +10,8 @@ import type { MessengerAuthValue } from "@chatbotx.io/integration-messenger"
 import { RealtimeEventType } from "@chatbotx.io/partysocket-config"
 import { contactVariableService } from "@chatbotx.io/variables"
 import {
+  AIJobAction,
+  aiAgentQueue,
   ChatJobAction,
   chatQueue,
   IntegrationJobAction,
@@ -17,6 +19,8 @@ import {
 } from "@chatbotx.io/worker-config"
 import { logger } from "../../../lib/logger"
 import type { CommentAutomationChannelType } from "./channel-type"
+import type { CommentAutomationDedup } from "./dedup"
+import { type CommentReplyOutcome, describeFlowReply } from "./reply-outcome"
 
 /**
  * Post a public Facebook comment reply: creates the outgoing DB message,
@@ -24,9 +28,16 @@ import type { CommentAutomationChannelType } from "./channel-type"
  * `text` reply type (dispatched immediately, sends after `delay`) and
  * `processCommentAIReply` (already runs inside a job delayed by the caller, so
  * no further `delay` applies).
+ *
+ * Nothing reaches Facebook here — `sendChannelMessage` makes the Graph API call
+ * in the chat worker. That is why `contentAttributes.commentAutomation` carries
+ * the automation anchor: the analytics event this dispatch opened is recorded
+ * `sent` optimistically, and only the chat worker knows whether the send
+ * actually landed (see `settleCommentAutomationFailure`).
  */
 export async function postPublicCommentReply(props: {
   text: string
+  automationId: string
   commentId: string
   conversationId: string
   contactInboxId: string
@@ -46,7 +57,13 @@ export async function postPublicCommentReply(props: {
     senderType: "bot" as const,
     text: props.text,
     type: "comment" as const,
-    contentAttributes: { replyToCommentId: props.commentId },
+    contentAttributes: {
+      replyToCommentId: props.commentId,
+      commentAutomation: {
+        automationId: props.automationId,
+        replyChannel: "public" as const,
+      },
+    },
     parentId: props.parentMessageId ?? null,
     createdAt: new Date(),
   }
@@ -80,12 +97,19 @@ export async function postPublicCommentReply(props: {
   )
 }
 
+/**
+ * Returns what was dispatched, or `null` when nothing was. The caller uses that
+ * — not the automation's configuration — to decide whether to write the dedup
+ * row, so a branch that quietly declines to send never counts as a reply. The
+ * outcome also carries the text for the analytics event.
+ */
 export async function executePublicReply(
   publicReply: FBCommentReply,
   ctx: {
     auth: MessengerAuthValue
     integrationType: string
     integrationIdentifier: string
+    automationId: string
     commentId: string
     channelType: CommentAutomationChannelType
     conversationId: string
@@ -96,10 +120,11 @@ export async function executePublicReply(
     message?: string
     parentMessageId?: string | null
     parentMessageCreatedAt?: Date | null
+    dedup?: CommentAutomationDedup
   },
-) {
+): Promise<CommentReplyOutcome | null> {
   if (publicReply.type === "none") {
-    return
+    return null
   }
 
   if (publicReply.type === "text" && publicReply.value) {
@@ -121,6 +146,7 @@ export async function executePublicReply(
     }
     await postPublicCommentReply({
       text,
+      automationId: ctx.automationId,
       commentId: ctx.commentId,
       conversationId: ctx.conversationId,
       contactInboxId: ctx.contactInboxId,
@@ -130,7 +156,7 @@ export async function executePublicReply(
       parentMessageCreatedAt: ctx.parentMessageCreatedAt,
       delay: ctx.delay,
     })
-    return
+    return { replyType: "text", replyText: text }
   }
 
   if (publicReply.type === "flow" && publicReply.value) {
@@ -139,6 +165,11 @@ export async function executePublicReply(
       {
         type: IntegrationJobAction.sendFlow,
         data: {
+          // Deliberately the comment-anchored conversation, unlike the private
+          // branch (#1063): a public flow answers on the post, and the
+          // contact's next comment resolves back to this very conversation
+          // through `receiveComment`, so its flow state is reachable here.
+          // Do not "fix" this to the DM conversation.
           conversationId: ctx.conversationId,
           contactInboxId: ctx.contactInboxId,
           flowId: publicReply.value,
@@ -148,15 +179,22 @@ export async function executePublicReply(
       },
       { delay: ctx.delay },
     )
-    return
+    return {
+      replyType: "flow",
+      replyText: await describeFlowReply({
+        workspaceId: ctx.workspaceId,
+        flowId: publicReply.value,
+      }),
+    }
   }
 
   if (publicReply.type === "AIAgent" && publicReply.value) {
-    await integrationQueue.add(
-      IntegrationJobAction.commentAIReply,
+    await aiAgentQueue.add(
+      AIJobAction.commentAIReply,
       {
-        type: IntegrationJobAction.commentAIReply,
+        type: AIJobAction.commentAIReply,
         data: {
+          automationId: ctx.automationId,
           integrationType: ctx.integrationType,
           integrationIdentifier: ctx.integrationIdentifier,
           workspaceId: ctx.workspaceId,
@@ -170,9 +208,16 @@ export async function executePublicReply(
           parentMessageId: ctx.parentMessageId ?? null,
           parentMessageCreatedAt:
             ctx.parentMessageCreatedAt?.toISOString() ?? null,
+          commentDedup: ctx.dedup,
         },
       },
-      { delay: ctx.delay },
+      {
+        delay: ctx.delay,
+        jobId: `comment-ai-reply-${ctx.automationId}-${ctx.commentId}-public`,
+      },
     )
+    return { replyType: "AIAgent", replyText: null }
   }
+
+  return null
 }

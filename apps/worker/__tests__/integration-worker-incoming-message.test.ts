@@ -182,6 +182,9 @@ vi.mock("../src/integration/handlers/comment-automation/ai-reply", () => ({
 vi.mock("../src/integration/handlers/contact/update-avatar", () => ({
   updateContactAvatar: vi.fn(),
 }))
+vi.mock("../src/integration/handlers/contact-scan/engine", () => ({
+  runContactScan: vi.fn(),
+}))
 vi.mock("../src/integration/handlers/conversation", () => ({
   agentMarkAsRead: vi.fn(),
   contactMarkAsRead: vi.fn(),
@@ -233,6 +236,9 @@ vi.mock("../src/integration/handlers/wait-resume", () => ({
 
 vi.mock("@chatbotx.io/database/repositories", () => ({
   createMessageRepository: mockCreateMessageRepository,
+  contactInboxRepository: {
+    findWithContact: mockFindContactInbox,
+  },
 }))
 
 vi.mock("@chatbotx.io/automated-response", () => ({
@@ -320,6 +326,9 @@ vi.mock("@chatbotx.io/business", () => ({
   conversationService: {
     findOrCreate: mockConversationFindOrCreate,
     ensureActive: vi.fn().mockResolvedValue(true),
+    recordInboundActivity: vi
+      .fn()
+      .mockResolvedValue({ cacheTags: ["contacts:contact-1:contact-inboxes"] }),
   },
   workspaceService: {
     find: vi.fn(),
@@ -406,8 +415,11 @@ vi.mock("@chatbotx.io/worker-config", () => ({
     removeOnFail: { count: 5000 },
   },
   getRedisConnection: () => ({}),
+  closeHeavyQueueEvents: vi.fn().mockResolvedValue(undefined),
   closeIntegrationQueueEvents: vi.fn().mockResolvedValue(undefined),
+  getHeavyJobCompletionWaitTimeoutMs: vi.fn().mockReturnValue(10 * 60 * 1000),
   queueNames: { enum: { integration: "integration" } },
+  HeavyJobAction: { aiGenerateImage: "aiGenerateImage" },
   ChatJobAction: { sendChatMessage: "sendChatMessage" },
   chatQueue: { add: vi.fn().mockResolvedValue(undefined) },
   IntegrationJobAction: {

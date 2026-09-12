@@ -12,6 +12,7 @@ import {
   type SQL,
   sql,
 } from "@chatbotx.io/database/client"
+import { contactInboxRepository } from "@chatbotx.io/database/repositories"
 import type { ContactInboxReferral } from "@chatbotx.io/database/schema"
 import {
   CONTACT_INBOX_SOURCE_USER_ID_KEY,
@@ -178,6 +179,17 @@ class ContactInboxService extends BaseService {
   }
 
   /**
+   * Deliberately uncached: channel webhooks create/update ContactInbox
+   * identities and the sequence scheduler advances enrollments, neither of
+   * which routes through the `contact-inboxes:*` cache tags this service
+   * controls. A stale read here is worse for a caller acting on a channel
+   * identity list that's already changed than paying for the DB hit.
+   */
+  listByContactIdUncached(props: { workspaceId: string; contactId: string }) {
+    return contactInboxRepository.listWithInboxNameByContactId(props)
+  }
+
+  /**
    * The most recently active contact inbox for an inbox + source (e.g. a
    * webchat guest). Ordered by `lastMessageAt` desc so that when a guest has
    * reconnected and produced duplicate rows for the same `sourceId`, the live
@@ -339,9 +351,13 @@ class ContactInboxService extends BaseService {
     }
   }
 
-  async findManyByIds(ids: string[]): Promise<ContactInboxWithAnalytics[]> {
+  async findManyByIds(props: {
+    workspaceId: string
+    ids: string[]
+  }): Promise<ContactInboxWithAnalytics[]> {
+    const { workspaceId, ids } = props
     return (await db.query.contactInboxModel.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, contact: { workspaceId } },
       columns: { id: true, contactId: true, sourceId: true, channel: true },
       with: {
         contact: {

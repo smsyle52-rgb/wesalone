@@ -39,6 +39,15 @@ automatically). Scope values are defined by the `workspaceApiTokenScopes` zod
 enum in `packages/database/src/partials/workspace-api-token.ts` and stored as
 plain `text[]`, so adding a scope is an enum change, never a migration.
 
+The `analytics` scope covers both `/v1/error-logs`
+(`apps/builder/src/features/error-logs/api/public.ts`) and, as of the public
+analytics router, every `/v1/analytics/*` route
+(`apps/builder/src/features/analytics/api/public.ts`).
+
+The `appointments` scope existed in the enum and UI registry for some time
+before any endpoint used it — see "Appointments scope — endpoint-to-scope
+table" below for the full surface now behind it.
+
 ## The default token and `{{api_key}}`
 
 Exactly one row per workspace may have `isDefault = true` (partial unique
@@ -106,8 +115,149 @@ mounted in `apps/builder/src/routers/index.ts` at all.
 
 Workspace-token APIs authenticate the workspace, not a member — member
 permission scoping (e.g. `onlyAssignedContacts`, `emailAndPhone`) does NOT
-apply. When a token surface returns contacts or contact-derived data, make the
-intended scope explicit in the API contract and tests.
+apply. `contactService.list` (unscoped — the public API handler passes no
+`scope`) and `contactService.findPublicContactOrFail` always run "unscoped":
+a token sees every contact in the workspace, with full email/phone (no PII
+masking), regardless of any member's `emailAndPhone`/`onlyAssignedContacts`
+permission. The private path resolves a `scope` from the member's
+permissions and calls the same `contactService.list` method — see
+`.agents/skills/business-data-access/SKILL.md`. When a token surface returns
+contacts or contact-derived data, make the intended scope explicit in the
+API contract and tests.
+
+## Scope notes
+
+The full endpoint-to-scope mapping is generated, not hand-maintained here —
+see `/api/spec.json` (built from `apps/builder/src/routers/public.ts`) for
+the authoritative, current list, and
+`apps/builder/__tests__/*-public-scope.test.ts` for the tests that enforce
+each feature's scope assignment at compile/test time (e.g.
+`contacts-public-scope.test.ts`, `broadcasts-public-scope.test.ts`,
+`appointments-public-scope.test.ts`, `sequences-public-scope.test.ts`,
+`integrations-public-scope.test.ts`, `analytics-public-scope.test.ts`,
+`conversations-public-scope.test.ts`, `products-public-scope.test.ts`,
+`product-categories-public-scope.test.ts`, `coupons-public-scope.test.ts`).
+
+What follows are the scope-assignment decisions and gotchas that aren't
+derivable from the code or those tests — read before adding or reassigning
+an endpoint's scope.
+
+- **Contacts** — Contacts' public surface is split by concern across
+  submodules — some in `features/contacts/api/public/` (`crud.ts`,
+  `tags.ts`, `custom-fields.ts`, `bulk.ts`, `export.ts`,
+  `refresh-profile.ts`, `messages.ts`), some in their own owning feature's
+  `api/public.ts` (`contact-notes`, `contact-sequences`, `contact-inboxes`,
+  `contact-filter`) that `features/contacts/api/public.ts` composes in
+  alongside its own submodules — and every one of them other than
+  `messages.ts` calls `workspaceTokenAuthAPIForScope("contacts")` exactly
+  once at import. `messages.ts` is the one exception: sending/reading
+  messages, auto-replies, and flows for a contact are conversation/automation
+  operations even though they hang off `/v1/contacts/{identifier}/...`, so it
+  uses `inbox` (`sendMessage`, `listMessages`, `getMessage`) and `automation`
+  (`triggerAutoReply`, `sendFlow`) instead.
+  `apps/builder/__tests__/contacts-public-scope.test.ts` enforces this split
+  — it fails compile/test if a new submodule (wherever it lives) forgets to
+  declare a scope, or if `messages.ts`'s procedures drift onto `contacts`.
+
+- **Automation** — covers flows, triggers, keywords (automated responses),
+  AI agents, ref links, and AI triggers — a full CRUD surface so an agent can
+  build, publish, and inspect automations without human help via the builder
+  UI. Two invariants:
+  - *Keywords `type` filter* — `AutomatedResponse` serves two `FolderType`s
+    off one table (`automatedResponse` for inbound/Contact,
+    `outboundAutomatedResponse` for outbound/Page), disambiguated by the
+    `type` column (invariant #17 in the root `AGENTS.md`). `type` must stay
+    in the where-clause on every keywords path — never let it become fully
+    optional in a way that drops the filter.
+  - *`GET /v1/triggers` and `GET /v1/triggers/{id}` return real conditions
+    and actions*, not the empty arrays the routes returned before this scope
+    was widened. Any future trigger route must keep populating both via
+    `triggerRepository.findWithConditions` rather than reintroducing a
+    hardcoded `[]`.
+
+- **Appointments** — covers appointment calendars, appointments, reminder
+  dispatch audit reads, and external (Google/Outlook) calendar connections.
+  Three invariants:
+  - *`appUrl` must be resolved with `resolveTenantSettings`, never a
+    `.query.ts` adapter.* `appointmentService.list` signs a per-row schedule
+    token using `appUrl`, and the private `list-appointments.query.ts`
+    adapter gets it via `assertCurrentUserCanAccessChatbot`, which resolves a
+    better-auth session — a Bearer-token request has none. The public `list`
+    handler in `features/appointments/api/public.ts` calls
+    `resolveTenantSettings({ workspaceId })` directly instead, exactly like
+    the invariant `public-list-queries-no-session.test.ts` pins for every
+    other resource.
+  - *External calendars must use `listWithConnectedCount`, never `list`.*
+    `appointmentExternalCalendarService.list` returns raw `Integration` rows
+    via a relational query; the sibling `IntegrationGoogleCalendar` table
+    holds the OAuth token blob in its `auth` jsonb column.
+    `listWithConnectedCount` selects explicit columns and never touches
+    `auth` — it is the only safe shape to publish on this scope.
+  - *Reminder dispatch listing must always pass `workspaceId` explicitly.*
+    `AppointmentReminderDispatchListInput.workspaceId` is optional at the
+    repository layer (it also backs the internal due-reminder scan across
+    every workspace), so the public handler in
+    `features/appointment-management/api/public.ts` must never omit it —
+    omitting it would return dispatch rows across every workspace, not just
+    the caller's.
+
+- **Inbox** — covers conversations, conversation-scoped messages, inboxes
+  (channels), saved replies (canned responses), workspace members (agents),
+  and — enterprise only — teams, so an integration can build a full helpdesk
+  client without a human session. Conversation and message mutations take a
+  single resource id (`/v1/conversations/{id}/...`), not the private API's
+  bulk-by-ids shape — and every one omits an actor (`assignedBy`/`userId`):
+  a workspace token authenticates the workspace, not a user, and the
+  underlying service methods already treat that field as optional. Also on
+  this scope: `POST /v1/contacts/{identifier}/messages`, `GET .../messages`,
+  and `GET .../messages/{messageId}` in `contacts/api/public/messages.ts` —
+  see the Contacts note above for why those live under `inbox` despite their
+  path. Three invariants:
+  - *`conversationService.updateAssignment` scopes its `WHERE` by
+    `workspaceId`, not just conversation id* — it was missing that clause
+    until this scope's public routes were added, which would have made a
+    bulk-by-ids assignment endpoint a cross-tenant write. Any future write on
+    this service must scope by `workspaceId` the same way
+    `updateArchived`/`updateBotEnabled` already do; don't reintroduce an
+    `inArray(id, ids)`-only `WHERE`.
+  - *`findConversation`/`findMessage` never resolve a better-auth session* —
+    they used to call `assertCurrentUserCanAccessChatbot`, which throws for a
+    Bearer-token request (no session exists).
+    `apps/builder/__tests__/public-list-queries-no-session.test.ts` pins this
+    for every public query function; add a new one there whenever a query
+    function gains a public caller.
+  - *Public message `create` sends without a `user`* — `messageService
+    .createOutgoing`'s `user` param is optional specifically so a workspace
+    token (which has no user) can send; don't reintroduce a
+    `userService.findByIdOrFail(context.user.id)` call on this path the way
+    the private API needs one for `tenantId`.
+
+- **Broadcasts** — covers broadcasts, sequences, **and** WhatsApp message
+  templates — three features share it because sequences and message
+  templates are broadcast-adjacent operations, not because they were
+  designed together. The token picker only shows the bare label "Broadcasts"
+  (`fields.tokenScopes.broadcasts`), so a superAdmin minting a `broadcasts`
+  token should know it also grants full sequence CRUD (including deleting
+  sequences and steps) and WhatsApp template listing — there is no
+  finer-grained scope to withhold just one of the three. Two things worth
+  knowing:
+  - *`GET /v1/broadcasts/{idOrName}/audience` returns full contact PII*
+    (email, phone, gender) with no field-level gating, including for a
+    `read_only` token — unlike the write paths (`create`/`updateDraft`/
+    `resendWithPruning`), which prune email/phone *filter conditions*
+    through `pruneEmailPhoneFilterConditions` before persisting. This is
+    deliberate, not an oversight: minting any workspace token already
+    requires workspace superAdmin, who has full contact PII in the UI
+    regardless. A `read_only` `broadcasts` token is still, in effect, a bulk
+    contact-PII export path for every broadcast's audience — call this out
+    to anyone issuing such a token for a narrower purpose.
+  - *`upsertStep`'s request body has no `sequenceId` field* — the `{id}`
+    path segment is the sole source of truth for which sequence a step
+    belongs to. `publicUpsertSequenceStepRequest`
+    (`features/sequences/schema/action.ts`) omits `sequenceId` from the
+    shared base shape the private `upsertSequenceStepRequest` also uses. Do
+    not add it back; a client-supplied `sequenceId` that disagreed with the
+    path would have nothing enforcing which one wins.
 
 ## Adding a new scope value
 
@@ -151,7 +301,23 @@ these helpers — import from the business package directly.
 - `apps/builder/__tests__/workspace-token-auth-middleware.test.ts`
 - `apps/builder/__tests__/workspace-token-scope-enforcement.test.ts`
 - `apps/builder/__tests__/workspace-token-scope-registry.test.ts`
-- `apps/builder/__tests__/broadcasts-workspace-token-scope.test.ts`
+- `apps/builder/__tests__/broadcasts-public-scope.test.ts`,
+  `sequences-public-scope.test.ts`
+- `apps/builder/__tests__/appointments-public-scope.test.ts`
+- `apps/builder/__tests__/appointment-calendars-public-api.test.ts`,
+  `appointments-public-api.test.ts`, `appointment-reminders-public-api.test.ts`,
+  `appointment-external-calendars-public-api.test.ts` — handler-behavior tests
+  for the appointments scope's four routers
+- `apps/builder/__tests__/contacts-public-scope.test.ts`
+- `apps/builder/__tests__/contacts-crud-public-api.test.ts`,
+  `contacts-tags-and-fields-public-api.test.ts`,
+  `contacts-notes-public-api.test.ts`, `contacts-sequences-public-api.test.ts`,
+  `contacts-inboxes-public-api.test.ts`, `contacts-filter-fields-public-api.test.ts`,
+  `contacts-export-public-api.test.ts`, `contacts-export-files-public-api.test.ts`,
+  `contacts-bulk-public-api.test.ts`, `contacts-refresh-profile-public-api.test.ts`,
+  `folders-public-api.test.ts` — handler-behavior tests, one per public-API
+  submodule (some under `features/contacts/api/public/`, some in the owning
+  sibling feature's own `api/public.ts`)
 - `apps/builder/__tests__/create-workspace-token-action.test.ts`
 - `apps/builder/__tests__/delete-workspace-token-action.test.ts`
 - `apps/builder/__tests__/integration-api-token-hash.test.ts`

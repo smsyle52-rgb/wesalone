@@ -1,15 +1,8 @@
 // @vitest-environment node
 
-import { describe, expect, test, vi } from "vitest"
+import { describe, expect, test } from "vitest"
 
-// proxy.ts pulls in auth/logging at module scope; neither is needed to exercise
-// the pure path matcher.
-vi.mock("@/lib/auth/auth", () => ({ auth: {} }))
-vi.mock("../src/lib/log", () => ({
-  httpLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-}))
-
-const { isPublicRoute } = await import("../src/proxy")
+import { isPublicRoute } from "@/lib/public-routes"
 
 describe("isPublicRoute", () => {
   test("allows the routes that must be reachable signed out", () => {

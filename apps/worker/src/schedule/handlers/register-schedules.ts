@@ -213,6 +213,20 @@ export const registerSchedules = async () => {
   )
 
   await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.scanContactScans,
+    {
+      pattern: "* * * * *",
+    },
+    {
+      name: ScheduleJobData.scanContactScans,
+      data: {
+        type: ScheduleJobData.scanContactScans,
+        data: {},
+      },
+    },
+  )
+
+  await scheduleQueue.upsertJobScheduler(
     ScheduleJobData.reconcileMetaCatalogSyncs,
     {
       pattern: "* * * * *",
@@ -251,6 +265,22 @@ export const registerSchedules = async () => {
       name: ScheduleJobData.purgeErrorLogs,
       data: {
         type: ScheduleJobData.purgeErrorLogs,
+        data: {},
+      },
+    },
+  )
+
+  // Same "retention applies to every edition" reasoning as `purgeErrorLogs`
+  // above; offset 15 minutes so the two chunked deletes do not contend.
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.purgeCommentAutomationEvents,
+    {
+      pattern: "15 3 * * *",
+    },
+    {
+      name: ScheduleJobData.purgeCommentAutomationEvents,
+      data: {
+        type: ScheduleJobData.purgeCommentAutomationEvents,
         data: {},
       },
     },

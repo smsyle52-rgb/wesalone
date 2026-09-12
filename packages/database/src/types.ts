@@ -44,6 +44,8 @@ export type ContactToTagChannelModel =
 export type FlowVersionModel = typeof schema.flowVersionModel.$inferSelect
 export type InvitationModel = typeof schema.invitationModel.$inferSelect
 export type BroadcastModel = typeof schema.broadcastModel.$inferSelect
+export type BroadcastTargetModel =
+  typeof schema.broadcastTargetModel.$inferSelect
 export type WorkspaceMemberModel =
   typeof schema.workspaceMemberModel.$inferSelect
 export type WorkspaceApiTokenModel =
@@ -94,6 +96,8 @@ export type IntegrationOutlookCalendarModel =
   typeof schema.integrationOutlookCalendarModel.$inferSelect
 export type IntegrationWhatsappModel =
   typeof schema.integrationWhatsappModel.$inferSelect
+export type WhatsappBusinessAccountModel =
+  typeof schema.whatsappBusinessAccountModel.$inferSelect
 export type IntegrationZaloModel =
   typeof schema.integrationZaloModel.$inferSelect
 export type IntegrationTelegramModel =
@@ -132,6 +136,10 @@ export type FBCommentAutomationModel =
   typeof schema.fbCommentAutomationModel.$inferSelect
 export type FBCommentAutomationReplyModel =
   typeof schema.fbCommentAutomationReplyModel.$inferSelect
+export type FBCommentAutomationEventModel =
+  typeof schema.fbCommentAutomationEventModel.$inferSelect
+export type FBCommentAutomationEventInsert =
+  typeof schema.fbCommentAutomationEventModel.$inferInsert
 export type IgStoryAutomationModel =
   typeof schema.igStoryAutomationModel.$inferSelect
 export type AuditLogModel = typeof schema.auditLogModel.$inferSelect
@@ -167,6 +175,8 @@ export type IntegrationInstagramModel =
   typeof schema.integrationInstagramModel.$inferSelect
 export type WhatsappMessageTemplateModel =
   typeof schema.whatsappMessageTemplateModel.$inferSelect
+export type MessengerMessageTemplateModel =
+  typeof schema.messengerMessageTemplateModel.$inferSelect
 export type WhatsappFlowModel = typeof schema.whatsappFlowModel.$inferSelect
 export type FlowAnalyticsSessionModel =
   typeof schema.flowAnalyticsSessionModel.$inferSelect

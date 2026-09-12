@@ -2,16 +2,16 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const {
-  findIntegrationWhatsapp,
+  findByIdForWorkspace,
   buildContext,
   runAction,
-  syncTemplates,
+  syncFromMeta,
   loggerWarn,
 } = vi.hoisted(() => ({
-  findIntegrationWhatsapp: vi.fn(),
+  findByIdForWorkspace: vi.fn(),
   buildContext: vi.fn(),
   runAction: vi.fn(),
-  syncTemplates: vi.fn(),
+  syncFromMeta: vi.fn(),
   loggerWarn: vi.fn(),
 }))
 
@@ -22,17 +22,14 @@ vi.mock("@/lib/safe-action", () => {
   chain.action = (fn: unknown) => fn
   return { workspaceActionClient: chain }
 })
-vi.mock("@/features/integration-whatsapp/queries", () => ({
-  findIntegrationWhatsapp,
+vi.mock("@chatbotx.io/business", () => ({
+  buildContext,
+  integrationWhatsappService: { findByIdForWorkspace },
+  whatsappMessageTemplateService: { syncFromMeta },
 }))
-vi.mock("@chatbotx.io/business", () => ({ buildContext }))
 vi.mock("@/integration", () => ({
   integrations: { whatsapp: { runAction } },
 }))
-vi.mock(
-  "@/features/integration-whatsapp/message-templates/lib/sync-message-templates",
-  () => ({ syncWhatsappMessageTemplatesForIntegration: syncTemplates }),
-)
 vi.mock("@/lib/log", () => ({ logger: { warn: loggerWarn } }))
 
 const { createWhatsappMessageTemplateAction } = await import(
@@ -62,15 +59,32 @@ const parsedInput = {
   buttons: [{ type: "QUICK_REPLY", title: "مهتم" }],
 }
 
-beforeEach(() => {
-  findIntegrationWhatsapp.mockResolvedValue(integration)
-  buildContext.mockResolvedValue({ auth: integration.auth })
-  runAction.mockResolvedValue({
-    id: "tpl-1",
-    status: "PENDING",
-    category: "MARKETING",
+const metaTemplates = [{ id: "tpl-1", name: "offer_sep" }]
+
+const mockMeta = ({
+  created = { id: "tpl-1", status: "PENDING", category: "MARKETING" },
+  createError,
+  listError,
+}: {
+  created?: Record<string, unknown>
+  createError?: Error
+  listError?: Error
+} = {}) => {
+  runAction.mockImplementation((name: string) => {
+    if (name === "createMessageTemplate") {
+      return createError ? Promise.reject(createError) : Promise.resolve(created)
+    }
+    return listError
+      ? Promise.reject(listError)
+      : Promise.resolve({ data: metaTemplates })
   })
-  syncTemplates.mockResolvedValue(undefined)
+}
+
+beforeEach(() => {
+  findByIdForWorkspace.mockResolvedValue(integration)
+  buildContext.mockResolvedValue({ auth: integration.auth })
+  syncFromMeta.mockResolvedValue(undefined)
+  mockMeta()
 })
 
 describe("createWhatsappMessageTemplateAction", () => {
@@ -80,7 +94,7 @@ describe("createWhatsappMessageTemplateAction", () => {
       parsedInput,
     })
 
-    expect(findIntegrationWhatsapp).toHaveBeenCalledWith({
+    expect(findByIdForWorkspace).toHaveBeenCalledWith({
       workspaceId: "ws-1",
       id: "int-2",
     })
@@ -100,36 +114,34 @@ describe("createWhatsappMessageTemplateAction", () => {
         ],
       },
     })
-    expect(syncTemplates).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      integrationWhatsapp: integration,
+    expect(syncFromMeta).toHaveBeenCalledWith({
+      integrationWhatsappId: "int-2",
+      templates: metaTemplates,
     })
     expect(result).toEqual({ id: "tpl-1", status: "PENDING" })
   })
 
   test("never calls Meta when the integration is not in this workspace", async () => {
-    findIntegrationWhatsapp.mockRejectedValue(
-      new Error("Whatsapp integration not found"),
-    )
+    findByIdForWorkspace.mockResolvedValue(null)
 
     await expect(
       action({ bindArgsParsedInputs: ["ws-1", "int-foreign"], parsedInput }),
     ).rejects.toThrow("Whatsapp integration not found")
     expect(runAction).not.toHaveBeenCalled()
-    expect(syncTemplates).not.toHaveBeenCalled()
+    expect(syncFromMeta).not.toHaveBeenCalled()
   })
 
   test("surfaces Meta's refusal and does not mirror", async () => {
-    runAction.mockRejectedValue(new Error("Template name already exists"))
+    mockMeta({ createError: new Error("Template name already exists") })
 
     await expect(
       action({ bindArgsParsedInputs: ["ws-1", "int-2"], parsedInput }),
     ).rejects.toThrow("Template name already exists")
-    expect(syncTemplates).not.toHaveBeenCalled()
+    expect(syncFromMeta).not.toHaveBeenCalled()
   })
 
   test("a failed mirror still reports the created template", async () => {
-    syncTemplates.mockRejectedValue(new Error("list failed"))
+    mockMeta({ listError: new Error("list failed") })
 
     await expect(
       action({ bindArgsParsedInputs: ["ws-1", "int-2"], parsedInput }),
@@ -138,10 +150,8 @@ describe("createWhatsappMessageTemplateAction", () => {
   })
 
   test("returns Meta's REJECTED status so the dialog can say so", async () => {
-    runAction.mockResolvedValue({
-      id: "tpl-2",
-      status: "REJECTED",
-      category: "MARKETING",
+    mockMeta({
+      created: { id: "tpl-2", status: "REJECTED", category: "MARKETING" },
     })
 
     await expect(

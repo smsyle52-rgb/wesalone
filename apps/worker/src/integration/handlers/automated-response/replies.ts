@@ -14,33 +14,21 @@ import {
   appendKnowledgeBaseGuard,
   appendToolOutputGuard,
   buildPlatformOverrideCandidates,
-  createAIProviderInstance,
-  createOpenaiCompatibleModelInstance,
   getActivePlatformAiOverride,
-  getAIIntegrationInDB,
   getAIToolset,
-  getPlatformAzureOpenAIChatModel,
-  getPlatformAzureOpenAIProvider,
   getPlatformCapabilityLanguageModel,
-  getPlatformVertexChatModel,
-  getPlatformVertexProvider,
-  isPlatformAzureOpenAIModelCandidate,
-  isPlatformVertexModelCandidate,
   McpClient,
   normalizeAuthorizedWebSearchDomains,
   normalizeMcpContent,
   type PlatformModelCandidate,
 } from "@chatbotx.io/ai/server"
 import {
-  integrationOpenaiCompatibleService,
   type UsageReservation,
   usageMeteringService,
   userQuotaService,
 } from "@chatbotx.io/business"
 import type {
   AIAgentModelConfig,
-  AIAgentOpenaiCompatibleProviderModel,
-  AIAgentProvider,
   AIAgentProviderModels,
   DefaultReplyFrequency,
 } from "@chatbotx.io/database/partials"
@@ -64,6 +52,11 @@ import {
   type ToolSet,
 } from "ai"
 import { normalizeError } from "universal-error-normalizer"
+import {
+  createReplyModel,
+  getProviderName,
+  type ReplyAIProvider,
+} from "../../../lib/ai/reply-model"
 import { logger } from "../../../lib/logger"
 import { handoffExecutorService } from "../../../trigger/services/handoff-executor.service"
 import { sendMessageAndWait, sendMessageWithRender } from "../../utils/message"
@@ -114,11 +107,7 @@ export type ReplyByAIExecutionResult = {
   }
 }
 
-export type ReplyAIProvider =
-  | AIAgentProvider
-  | "vertex"
-  | "azureOpenAI"
-  | "openaiCompatible"
+export type { ReplyAIProvider } from "../../../lib/ai/reply-model"
 
 /** Tool id the knowledge-base search is registered under. */
 const KNOWLEDGE_SEARCH_TOOL = "search_knowledge_base"
@@ -451,6 +440,7 @@ function createReplyToolset(options: {
   modelId: string
   props: ReplyByAIProps
   provider: ReplyAIProvider
+  providerInfo: AIAgentModelConfig | PlatformModelCandidate
   providerInstance?: AIProviderInstance
   trackingContextRef: TrackingContextRef
 }) {
@@ -549,9 +539,8 @@ function createReplyToolset(options: {
           options.props.workspaceLanguage ??
           options.props.contactInbox.language ??
           undefined,
-        model: options.model,
         modelId: options.modelId,
-        provider: options.provider,
+        providerInfo: options.providerInfo,
         triggerMessageId: options.props.triggerMessageId,
       }),
       [systemFunctionNames.urlContext]: createUrlReaderExecutor({
@@ -803,120 +792,6 @@ function filterToolsByAllowedSystemFunctions(
   })
 }
 
-function isOpenaiCompatibleProviderModel(
-  providerInfo: AIAgentModelConfig | PlatformModelCandidate,
-): providerInfo is AIAgentOpenaiCompatibleProviderModel {
-  return "kind" in providerInfo && providerInfo.kind === "openaiCompatible"
-}
-
-function getProviderName(
-  providerInfo: AIAgentModelConfig | PlatformModelCandidate,
-): ReplyAIProvider {
-  if (isPlatformVertexModelCandidate(providerInfo)) {
-    return "vertex"
-  }
-  if (isPlatformAzureOpenAIModelCandidate(providerInfo)) {
-    return "azureOpenAI"
-  }
-  return isOpenaiCompatibleProviderModel(providerInfo)
-    ? "openaiCompatible"
-    : providerInfo.provider
-}
-
-async function createReplyModel(props: {
-  providerInfo: AIAgentModelConfig | PlatformModelCandidate
-  workspaceId: string
-}): Promise<null | {
-  model: LanguageModel
-  providerInstance?: AIProviderInstance
-}> {
-  const { providerInfo, workspaceId } = props
-
-  if (isPlatformVertexModelCandidate(providerInfo)) {
-    const override = await getActivePlatformAiOverride()
-    if (!override) {
-      return null
-    }
-    const providerInstance = getPlatformVertexProvider(override)
-    return {
-      model: getPlatformVertexChatModel(providerInfo.model, override),
-      providerInstance,
-    }
-  }
-
-  if (isPlatformAzureOpenAIModelCandidate(providerInfo)) {
-    const override = await getActivePlatformAiOverride()
-    // Setting flipped off, or the fallback was removed, between the loop
-    // starting and this call — continue like any unavailable integration.
-    if (!override?.azureOpenAI) {
-      return null
-    }
-    const providerInstance = getPlatformAzureOpenAIProvider(
-      override.azureOpenAI,
-    )
-    return {
-      model: getPlatformAzureOpenAIChatModel(
-        providerInfo.model,
-        override.azureOpenAI,
-      ),
-      providerInstance,
-    }
-  }
-
-  if (isOpenaiCompatibleProviderModel(providerInfo)) {
-    const integration =
-      await integrationOpenaiCompatibleService.findByWorkspaceIdAndId({
-        workspaceId,
-        id: providerInfo.integrationId,
-      })
-
-    if (!(integration?.enabled && integration.autoReply)) {
-      logger.debug(
-        {
-          workspaceId,
-          integrationId: providerInfo.integrationId,
-          integrationFound: Boolean(integration),
-          enabled: integration?.enabled ?? null,
-          autoReply: integration?.autoReply ?? null,
-        },
-        "[automated-response] openaiCompatible provider skipped: integration missing, disabled, or auto-reply off",
-      )
-      return null
-    }
-
-    return {
-      model: createOpenaiCompatibleModelInstance({
-        integration,
-        modelId: providerInfo.model,
-      }),
-    }
-  }
-
-  const integration = await getAIIntegrationInDB({
-    workspaceId,
-    provider: providerInfo.provider,
-    autoReply: true,
-  })
-
-  if (!integration) {
-    logger.debug(
-      { workspaceId, provider: providerInfo.provider },
-      "[automated-response] provider skipped: no auto-reply-enabled integration found",
-    )
-    return null
-  }
-
-  const providerInstance = createAIProviderInstance({
-    model: integration,
-    provider: providerInfo.provider,
-  })
-
-  return {
-    model: providerInstance(providerInfo.model),
-    providerInstance,
-  }
-}
-
 async function runAIReply(
   props: ReplyByAIProps,
   providerInfo: AIAgentModelConfig | PlatformModelCandidate,
@@ -984,6 +859,7 @@ async function runAIReply(
       modelId: selectedModelId,
       props,
       provider,
+      providerInfo,
       providerInstance: modelConfig.providerInstance,
       trackingContextRef,
     })

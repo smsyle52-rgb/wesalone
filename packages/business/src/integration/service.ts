@@ -36,6 +36,15 @@ export type TokenRefreshErrorIntegration = {
 }
 
 class IntegrationService extends BaseService {
+  findByIdForWorkspace(props: {
+    id: string
+    workspaceId: string
+  }): Promise<IntegrationModel | undefined> {
+    return db.query.integrationModel.findFirst({
+      where: { id: props.id, workspaceId: props.workspaceId },
+    })
+  }
+
   async listByWorkspaceId(workspaceId: string): Promise<IntegrationModel[]> {
     return await db
       .select()
@@ -178,6 +187,25 @@ class IntegrationService extends BaseService {
         error: row.error as string,
       })),
     ]
+  }
+
+  /**
+   * Boolean gate for whether a workspace has any integration whose type is
+   * in `integrationTypes` (e.g. an AI provider). The caller supplies the
+   * type list — business does not depend on `@chatbotx.io/ai`.
+   */
+  async hasIntegrationOfTypes(props: {
+    workspaceId: string
+    integrationTypes: string[]
+  }): Promise<boolean> {
+    const existing = await db.query.integrationModel.findFirst({
+      where: {
+        integrationType: { in: props.integrationTypes },
+        workspaceId: props.workspaceId,
+      },
+    })
+
+    return !!existing
   }
 }
 

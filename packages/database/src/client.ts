@@ -25,16 +25,21 @@ const env = keys()
  * "timeout exceeded when trying to connect", which silently killed WhatsApp
  * connects mid-flow.
  *
- * Sized against the database, not the concurrency: the shared db-f1-micro
- * instance allows ~25 connections and also serves the legacy app, while this
- * codebase runs at most 4 instances (builder + realtime, maxScale 2 each). Four
- * per pool therefore caps this app at ~16 and leaves headroom rather than
- * trading a slow path for connection exhaustion. Raise the instance tier before
- * raising this much further.
+ * Sized against the database, not the concurrency. The previous cap of four
+ * was sized for a shared Cloud SQL db-f1-micro (~25 connections, also serving
+ * the legacy app); that instance is gone. Measured on Azure 12 Sep: the flexible server
+ * `pg-wesal-uae-4dad6f` (B2s, PG 16) allows `max_connections = 429` and peaks
+ * at ~32 in use, while this deployment scales to at most 16 replicas in total
+ * (builder 8, realtime 3, workers 3, commerce 2) — so ten per pool caps the
+ * platform near 160 with wide headroom. The connect fan-out depends on this
+ * number directly: it holds two connections per in-flight connect, so
+ * `2 × CONNECT_CONCURRENCY + headroom ≤ max` (see
+ * `features/channel-connect/lib/registry.ts` and
+ * `connect-pool-ceiling.test.ts`). Re-measure before raising it again.
  */
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  max: 4,
+  max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 20_000,
 })

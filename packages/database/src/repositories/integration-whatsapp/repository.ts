@@ -4,65 +4,62 @@ import {
   type DatabaseClient,
   db,
   eq,
-  gt,
   inArray,
-  isNotNull,
   isNull,
   lt,
-  lte,
   or,
   sql,
 } from "../../client"
 import {
   type IntegrationWhatsappRegistrationError,
   integrationWhatsappModel,
-  whatsappSignupSessionModel,
 } from "../../schema"
-import type {
-  IntegrationWhatsappModel,
-  WhatsappSignupSessionModel,
-} from "../../types"
+import type { IntegrationWhatsappModel } from "../../types"
 
-/**
- * How long a phone-number selection stays usable. The user only has to pick a
- * number from a list already on screen, so this is generous; the window exists
- * to bound how long the signup access token sits at rest.
- */
-export const WHATSAPP_SIGNUP_SESSION_TTL_MS = 10 * 60 * 1000
-
-/** Caps how many rows one purge pass deletes, to keep the lock window short. */
-const SIGNUP_SESSION_PURGE_BATCH_SIZE = 500
-
-type CreateWhatsappSignupSessionInput = {
-  userId: string
-  ownerId: string
-  workspaceId?: string | null
-  wabaId: string
-  businessId: string
-  encryptedAccessToken: EncryptedData
-  apiVersion: string
-  candidatePhoneNumberIds: string[]
-  now?: Date
-}
-
-type WhatsappSignupSessionClaimInput = {
-  id: string
-  userId: string
-  ownerId: string
-  phoneNumberId: string
-  now?: Date
-  tx?: DatabaseClient
-}
-
-type PurgeWhatsappSignupSessionsInput = {
-  now?: Date
-  batchSize?: number
-  tx?: DatabaseClient
-}
+// `isCoexist`/`platformType` have column defaults (both `$inferInsert`
+// makes optional), but a connect must always state them explicitly — the
+// only caller (`connectPhoneNumber`) always passes both, and `Required`
+// keeps that invariant enforced by the type instead of just convention.
+type UpsertWhatsappIntegrationInput = Pick<
+  typeof integrationWhatsappModel.$inferInsert,
+  | "id"
+  | "workspaceId"
+  | "inboxId"
+  | "auth"
+  | "phoneNumberId"
+  | "wabaId"
+  | "businessId"
+  | "name"
+  | "displayPhoneNumber"
+> &
+  Required<
+    Pick<
+      typeof integrationWhatsappModel.$inferInsert,
+      "isCoexist" | "platformType"
+    >
+  >
 
 type WorkspaceIntegrationRef = {
   id: string
   workspaceId: string
+}
+
+export type IntegrationWhatsappClientResource = Pick<
+  IntegrationWhatsappModel,
+  | "id"
+  | "name"
+  | "inboxId"
+  | "displayPhoneNumber"
+  | "tokenRefreshError"
+  | "phoneNumberId"
+  | "wabaId"
+  | "hasCapiScope"
+  | "capiScopeCheckedAt"
+  | "datasetId"
+  | "workspaceId"
+  | "createdAt"
+> & {
+  inbox?: { id: string; name: string } | null
 }
 
 type UpdateWhatsappRegistrationInput = WorkspaceIntegrationRef & {
@@ -134,26 +131,6 @@ const capiScopeCasFilter = (
     sql`${integrationWhatsappModel.capiScopeCheckedAt} IS NOT DISTINCT FROM ${input.expectedCapiScopeCheckedAt}`,
   )
 
-/**
- * Matches exactly one session a caller is allowed to act on: theirs, not yet
- * consumed, not yet expired, and offering the phone number they picked.
- *
- * Shared by the read and the claim so a session can never pass the lookup and
- * then fail the update for a reason the caller was not told about.
- */
-const activeSignupSessionFilter = (
-  input: Omit<WhatsappSignupSessionClaimInput, "tx" | "now">,
-  now: Date,
-) =>
-  and(
-    eq(whatsappSignupSessionModel.id, input.id),
-    eq(whatsappSignupSessionModel.userId, input.userId),
-    eq(whatsappSignupSessionModel.ownerId, input.ownerId),
-    isNull(whatsappSignupSessionModel.consumedAt),
-    gt(whatsappSignupSessionModel.expiresAt, now),
-    sql`${input.phoneNumberId} = ANY(${whatsappSignupSessionModel.candidatePhoneNumberIds})`,
-  )
-
 class IntegrationWhatsappRepository {
   async findConnectedPhoneNumberIds(
     phoneNumberIds: string[],
@@ -176,6 +153,7 @@ class IntegrationWhatsappRepository {
       .select({
         id: integrationWhatsappModel.id,
         workspaceId: integrationWhatsappModel.workspaceId,
+        wabaId: integrationWhatsappModel.wabaId,
         auth: integrationWhatsappModel.auth,
       })
       .from(integrationWhatsappModel)
@@ -237,6 +215,21 @@ class IntegrationWhatsappRepository {
   }
 
   /**
+   * No workspace scope — called from the inbound webhook-verification handler
+   * before a workspace context is resolved.
+   */
+  async updateAuthUnscoped(
+    id: string,
+    auth: Record<string, unknown>,
+    tx: DatabaseClient = db,
+  ): Promise<void> {
+    await tx
+      .update(integrationWhatsappModel)
+      .set({ auth })
+      .where(eq(integrationWhatsappModel.id, id))
+  }
+
+  /**
    * Resolves the WhatsApp integration that owns a given `Inbox.id`. Ads
    * conversion trigger hook points (tag applied, keyword matched, contact
    * replied) only have the inbox/contactInbox in scope, not the integration
@@ -288,6 +281,21 @@ class IntegrationWhatsappRepository {
     return row ?? null
   }
 
+  /**
+   * Records that the user declined chat-history sharing in the WhatsApp
+   * Business app. Terminal for coexist history on this number — Meta will
+   * never push it — so the UI hides the retry CTA.
+   */
+  async markHistoryDeclined(
+    input: { id: string },
+    tx: DatabaseClient = db,
+  ): Promise<void> {
+    await tx
+      .update(integrationWhatsappModel)
+      .set({ historyDeclined: true, updatedAt: new Date() })
+      .where(eq(integrationWhatsappModel.id, input.id))
+  }
+
   async findByPhoneNumberId(
     input: { phoneNumberId: string; wabaId?: string },
     tx: DatabaseClient = db,
@@ -325,6 +333,35 @@ class IntegrationWhatsappRepository {
             id: true,
             name: true,
           },
+        },
+      },
+    })
+  }
+
+  listClientResourcesByWorkspaceId(
+    workspaceId: string,
+    tx: DatabaseClient = db,
+  ): Promise<IntegrationWhatsappClientResource[]> {
+    return tx.query.integrationWhatsappModel.findMany({
+      columns: {
+        id: true,
+        name: true,
+        inboxId: true,
+        displayPhoneNumber: true,
+        tokenRefreshError: true,
+        phoneNumberId: true,
+        wabaId: true,
+        hasCapiScope: true,
+        capiScopeCheckedAt: true,
+        datasetId: true,
+        workspaceId: true,
+        createdAt: true,
+      },
+      where: { workspaceId },
+      orderBy: { createdAt: "asc" },
+      with: {
+        inbox: {
+          columns: { id: true, name: true },
         },
       },
     })
@@ -594,103 +631,35 @@ class IntegrationWhatsappRepository {
       )
   }
 
-  async createSignupSession(
-    input: CreateWhatsappSignupSessionInput,
+  /**
+   * Upserts a WhatsApp integration keyed by `inboxId` (today's
+   * `onConflictDoUpdate`, moved verbatim): a retry after a lost response
+   * re-writes the same row instead of colliding on `IntegrationWhatsapp_
+   * inboxId_key`.
+   */
+  async upsertByInbox(
+    input: UpsertWhatsappIntegrationInput,
     tx: DatabaseClient = db,
-  ): Promise<WhatsappSignupSessionModel> {
-    const now = input.now ?? new Date()
+  ): Promise<IntegrationWhatsappModel> {
     const [row] = await tx
-      .insert(whatsappSignupSessionModel)
+      .insert(integrationWhatsappModel)
       .values({
-        userId: input.userId,
-        ownerId: input.ownerId,
-        workspaceId: input.workspaceId || null,
-        wabaId: input.wabaId,
-        businessId: input.businessId,
-        encryptedAccessToken: input.encryptedAccessToken,
-        apiVersion: input.apiVersion,
-        candidatePhoneNumberIds: input.candidatePhoneNumberIds,
-        expiresAt: new Date(now.getTime() + WHATSAPP_SIGNUP_SESSION_TTL_MS),
+        ...input,
+        registrationStatus: "pending_verification",
+      })
+      .onConflictDoUpdate({
+        target: [integrationWhatsappModel.inboxId],
+        set: {
+          name: input.name,
+          displayPhoneNumber: input.displayPhoneNumber,
+          isCoexist: input.isCoexist,
+          platformType: input.platformType,
+          updatedAt: new Date(),
+        },
       })
       .returning()
 
-    if (!row) {
-      throw new Error("Failed to create WhatsApp signup session")
-    }
-
     return row
-  }
-
-  /**
-   * Reads a session without spending it, so the connect flow can do its
-   * network work before committing to the single use.
-   */
-  async findActiveSignupSession(
-    input: WhatsappSignupSessionClaimInput,
-  ): Promise<WhatsappSignupSessionModel | null> {
-    const { tx = db, now = new Date() } = input
-    const [row] = await tx
-      .select()
-      .from(whatsappSignupSessionModel)
-      .where(activeSignupSessionFilter(input, now))
-      .limit(1)
-
-    return row ?? null
-  }
-
-  /**
-   * Spends the session. The conditional UPDATE is the single-use guarantee:
-   * concurrent connects contend on the same row and only one sees a result.
-   *
-   * Pass the connect transaction as `tx` so the session is spent only if the
-   * integration it authorizes is actually written.
-   */
-  async consumeSignupSession(
-    input: WhatsappSignupSessionClaimInput,
-  ): Promise<WhatsappSignupSessionModel | null> {
-    const { tx = db, now = new Date() } = input
-    const [row] = await tx
-      .update(whatsappSignupSessionModel)
-      .set({ consumedAt: now })
-      .where(activeSignupSessionFilter(input, now))
-      .returning()
-
-    return row ?? null
-  }
-
-  /**
-   * Drops sessions that can never be used again. Each row holds an encrypted
-   * signup access token, so this bounds how long that token is retained.
-   *
-   * Returns how many rows were removed so a scheduler can keep calling until a
-   * pass comes back empty, without having to know `batchSize`.
-   */
-  async purgeFinishedSignupSessions(
-    input: PurgeWhatsappSignupSessionsInput = {},
-  ): Promise<number> {
-    const {
-      tx = db,
-      now = new Date(),
-      batchSize = SIGNUP_SESSION_PURGE_BATCH_SIZE,
-    } = input
-
-    const finishedIds = tx
-      .select({ id: whatsappSignupSessionModel.id })
-      .from(whatsappSignupSessionModel)
-      .where(
-        or(
-          isNotNull(whatsappSignupSessionModel.consumedAt),
-          lte(whatsappSignupSessionModel.expiresAt, now),
-        ),
-      )
-      .limit(batchSize)
-
-    const deleted = await tx
-      .delete(whatsappSignupSessionModel)
-      .where(inArray(whatsappSignupSessionModel.id, finishedIds))
-      .returning({ id: whatsappSignupSessionModel.id })
-
-    return deleted.length
   }
 }
 

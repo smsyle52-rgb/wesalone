@@ -256,6 +256,7 @@
     "dateFilterPreset": "Voorinstelling voor datumfilter",
     "noResults": "Geen resultaten.",
     "noData": "Geen gegevens",
+    "retentionNotice": "Alleen de gegevens van de afgelopen {days} dagen worden bewaard.",
     "comingSoon": "Binnenkort beschikbaar",
     "unknown": "Onbekend",
     "pagination": {
@@ -265,10 +266,20 @@
       "firstPage": "Naar de eerste pagina",
       "previousPage": "Naar de vorige pagina",
       "nextPage": "Naar de volgende pagina",
-      "lastPage": "Naar de laatste pagina"
+      "lastPage": "Naar de laatste pagina",
+      "totalRows": "{total} rij(en)"
     },
     "sessionsThroughTheRef": "Sessies via de referentie \"{ref}\" per dag",
-    "sessionsThroughTheMagicLink": "Sessies via de magische link \"{ref}\" per dag"
+    "sessionsThroughTheMagicLink": "Sessies via de magische link \"{ref}\" per dag",
+    "repliesToComments": "Reacties op opmerkingen",
+    "repliesByDate": "Reacties per datum",
+    "userCommentsOnThisPost": "Gebruikersreacties op dit bericht",
+    "botRepliesToComments": "Botreacties op opmerkingen",
+    "comment": "Opmerking",
+    "message": "Bericht",
+    "searchByDate": "Zoeken op datum...",
+    "publicReply": "Openbare reactie",
+    "privateReply": "Privéreactie"
   },
   "flowAnalytics": {
     "nodes": {
@@ -1111,12 +1122,15 @@
       "label": "Bewerking"
     },
     "outputCustomField": {
-      "label": "Aangepast uitvoerveld"
+      "label": "Aangepast uitvoerveld",
+      "javascriptOptional": "Optioneel. Slaat de volledige returnwaarde op. Gebruik de JSON-padtoewijzing hierboven om afzonderlijke velden te schrijven.",
+      "javascriptDumpLabel": "Volledige JSON-uitvoer (optioneel)"
     },
     "javascriptCode": {
       "label": "JavaScript-code",
       "placeholder": "return (input.first_name || 'there').toUpperCase()",
-      "description": "Gebruik pure JavaScript en retourneer een waarde. Netwerk, bestanden, API's en externe bibliotheken zijn niet beschikbaar. Contact- en systeemgegevens zijn beschikbaar via het `input`-object."
+      "description": "Gebruik pure JavaScript en retourneer een waarde. Netwerk, bestanden, API's en externe bibliotheken zijn niet beschikbaar. Contact- en systeemgegevens zijn beschikbaar via het `input`-object.",
+      "objectMapping": "Wijs een willekeurig JSON-pad uit de returnwaarde toe aan een willekeurig aangepast veld, net als bij Externe API-aanvraag. Jij kiest de paden en de velden."
     },
     "httpMethod": {
       "label": "Methode"
@@ -1472,7 +1486,8 @@
       "date": "Datum",
       "datetime": "Datum en tijd",
       "location": "Locatie",
-      "anyInput": "Elke invoer"
+      "anyInput": "Elke invoer",
+      "locationDescription": "Op WhatsApp stuurt dit Meta's native knop Locatie verzenden en wacht op de pin. Andere kanalen sturen de prompt als tekst; een gedeelde pin of ingevoerde lat,lng voltooit de stap ook."
     },
     "workspaceMember": {
       "label": "Werkruimtelid"
@@ -1606,6 +1621,12 @@
     },
     "messengerChannel": {
       "label": "Messenger-kanaal"
+    },
+    "whatsappChannels": {
+      "label": "WhatsApp-kanalen"
+    },
+    "messengerChannels": {
+      "label": "Messenger-pagina's"
     },
     "messages": {
       "label": "Berichten"
@@ -1935,6 +1956,26 @@
         "done": "Klaar"
       }
     },
+    "tokenPermission": {
+      "label": "Machtiging",
+      "full": "Volledige toegang",
+      "readOnly": "Alleen-lezen"
+    },
+    "tokenScopes": {
+      "label": "Bereiken",
+      "contacts": "Contacten",
+      "inbox": "Inbox",
+      "automation": "Automatisering",
+      "broadcasts": "Uitzendingen",
+      "analytics": "Analyse",
+      "ecommerce": "E-commerce",
+      "integrations": "Integraties",
+      "channels": "Kanalen",
+      "minigames": "Minigames",
+      "appointments": "Afspraken",
+      "media": "Media",
+      "ads": "Advertenties"
+    },
     "adReferral": {
       "label": "Ads",
       "ctwa": "CTWA",
@@ -1958,27 +1999,7 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
-    "tokenPermission": {
-      "label": "Machtiging",
-      "full": "Volledige toegang",
-      "readOnly": "Alleen-lezen"
-    },
-    "tokenScopes": {
-      "label": "Bereiken",
-      "contacts": "Contacten",
-      "inbox": "Inbox",
-      "automation": "Automatisering",
-      "broadcasts": "Uitzendingen",
-      "analytics": "Analyse",
-      "ecommerce": "E-commerce",
-      "integrations": "Integraties",
-      "channels": "Kanalen",
-      "minigames": "Minigames",
-      "appointments": "Afspraken",
-      "media": "Media",
-      "ads": "Advertenties"
-    }
+    "selectOptionsPlaceholder": "Select options"
   },
   "condition": {
     "yes": "Ja",
@@ -2420,7 +2441,11 @@
       "tiktokTitleTruncated": "Als er knoppen zijn toegevoegd, verstuurt TikTok alleen de eerste 40 tekens van dit bericht — de rest wordt afgekapt."
     },
     "dataWasSaved": "Gegevens zijn opgeslagen",
-    "startNode": "Start"
+    "startNode": "Start",
+    "media": {
+      "stepUnsupportedOnChannel": "Dit kanaal kan dit mediatype niet verzenden — de stap wordt daar overgeslagen. Verwijder de stap of zet de node op een kanaal dat het ondersteunt.",
+      "buttonsSkippedOnChannel": "Dit kanaal kan geen knoppen bij een mediabericht verzenden — daar worden ze overgeslagen. Zet ze in plaats daarvan in een volgende tekststap."
+    }
   },
   "folders": {
     "heading": {
@@ -3012,7 +3037,59 @@
       "resultSuccess": "{refreshed} kanaal/kanalen vernieuwd.",
       "resultWithFailures": "{refreshed} kanaal/kanalen vernieuwd, {failed} mislukt."
     },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
+    "connectMany": {
+      "coexist": {
+        "running": "Geschiedenissynchronisatie starten…",
+        "done": "Geschiedenissynchronisatie gestart",
+        "failed": "Geschiedenissynchronisatie mislukt"
+      },
+      "selectAll": "Alles selecteren",
+      "selected": "{count}/{max} geselecteerd",
+      "dialogTitleRunning": "{count} {feature} verbinden…",
+      "dialogTitleDone": "{connected} van {total} verbonden",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "{done} van {total} voltooid",
+      "status": {
+        "waiting": "Wachten",
+        "connecting": "Verbinden…",
+        "connected": "Verbonden",
+        "duplicated": "Al verbonden",
+        "limitReached": "Limiet bereikt",
+        "failed": "Mislukt",
+        "timedOut": "Time-out",
+        "cancelled": "Geannuleerd"
+      },
+      "reason": {
+        "notSelectable": "Dit item kan niet worden geselecteerd.",
+        "channelLimit": "Kanaallimiet bereikt.",
+        "workspaceLimit": "Werkruimtelimiet bereikt.",
+        "providerRejected": "De provider heeft dit verzoek geweigerd.",
+        "unknown": "Er is iets misgegaan.",
+        "followUpFailed": "Instellen niet voltooid — rond dit af via de kanaalinstellingen."
+      },
+      "sessionError": {
+        "sessionExpired": "Je sessie is verlopen. Maak opnieuw verbinding.",
+        "notMember": "Je bent geen lid meer van deze werkruimte.",
+        "trialExpired": "Je proefperiode is verlopen.",
+        "macLimitReached": "Je hebt je accountlimiet bereikt.",
+        "credentialMissing": "Ontbrekende inloggegevens. Maak opnieuw verbinding."
+      },
+      "cancelRemaining": "Resterende annuleren",
+      "retryFailed": "Opnieuw proberen ({count})",
+      "retry": "Opnieuw proberen",
+      "goToChannels": "Naar kanalen",
+      "close": "Sluiten",
+      "leaveNotice": "Je kunt de pagina verlaten; verbonden accounts blijven behouden",
+      "stepConnecting": "Verbinden",
+      "stepCoexist": "Geschiedenis synchroniseren",
+      "validation": {
+        "min": "Selecteer minimaal 1",
+        "max": "Je kunt tot {max} selecteren",
+        "duplicate": "Dubbele selectie"
+      },
+      "progressLabel": "Voortgang"
+    }
   },
   "workspace": {
     "schedule": {
@@ -3192,7 +3269,9 @@
     "waTemplateMpmTooManySections": "Een multi-productknop kan maximaal 10 secties hebben. Verwijder enkele secties voordat je publiceert.",
     "waTemplateMpmTooManyProducts": "Een multi-productknop kan in totaal maximaal 30 producten hebben. Verwijder enkele producten voordat je publiceert.",
     "waTemplateLtoExpirationRequired": "Kies een vervaldatum voor de tijdelijke aanbieding voordat je verzendt.",
-    "waTemplateMpmIncompleteProducts": "Elke sectie heeft minstens één geselecteerd product nodig — verwijder lege rijen of kies er een product voor."
+    "waTemplateMpmIncompleteProducts": "Elke sectie heeft minstens één geselecteerd product nodig — verwijder lege rijen of kies er een product voor.",
+    "mediaStepUnsupported": "Dit kanaal kan dit mediatype niet verzenden. Verwijder de stap of richt deze node op een kanaal dat het ondersteunt.",
+    "mediaButtonsUnsupported": "Dit kanaal kan geen knoppen bij een mediabericht verzenden. Verwijder de knoppen of verplaats ze naar een tekststap hierna."
   },
   "instagram": {
     "description": "Met deze integratie kun je Instagram-bots maken.",
@@ -3204,6 +3283,12 @@
     "tabs": {
       "generalSettings": "Algemene instellingen",
       "conversionsApi": "Advertentie-optimalisatie"
+    },
+    "selectPage": {
+      "noAccountsTitle": "Geen Instagram-accounts gevonden",
+      "noAccountsDescription": "Er zijn geen Instagram-zakelijke accounts gevonden op de Facebook-pagina's die je beheert. Koppel Instagram opnieuw en geef alle gevraagde machtigingen.",
+      "alreadyConnectedNote": "Dit account is al gekoppeld",
+      "tryAgain": "Probeer opnieuw te koppelen"
     }
   },
   "coexist": {
@@ -3249,7 +3334,6 @@
     "defaultPersona": "Standaardpersona",
     "reconnect": "Opnieuw koppelen",
     "reconnectDescription": "Koppel je bot opnieuw als je Messenger-bot niet reageert of als je een machtigingsfout in het foutenlogboek ziet.",
-    "selectFacebookPage": "Facebook-pagina selecteren",
     "selectPage": {
       "noPagesTitle": "Geen Facebook-pagina's gevonden",
       "noPagesDescription": "Voor pagina's in Bedrijfsmanager is tijdens het koppelen toegang tot Bedrijfsmanager vereist. Koppel Messenger opnieuw en verleen alle gevraagde machtigingen.",
@@ -3303,6 +3387,7 @@
         "result": {
           "title": "Kloonresultaten",
           "succeededTitle": "Geslaagd",
+          "pendingTitle": "Wacht op beoordeling door Meta",
           "close": "Sluiten"
         }
       }
@@ -3513,6 +3598,7 @@
   "validation": {
     "maxSize": "De bestandsgrootte overschrijdt de maximale limiet",
     "maxItemsReached": "Maximaal {max} {feature} toegestaan per workspace",
+    "maxCharacters": "Maximaal {max} tekens.",
     "invalidApiKey": "Ongeldige API-sleutel",
     "maxMustBeGreaterThanMin": "{maxField} moet groter zijn dan of gelijk zijn aan {minField}"
   },
@@ -3562,7 +3648,8 @@
       "verifyToken": "Webhook-verificatietoken",
       "qrCodeHint": "Scan de QR-code om de webhook-URL te openen",
       "moreSettings": "Meer instellingen",
-      "goToInbox": "Breng me erheen"
+      "goToInbox": "Breng me erheen",
+      "multipleTitle": "Je WhatsApp-inboxen zijn klaar!"
     },
     "phoneVerification": {
       "title": "WhatsApp-telefoonnummer verifiëren",
@@ -3575,7 +3662,8 @@
       "actions": {
         "sendCode": "Code verzenden",
         "resendIn": "Opnieuw verzenden over {seconds}s",
-        "verify": "Verifiëren en registreren"
+        "verify": "Registreren",
+        "skip": "Overslaan"
       },
       "fields": {
         "code": {
@@ -3593,18 +3681,12 @@
         "codeNotSent": "De WhatsApp-verificatiecode kon niet worden verzonden.",
         "codeNotVerified": "De WhatsApp-verificatiecode kon niet worden geverifieerd.",
         "registrationFailed": "Verificatie van het WhatsApp-telefoonnummer is mislukt."
-      }
+      },
+      "queueProgress": "Verifiëren {current} van {total}"
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "Een WhatsApp-toegangstoken is vereist.",
         "appSettingsNotFound": "De WhatsApp-appinstellingen zijn niet gevonden.",
-        "failedToPersistIntegration": "Opslaan van de WhatsApp-integratie is mislukt.",
-        "noPhoneNumberFound": "Er is geen WhatsApp-telefoonnummer gevonden.",
-        "noPhoneNumbersFound": "Er zijn geen telefoonnummers gevonden voor dit WhatsApp Business-account.",
-        "phoneNumberNotFound": "Het geselecteerde WhatsApp-telefoonnummer is niet gevonden.",
-        "unableToVerifyToken": "Het WhatsApp-token kan niet worden geverifieerd.",
-        "wabaMismatch": "Het geselecteerde WhatsApp Business-account komt niet overeen met de autorisatie.",
         "wabaResolveFailed": "Het WhatsApp Business-account kon niet uit de autorisatie worden bepaald."
       }
     },
@@ -3846,16 +3928,12 @@
       "label": "Koptekst van sjabloon"
     },
     "transferPhoneNumber": "Telefoonnummer van een andere WhatsApp-provider overdragen",
-    "signupSessionExpired": "Je WhatsApp-registratiesessie is verlopen. Start de koppeling opnieuw.",
-    "capi": {
-      "automaticEvents": {
-        "title": "Automatische events",
-        "description": "Verstuur conversiegebeurtenissen van dit WhatsApp-nummer automatisch naar Meta. Ontbreekt de machtiging, verbind het account dan opnieuw om deze te verlenen."
-      }
-    },
     "ecommerce": {
       "title": "Sell your products on WhatsApp",
       "manageProducts": "Manage your products"
+    },
+    "selectPage": {
+      "tryAgain": "Probeer opnieuw te koppelen"
     }
   },
   "zalo": {
@@ -4054,6 +4132,60 @@
     "exportAllNotice": "Alle contacten die overeenkomen met het huidige filter worden geëxporteerd.",
     "exportTakingLong": "Het exporteren duurt langer dan verwacht",
     "exportTakingLongDescription": "De export wordt nog verwerkt. Je kunt dit dialoogvenster sluiten en over enkele minuten de exportgeschiedenis bekijken."
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
   },
   "auditLogs": {
     "title": "Auditlogboeken",
@@ -5491,10 +5623,19 @@
       "confirmationFlowId": "Bevestigingsflow",
       "cancellationFlowId": "Annuleringsflow",
       "externalConnectionId": "Externe kalender",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
       "reminders": "Herinneringen",
       "reminderTimingValue": "Waarde",
       "reminderTimingUnit": "Eenheid"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
     "locationTypes": {
       "inPerson": "Persoonlijke afspraak",
       "phoneCall": "Telefoongesprek",
@@ -5837,7 +5978,8 @@
       "generalSettingsTitle": "Algemene instellingen",
       "appearanceTitle": "Uiterlijk",
       "playerSettingsTitle": "Spelerinstellingen",
-      "prizeSettingsTitle": "Prijsinstellingen"
+      "prizeSettingsTitle": "Prijsinstellingen",
+      "validationFailed": "Corrigeer de gemarkeerde velden voordat je opslaat."
     },
     "generalSettings": {
       "showName": "Zichtbaar",
@@ -5845,10 +5987,7 @@
       "rulesDescription": "Spelregels",
       "openerTags": "Tag contacten die de spellink openen",
       "playerTags": "Tag spelers",
-      "newFriendTags": "Tag nieuwe vrienden",
-      "shareEnabled": "Delen met vrienden toestaan",
-      "shareMessage": "Deelbericht",
-      "shareMessageHint": "Gebruik '{{shareUrl}}' om de daadwerkelijke spellink in te voegen — verwijder dit niet."
+      "newFriendTags": "Tag nieuwe vrienden"
     },
     "appearance": {
       "backgroundColor": "Achtergrondkleur",
@@ -5864,6 +6003,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "Aantal trekkingskansen per persoon",
+      "maxSharesPerPerson": "Max. bonustrekkingen uit verwijzingen",
+      "maxSharesPerPersonHint": "Elke vriend die via de uitnodigingslink van deze speler binnenkomt en jou een bericht stuurt, levert hem 1 extra trekking op, tot deze limiet. Zet op 0 om verwijzingsbonussen uit te schakelen. Bonustrekkingen moeten vóór de volgende reset worden gebruikt.",
+      "sharingNode": "Deelstap",
+      "sharingNodeHint": "De flow-stap die wordt uitgevoerd wanneer een vriend de deellink van deze speler opent. Laat leeg om de knop Delen te verbergen.",
       "resetPolicyLabel": "Trekkingen resetten",
       "resetNever": "Aantal trekkingen niet resetten",
       "resetEveryNDays": "Reset het aantal trekkingen elke",
@@ -5882,29 +6025,32 @@
       "forbiddenTitle": "Toegang geweigerd",
       "forbiddenDescription": "Deze link is ongeldig of verlopen.",
       "comingSoonTitle": "Binnenkort beschikbaar",
-      "comingSoonDescription": "Dit type minispel is nog niet speelbaar."
+      "comingSoonDescription": "Dit type minispel is nog niet speelbaar.",
+      "rateLimited": "Te veel verzoeken. Wacht even en probeer het opnieuw."
+    },
+    "list": {
+      "gamesPlayed": "Gespeelde spellen",
+      "participants": "Deelnemers",
+      "winners": "Winnaars",
+      "shares": "Verwijzingen"
     },
     "history": {
       "title": "Geschiedenis",
       "played": "Gespeeld",
       "remaining": "Resterende trekkingen",
+      "shares": "Verwijzingen",
       "openedAt": "Eerst geopend",
       "lastPlayedAt": "Laatst gespeeld",
       "unknownContact": "Onbekend contact",
+      "conversationNotFound": "Geen gesprek gevonden voor dit contact",
+      "popupBlocked": "Sta pop-ups voor deze site toe en probeer het opnieuw.",
       "record": "Logboek",
       "recordDialog": {
         "title": "Speellogboek",
         "win": "Gewonnen",
         "lose": "Geen prijs",
         "empty": "Nog geen speelrecords"
-      },
-      "conversationNotFound": "Geen gesprek gevonden voor dit contact",
-      "popupBlocked": "Sta pop-ups voor deze site toe en probeer het opnieuw."
-    },
-    "list": {
-      "gamesPlayed": "Gespeelde spellen",
-      "participants": "Deelnemers",
-      "winners": "Winnaars"
+      }
     }
   },
   "mediaLibrary": {

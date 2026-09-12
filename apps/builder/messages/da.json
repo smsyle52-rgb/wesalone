@@ -256,6 +256,7 @@
     "dateFilterPreset": "Forudindstillet datofilter",
     "noResults": "Ingen resultater.",
     "noData": "Ingen data",
+    "retentionNotice": "Kun data fra de seneste {days} dage gemmes.",
     "comingSoon": "Kommer snart",
     "unknown": "Ukendt",
     "pagination": {
@@ -265,10 +266,20 @@
       "firstPage": "Gå til første side",
       "previousPage": "Gå til forrige side",
       "nextPage": "Gå til næste side",
-      "lastPage": "Gå til sidste side"
+      "lastPage": "Gå til sidste side",
+      "totalRows": "{total} række(r)"
     },
     "sessionsThroughTheRef": "Sessioner via referencen \"{ref}\" pr. dag",
-    "sessionsThroughTheMagicLink": "Sessioner via det magiske link \"{ref}\" pr. dag"
+    "sessionsThroughTheMagicLink": "Sessioner via det magiske link \"{ref}\" pr. dag",
+    "repliesToComments": "Svar på kommentarer",
+    "repliesByDate": "Svar efter dato",
+    "userCommentsOnThisPost": "Brugerkommentarer på dette opslag",
+    "botRepliesToComments": "Bottens svar på kommentarer",
+    "comment": "Kommentar",
+    "message": "Besked",
+    "searchByDate": "Søg efter dato...",
+    "publicReply": "Offentligt svar",
+    "privateReply": "Privat svar"
   },
   "flowAnalytics": {
     "nodes": {
@@ -1298,12 +1309,15 @@
       "label": "Operation"
     },
     "outputCustomField": {
-      "label": "Output Brugerdefineret Felt"
+      "label": "Output Brugerdefineret Felt",
+      "javascriptOptional": "Valgfri. Gemmer hele returværdien. Brug JSON-stikortlægningen ovenfor til at skrive enkelte felter.",
+      "javascriptDumpLabel": "Fuld JSON-output (valgfri)"
     },
     "javascriptCode": {
       "label": "JavaScript-kode",
       "placeholder": "return (input.first_name || 'there').toUpperCase()",
-      "description": "Brug ren JavaScript og returner en værdi. Netværk, filer, API'er og eksterne biblioteker er ikke tilgængelige. Kontakt- og systemdata er tilgængelige via `input`-objektet."
+      "description": "Brug ren JavaScript og returner en værdi. Netværk, filer, API'er og eksterne biblioteker er ikke tilgængelige. Kontakt- og systemdata er tilgængelige via `input`-objektet.",
+      "objectMapping": "Tilknyt en vilkårlig JSON-sti fra den returnerede værdi til et vilkårligt tilpasset felt, på samme måde som Ekstern API-anmodning. Du vælger stierne og felterne."
     },
     "httpMethod": {
       "label": "Method"
@@ -1659,7 +1673,8 @@
       "date": "Dato",
       "datetime": "Datetime",
       "location": "Placering",
-      "anyInput": "Vilkårlig Input"
+      "anyInput": "Vilkårlig Input",
+      "locationDescription": "På WhatsApp sendes Metas native knap Send placering, og der ventes på pin'en. Andre kanaler sender prompten som tekst; en delt pin eller indtastet lat,lng fuldfører også trinnet."
     },
     "workspaceMember": {
       "label": "Arbejdsområde Member"
@@ -1793,6 +1808,12 @@
     },
     "messengerChannel": {
       "label": "Messenger Kanal"
+    },
+    "whatsappChannels": {
+      "label": "WhatsApp-kanaler"
+    },
+    "messengerChannels": {
+      "label": "Messenger-sider"
     },
     "messages": {
       "label": "Beskeder"
@@ -2122,6 +2143,26 @@
         "done": "Færdig"
       }
     },
+    "tokenPermission": {
+      "label": "Tilladelse",
+      "full": "Fuld adgang",
+      "readOnly": "Skrivebeskyttet"
+    },
+    "tokenScopes": {
+      "label": "Scopes",
+      "contacts": "Kontakter",
+      "inbox": "Indbakke",
+      "automation": "Automatisering",
+      "broadcasts": "Udsendelser",
+      "analytics": "Analyse",
+      "ecommerce": "E-handel",
+      "integrations": "Integrationer",
+      "channels": "Kanaler",
+      "minigames": "Minispil",
+      "appointments": "Aftaler",
+      "media": "Medier",
+      "ads": "Annoncer"
+    },
     "adReferral": {
       "label": "Ads",
       "ctwa": "CTWA",
@@ -2145,27 +2186,7 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
-    "tokenPermission": {
-      "label": "Tilladelse",
-      "full": "Fuld adgang",
-      "readOnly": "Skrivebeskyttet"
-    },
-    "tokenScopes": {
-      "label": "Scopes",
-      "contacts": "Kontakter",
-      "inbox": "Indbakke",
-      "automation": "Automatisering",
-      "broadcasts": "Udsendelser",
-      "analytics": "Analyse",
-      "ecommerce": "E-handel",
-      "integrations": "Integrationer",
-      "channels": "Kanaler",
-      "minigames": "Minispil",
-      "appointments": "Aftaler",
-      "media": "Medier",
-      "ads": "Annoncer"
-    }
+    "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
     "export": {
@@ -2420,7 +2441,11 @@
       "tiktokTitleTruncated": "Når der er tilføjet knapper, sender TikTok kun de første 40 tegn af denne besked — resten bliver klippet væk."
     },
     "dataWasSaved": "Data blev gemt",
-    "startNode": "Start"
+    "startNode": "Start",
+    "media": {
+      "stepUnsupportedOnChannel": "Denne kanal kan ikke sende denne medietype – trinnet springes over der. Fjern det, eller skift noden til en kanal der understøtter det.",
+      "buttonsSkippedOnChannel": "Denne kanal kan ikke sende knapper sammen med en mediebesked – de springes over der. Læg dem i stedet på et efterfølgende teksttrin."
+    }
   },
   "folders": {
     "heading": {
@@ -3012,7 +3037,59 @@
       "resultSuccess": "Opdaterede {refreshed} kanal(er).",
       "resultWithFailures": "Opdaterede {refreshed} kanal(er), {failed} mislykkedes."
     },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
+    "connectMany": {
+      "coexist": {
+        "running": "Starter synkronisering af historik…",
+        "done": "Synkronisering af historik startet",
+        "failed": "Synkronisering af historik mislykkedes"
+      },
+      "selectAll": "Vælg alle",
+      "selected": "{count}/{max} valgt",
+      "dialogTitleRunning": "Forbinder {count} {feature}…",
+      "dialogTitleDone": "Forbandt {connected} ud af {total}",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "{done} ud af {total} er færdige",
+      "status": {
+        "waiting": "Venter",
+        "connecting": "Forbinder…",
+        "connected": "Forbundet",
+        "duplicated": "Allerede forbundet",
+        "limitReached": "Grænse nået",
+        "failed": "Mislykkedes",
+        "timedOut": "Timeout",
+        "cancelled": "Annulleret"
+      },
+      "reason": {
+        "notSelectable": "Dette element kan ikke vælges.",
+        "channelLimit": "Kanalgrænsen er nået.",
+        "workspaceLimit": "Workspace-grænsen er nået.",
+        "providerRejected": "Udbyderen afviste denne anmodning.",
+        "unknown": "Noget gik galt.",
+        "followUpFailed": "Opsætning ufuldstændig – afslut den fra kanalindstillingerne."
+      },
+      "sessionError": {
+        "sessionExpired": "Din session udløb. Opret forbindelse igen.",
+        "notMember": "Du er ikke længere medlem af dette workspace.",
+        "trialExpired": "Din prøveperiode er udløbet.",
+        "macLimitReached": "Du har nået din kontogrænse.",
+        "credentialMissing": "Manglende legitimationsoplysninger. Opret forbindelse igen."
+      },
+      "cancelRemaining": "Annuller resterende",
+      "retryFailed": "Prøv igen ({count})",
+      "retry": "Prøv igen",
+      "goToChannels": "Gå til kanaler",
+      "close": "Luk",
+      "leaveNotice": "Du kan forlade siden; forbundne konti bevares",
+      "stepConnecting": "Forbinder",
+      "stepCoexist": "Synkroniser historik",
+      "validation": {
+        "min": "Vælg mindst 1",
+        "max": "Du kan vælge op til {max}",
+        "duplicate": "Dobbelt valg"
+      },
+      "progressLabel": "Fremskridt"
+    }
   },
   "workspace": {
     "schedule": {
@@ -3192,7 +3269,9 @@
     "waTemplateMpmTooManySections": "En multiprodukt-knap kan højst have 10 sektioner. Fjern nogle sektioner før udgivelse.",
     "waTemplateMpmTooManyProducts": "En multiprodukt-knap kan højst have 30 produkter i alt. Fjern nogle produkter før udgivelse.",
     "waTemplateLtoExpirationRequired": "Vælg en udløbsdato for tilbuddet, før du sender.",
-    "waTemplateMpmIncompleteProducts": "Hver sektion skal have mindst ét valgt produkt — fjern tomme rækker, eller vælg et produkt til dem."
+    "waTemplateMpmIncompleteProducts": "Hver sektion skal have mindst ét valgt produkt — fjern tomme rækker, eller vælg et produkt til dem.",
+    "mediaStepUnsupported": "Denne kanal kan ikke sende denne medietype. Fjern trinnet, eller peg noden mod en kanal der understøtter det.",
+    "mediaButtonsUnsupported": "Denne kanal kan ikke sende knapper sammen med en mediebesked. Fjern knapperne, eller flyt dem til et teksttrin efter dette."
   },
   "instagram": {
     "description": "Denne integration lets du opret Instagram bots.",
@@ -3204,6 +3283,12 @@
     "tabs": {
       "generalSettings": "Generelt Indstillinger",
       "conversionsApi": "Ads Optimization"
+    },
+    "selectPage": {
+      "noAccountsTitle": "Ingen Instagram-konti fundet",
+      "noAccountsDescription": "Der blev ikke fundet nogen Instagram Business-konti på de Facebook-sider, du administrerer. Genopret forbindelsen til Instagram, og giv alle de ønskede tilladelser.",
+      "alreadyConnectedNote": "Denne konto er allerede forbundet",
+      "tryAgain": "Prøv at forbinde igen"
     }
   },
   "coexist": {
@@ -3249,7 +3334,6 @@
     "defaultPersona": "Standard Persona",
     "reconnect": "Forbind igen",
     "reconnectDescription": "Always forbind igen din bot hvis din Messenger bot er ikke responding, eller hvis du er seem vilkårlig permission fejl på den fejl log.",
-    "selectFacebookPage": "Vælg Facebook Page",
     "selectPage": {
       "noPagesTitle": "Ingen Facebook Pages found",
       "noPagesDescription": "Pages inside a Business Manager require Business Manager access during forbindelse. Forbind igen Messenger og grant alle requested tilladelser.",
@@ -3303,6 +3387,7 @@
         "result": {
           "title": "Klon Results",
           "succeededTitle": "Succeeded",
+          "pendingTitle": "Afventer Metas gennemgang",
           "close": "Close"
         }
       }
@@ -3513,6 +3598,7 @@
   "validation": {
     "maxSize": "Fil størrelse exceeds maksimum limit",
     "maxItemsReached": "Maksimum {max} {feature} allowed per arbejdsområde",
+    "maxCharacters": "Maksimalt {max} tegn.",
     "invalidApiKey": "Ugyldig API-nøgle",
     "maxMustBeGreaterThanMin": "{maxField} must være greater than eller equal til {minField}"
   },
@@ -3562,7 +3648,8 @@
       "verifyToken": "Webhook verification token",
       "qrCodeHint": "Scan den QR kode til åbn den webhook URL",
       "moreSettings": "Flere indstillinger",
-      "goToInbox": "Take me there"
+      "goToInbox": "Take me there",
+      "multipleTitle": "Dine WhatsApp-indbakker er klar!"
     },
     "phoneVerification": {
       "title": "Verify WhatsApp telefon nummer",
@@ -3575,7 +3662,8 @@
       "actions": {
         "sendCode": "Send kode",
         "resendIn": "Send igen i {seconds}s",
-        "verify": "Verify og register"
+        "verify": "Registrer",
+        "skip": "Spring over"
       },
       "fields": {
         "code": {
@@ -3593,18 +3681,12 @@
         "codeNotSent": "WhatsApp verification kode could ikke være sendt.",
         "codeNotVerified": "WhatsApp verification kode could ikke være verified.",
         "registrationFailed": "WhatsApp telefon nummer verification mislykkedes."
-      }
+      },
+      "queueProgress": "Bekræfter {current} ud af {total}"
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "WhatsApp access token er påkrævet.",
         "appSettingsNotFound": "WhatsApp app indstillinger were ikke found.",
-        "failedToPersistIntegration": "Mislykkedes til gem den WhatsApp integration.",
-        "noPhoneNumberFound": "Ingen WhatsApp telefon nummer var found.",
-        "noPhoneNumbersFound": "Ingen telefon numbers were found for denne WhatsApp Business Konto.",
-        "phoneNumberNotFound": "Selected WhatsApp telefon nummer var ikke found.",
-        "unableToVerifyToken": "Unable til verify den WhatsApp token.",
-        "wabaMismatch": "Selected WhatsApp Business Konto does ikke match den authorization.",
         "wabaResolveFailed": "Could ikke resolve den WhatsApp Business Konto fra den authorization."
       }
     },
@@ -3846,16 +3928,12 @@
       "label": "Skabelon Overskrift"
     },
     "transferPhoneNumber": "Overfør telefon fra another Whatsapp udbyder",
-    "signupSessionExpired": "Din WhatsApp signup session har udløbet. Venligst start den forbindelse igen.",
-    "capi": {
-      "automaticEvents": {
-        "title": "Automatiske hændelser",
-        "description": "Send automatisk konverteringshændelser fra dette WhatsApp-nummer til Meta. Hvis tilladelsen mangler, skal du gentilslutte kontoen for at give den."
-      }
-    },
     "ecommerce": {
       "title": "Sell your products on WhatsApp",
       "manageProducts": "Manage your products"
+    },
+    "selectPage": {
+      "tryAgain": "Try reconnecting"
     }
   },
   "zalo": {
@@ -4054,6 +4132,60 @@
     "exportAllNotice": "Alle kontakter matching den current filter vil være exported.",
     "exportTakingLong": "Eksportér er taking longer than expected",
     "exportTakingLongDescription": "Den eksportér er still processing. Du kan close denne dialog og check tilbage i a few minutter fra den eksportér historik."
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
   },
   "auditLogs": {
     "title": "Audit Logfiler",
@@ -5491,10 +5623,19 @@
       "confirmationFlowId": "Bekræftelsesflow",
       "cancellationFlowId": "Annulleringsflow",
       "externalConnectionId": "Ekstern kalender",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
       "reminders": "Påmindelser",
       "reminderTimingValue": "Værdi",
       "reminderTimingUnit": "Enhed"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
     "locationTypes": {
       "inPerson": "Personligt møde",
       "phoneCall": "Telefonopkald",
@@ -5837,7 +5978,8 @@
       "generalSettingsTitle": "Generelle indstillinger",
       "appearanceTitle": "Udseende",
       "playerSettingsTitle": "Spillerindstillinger",
-      "prizeSettingsTitle": "Gevinstindstillinger"
+      "prizeSettingsTitle": "Gevinstindstillinger",
+      "validationFailed": "Ret venligst de markerede felter, før du gemmer."
     },
     "generalSettings": {
       "showName": "Synlig",
@@ -5845,10 +5987,7 @@
       "rulesDescription": "Regelbeskrivelse",
       "openerTags": "Tag kontakter, der åbner spillinket",
       "playerTags": "Tag spillere",
-      "newFriendTags": "Tag nye venner",
-      "shareEnabled": "Tillad deling med venner",
-      "shareMessage": "Delingsbesked",
-      "shareMessageHint": "Brug '{{shareUrl}}' til at indsætte det faktiske spillink — fjern det venligst ikke."
+      "newFriendTags": "Tag nye venner"
     },
     "appearance": {
       "backgroundColor": "Baggrundsfarve",
@@ -5864,6 +6003,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "Antal lykketræk pr. person",
+      "maxSharesPerPerson": "Maks. bonustrækninger fra henvisninger",
+      "maxSharesPerPersonHint": "Hver ven, der tilmelder sig via denne spillers invitationslink og skriver til dig, giver spilleren 1 ekstra spin, op til denne grænse. Sæt 0 for at slå henvisningsbonusser fra. Bonusspin skal bruges inden næste nulstilling.",
+      "sharingNode": "Delingstrin",
+      "sharingNodeHint": "Det flow-trin, der kører, når en ven åbner denne spillers delingslink. Lad feltet stå tomt for at skjule Del-knappen.",
       "resetPolicyLabel": "Nulstil antal træk",
       "resetNever": "Nulstil ikke antallet af træk",
       "resetEveryNDays": "Nulstil antallet af træk hver",
@@ -5882,29 +6025,32 @@
       "forbiddenTitle": "Adgang nægtet",
       "forbiddenDescription": "Dette link er ugyldigt eller udløbet.",
       "comingSoonTitle": "Kommer snart",
-      "comingSoonDescription": "Denne minispiltype kan endnu ikke spilles."
+      "comingSoonDescription": "Denne minispiltype kan endnu ikke spilles.",
+      "rateLimited": "For mange forsøg. Vent et øjeblik, og prøv igen."
+    },
+    "list": {
+      "gamesPlayed": "Spillede spil",
+      "participants": "Deltagere",
+      "winners": "Vindere",
+      "shares": "Henvisninger"
     },
     "history": {
       "title": "Historik",
       "played": "Spil",
       "remaining": "Resterende træk",
+      "shares": "Henvisninger",
       "openedAt": "Først åbnet",
       "lastPlayedAt": "Senest spillet",
       "unknownContact": "Ukendt kontakt",
+      "conversationNotFound": "Ingen samtale fundet for denne kontakt",
+      "popupBlocked": "Venligst tillad pop-ups for denne site, then try igen.",
       "record": "Optegnelse",
       "recordDialog": {
         "title": "Spiloptegnelse",
         "win": "Vandt",
         "lose": "Ingen præmie",
         "empty": "Ingen spiloptegnelser endnu"
-      },
-      "conversationNotFound": "Ingen samtale fundet for denne kontakt",
-      "popupBlocked": "Venligst tillad pop-ups for denne site, then try igen."
-    },
-    "list": {
-      "gamesPlayed": "Spillede spil",
-      "participants": "Deltagere",
-      "winners": "Vindere"
+      }
     }
   },
   "mediaLibrary": {

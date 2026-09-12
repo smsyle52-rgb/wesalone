@@ -1,7 +1,9 @@
 export * from "./ads-conversion"
 export * from "./ai-agent"
+export * from "./ai-file"
 export * from "./ai-function"
 export * from "./ai-mcp-server"
+export * from "./ai-trigger"
 export * from "./appointment"
 export * from "./appointment-calendar"
 export * from "./appointment-external-calendar"
@@ -11,11 +13,21 @@ export * from "./automation-throttle"
 export * from "./bot-field"
 export * from "./broadcast"
 export * from "./coexist"
+export * from "./coexist-import"
 export * from "./contact"
+// Exported here, NOT from ./contact/index.ts, on purpose: it drags in
+// coexist-import + workspace-usage (→ analytics/mac-tracking → redis bloomFilter),
+// and conversation/service imports the ./contact barrel — re-exporting it there
+// would widen conversation/service's module graph into those heavy deps. The
+// worker consumers (contact-scan engine, coexist shim) import it from the
+// top-level "@chatbotx.io/business" barrel, so this placement serves them fine.
+export * from "./contact/bulk-import-channel-contacts"
 export * from "./contact-custom-field"
+export * from "./contact-export"
 export * from "./contact-inbox"
 export * from "./contact-locale"
 export * from "./contact-note"
+export * from "./contact-scan"
 export * from "./conversation"
 export * from "./coupon"
 export * from "./custom-field"
@@ -62,10 +74,12 @@ export * from "./integration-webchat"
 export * from "./integration-whatsapp"
 export * from "./integration-zalo"
 export * from "./inventory"
+export * from "./media-library-file"
 export * from "./message"
 export * from "./message-cleanup"
 export * from "./messaging-ads"
 export * from "./messaging-ads-connection"
+export * from "./messenger-message-template"
 export * from "./meta-catalog"
 export * from "./meta-conversions"
 export * from "./net"
@@ -90,6 +104,12 @@ export { parseLiveCount } from "./quota-shared/live-counter-store"
 export * from "./referral"
 export * from "./reflink"
 export * from "./saved-reply"
+// Not barrel-exported: `sequenceService.upsertStep`/`deleteStep` reach
+// sequence-scheduler's `createDispatch`, which hashes with Node's `crypto`.
+// This barrel is traced into the builder's Edge Runtime bundle, where a Node
+// built-in is a hard compile error — see edge-safe-import-graph.test.ts and
+// the same pattern for `contact-sequence`. Import from
+// `@chatbotx.io/business/sequence` instead.
 export * from "./smart-delay"
 export * from "./spreadsheet"
 export * from "./tag"
@@ -100,7 +120,10 @@ export * from "./usage-metering"
 export * from "./user"
 export * from "./user-quota"
 export * from "./webhook"
+export * from "./whatsapp-business-account"
+export * from "./whatsapp-flow"
 export * from "./whatsapp-flow-response"
+export * from "./whatsapp-message-template"
 export * from "./workspace"
 export * from "./workspace-api-token"
 export * from "./workspace-lifecycle"

@@ -1,151 +1,171 @@
-// @vitest-environment node
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
-const getActive = vi.fn()
-const findOpenAI = vi.fn()
-const findGemini = vi.fn()
-const findOrFail = vi.fn()
-const deleteWhere = vi.fn()
-const deleteObject = vi.fn()
-const warn = vi.fn()
-
-vi.mock("@chatbotx.io/business", () => ({
-  platformAiSettingService: { getActive },
+const mocks = vi.hoisted(() => ({
+  create: vi.fn(),
+  delete: vi.fn(),
 }))
 
-vi.mock("@chatbotx.io/business/audit", () => ({
-  auditService: { record: vi.fn() },
-}))
-
-vi.mock("@chatbotx.io/business/errors", () => ({
-  ChatbotXException: class extends Error {},
-}))
-
-vi.mock("@chatbotx.io/database/client", () => ({
-  db: {
-    query: {
-      integrationOpenaiModel: { findFirst: findOpenAI },
-      integrationGeminiModel: { findFirst: findGemini },
-    },
-    delete: vi.fn(() => ({ where: deleteWhere })),
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({ returning: vi.fn() })),
-    })),
-  },
-  eq: (column: unknown, value: unknown) => ({ column, value }),
-  findOrFail,
-}))
-
-vi.mock("@chatbotx.io/database/schema", () => ({
-  aiFileModel: { id: "AIFile.id" },
-}))
-
-vi.mock("@chatbotx.io/filesystem", () => ({
-  uploader: { deleteObject },
-}))
-
-vi.mock("@chatbotx.io/utils", () => ({
-  createId: vi.fn(() => "new-id"),
-  zodBigintAsString: vi.fn(() => ({})),
-}))
-
-vi.mock("@chatbotx.io/worker-config", () => ({
-  AIJobAction: { processAIFile: "processAIFile" },
-  aiAgentQueue: { add: vi.fn() },
-}))
-
-vi.mock("next-intl/server", () => ({
-  getTranslations: vi.fn(),
-}))
+vi.mock("@/lib/safe-action", () => {
+  const chain: Record<string, unknown> = {}
+  chain.bindArgsSchemas = () => chain
+  chain.inputSchema = () => chain
+  chain.action = (fn: unknown) => fn
+  return {
+    workspaceActionClient: chain,
+    // delete stays available after trial expiry (invariant 14)
+    workspaceActionClientAllowExpired: chain,
+  }
+})
 
 vi.mock("@/features/common/schema", () => ({
   workspaceIdrequestParams: [],
+}))
+
+vi.mock("@chatbotx.io/business", () => ({
+  aiFileService: {
+    create: mocks.create,
+    delete: mocks.delete,
+  },
+}))
+
+vi.mock("@chatbotx.io/business/errors", () => ({
+  ChatbotXException: class ChatbotXException extends Error {
+    code = "systemError"
+    httpStatusCode = 400
+
+    constructor(message: string, code?: string, httpStatusCode?: number) {
+      super(message)
+      this.name = "ChatbotXException"
+      if (code) {
+        this.code = code
+      }
+      if (httpStatusCode) {
+        this.httpStatusCode = httpStatusCode
+      }
+    }
+  },
+}))
+
+vi.mock("@chatbotx.io/utils", () => ({
+  zodBigintAsString: () => "mocked-schema",
+}))
+
+vi.mock("next-intl/server", () => ({
+  getTranslations: vi.fn(async () => (key: string) => key),
 }))
 
 vi.mock("../src/features/ai-files/schema", () => ({
   createAIFileRequest: {},
 }))
 
-vi.mock("@/lib/log", () => ({ logger: { warn } }))
-
-const inertActionClient = {
-  bindArgsSchemas: () => ({
-    inputSchema: () => ({ action: () => ({}) }),
-    action: () => ({}),
-  }),
-}
-
-vi.mock("@/lib/safe-action", () => ({
-  workspaceActionClient: inertActionClient,
-  workspaceActionClientAllowExpired: inertActionClient,
-}))
-
-const { hasEmbeddingProvider } = await import(
-  "../src/features/ai-files/actions/create-ai-file.action"
+const { ChatbotXException } = await import("@chatbotx.io/business/errors")
+const { createAIFileAction } = await import(
+  "@/features/ai-files/actions/create-ai-file.action"
 )
-const { deleteAIFile } = await import(
-  "../src/features/ai-files/actions/delete-ai-file.action"
+const { deleteAIFileAction } = await import(
+  "@/features/ai-files/actions/delete-ai-file.action"
 )
+
+type ActionHandler<TParsedInput, TBindArgs extends unknown[]> = (props: {
+  parsedInput: TParsedInput
+  bindArgsParsedInputs: TBindArgs
+}) => Promise<unknown>
+
+const workspaceId = "workspace-1"
 
 beforeEach(() => {
-  getActive.mockReset().mockResolvedValue(null)
-  findOpenAI.mockReset().mockResolvedValue(null)
-  findGemini.mockReset().mockResolvedValue(null)
-  findOrFail.mockReset().mockResolvedValue({
-    id: "file-1",
-    workspaceId: "workspace-1",
-    path: "workspaces/workspace-1/ai-files/file-1",
-  })
-  deleteWhere.mockReset().mockResolvedValue(undefined)
-  deleteObject.mockReset().mockResolvedValue(undefined)
-  warn.mockReset()
+  vi.clearAllMocks()
 })
 
-describe("AI-file embedding provider guard", () => {
-  test("accepts the platform Vertex embedding provider", async () => {
-    getActive.mockResolvedValue({ embeddingModel: "text-embedding-005" })
+describe("createAIFileAction", () => {
+  test("forwards workspaceId + parsedInput to aiFileService.create", async () => {
+    mocks.create.mockResolvedValue({ id: "file-1" })
 
-    await expect(hasEmbeddingProvider("workspace-1")).resolves.toBe(true)
+    await (
+      createAIFileAction as unknown as ActionHandler<
+        { name: string; path: string; mimeType: string; size: number },
+        [string]
+      >
+    )({
+      parsedInput: {
+        name: "manual.pdf",
+        path: "path/to/file",
+        mimeType: "application/pdf",
+        size: 100,
+      },
+      bindArgsParsedInputs: [workspaceId],
+    })
+
+    expect(mocks.create).toHaveBeenCalledWith({
+      workspaceId,
+      name: "manual.pdf",
+      path: "path/to/file",
+      mimeType: "application/pdf",
+      size: 100,
+    })
   })
 
-  test("still accepts a workspace provider when platform AI is disabled", async () => {
-    findGemini.mockResolvedValue({ id: "gemini-1" })
-
-    await expect(hasEmbeddingProvider("workspace-1")).resolves.toBe(true)
-  })
-
-  test("rejects creation only when no embedding provider exists", async () => {
-    await expect(hasEmbeddingProvider("workspace-1")).resolves.toBe(false)
-  })
-})
-
-describe("AI-file deletion", () => {
-  test("deletes the database row and then its storage object", async () => {
-    await deleteAIFile({ workspaceId: "workspace-1", id: "file-1" })
-
-    expect(deleteWhere).toHaveBeenCalledOnce()
-    expect(deleteObject).toHaveBeenCalledWith(
-      "workspaces/workspace-1/ai-files/file-1",
+  test("translates a noEmbeddingProvider service error", async () => {
+    mocks.create.mockRejectedValue(
+      new ChatbotXException(
+        "AI file requires an embedding provider",
+        "noEmbeddingProvider",
+        400,
+      ),
     )
-  })
-
-  test("keeps the database deletion successful when storage cleanup fails", async () => {
-    deleteObject.mockRejectedValue(new Error("storage unavailable"))
 
     await expect(
-      deleteAIFile({ workspaceId: "workspace-1", id: "file-1" }),
-    ).resolves.toBeUndefined()
-    expect(deleteWhere).toHaveBeenCalledOnce()
-    expect(warn).toHaveBeenCalledOnce()
+      (
+        createAIFileAction as unknown as ActionHandler<
+          { name: string; path: string; mimeType: string; size: number },
+          [string]
+        >
+      )({
+        parsedInput: {
+          name: "manual.pdf",
+          path: "path/to/file",
+          mimeType: "application/pdf",
+          size: 100,
+        },
+        bindArgsParsedInputs: [workspaceId],
+      }),
+    ).rejects.toMatchObject({ message: "noEmbeddingProvider" })
   })
 
-  test("never touches storage when the workspace-scoped file is not found", async () => {
-    findOrFail.mockRejectedValue(new Error("not found"))
+  test("rethrows other service errors untranslated", async () => {
+    mocks.create.mockRejectedValue(new Error("db exploded"))
 
     await expect(
-      deleteAIFile({ workspaceId: "workspace-2", id: "file-1" }),
-    ).rejects.toThrow("not found")
-    expect(deleteWhere).not.toHaveBeenCalled()
-    expect(deleteObject).not.toHaveBeenCalled()
+      (
+        createAIFileAction as unknown as ActionHandler<
+          { name: string; path: string; mimeType: string; size: number },
+          [string]
+        >
+      )({
+        parsedInput: {
+          name: "manual.pdf",
+          path: "path/to/file",
+          mimeType: "application/pdf",
+          size: 100,
+        },
+        bindArgsParsedInputs: [workspaceId],
+      }),
+    ).rejects.toMatchObject({ message: "db exploded" })
+  })
+})
+
+describe("deleteAIFileAction", () => {
+  test("forwards workspaceId + id to aiFileService.delete", async () => {
+    await (
+      deleteAIFileAction as unknown as ActionHandler<
+        undefined,
+        [string, string]
+      >
+    )({
+      parsedInput: undefined,
+      bindArgsParsedInputs: [workspaceId, "file-1"],
+    })
+
+    expect(mocks.delete).toHaveBeenCalledWith({ workspaceId, id: "file-1" })
   })
 })

@@ -9,12 +9,15 @@ import {
 import {
   type ChannelType,
   channelTypes,
+  type InboxDisconnectReason,
   inboxStatuses,
 } from "@chatbotx.io/database/partials"
 import { inboxModel } from "@chatbotx.io/database/schema"
 import type {
   InboxModel,
   InboxWithIntegrations,
+  IntegrationMessengerModel,
+  IntegrationWhatsappModel,
 } from "@chatbotx.io/database/types"
 import { getPaginationWithDefaults } from "@chatbotx.io/database/utils"
 import { createId } from "@chatbotx.io/utils"
@@ -26,6 +29,24 @@ import { workspaceUsageService } from "../workspace-usage/service"
 import type { ListInboxesRequest, ListInboxesResponse } from "./schema"
 
 type InboxWhere = Partial<{ id: string; workspaceId: string }>
+
+export type BroadcastInboxResolutionInput = {
+  workspaceId: string
+  channels?: ChannelType[] | null
+  /**
+   * Explicit target inboxes of a multi-page broadcast; wins over the legacy
+   * integration ids whenever it is given. An empty list is a real scope
+   * (every page is gone — nobody), not "not applicable".
+   */
+  inboxIds?: string[] | null
+  integrationWhatsappId?: string | null
+  integrationMessengerId?: string | null
+}
+
+/** Returns the resolved inbox ids, or `null` when the strategy does not apply to the input. */
+type BroadcastInboxStrategy = (
+  input: BroadcastInboxResolutionInput,
+) => Promise<string[] | null>
 
 class InboxService extends BaseService {
   static readonly withIntegrations = {
@@ -40,6 +61,8 @@ class InboxService extends BaseService {
   }
 
   async list(input: ListInboxesRequest): Promise<ListInboxesResponse> {
+    // One `where`, shared by the page query and the count, so the two can
+    // never drift (they previously repeated the same literal side by side).
     const where = {
       workspaceId: input.workspaceId,
       status: inboxStatuses.enum.connected,
@@ -49,10 +72,7 @@ class InboxService extends BaseService {
     const [data, totalRows] = await Promise.all([
       db.query.inboxModel.findMany({
         ...pagination,
-        where: {
-          workspaceId: input.workspaceId,
-          status: inboxStatuses.enum.connected,
-        },
+        where,
         with: input.includes?.includes("integration")
           ? InboxService.withIntegrations
           : undefined,
@@ -92,6 +112,22 @@ class InboxService extends BaseService {
     // )
   }
 
+  /**
+   * Workspace-scoped generalization of `findWithIntegrationsById` — callers
+   * that already have a `workspaceId` (e.g. `ContactScanService`) should
+   * prefer this so a forged/foreign `id` can never resolve into another
+   * tenant's inbox. `findWithIntegrationsById` stays for its existing
+   * unscoped callers.
+   */
+  async findWithIntegrations(props: {
+    where: InboxWhere
+  }): Promise<InboxWithIntegrations | undefined> {
+    return await db.query.inboxModel.findFirst({
+      where: props.where,
+      with: InboxService.withIntegrations,
+    })
+  }
+
   async findWithIntegrationsById(props: {
     id: string
   }): Promise<InboxWithIntegrations | undefined> {
@@ -125,62 +161,133 @@ class InboxService extends BaseService {
       )
   }
 
-  async resolveBroadcastInboxIds(input: {
-    workspaceId: string
-    channels?: ChannelType[] | null
-    integrationWhatsappId?: string | null
-    integrationMessengerId?: string | null
-  }): Promise<string[]> {
-    if (input.integrationWhatsappId) {
-      const integration = await db.query.integrationWhatsappModel.findFirst({
-        where: {
-          id: input.integrationWhatsappId,
-          workspaceId: input.workspaceId,
-        },
-        columns: { inboxId: true },
-      })
+  /**
+   * Inbox ids a broadcast audience is scoped to. Strategies run in priority
+   * order and the first applicable one wins: explicit target inboxes (multi-
+   * page broadcasts), then the legacy single-integration columns, then the
+   * channel list. Each strategy returns `null` when its input is absent so the
+   * next one is consulted.
+   */
+  private readonly broadcastInboxStrategies: readonly BroadcastInboxStrategy[] =
+    [
+      (input) => this.resolveExplicitBroadcastInboxIds(input),
+      (input) =>
+        this.resolveIntegrationInboxId(
+          input.workspaceId,
+          input.integrationWhatsappId,
+          (where) =>
+            db.query.integrationWhatsappModel.findFirst({
+              where,
+              columns: { inboxId: true },
+            }),
+        ),
+      (input) =>
+        this.resolveIntegrationInboxId(
+          input.workspaceId,
+          input.integrationMessengerId,
+          (where) =>
+            db.query.integrationMessengerModel.findFirst({
+              where,
+              columns: { inboxId: true },
+            }),
+        ),
+      (input) => this.resolveChannelBroadcastInboxIds(input),
+    ]
 
-      return integration ? [integration.inboxId] : []
+  async resolveBroadcastInboxIds(
+    input: BroadcastInboxResolutionInput,
+  ): Promise<string[]> {
+    for (const strategy of this.broadcastInboxStrategies) {
+      const inboxIds = await strategy(input)
+      if (inboxIds) {
+        return inboxIds
+      }
     }
+    return []
+  }
 
-    if (input.integrationMessengerId) {
-      const integration = await db.query.integrationMessengerModel.findFirst({
-        where: {
-          id: input.integrationMessengerId,
-          workspaceId: input.workspaceId,
-        },
-        columns: { inboxId: true },
-      })
-
-      return integration ? [integration.inboxId] : []
+  /**
+   * Only the `channel` narrowing of an inbox lookup. An explicit
+   * "omnichannel" selection means every inbox; no channel at all means the
+   * caller decides (a channel-driven audience targets nobody, an explicit
+   * inbox list is simply not narrowed).
+   */
+  private buildBroadcastChannelWhere(
+    channels: ChannelType[] | null | undefined,
+  ): { channel?: ChannelType | { in: ChannelType[] } } {
+    const distinct = Array.from(new Set(channels ?? []))
+    if (
+      distinct.length === 0 ||
+      distinct.includes(channelTypes.enum.omnichannel)
+    ) {
+      return {}
     }
+    return {
+      channel: distinct.length === 1 ? distinct[0] : { in: distinct },
+    }
+  }
 
-    const channels = Array.from(new Set(input.channels ?? []))
-
-    // No channel specified -> no audience. Only an explicit "omnichannel"
-    // selection means "all inboxes"; a missing/unknown channel should target
-    // nobody rather than silently blast every inbox.
-    if (channels.length === 0) {
+  // Foreign or cross-channel ids are dropped rather than rejected: the
+  // audience simply excludes them, and the write path validates ownership
+  // up front (`broadcastService.assertBroadcastTargetsOwned`).
+  private async resolveExplicitBroadcastInboxIds(
+    input: BroadcastInboxResolutionInput,
+  ): Promise<string[] | null> {
+    const { inboxIds } = input
+    if (!inboxIds) {
+      return null
+    }
+    if (inboxIds.length === 0) {
       return []
     }
 
-    const isOmnichannel = channels.includes(channelTypes.enum.omnichannel)
+    const inboxes = await db.query.inboxModel.findMany({
+      where: {
+        workspaceId: input.workspaceId,
+        id: { in: inboxIds },
+        ...this.buildBroadcastChannelWhere(input.channels),
+      },
+      columns: { id: true },
+    })
+    return inboxes.map((inbox) => inbox.id)
+  }
 
-    const where: {
+  /** Legacy single-integration columns: the integration's own inbox, or nobody when it is not the workspace's. */
+  private async resolveIntegrationInboxId(
+    workspaceId: string,
+    integrationId: string | null | undefined,
+    findIntegration: (where: {
+      id: string
       workspaceId: string
-      channel?: ChannelType | { in: ChannelType[] }
-    } = {
-      workspaceId: input.workspaceId,
+    }) => Promise<{ inboxId: string } | undefined>,
+  ): Promise<string[] | null> {
+    if (!integrationId) {
+      return null
     }
-    if (!isOmnichannel) {
-      where.channel = channels.length === 1 ? channels[0] : { in: channels }
+    const integration = await findIntegration({
+      id: integrationId,
+      workspaceId,
+    })
+    return integration ? [integration.inboxId] : []
+  }
+
+  private async resolveChannelBroadcastInboxIds(
+    input: BroadcastInboxResolutionInput,
+  ): Promise<string[] | null> {
+    // No channel specified -> no audience. Only an explicit "omnichannel"
+    // selection means "all inboxes"; a missing/unknown channel should target
+    // nobody rather than silently blast every inbox.
+    if ((input.channels ?? []).length === 0) {
+      return []
     }
 
     const inboxes = await db.query.inboxModel.findMany({
-      where,
+      where: {
+        workspaceId: input.workspaceId,
+        ...this.buildBroadcastChannelWhere(input.channels),
+      },
       columns: { id: true },
     })
-
     return inboxes.map((inbox) => inbox.id)
   }
 
@@ -203,7 +310,12 @@ class InboxService extends BaseService {
       if (existing.status === inboxStatuses.enum.disconnected) {
         const [updated] = await tx
           .update(inboxModel)
-          .set({ status: inboxStatuses.enum.connected, name: data.name })
+          .set({
+            status: inboxStatuses.enum.connected,
+            name: data.name,
+            disconnectedAt: null,
+            disconnectReason: null,
+          })
           .where(eq(inboxModel.id, existing.id))
           .returning()
         return { inbox: updated, wasCreated: true }
@@ -240,13 +352,18 @@ class InboxService extends BaseService {
     inboxId: string
     ownerId: string
     workspaceId: string
+    reason: InboxDisconnectReason
     tx?: DatabaseClient
   }): Promise<void> {
     const client = props.tx ?? db
 
     await client
       .update(inboxModel)
-      .set({ status: inboxStatuses.enum.disconnected })
+      .set({
+        status: inboxStatuses.enum.disconnected,
+        disconnectedAt: new Date(),
+        disconnectReason: props.reason,
+      })
       .where(eq(inboxModel.id, props.inboxId))
 
     // Best-effort: never block/roll back the disconnect if release fails, the
@@ -292,6 +409,51 @@ class InboxService extends BaseService {
       )
       .limit(1)
     return !!row
+  }
+
+  /**
+   * Inbox + `integrationMessenger` relation, with an explicit return type so
+   * the relation survives inference (a bare `typeof db.query.inboxModel
+   * .findFirst` with no call resolves to the no-`with` overload and drops
+   * the relation — see `messenger-template-handler.ts`'s prior local
+   * workaround). Unscoped by `id` only — safe today because its sole caller
+   * (`messenger-template-handler.ts`) receives `inboxId` from a
+   * webhook-resolved, already workspace-scoped context and has no
+   * `workspaceId` in scope to filter by.
+   */
+  async findWithIntegrationMessengerByIdUnscoped(props: {
+    id: string
+    tx?: DatabaseClient
+  }): Promise<
+    | (InboxModel & { integrationMessenger: IntegrationMessengerModel | null })
+    | undefined
+  > {
+    const { id, tx = db } = props
+    return await tx.query.inboxModel.findFirst({
+      where: { id },
+      with: { integrationMessenger: true },
+    })
+  }
+
+  /**
+   * Inbox + `integrationWhatsapp` relation — same explicit-return-type
+   * reasoning as above. Unscoped by `id` only — safe today because its sole
+   * caller (`wa-template-handler.ts`) receives `inboxId` from a
+   * webhook-resolved, already workspace-scoped context and has no
+   * `workspaceId` in scope to filter by.
+   */
+  async findWithIntegrationWhatsappByIdUnscoped(props: {
+    id: string
+    tx?: DatabaseClient
+  }): Promise<
+    | (InboxModel & { integrationWhatsapp: IntegrationWhatsappModel | null })
+    | undefined
+  > {
+    const { id, tx = db } = props
+    return await tx.query.inboxModel.findFirst({
+      where: { id },
+      with: { integrationWhatsapp: true },
+    })
   }
 }
 export const inboxService = new InboxService()

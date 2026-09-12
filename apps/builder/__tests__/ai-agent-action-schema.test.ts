@@ -64,4 +64,30 @@ describe("AI agent action schemas", () => {
 
     expect(result.success).toBe(false)
   })
+
+  test("rejects retired model ids from new or edited AI agent settings", () => {
+    // `gemini-2.5-*` is NOT in this list on Wesal One: five live agents run
+    // gemini-2.5-flash and the platform's vision / web-search capabilities run
+    // gemini-2.5-pro / gemini-2.5-flash on Vertex, so the picker keeps them.
+    const oldModels = [
+      { provider: "openai", model: "gpt-5.2-chat-latest" },
+      { provider: "claude", model: "claude-3-5-haiku-20241022" },
+      { provider: "deepseek", model: "deepseek-chat" },
+    ]
+
+    for (const model of oldModels) {
+      const result = createAIAgentRequest.safeParse({
+        name: "Support",
+        prompt: "Answer customer questions.",
+        messages: [],
+        models: [model],
+        temperature: 0.4,
+        maxOutputTokens: 2048,
+        tools: [],
+        isDefault: false,
+      })
+
+      expect(result.success).toBe(false)
+    }
+  })
 })

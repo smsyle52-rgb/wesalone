@@ -18,8 +18,12 @@ import {
 import { queueNames } from "../../lib/types"
 import type { BotResponseTrackingContext } from "../types"
 
+export * from "./coexist-job-ids"
+export * from "./contact-scan-job-ids"
+
 export const IntegrationJobAction = {
   sendFlow: "sendFlow",
+  resumeHeavyStep: "resumeHeavyStep",
   sendSequenceFlow: "sendSequenceFlow",
   runRef: "runRef",
   incomingMessage: "incomingMessage",
@@ -61,6 +65,7 @@ export const IntegrationJobAction = {
   sendConversionEvent: "sendConversionEvent",
   sendMetaCapiEvent: "sendMetaCapiEvent",
   syncRetargetAudience: "syncRetargetAudience",
+  contactScan: "contactScan",
 } as const
 
 type IntegrationJobActionValue =
@@ -162,6 +167,8 @@ export type IntegrationJobRunFlowNode = {
     flowVersionId?: string
     nodeId?: string
     startFromStepId?: string
+    /** Stable logical execution identity for asynchronous flow continuations. */
+    flowExecutionKey?: string
     /**
      * Set when this job resumes a button/quickReply's own multi-step chain
      * (one step per job) rather than a node's. Without it, resolving by
@@ -193,6 +200,18 @@ export type IntegrationJobRunFlowNode = {
     origin?: "channel"
     /** See {@link CommentAnchor}. */
     commentAnchor?: CommentAnchor
+  }
+}
+
+/**
+ * Durable continuation for a flow step that completed on the heavy worker.
+ * It reuses the normal send-flow payload so the flow engine remains the sole
+ * owner of success/error routing.
+ */
+export type IntegrationJobResumeHeavyStep = {
+  type: typeof IntegrationJobAction.resumeHeavyStep
+  data: IntegrationJobRunFlowNode["data"] & {
+    outcomeKey: string
   }
 }
 
@@ -598,6 +617,20 @@ export type IntegrationJobProcessLeadgen = {
   }
 }
 
+/**
+ * Runs one budgeted chunk of an Automatic Customer Scan run. Only carries
+ * `runId`/`workspaceId` — channel, integration, and inbox are read off the
+ * claimed run row instead of the payload, so a stale/forged job can't steer
+ * the engine at another channel or workspace.
+ */
+export type IntegrationJobContactScan = {
+  type: typeof IntegrationJobAction.contactScan
+  data: {
+    runId: string
+    workspaceId: string
+  }
+}
+
 export type IntegrationJobData =
   | IntegrationJobReceiveMessage
   | IntegrationJobReceiveComment
@@ -607,6 +640,7 @@ export type IntegrationJobData =
   | IntegrationJobMessageReaction
   | IntegrationJobMessageStatus
   | IntegrationJobRunFlowNode
+  | IntegrationJobResumeHeavyStep
   | IntegrationJobSendFlowPostback
   | IntegrationJobSendFlowQuickReply
   | IntegrationJobAgentMarkAsRead
@@ -636,6 +670,7 @@ export type IntegrationJobData =
   | AdsConversionJobEvaluateTemplateSent
   | AdsConversionJobEvaluateConversionTrigger
   | AdsConversionJobSyncRetargetAudience
+  | IntegrationJobContactScan
 
 export const integrationQueue = isNoRedisEnv()
   ? fakeQueue

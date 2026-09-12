@@ -8,56 +8,9 @@ import { headers } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
 import { LOCALE_COOKIE, LOCALE_QUERY_PARAM, parseLocale } from "@/i18n/config"
 import { auth } from "@/lib/auth/auth"
+import { isPublicRoute } from "@/lib/public-routes"
 import { httpLogger } from "./lib/log"
 
-// Checked BEFORE publicRoutes, and the only way to keep an authenticated page
-// underneath a public one. `/channels` is the marketing page and must stay
-// reachable signed out, but segment matching then opens everything below it —
-// including `/channels/create`, the channel-connect flow. That flow was listed
-// as public on 14 Aug 2026 among a batch of marketing pages, so a merchant
-// arriving without a valid session cookie (expired, or returning from Meta's
-// window in a browser that dropped it) reached the page itself, which answers
-// `notFound()` — a "page not found" screen in the middle of onboarding, where
-// every other private page redirects to sign-in and comes back.
-const protectedRoutes = ["/channels/create"]
-
-const publicRoutes = [
-  "/about",
-  "/channels",
-  "/features",
-  "/data-deletion",
-  // Meta's app settings point at /privacy and /terms, and it requires both to
-  // be reachable without a login — behind the session gate they answer 307 to
-  // the sign-in page, which is grounds for rejecting the app on review. /contact
-  // belongs here for a plainer reason: the people who need it are the ones who
-  // do not have an account yet.
-  "/privacy",
-  "/terms",
-  "/contact",
-  "/integrations",
-  "/login",
-  "/pricing",
-  "/signup",
-  "/r",
-  "/l",
-  "/dynamic-images",
-  "/minigames",
-  "/auth",
-  "/api",
-  "/ws",
-  "/storage",
-  "/checkout",
-  "/unsubscribe",
-  "/email-topic",
-  "/extensions",
-  "/booking",
-  "/portal/redeem",
-  "/webchat",
-  // Trailing slash is deliberate: `isPublicRoute` below is a bare
-  // unanchored `startsWith`, so "/t" (no slash) would also match
-  // "/templates" and make the authenticated template list world-readable.
-  "/t/",
-]
 const signinPath = "/auth/sign-in"
 
 async function _logRequest(request: NextRequest) {
@@ -171,29 +124,6 @@ function buildSigninUrl(
     `${publicOrigin}${pathname}${search}`,
   )
   return signinUrl
-}
-
-/** Exported for tests — the auth gate depends on this matching exactly. */
-export function isPublicRoute(pathname: string) {
-  if (pathname === "/") {
-    return true
-  }
-  for (const route of protectedRoutes) {
-    if (pathname === route || pathname.startsWith(`${route}/`)) {
-      return false
-    }
-  }
-  for (const route of publicRoutes) {
-    // Match whole path segments only. A bare startsWith() let the short-link
-    // prefixes "/r" and "/l" open up every path beginning with those letters —
-    // "/register" and "/login" were already reaching the app unauthenticated
-    // (they 404 today only because no such page exists). Any future /reports
-    // or /leads page would have been served with no auth check at all.
-    if (pathname === route || pathname.startsWith(`${route}/`)) {
-      return true
-    }
-  }
-  return false
 }
 
 export const config = {

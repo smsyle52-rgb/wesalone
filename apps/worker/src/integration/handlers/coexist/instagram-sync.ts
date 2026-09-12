@@ -5,6 +5,7 @@ import type {
   IntegrationInstagramModel,
 } from "@chatbotx.io/database/types"
 import {
+  buildCoexistPageJobId,
   IntegrationJobAction,
   type IntegrationJobCoexistInstagramSync,
   integrationQueue,
@@ -52,8 +53,9 @@ const runInstagramCoexistPull = async <
   const { runId, integrationId, workspaceId } = data
   const jobStart = Date.now()
 
-  const failRun = (currentError: string): Promise<void> =>
-    coexistService.markFailed({ runId, currentError })
+  const failRun = async (currentError: string): Promise<void> => {
+    await coexistService.markFailed({ runId, currentError })
+  }
 
   const initialContext = await adapter.loadContext({
     workspaceId,
@@ -63,7 +65,7 @@ const runInstagramCoexistPull = async <
     await failRun("Instagram integration not found or coexist disabled")
     return
   }
-  const claimed = await coexistService.claimRun({ runId })
+  const claimed = await coexistService.claimRunWithNewToken({ runId })
   if (!claimed) {
     logger.warn(
       { runId, integrationId },
@@ -412,7 +414,11 @@ const runInstagramCoexistPull = async <
           data: { runId, integrationId, workspaceId },
         },
         {
-          jobId: `coexist-run-${runId}-${claimed.attempts}-page-${pageNumber + 1}`,
+          jobId: buildCoexistPageJobId({
+            runId,
+            attempts: claimed.attempts,
+            pageNumber: pageNumber + 1,
+          }),
           attempts: 1,
           removeOnComplete: true,
           removeOnFail: { count: 100 },

@@ -1,7 +1,9 @@
 "use server"
 
-import { db, inArray } from "@chatbotx.io/database/client"
-import { integrationMessengerModel } from "@chatbotx.io/database/schema"
+import {
+  messengerIntegrationService,
+  messengerMessageTemplateService,
+} from "@chatbotx.io/business"
 import { createPageMessageTemplate } from "@chatbotx.io/integration-messenger/apis/message-templates"
 import { resumableUploadImage } from "@chatbotx.io/integration-messenger/apis/upload"
 import type { MessengerAuthValue } from "@chatbotx.io/integration-messenger/schema"
@@ -10,7 +12,6 @@ import { SdkException } from "@chatbotx.io/sdk"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { chunk } from "remeda"
 import { z } from "zod"
-import { getAllWorkspaceMembers } from "@/features/workspace-members/queries"
 import { workspaceActionClient } from "@/lib/safe-action"
 import { syncMessengerMessageTemplatesForIntegration } from "./sync-message-templates"
 
@@ -140,14 +141,10 @@ export const cloneMessengerMessageTemplateAction = workspaceActionClient
 
     // Load source template, verifying it belongs to the source integration + workspace
     const sourceTemplate =
-      await db.query.messengerMessageTemplateModel.findFirst({
-        where: {
-          id: templateId,
-          integrationMessengerId: sourceIntegrationMessengerId,
-          integrationMessenger: {
-            workspaceId,
-          },
-        },
+      await messengerMessageTemplateService.findByIdForIntegration({
+        id: templateId,
+        integrationMessengerId: sourceIntegrationMessengerId,
+        workspaceId,
       })
 
     if (!sourceTemplate) {
@@ -156,32 +153,23 @@ export const cloneMessengerMessageTemplateAction = workspaceActionClient
 
     // Source integration (for its pageId — never clone a template onto its own page).
     const sourceIntegration =
-      await db.query.integrationMessengerModel.findFirst({
-        where: { id: sourceIntegrationMessengerId, workspaceId },
-        columns: { pageId: true },
+      await messengerIntegrationService.findByIdForWorkspace({
+        id: sourceIntegrationMessengerId,
+        workspaceId,
       })
 
-    // Resolve target rows by id (targets may live in OTHER workspaces).
-    const candidateTargets = await db
-      .select()
-      .from(integrationMessengerModel)
-      .where(
-        inArray(integrationMessengerModel.id, targetIntegrationMessengerIds),
-      )
-
-    // Authorize per target: the user must be an owner of the target's workspace,
-    // and the target must not be the source's own Facebook Page.
-    const { workspaceMembers } = await getAllWorkspaceMembers(user.id)
-    const ownerWorkspaceIds = new Set(
-      workspaceMembers
-        .filter((member) => member.role === "owner")
-        .map((member) => member.workspaceId),
-    )
-    const targets = candidateTargets.filter(
-      (target) =>
-        ownerWorkspaceIds.has(target.workspaceId) &&
-        target.pageId !== sourceIntegration?.pageId,
-    )
+    // Authorize per target: the user must be an admin (owner or superAdmin)
+    // of the target's workspace, and the target must not be the source's own
+    // Facebook Page. Memberships are read uncached so a just-revoked admin
+    // cannot clone across a workspace boundary.
+    const requested = new Set(targetIntegrationMessengerIds)
+    const cloneTargets =
+      await messengerIntegrationService.listCloneTargetsForUser({
+        userId: user.id,
+        excludePageId: sourceIntegration?.pageId,
+        authoritative: true,
+      })
+    const targets = cloneTargets.filter((target) => requested.has(target.id))
 
     if (targets.length === 0) {
       throw new Error("No authorized target channels found")

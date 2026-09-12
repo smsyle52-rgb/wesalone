@@ -1,4 +1,3 @@
-import { getPlatformEmbeddingProviderOptions } from "@chatbotx.io/ai/server"
 import { usageMeteringService } from "@chatbotx.io/business"
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { aiEmbeddingStatuses } from "@chatbotx.io/database/partials"
@@ -23,7 +22,8 @@ export async function processPendingEmbedding(
   }
 
   try {
-    const embeddingModel = await resolveEmbeddingModel(aiEmbedding.workspaceId)
+    const { model: embeddingModel, providerOptions } =
+      await resolveEmbeddingModel(aiEmbedding.workspaceId)
     const reservation = await usageMeteringService.reserve({
       workspaceId: aiEmbedding.workspaceId,
       operationId: `embedding-document:${aiEmbedding.id}`,
@@ -35,8 +35,7 @@ export async function processPendingEmbedding(
       const { embedding, usage } = await embed({
         model: embeddingModel,
         value: aiEmbedding.content,
-        providerOptions:
-          await getPlatformEmbeddingProviderOptions("RETRIEVAL_DOCUMENT"),
+        providerOptions: await providerOptions("RETRIEVAL_DOCUMENT"),
       })
 
       await usageMeteringService.settleUnits(
@@ -64,11 +63,8 @@ export async function processPendingEmbedding(
       `processPendingEmbedding item failed for embeddingId: ${aiEmbedding.id}`,
     )
 
-    await db
-      .update(aiEmbeddingModel)
-      .set({
-        status: aiEmbeddingStatuses.enum.error,
-      })
-      .where(eq(aiEmbeddingModel.id, aiEmbedding.id))
+    // Preserve the pending state and let BullMQ retry transient provider
+    // failures. Acknowledging this job would make the reconciler skip it.
+    throw error
   }
 }

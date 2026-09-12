@@ -137,6 +137,31 @@ vi.mock("../src/schedule/handlers/unsubscribe-expired-trials", () => ({
   unsubscribeExpiredTrials: vi.fn(),
 }))
 
+vi.mock("../src/schedule/handlers/clear-expired-support-access", () => ({
+  clearExpiredSupportAccess: vi.fn(),
+}))
+vi.mock("../src/schedule/handlers/expire-stale-pending-orders", () => ({
+  expireStalePendingOrders: vi.fn(),
+}))
+vi.mock("../src/schedule/handlers/notify-mac-limit-reached", () => ({
+  notifyMacLimitReached: vi.fn(),
+}))
+vi.mock("../src/schedule/handlers/process-billing-lifecycle", () => ({
+  processBillingLifecycle: vi.fn(),
+}))
+vi.mock("../src/schedule/handlers/purge-broadcasts", () => ({
+  purgeBroadcasts: vi.fn(),
+}))
+vi.mock("../src/schedule/handlers/purge-comment-automation-events", () => ({
+  purgeCommentAutomationEvents: vi.fn(),
+}))
+vi.mock("../src/schedule/handlers/purge-error-logs", () => ({
+  purgeErrorLogs: vi.fn(),
+}))
+vi.mock("../src/schedule/handlers/scan-contact-scans", () => ({
+  scanContactScans: vi.fn(),
+}))
+
 beforeAll(async () => {
   mocks.ensureBootstrapped.mockResolvedValue(undefined)
   await import("../src/schedule/worker")

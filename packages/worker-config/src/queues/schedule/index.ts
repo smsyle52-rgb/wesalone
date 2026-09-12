@@ -26,6 +26,7 @@ export const ScheduleJobData = {
   reconcileMac: "reconcileMac",
   maintainMacPartitions: "maintainMacPartitions",
   scanCoexistRuns: "scanCoexistRuns",
+  scanContactScans: "scanContactScans",
   reconcileMetaCatalogSyncs: "reconcileMetaCatalogSyncs",
   purgeCoexistStaging: "purgeCoexistStaging",
   purgeWhatsappSignupSessions: "purgeWhatsappSignupSessions",
@@ -34,6 +35,7 @@ export const ScheduleJobData = {
   purgeBroadcasts: "purgeBroadcasts",
   purgeAutomationThrottle: "purgeAutomationThrottle",
   purgeErrorLogs: "purgeErrorLogs",
+  purgeCommentAutomationEvents: "purgeCommentAutomationEvents",
   refreshChannelTokens: "refreshChannelTokens",
   unsubscribeExpiredTrials: "unsubscribeExpiredTrials",
   teardownExpiredTrial: "teardownExpiredTrial",
@@ -156,6 +158,11 @@ export type ScheduleJobScanCoexistRuns = {
   data: Record<string, never>
 }
 
+export type ScheduleJobScanContactScans = {
+  type: typeof ScheduleJobData.scanContactScans
+  data: Record<string, never>
+}
+
 export type ScheduleJobReconcileMetaCatalogSyncs = {
   type: typeof ScheduleJobData.reconcileMetaCatalogSyncs
   data: Record<string, never>
@@ -203,6 +210,11 @@ export type ScheduleJobPurgeAutomationThrottle = {
 
 export type ScheduleJobPurgeErrorLogs = {
   type: typeof ScheduleJobData.purgeErrorLogs
+  data: Record<string, never>
+}
+
+export type ScheduleJobPurgeCommentAutomationEvents = {
+  type: typeof ScheduleJobData.purgeCommentAutomationEvents
   data: Record<string, never>
 }
 
@@ -255,6 +267,7 @@ export type ScheduleJobData =
   | ScheduleJobReconcileMac
   | ScheduleJobMaintainMacPartitions
   | ScheduleJobScanCoexistRuns
+  | ScheduleJobScanContactScans
   | ScheduleJobReconcileMetaCatalogSyncs
   | ScheduleJobPurgeCoexistStaging
   | ScheduleJobPurgeWhatsappSignupSessions
@@ -263,6 +276,7 @@ export type ScheduleJobData =
   | ScheduleJobPurgeBroadcasts
   | ScheduleJobPurgeAutomationThrottle
   | ScheduleJobPurgeErrorLogs
+  | ScheduleJobPurgeCommentAutomationEvents
   | ScheduleJobRefreshChannelTokens
   | ScheduleJobUnsubscribeExpiredTrials
   | ScheduleJobTeardownExpiredTrial

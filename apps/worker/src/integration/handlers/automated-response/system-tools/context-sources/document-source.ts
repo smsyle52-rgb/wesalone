@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto"
-import { getPlatformEmbeddingProviderOptions } from "@chatbotx.io/ai/server"
 import { usageMeteringService } from "@chatbotx.io/business"
 import {
   aiConversationSourceStatuses,
@@ -221,7 +220,7 @@ async function retrieveDocumentChunks(
     }))
   }
 
-  const embeddingModel = await resolveEmbeddingModel(
+  const { model: embeddingModel, providerOptions } = await resolveEmbeddingModel(
     resolvedSource.source.workspaceId,
   )
 
@@ -240,8 +239,7 @@ async function retrieveDocumentChunks(
     const result = await embed({
       model: embeddingModel,
       value: input.query,
-      providerOptions:
-        await getPlatformEmbeddingProviderOptions("RETRIEVAL_QUERY"),
+      providerOptions: await providerOptions("RETRIEVAL_QUERY"),
     })
     embedding = result.embedding
     await usageMeteringService.settleUnits(

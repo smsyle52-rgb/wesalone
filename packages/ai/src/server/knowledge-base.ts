@@ -1,15 +1,12 @@
-import { createOpenAI } from "@ai-sdk/openai"
 import { db, sql } from "@chatbotx.io/database/client"
 import { aiEmbeddingStatuses } from "@chatbotx.io/database/partials"
-import { secretTextAuthSchema } from "@chatbotx.io/sdk"
 import { embed } from "ai"
 import { z } from "zod"
 import { logger } from "../logger"
-import { openaiEmbeddingModels } from "../models"
 import {
-  getPlatformEmbeddingModel,
-  getPlatformEmbeddingProviderOptions,
-} from "./platform-provider"
+  type EmbeddingProvider,
+  resolveEmbeddingModel,
+} from "./embedding-model"
 
 const REGEX_NUMERIC_ID = /^\d+$/
 
@@ -43,24 +40,19 @@ export type SimilaritySearchResult = z.infer<
 export type FileSearchConfig = {
   workspaceId: string
   selectedFileIds: string[]
-  similarityThreshold: number
+  similarityThreshold?: number
   maxResults: number
 }
 
-async function getOpenAIIntegration(workspaceId: string) {
-  const integrationOpenAI = await db.query.integrationOpenaiModel.findFirst({
-    where: {
-      workspaceId,
-      autoReply: true,
-    },
-  })
-
-  if (!integrationOpenAI) {
-    throw new Error("OpenAI integration not found")
-  }
-
-  return integrationOpenAI
-}
+export const embeddingSimilarityThresholds = {
+  openai: 0.7,
+  gemini: 0.55,
+  // Wesal One's platform model (Azure text-embedding-3-small): the same Arabic
+  // question scores 0.673 against a chunk that answers it verbatim, 0.405
+  // against a related one and 0.072 against an unrelated one — so ada-002's 0.7
+  // would discard every document ever indexed.
+  platform: 0.35,
+} as const satisfies Record<EmbeddingProvider, number>
 
 /**
  * Embed the incoming query with the same model that embedded the stored chunks.
@@ -75,43 +67,16 @@ async function getOpenAIIntegration(workspaceId: string) {
 async function createQueryEmbedding(
   query: string,
   workspaceId: string,
-): Promise<number[]> {
-  const platformModel = await getPlatformEmbeddingModel()
-  if (platformModel) {
-    const { embedding } = await embed({
-      model: platformModel,
-      value: query,
-      providerOptions:
-        await getPlatformEmbeddingProviderOptions("RETRIEVAL_QUERY"),
-    })
-    return embedding
-  }
-
-  const integrationOpenAI = await getOpenAIIntegration(workspaceId)
-
-  const authParsed = secretTextAuthSchema.safeParse(integrationOpenAI.auth)
-  if (!authParsed.success) {
-    throw new Error("Invalid OpenAI integration auth configuration")
-  }
-
-  const apiKey = authParsed.data.secretText
-  if (!apiKey) {
-    throw new Error("Missing OpenAI API key")
-  }
-
-  const openai = createOpenAI({
-    apiKey,
-  })
-
-  const embeddingModel = openai.embedding(
-    openaiEmbeddingModels.enum["text-embedding-ada-002"],
-  )
+): Promise<{ embedding: number[]; provider: EmbeddingProvider }> {
+  const resolvedEmbeddingModel = await resolveEmbeddingModel(workspaceId)
   const { embedding } = await embed({
-    model: embeddingModel,
+    model: resolvedEmbeddingModel.model,
     value: query,
+    providerOptions:
+      await resolvedEmbeddingModel.providerOptions("RETRIEVAL_QUERY"),
   })
 
-  return embedding
+  return { embedding, provider: resolvedEmbeddingModel.provider }
 }
 
 async function searchSimilarEmbeddings(
@@ -165,9 +130,13 @@ export async function performFileSearch(
     args.query,
     config.workspaceId,
   )
-  const searchResults = await searchSimilarEmbeddings(queryEmbedding, config)
-
-  return searchResults.filter(
-    (result) => result.distance > config.similarityThreshold,
+  const searchResults = await searchSimilarEmbeddings(
+    queryEmbedding.embedding,
+    config,
   )
+  const similarityThreshold =
+    config.similarityThreshold ??
+    embeddingSimilarityThresholds[queryEmbedding.provider]
+
+  return searchResults.filter((result) => result.distance > similarityThreshold)
 }

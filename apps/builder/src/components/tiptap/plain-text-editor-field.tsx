@@ -21,6 +21,7 @@ export type PlainTextEditorFieldProps = {
   required?: boolean
   placeholder?: string
   formItemClassName?: string
+  editorClassName?: string
   showEmojiPicker?: boolean
   channels?: ChannelType[]
   includeCouponVariables?: boolean
@@ -37,6 +38,7 @@ export const PlainTextEditorField = ({
   label,
   required = false,
   formItemClassName,
+  editorClassName,
   placeholder,
   channels,
   includeCouponVariables = false,
@@ -74,6 +76,7 @@ export const PlainTextEditorField = ({
           <FormControl>
             <PlainTextTiptapEditor
               channels={channels}
+              className={editorClassName}
               includeBotFieldVariables={includeBotFieldVariables}
               includeCouponVariables={includeCouponVariables}
               includeRawCustomFieldVariables={includeRawCustomFieldVariables}

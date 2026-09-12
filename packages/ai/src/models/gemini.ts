@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-export const geminiEmbeddingModels = z.enum(["text-embedding-004"])
+export const geminiEmbeddingModels = z.enum(["gemini-embedding-001"])
 export type GeminiEmbeddingModel = z.infer<typeof geminiEmbeddingModels>
 
 // Availability is per-project and changes without notice: `gemini-3-flash` was
@@ -34,12 +34,13 @@ export const geminiModels = z.enum([
   "gemini-3.5-flash-lite",
   "gemini-3.5-flash",
   "gemini-3.1-flash-lite",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-2.5-pro",
-  "gemini-2.0-flash-thinking-exp",
-  "gemini-3-flash",
   "gemini-3.1-pro-preview",
+  // Upstream retired the 2.5 family (#1127). Kept here: on 12 Sep five live
+  // agents run gemini-2.5-flash, and the platform's vision and web-search
+  // capabilities run gemini-2.5-pro / gemini-2.5-flash on Vertex.
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-pro",
 ])
 export type GeminiModel = z.infer<typeof geminiModels>
 
@@ -70,18 +71,6 @@ export const geminiAnalyzeImageModelOptions: {
   {
     label: "Gemini 3.1 Pro Preview",
     value: geminiModels.enum["gemini-3.1-pro-preview"],
-  },
-  {
-    label: "Gemini 2.5 Flash-Lite",
-    value: geminiModels.enum["gemini-2.5-flash-lite"],
-  },
-  {
-    label: "Gemini 2.5 Flash",
-    value: geminiModels.enum["gemini-2.5-flash"],
-  },
-  {
-    label: "Gemini 2.5 Pro",
-    value: geminiModels.enum["gemini-2.5-pro"],
   },
 ]
 
@@ -128,7 +117,7 @@ export const geminiModelOptions: { label: string; value: GeminiModel }[] = [
   },
 ]
 
-export const geminiImageModels = z.enum(["gemini-3.1-flash-image-preview"])
+export const geminiImageModels = z.enum(["gemini-3.1-flash-image"])
 export type GeminiImageModel = z.infer<typeof geminiImageModels>
 
 export const geminiImageModelOptions: {
@@ -136,7 +125,7 @@ export const geminiImageModelOptions: {
   value: GeminiImageModel
 }[] = [
   {
-    label: "Imagen 3",
-    value: geminiImageModels.enum["gemini-3.1-flash-image-preview"],
+    label: "Gemini 3.1 Flash Image",
+    value: geminiImageModels.enum["gemini-3.1-flash-image"],
   },
 ]

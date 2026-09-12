@@ -80,10 +80,6 @@ vi.mock("@/features/inboxes/provider/inbox-store-context", () => ({
   InboxStoreProvider: ({ children }: { children: unknown }) => children,
 }))
 
-vi.mock("@/features/tags/provider/tag-store-context", () => ({
-  TagStoreProvider: ({ children }: { children: unknown }) => children,
-}))
-
 vi.mock("@/features/users/provider/user-store-context", () => ({
   UserStoreProvider: ({ children }: { children: unknown }) => children,
 }))
@@ -92,10 +88,10 @@ const { default: ContactsPage } = await import(
   "../src/app/space/[workspaceId]/contacts/page"
 )
 const { default: ImportContactsPage } = await import(
-  "../src/app/(no-sidebar)/space/[workspaceId]/contacts/import/page"
+  "../src/app/space/[workspaceId]/contacts/import/page"
 )
 const { default: ImportContactsHistoriesPage } = await import(
-  "../src/app/(no-sidebar)/space/[workspaceId]/contacts/import/histories/page"
+  "../src/app/space/[workspaceId]/contacts/import/histories/page"
 )
 
 const basePermissions = {

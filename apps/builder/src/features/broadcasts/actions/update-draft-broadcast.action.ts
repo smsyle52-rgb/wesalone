@@ -1,12 +1,12 @@
 "use server"
 
 import { broadcastService } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { canViewContactEmailAndPhone } from "@/features/contacts/permissions"
 import { getCurrentUserAndTargetWorkspace } from "@/lib/auth/utils"
 import { workspaceActionClient } from "@/lib/safe-action"
 import { createBroadcastRequest } from "../schema/action"
+import { withBroadcastValidationErrors } from "./broadcast-validation-error"
 
 /**
  * `status` is intentionally the widened column type rather than
@@ -33,26 +33,20 @@ export const updateDraftBroadcastAction = workspaceActionClient
         )
       : false
 
-    // The service owns the channel/subaction/ownership validation and the
-    // `status = draft` conditional WHERE that makes a non-draft row unmatchable.
+    // The service owns the channel/subaction/ownership validation, the
+    // `status = draft` conditional WHERE that makes a non-draft row
+    // unmatchable, and the launch audit — shared with the public API's
+    // `updateDraft` route. A rejected payload surfaces as the same
+    // field-level error as on create.
     const result: UpdateDraftBroadcastResult =
-      await broadcastService.updateDraft({
-        workspaceId,
-        broadcastId: id,
-        canViewEmailAndPhone,
-        data: parsedInput,
-      })
-
-    // Mirrors `createBroadcastAction`: only an immediate send is a launch. A
-    // future schedule is audited as a launch when the send actually happens,
-    // and an edit that stays a draft never launches at all.
-    if (result.status === "scheduled" && parsedInput.schedulesType === "now") {
-      await auditService.record({
-        workspaceId,
-        action: "launch",
-        detail: `launched a broadcast (#${result.id})`,
-      })
-    }
+      await withBroadcastValidationErrors(() =>
+        broadcastService.updateDraft({
+          workspaceId,
+          broadcastId: id,
+          canViewEmailAndPhone,
+          data: parsedInput,
+        }),
+      )
 
     return result
   })

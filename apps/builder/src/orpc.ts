@@ -5,9 +5,10 @@ import {
 import { ModelNotfoundException } from "@chatbotx.io/database/errors"
 import type { WorkspaceApiTokenScope } from "@chatbotx.io/database/partials"
 import { SdkException } from "@chatbotx.io/sdk"
-import { ORPCError, onError } from "@orpc/server"
+import { ORPCError, onError, ValidationError } from "@orpc/server"
 import { ActionValidationError } from "next-safe-action"
 import { logger } from "./lib/log"
+import { commonApiErrors } from "./lib/orpc/orpc-error-helper"
 import { authMiddleware } from "./middlewares/auth"
 import { channelApiTokenAuthMidddleware } from "./middlewares/channel-api-token-auth"
 import { base } from "./middlewares/context"
@@ -25,12 +26,31 @@ const CHANNEL_ERROR_FALLBACK = "The provider rejected the request."
  * "(#100) …") reaches the UI instead of a generic 500 — a service must NOT
  * hand-roll its own error wrapping.
  */
+/**
+ * A `ChatbotXException` carrying `data` holds an i18n KEY in `message` (e.g.
+ * `"validation.maxItemsReached"`), which server actions re-localize in their
+ * own catch via `getTranslations()`. This interceptor is sync and has no
+ * request-scoped translator, so it cannot localize — but it must never emit a
+ * bare key to an API consumer. Fall back to the key plus its params so the
+ * response is at least self-describing; a handler that wants real
+ * localization should translate before the error reaches here.
+ */
+function toDisplayMessage(error: ChatbotXException): string {
+  if (!error.data) {
+    return error.message
+  }
+  const params = Object.entries(error.data)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(", ")
+  return params ? `${error.message} (${params})` : error.message
+}
+
 function toKnownOrpcError(
   error: unknown,
 ): ORPCError<string, unknown> | undefined {
   if (error instanceof ChatbotXException) {
     return new ORPCError(error.code, {
-      message: error.message,
+      message: toDisplayMessage(error),
       status: error.httpStatusCode ?? 400,
     })
   }
@@ -53,6 +73,23 @@ function toKnownOrpcError(
       message: error.message,
       status: 422,
       data: error.validationErrors,
+    })
+  }
+
+  // oRPC's own input-schema parsing throws a raw ORPCError("BAD_REQUEST",
+  // { cause: ValidationError }) before the handler runs, which would
+  // otherwise bypass this mapper entirely and surface as a 400. Remap it to
+  // 422 so every validation failure — schema-level or business-level — uses
+  // the same status.
+  if (
+    error instanceof ORPCError &&
+    error.code === "BAD_REQUEST" &&
+    error.cause instanceof ValidationError
+  ) {
+    return new ORPCError("invalidRequestData", {
+      message: error.message,
+      status: 422,
+      data: error.data,
     })
   }
 
@@ -85,6 +122,8 @@ const withErrorMapping = base.use(onError(mapKnownOrpcErrors))
 
 export const authorizedAPI = withErrorMapping.use(authMiddleware)
 
+const publicAPI = withErrorMapping.errors(commonApiErrors)
+
 /**
  * Enforces the resource-area axis on top of `workspaceTokenAuthMidddleware`.
  * `apiToken.scopes === null` means unrestricted ("All scopes") — every
@@ -116,10 +155,6 @@ const requireTokenScope = (scope: WorkspaceApiTokenScope) =>
  * into the router-sweep checklist.
  */
 export const workspaceTokenAuthAPIForScope = (scope: WorkspaceApiTokenScope) =>
-  withErrorMapping
-    .use(workspaceTokenAuthMidddleware)
-    .use(requireTokenScope(scope))
+  publicAPI.use(workspaceTokenAuthMidddleware).use(requireTokenScope(scope))
 
-export const channelApiTokenAPI = withErrorMapping.use(
-  channelApiTokenAuthMidddleware,
-)
+export const channelApiTokenAPI = publicAPI.use(channelApiTokenAuthMidddleware)

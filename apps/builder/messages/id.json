@@ -256,6 +256,7 @@
     "dateFilterPreset": "Preset filter tanggal",
     "noResults": "Tidak ada hasil.",
     "noData": "Tidak ada data",
+    "retentionNotice": "Hanya data {days} hari terakhir yang disimpan.",
     "comingSoon": "Segera hadir",
     "unknown": "Tidak diketahui",
     "pagination": {
@@ -265,10 +266,20 @@
       "firstPage": "Buka halaman pertama",
       "previousPage": "Buka halaman sebelumnya",
       "nextPage": "Buka halaman berikutnya",
-      "lastPage": "Buka halaman terakhir"
+      "lastPage": "Buka halaman terakhir",
+      "totalRows": "{total} baris"
     },
     "sessionsThroughTheRef": "Sesi melalui Ref \"{ref}\" per hari",
-    "sessionsThroughTheMagicLink": "Sesi melalui Magic Link \"{ref}\" per hari"
+    "sessionsThroughTheMagicLink": "Sesi melalui Magic Link \"{ref}\" per hari",
+    "repliesToComments": "Balasan untuk komentar",
+    "repliesByDate": "Balasan per tanggal",
+    "userCommentsOnThisPost": "Komentar pengguna di postingan ini",
+    "botRepliesToComments": "Balasan bot untuk komentar",
+    "comment": "Komentar",
+    "message": "Pesan",
+    "searchByDate": "Cari berdasarkan tanggal...",
+    "publicReply": "Balasan publik",
+    "privateReply": "Balasan pribadi"
   },
   "flowAnalytics": {
     "nodes": {
@@ -1298,12 +1309,15 @@
       "label": "Operasi"
     },
     "outputCustomField": {
-      "label": "Output Kustom Field"
+      "label": "Output Kustom Field",
+      "javascriptOptional": "Opsional. Menyimpan seluruh nilai kembalian. Gunakan pemetaan jalur JSON di atas untuk menulis field individu.",
+      "javascriptDumpLabel": "Output JSON lengkap (opsional)"
     },
     "javascriptCode": {
       "label": "Kode JavaScript",
       "placeholder": "return (input.first_name || 'there').toUpperCase()",
-      "description": "Gunakan JavaScript murni dan kembalikan sebuah nilai. Jaringan, file, API, dan pustaka eksternal tidak tersedia. Data kontak dan sistem tersedia melalui objek `input`."
+      "description": "Gunakan JavaScript murni dan kembalikan sebuah nilai. Jaringan, file, API, dan pustaka eksternal tidak tersedia. Data kontak dan sistem tersedia melalui objek `input`.",
+      "objectMapping": "Petakan jalur JSON apa pun dari nilai yang dikembalikan ke field kustom mana pun, sama seperti Permintaan API Eksternal. Anda memilih jalur dan field-nya."
     },
     "httpMethod": {
       "label": "Metode"
@@ -1659,7 +1673,8 @@
       "date": "Tanggal",
       "datetime": "Tanggal dan waktu",
       "location": "Lokasi",
-      "anyInput": "Input Apa Pun"
+      "anyInput": "Input Apa Pun",
+      "locationDescription": "Di WhatsApp ini mengirim tombol Kirim lokasi native Meta dan menunggu pin. Kanal lain mengirim prompt sebagai teks; pin yang dibagikan atau lat,lng yang diketik juga menyelesaikan langkah."
     },
     "workspaceMember": {
       "label": "Anggota Workspace"
@@ -1793,6 +1808,12 @@
     },
     "messengerChannel": {
       "label": "Channel Messenger"
+    },
+    "whatsappChannels": {
+      "label": "Saluran WhatsApp"
+    },
+    "messengerChannels": {
+      "label": "Halaman Messenger"
     },
     "messages": {
       "label": "Pesan"
@@ -2122,6 +2143,26 @@
         "done": "Selesai"
       }
     },
+    "tokenPermission": {
+      "label": "Izin",
+      "full": "Akses penuh",
+      "readOnly": "Hanya baca"
+    },
+    "tokenScopes": {
+      "label": "Cakupan",
+      "contacts": "Kontak",
+      "inbox": "Kotak Masuk",
+      "automation": "Otomasi",
+      "broadcasts": "Siaran",
+      "analytics": "Analitik",
+      "ecommerce": "E-commerce",
+      "integrations": "Integrasi",
+      "channels": "Saluran",
+      "minigames": "Minigame",
+      "appointments": "Janji Temu",
+      "media": "Media",
+      "ads": "Iklan"
+    },
     "adReferral": {
       "label": "Ads",
       "ctwa": "CTWA",
@@ -2145,27 +2186,7 @@
       "placeholder": "Select a model"
     },
     "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
-    "tokenPermission": {
-      "label": "Izin",
-      "full": "Akses penuh",
-      "readOnly": "Hanya baca"
-    },
-    "tokenScopes": {
-      "label": "Cakupan",
-      "contacts": "Kontak",
-      "inbox": "Kotak Masuk",
-      "automation": "Otomasi",
-      "broadcasts": "Siaran",
-      "analytics": "Analitik",
-      "ecommerce": "E-commerce",
-      "integrations": "Integrasi",
-      "channels": "Saluran",
-      "minigames": "Minigame",
-      "appointments": "Janji Temu",
-      "media": "Media",
-      "ads": "Iklan"
-    }
+    "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
     "export": {
@@ -2420,7 +2441,11 @@
       "tiktokTitleTruncated": "Saat tombol dilampirkan, TikTok hanya mengirim 40 karakter pertama pesan ini — sisanya akan terpotong."
     },
     "dataWasSaved": "Data telah disimpan",
-    "startNode": "Start"
+    "startNode": "Start",
+    "media": {
+      "stepUnsupportedOnChannel": "Saluran ini tidak dapat mengirim jenis media ini — langkahnya dilewati di sana. Hapus langkah ini, atau ubah node ke saluran yang mendukungnya.",
+      "buttonsSkippedOnChannel": "Saluran ini tidak dapat mengirim tombol bersama pesan media — tombol dilewati di sana. Letakkan pada langkah teks berikutnya saja."
+    }
   },
   "folders": {
     "heading": {
@@ -3012,7 +3037,59 @@
       "resultSuccess": "Berhasil menyegarkan {refreshed} channel.",
       "resultWithFailures": "Berhasil menyegarkan {refreshed} channel, {failed} gagal."
     },
-    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
+    "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one.",
+    "connectMany": {
+      "coexist": {
+        "running": "Memulai sinkronisasi riwayat…",
+        "done": "Sinkronisasi riwayat dimulai",
+        "failed": "Sinkronisasi riwayat gagal"
+      },
+      "selectAll": "Pilih semua",
+      "selected": "{count}/{max} dipilih",
+      "dialogTitleRunning": "Menghubungkan {count} {feature}…",
+      "dialogTitleDone": "Terhubung {connected} dari {total}",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "{done} dari {total} selesai",
+      "status": {
+        "waiting": "Menunggu",
+        "connecting": "Menghubungkan…",
+        "connected": "Terhubung",
+        "duplicated": "Sudah terhubung",
+        "limitReached": "Batas tercapai",
+        "failed": "Gagal",
+        "timedOut": "Waktu habis",
+        "cancelled": "Dibatalkan"
+      },
+      "reason": {
+        "notSelectable": "Item ini tidak dapat dipilih.",
+        "channelLimit": "Batas saluran tercapai.",
+        "workspaceLimit": "Batas ruang kerja tercapai.",
+        "providerRejected": "Penyedia menolak permintaan ini.",
+        "unknown": "Terjadi kesalahan.",
+        "followUpFailed": "Penyiapan belum selesai — selesaikan dari pengaturan saluran."
+      },
+      "sessionError": {
+        "sessionExpired": "Sesi Anda telah berakhir. Silakan hubungkan kembali.",
+        "notMember": "Anda tidak lagi menjadi anggota ruang kerja ini.",
+        "trialExpired": "Masa uji coba Anda telah berakhir.",
+        "macLimitReached": "Anda telah mencapai batas akun Anda.",
+        "credentialMissing": "Kredensial tidak ditemukan. Silakan hubungkan kembali."
+      },
+      "cancelRemaining": "Batalkan sisanya",
+      "retryFailed": "Coba lagi ({count})",
+      "retry": "Coba lagi",
+      "goToChannels": "Buka saluran",
+      "close": "Tutup",
+      "leaveNotice": "Anda dapat meninggalkan halaman; akun yang terhubung tetap disimpan",
+      "stepConnecting": "Menghubungkan",
+      "stepCoexist": "Sinkronkan riwayat",
+      "validation": {
+        "min": "Pilih minimal 1",
+        "max": "Anda dapat memilih hingga {max}",
+        "duplicate": "Pilihan duplikat"
+      },
+      "progressLabel": "Progres"
+    }
   },
   "workspace": {
     "schedule": {
@@ -3192,7 +3269,9 @@
     "waTemplateMpmTooManySections": "Tombol multi-produk dapat memiliki maksimal 10 bagian. Hapus beberapa bagian sebelum memublikasikan.",
     "waTemplateMpmTooManyProducts": "Tombol multi-produk dapat memiliki maksimal total 30 produk. Hapus beberapa produk sebelum memublikasikan.",
     "waTemplateLtoExpirationRequired": "Pilih tanggal berakhir untuk penawaran waktu terbatas sebelum mengirim.",
-    "waTemplateMpmIncompleteProducts": "Setiap bagian membutuhkan minimal satu produk terpilih — hapus baris kosong atau pilih produknya."
+    "waTemplateMpmIncompleteProducts": "Setiap bagian membutuhkan minimal satu produk terpilih — hapus baris kosong atau pilih produknya.",
+    "mediaStepUnsupported": "Saluran ini tidak dapat mengirim jenis media ini. Hapus langkahnya, atau arahkan node ini ke saluran yang mendukungnya.",
+    "mediaButtonsUnsupported": "Saluran ini tidak dapat mengirim tombol bersama pesan media. Hapus tombolnya, atau pindahkan ke langkah teks setelah langkah ini."
   },
   "instagram": {
     "description": "Integrasi ini memungkinkan Anda membuat bot Instagram.",
@@ -3204,6 +3283,12 @@
     "tabs": {
       "generalSettings": "Pengaturan Umum",
       "conversionsApi": "Optimasi Iklan"
+    },
+    "selectPage": {
+      "noAccountsTitle": "Tidak ada akun Instagram yang ditemukan",
+      "noAccountsDescription": "Tidak ditemukan akun Bisnis Instagram di Halaman Facebook yang Anda kelola. Hubungkan kembali Instagram dan berikan semua izin yang diminta.",
+      "alreadyConnectedNote": "Akun ini sudah terhubung",
+      "tryAgain": "Coba hubungkan kembali"
     }
   },
   "coexist": {
@@ -3249,7 +3334,6 @@
     "defaultPersona": "Persona Default",
     "reconnect": "Hubungkan kembali",
     "reconnectDescription": "Selalu hubungkan kembali bot jika bot Messenger Anda tidak merespons atau jika Anda melihat kesalahan izin di log kesalahan.",
-    "selectFacebookPage": "Pilih Halaman Facebook",
     "selectPage": {
       "noPagesTitle": "Tidak ada Halaman Facebook yang ditemukan",
       "noPagesDescription": "Halaman di dalam Business Manager memerlukan akses Business Manager saat dihubungkan. Hubungkan kembali Messenger dan berikan semua izin yang diminta.",
@@ -3303,6 +3387,7 @@
         "result": {
           "title": "Hasil Kloning",
           "succeededTitle": "Berhasil",
+          "pendingTitle": "Menunggu tinjauan Meta",
           "close": "Tutup"
         }
       }
@@ -3513,6 +3598,7 @@
   "validation": {
     "maxSize": "Ukuran file melebihi batas maksimum",
     "maxItemsReached": "Maksimum {max} {feature} diizinkan per ruang kerja",
+    "maxCharacters": "Maksimum {max} karakter.",
     "invalidApiKey": "Kunci API tidak valid",
     "maxMustBeGreaterThanMin": "{maxField} harus lebih besar dari atau sama dengan {minField}"
   },
@@ -3562,7 +3648,8 @@
       "verifyToken": "Token verifikasi webhook",
       "qrCodeHint": "Pindai kode QR untuk membuka URL webhook",
       "moreSettings": "Pengaturan lainnya",
-      "goToInbox": "Bawa saya ke sana"
+      "goToInbox": "Bawa saya ke sana",
+      "multipleTitle": "Kotak masuk WhatsApp Anda sudah siap!"
     },
     "phoneVerification": {
       "title": "Verifikasi nomor telepon WhatsApp",
@@ -3575,7 +3662,8 @@
       "actions": {
         "sendCode": "Kirim kode",
         "resendIn": "Kirim ulang dalam {seconds} dtk",
-        "verify": "Verifikasi dan daftarkan"
+        "verify": "Daftarkan",
+        "skip": "Lewati"
       },
       "fields": {
         "code": {
@@ -3593,18 +3681,12 @@
         "codeNotSent": "Kode verifikasi WhatsApp tidak dapat dikirim.",
         "codeNotVerified": "Kode verifikasi WhatsApp tidak dapat diverifikasi.",
         "registrationFailed": "Verifikasi nomor telepon WhatsApp gagal."
-      }
+      },
+      "queueProgress": "Memverifikasi {current} dari {total}"
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "Token akses WhatsApp diperlukan.",
         "appSettingsNotFound": "Pengaturan aplikasi WhatsApp tidak ditemukan.",
-        "failedToPersistIntegration": "Gagal menyimpan integrasi WhatsApp.",
-        "noPhoneNumberFound": "Nomor telepon WhatsApp tidak ditemukan.",
-        "noPhoneNumbersFound": "Tidak ada nomor telepon yang ditemukan untuk Akun WhatsApp Business ini.",
-        "phoneNumberNotFound": "Nomor telepon WhatsApp yang dipilih tidak ditemukan.",
-        "unableToVerifyToken": "Tidak dapat memverifikasi token WhatsApp.",
-        "wabaMismatch": "Akun WhatsApp Business yang dipilih tidak cocok dengan otorisasi.",
         "wabaResolveFailed": "Tidak dapat menentukan Akun WhatsApp Business dari otorisasi."
       }
     },
@@ -3846,16 +3928,12 @@
       "label": "Header Templat"
     },
     "transferPhoneNumber": "Transfer telepon dari penyedia WhatsApp lain",
-    "signupSessionExpired": "Sesi pendaftaran WhatsApp Anda telah kedaluwarsa. Mulai kembali proses koneksi.",
-    "capi": {
-      "automaticEvents": {
-        "title": "Peristiwa Otomatis",
-        "description": "Kirim peristiwa konversi dari nomor WhatsApp ini ke Meta secara otomatis. Jika izin belum ada, sambungkan ulang akun untuk memberikannya."
-      }
-    },
     "ecommerce": {
       "title": "Sell your products on WhatsApp",
       "manageProducts": "Manage your products"
+    },
+    "selectPage": {
+      "tryAgain": "Coba hubungkan kembali"
     }
   },
   "zalo": {
@@ -4054,6 +4132,60 @@
     "exportAllNotice": "Semua kontak yang cocok dengan filter saat ini akan diekspor.",
     "exportTakingLong": "Ekspor memerlukan waktu lebih lama dari perkiraan",
     "exportTakingLongDescription": "Ekspor masih diproses. Anda dapat menutup dialog ini dan memeriksanya kembali dalam beberapa menit dari riwayat ekspor."
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
   },
   "auditLogs": {
     "title": "Log Audit",
@@ -5491,10 +5623,19 @@
       "confirmationFlowId": "Flow Konfirmasi",
       "cancellationFlowId": "Flow Pembatalan",
       "externalConnectionId": "Kalender Eksternal",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
       "reminders": "Pengingat",
       "reminderTimingValue": "Nilai",
       "reminderTimingUnit": "Satuan"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
     "locationTypes": {
       "inPerson": "Pertemuan Tatap Muka",
       "phoneCall": "Panggilan Telepon",
@@ -5837,7 +5978,8 @@
       "generalSettingsTitle": "Pengaturan Umum",
       "appearanceTitle": "Tampilan",
       "playerSettingsTitle": "Pengaturan Pemain",
-      "prizeSettingsTitle": "Pengaturan Hadiah"
+      "prizeSettingsTitle": "Pengaturan Hadiah",
+      "validationFailed": "Perbaiki kolom yang ditandai sebelum menyimpan."
     },
     "generalSettings": {
       "showName": "Terlihat",
@@ -5845,10 +5987,7 @@
       "rulesDescription": "Deskripsi Aturan",
       "openerTags": "Beri tag kontak yang membuka tautan permainan",
       "playerTags": "Beri tag pemain",
-      "newFriendTags": "Beri tag teman baru",
-      "shareEnabled": "Izinkan berbagi ke teman",
-      "shareMessage": "Pesan Berbagi",
-      "shareMessageHint": "Gunakan '{{shareUrl}}' untuk menyisipkan tautan permainan yang sebenarnya — mohon jangan menghapusnya."
+      "newFriendTags": "Beri tag teman baru"
     },
     "appearance": {
       "backgroundColor": "Warna Latar Belakang",
@@ -5864,6 +6003,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "Jumlah kesempatan undian per orang",
+      "maxSharesPerPerson": "Maks. putaran bonus dari referral",
+      "maxSharesPerPersonHint": "Setiap teman yang bergabung melalui tautan undangan pemain ini dan mengirim pesan kepada Anda memberinya 1 undian tambahan, hingga batas ini. Setel 0 untuk menonaktifkan bonus referral. Undian bonus harus digunakan sebelum reset berikutnya.",
+      "sharingNode": "Langkah berbagi",
+      "sharingNodeHint": "Langkah flow yang berjalan saat seorang teman membuka tautan berbagi pemain ini. Kosongkan untuk menyembunyikan tombol Bagikan.",
       "resetPolicyLabel": "Reset undian",
       "resetNever": "Jangan reset jumlah undian",
       "resetEveryNDays": "Reset jumlah undian setiap",
@@ -5882,29 +6025,32 @@
       "forbiddenTitle": "Akses ditolak",
       "forbiddenDescription": "Tautan ini tidak valid atau telah kedaluwarsa.",
       "comingSoonTitle": "Segera hadir",
-      "comingSoonDescription": "Jenis minigame ini belum bisa dimainkan."
+      "comingSoonDescription": "Jenis minigame ini belum bisa dimainkan.",
+      "rateLimited": "Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi."
+    },
+    "list": {
+      "gamesPlayed": "Permainan dimainkan",
+      "participants": "Peserta",
+      "winners": "Pemenang",
+      "shares": "Referral"
     },
     "history": {
       "title": "Riwayat",
       "played": "Jumlah main",
       "remaining": "Sisa undian",
+      "shares": "Referral",
       "openedAt": "Pertama dibuka",
       "lastPlayedAt": "Terakhir dimainkan",
       "unknownContact": "Kontak tidak dikenal",
+      "conversationNotFound": "Tidak ada percakapan yang ditemukan untuk kontak ini",
+      "popupBlocked": "Izinkan pop-up untuk situs ini, lalu coba lagi.",
       "record": "Catatan",
       "recordDialog": {
         "title": "Catatan permainan",
         "win": "Menang",
         "lose": "Tidak menang",
         "empty": "Belum ada catatan permainan"
-      },
-      "conversationNotFound": "Tidak ada percakapan yang ditemukan untuk kontak ini",
-      "popupBlocked": "Izinkan pop-up untuk situs ini, lalu coba lagi."
-    },
-    "list": {
-      "gamesPlayed": "Permainan dimainkan",
-      "participants": "Peserta",
-      "winners": "Pemenang"
+      }
     }
   },
   "mediaLibrary": {

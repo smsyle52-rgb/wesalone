@@ -1,11 +1,12 @@
 "use server"
 
-import { inboxService, workspaceService } from "@chatbotx.io/business"
+import {
+  hasWorkspaceAccess,
+  integrationWebchatService,
+} from "@chatbotx.io/business"
 import { auditService } from "@chatbotx.io/business/audit"
 import { ensureBrandingMenuEntry } from "@chatbotx.io/business/branding"
-import { db } from "@chatbotx.io/database/client"
-import { integrationWebchatModel } from "@chatbotx.io/database/schema"
-import { createId } from "@chatbotx.io/utils"
+import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { isCommunity } from "@/env"
 import { getTenantSettings } from "@/features/tenant/utils"
 import { authActionClient } from "@/lib/safe-action"
@@ -17,6 +18,16 @@ export const createWebchatAction = authActionClient
   .action(async ({ parsedInput, ctx }) => {
     const { authorizedDomains, ...rest } = parsedInput
 
+    if (
+      parsedInput.workspaceId &&
+      !(await hasWorkspaceAccess({
+        workspaceId: parsedInput.workspaceId,
+        user: ctx.user,
+      }))
+    ) {
+      throw new ChatbotXException("Workspace not found", "notFound", 404)
+    }
+
     // Community keeps the "Built with" branding entry; silently re-add it
     // (same precedent as moveBrandingMenuLast in the messenger action).
     const persistentMenus = isCommunity()
@@ -26,68 +37,30 @@ export const createWebchatAction = authActionClient
         })
       : rest.persistentMenus
 
-    let workspaceId = parsedInput.workspaceId
-    let ownerId = ctx.user.id
-
-    const result = await db.transaction(async (tx) => {
-      let createdWorkspace = false
-
-      if (workspaceId) {
-        const workspace = await workspaceService.findOrFail({
-          where: { id: workspaceId },
-        })
-        ownerId = workspace.ownerId
-      } else {
-        const newChatbot = await workspaceService.create({
-          tx,
-          createdBy: ownerId,
-          data: {
-            name: parsedInput.name,
-            timezone: "UTC",
-            ownerId,
-          },
-        })
-        workspaceId = newChatbot.id
-        createdWorkspace = true
-      }
-
-      const webchatId = createId()
-      const { inbox } = await inboxService.create({
-        tx,
-        ownerId,
-        data: {
-          id: webchatId,
-          workspaceId,
-          channel: "webchat",
-          name: rest.name,
-          sourceId: webchatId,
-        },
-      })
-
-      await tx.insert(integrationWebchatModel).values({
+    const result = await integrationWebchatService.createWithWorkspace({
+      workspaceId: parsedInput.workspaceId ?? undefined,
+      createdBy: ctx.user.id,
+      workspaceName: parsedInput.name,
+      data: {
         ...rest,
         persistentMenus,
-        id: webchatId,
         authorizedDomains: authorizedDomains.map((domain) => domain.value),
-        workspaceId,
-        inboxId: inbox.id,
         auth: {},
-      })
-
-      return { workspaceId, createdWorkspace, webchatId }
+        customCss: rest.customCss ?? null,
+      },
     })
 
     if (result.createdWorkspace) {
       await auditService.record({
         userId: ctx.user.id,
-        workspaceId: result.workspaceId as string,
+        workspaceId: result.workspaceId,
         action: "create",
         detail: `created the workspace (#${result.workspaceId})`,
       })
     }
 
     await auditService.record({
-      workspaceId: result.workspaceId as string,
+      workspaceId: result.workspaceId,
       action: "connect",
       detail: `connected a new Webchat channel (#${result.webchatId})`,
     })

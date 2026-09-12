@@ -2,44 +2,13 @@
 
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
-const {
-  mockFindOrFail,
-  mockDbTransaction,
-  mockTxInsert,
-  mockTxInsertValues,
-  mockTxInsertReturning,
-  mockCreateId,
-  MockChatbotXException,
-  mockRecordAuditLog,
-} = vi.hoisted(() => {
-  const mockTxInsertReturning = vi.fn()
-  const mockTxInsertValues = vi.fn()
-  mockTxInsertValues.mockReturnValue({ returning: mockTxInsertReturning })
-  const mockTxInsert = vi.fn()
-  mockTxInsert.mockReturnValue({ values: mockTxInsertValues })
-
-  class MockChatbotXException extends Error {
-    constructor(message: string) {
-      super(message)
-      this.name = "ChatbotXException"
-    }
-  }
-
-  return {
-    mockFindOrFail: vi.fn(),
-    mockDbTransaction: vi.fn(),
-    mockTxInsert,
-    mockTxInsertValues,
-    mockTxInsertReturning,
-    mockCreateId: vi.fn().mockReturnValue("new-bc-id"),
-    MockChatbotXException,
-    mockRecordAuditLog: vi.fn(),
-  }
-})
-
-vi.mock("@chatbotx.io/business/audit", () => ({
-  auditService: { record: (...args: unknown[]) => mockRecordAuditLog(...args) },
-}))
+const { mockResendWithPruning, mockGetCurrentUserAndTargetWorkspace } =
+  vi.hoisted(() => ({
+    mockResendWithPruning: vi.fn(),
+    mockGetCurrentUserAndTargetWorkspace: vi.fn().mockResolvedValue({
+      targetWorkspaceMember: { permissions: ["emailAndPhone"] },
+    }),
+  }))
 
 vi.mock("@/lib/safe-action", () => {
   const chain: Record<string, unknown> = {}
@@ -49,211 +18,73 @@ vi.mock("@/lib/safe-action", () => {
   return { workspaceActionClient: chain }
 })
 
-vi.mock("@chatbotx.io/business/errors", () => ({
-  ChatbotXException: MockChatbotXException,
-}))
-
-// Plain object, not vi.fn(): `vi.clearAllMocks()` below would wipe it.
-const planGate = vi.hoisted(() => ({ paid: true }))
-
 vi.mock("@chatbotx.io/business", () => ({
-  platformSubscriptionService: {
-    assertPaidPlanForWorkspace: () =>
-      planGate.paid
-        ? Promise.resolve()
-        : Promise.reject(new Error("available on paid plans only")),
-  },
+  broadcastService: { resendWithPruning: mockResendWithPruning },
 }))
 
 vi.mock("@/lib/auth/utils", () => ({
-  getCurrentUserAndTargetWorkspace: vi.fn().mockResolvedValue({
-    targetWorkspaceMember: { permissions: ["emailAndPhone"] },
-  }),
+  getCurrentUserAndTargetWorkspace: mockGetCurrentUserAndTargetWorkspace,
 }))
 
-vi.mock("@chatbotx.io/database/queries/contact-filter/permission", () => ({
-  pruneEmailPhoneFilterConditions: (contactFilter: unknown) =>
-    contactFilter ?? undefined,
+vi.mock("@/features/contacts/permissions", () => ({
+  canViewContactEmailAndPhone: vi.fn(() => true),
 }))
 
-vi.mock("@chatbotx.io/database/client", () => ({
-  db: {
-    transaction: mockDbTransaction,
-  },
-  findOrFail: mockFindOrFail,
-}))
-
-vi.mock("@chatbotx.io/database/schema", () => ({
-  broadcastModel: { _: "broadcastModel" },
-}))
-
-vi.mock("@chatbotx.io/utils", async (importOriginal) => {
-  const original = (await importOriginal()) as Record<string, unknown>
-  return {
-    ...original,
-    createId: mockCreateId,
-  }
-})
-
-const { resendBroadcast } = await import(
+const { resendBroadcastAction: resendBroadcastActionUntyped } = await import(
   "../src/features/broadcasts/actions/resend-broadcast.action"
 )
+
+type Handler = (props: unknown) => Promise<unknown>
+const resendBroadcastAction = resendBroadcastActionUntyped as unknown as Handler
 
 const WORKSPACE_ID = "ws-1"
 const BROADCAST_ID = "bc-1"
 
-const baseBroadcast = {
-  id: BROADCAST_ID,
-  workspaceId: WORKSPACE_ID,
-  name: "Summer Sale",
-  status: "sent" as const,
-  channel: "whatsapp" as const,
-  flowId: "flow-1",
-  integrationWhatsappId: "wa-1",
-  integrationMessengerId: "msg-1",
-  subaction: "whatsappWithin24Hours" as const,
-  templateId: null,
-  templateData: null,
-  schedulesType: "now" as const,
-  contactFilter: null,
-}
-
-describe("resendBroadcast", () => {
+describe("resendBroadcastAction", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    planGate.paid = true
-    mockTxInsertValues.mockReturnValue({ returning: mockTxInsertReturning })
-    mockTxInsert.mockReturnValue({ values: mockTxInsertValues })
-    mockTxInsertReturning.mockResolvedValue([
-      { id: "new-bc-id", name: "Summer Sale (Resend)" },
-    ])
-    mockDbTransaction.mockImplementation(
-      async (fn: (tx: { insert: typeof mockTxInsert }) => Promise<unknown>) =>
-        fn({ insert: mockTxInsert }),
-    )
-    mockCreateId.mockReturnValue("new-bc-id")
-  })
-
-  test("refuses a workspace without a paid plan before reading or inserting", async () => {
-    planGate.paid = false
-    mockFindOrFail.mockResolvedValue(baseBroadcast)
-
-    await expect(
-      resendBroadcast({ workspaceId: WORKSPACE_ID, id: BROADCAST_ID }),
-    ).rejects.toThrow("paid plans only")
-    expect(mockFindOrFail).not.toHaveBeenCalled()
-    expect(mockDbTransaction).not.toHaveBeenCalled()
-    expect(mockRecordAuditLog).not.toHaveBeenCalled()
-  })
-
-  test("throws ChatbotXException when broadcast status is not 'sent'", async () => {
-    const draftBroadcast = { ...baseBroadcast, status: "scheduled" as const }
-    mockFindOrFail.mockResolvedValue(draftBroadcast)
-
-    await expect(
-      resendBroadcast({ workspaceId: WORKSPACE_ID, id: BROADCAST_ID }),
-    ).rejects.toThrow("Broadcast is not sent")
-  })
-
-  test("allows resending a 'failed' broadcast", async () => {
-    const failedBroadcast = { ...baseBroadcast, status: "failed" as const }
-    mockFindOrFail.mockResolvedValue(failedBroadcast)
-
-    await expect(
-      resendBroadcast({ workspaceId: WORKSPACE_ID, id: BROADCAST_ID }),
-    ).resolves.not.toThrow()
-  })
-
-  test("throws ChatbotXException (not a generic Error) for non-sent status", async () => {
-    const draftBroadcast = { ...baseBroadcast, status: "draft" as const }
-    mockFindOrFail.mockResolvedValue(draftBroadcast)
-
-    await expect(
-      resendBroadcast({ workspaceId: WORKSPACE_ID, id: BROADCAST_ID }),
-    ).rejects.toBeInstanceOf(MockChatbotXException)
-  })
-
-  test("propagates error when findOrFail throws (broadcast not found)", async () => {
-    mockFindOrFail.mockRejectedValue(new Error("Record not found"))
-
-    await expect(
-      resendBroadcast({ workspaceId: WORKSPACE_ID, id: BROADCAST_ID }),
-    ).rejects.toThrow("Record not found")
-  })
-
-  test("inserts new broadcast with '(Resend)' suffix in name via transaction", async () => {
-    mockFindOrFail.mockResolvedValue(baseBroadcast)
-
-    await resendBroadcast({ workspaceId: WORKSPACE_ID, id: BROADCAST_ID })
-
-    expect(mockDbTransaction).toHaveBeenCalledOnce()
-    const insertedValues = mockTxInsertValues.mock.calls[0]?.[0] as {
-      name: string
-      status: string
-    }
-    expect(insertedValues.name).toBe("Summer Sale (Resend)")
-    expect(insertedValues.status).toBe("scheduled")
-    expect(mockRecordAuditLog).toHaveBeenCalledWith({
-      workspaceId: WORKSPACE_ID,
-      action: "launch",
-      detail: "launched a broadcast (#new-bc-id)",
+    mockGetCurrentUserAndTargetWorkspace.mockResolvedValue({
+      targetWorkspaceMember: { permissions: ["emailAndPhone"] },
     })
   })
 
-  test("new broadcast copies key fields from original", async () => {
-    mockFindOrFail.mockResolvedValue(baseBroadcast)
+  test("delegates to broadcastService.resendWithPruning with the caller's canViewEmailAndPhone", async () => {
+    mockResendWithPruning.mockResolvedValue({ id: "new-bc-id" })
 
-    await resendBroadcast({ workspaceId: WORKSPACE_ID, id: BROADCAST_ID })
+    const result = await resendBroadcastAction({
+      bindArgsParsedInputs: [WORKSPACE_ID, BROADCAST_ID],
+    })
 
-    const insertedValues = mockTxInsertValues.mock.calls[0]?.[0] as {
-      workspaceId: string
-      flowId: string
-      channel: string
-      schedulesType: string
-      integrationWhatsappId: string
-      integrationMessengerId: string
-    }
-    expect(insertedValues.workspaceId).toBe(WORKSPACE_ID)
-    expect(insertedValues.flowId).toBe("flow-1")
-    expect(insertedValues.channel).toBe("whatsapp")
-    expect(insertedValues.schedulesType).toBe("now")
-    expect(insertedValues.integrationWhatsappId).toBe("wa-1")
-    expect(insertedValues.integrationMessengerId).toBe("msg-1")
-  })
-
-  test("new broadcast uses a new id from createId", async () => {
-    mockFindOrFail.mockResolvedValue(baseBroadcast)
-    mockCreateId.mockReturnValue("generated-id-42")
-
-    await resendBroadcast({ workspaceId: WORKSPACE_ID, id: BROADCAST_ID })
-
-    const insertedValues = mockTxInsertValues.mock.calls[0]?.[0] as {
-      id: string
-    }
-    expect(insertedValues.id).toBe("generated-id-42")
-  })
-
-  test("returns the new broadcast copy", async () => {
-    const newBroadcast = { id: "new-bc-id", name: "Summer Sale (Resend)" }
-    mockFindOrFail.mockResolvedValue(baseBroadcast)
-    mockTxInsertReturning.mockResolvedValue([newBroadcast])
-
-    const result = await resendBroadcast({
+    expect(mockResendWithPruning).toHaveBeenCalledWith({
       workspaceId: WORKSPACE_ID,
       id: BROADCAST_ID,
+      canViewEmailAndPhone: true,
     })
-
-    expect(result).toBe(newBroadcast)
+    expect(result).toEqual({ id: "new-bc-id" })
   })
 
-  test("scopes findOrFail by workspaceId", async () => {
-    mockFindOrFail.mockResolvedValue(baseBroadcast)
+  test("passes canViewEmailAndPhone: false when there is no current user/workspace", async () => {
+    mockGetCurrentUserAndTargetWorkspace.mockResolvedValue(null)
+    mockResendWithPruning.mockResolvedValue({ id: "new-bc-id" })
 
-    await resendBroadcast({ workspaceId: "other-ws", id: BROADCAST_ID })
+    await resendBroadcastAction({
+      bindArgsParsedInputs: [WORKSPACE_ID, BROADCAST_ID],
+    })
 
-    const findArgs = mockFindOrFail.mock.calls[0]?.[0] as {
-      where: { workspaceId: string }
-    }
-    expect(findArgs.where.workspaceId).toBe("other-ws")
+    expect(mockResendWithPruning).toHaveBeenCalledWith({
+      workspaceId: WORKSPACE_ID,
+      id: BROADCAST_ID,
+      canViewEmailAndPhone: false,
+    })
+  })
+
+  test("propagates an error from resendWithPruning", async () => {
+    mockResendWithPruning.mockRejectedValue(new Error("Broadcast is not sent"))
+
+    await expect(
+      resendBroadcastAction({
+        bindArgsParsedInputs: [WORKSPACE_ID, BROADCAST_ID],
+      }),
+    ).rejects.toThrow("Broadcast is not sent")
   })
 })

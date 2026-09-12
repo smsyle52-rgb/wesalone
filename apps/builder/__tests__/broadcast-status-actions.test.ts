@@ -31,21 +31,13 @@ function makeChainSpy(client: CapturedAction["client"]) {
 const workspaceActionClientChain = makeChainSpy("normal")
 const workspaceActionClientAllowExpiredChain = makeChainSpy("allowExpired")
 
-const {
-  moveToDraft,
-  stopSending,
-  resumeSending,
-  softDeleteBroadcasts,
-  recordAuditLog,
-} = vi.hoisted(() => ({
-  moveToDraft: vi.fn(),
-  stopSending: vi.fn(),
-  resumeSending: vi.fn(),
-  softDeleteBroadcasts: vi.fn(),
-  recordAuditLog: vi.fn(),
-}))
-// Plain object, not vi.fn(): the preset's clearMocks/restoreMocks would wipe it.
-const planGate = vi.hoisted(() => ({ paid: true }))
+const { moveToDraft, stopSending, resumeSending, softDeleteBroadcasts } =
+  vi.hoisted(() => ({
+    moveToDraft: vi.fn(),
+    stopSending: vi.fn(),
+    resumeSending: vi.fn(),
+    softDeleteBroadcasts: vi.fn(),
+  }))
 
 vi.mock("@/lib/safe-action", () => ({
   workspaceActionClient: workspaceActionClientChain,
@@ -58,15 +50,6 @@ vi.mock("@chatbotx.io/business", () => ({
     resumeSending,
     softDeleteBroadcasts,
   },
-  platformSubscriptionService: {
-    assertPaidPlanForWorkspace: () =>
-      planGate.paid
-        ? Promise.resolve()
-        : Promise.reject(new Error("available on paid plans only")),
-  },
-}))
-vi.mock("@chatbotx.io/business/audit", () => ({
-  auditService: { record: (...args: unknown[]) => recordAuditLog(...args) },
 }))
 
 await import("@/features/broadcasts/actions/move-broadcast-to-draft.action")
@@ -84,12 +67,10 @@ const [
 ] = capturedActions
 
 beforeEach(() => {
-  planGate.paid = true
   moveToDraft.mockReset()
   stopSending.mockReset()
   resumeSending.mockReset()
   softDeleteBroadcasts.mockReset()
-  recordAuditLog.mockReset().mockResolvedValue(undefined)
 })
 
 describe("moveBroadcastToDraftAction", () => {
@@ -97,7 +78,7 @@ describe("moveBroadcastToDraftAction", () => {
     expect(moveToDraftClient).toBe("normal")
   })
 
-  test("delegates to broadcastService.moveToDraft with the bound ids and audits on success", async () => {
+  test("delegates to broadcastService.moveToDraft with the bound ids", async () => {
     moveToDraft.mockResolvedValue({ id: "b-1" })
 
     const result = await moveToDraftHandler({
@@ -108,21 +89,15 @@ describe("moveBroadcastToDraftAction", () => {
       workspaceId: "ws-1",
       broadcastId: "b-1",
     })
-    expect(recordAuditLog).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      action: "broadcast_moved_to_draft",
-      detail: "moved broadcast (#b-1) to draft",
-    })
     expect(result).toEqual({ id: "b-1" })
   })
 
-  test("does not audit when the service throws", async () => {
+  test("propagates an error from the service", async () => {
     moveToDraft.mockRejectedValue(new Error("Broadcast is no longer scheduled"))
 
     await expect(
       moveToDraftHandler({ bindArgsParsedInputs: ["ws-1", "b-1"] }),
     ).rejects.toThrow("Broadcast is no longer scheduled")
-    expect(recordAuditLog).not.toHaveBeenCalled()
   })
 })
 
@@ -131,7 +106,7 @@ describe("stopBroadcastAction", () => {
     expect(stopClient).toBe("allowExpired")
   })
 
-  test("delegates to broadcastService.stopSending with the bound ids and audits on success", async () => {
+  test("delegates to broadcastService.stopSending with the bound ids", async () => {
     stopSending.mockResolvedValue({ id: "b-2" })
 
     const result = await stopHandler({
@@ -142,30 +117,15 @@ describe("stopBroadcastAction", () => {
       workspaceId: "ws-1",
       broadcastId: "b-2",
     })
-    expect(recordAuditLog).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      action: "broadcast_stopped",
-      detail: "stopped a broadcast (#b-2)",
-    })
     expect(result).toEqual({ id: "b-2" })
   })
 
-  test("does not audit when the service throws", async () => {
+  test("propagates an error from the service", async () => {
     stopSending.mockRejectedValue(new Error("Broadcast is not in progress"))
 
     await expect(
       stopHandler({ bindArgsParsedInputs: ["ws-1", "b-2"] }),
     ).rejects.toThrow("Broadcast is not in progress")
-    expect(recordAuditLog).not.toHaveBeenCalled()
-  })
-
-  test("stays available without a paid plan — a merchant can always stop a send", async () => {
-    planGate.paid = false
-    stopSending.mockResolvedValue({ id: "b-2" })
-
-    await expect(
-      stopHandler({ bindArgsParsedInputs: ["ws-1", "b-2"] }),
-    ).resolves.toEqual({ id: "b-2" })
   })
 })
 
@@ -174,7 +134,7 @@ describe("resumeBroadcastAction", () => {
     expect(resumeClient).toBe("normal")
   })
 
-  test("delegates to broadcastService.resumeSending with the bound ids and audits on success", async () => {
+  test("delegates to broadcastService.resumeSending with the bound ids", async () => {
     resumeSending.mockResolvedValue({ id: "b-3" })
 
     const result = await resumeHandler({
@@ -185,31 +145,15 @@ describe("resumeBroadcastAction", () => {
       workspaceId: "ws-1",
       broadcastId: "b-3",
     })
-    expect(recordAuditLog).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      action: "broadcast_resumed",
-      detail: "resumed a broadcast (#b-3)",
-    })
     expect(result).toEqual({ id: "b-3" })
   })
 
-  test("does not audit when the service throws", async () => {
+  test("propagates an error from the service", async () => {
     resumeSending.mockRejectedValue(new Error("Broadcast is not stopped"))
 
     await expect(
       resumeHandler({ bindArgsParsedInputs: ["ws-1", "b-3"] }),
     ).rejects.toThrow("Broadcast is not stopped")
-    expect(recordAuditLog).not.toHaveBeenCalled()
-  })
-
-  test("refuses to resume sending for a workspace without a paid plan", async () => {
-    planGate.paid = false
-
-    await expect(
-      resumeHandler({ bindArgsParsedInputs: ["ws-1", "b-3"] }),
-    ).rejects.toThrow("paid plans only")
-    expect(resumeSending).not.toHaveBeenCalled()
-    expect(recordAuditLog).not.toHaveBeenCalled()
   })
 })
 
@@ -236,39 +180,7 @@ describe("deleteBroadcastsAction (bulk)", () => {
     expect(result).toEqual({ deletedCount: 2, requestedCount: 3 })
   })
 
-  test("audits with the deleted count when deletedCount > 0", async () => {
-    softDeleteBroadcasts.mockResolvedValue({
-      deletedCount: 2,
-      requestedCount: 3,
-    })
-
-    await bulkDeleteHandler({
-      bindArgsParsedInputs: ["ws-1"],
-      parsedInput: { ids: ["b-1", "b-2", "b-3"] },
-    })
-
-    expect(recordAuditLog).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      action: "delete",
-      detail: "deleted 2 broadcast(s)",
-    })
-  })
-
-  test("does not audit when deletedCount is 0 (all ids skipped)", async () => {
-    softDeleteBroadcasts.mockResolvedValue({
-      deletedCount: 0,
-      requestedCount: 2,
-    })
-
-    await bulkDeleteHandler({
-      bindArgsParsedInputs: ["ws-1"],
-      parsedInput: { ids: ["b-1", "b-2"] },
-    })
-
-    expect(recordAuditLog).not.toHaveBeenCalled()
-  })
-
-  test("does not audit when the service throws", async () => {
+  test("propagates an error from the service", async () => {
     softDeleteBroadcasts.mockRejectedValue(new Error("boom"))
 
     await expect(
@@ -277,11 +189,10 @@ describe("deleteBroadcastsAction (bulk)", () => {
         parsedInput: { ids: ["b-1"] },
       }),
     ).rejects.toThrow("boom")
-    expect(recordAuditLog).not.toHaveBeenCalled()
   })
 })
 
-describe("deleteBroadcastAction (single) — counts + conditional audit", () => {
+describe("deleteBroadcastAction (single)", () => {
   test("is built from workspaceActionClientAllowExpired", () => {
     expect(deleteClient).toBe("allowExpired")
   })
@@ -303,38 +214,11 @@ describe("deleteBroadcastAction (single) — counts + conditional audit", () => 
     expect(result).toEqual({ deletedCount: 1, requestedCount: 1 })
   })
 
-  test("audits when deletedCount > 0", async () => {
-    softDeleteBroadcasts.mockResolvedValue({
-      deletedCount: 1,
-      requestedCount: 1,
-    })
-
-    await deleteHandler({ bindArgsParsedInputs: ["ws-1", "b-1"] })
-
-    expect(recordAuditLog).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      action: "delete",
-      detail: "deleted 1 broadcast(s)",
-    })
-  })
-
-  test("does not audit when deletedCount is 0 (e.g. broadcast is sending)", async () => {
-    softDeleteBroadcasts.mockResolvedValue({
-      deletedCount: 0,
-      requestedCount: 1,
-    })
-
-    await deleteHandler({ bindArgsParsedInputs: ["ws-1", "b-1"] })
-
-    expect(recordAuditLog).not.toHaveBeenCalled()
-  })
-
-  test("does not audit when the service throws", async () => {
+  test("propagates an error from the service", async () => {
     softDeleteBroadcasts.mockRejectedValue(new Error("boom"))
 
     await expect(
       deleteHandler({ bindArgsParsedInputs: ["ws-1", "b-1"] }),
     ).rejects.toThrow("boom")
-    expect(recordAuditLog).not.toHaveBeenCalled()
   })
 })

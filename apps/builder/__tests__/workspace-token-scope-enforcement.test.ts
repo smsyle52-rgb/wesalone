@@ -152,6 +152,25 @@ describe("workspace API token resource-scope enforcement", () => {
     })
   })
 
+  test("a token without the automation scope is denied a new automation write route with FORBIDDEN", async () => {
+    findWorkspaceByTokenHash.mockResolvedValue(authResult(["contacts"]))
+
+    const procedure = buildProcedure("automation", "POST")
+
+    await expect(invoke(procedure)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "Token is not authorized for the 'automation' scope",
+    })
+  })
+
+  test("an automation-scoped token can hit an automation write route (e.g. POST /v1/flows, POST /v1/ai-triggers)", async () => {
+    findWorkspaceByTokenHash.mockResolvedValue(authResult(["automation"]))
+
+    const procedure = buildProcedure("automation", "POST")
+
+    await expect(invoke(procedure)).resolves.toMatchObject({ ok: true })
+  })
+
   test("scope enforcement runs after the read_only permission gate: a read_only token is still blocked from a mutation regardless of scope", async () => {
     findWorkspaceByTokenHash.mockResolvedValue(
       authResult(["contacts"], "read_only"),
@@ -182,6 +201,19 @@ describe("workspace API token resource-scope enforcement", () => {
 
     await expect(invoke(procedure)).rejects.toMatchObject({
       code: "INVALID_CHATBOT_TOKEN",
+      status: 401,
+    })
+  })
+
+  test("an invalid token error is upgraded to defined:true once commonApiErrors is attached", async () => {
+    findWorkspaceByTokenHash.mockResolvedValue(undefined)
+
+    const procedure = buildProcedure("contacts", "GET")
+
+    await expect(invoke(procedure)).rejects.toMatchObject({
+      code: "INVALID_CHATBOT_TOKEN",
+      status: 401,
+      defined: true,
     })
   })
 })
