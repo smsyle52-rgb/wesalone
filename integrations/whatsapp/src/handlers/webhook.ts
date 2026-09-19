@@ -435,7 +435,9 @@ export const webhookHandler = async (
       await dispatchWebhookResult(props.queue, result)
 
       return "ok"
-    } catch {
+    } catch (err) {
+      // Keep the underlying error so a failure is diagnosable.
+      logger.error({ err }, "Whatsapp webhook handler failed")
       throw new SdkException("Failed to handle webhook")
     }
   }
