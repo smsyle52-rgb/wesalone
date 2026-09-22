@@ -60,9 +60,61 @@ function getPlatformAzureOpenAIConfig(): PlatformAzureOpenAIConfig | null {
  * assigned managed identity at runtime; no Google service-account key or
  * access token is persisted in the application, database, or Key Vault.
  */
+function getWifAudience(): string | null {
+  const wifProjectNumber = env.VERTEX_AI_WIF_PROJECT_NUMBER
+  const wifPoolId = env.VERTEX_AI_WIF_POOL_ID
+  const wifProviderId = env.VERTEX_AI_WIF_PROVIDER_ID
+
+  if (!(wifProjectNumber && wifPoolId && wifProviderId)) {
+    return null
+  }
+
+  return `//iam.googleapis.com/projects/${wifProjectNumber}/locations/global/workloadIdentityPools/${wifPoolId}/providers/${wifProviderId}`
+}
+
+/**
+ * AWS EC2 variant of the federation below. The instance profile's own IAM role
+ * is the subject token source (signed GetCallerIdentity), so — exactly like the
+ * Azure managed identity — no Google service-account key exists to leak. The
+ * instance metadata service is reached over the link-local address; IMDSv2 is
+ * handled by `imdsv2_session_token_url`.
+ */
+function getAwsGoogleAuthOptions(projectId: string): GoogleAuthOptions | null {
+  const audience = getWifAudience()
+  const region = env.AWS_REGION
+
+  if (!(audience && region)) {
+    return null
+  }
+
+  const metadata = "http://169.254.169.254"
+
+  return {
+    projectId,
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    credentials: {
+      type: "external_account",
+      audience,
+      subject_token_type: "urn:ietf:params:aws:token-type:aws4_request",
+      token_url: "https://sts.googleapis.com/v1/token",
+      credential_source: {
+        environment_id: "aws1",
+        region_url: `${metadata}/latest/meta-data/placement/availability-zone`,
+        url: `${metadata}/latest/meta-data/iam/security-credentials`,
+        regional_cred_verification_url: `https://sts.${region}.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15`,
+        imdsv2_session_token_url: `${metadata}/latest/api/token`,
+      },
+    },
+  }
+}
+
 export function getVertexGoogleAuthOptions(
   projectId: string,
 ): GoogleAuthOptions | null {
+  if (env.VERTEX_AI_WIF_SOURCE === "aws") {
+    return getAwsGoogleAuthOptions(projectId)
+  }
+
   const identityEndpoint = env.IDENTITY_ENDPOINT
   const identityHeader = env.IDENTITY_HEADER
   const managedIdentityClientId = env.AZURE_MANAGED_IDENTITY_CLIENT_ID

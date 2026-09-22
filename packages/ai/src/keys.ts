@@ -32,6 +32,11 @@ export const keys = () =>
       // short-lived local proof and is never configured or stored by Wesal.
       IDENTITY_ENDPOINT: z.string().url().optional(),
       IDENTITY_HEADER: z.string().trim().min(1).optional(),
+      // AWS EC2 alternative to the Azure managed identity above: the
+      // instance's own IAM role is the federated subject, so there is still no
+      // Google key stored anywhere. Set VERTEX_AI_WIF_SOURCE=aws to use it.
+      VERTEX_AI_WIF_SOURCE: z.enum(["azure", "aws"]).optional(),
+      AWS_REGION: z.string().trim().min(1).optional(),
       GOOGLE_DOCUMENT_AI_PROCESSOR_ID: z.string().trim().min(1).optional(),
       GOOGLE_DOCUMENT_AI_LOCATION: z.string().trim().min(1).optional(),
     },
