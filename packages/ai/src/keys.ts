@@ -37,6 +37,11 @@ export const keys = () =>
       // Google key stored anywhere. Set VERTEX_AI_WIF_SOURCE=aws to use it.
       VERTEX_AI_WIF_SOURCE: z.enum(["azure", "aws"]).optional(),
       AWS_REGION: z.string().trim().min(1).optional(),
+      // Gemini 3.x thinking level for platform Vertex language models. `low` is
+      // the measured default; `default` restores the model's dynamic thinking.
+      VERTEX_AI_THINKING_LEVEL: z
+        .enum(["minimal", "low", "medium", "high", "default"])
+        .optional(),
       GOOGLE_DOCUMENT_AI_PROCESSOR_ID: z.string().trim().min(1).optional(),
       GOOGLE_DOCUMENT_AI_LOCATION: z.string().trim().min(1).optional(),
     },

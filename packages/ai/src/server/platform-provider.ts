@@ -14,7 +14,7 @@ import type {
   LanguageModel,
   TranscriptionModel,
 } from "ai"
-import { generateText } from "ai"
+import { defaultSettingsMiddleware, generateText, wrapLanguageModel } from "ai"
 import type { GoogleAuthOptions } from "google-auth-library"
 import { env } from "../keys"
 import { logger } from "../logger"
@@ -416,7 +416,10 @@ export async function getPlatformCapabilityLanguageModel(
     return null
   }
   if (capability.provider === "vertex") {
-    return getPlatformVertexProvider(capability)(capability.model)
+    return withPlatformThinking(
+      getPlatformVertexProvider(capability)(capability.model),
+      capability.model,
+    )
   }
   return getPlatformAzureOpenAIProvider(capability)(capability.model)
 }
@@ -472,11 +475,46 @@ export async function getPlatformTextToSpeechConfig(): Promise<ResolvedPlatformV
   return capability?.provider === "vertex" ? capability : null
 }
 
+const GEMINI_THINKING_LEVEL_MODEL = /^gemini-3/
+
+/**
+ * Applies the platform's default Gemini thinking level to a Vertex language
+ * model. Default (dynamic) thinking made even trivial customer replies take
+ * 24–45s at peak and hit the 60s step timeout; measured 2026-09-23 on the
+ * production project with five realistic Arabic store prompts, gemini-3.7-flash
+ * at `low` answered in a 4.7s median (8.2s max) with no 429s. Only Gemini 3.x
+ * accepts `thinkingLevel`, so older models are returned untouched, and a
+ * per-call `providerOptions` still overrides this default.
+ */
+function withPlatformThinking(
+  model: ReturnType<GoogleVertexProvider>,
+  modelId: string,
+): LanguageModel {
+  const level = env.VERTEX_AI_THINKING_LEVEL ?? "low"
+  if (level === "default" || !GEMINI_THINKING_LEVEL_MODEL.test(modelId)) {
+    return model
+  }
+
+  return wrapLanguageModel({
+    model,
+    middleware: defaultSettingsMiddleware({
+      settings: {
+        providerOptions: {
+          vertex: { thinkingConfig: { thinkingLevel: level } },
+        },
+      },
+    }),
+  })
+}
+
 export function getPlatformVertexChatModel(
   modelId: string,
   override: Pick<PlatformAiOverride, "location" | "projectId">,
 ): LanguageModel {
-  return getPlatformVertexProvider(override)(modelId)
+  return withPlatformThinking(
+    getPlatformVertexProvider(override)(modelId),
+    modelId,
+  )
 }
 
 export function getPlatformAzureOpenAIChatModel(
