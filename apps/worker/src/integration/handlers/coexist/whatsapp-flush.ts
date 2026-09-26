@@ -12,6 +12,7 @@ import {
   sql,
 } from "@chatbotx.io/database/client"
 import {
+  coexistSyncRunRepository,
   createMessageRepository,
   getSafeSinceTime,
 } from "@chatbotx.io/database/repositories"
@@ -862,14 +863,45 @@ export const coexistWhatsappFlush = async (
       columns: { id: true },
       orderBy: { createdAt: "desc" },
     })
-    if (!liveRun) {
+    if (liveRun) {
+      runId = liveRun.id
+    } else {
+      // Live `smb_message_echoes` keep arriving after the history run has
+      // finished (or while a run is parked in `waiting`, a status this code
+      // never picks up). With no live run they stayed staged forever, so
+      // messages the owner sent from the WhatsApp Business app never reached
+      // the inbox. Open a buffer-chain run so they go through the normal
+      // claim -> drain -> finalize path. The partial unique index on
+      // (integrationId, channel) WHERE status = 'init' keeps this idempotent.
+      const [pending] = await db
+        .select({ id: whatsappCoexistStagingModel.id })
+        .from(whatsappCoexistStagingModel)
+        .where(
+          and(
+            eq(whatsappCoexistStagingModel.phoneNumberId, phoneNumberId),
+            isNull(whatsappCoexistStagingModel.processedAt),
+          ),
+        )
+        .limit(1)
+      if (!pending) {
+        logger.info(
+          { phoneNumberId },
+          "[coexist] Flush: no live run and nothing staged",
+        )
+        return
+      }
+      const run = await coexistSyncRunRepository.createRun({
+        workspaceId: integration.workspaceId,
+        integrationId: integration.id,
+        channel: "whatsapp",
+        triggerSource: "buffer-chain",
+      })
       logger.info(
-        { phoneNumberId },
-        "[coexist] Flush: no live run — payloads remain staged",
+        { phoneNumberId, runId: run.id },
+        "[coexist] Flush: opened a buffer-chain run for staged payloads",
       )
-      return
+      runId = run.id
     }
-    runId = liveRun.id
   }
 
   // Optimistic claim FIRST — avoids wasting a SELECT + inbox lookup if another

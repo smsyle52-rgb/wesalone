@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const {
   mockFindFirst,
+  mockRunFindFirst,
   mockFindOrFail,
   mockSelect,
   mockUpdate,
@@ -19,6 +20,7 @@ const {
   mockQueueAdd,
 } = vi.hoisted(() => ({
   mockFindFirst: vi.fn(),
+  mockRunFindFirst: vi.fn(),
   mockFindOrFail: vi.fn(),
   mockSelect: vi.fn(),
   mockUpdate: vi.fn(),
@@ -72,6 +74,7 @@ vi.mock("@chatbotx.io/database/client", () => ({
     query: {
       integrationWhatsappModel: { findFirst: mockFindFirst },
       integrationMessengerModel: { findFirst: vi.fn() },
+      coexistSyncRunModel: { findFirst: mockRunFindFirst },
     },
   },
   and: mockAndFn,
@@ -141,6 +144,7 @@ vi.mock("../src/integration/handlers/coexist/bulk-historical-import", () => ({
 // Import handler after mocks
 // ---------------------------------------------------------------------------
 
+import { coexistSyncRunRepository } from "@chatbotx.io/database/repositories"
 import { coexistWhatsappFlush } from "../src/integration/handlers/coexist/whatsapp-flush"
 
 // ---------------------------------------------------------------------------
@@ -1249,5 +1253,72 @@ describe("coexistWhatsappFlush", () => {
       })
       .map((args) => (args[0] as Record<string, unknown>).status)
     expect(finalizeStatuses).not.toContain("succeeded")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Webhook-driven flush (no runId): live SMB echoes after the history run ended
+// ---------------------------------------------------------------------------
+
+describe("coexistWhatsappFlush without a runId", () => {
+  const selectChain = (rows: unknown[]) => {
+    const chain = { from: vi.fn(), where: vi.fn(), limit: vi.fn() }
+    chain.from.mockReturnValue(chain)
+    chain.where.mockReturnValue(chain)
+    chain.limit.mockResolvedValue(rows)
+    return chain
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSelect.mockReset()
+    wireUpdateChain()
+    mockBulkImport.mockResolvedValue(emptyBulkResult())
+    mockQueueAdd.mockResolvedValue(undefined)
+    mockFindFirst.mockResolvedValue(fakeIntegration)
+    mockFindOrFail.mockResolvedValue(fakeInbox)
+  })
+
+  it("uses the existing live run instead of opening a new one", async () => {
+    const createRun = vi.spyOn(coexistSyncRunRepository, "createRun")
+    mockRunFindFirst.mockResolvedValue({ id: runId })
+    wireSelect(defaultRunRow(), [])
+
+    await coexistWhatsappFlush({ phoneNumberId })
+
+    expect(createRun).not.toHaveBeenCalled()
+  })
+
+  it("does nothing when there is no live run and nothing is staged", async () => {
+    const createRun = vi.spyOn(coexistSyncRunRepository, "createRun")
+    mockRunFindFirst.mockResolvedValue(undefined)
+    mockSelect.mockReturnValueOnce(selectChain([]))
+
+    await coexistWhatsappFlush({ phoneNumberId })
+
+    expect(createRun).not.toHaveBeenCalled()
+    expect(mockBulkImport).not.toHaveBeenCalled()
+  })
+
+  it("opens a buffer-chain run and drains staged echoes when no run is live", async () => {
+    const createRun = vi
+      .spyOn(coexistSyncRunRepository, "createRun")
+      .mockResolvedValue({ id: runId } as Awaited<
+        ReturnType<typeof coexistSyncRunRepository.createRun>
+      >)
+    mockRunFindFirst.mockResolvedValue(undefined)
+    // 1st select: the pending-row probe; then the run row and staged rows.
+    mockSelect.mockReturnValueOnce(selectChain([{ id: "stg-1" }]))
+    wireSelect(defaultRunRow(), [makeStagedRow("stg-1")])
+
+    await coexistWhatsappFlush({ phoneNumberId })
+
+    expect(createRun).toHaveBeenCalledWith({
+      workspaceId: fakeIntegration.workspaceId,
+      integrationId: fakeIntegration.id,
+      channel: "whatsapp",
+      triggerSource: "buffer-chain",
+    })
+    expect(mockBulkImport).toHaveBeenCalledTimes(1)
   })
 })
