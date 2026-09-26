@@ -79,6 +79,13 @@ export const coexistWhatsappBuffer = async (
     {
       delay: FLUSH_DELAY_MS,
       jobId: `coexist-flush-${phoneNumberId}`,
+      // The fixed jobId coalesces a burst only while the flush is waiting or
+      // running. BullMQ ignores add() for a jobId it still retains, and the
+      // queue default keeps the last 1000 completed jobs, so a finished flush
+      // used to swallow every later enqueue until it aged out: echoes staged
+      // for hours with no flush at all. Drop it as soon as it settles.
+      removeOnComplete: true,
+      removeOnFail: true,
     },
   )
 }

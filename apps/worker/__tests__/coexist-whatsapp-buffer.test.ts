@@ -134,7 +134,13 @@ describe("coexistWhatsappBuffer", () => {
     expect(mockQueueAdd).toHaveBeenCalledWith(
       "coexistWhatsappFlush",
       expect.objectContaining({ data: { phoneNumberId } }),
-      expect.objectContaining({ jobId: `coexist-flush-${phoneNumberId}` }),
+      expect.objectContaining({
+        jobId: `coexist-flush-${phoneNumberId}`,
+        // A retained completed job would make BullMQ ignore every later add
+        // with this jobId, so the flush must not outlive its own run.
+        removeOnComplete: true,
+        removeOnFail: true,
+      }),
     )
   })
 
