@@ -26,6 +26,7 @@ import {
 } from "@chatbotx.io/integration-messenger/apis/usage"
 import type { IncomingContact } from "@chatbotx.io/sdk"
 import {
+  COEXIST_ATTACHMENT_JOB_PRIORITY,
   IntegrationJobAction,
   type IntegrationJobCoexistMessengerSync,
   integrationQueue,
@@ -600,6 +601,7 @@ async function runMessagesPhase(ctx: SyncContext): Promise<PhaseResult> {
               },
               opts: {
                 jobId: `att-${attachmentId}`,
+                priority: COEXIST_ATTACHMENT_JOB_PRIORITY,
                 attempts: 5,
                 backoff: { type: "exponential", delay: 30_000 },
                 removeOnComplete: true,

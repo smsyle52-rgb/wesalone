@@ -384,6 +384,15 @@ export type IntegrationJobCoexistInstagramSync = {
  * handler additionally checks the originPath prefix to no-op on retries
  * where a prior worker already finished the upload.
  */
+/**
+ * BullMQ priority for coexist attachment downloads. Jobs without a priority
+ * (0, the default) are always taken before prioritized ones, so a history
+ * backfill that stages thousands of media downloads can no longer starve
+ * incoming customer messages on the shared integration queue — as it did on
+ * 2026-09-26, when one backfill queued ~2,200 downloads ahead of live traffic.
+ */
+export const COEXIST_ATTACHMENT_JOB_PRIORITY = 100
+
 export type IntegrationJobCoexistAttachmentDownload = {
   type: typeof IntegrationJobAction.coexistAttachmentDownload
   data: {

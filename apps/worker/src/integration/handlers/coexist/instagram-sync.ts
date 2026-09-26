@@ -5,6 +5,7 @@ import type {
   IntegrationInstagramModel,
 } from "@chatbotx.io/database/types"
 import {
+  COEXIST_ATTACHMENT_JOB_PRIORITY,
   IntegrationJobAction,
   type IntegrationJobCoexistInstagramSync,
   integrationQueue,
@@ -370,6 +371,7 @@ const runInstagramCoexistPull = async <
             },
             opts: {
               jobId: `att-${attachmentId}`,
+              priority: COEXIST_ATTACHMENT_JOB_PRIORITY,
               attempts: 5,
               backoff: { type: "exponential", delay: 30_000 },
               removeOnComplete: true,

@@ -31,6 +31,7 @@ import {
 } from "@chatbotx.io/sdk"
 import { createId } from "@chatbotx.io/utils"
 import {
+  COEXIST_ATTACHMENT_JOB_PRIORITY,
   IntegrationJobAction,
   type IntegrationJobCoexistWhatsappFlush,
   integrationQueue,
@@ -1161,6 +1162,7 @@ export const coexistWhatsappFlush = async (
               },
               opts: {
                 jobId: `att-${attachmentId}`,
+                priority: COEXIST_ATTACHMENT_JOB_PRIORITY,
                 attempts: 5,
                 backoff: { type: "exponential", delay: 30_000 },
                 removeOnComplete: true,
