@@ -51,6 +51,8 @@ const {
       AZURE_MANAGED_IDENTITY_CLIENT_ID: undefined as string | undefined,
       IDENTITY_ENDPOINT: undefined as string | undefined,
       IDENTITY_HEADER: undefined as string | undefined,
+      VERTEX_AI_EMBEDDING_MODEL: undefined as string | undefined,
+      VERTEX_AI_EMBEDDING_LOCATION: undefined as string | undefined,
       AI_INTEGRATION_CACHE_TTL_SECONDS: 3600,
     },
     defaultCapabilities,
@@ -75,6 +77,8 @@ const {
   getActivePlatformAiOverride,
   getPlatformAiEnvStatus,
   getPlatformAzureOpenAIChatModel,
+  getPlatformEmbeddingModel,
+  getPlatformEmbeddingProviderOptions,
   getPlatformVertexChatModel,
   isPlatformAzureOpenAIModelCandidate,
   isPlatformVertexModelCandidate,
@@ -247,5 +251,44 @@ describe("model construction", () => {
       }),
     )
     expect(vertexProviderMock).toHaveBeenCalledWith("gemini-3.5-flash")
+  })
+})
+
+describe("platform embeddings on Vertex", () => {
+  test("uses the Vertex embedding model at 1536 dimensions when configured", async () => {
+    configureVertexWifEnv()
+    envMock.VERTEX_AI_EMBEDDING_MODEL = "gemini-embedding-001"
+    const embeddingModelMock = vi.fn((modelId: string) => ({
+      type: "vertex-embedding",
+      modelId,
+    }))
+    createVertexMock.mockReturnValue(
+      Object.assign(vertexProviderMock, { embeddingModel: embeddingModelMock }),
+    )
+
+    await expect(getPlatformEmbeddingModel()).resolves.toEqual({
+      type: "vertex-embedding",
+      modelId: "gemini-embedding-001",
+    })
+    expect(createVertexMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project: "khadamatk-auth",
+        location: "europe-west4",
+      }),
+    )
+    await expect(
+      getPlatformEmbeddingProviderOptions("RETRIEVAL_QUERY"),
+    ).resolves.toEqual({
+      vertex: { outputDimensionality: 1536, taskType: "RETRIEVAL_QUERY" },
+    })
+  })
+
+  test("keeps the existing path when no Vertex embedding model is set", async () => {
+    configureVertexWifEnv()
+
+    await expect(getPlatformEmbeddingModel()).resolves.toBeNull()
+    await expect(
+      getPlatformEmbeddingProviderOptions("RETRIEVAL_DOCUMENT"),
+    ).resolves.toBeUndefined()
   })
 })

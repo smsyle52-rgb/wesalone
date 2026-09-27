@@ -39,6 +39,10 @@ export const keys = () =>
       AWS_REGION: z.string().trim().min(1).optional(),
       // Gemini 3.x thinking level for platform Vertex language models. `low` is
       // the measured default; `default` restores the model's dynamic thinking.
+      // Vertex embedding model (e.g. gemini-embedding-001) replacing Azure
+      // OpenAI for knowledge-base vectors. Unset keeps the Azure deployment.
+      VERTEX_AI_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
+      VERTEX_AI_EMBEDDING_LOCATION: z.string().trim().min(1).optional(),
       VERTEX_AI_THINKING_LEVEL: z
         .enum(["minimal", "low", "medium", "high", "default"])
         .optional(),

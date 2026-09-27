@@ -310,8 +310,41 @@ export function getPlatformVertexProvider(
   })
 }
 
+/** Width of the pgvector columns (AIEmbedding, AIConversationEmbedding). */
+const PLATFORM_EMBEDDING_DIMENSIONS = 1536
+
+/**
+ * Vertex embeddings, used instead of Azure OpenAI when
+ * VERTEX_AI_EMBEDDING_MODEL is set. gemini-embedding-001 is asked for the same
+ * 1536 dimensions the columns already hold, so switching needs no migration —
+ * only a re-embed of the stored chunks, because the two providers' vector
+ * spaces are not comparable.
+ */
+function getPlatformVertexEmbeddingModel(): EmbeddingModel | null {
+  const modelId = env.VERTEX_AI_EMBEDDING_MODEL
+  const projectId = env.VERTEX_AI_PROJECT_ID
+  if (!(modelId && projectId)) {
+    return null
+  }
+  const googleAuthOptions = getVertexGoogleAuthOptions(projectId)
+  if (!googleAuthOptions) {
+    return null
+  }
+
+  return createVertex({
+    project: projectId,
+    location: env.VERTEX_AI_EMBEDDING_LOCATION ?? "europe-west4",
+    googleAuthOptions,
+  }).embeddingModel(modelId)
+}
+
 /** Azure embeddings keep the existing pgvector columns at 1536 dimensions. */
 export async function getPlatformEmbeddingModel(): Promise<EmbeddingModel | null> {
+  const vertexModel = getPlatformVertexEmbeddingModel()
+  if (vertexModel) {
+    return vertexModel
+  }
+
   const capability = await getActivePlatformAiCapability("embedding")
   if (capability?.provider !== "azureOpenAI") {
     return null
@@ -322,14 +355,23 @@ export async function getPlatformEmbeddingModel(): Promise<EmbeddingModel | null
 }
 
 export async function getPlatformEmbeddingProviderOptions(
-  _taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY",
-) {
+  taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY",
+): Promise<Record<string, Record<string, string | number>> | undefined> {
+  if (getPlatformVertexEmbeddingModel()) {
+    return {
+      vertex: {
+        outputDimensionality: PLATFORM_EMBEDDING_DIMENSIONS,
+        taskType,
+      },
+    }
+  }
+
   const capability = await getActivePlatformAiCapability("embedding")
   if (capability?.provider !== "azureOpenAI") {
     return
   }
 
-  return { openai: { dimensions: 1536 } }
+  return { openai: { dimensions: PLATFORM_EMBEDDING_DIMENSIONS } }
 }
 
 export type PlatformAiEnvStatus = {
