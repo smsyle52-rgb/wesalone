@@ -6,7 +6,10 @@ import { aiConversationEmbeddingModel } from "@chatbotx.io/database/schema"
 import type { AIJobProcessConversationSourceEmbedding } from "@chatbotx.io/worker-config"
 import { embed } from "ai"
 import { normalizeError } from "universal-error-normalizer"
-import { resolveEmbeddingModel } from "../../ai-agent/lib/embedding-model"
+import {
+  embeddingModelKey,
+  resolveEmbeddingModel,
+} from "../../ai-agent/lib/embedding-model"
 import { logger } from "../../lib/logger"
 
 export async function processConversationSourceEmbedding(
@@ -43,7 +46,7 @@ export async function processConversationSourceEmbedding(
 
     const reservation = await usageMeteringService.reserve({
       workspaceId: embeddingItem.workspaceId,
-      operationId: `conversation-embedding:${embeddingItem.id}`,
+      operationId: `conversation-embedding:${embeddingItem.id}:${embeddingModelKey(embeddingModel)}`,
       category: "embedding_document",
       metadata: { conversationEmbeddingId: embeddingItem.id },
     })

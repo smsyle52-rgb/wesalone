@@ -5,7 +5,10 @@ import { aiEmbeddingStatuses } from "@chatbotx.io/database/partials"
 import { aiEmbeddingModel } from "@chatbotx.io/database/schema"
 import type { AIJobProcessPendingEmbedding } from "@chatbotx.io/worker-config"
 import { embed } from "ai"
-import { resolveEmbeddingModel } from "../../ai-agent/lib/embedding-model"
+import {
+  embeddingModelKey,
+  resolveEmbeddingModel,
+} from "../../ai-agent/lib/embedding-model"
 import { logger } from "../../lib/logger"
 
 export async function processPendingEmbedding(
@@ -26,7 +29,7 @@ export async function processPendingEmbedding(
     const embeddingModel = await resolveEmbeddingModel(aiEmbedding.workspaceId)
     const reservation = await usageMeteringService.reserve({
       workspaceId: aiEmbedding.workspaceId,
-      operationId: `embedding-document:${aiEmbedding.id}`,
+      operationId: `embedding-document:${aiEmbedding.id}:${embeddingModelKey(embeddingModel)}`,
       category: "embedding_document",
       metadata: { aiEmbeddingId: aiEmbedding.id },
     })

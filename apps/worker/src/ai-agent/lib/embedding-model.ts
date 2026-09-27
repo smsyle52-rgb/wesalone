@@ -6,6 +6,19 @@ import { db } from "@chatbotx.io/database/client"
 import type { SecretTextAuthValue } from "@chatbotx.io/sdk"
 import type { EmbeddingModel } from "ai"
 
+/**
+ * Identifies the model a vector was produced with, for usage-metering operation
+ * ids. The operation is "embed this chunk with this model": a retried job keeps
+ * the same id (so it is never billed twice), while re-embedding the same chunk
+ * with a different model is a new operation. A chunk-only id made every
+ * re-embed fail as "already completed" and leave the chunk in `error`.
+ */
+export function embeddingModelKey(model: EmbeddingModel): string {
+  return typeof model === "string"
+    ? model
+    : `${model.provider}:${model.modelId}`
+}
+
 export async function resolveEmbeddingModel(
   workspaceId: string,
 ): Promise<EmbeddingModel> {
