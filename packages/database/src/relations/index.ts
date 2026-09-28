@@ -1,13 +1,11 @@
 import { adsConversionEventRelations } from "./ads-conversion-event"
 import { adsConversionRuleRelations } from "./ads-conversion-rule"
 import { aiAgentRelations } from "./ai-agent"
-import { aiAssistantRelations } from "./ai-assistant"
 import { aiConversationSourceRelations } from "./ai-conversation-source"
 import { aiEmbeddingRelations } from "./ai-embedding"
 import { aiFileRelations } from "./ai-file"
 import { aiFunctionRelations } from "./ai-function"
 import { aiMCPServerRelations } from "./ai-mcp-server"
-import { aiTriggerRelations } from "./ai-trigger"
 import {
   analyticsBotMessageEventRelations,
   analyticsBroadcastEventRelations,
@@ -29,7 +27,12 @@ import { automationThrottleRelations } from "./automation-throttle"
 import { billableUsageEventRelations } from "./billable-usage-event"
 import { botFieldRelations } from "./bot-field"
 import { broadcastRelations } from "./broadcast"
+import { broadcastTargetRelations } from "./broadcast-target"
 import { coexistSyncRunRelations } from "./coexist-sync-run"
+import { commentAutomationRelations } from "./comment-automation"
+import { commentAutomationEventRelations } from "./comment-automation-event"
+import { commentAutomationMissRelations } from "./comment-automation-miss"
+import { commentAutomationReplyRelations } from "./comment-automation-reply"
 import { contactRelations } from "./contact"
 import { contactCustomFieldRelations } from "./contact-custom-field"
 import { contactInboxRelations } from "./contact-inbox"
@@ -56,8 +59,8 @@ import { errorLogRelations } from "./error-log"
 import { externalWebhookRelations } from "./external-webhook"
 import { facebookLeadAdsAutomationRelations } from "./facebook-lead-ads-automation"
 import { facebookLeadAdsLeadRelations } from "./facebook-lead-ads-lead"
-import { fbCommentAutomationRelations } from "./fb-comment-automation"
-import { fbCommentAutomationReplyRelations } from "./fb-comment-automation-reply"
+import { facebookMarketingMessageRelations } from "./facebook-marketing-message"
+import { facebookMarketingMessagesAuthRelations } from "./facebook-marketing-messages-auth"
 import { fileRelations } from "./file"
 import { flowRelations } from "./flow"
 import { flowAnalyticsSessionRelations } from "./flow-analytics-session"
@@ -95,6 +98,7 @@ import { integrationOutlookCalendarRelations } from "./integration-outlook-calen
 import { integrationSendGridRelations } from "./integration-sendgrid"
 import { integrationSmtpRelations } from "./integration-smtp"
 import { integrationTelegramRelations } from "./integration-telegram"
+import { integrationThreadsRelations } from "./integration-threads"
 import { integrationTiktokRelations } from "./integration-tiktok"
 import { integrationWebchatRelations } from "./integration-webchat"
 import { integrationWhatsappRelations } from "./integration-whatsapp"
@@ -152,6 +156,9 @@ import { userDeviceTokenRelations } from "./user-device-token"
 import { userPersistentMenuRelations } from "./user-persistent-menu"
 import { webhookRelations } from "./webhook"
 import { webhookExecutionRelations } from "./webhook-execution"
+import { whatsappBusinessAccountRelations } from "./whatsapp-business-account"
+import { whatsappCallRelations } from "./whatsapp-call"
+import { whatsappCallPermissionRelations } from "./whatsapp-call-permission"
 import { whatsappFlowRelations } from "./whatsapp-flow"
 import { whatsappMessageTemplateRelations } from "./whatsapp-message-template"
 import { whatsappSignupSessionRelations } from "./whatsapp-signup-session"
@@ -161,7 +168,6 @@ import { workspaceMemberRelations } from "./workspace-member"
 
 export const relations = {
   ...integrationApiRelations,
-  ...aiTriggerRelations,
   ...adsConversionEventRelations,
   ...metaCapiEventRelations,
   ...messagingAdOperationRelations,
@@ -180,7 +186,6 @@ export const relations = {
   ...workspaceRelations,
   ...workspaceApiTokenRelations,
   ...aiAgentRelations,
-  ...aiAssistantRelations,
   ...aiConversationSourceRelations,
   ...aiFileRelations,
   ...flowRelations,
@@ -201,6 +206,7 @@ export const relations = {
   ...customFieldRelations,
   ...dynamicImageRelations,
   ...broadcastRelations,
+  ...broadcastTargetRelations,
   ...inboxTeamRelations,
   ...inboxRelations,
   ...conversationParticipantRelations,
@@ -224,12 +230,19 @@ export const relations = {
   ...errorLogRelations,
   ...facebookLeadAdsAutomationRelations,
   ...facebookLeadAdsLeadRelations,
-  ...fbCommentAutomationRelations,
-  ...fbCommentAutomationReplyRelations,
+  ...facebookMarketingMessageRelations,
+  ...facebookMarketingMessagesAuthRelations,
+  ...commentAutomationRelations,
+  ...commentAutomationEventRelations,
+  ...commentAutomationMissRelations,
+  ...commentAutomationReplyRelations,
   ...auditLogRelations,
   ...sessionRelations,
   ...spreadsheetRelations,
+  ...whatsappCallRelations,
+  ...whatsappCallPermissionRelations,
   ...whatsappFlowRelations,
+  ...whatsappBusinessAccountRelations,
   ...integrationWhatsappRelations,
   ...whatsappMessageTemplateRelations,
   ...workspaceMemberRelations,
@@ -273,6 +286,7 @@ export const relations = {
   ...integrationTelegramRelations,
   ...integrationTiktokRelations,
   ...integrationInstagramRelations,
+  ...integrationThreadsRelations,
   ...integrationActiveCampaignRelations,
   ...integrationKlaviyoRelations,
   ...integrationMailchimpRelations,

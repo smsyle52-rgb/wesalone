@@ -15,6 +15,17 @@ import type {
 import type { FacebookPostDetails } from "./apis/post"
 
 export const MESSENGER_MESSAGE_METADATA = "SENT_FROM_CHATBOTX"
+/**
+ * `message.app_id` values Meta stamps on a `message_echoes` event when the
+ * message was sent from a Meta first-party surface rather than a third-party
+ * app. The only one Meta documents is Facebook Page Inbox / Business Suite
+ * (`26390203743090`, Graph API v12.0+; the changelog's `263902037430900` is a
+ * typo). Extend from `Skipping outgoing echo` logs if other Meta surfaces
+ * (Pages Manager, the Facebook app) turn out to ship their own ids.
+ */
+export const META_FIRST_PARTY_ECHO_APP_IDS: ReadonlySet<string> = new Set([
+  "26390203743090",
+])
 
 export type MessengerConfig = Oauth2Config & {
   verifyToken?: string
@@ -74,6 +85,10 @@ export type MessengerActions<
     ctx: Context<IAuth>
     input: { commentId: string }
   }) => Promise<{ type: string | null; attachment?: IncomingAttachment }>
+  getCommentMessageTags: (props: {
+    ctx: Context<IAuth>
+    input: { commentId: string }
+  }) => Promise<{ id: string; name?: string }[]>
   listMessageTemplates: Handler<
     { ctx: Context<IAuth>; input?: ListMessengerMessageTemplatesProps },
     ListMessengerMessageTemplatesResponse
@@ -104,6 +119,16 @@ const attachmentTypeSchema = z
   ])
   .catch("fallback")
 
+// Title-bearing element of a `template` attachment echo (generic / carousel /
+// product). Only the text fields are kept: the echo is stored as a text-only
+// Message row, never re-downloaded as an attachment (see `getTemplateTitle`).
+// Every template field below is `.catch(undefined)`: an unexpected shape
+// must degrade to "no title", never fail the whole webhook batch.
+const templateElementSchema = z.object({
+  title: z.string().optional().catch(undefined),
+  subtitle: z.string().optional().catch(undefined),
+})
+
 // Base attachment payload — url optional because template attachments have no url
 const baseAttachmentPayloadSchema = z.object({
   url: z.url().optional(),
@@ -115,6 +140,18 @@ const baseAttachmentPayloadSchema = z.object({
       longitude: z.number().optional(),
     })
     .optional(),
+  // `template` echo fields (message_echoes reference: button / generic /
+  // media / product). Zod strips undeclared keys, so without these the echo
+  // payload reaches the worker as `{}` and the message is stored empty.
+  template_type: z.string().optional().catch(undefined),
+  text: z.string().optional().catch(undefined),
+  elements: z.array(templateElementSchema).optional().catch(undefined),
+  product: z
+    .object({
+      elements: z.array(templateElementSchema).optional().catch(undefined),
+    })
+    .optional()
+    .catch(undefined),
 })
 
 // Common ID schemas
@@ -124,36 +161,11 @@ const idSchema = z.object({
 
 export const messengerAttachmentSchema = z.object({
   type: attachmentTypeSchema,
+  // Attachment-level title Meta sets on template/fallback echoes (optional).
+  title: z.string().optional().catch(undefined),
   payload: baseAttachmentPayloadSchema,
 })
 export type MessengerAttachment = z.infer<typeof messengerAttachmentSchema>
-
-export const messengerMessageSchema = z.object({
-  mid: z.string(),
-  text: z.string().optional(),
-  is_echo: z.boolean().optional(),
-  // Set (with no other message fields besides `mid`) when the sender unsends
-  // a previously-sent DM.
-  is_deleted: z.boolean().optional(),
-  attachments: z.array(messengerAttachmentSchema).optional(),
-  metadata: z.string().optional(),
-  quick_reply: z
-    .object({
-      payload: z.string(),
-      title: z.string().optional(),
-    })
-    .optional(),
-})
-export type MessengerMessage = z.infer<typeof messengerMessageSchema>
-
-export const messengerDeliverySchema = z.object({
-  mids: z.array(z.string()),
-  watermark: z.number(),
-})
-
-export const messengerReadSchema = z.object({
-  watermark: z.number(),
-})
 
 export const messengerReferralSchema = z.object({
   // Meta only includes `ref` when the ad/link actually sets a ref param —
@@ -162,6 +174,11 @@ export const messengerReferralSchema = z.object({
   source: z.string(),
   type: z.string(),
   ad_id: z.string().optional(),
+  // The URI of the site the message was sent from — the field Meta's
+  // `messaging_referrals` reference documents (there is no `source_url` on
+  // Messenger/Instagram; `source_url`/`source_platform` are kept only as
+  // tolerant fallbacks for payloads that carry them).
+  referer_uri: z.string().optional(),
   source_url: z.string().optional(),
   source_platform: z.string().optional(),
   ads_context_data: z
@@ -176,6 +193,48 @@ export const messengerReferralSchema = z.object({
     .optional(),
 })
 export type MessengerReferral = z.infer<typeof messengerReferralSchema>
+
+export const messengerMessageSchema = z.object({
+  mid: z.string(),
+  text: z.string().optional(),
+  is_echo: z.boolean().optional(),
+  // Sending app on an echo. Meta documents it as a string but ships a number;
+  // any other shape degrades to "unknown" rather than failing the batch.
+  app_id: z.union([z.string(), z.number()]).optional().catch(undefined),
+  // Set (with no other message fields besides `mid`) when the sender unsends
+  // a previously-sent DM.
+  is_deleted: z.boolean().optional(),
+  attachments: z.array(messengerAttachmentSchema).optional(),
+  metadata: z.string().optional(),
+  quick_reply: z
+    .object({
+      payload: z.string(),
+      title: z.string().optional(),
+    })
+    .optional(),
+  // A CTM/CTD ad that opens a NEW thread delivers its referral HERE,
+  // nested in the message — not as a standalone `messaging_referrals`
+  // event and not on a postback. Omitting it made zod strip the object
+  // before the handler ever saw it, silently dropping ad attribution
+  // for every such conversation.
+  //
+  // `.catch(undefined)` because this rides along with a real message: a
+  // payload whose referral is missing `source`/`type` used to be stripped and
+  // the MESSAGE still delivered. Validating it strictly would start rejecting
+  // the whole webhook over an attribution field, losing the customer's message
+  // to save a label. Attribution degrades; delivery does not.
+  referral: messengerReferralSchema.optional().catch(undefined),
+})
+export type MessengerMessage = z.infer<typeof messengerMessageSchema>
+
+export const messengerDeliverySchema = z.object({
+  mids: z.array(z.string()),
+  watermark: z.number(),
+})
+
+export const messengerReadSchema = z.object({
+  watermark: z.number(),
+})
 
 export const messengerPostbackSchema = z.object({
   mid: z.string(),
@@ -226,6 +285,18 @@ export type MessengerInboxLabelsChange = z.infer<
   typeof messengerInboxLabelsChangeSchema
 >
 
+// Profiles tagged inside a comment's text. Facebook only includes the key when
+// the comment actually tags someone, so an absent key means "no tags" — it is
+// NOT a signal that the payload is truncated.
+export const messengerMessageTagSchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  type: z.string().optional(),
+  offset: z.number().optional(),
+  length: z.number().optional(),
+})
+export type MessengerMessageTag = z.infer<typeof messengerMessageTagSchema>
+
 export const messengerFeedCommentValueSchema = z.object({
   item: z.literal("comment"),
   verb: z.enum(["add", "remove", "edited"]),
@@ -234,6 +305,7 @@ export const messengerFeedCommentValueSchema = z.object({
   parent_id: z.string().optional(),
   from: z.object({ id: z.string(), name: z.string().optional() }),
   message: z.string().optional(),
+  message_tags: z.array(messengerMessageTagSchema).optional(),
   created_time: z.number(),
 })
 export type MessengerFeedCommentValue = z.infer<

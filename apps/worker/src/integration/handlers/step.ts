@@ -12,8 +12,10 @@ import {
   stepTypes,
   type WaitStepSchema,
 } from "@chatbotx.io/flow-config"
+import { createId } from "@chatbotx.io/utils"
 import {
   type ChatJobSendFlowStep,
+  HeavyJobAction,
   IntegrationJobAction,
   integrationQueue,
 } from "@chatbotx.io/worker-config"
@@ -40,20 +42,20 @@ import {
 import { markCouponUsed, setUpCoupon } from "./coupon"
 import { handleAIDeleteMessageHistory } from "./delete-message-history"
 import { subscribeDripSubscriber } from "./drip-handler"
-import { handleAIEditImage } from "./edit-image"
 import { handleAIExtractData } from "./extract-data/index"
 import { handleFacebookCustomAudience } from "./facebook-custom-audience-handler"
 import {
   type ExecuteStepProps,
   enqueueFlowStepMessage,
+  type HeavyStepProps,
   seekConnectedNode,
 } from "./flow-utils"
 import { handleFollowUp } from "./follow-up"
-import { handleAIGenerateImage } from "./generate-image"
 import { handleAIGenerateText } from "./generate-text"
 import { handleAIGenerateTextAgent } from "./generate-text-agent"
 import { addGetResponseContact } from "./get-response-handler"
 import { getUserData } from "./get-user-data"
+import { runViaHeavyWorker } from "./heavy-step-runner"
 import { syncKlaviyoProfile } from "./klaviyo-handler"
 import { addMailchimpMember } from "./mailchimp-handler"
 import { addMailerLiteSubscriber } from "./mailer-lite-handler"
@@ -71,7 +73,6 @@ import { questionnaires } from "./questionnaires"
 import { sendEmail } from "./send-email"
 import { addSendGridContact } from "./sendgrid-handler"
 import { scheduleSmartDelayResume } from "./smart-delay"
-import { handleAISpeechToText } from "./speech-to-text"
 
 import {
   clearSpreadsheetRow,
@@ -89,12 +90,13 @@ import {
   stepDisableBot,
   stepEnableBot,
   stepFollowConversation,
+  stepMarkConversationAsRead,
+  stepMarkConversationAsUnread,
   stepSendTyping,
   stepUnarchiveConversation,
   stepUnassignConversation,
   stepUnfollowConversation,
 } from "./step-handlers"
-import { handleAITextToSpeech } from "./text-to-speech"
 import {
   countCharacters,
   externalRequest,
@@ -115,6 +117,7 @@ export async function sendFlowMessage(
     step,
     trackingContext,
     metadata,
+    isBulkBroadcast,
     quickReplies,
     sendFrom,
     commentAnchor,
@@ -129,6 +132,7 @@ export async function sendFlowMessage(
     step,
     trackingContext,
     metadata,
+    isBulkBroadcast,
     quickReplies,
     sendFrom,
     commentAnchor,
@@ -144,6 +148,7 @@ async function splitTraffic({
   targetId,
   useLatestFlowVersion,
   metadata,
+  isBulkBroadcast,
   sendFrom,
   nodeVisits,
   commentAnchor,
@@ -183,6 +188,7 @@ async function splitTraffic({
         // lost its `broadcastId` attribution and the stop/resume guard in
         // `runFlowNode` never fired for the branch taken here (fix round 1).
         metadata,
+        isBulkBroadcast,
         sendFrom,
         nodeVisits,
         commentAnchor,
@@ -300,6 +306,7 @@ async function startAnotherNode(
       flowVersionId: props.flowVersion.id,
       nodeId: props.step.nodeId,
       metadata: props.metadata,
+      isBulkBroadcast: props.isBulkBroadcast,
       appointmentId: props.appointmentId,
       sendFrom: props.sendFrom,
       nodeVisits: props.nodeVisits,
@@ -314,6 +321,7 @@ async function startExternalFlow({
   contactInbox,
   step,
   metadata,
+  isBulkBroadcast,
   sendFrom,
   nodeVisits,
   commentAnchor,
@@ -326,6 +334,7 @@ async function startExternalFlow({
       contactInboxId: contactInbox.id,
       flowId: step.flowId,
       metadata,
+      isBulkBroadcast,
       appointmentId,
       sendFrom,
       nodeVisits,
@@ -340,6 +349,7 @@ async function startExternalNode({
   contactInbox,
   step,
   metadata,
+  isBulkBroadcast,
   sendFrom,
   nodeVisits,
   commentAnchor,
@@ -353,6 +363,7 @@ async function startExternalNode({
       flowId: step.flowId,
       nodeId: step.nodeId,
       metadata,
+      isBulkBroadcast,
       appointmentId,
       sendFrom,
       nodeVisits,
@@ -378,6 +389,27 @@ export type ExecuteStepResult = {
   status: ExecuteStepStatus
   errorMessage?: string
   result: unknown
+}
+
+function toHeavyStepProps<T extends { id: string }>(
+  props: ExecuteStepProps<T>,
+): HeavyStepProps<T> {
+  if (props.flowExecutionKey) {
+    return { ...props, flowExecutionKey: props.flowExecutionKey }
+  }
+
+  const flowExecutionKey = `flow-inline-${createId()}`
+  logger.warn(
+    {
+      flowExecutionKey,
+      conversationId: props.conversation.id,
+      contactInboxId: props.contactInbox.id,
+      stepId: props.step.id,
+    },
+    "Flow step is missing flowExecutionKey; generated fallback key",
+  )
+
+  return { ...props, flowExecutionKey }
 }
 
 export const flowStepHandlers: Record<
@@ -424,13 +456,17 @@ export const flowStepHandlers: Record<
   [stepTypes.enum.openWebsite]: undefined,
   [stepTypes.enum.aiAnalyzeImage]: handleAIAnalyzeImage,
   [stepTypes.enum.aiDeleteMessageHistory]: handleAIDeleteMessageHistory,
-  [stepTypes.enum.aiEditImage]: handleAIEditImage,
-  [stepTypes.enum.aiGenerateImage]: handleAIGenerateImage,
+  [stepTypes.enum.aiEditImage]: (props) =>
+    runViaHeavyWorker(HeavyJobAction.aiEditImage, toHeavyStepProps(props)),
+  [stepTypes.enum.aiGenerateImage]: (props) =>
+    runViaHeavyWorker(HeavyJobAction.aiGenerateImage, toHeavyStepProps(props)),
   [stepTypes.enum.aiGenerateTextAgent]: handleAIGenerateTextAgent,
   [stepTypes.enum.aiGenerateText]: handleAIGenerateText,
   [stepTypes.enum.aiExtractData]: handleAIExtractData,
-  [stepTypes.enum.aiSpeechToText]: handleAISpeechToText,
-  [stepTypes.enum.aiTextToSpeech]: handleAITextToSpeech,
+  [stepTypes.enum.aiSpeechToText]: (props) =>
+    runViaHeavyWorker(HeavyJobAction.aiSpeechToText, toHeavyStepProps(props)),
+  [stepTypes.enum.aiTextToSpeech]: (props) =>
+    runViaHeavyWorker(HeavyJobAction.aiTextToSpeech, toHeavyStepProps(props)),
   [stepTypes.enum.optInEmail]: optInEmail,
   [stepTypes.enum.optOutEmail]: optOutEmail,
   [stepTypes.enum.performAction]: undefined,
@@ -449,6 +485,8 @@ export const flowStepHandlers: Record<
   [stepTypes.enum.setDebounce]: undefined,
   [stepTypes.enum.unarchiveConversation]: stepUnarchiveConversation,
   [stepTypes.enum.unassignConversation]: stepUnassignConversation,
+  [stepTypes.enum.markConversationAsUnread]: stepMarkConversationAsUnread,
+  [stepTypes.enum.markConversationAsRead]: stepMarkConversationAsRead,
   [stepTypes.enum.unfollowConversation]: stepUnfollowConversation,
   [stepTypes.enum.getUserData]: getUserData,
   [stepTypes.enum.wait]: handleWait,
@@ -480,6 +518,7 @@ export const flowStepHandlers: Record<
   [stepTypes.enum.sendWaTemplateMessage]: sendFlowMessage,
   [stepTypes.enum.sendMessengerTemplateMessage]: sendFlowMessage,
   [stepTypes.enum.whatsappOptionList]: sendFlowMessage,
+  [stepTypes.enum.whatsappCallButton]: sendFlowMessage,
   [stepTypes.enum.whatsappFlow]: sendFlowMessage,
   [stepTypes.enum.setMessengerUserPersistentMenu]:
     setMessengerUserPersistentMenu,

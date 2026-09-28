@@ -1,22 +1,20 @@
 import {
-  broadcastToWorkspaceParty,
   contactInboxService,
+  conversationService,
+  publishToWorkspaceParty,
 } from "@chatbotx.io/business"
-import { db, eq } from "@chatbotx.io/database/client"
 import { createMessageRepository } from "@chatbotx.io/database/repositories"
-import {
-  conversationModel,
-  type messageModel,
-} from "@chatbotx.io/database/schema"
+import type { messageModel } from "@chatbotx.io/database/schema"
 import type {
   ContactInboxModel,
   ConversationModel,
 } from "@chatbotx.io/database/types"
 import { emit } from "@chatbotx.io/event-bus"
-import type { MetadataPayload } from "@chatbotx.io/flow-config"
 import {
   bindWaTemplateQuickReplyButtons,
   extractTemplateParams,
+  isBulkOutboundMetadata,
+  type MetadataPayload,
   messageEventTypeSchema,
   type SendWaTemplateMessageStepSchema,
   stepTypes,
@@ -31,6 +29,7 @@ import {
   shouldAddressBySourceUserId,
 } from "@chatbotx.io/sdk"
 import { createId } from "@chatbotx.io/utils"
+import { resolveStackFrames } from "@chatbotx.io/utils/error-log"
 import { contactVariableService } from "@chatbotx.io/variables"
 import type {
   BotResponseTrackingContext,
@@ -46,9 +45,14 @@ import {
   shouldSuppressRetryableChannelError,
   willSendRetry,
 } from "../utils/retry"
-import { enqueueTemplateSentEvaluation } from "./enqueue-template-sent-evaluation"
+// Disabled — see the commented-out enqueueTemplateSentEvaluation call below.
+// import { enqueueTemplateSentEvaluation } from "./enqueue-template-sent-evaluation"
 import { convertButtonsToTemplate } from "./send-flow-step"
-import { sendFlowStepToChannel } from "./send-message"
+import {
+  isDeliveredDirectMessage,
+  markConversationReadAfterDelivery,
+  sendFlowStepToChannel,
+} from "./send-message"
 
 // Meta rejects (error 131062) an authentication-category template sent to a
 // Business-Scoped User ID (BSUID) recipient. Declared as data so the guard
@@ -90,6 +94,7 @@ export interface ProcessWhatsappTemplateParams {
     versionId?: string
     buttons: SendWaTemplateMessageStepSchema["buttons"]
   }
+  isBulkBroadcast?: boolean
   metadata?: MetadataPayload
   step?: SendWaTemplateMessageStepSchema
   template: SendWaTemplateMessageStepSchema["template"]
@@ -181,8 +186,13 @@ export async function processWhatsappTemplate(
     step,
     trackingContext,
     metadata,
+    isBulkBroadcast,
     willRetryOnThrow = false,
   } = params
+  const isBulkOutbound = isBulkOutboundMetadata(
+    metadata,
+    isBulkBroadcast || broadcastId !== undefined,
+  )
 
   const eventLogData = {
     context: {
@@ -192,6 +202,7 @@ export async function processWhatsappTemplate(
       channel: contactInbox.channel,
       contactInboxId: contactInbox.id,
       inboxId: contactInbox.inboxId,
+      sourceId: contactInbox.sourceId,
     },
     action: {
       flowId: flow?.id || "",
@@ -298,31 +309,25 @@ export async function processWhatsappTemplate(
     }
     const createdMessage = newMessage
 
-    const trackingInvalidation = await db.transaction(async (tx) => {
-      const invalidation =
-        await contactInboxService.recordOutboundMessageCreated({
-          tx,
-          contactInboxId: contactInbox.id,
-          contactId: contactInbox.contactId,
-          workspaceId: conversation.workspaceId,
-          at: createdMessage.createdAt,
-        })
-
-      await tx
-        .update(conversationModel)
-        .set({ lastActivityAt: createdMessage.createdAt })
-        .where(eq(conversationModel.id, conversation.id))
-
-      return invalidation
-    })
+    const trackingInvalidation =
+      await conversationService.recordOutboundMessageActivity({
+        workspaceId: conversation.workspaceId,
+        conversationId: conversation.id,
+        contactInboxId: contactInbox.id,
+        contactId: contactInbox.contactId,
+        at: createdMessage.createdAt,
+        bumpActivity: !isBulkOutbound,
+      })
     if (trackingInvalidation) {
       await contactInboxService.invalidateTracking(trackingInvalidation)
     }
 
-    broadcastToWorkspaceParty(conversation.workspaceId, {
-      eventType: RealtimeEventType.messageCreated,
-      data: newMessage,
-    })
+    if (!isBulkOutbound) {
+      publishToWorkspaceParty(conversation.workspaceId, {
+        eventType: RealtimeEventType.messageCreated,
+        data: newMessage,
+      })
+    }
 
     const result = await sendFlowStepToChannel({
       conversation,
@@ -343,44 +348,43 @@ export async function processWhatsappTemplate(
       },
       metadata,
       messageId: newMessage.id,
+      botSentAnalytics: {
+        triggerHandler: "processWhatsappTemplate",
+        triggerType: "message_bot_sent_whatsapp_template",
+      },
     })
 
-    await enqueueTemplateSentEvaluation({
-      workspaceId: conversation.workspaceId,
-      channel: "whatsapp",
-      integrationId: validated.inbox.integrationWhatsapp.id,
-      contactInboxId: contactInbox.id,
-      templateId: template.id,
-      messageId: newMessage.id,
-    })
+    // Same rule as a flow reply: a delivered bot DM honours the inbox's
+    // markReadOnOutbound option. Templates get no channel echo on WhatsApp, so
+    // the send result is the only delivery signal.
+    if (isDeliveredDirectMessage({ message: createdMessage, result })) {
+      await markConversationReadAfterDelivery({
+        workspaceId: conversation.workspaceId,
+        conversationId: conversation.id,
+        inboxId: contactInbox.inboxId,
+        readAt: createdMessage.createdAt,
+        silent: isBulkOutbound,
+      })
+    }
+
+    // 2026-09-24: ads-conversion rule engine is hidden and unused. This
+    // follow-up job used to be enqueued after EVERY template send and only
+    // added load to the integration queue (one job + one attribution lookup
+    // per send, then exit). Kept commented out instead of deleted so it can
+    // be re-enabled if the rule engine ever ships again.
+    // await enqueueTemplateSentEvaluation({
+    //   workspaceId: conversation.workspaceId,
+    //   channel: "whatsapp",
+    //   integrationId: validated.inbox.integrationWhatsapp.id,
+    //   contactInboxId: contactInbox.id,
+    //   templateId: template.id,
+    //   messageId: newMessage.id,
+    // })
 
     await emit(messageEventTypeSchema.enum["message:sent"], {
       ...eventLogData,
       action: { messageId: "", flowId: flow?.id || "" },
       occurredAt: new Date(),
-    })
-
-    // Bot-message quota accounting: `chat/worker.ts`'s pre-send gate blocks
-    // `sendWhatsappTemplateMessage` jobs, but nothing previously counted a
-    // successful send here — the quota gate and the quota meter must stay
-    // structurally paired or the gate is enforced against a counter that
-    // never moves.
-    emit("analytics:dashboard", {
-      eventType: "message:bot_sent",
-      workspaceId: conversation.workspaceId,
-      contactId: conversation.contactId,
-      senderType: "bot",
-      occurredAt: new Date(),
-      source: contactInbox.source,
-      sourceId: contactInbox.sourceId,
-      channel: contactInbox.channel,
-      metadata: {
-        triggerContext: {
-          triggerSource: "worker",
-          triggerHandler: "processWhatsappTemplate",
-          triggerType: "message_bot_sent_whatsapp_template",
-        },
-      },
     })
 
     const providerMessageId = result?.messageIds?.[0]
@@ -425,6 +429,9 @@ export async function processWhatsappTemplate(
         flowId: flow?.id || "",
       },
       errorData,
+      // Captured here while the throw is still in hand: `errorData` is a
+      // stackless `ParsedError`, so `ErrorLog.stackTrace` has no other source.
+      errorStack: resolveStackFrames(error),
       occurredAt: new Date(),
       willRetry: willSendRetry({
         error,
@@ -468,6 +475,7 @@ export async function sendWhatsappTemplateMessage(
       channel: contactInbox.channel,
       contactInboxId: contactInbox.id,
       inboxId: contactInbox.inboxId,
+      sourceId: contactInbox.sourceId,
     },
     action: {
       flowId: "",
@@ -491,6 +499,7 @@ export async function sendWhatsappTemplateMessage(
         ...eventLogData,
         action: { messageId: "", flowId: "" },
         errorData: await parseSdkError(error),
+        errorStack: resolveStackFrames(error),
         occurredAt: new Date(),
         willRetry: willSendRetry({
           error,
@@ -517,6 +526,7 @@ export async function sendWhatsappTemplateMessage(
         params: templateParams,
       },
       broadcastId,
+      isBulkBroadcast: broadcastId !== undefined,
       metadata,
     })
 

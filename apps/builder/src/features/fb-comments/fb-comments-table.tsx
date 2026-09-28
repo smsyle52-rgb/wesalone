@@ -22,6 +22,7 @@ import { useDataTable } from "@chatbotx.io/ui/hooks/use-data-table"
 import type { DataTableRowAction } from "@chatbotx.io/ui/types/data-table"
 import type { ColumnDef } from "@tanstack/react-table"
 import {
+  ChartColumnIcon,
   FolderUpIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -37,6 +38,7 @@ import { ChangeFolderDialog } from "../folders/change-folder"
 import { BulkDeleteCommentAutomationsDialog } from "../shared/comment-automation/bulk-delete-comment-automations-dialog"
 import { BulkMoveCommentAutomationFolderDialog } from "../shared/comment-automation/bulk-move-comment-automation-folder-dialog"
 import { CommentAutomationScheduleDialog } from "../shared/comment-automation/comment-automation-schedule-dialog"
+import { buildCommentAutomationStatColumns } from "../shared/comment-automation/comment-automation-stat-columns"
 import { DeleteCommentAutomationDialog } from "../shared/comment-automation/delete-comment-automation-dialog"
 import { RenameCommentAutomationDialog } from "../shared/comment-automation/rename-comment-automation-dialog"
 import { deleteFbCommentAction } from "./actions/delete-fb-comment.action"
@@ -183,6 +185,12 @@ export function FbCommentsTable({
         ),
         size: 100,
       },
+      // `repliesCount` above counts comments answered; these count reply
+      // attempts and their outcomes. One comment answered both publicly and
+      // privately is 1 reply but 2 attempts, so the two never have to agree.
+      ...buildCommentAutomationStatColumns<
+        ListFbCommentsResponse["data"][number]
+      >({ workspaceId, t }),
       {
         id: "actions",
         header: () => (
@@ -199,7 +207,7 @@ export function FbCommentsTable({
                   </Button>
                 }
               />
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-auto">
                 <DropdownMenuItem
                   onClick={() =>
                     router.push(
@@ -209,6 +217,16 @@ export function FbCommentsTable({
                 >
                   <PencilIcon className="me-2" />
                   {t("actions.edit")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    router.push(
+                      `/space/${workspaceId}/fb-comments/${row.original.id}/analytics`,
+                    )
+                  }
+                >
+                  <ChartColumnIcon className="me-2" />
+                  {t("actions.viewAnalytics")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setRowAction({ row, variant: "update" })}

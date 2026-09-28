@@ -3,16 +3,14 @@ import {
   botFieldService,
   contactCustomFieldService,
   conversationService,
+  flowService,
   metaConversionsService,
+  tagService,
   tagSyncService,
 } from "@chatbotx.io/business"
-import { and, db, eq, inArray } from "@chatbotx.io/database/client"
 import { triggerActions } from "@chatbotx.io/database/partials"
 import type { ContactInboxWorkspaceRow } from "@chatbotx.io/database/repositories"
-import {
-  contactsToTagsModel,
-  metaCapiEventChannelSchema,
-} from "@chatbotx.io/database/schema"
+import { metaCapiEventChannelSchema } from "@chatbotx.io/database/schema"
 import { webhookChannelOrigin } from "@chatbotx.io/events/context"
 import {
   errorStateDefaultFn,
@@ -73,14 +71,9 @@ export class ActionExecutor {
     const { action, contactId, triggerId, workspaceId } = context
     const actionType = action.type
 
-    const conversation = await db.query.conversationModel.findFirst({
-      where: {
-        contactId,
-        workspaceId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+    const conversation = await conversationService.findLatestCreatedByContact({
+      workspaceId,
+      contactId,
     })
 
     if (!conversation) {
@@ -107,38 +100,23 @@ export class ActionExecutor {
     switch (actionType) {
       case triggerActions.enum.addTag: {
         const tagIds = action.tagIds as string[]
-        const existingTags = await db.query.tagModel.findMany({
-          where: {
-            id: { in: tagIds },
-            workspaceId,
-            deletedAt: { isNull: true as const },
-          },
+        const newlyLinked = await tagService.attachExistingToContactForTrigger({
+          workspaceId,
+          contactId: conversation.contactId,
+          tagIds,
         })
 
-        if (existingTags.length > 0) {
-          const newlyLinked = await db
-            .insert(contactsToTagsModel)
-            .values(
-              existingTags.map((t) => ({
-                contactId: conversation.contactId,
-                tagId: t.id,
-              })),
-            )
-            .onConflictDoNothing()
-            .returning({ tagId: contactsToTagsModel.tagId })
-
-          for (const link of newlyLinked) {
-            await tagSyncService.enqueueAttach({
-              workspaceId,
-              contactId: conversation.contactId,
-              tagId: link.tagId,
-            })
-            await adsConversionService.enqueueTagAppliedEvaluations({
-              workspaceId,
-              contactId: conversation.contactId,
-              tagId: link.tagId,
-            })
-          }
+        for (const link of newlyLinked) {
+          await tagSyncService.enqueueAttach({
+            workspaceId,
+            contactId: conversation.contactId,
+            tagId: link.tagId,
+          })
+          await adsConversionService.enqueueTagAppliedEvaluations({
+            workspaceId,
+            contactId: conversation.contactId,
+            tagId: link.tagId,
+          })
         }
         break
       }
@@ -146,14 +124,11 @@ export class ActionExecutor {
       case triggerActions.enum.removeTag: {
         const tagIds = action.tagIds as string[]
         if (tagIds.length > 0) {
-          await db
-            .delete(contactsToTagsModel)
-            .where(
-              and(
-                eq(contactsToTagsModel.contactId, conversation.contactId),
-                inArray(contactsToTagsModel.tagId, tagIds),
-              ),
-            )
+          await tagService.detachFromContactForTrigger({
+            workspaceId,
+            contactId: conversation.contactId,
+            tagIds,
+          })
           // Channel cleanup (unassign + delete ContactToTagChannel) runs in the queue.
           for (const tagId of tagIds) {
             await tagSyncService.enqueueDetach({
@@ -247,12 +222,9 @@ export class ActionExecutor {
         }
 
         const flowId = action.flowId as string
-        const flow = await db.query.flowModel.findFirst({
-          where: {
-            id: flowId,
-            workspaceId,
-            active: true,
-          },
+        const flow = await flowService.findActiveById({
+          workspaceId,
+          id: flowId,
         })
 
         if (!flow?.currentVersionId) {
@@ -302,48 +274,16 @@ export class ActionExecutor {
 
       case triggerActions.enum.assignConversation: {
         const assignedId = action.assignedId as string
-        let assignedUserId: string | null = null
-        let assignedInboxTeamId: string | null = null
-
-        if (assignedId.startsWith("u_")) {
-          const userId = assignedId.slice(2)
-          const workspaceMember = await db.query.workspaceMemberModel.findFirst(
-            {
-              where: {
-                userId,
-                workspaceId: conversation.workspaceId,
-              },
-            },
-          )
-          if (workspaceMember) {
-            assignedUserId = userId
-          }
-        } else if (assignedId.startsWith("t_")) {
-          const inboxTeamId = assignedId.slice(2)
-          const inboxTeam = await db.query.inboxTeamModel.findFirst({
-            where: {
-              id: inboxTeamId,
-              workspaceId: conversation.workspaceId,
-            },
-          })
-          if (inboxTeam) {
-            assignedInboxTeamId = inboxTeamId
-          }
-        }
-
-        if (assignedUserId || assignedInboxTeamId) {
-          await conversationService.updateAssignment({
-            workspaceId: conversation.workspaceId,
-            conversations: [conversation],
-            assignedUserId,
-            assignedInboxTeamId,
-            triggerContext: {
-              triggerSource: "worker",
-              triggerHandler: "actionExecutor.assignConversation",
-              triggerType: "trigger_action",
-            },
-          })
-        }
+        await conversationService.assignOneOrSkip({
+          workspaceId: conversation.workspaceId,
+          conversation,
+          assignedId,
+          triggerContext: {
+            triggerSource: "worker",
+            triggerHandler: "actionExecutor.assignConversation",
+            triggerType: "trigger_action",
+          },
+        })
         break
       }
 
@@ -430,6 +370,7 @@ export class ActionExecutor {
           await reportCapiInputFailure({
             workspaceId,
             contactId,
+            sourceId: contactInbox.sourceId,
             message: `Invalid Meta CAPI trigger action (trigger ${triggerId}):\n${detail}`,
           })
           break
@@ -437,7 +378,7 @@ export class ActionExecutor {
 
         // Trigger executor passes `contactInbox.id` (a string), not the full
         // model — `getContactInbox()` returns a narrow
-        // `ContactInboxWorkspaceRow` (id/channel/inboxId only), not a
+        // `ContactInboxWorkspaceRow` (id/channel/inboxId/sourceId only), not a
         // `ContactInboxModel`.
         const resolvedFields = await resolveContactVariablesDeep(
           contactId,
@@ -472,7 +413,11 @@ export class ActionExecutor {
             contentCategory: parsedAction.data.contentCategory,
             contentName: parsedAction.data.contentName,
           },
-          { contactId, resolved: resolvedFields },
+          {
+            contactId,
+            sourceId: contactInbox.sourceId,
+            resolved: resolvedFields,
+          },
         )
         break
       }

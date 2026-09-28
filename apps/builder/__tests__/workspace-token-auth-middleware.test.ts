@@ -56,17 +56,18 @@ const callMiddleware = (
   headers: Headers,
   method: string | undefined,
   url?: string,
+  path?: string,
 ) =>
   (
     workspaceTokenAuthMidddleware as unknown as (opts: {
       context: { headers: Headers; url?: string }
       next: typeof next
-      procedure: { "~orpc": { route: { method?: string } } }
+      procedure: { "~orpc": { route: { method?: string; path?: string } } }
     }) => Promise<unknown>
   )({
     context: { headers, url },
     next,
-    procedure: { "~orpc": { route: { method } } },
+    procedure: { "~orpc": { route: { method, path } } },
   })
 
 const authResult = (permission: "full" | "read_only" = "full") => ({
@@ -118,6 +119,7 @@ describe("workspaceTokenAuthMidddleware", () => {
 
     await expect(callMiddleware(headers, "GET")).rejects.toMatchObject({
       code: "INVALID_CHATBOT_TOKEN",
+      status: 401,
     })
   })
 
@@ -128,6 +130,7 @@ describe("workspaceTokenAuthMidddleware", () => {
 
     await expect(callMiddleware(headers, "GET")).rejects.toMatchObject({
       code: "INVALID_CHATBOT_TOKEN",
+      status: 401,
     })
     expect(findWorkspaceByTokenHash).toHaveBeenCalledTimes(1)
     // Invalid guesses never resolve a workspace, so only the pre-auth
@@ -160,6 +163,22 @@ describe("workspaceTokenAuthMidddleware", () => {
       code: "trialExpired",
       status: 403,
     })
+  })
+
+  test("allows the conversations list POST path for a trial-expired workspace", async () => {
+    findWorkspaceByTokenHash.mockResolvedValue(authResult())
+    getAccessState.mockResolvedValue({ blocked: true, reason: "status" })
+
+    const headers = new Headers({ Authorization: "Bearer ws1_abc" })
+    await callMiddleware(
+      headers,
+      "POST",
+      undefined,
+      "/workspaces/{workspaceId}/conversations/list",
+    )
+
+    expect(next).toHaveBeenCalled()
+    expect(getAccessState).not.toHaveBeenCalled()
   })
 
   test("DELETE procedure with a blocked owner still passes (invariant #14)", async () => {
@@ -266,7 +285,7 @@ describe("workspaceTokenAuthMidddleware", () => {
     expect(next).toHaveBeenCalled()
   })
 
-  test("forwards apiToken into context alongside workspace, for scope enforcement downstream", async () => {
+  test("forwards the authenticated token and its credential identity downstream", async () => {
     const auth = authResult("full")
     findWorkspaceByTokenHash.mockResolvedValue(auth)
 
@@ -274,7 +293,17 @@ describe("workspaceTokenAuthMidddleware", () => {
     await callMiddleware(headers, "GET")
 
     expect(next).toHaveBeenCalledWith({
-      context: { workspace: auth.workspace, apiToken: auth.apiToken },
+      context: {
+        workspace: auth.workspace,
+        apiToken: {
+          id: "token-1",
+          workspaceId: undefined,
+          permission: "full",
+          scopes: undefined,
+          isDefault: undefined,
+        },
+        apiCredentialId: "api-token:token-1",
+      },
     })
   })
 })

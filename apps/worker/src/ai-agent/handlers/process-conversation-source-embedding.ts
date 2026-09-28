@@ -1,4 +1,3 @@
-import { getPlatformEmbeddingProviderOptions } from "@chatbotx.io/ai/server"
 import { usageMeteringService } from "@chatbotx.io/business"
 import { db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { aiEmbeddingStatuses } from "@chatbotx.io/database/partials"
@@ -8,6 +7,7 @@ import { embed } from "ai"
 import { normalizeError } from "universal-error-normalizer"
 import {
   embeddingModelKey,
+  getEmbeddingProviderOptions,
   resolveEmbeddingModel,
 } from "../../ai-agent/lib/embedding-model"
 import { logger } from "../../lib/logger"
@@ -40,7 +40,7 @@ export async function processConversationSourceEmbedding(
     .where(eq(aiConversationEmbeddingModel.id, embeddingItem.id))
 
   try {
-    const embeddingModel = await resolveEmbeddingModel(
+    const { model: embeddingModel, provider } = await resolveEmbeddingModel(
       embeddingItem.workspaceId,
     )
 
@@ -55,8 +55,10 @@ export async function processConversationSourceEmbedding(
       const result = await embed({
         model: embeddingModel,
         value: embeddingItem.content,
-        providerOptions:
-          await getPlatformEmbeddingProviderOptions("RETRIEVAL_DOCUMENT"),
+        providerOptions: await getEmbeddingProviderOptions(
+          provider,
+          "RETRIEVAL_DOCUMENT",
+        ),
       })
       embedding = result.embedding
       await usageMeteringService.settleUnits(

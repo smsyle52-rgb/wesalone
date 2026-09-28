@@ -49,7 +49,12 @@ describe("contactInboxRepository.findByIdForWorkspace", () => {
     chain.innerJoin.mockReturnValue(chain)
     chain.where.mockReturnValue(chain)
     chain.limit.mockResolvedValue([
-      { id: "ci-1", channel: "whatsapp", inboxId: "inbox-1" },
+      {
+        id: "ci-1",
+        channel: "whatsapp",
+        inboxId: "inbox-1",
+        sourceId: "psid-1",
+      },
     ])
 
     const row = await contactInboxRepository.findByIdForWorkspace(
@@ -61,10 +66,17 @@ describe("contactInboxRepository.findByIdForWorkspace", () => {
       id: contactInboxModel.id,
       channel: contactInboxModel.channel,
       inboxId: contactInboxModel.inboxId,
+      // Selected so an error-log row can carry the channel-side contact id.
+      sourceId: contactInboxModel.sourceId,
     })
     expect(chain.innerJoin).toHaveBeenCalledWith(inboxModel, expect.anything())
     expect(chain.limit).toHaveBeenCalledWith(1)
-    expect(row).toEqual({ id: "ci-1", channel: "whatsapp", inboxId: "inbox-1" })
+    expect(row).toEqual({
+      id: "ci-1",
+      channel: "whatsapp",
+      inboxId: "inbox-1",
+      sourceId: "psid-1",
+    })
   })
 
   test("returns null when no row matches (missing id or wrong workspace)", async () => {
@@ -266,5 +278,81 @@ describe("contactInboxRepository.listAdEligibleInboxesByContacts", () => {
         channel: "instagram",
       },
     ])
+  })
+})
+
+describe("contactInboxRepository.findByInboxAndSourceIds", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const wireSelect = (rows: unknown[]) => {
+    const chain = { select: vi.fn(), from: vi.fn(), where: vi.fn() }
+    chain.select.mockReturnValue(chain)
+    chain.from.mockReturnValue(chain)
+    chain.where.mockResolvedValue(rows)
+    return chain
+  }
+
+  test("scopes by inbox, dedups the source ids, and returns the rows", async () => {
+    const chain = wireSelect([
+      {
+        id: "ci-1",
+        sourceId: "601234567890",
+        lastIncomingMessageAt: null,
+        createdAt: new Date("2026-01-01"),
+      },
+    ])
+
+    const rows = await contactInboxRepository.findByInboxAndSourceIds(
+      { inboxId: "inbox-1", sourceIds: ["601234567890", "601234567890"] },
+      { select: chain.select } as never,
+    )
+
+    expect(chain.select).toHaveBeenCalledWith({
+      id: contactInboxModel.id,
+      sourceId: contactInboxModel.sourceId,
+      lastIncomingMessageAt: contactInboxModel.lastIncomingMessageAt,
+      createdAt: contactInboxModel.createdAt,
+    })
+    expect(chain.from).toHaveBeenCalledWith(contactInboxModel)
+    expect(rows).toHaveLength(1)
+  })
+
+  test("makes no query at all for an empty id list", async () => {
+    const chain = wireSelect([])
+
+    await expect(
+      contactInboxRepository.findByInboxAndSourceIds(
+        { inboxId: "inbox-1", sourceIds: [] },
+        { select: chain.select } as never,
+      ),
+    ).resolves.toEqual([])
+
+    expect(chain.select).not.toHaveBeenCalled()
+  })
+
+  test("drops rows whose sourceId is null — they cannot be addressed by wa_id", async () => {
+    const chain = wireSelect([
+      {
+        id: "ci-1",
+        sourceId: null,
+        lastIncomingMessageAt: null,
+        createdAt: new Date("2026-01-01"),
+      },
+      {
+        id: "ci-2",
+        sourceId: "601234567890",
+        lastIncomingMessageAt: null,
+        createdAt: new Date("2026-01-01"),
+      },
+    ])
+
+    const rows = await contactInboxRepository.findByInboxAndSourceIds(
+      { inboxId: "inbox-1", sourceIds: ["601234567890"] },
+      { select: chain.select } as never,
+    )
+
+    expect(rows.map((row) => row.id)).toEqual(["ci-2"])
   })
 })

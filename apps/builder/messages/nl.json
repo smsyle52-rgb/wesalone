@@ -112,7 +112,6 @@
     "enterFieldAndPressEnter": "Voer {field} in en druk op Enter",
     "addAnother": "Nog een toevoegen...",
     "messagePlaceholder": "Bericht...",
-    "newLineHint": "Shift + Enter voor een nieuwe regel",
     "signOut": "Uitloggen",
     "backToSignIn": "Terug naar inloggen",
     "connectFeature": "{feature} verbinden",
@@ -155,6 +154,7 @@
     "moveToDraft": "Move to draft",
     "stop": "Stop",
     "resume": "Resume",
+    "newLineHint": "Shift + Enter voor een nieuwe regel",
     "tryAgain": "Try again"
   },
   "errors": {
@@ -256,6 +256,7 @@
     "dateFilterPreset": "Voorinstelling voor datumfilter",
     "noResults": "Geen resultaten.",
     "noData": "Geen gegevens",
+    "errorLogRetentionNotice": "Alleen de foutlogboeken van de afgelopen {days} dagen worden bewaard.",
     "comingSoon": "Binnenkort beschikbaar",
     "unknown": "Onbekend",
     "pagination": {
@@ -265,10 +266,20 @@
       "firstPage": "Naar de eerste pagina",
       "previousPage": "Naar de vorige pagina",
       "nextPage": "Naar de volgende pagina",
-      "lastPage": "Naar de laatste pagina"
+      "lastPage": "Naar de laatste pagina",
+      "totalRows": "{total} rij(en)"
     },
     "sessionsThroughTheRef": "Sessies via de referentie \"{ref}\" per dag",
-    "sessionsThroughTheMagicLink": "Sessies via de magische link \"{ref}\" per dag"
+    "sessionsThroughTheMagicLink": "Sessies via de magische link \"{ref}\" per dag",
+    "repliesToComments": "Reacties op opmerkingen",
+    "repliesByDate": "Reacties per datum",
+    "userCommentsOnThisPost": "Gebruikersreacties op dit bericht",
+    "botRepliesToComments": "Botreacties op opmerkingen",
+    "comment": "Opmerking",
+    "message": "Bericht",
+    "searchByDate": "Zoeken op datum...",
+    "publicReply": "Openbare reactie",
+    "privateReply": "Privéreactie"
   },
   "flowAnalytics": {
     "nodes": {
@@ -328,6 +339,7 @@
       "message": "Je laatste betaling is mislukt. Werk je betaalmethode bij om je werkruimte actief te houden."
     },
     "trial": {
+      "planName": "Proefperiode",
       "daysLeft": "Proefperiode: nog {days} dagen",
       "endsTomorrow": "Proefperiode eindigt morgen",
       "expired": "Je proefperiode is afgelopen — upgrade om je werkruimte actief te houden",
@@ -448,7 +460,6 @@
       "audienceFilter": "Doelgroepfilter",
       "noAudienceFilter": "Geen doelgroepfilter",
       "template": "Sjabloon",
-      "noTemplate": "Geen sjabloon",
       "integration": "Integratie"
     },
     "filters": {
@@ -507,9 +518,79 @@
     "resumeDialog": {
       "title": "Resume broadcast",
       "description": "\"{name}\" will continue sending to recipients who have not received it yet."
+    },
+    "planLimitDialog": {
+      "title": "Upgrade je abonnement",
+      "sendRate": "Je huidige {plan}-abonnement ondersteunt broadcasts met een maximale verzendsnelheid van {rate} berichten per minuut. Upgrade je abonnement om broadcasts tot {multiplier}x sneller te verzenden.",
+      "activeBroadcasts": "Je huidige {plan}-abonnement voert {max, plural, one {# broadcast} other {# broadcasts}} tegelijk uit. Upgrade je abonnement om meer broadcasts tegelijk uit te voeren."
+    },
+    "sendLimit": {
+      "title": "Limiet",
+      "hint": "Laat leeg om naar alle overeenkomende contacten te verzenden.",
+      "rateHint": "Laat leeg om de standaardsnelheid te gebruiken.",
+      "rangeSummary": "Contacten #{start} – #{end}",
+      "rangeFromSummary": "Vanaf contact #{start}",
+      "rangeLabel": "Contactbereik",
+      "fromLabel": "Van",
+      "toLabel": "Tot",
+      "allPlaceholder": "Alle",
+      "rangeEndBeforeStart": "De eindpositie mag niet vóór de startpositie liggen"
+    }
+  },
+  "commentAutomation": {
+    "stats": {
+      "sent": "Verzonden",
+      "delivered": "Afgeleverd",
+      "seen": "Gezien",
+      "clicked": "Geklikt",
+      "failed": "Mislukt",
+      "missed": "Gemist",
+      "noContacts": "Geen contacten gevonden",
+      "noComment": "(geen tekst)",
+      "pageInfo": "Pagina {page} van {pageCount}",
+      "selectedAll": "Alles geselecteerd",
+      "selectedCount": "{count} geselecteerd",
+      "tagAllDialogDescription": "Tags worden aan alle geselecteerde contacten toegevoegd.",
+      "tagDialogDescription": "Tags worden aan {count} contact(en) toegevoegd.",
+      "tagQueued": "{count} contacten worden op de achtergrond getagd.",
+      "loadingMore": "Meer laden...",
+      "receivers": "Ontvangers"
+    },
+    "missReasons": {
+      "outsideSchedule": "Buiten schema",
+      "postNotMatched": "Bericht niet gericht",
+      "commentIsReply": "Reactie op reactie",
+      "keywordsNotMatched": "Trefwoorden kwamen niet overeen",
+      "contactNotNew": "Contact is niet nieuw",
+      "alreadyRepliedOnPost": "Al beantwoord op dit bericht",
+      "engagedOnOtherPost": "Al gereageerd op een ander bericht",
+      "mentionCountNotMatched": "Aantal vermeldingen kwam niet overeen"
+    },
+    "replyTo": {
+      "mentions": "Reacties met genoeg vermeldingen",
+      "mentionCount": "Aantal getagde personen",
+      "mentionCountDescription": "Alleen reacties die minstens zoveel personen (@naam) taggen, komen overeen.",
+      "mentionCountOption": "{count, plural, one {# persoon} other {# personen}}"
+    },
+    "excludeKeywordsType": {
+      "equal": "Reacties gelijk aan",
+      "contain": "Reacties die bevatten"
+    },
+    "hideComments": {
+      "hasGif": "Bevat GIF",
+      "hasEmoji": "Bevat emoji"
+    },
+    "trackUserTags": {
+      "label": "Bijhouden of een gebruiker andere gebruikers tagt",
+      "descriptionText": "Telt de accounts die in elke reactie worden getagd en telt ze op bij de totalen van het contact over alle reacties. Gebruik '{{total_tagged}}' voor alle getagde accounts en '{{total_new_tagged}}' voor accounts die je pagina nooit een bericht hebben gestuurd of nooit contact zijn geweest."
     }
   },
   "fields": {
+    "optionalHint": "(optional)",
+    "marketingMessagesConfigId": {
+      "label": "Configuratie-ID voor marketingberichten",
+      "description": "Configuratie-ID van Facebook Login for Business die wordt gebruikt om de marketing_messages_messenger-machtiging aan te vragen."
+    },
     "omnichannel": {
       "label": "Omnichannel"
     },
@@ -532,6 +613,9 @@
       "viaFacebookTitle": "Instagram via Facebook",
       "cloneFromMessenger": "Klonen vanuit Messenger",
       "clonedFromMessenger": "Gekloond vanuit Messenger"
+    },
+    "threads": {
+      "label": "Threads"
     },
     "zalo": {
       "label": "Zalo OA"
@@ -645,9 +729,6 @@
     },
     "aiFunction": {
       "label": "AI-functie"
-    },
-    "aiTrigger": {
-      "label": "AI-trigger"
     },
     "alphanumericLength": {
       "label": "Alfanumerieke lengte"
@@ -1111,12 +1192,15 @@
       "label": "Bewerking"
     },
     "outputCustomField": {
-      "label": "Aangepast uitvoerveld"
+      "label": "Aangepast uitvoerveld",
+      "javascriptOptional": "Optioneel. Slaat de volledige returnwaarde op. Gebruik de JSON-padtoewijzing hierboven om afzonderlijke velden te schrijven.",
+      "javascriptDumpLabel": "Volledige JSON-uitvoer (optioneel)"
     },
     "javascriptCode": {
       "label": "JavaScript-code",
       "placeholder": "return (input.first_name || 'there').toUpperCase()",
-      "description": "Gebruik pure JavaScript en retourneer een waarde. Netwerk, bestanden, API's en externe bibliotheken zijn niet beschikbaar. Contact- en systeemgegevens zijn beschikbaar via het `input`-object."
+      "description": "Gebruik pure JavaScript en retourneer een waarde. Netwerk, bestanden, API's en externe bibliotheken zijn niet beschikbaar. Contact- en systeemgegevens zijn beschikbaar via het `input`-object.",
+      "objectMapping": "Wijs een willekeurig JSON-pad uit de returnwaarde toe aan een willekeurig aangepast veld, net als bij Externe API-aanvraag. Jij kiest de paden en de velden."
     },
     "httpMethod": {
       "label": "Methode"
@@ -1472,7 +1556,8 @@
       "date": "Datum",
       "datetime": "Datum en tijd",
       "location": "Locatie",
-      "anyInput": "Elke invoer"
+      "anyInput": "Elke invoer",
+      "locationDescription": "Op WhatsApp stuurt dit Meta's native knop Locatie verzenden en wacht op de pin. Andere kanalen sturen de prompt als tekst; een gedeelde pin of ingevoerde lat,lng voltooit de stap ook."
     },
     "workspaceMember": {
       "label": "Werkruimtelid"
@@ -1607,6 +1692,12 @@
     "messengerChannel": {
       "label": "Messenger-kanaal"
     },
+    "whatsappChannels": {
+      "label": "WhatsApp-kanalen"
+    },
+    "messengerChannels": {
+      "label": "Messenger-pagina's"
+    },
     "messages": {
       "label": "Berichten"
     },
@@ -1714,6 +1805,9 @@
     "appSecret": {
       "label": "Appgeheim"
     },
+    "version": {
+      "label": "Versie"
+    },
     "webhookVerifyToken": {
       "label": "Verificatietoken voor webhook"
     },
@@ -1768,11 +1862,16 @@
       "clientId": "Client-ID",
       "clientSecret": "Clientgeheim",
       "displayName": "Weergavenaam",
+      "needsReauthorizationForComments": "Deze verbinding is geautoriseerd vóór commentaarautomatisering. Verbind opnieuw om commentaargebeurtenissen te ontvangen.",
       "connectInstructions": {
         "step1": "Maak een TikTok-app aan op <link>developers.tiktok.com</link>.",
         "step2": "Autoriseer je account en kopieer het <strong>toegangstoken</strong>, de <strong>open ID</strong> en het <strong>clientgeheim</strong>.",
         "step3": "Plak de inloggegevens hieronder om verbinding te maken."
-      }
+      },
+      "commentToMessage": "Comment-to-Message",
+      "commentToMessageDescription": "Lets this account answer high-intent comments with a direct message. Required for TikTok comment automations that use a private reply.",
+      "commentToMessageEligibility": "Only available to Business Accounts registered in Vietnam, Indonesia or Thailand, owned by someone over 18, that are registered businesses or have run Messaging Ads, with messaging permissions set to \"Requests\".",
+      "commentToMessageUnknown": "Not checked with TikTok yet — refresh to read the current setting."
     },
     "drip": {
       "label": "Drip"
@@ -1935,30 +2034,6 @@
         "done": "Klaar"
       }
     },
-    "adReferral": {
-      "label": "Ads",
-      "ctwa": "CTWA",
-      "ctm": "CTM",
-      "ctid": "CTID"
-    },
-    "adSource": {
-      "label": "Ad source"
-    },
-    "attribute": {
-      "label": "Attribute"
-    },
-    "header": {
-      "label": "Header"
-    },
-    "aiProvider": {
-      "label": "Provider"
-    },
-    "transcriptionModel": {
-      "label": "Model",
-      "placeholder": "Select a model"
-    },
-    "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
     "tokenPermission": {
       "label": "Machtiging",
       "full": "Volledige toegang",
@@ -1978,7 +2053,43 @@
       "appointments": "Afspraken",
       "media": "Media",
       "ads": "Advertenties"
-    }
+    },
+    "adReferral": {
+      "label": "Ads",
+      "ctwa": "CTWA",
+      "ctm": "CTM",
+      "ctid": "CTID"
+    },
+    "adSource": {
+      "label": "Ad source"
+    },
+    "manualAppSecret": {
+      "label": "Meta App-geheim (optioneel)",
+      "description": "Schakelt webhook-handtekeningverificatie in voor deze handmatige verbinding. Te vinden in het dashboard van je Meta-app onder Instellingen > Algemeen."
+    },
+    "lastCallRecorded": {
+      "label": "Laatste gespreksopname"
+    },
+    "lastCallTranscript": {
+      "label": "Laatste gesprekstranscript"
+    },
+    "sendRatePerMinute": {
+      "label": "Berichten per minuut"
+    },
+    "attribute": {
+      "label": "Attribute"
+    },
+    "header": {
+      "label": "Header"
+    },
+    "aiProvider": {
+      "label": "Provider"
+    },
+    "transcriptionModel": {
+      "label": "Model",
+      "placeholder": "Select a model"
+    },
+    "selectOptionsPlaceholder": "Select options"
   },
   "condition": {
     "yes": "Ja",
@@ -2282,6 +2393,8 @@
       "transferConversationToHuman": "Gesprek overdragen aan medewerker",
       "unarchiveConversation": "Gesprek uit archief halen",
       "unassignConversation": "Toewijzing van gesprek opheffen",
+      "markConversationAsUnread": "Gesprek markeren als ongelezen",
+      "markConversationAsRead": "Gesprek markeren als gelezen",
       "unfollowConversation": "Gesprek niet meer volgen",
       "unsubscribeBroadcast": "Afmelden voor broadcast",
       "getUserData": "Gebruikersgegevens ophalen",
@@ -2307,6 +2420,8 @@
       "export": "Exporteren",
       "importStarted": "De flow wordt geïmporteerd. Bekijk de importgeschiedenis voor de resultaten.",
       "importJsonOnly": "Alleen JSON-bestanden",
+      "whatsappCallButton": "Bellen via WhatsApp",
+      "metaConversions": "Meta Conversions API",
       "aiAgentGroup": "AI agent"
     },
     "splitTraffic": {
@@ -2420,6 +2535,14 @@
       "tiktokTitleTruncated": "Als er knoppen zijn toegevoegd, verstuurt TikTok alleen de eerste 40 tekens van dit bericht — de rest wordt afgekapt."
     },
     "dataWasSaved": "Gegevens zijn opgeslagen",
+    "media": {
+      "stepUnsupportedOnChannel": "Dit kanaal kan dit mediatype niet verzenden — de stap wordt daar overgeslagen. Verwijder de stap of zet de node op een kanaal dat het ondersteunt.",
+      "buttonsSkippedOnChannel": "Dit kanaal kan geen knoppen bij een mediabericht verzenden — daar worden ze overgeslagen. Zet ze in plaats daarvan in een volgende tekststap."
+    },
+    "whatsappCallButton": {
+      "editButtonTitle": "Knop bewerken",
+      "buttonLabel": "Knoplabel"
+    },
     "startNode": "Start"
   },
   "folders": {
@@ -2441,6 +2564,41 @@
   },
   "general": {
     "title": "Algemeen"
+  },
+  "facebookMarketingMessages": {
+    "deleteWarning": "Hiermee verwijder je de campagne alleen uit ChatbotX. De Meta-berichtcampagne blijft lopen — pauzeer of verwijder deze in Advertentiebeheer.",
+    "title": "Facebook Marketing Messages",
+    "description": "Verhoog betrokkenheid en verkoop met gepersonaliseerde promotieberichten op Messenger.",
+    "create": "Nieuw maken",
+    "grantTitle": "Facebook-toegang verlenen",
+    "grantDescription": "Geef toegang om de functie Marketingberichten te gebruiken",
+    "grantAction": "Toegang verlenen",
+    "reconnect": "Opnieuw verbinden",
+    "expiredWarning": "Je Facebook-toegang is verlopen of ingetrokken. Verbind opnieuw om campagnes te maken of te bewerken. Bestaande campagnes worden hieronder weergegeven en zijn alleen-lezen tot je opnieuw verbindt.",
+    "fields": {
+      "image": "Afbeelding",
+      "video": "Video",
+      "page": "Facebook-pagina",
+      "adAccount": "Advertentieaccount",
+      "budgetType": "Budgettype",
+      "budget": "Budget",
+      "daily": "Dagbudget",
+      "lifetime": "Totaalbudget",
+      "templateType": "Berichttype",
+      "text": "Tekst",
+      "button": "Knop",
+      "media": "Media",
+      "generic": "Generiek",
+      "greeting": "Begroeting",
+      "quickReplies": "Snelle antwoorden",
+      "elements": "Kaarten"
+    },
+    "errors": {
+      "notConfigured": "Facebook Marketing Messages is niet geconfigureerd. Vraag je beheerder om de configuratie-ID voor marketingberichten in te stellen.",
+      "notGranted": "Geef toegang om de functie Marketingberichten te gebruiken.",
+      "tosNotAccepted": "Accepteer de voorwaarden voor aangepaste objecten op {url} om deze functie te gebruiken",
+      "notFound": "Marketingbericht niet gevonden."
+    }
   },
   "facebookAds": {
     "title": "Facebook-advertenties",
@@ -2629,7 +2787,8 @@
       "adAccountFilter": {
         "all": "Alle advertentieaccounts",
         "label": "Advertentieaccount",
-        "unavailable": "Kan advertentieaccounts niet laden — controleer de Ads-koppeling van deze integratie, of de Facebook Ads-koppeling van de workspace, in de instellingen."
+        "unavailable": "Kan advertentieaccounts niet laden — controleer de Ads-koppeling van deze integratie, of de Facebook Ads-koppeling van de workspace, in de instellingen.",
+        "note": "Advertenties met conversies maar zonder uitgaven of levering in de geselecteerde periode worden verborgen bij filteren op advertentieaccount."
       },
       "channelFilter": {
         "label": "Kanaal",
@@ -2988,9 +3147,14 @@
       "instagram": "Dit Instagram-account is al gekoppeld aan een andere workspace.",
       "messenger": "Deze Facebook-pagina is al gekoppeld aan een andere workspace.",
       "telegram": "Deze Telegram-bot is al gekoppeld aan een andere workspace.",
+      "threads": "Dit Threads-account is al gekoppeld aan een andere workspace.",
       "tiktok": "Dit TikTok-account is al gekoppeld aan een andere workspace.",
       "whatsapp": "Dit WhatsApp-nummer is al gekoppeld aan een andere workspace.",
       "zalo": "Deze Zalo OA is al gekoppeld aan een andere workspace."
+    },
+    "missingScopes": {
+      "generic": "Verbinding geannuleerd: sommige machtigingen zijn niet verleend. Maak opnieuw verbinding en accepteer alle gevraagde machtigingen.",
+      "tiktok": "TikTok-verbinding geannuleerd: sommige machtigingen zijn niet verleend. Maak opnieuw verbinding en accepteer alle gevraagde machtigingen."
     },
     "reconnect": {
       "success": "Kanaal opnieuw gekoppeld.",
@@ -3011,6 +3175,58 @@
       "button": "Alle machtigingen vernieuwen",
       "resultSuccess": "{refreshed} kanaal/kanalen vernieuwd.",
       "resultWithFailures": "{refreshed} kanaal/kanalen vernieuwd, {failed} mislukt."
+    },
+    "connectMany": {
+      "coexist": {
+        "running": "Geschiedenissynchronisatie starten…",
+        "done": "Geschiedenissynchronisatie gestart",
+        "failed": "Geschiedenissynchronisatie mislukt"
+      },
+      "selectAll": "Alles selecteren",
+      "selected": "{count}/{max} geselecteerd",
+      "dialogTitleRunning": "{count} {feature} verbinden…",
+      "dialogTitleDone": "{connected} van {total} verbonden",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "{done} van {total} voltooid",
+      "status": {
+        "waiting": "Wachten",
+        "connecting": "Verbinden…",
+        "connected": "Verbonden",
+        "duplicated": "Al verbonden",
+        "limitReached": "Limiet bereikt",
+        "failed": "Mislukt",
+        "timedOut": "Time-out",
+        "cancelled": "Geannuleerd"
+      },
+      "reason": {
+        "notSelectable": "Dit item kan niet worden geselecteerd.",
+        "channelLimit": "Kanaallimiet bereikt.",
+        "workspaceLimit": "Werkruimtelimiet bereikt.",
+        "providerRejected": "De provider heeft dit verzoek geweigerd.",
+        "unknown": "Er is iets misgegaan.",
+        "followUpFailed": "Instellen niet voltooid — rond dit af via de kanaalinstellingen."
+      },
+      "sessionError": {
+        "sessionExpired": "Je sessie is verlopen. Maak opnieuw verbinding.",
+        "notMember": "Je bent geen lid meer van deze werkruimte.",
+        "trialExpired": "Je proefperiode is verlopen.",
+        "macLimitReached": "Je hebt je accountlimiet bereikt.",
+        "credentialMissing": "Ontbrekende inloggegevens. Maak opnieuw verbinding."
+      },
+      "cancelRemaining": "Resterende annuleren",
+      "retryFailed": "Opnieuw proberen ({count})",
+      "retry": "Opnieuw proberen",
+      "goToChannels": "Naar kanalen",
+      "close": "Sluiten",
+      "leaveNotice": "Je kunt de pagina verlaten; verbonden accounts blijven behouden",
+      "stepConnecting": "Verbinden",
+      "stepCoexist": "Geschiedenis synchroniseren",
+      "validation": {
+        "min": "Selecteer minimaal 1",
+        "max": "Je kunt tot {max} selecteren",
+        "duplicate": "Dubbele selectie"
+      },
+      "progressLabel": "Voortgang"
     },
     "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
   },
@@ -3097,6 +3313,7 @@
     "changeLikeState": "Vind-ik-leukstatus wijzigen",
     "changeHideState": "Verbergstatus wijzigen",
     "commentHidden": "Deze opmerking is verborgen",
+    "commentMediaUnavailable": "Deze reactie bevat een GIF, sticker of afbeelding die niet kan worden weergegeven",
     "messageDeleted": "Het bericht is verwijderd.",
     "sendFailed": "Verzenden mislukt",
     "repliedToStory": "Heeft op je story gereageerd",
@@ -3137,7 +3354,10 @@
     "deleteFeature": "{feature} verwijderen",
     "resetFeature": "{feature} resetten",
     "resetConfirmation": "Hiermee worden de waarden van de geselecteerde {feature} leeggemaakt.\nDeze actie kan niet ongedaan worden gemaakt.",
+    "resetAllConfirmation": "Hiermee worden de waarden van alle {feature} van dit contact leeggemaakt.\nDeze actie kan niet ongedaan worden gemaakt.",
     "resetSuccess": "{feature} succesvol gereset",
+    "clearFeature": "{feature} wissen",
+    "clearSuccess": "{feature} succesvol gewist",
     "deleteConfirmation": "Weet je het absoluut zeker?\nDeze actie kan niet ongedaan worden gemaakt.\nHiermee wordt je {feature} permanent van onze servers verwijderd.",
     "addFeature": "{feature} toevoegen",
     "signOutConfirmation": "Weet je zeker dat je wilt uitloggen?",
@@ -3188,11 +3408,27 @@
     "historyDepth": "({count})",
     "none": "Geen",
     "tiktokCardTitleTooLong": "TikTok verkort dit bericht: als er knoppen zijn toegevoegd, worden alleen de eerste 40 tekens verzonden. Verkort het bericht of verwijder de knoppen.",
+    "sendTextTooLongForChannel": "Dit bericht is langer dan dit kanaal toestaat. Kort het in of richt dit blok op een kanaal met een hogere limiet.",
     "waTemplateMpmNoProducts": "Voeg minstens één product toe aan deze multi-productknop voordat je publiceert.",
     "waTemplateMpmTooManySections": "Een multi-productknop kan maximaal 10 secties hebben. Verwijder enkele secties voordat je publiceert.",
     "waTemplateMpmTooManyProducts": "Een multi-productknop kan in totaal maximaal 30 producten hebben. Verwijder enkele producten voordat je publiceert.",
     "waTemplateLtoExpirationRequired": "Kies een vervaldatum voor de tijdelijke aanbieding voordat je verzendt.",
-    "waTemplateMpmIncompleteProducts": "Elke sectie heeft minstens één geselecteerd product nodig — verwijder lege rijen of kies er een product voor."
+    "waTemplateMpmIncompleteProducts": "Elke sectie heeft minstens één geselecteerd product nodig — verwijder lege rijen of kies er een product voor.",
+    "mediaStepUnsupported": "Dit kanaal kan dit mediatype niet verzenden. Verwijder de stap of richt deze node op een kanaal dat het ondersteunt.",
+    "mediaButtonsUnsupported": "Dit kanaal kan geen knoppen bij een mediabericht verzenden. Verwijder de knoppen of verplaats ze naar een tekststap hierna.",
+    "voiceCall": "Spraakoproep",
+    "voiceCallDuration": "Spraakoproep · {duration}",
+    "missedVoiceCall": "Gemiste spraakoproep",
+    "declinedVoiceCall": "Geweigerde spraakoproep",
+    "voiceCallFailed": "Mislukte spraakoproep",
+    "unansweredVoiceCall": "Geen antwoord",
+    "canceledVoiceCall": "Geannuleerd gesprek",
+    "acceptedCallPermission": "Verzoek om beltoestemming geaccepteerd",
+    "declinedCallPermission": "Verzoek om beltoestemming geweigerd",
+    "sendHumanAgentTag": "Eén bericht verzenden met de tag HUMAN_AGENT",
+    "warning": "Waarschuwing!",
+    "humanAgentWarningDescription": "Je mag alleen binnen 7 dagen op het bericht van een gebruiker reageren wanneer het probleem redelijkerwijs niet binnen 24 uur kan worden opgelost. Voorbeelden zijn weekenden, feestdagen of gevallen die meer dan één dag vereisen. Gebruik deze optie om geen enkele andere reden, omdat dit je Facebook-pagina of Instagram-account in gevaar kan brengen. Ga niet verder als je twijfelt.",
+    "callFailed": "Gespreksprobleem"
   },
   "instagram": {
     "description": "Met deze integratie kun je Instagram-bots maken.",
@@ -3204,6 +3440,12 @@
     "tabs": {
       "generalSettings": "Algemene instellingen",
       "conversionsApi": "Advertentie-optimalisatie"
+    },
+    "selectPage": {
+      "noAccountsTitle": "Geen Instagram-accounts gevonden",
+      "noAccountsDescription": "Er zijn geen Instagram-zakelijke accounts gevonden op de Facebook-pagina's die je beheert. Koppel Instagram opnieuw en geef alle gevraagde machtigingen.",
+      "alreadyConnectedNote": "Dit account is al gekoppeld",
+      "tryAgain": "Probeer opnieuw te koppelen"
     }
   },
   "coexist": {
@@ -3249,7 +3491,6 @@
     "defaultPersona": "Standaardpersona",
     "reconnect": "Opnieuw koppelen",
     "reconnectDescription": "Koppel je bot opnieuw als je Messenger-bot niet reageert of als je een machtigingsfout in het foutenlogboek ziet.",
-    "selectFacebookPage": "Facebook-pagina selecteren",
     "selectPage": {
       "noPagesTitle": "Geen Facebook-pagina's gevonden",
       "noPagesDescription": "Voor pagina's in Bedrijfsmanager is tijdens het koppelen toegang tot Bedrijfsmanager vereist. Koppel Messenger opnieuw en verleen alle gevraagde machtigingen.",
@@ -3257,6 +3498,7 @@
       "noConnectablePagesDescription": "U bent geen beheerder van deze pagina",
       "bmLookupFailedTitle": "Pagina's uit Bedrijfsmanager ontbreken mogelijk",
       "bmLookupFailedDescription": "Koppel Messenger opnieuw en verleen toegang tot Bedrijfsmanager zodat pagina's die via Bedrijfsmanager worden beheerd kunnen worden vermeld.",
+      "loadFailed": "Je Facebook-pagina's konden niet worden geladen",
       "alreadyConnectedNote": "Deze pagina is al gekoppeld",
       "notAdminNote": "U bent geen beheerder van deze pagina",
       "tryAgain": "Probeer opnieuw te koppelen"
@@ -3303,6 +3545,7 @@
         "result": {
           "title": "Kloonresultaten",
           "succeededTitle": "Geslaagd",
+          "pendingTitle": "Wacht op beoordeling door Meta",
           "close": "Sluiten"
         }
       }
@@ -3391,10 +3634,6 @@
     "agents": {
       "description": "Beschrijving van AI-agents",
       "title": "AI-agents"
-    },
-    "aiTriggers": {
-      "description": "Beschrijving van AI-triggers",
-      "title": "AI-triggers"
     },
     "automatedResponses": {
       "title": "Trefwoorden"
@@ -3513,6 +3752,7 @@
   "validation": {
     "maxSize": "De bestandsgrootte overschrijdt de maximale limiet",
     "maxItemsReached": "Maximaal {max} {feature} toegestaan per workspace",
+    "maxCharacters": "Maximaal {max} tekens.",
     "invalidApiKey": "Ongeldige API-sleutel",
     "maxMustBeGreaterThanMin": "{maxField} moet groter zijn dan of gelijk zijn aan {minField}"
   },
@@ -3562,7 +3802,8 @@
       "verifyToken": "Webhook-verificatietoken",
       "qrCodeHint": "Scan de QR-code om de webhook-URL te openen",
       "moreSettings": "Meer instellingen",
-      "goToInbox": "Breng me erheen"
+      "goToInbox": "Breng me erheen",
+      "multipleTitle": "Je WhatsApp-inboxen zijn klaar!"
     },
     "phoneVerification": {
       "title": "WhatsApp-telefoonnummer verifiëren",
@@ -3575,7 +3816,8 @@
       "actions": {
         "sendCode": "Code verzenden",
         "resendIn": "Opnieuw verzenden over {seconds}s",
-        "verify": "Verifiëren en registreren"
+        "verify": "Registreren",
+        "skip": "Overslaan"
       },
       "fields": {
         "code": {
@@ -3593,18 +3835,12 @@
         "codeNotSent": "De WhatsApp-verificatiecode kon niet worden verzonden.",
         "codeNotVerified": "De WhatsApp-verificatiecode kon niet worden geverifieerd.",
         "registrationFailed": "Verificatie van het WhatsApp-telefoonnummer is mislukt."
-      }
+      },
+      "queueProgress": "Verifiëren {current} van {total}"
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "Een WhatsApp-toegangstoken is vereist.",
         "appSettingsNotFound": "De WhatsApp-appinstellingen zijn niet gevonden.",
-        "failedToPersistIntegration": "Opslaan van de WhatsApp-integratie is mislukt.",
-        "noPhoneNumberFound": "Er is geen WhatsApp-telefoonnummer gevonden.",
-        "noPhoneNumbersFound": "Er zijn geen telefoonnummers gevonden voor dit WhatsApp Business-account.",
-        "phoneNumberNotFound": "Het geselecteerde WhatsApp-telefoonnummer is niet gevonden.",
-        "unableToVerifyToken": "Het WhatsApp-token kan niet worden geverifieerd.",
-        "wabaMismatch": "Het geselecteerde WhatsApp Business-account komt niet overeen met de autorisatie.",
         "wabaResolveFailed": "Het WhatsApp Business-account kon niet uit de autorisatie worden bepaald."
       }
     },
@@ -3617,15 +3853,6 @@
     },
     "marketingMessageLite": "Marketing Messages Lite",
     "messageTemplate": {
-      "create": {
-        "trigger": "Sjabloon maken",
-        "reviewNote": "Meta beoordeelt het sjabloon meestal binnen minuten tot uren. Na goedkeuring verschijnt het bij broadcasts.",
-        "nameHint": "Alleen kleine Engelse letters, cijfers en _, bijv. offer_sep",
-        "footer": "Voettekst (optioneel)",
-        "quickReply": "Snel antwoord",
-        "submitted": "Sjabloon ter beoordeling naar Meta verzonden",
-        "rejected": "Meta heeft dit sjabloon afgewezen. Controleer de tekst en probeer het opnieuw."
-      },
       "carouselImage": {
         "label": "Carrouselafbeelding"
       },
@@ -3690,6 +3917,15 @@
         "unsupportedButtonParam": "Dit knoptype wordt nog niet ondersteund.",
         "quickReplyPayload": "Quick Reply Payload",
         "quickReplyPayloadPlaceholder": "Enter payload (optional)"
+      },
+      "create": {
+        "trigger": "Sjabloon maken",
+        "reviewNote": "Meta beoordeelt het sjabloon meestal binnen minuten tot uren. Na goedkeuring verschijnt het bij broadcasts.",
+        "nameHint": "Alleen kleine Engelse letters, cijfers en _, bijv. offer_sep",
+        "footer": "Voettekst (optioneel)",
+        "quickReply": "Snel antwoord",
+        "submitted": "Sjabloon ter beoordeling naar Meta verzonden",
+        "rejected": "Meta heeft dit sjabloon afgewezen. Controleer de tekst en probeer het opnieuw."
       }
     },
     "sampleBodyCardContent": {
@@ -3716,7 +3952,8 @@
       "profile": "Profiel",
       "usefulLinks": "Nuttige links",
       "conversionsApi": "Advertentie-optimalisatie",
-      "settings": "Instellingen"
+      "settings": "Instellingen",
+      "calls": "Calls"
     },
     "accountHealths": {
       "title": "Je WhatsApp-account beheren",
@@ -3846,11 +4083,260 @@
       "label": "Koptekst van sjabloon"
     },
     "transferPhoneNumber": "Telefoonnummer van een andere WhatsApp-provider overdragen",
-    "signupSessionExpired": "Je WhatsApp-registratiesessie is verlopen. Start de koppeling opnieuw.",
-    "capi": {
-      "automaticEvents": {
-        "title": "Automatische events",
-        "description": "Verstuur conversiegebeurtenissen van dit WhatsApp-nummer automatisch naar Meta. Ontbreekt de machtiging, verbind het account dan opnieuw om deze te verlenen."
+    "selectPage": {
+      "tryAgain": "Probeer opnieuw te koppelen"
+    },
+    "manualAppSecretMissingNotice": "Webhook-handtekeningen worden niet gecontroleerd totdat je je Meta App-geheim toevoegt.",
+    "calls": {
+      "title": "WhatsApp Calls",
+      "description": "Let customers call your business on WhatsApp and control how calling works for this number.",
+      "enableLabel": "Enable calling",
+      "enableHelper": "Allow WhatsApp calls to and from this business number.",
+      "iconVisibilityLabel": "Show call icon",
+      "iconVisibilityHelper": "Show the call button in the chat and on your business profile.",
+      "callbackPermissionLabel": "Callback permission requests",
+      "callbackPermissionHelper": "Automatically ask customers for permission to call them back after a missed or completed call.",
+      "propagationNote": "Changes are applied by Meta immediately, but the WhatsApp app of your customers can take up to 7 days to reflect them.",
+      "loadFailed": "Failed to load calling settings from Meta. Check the connection of this number and try again.",
+      "errors": {
+        "notFound": "WhatsApp integration not found",
+        "notWhatsappConversation": "This conversation is not on WhatsApp",
+        "callNotFound": "Call not found",
+        "callNotReady": "The call is not ready to answer yet — try again",
+        "inAppCallingUnavailable": "In-app calling is not configured on this server",
+        "noCallPermission": "The contact has not granted call permission",
+        "permissionRequestLimitReached": "WhatsApp staat slechts 2 verzoeken om belrechten per contact per 7 dagen toe. Dit contact heeft die limiet bereikt — probeer het later opnieuw.",
+        "audioConnectFailed": "Could not connect call audio",
+        "updateFailed": "Meta heeft de wijziging van de belinstellingen afgewezen",
+        "savedOnMetaOnly": "Meta saved the change but this workspace did not. Save again to finish.",
+        "bicUnavailable": "Door het bedrijf geïnitieerde oproepen zijn niet beschikbaar voor dit land",
+        "callAlreadyInProgress": "Er is al een gesprek met dit contact gaande",
+        "hangupFailed": "Kan het gesprek niet beëindigen",
+        "voipCannotAnswer": "This call is no longer available to answer",
+        "voipCallEnded": "The call ended before it could be answered",
+        "voipAnswerFailed": "Could not answer the WhatsApp call",
+        "voipRejectFailed": "Kan het WhatsApp-gesprek niet weigeren",
+        "voipHangupFailed": "Kan het WhatsApp-gesprek niet beëindigen",
+        "voipNotReservedAgent": "U bent niet de aan dit gesprek toegewezen agent",
+        "voipCallAccessDenied": "U heeft geen toestemming om dit gesprek te behandelen",
+        "voipTurnCredentialsRateLimited": "Too many call setup requests. Please wait a moment and try again.",
+        "callNoLongerRinging": "Die oproep gaat niet meer over",
+        "transcriptionRequiresRecording": "Schakel het opnemen van gesprekken in voordat je transcriptie inschakelt.",
+        "supportSessionCallingBlocked": "Bellen is niet beschikbaar tijdens een platformondersteuningssessie.",
+        "callingAccessDenied": "U heeft geen toegang tot bellen in deze werkruimte.",
+        "callArtifactAccessDenied": "Je hebt geen toestemming om deze oproep te bekijken.",
+        "callHistoryAccessDenied": "Je hebt geen toegang tot de oproepgeschiedenis in deze werkruimte."
+      },
+      "permissionRequestTitle": "Request call permission",
+      "permissionRequestDescription": "Ask this customer to allow calls from your business on WhatsApp. Meta limits requests to 1 per 24 hours and 2 per 7 days per customer.",
+      "permissionRequestBodyLabel": "Message",
+      "permissionRequestDefaultBody": "We would like to call you on WhatsApp to help you faster. Do you allow us to call you?",
+      "permissionRequestSent": "Call permission request sent",
+      "inAppCallingLabel": "In-app calling (beta)",
+      "inAppCallingHelper": "Route this number's WhatsApp calls to the inbox so agents can answer them in the browser.",
+      "recordingLabel": "Record calls",
+      "recordingHelper": "Neem gesprekken op die in de inbox worden aangenomen of gestart en voeg de opname toe aan het gesprek.",
+      "recordingInProgress": "Opname aangevraagd",
+      "incomingCall": "Incoming WhatsApp call…",
+      "unknownCaller": "Unknown caller",
+      "incomingCallBanner": "Incoming WhatsApp call",
+      "answer": "Answer",
+      "reject": "Reject",
+      "ringingBadge": "Ringing",
+      "ringingCountdown": "{seconds}s",
+      "updateFailedTitle": "Meta heeft de wijziging afgewezen",
+      "callContact": "Bellen via WhatsApp",
+      "dialing": "Bellen…",
+      "startCall": "WhatsApp-gesprek starten",
+      "retentionLabel": "Bewaartermijn opnamen (dagen)",
+      "retentionHelper": "Hoe lang gespreksopnamen worden bewaard voordat ze permanent worden verwijderd.",
+      "transcriptionLabel": "Gesprekken transcriberen",
+      "transcriptionHelper": "Voeg van elk opgenomen gesprek een transcript toe aan het gesprek.",
+      "preflight": {
+        "title": "Belgeschiktheid",
+        "appSubscriptionMissing": "Configureer eerst de WhatsApp-webhook voor deze app in het Meta App Dashboard en probeer het daarna opnieuw.",
+        "appSubscriptionFailed": "Kan het 'calls'-webhookabonnement van de app niet verifiëren. Probeer het straks opnieuw.",
+        "callsNotSubscribed": "Deze app is niet geabonneerd op het 'calls'-webhookveld, waardoor oproepgebeurtenissen ChatbotX niet kunnen bereiken (Meta-fout 138018: technische vereisten zijn niet vervuld — zorg dat minstens één app die op de WABA is geabonneerd ook het webhookveld voor oproepen heeft).",
+        "fixButton": "Oplossen",
+        "fixSuccess": "De app is nu geabonneerd op WhatsApp-oproepwebhooks.",
+        "manualIntegrationNotice": "Dit nummer is handmatig verbonden en heeft hier geen app-gegevens. Abonneer het 'calls'-webhookveld van je app in het Meta App Dashboard.",
+        "coexistenceWarning": "Dit nummer gebruikt coexistentie met de WhatsApp Business-app, wat Meta niet ondersteunt voor bellen. Verplaats het naar alleen Cloud API."
+      },
+      "voipConnecting": "Connecting…",
+      "recordingActivity": {
+        "showTranscript": "Transcript weergeven",
+        "hideTranscript": "Transcript verbergen"
+      },
+      "outbound": {
+        "needsPermission": "You need permission to call this contact. Request permission first.",
+        "permissionCheckFailed": "We could not check your call permission for this contact right now. Please try again in a moment.",
+        "businessCallingUnavailable": "WhatsApp heeft door het bedrijf gestarte gesprekken niet ingeschakeld voor dit nummer. Dit hangt af van de beschikbaarheid in je land en de geschiktheid van het account bij Meta, dus het kan hier niet worden ingeschakeld.",
+        "callAlreadyInProgress": "A call to this contact is already in progress.",
+        "dailyLimitReached": "You have reached the connected-call limit with this contact for now.",
+        "ineligibleNumber": "This number is not eligible for business-initiated calling.",
+        "recipientUncallable": "This contact cannot be called on WhatsApp right now.",
+        "temporarilyDisabled": "Calling is temporarily disabled for this number due to call quality.",
+        "rateLimited": "Too many call attempts. Please wait a moment and try again.",
+        "paymentIssue": "There is a billing issue with your WhatsApp Business account.",
+        "callingNotEnabled": "Calling is not enabled for this WhatsApp number.",
+        "callFailed": "The call could not be placed. Please try again.",
+        "calling": "Calling…",
+        "ringback": "Ringing…",
+        "micPermissionDenied": "Microfoontoegang is geweigerd. Sta microfoontoegang toe in je browserinstellingen en probeer het opnieuw.",
+        "micNotFound": "Geen microfoon gevonden. Sluit een microfoon aan en probeer het opnieuw.",
+        "callAccessDenied": "U heeft geen toestemming om dit contact te bellen."
+      },
+      "card": {
+        "audioCall": "Audiogesprek",
+        "recordingUnavailable": "Opname niet meer beschikbaar",
+        "recordingNotCaptured": "Opname niet beschikbaar voor dit gesprek",
+        "recordingProcessing": "Opname wordt verwerkt…",
+        "moreOptions": "Meer opties",
+        "download": "Downloaden",
+        "openCallInformation": "Gespreksinformatie openen",
+        "transcript": "Transcript",
+        "aiSummary": "AI-samenvatting",
+        "transcriptUnavailable": "Transcript nog niet beschikbaar",
+        "summaryUnavailable": "AI-samenvatting nog niet beschikbaar",
+        "play": "Afspelen",
+        "pause": "Pauzeren",
+        "seek": "Zoeken",
+        "mute": "Dempen",
+        "unmute": "Dempen opheffen",
+        "playbackFailed": "Afspelen mislukt",
+        "answeredBy": "Beantwoord door {name}",
+        "calledBy": "Gebeld door {name}",
+        "callFailed": "Gespreksprobleem",
+        "callBack": "Terugbellen"
+      },
+      "sheet": {
+        "title": "Gesprekinformatie",
+        "summaryTab": "AI-samenvatting",
+        "transcriptTab": "Transcript",
+        "searchLabel": "Zoeken in transcript",
+        "searchPlaceholder": "Zoeken in transcript…",
+        "transcriptUnavailable": "Transcript niet beschikbaar voor de taal van dit gesprek",
+        "transcriptError": "Het transcript kan niet worden geladen. Controleer je verbinding en probeer het opnieuw.",
+        "noSearchResults": "Geen overeenkomende segmenten",
+        "playSegment": "Vanaf hier afspelen",
+        "summaryKeyPoints": "Belangrijkste punten",
+        "summaryActionItems": "Actiepunten",
+        "regenerate": "Opnieuw genereren",
+        "regenerateConfirmTitle": "AI-samenvatting opnieuw genereren?",
+        "regenerateConfirmDescription": "Dit vervangt de huidige samenvatting door een nieuw gegenereerde.",
+        "summaryEmpty": "Er is nog geen AI-samenvatting voor dit gesprek.",
+        "generateSummary": "Samenvatting genereren"
+      },
+      "summaryDialog": {
+        "title": "AI-samenvatting genereren",
+        "description": "Kies een verbonden AI-provider om dit gesprek samen te vatten.",
+        "noProviderTitle": "Geen AI-provider verbonden",
+        "noProviderDescription": "Verbind een AI-integratie om gespreksamenvattingen te genereren.",
+        "connectLink": "Naar AI-instellingen",
+        "generate": "Genereren",
+        "generating": "Bezig met genereren…",
+        "generateFailed": "Kon de samenvatting niet genereren. Probeer het opnieuw.",
+        "retry": "Opnieuw proberen",
+        "emptyTranscriptTooltip": "Dit gesprek heeft nog geen transcript om samen te vatten"
+      },
+      "panel": {
+        "eyebrowCalling": "BELLEN…",
+        "eyebrowIncoming": "INKOMENDE OPROEP",
+        "eyebrowOnCall": "IN GESPREK",
+        "statusPreparing": "Voorbereiden…",
+        "statusWaitingForMic": "Wachten op microfoontoegang…",
+        "statusDeclined": "Geweigerd",
+        "statusCallFailed": "Oproep mislukt",
+        "statusCallEnded": "Oproep beëindigd",
+        "end": "Beëindigen",
+        "minimize": "Minimaliseren",
+        "goToConversation": "Ga naar het gesprek",
+        "expand": "Uitvouwen",
+        "dismiss": "Sluiten",
+        "statusNoAnswer": "Geen antwoord",
+        "eyebrowCallEnded": "OPROEP BEËINDIGD",
+        "statusConnectionLost": "Verbinding verbroken",
+        "answerFailed": "De oproep kon niet worden beantwoord. Controleer of een microfoon is aangesloten en toegestaan in je browser en probeer het opnieuw.",
+        "ringingListTitle": "{count, plural, one {# inkomende oproep} other {# inkomende oproepen}}"
+      },
+      "capability": {
+        "title": "Belgeschiktheid",
+        "enableCalling": "Schakel bellen in via Instellingen > Kanalen > WhatsApp > Bellen.",
+        "reconnectChannel": "Ga naar Instellingen > Kanalen en maak opnieuw verbinding met het WhatsApp-kanaal.",
+        "ok": "OK",
+        "micPermissionTitle": "Microfoonmachtiging",
+        "dialFailureTitle": "Oproep kon niet worden geplaatst"
+      },
+      "manualIntegrationCallWarning": {
+        "title": "Handmatig verbonden nummer",
+        "callsSubscription": "Dit WhatsApp-nummer is handmatig verbonden. Zorg dat je Meta-app is geabonneerd op het calls-webhookveld (Meta App Dashboard → WhatsApp → Configuration → Webhook fields → calls) — anders komen uitgaande gesprekken niet tot stand en gaan inkomende gesprekken niet over.",
+        "unsignedWebhook": "Dit nummer heeft ook geen Meta App Secret geconfigureerd, waardoor de binnenkomende webhooks niet handtekening-geverifieerd zijn.",
+        "callAnyway": "Toch bellen"
+      },
+      "replaceConfirm": {
+        "title": "Gesprek met {current} beëindigen?",
+        "description": "Je bent in gesprek met {current}. Als je {incoming} beantwoordt, wordt dat gesprek direct beëindigd.",
+        "confirm": "Beëindigen en opnemen",
+        "cancel": "In gesprek blijven"
+      },
+      "answerCaller": "Oproep van {name} beantwoorden",
+      "rejectCaller": "Oproep van {name} weigeren",
+      "hours": {
+        "title": "Belvensters",
+        "description": "Klanten kunnen dit nummer alleen binnen deze tijden bellen. Daarbuiten biedt WhatsApp aan om te chatten of, als terugbelverzoeken aan staan, om een terugbelverzoek te sturen, en toont het wanneer ze weer kunnen bellen.",
+        "enabledLabel": "Alleen gesprekken aannemen binnen de beltijden",
+        "timezoneLabel": "Tijdzone",
+        "closed": "Gesloten",
+        "openTimeLabel": "{day}: opent om",
+        "closeTimeLabel": "{day}: sluit om",
+        "addRangeLabel": "Tijden toevoegen op {day}",
+        "removeRangeLabel": "Tijden verwijderen op {day}",
+        "overnightHint": "Elke dag eindigt om 23:59. Blijf je na middernacht open, voeg de resterende uren dan toe aan de volgende dag.",
+        "days": {
+          "monday": "Maandag",
+          "tuesday": "Dinsdag",
+          "wednesday": "Woensdag",
+          "thursday": "Donderdag",
+          "friday": "Vrijdag",
+          "saturday": "Zaterdag",
+          "sunday": "Zondag"
+        },
+        "errors": {
+          "rangeOrder": "De sluitingstijd moet na de openingstijd liggen.",
+          "rangeOverlap": "De tijden op deze dag overlappen.",
+          "noOpenHours": "Voeg tijden toe aan ten minste één dag."
+        }
+      },
+      "inboundLabel": "Accept incoming calls",
+      "inboundHelper": "Let customers call in. Turn off to keep dialling out without the inbox ringing.",
+      "page": {
+        "title": "Oproepen",
+        "subtitle": "Oproepgeschiedenis voor deze werkruimte",
+        "emptyTitle": "Nog geen oproepen",
+        "emptyDescription": "Oproepen verschijnen hier zodra je team WhatsApp-oproepen begint te plaatsen of te ontvangen.",
+        "loadMore": "Meer laden",
+        "allActivity": "Alle oproepen",
+        "filterMissed": "Gemist",
+        "filterNoReply": "Geen antwoord",
+        "allInboxes": "Alle postvakken IN",
+        "allAgents": "Alle medewerkers",
+        "columnContact": "Contact",
+        "columnInbox": "Postvak IN",
+        "columnDirection": "Richting",
+        "columnAgent": "Medewerker",
+        "columnDuration": "Duur",
+        "columnDate": "Datum",
+        "directionInbound": "Inkomend",
+        "directionOutbound": "Uitgaand",
+        "kindOngoing": "Actief",
+        "kindAnsweredInbound": "Beantwoord",
+        "kindAnsweredOutbound": "Beantwoord",
+        "openConversation": "Gesprek openen",
+        "unknownContact": "Onbekend contact",
+        "emptyFilteredTitle": "Geen oproepen komen overeen met dit filter",
+        "emptyFilteredDescription": "Probeer een ander filter of wis het om alle oproepen te zien.",
+        "loadMoreError": "Meer oproepen konden niet worden geladen. Probeer het opnieuw.",
+        "callInformation": "Oproepinformatie"
       }
     },
     "ecommerce": {
@@ -3868,7 +4354,8 @@
       "toggleSuccess": "Instelling voor tagsynchronisatie bijgewerkt.",
       "enabledSince": "Ingeschakeld sinds {date}",
       "disabled": "Uitgeschakeld"
-    }
+    },
+    "refreshPermissions": "Machtigingen vernieuwen"
   },
   "telegram": {
     "description": "Met deze integratie kun je Telegram-bots maken.",
@@ -3879,6 +4366,14 @@
     "chatbotInvitationDescription2": "{userName} heeft je uitgenodigd om lid te worden van {chatbotName}.",
     "invalidInvitation": "Deze uitnodiging is ongeldig of verlopen.",
     "workspaceUnavailable": "Deze workspace is niet meer beschikbaar."
+  },
+  "inboxes": {
+    "markReadOnOutbound": {
+      "label": "Botberichten als gelezen markeren",
+      "enabled": "Ingeschakeld",
+      "disabled": "Uitgeschakeld",
+      "description": "Indien ingeschakeld markeert de bot zijn eigen berichten automatisch als gelezen"
+    }
   },
   "inboxTeams": {
     "title": "Inboxteams"
@@ -4005,7 +4500,9 @@
       "productRemovedFromCart": "Product uit winkelwagen verwijderd",
       "productOrdered": "Product besteld",
       "contactReferredANewContact": "Contact heeft een nieuw contact doorverwezen",
-      "contactReferredExistingContact": "Contact heeft een bestaand contact doorverwezen"
+      "contactReferredExistingContact": "Contact heeft een bestaand contact doorverwezen",
+      "callRecorded": "Oproep opgenomen",
+      "callTranscribed": "Oproep getranscribeerd"
     },
     "actions": {
       "addTag": "Tag toevoegen",
@@ -4054,6 +4551,60 @@
     "exportAllNotice": "Alle contacten die overeenkomen met het huidige filter worden geëxporteerd.",
     "exportTakingLong": "Het exporteren duurt langer dan verwacht",
     "exportTakingLongDescription": "De export wordt nog verwerkt. Je kunt dit dialoogvenster sluiten en over enkele minuten de exportgeschiedenis bekijken."
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
   },
   "auditLogs": {
     "title": "Auditlogboeken",
@@ -4187,7 +4738,8 @@
     "afterText": "Na"
   },
   "tools": {
-    "title": "Hulpmiddelen"
+    "title": "Hulpmiddelen",
+    "beta": "Beta"
   },
   "aiProviders": {
     "openai": "OpenAI",
@@ -4289,15 +4841,15 @@
     "trackCommentsOn": "Opmerkingen volgen op",
     "trackCommentsOnDescription": "Pas deze automatisering toe op alle berichten op je pagina of beperk deze tot specifieke berichten die je selecteert.",
     "privateReply": "Privéantwoord (inbox)",
-    "privateReplyDescription": "Stuur een privébericht naar de inbox van degene die de opmerking plaatste. Kies een AI-agent, een vaste tekstsjabloon (spintax wordt ondersteund), een chatbotflow of schakel dit uit.",
+    "privateReplyDescription": "Stuur een privébericht naar de inbox van degene die de opmerking plaatste. Kies een AI-agent, een vaste tekstsjabloon, een chatbotflow of schakel dit uit.",
     "publicReply": "Openbaar antwoord op opmerking",
-    "publicReplyDescription": "Plaats een openbaar antwoord direct onder de opmerking. Ondersteunt maximaal 10 tekstsjablonen (spintax wordt ondersteund), een AI-agent, een chatbotflow of geen antwoord.",
+    "publicReplyDescription": "Plaats een openbaar antwoord direct onder de opmerking. Ondersteunt maximaal 10 tekstsjablonen, een AI-agent, een chatbotflow of geen antwoord. Elk bericht wordt als een aparte reactie geplaatst. Spintax wordt ondersteund.",
     "replyMessage": "Antwoordbericht",
     "replyMessagePlaceholder": "Voer een antwoordbericht in...",
     "includeKeywordsType": "Antwoorden op",
     "includeKeywordsTypeDescription": "Kies op welke opmerkingen deze automatisering reageert.",
     "includeKeywords": "Trefwoorden om te vinden",
-    "excludeKeywords": "Opmerkingen met deze trefwoorden uitsluiten",
+    "excludeKeywords": "Reacties uitsluiten die bevatten",
     "excludeKeywordsDescription": "Opmerkingen die een van deze trefwoorden bevatten, worden door zowel de inbox- als de openbare antwoordautomatisering genegeerd.",
     "keywordsPlaceholder": "Typ en druk op Enter...",
     "replyAfter": "Antwoorden na",
@@ -4359,8 +4911,8 @@
       "replyToUsersWhoCommentedOnOtherPostsDescription": "Blijf gebruikers beantwoorden die al opmerkingen bij je andere berichten hebben geplaatst.",
       "ignoreCommentReplies": "Antwoorden op opmerkingen niet beantwoorden",
       "ignoreCommentRepliesDescription": "Sla de automatisering over voor opmerkingen die een antwoord zijn op andere opmerkingen en verwerk alleen opmerkingen op het hoogste niveau.",
-      "trackUserTags": "Volgen of een gebruiker andere gebruikers tagt",
-      "trackUserTagsDescription": "Activeer de automatisering wanneer een gebruiker een andere gebruiker tagt of vermeldt in een opmerking."
+      "trackUserTags": "Bijhouden of een gebruiker andere gebruikers tagt",
+      "trackUserTagsDescription": "Telt de accounts die in elke reactie worden getagd en telt ze op bij de totalen van het contact over alle reacties. Gebruik '{{total_tagged}}' voor alle getagde accounts en '{{total_new_tagged}}' voor accounts die je pagina nooit een bericht hebben gestuurd of nooit contact zijn geweest."
     },
     "hideComments": {
       "all": "Alle opmerkingen verbergen",
@@ -4392,15 +4944,15 @@
     "trackCommentsOn": "Opmerkingen volgen op",
     "trackCommentsOnDescription": "Pas deze automatisering toe op alle berichten van je gekoppelde account of beperk deze tot specifieke berichten die je selecteert.",
     "privateReply": "Privéantwoord (inbox)",
-    "privateReplyDescription": "Stuur een privébericht naar de inbox van degene die de opmerking plaatste. Kies een AI-agent, een vaste tekstsjabloon (spintax wordt ondersteund), een chatbotflow of schakel dit uit.",
+    "privateReplyDescription": "Stuur een privébericht naar de inbox van degene die de opmerking plaatste. Kies een AI-agent, een vaste tekstsjabloon, een chatbotflow of schakel dit uit.",
     "publicReply": "Openbaar antwoord op opmerking",
-    "publicReplyDescription": "Plaats een openbaar antwoord direct onder de opmerking. Ondersteunt maximaal 10 tekstsjablonen (spintax wordt ondersteund), een AI-agent, een chatbotflow of geen antwoord.",
+    "publicReplyDescription": "Plaats een openbaar antwoord direct onder de opmerking. Ondersteunt maximaal 10 tekstsjablonen, een AI-agent, een chatbotflow of geen antwoord. Elk bericht wordt als een aparte reactie geplaatst. Spintax wordt ondersteund.",
     "replyMessage": "Antwoordbericht",
     "replyMessagePlaceholder": "Voer een antwoordbericht in...",
     "includeKeywordsType": "Antwoorden op",
     "includeKeywordsTypeDescription": "Kies op welke opmerkingen deze automatisering reageert.",
     "includeKeywords": "Trefwoorden om te vinden",
-    "excludeKeywords": "Opmerkingen met deze trefwoorden uitsluiten",
+    "excludeKeywords": "Reacties uitsluiten die bevatten",
     "excludeKeywordsDescription": "Opmerkingen die een van deze trefwoorden bevatten, worden door zowel de inbox- als de openbare antwoordautomatisering genegeerd.",
     "keywordsPlaceholder": "Typ en druk op Enter...",
     "replyAfter": "Antwoorden na",
@@ -4460,7 +5012,9 @@
       "replyToUsersWhoCommentedOnOtherPosts": "Gebruikers beantwoorden die opmerkingen bij andere berichten hebben geplaatst",
       "replyToUsersWhoCommentedOnOtherPostsDescription": "Blijf gebruikers beantwoorden die al opmerkingen bij je andere berichten hebben geplaatst.",
       "ignoreCommentReplies": "Antwoorden op opmerkingen niet beantwoorden",
-      "ignoreCommentRepliesDescription": "Sla de automatisering over voor opmerkingen die een antwoord zijn op andere opmerkingen en verwerk alleen opmerkingen op het hoogste niveau."
+      "ignoreCommentRepliesDescription": "Sla de automatisering over voor opmerkingen die een antwoord zijn op andere opmerkingen en verwerk alleen opmerkingen op het hoogste niveau.",
+      "trackUserTags": "Bijhouden of een gebruiker andere gebruikers tagt",
+      "trackUserTagsDescription": "Telt de accounts die in elke reactie worden getagd en telt ze op bij de totalen van het contact over alle reacties. Gebruik '{{total_tagged}}' voor alle getagde accounts en '{{total_new_tagged}}' voor accounts die je pagina nooit een bericht hebben gestuurd of nooit contact zijn geweest."
     },
     "hideComments": {
       "all": "Alle opmerkingen verbergen",
@@ -4486,6 +5040,192 @@
       "instagramFacebookTitle": "Instagram Login met Facebook",
       "instagramFacebookDescription": "Instagram gekoppeld via een Facebook-pagina. Ondersteunt openbare antwoorden, privéantwoorden, het verbergen van opmerkingen en het leuk vinden van opmerkingen."
     }
+  },
+  "threadsCommentAutomation": {
+    "title": "Threads Comment Automation",
+    "description": "Automate public Threads comment replies for your contacts.",
+    "create": "Create Automation",
+    "replies": "Replies",
+    "empty": "No Threads comment automations yet.",
+    "publicOnlyNote": "Threads currently supports public replies only.",
+    "trackCommentsOn": "Track comments on",
+    "publicReply": "Public reply to comment",
+    "publicReplyDescription": "Send a public reply to matching Threads comments. Maximaal 10 tekstberichten (spintax ondersteund), elk geplaatst als afzonderlijk antwoord.",
+    "replyMessage": "Reply message",
+    "replyFlow": "Reply flow",
+    "replyAIAgent": "Reply AI Agent",
+    "includeKeywordsType": "Reply to",
+    "includeKeywords": "Keywords to match",
+    "excludeKeywords": "Reacties uitsluiten die bevatten",
+    "keywordsPlaceholder": "Type and press Enter...",
+    "replyAfter": "Reply after",
+    "replyAfterValue": "Value",
+    "specificPostIds": "Specific post IDs",
+    "postIdPlaceholder": "Enter post IDs and press Enter...",
+    "card": {
+      "targeting": "Targeting & Reply",
+      "filters": "Filters & Options",
+      "replyTiming": "Reply Timing",
+      "hideComments": "Opmerkingen verbergen"
+    },
+    "postType": {
+      "all": "All posts",
+      "specificPosts": "Specific posts"
+    },
+    "replyType": {
+      "text": "Text message",
+      "flow": "Flow",
+      "AIAgent": "AI Agent",
+      "none": "No reply"
+    },
+    "keywordsType": {
+      "all": "All comments",
+      "equal": "Exact match",
+      "contain": "Contains"
+    },
+    "replyAfterType": {
+      "immediately": "Immediately",
+      "seconds": "After X seconds",
+      "minutes": "After X minutes",
+      "hours": "After X hours",
+      "randomWithin3Minutes": "Random within 3 minutes",
+      "randomWithin5Minutes": "Random within 5 minutes",
+      "randomWithin10Minutes": "Random within 10 minutes",
+      "randomWithin20Minutes": "Random within 20 minutes",
+      "randomWithin30Minutes": "Random within 30 minutes",
+      "randomWithin60Minutes": "Random within 60 minutes"
+    },
+    "options": {
+      "replyToNewContactsOnly": "Only reply to new contacts",
+      "replyOncePerUserPerPost": "Reply only once to each user per post",
+      "replyToUsersWhoCommentedOnOtherPosts": "Reply to users who commented on other posts",
+      "ignoreCommentReplies": "Don't reply to replies to comments"
+    },
+    "validation": {
+      "postIdsMustBeEmptyForAll": "Post IDs must be empty when targeting all posts.",
+      "postIdsRequired": "Select at least one post ID when targeting specific posts.",
+      "keywordsMustBeEmptyForAll": "Keywords must be empty when matching all comments.",
+      "keywordsRequired": "Enter at least one keyword for the selected match type.",
+      "delayMustBePositive": "Delay value must be greater than zero.",
+      "delayMustBeZero": "Delay value must be zero for the selected timing option.",
+      "atLeastOneFieldRequired": "At least one field is required.",
+      "replyTextRequired": "Voer minstens één antwoordbericht in.",
+      "hideKeywordsRequired": "Enter at least one keyword to hide comments by keyword."
+    },
+    "hideCommentsDescription": "Alleen antwoorden op het hoogste niveau op je berichten kunnen worden verborgen.",
+    "hideComments": {
+      "all": "Alle opmerkingen verbergen",
+      "hasPhoneNumber": "Bevat telefoonnummer",
+      "hasLink": "Bevat link",
+      "hasKeywords": "Bevat trefwoorden",
+      "keywords": "Trefwoorden",
+      "showCommentsAfter": "Opmerkingen weergeven na"
+    },
+    "showCommentsAfter": {
+      "none": "Nooit"
+    }
+  },
+  "tiktokCommentAutomation": {
+    "title": "TikTok Comment Automation",
+    "description": "Automate replies, likes and hiding on comments under your TikTok videos.",
+    "create": "Create Automation",
+    "replies": "Replies",
+    "empty": "No TikTok comment automations yet.",
+    "deliveryDelayNote": "TikTok delivers comment events within five minutes, so replies are not instant. Any reply delay you set is added on top of that.",
+    "trackCommentsOn": "Track comments on",
+    "publicReply": "Public reply to comment",
+    "publicReplyDescription": "Send a public reply to matching TikTok comments. Maximaal 10 tekstberichten (spintax ondersteund), elk geplaatst als afzonderlijk antwoord.",
+    "replyMessage": "Reply message",
+    "replyFlow": "Reply flow",
+    "replyAIAgent": "Reply AI Agent",
+    "includeKeywordsType": "Reply to",
+    "includeKeywords": "Keywords to match",
+    "excludeKeywords": "Reacties uitsluiten die bevatten",
+    "keywordsPlaceholder": "Type and press Enter...",
+    "replyAfter": "Reply after",
+    "replyAfterValue": "Value",
+    "specificPostIds": "Specific video IDs",
+    "postIdPlaceholder": "Enter video IDs and press Enter...",
+    "hideCommentsDescription": "Hidden comments stay visible to their author only.",
+    "card": {
+      "targeting": "Targeting & Reply",
+      "filters": "Filters & Options",
+      "hideComments": "Hide Comments",
+      "replyTiming": "Reply Timing"
+    },
+    "postType": {
+      "all": "All videos",
+      "specificPosts": "Specific videos"
+    },
+    "replyType": {
+      "text": "Text message",
+      "flow": "Flow",
+      "AIAgent": "AI Agent",
+      "none": "No reply"
+    },
+    "keywordsType": {
+      "all": "All comments",
+      "equal": "Exact match",
+      "contain": "Contains"
+    },
+    "replyAfterType": {
+      "immediately": "Immediately",
+      "seconds": "After X seconds",
+      "minutes": "After X minutes",
+      "hours": "After X hours",
+      "randomWithin3Minutes": "Random within 3 minutes",
+      "randomWithin5Minutes": "Random within 5 minutes",
+      "randomWithin10Minutes": "Random within 10 minutes",
+      "randomWithin20Minutes": "Random within 20 minutes",
+      "randomWithin30Minutes": "Random within 30 minutes",
+      "randomWithin60Minutes": "Random within 60 minutes"
+    },
+    "options": {
+      "replyToNewContactsOnly": "Only reply to new contacts",
+      "replyOncePerUserPerPost": "Reply only once to each user per video",
+      "replyToUsersWhoCommentedOnOtherPosts": "Reply to users who commented on other videos",
+      "ignoreCommentReplies": "Don't reply to replies to comments",
+      "likeUserComment": "Like the user's comment"
+    },
+    "hide": {
+      "all": "Hide every comment",
+      "hasPhoneNumber": "Hide comments containing a phone number",
+      "hasLink": "Hide comments containing a link",
+      "hasKeywords": "Hide comments containing keywords",
+      "keywords": "Keywords to hide",
+      "showCommentsAfter": "Show hidden comments again after"
+    },
+    "showCommentsAfter": {
+      "none": "Never",
+      "6h": "6 hours",
+      "12h": "12 hours",
+      "1d": "1 day",
+      "2d": "2 days",
+      "3d": "3 days",
+      "4d": "4 days",
+      "5d": "5 days",
+      "6d": "6 days",
+      "7d": "7 days",
+      "8d": "8 days",
+      "9d": "9 days",
+      "10d": "10 days"
+    },
+    "validation": {
+      "postIdsMustBeEmptyForAll": "Video IDs must be empty when targeting all videos.",
+      "postIdsRequired": "Select at least one video ID when targeting specific videos.",
+      "keywordsMustBeEmptyForAll": "Keywords must be empty when matching all comments.",
+      "keywordsRequired": "Enter at least one keyword for the selected match type.",
+      "delayMustBePositive": "Delay value must be greater than zero.",
+      "delayMustBeZero": "Delay value must be zero for the selected timing option.",
+      "hideKeywordsRequired": "Enter at least one keyword to hide comments by keyword.",
+      "atLeastOneFieldRequired": "At least one field is required.",
+      "replyTextRequired": "Voer minstens één antwoordbericht in."
+    },
+    "privateReply": "Private reply (Comment-to-Message)",
+    "privateReplyDescription": "Send a direct message to the commenter. TikTok only allows this for comments it flags as high intent, so it will not fire for every matching comment.",
+    "privateReplyMessage": "Private reply message",
+    "privateReplyHighIntentTitle": "TikTok decides which comments can be messaged",
+    "privateReplyHighIntentNotice": "Comment-to-Message must be enabled on the connected TikTok account, and the account must be a Business Account registered in Vietnam, Indonesia or Thailand. TikTok sends the direct message only for first-level comments it flags as high intent, within 48 hours, once per comment, and not if the commenter already messaged you in the past 24 hours."
   },
   "instagramStoryAutomation": {
     "title": "Instagram Story-reactie-automatisering",
@@ -4676,10 +5416,6 @@
     "queues": {
       "title": "Wachtrijen"
     },
-    "aiSettings": {
-      "title": "AI Settings",
-      "description": "Central Vertex AI configuration every workspace's AI agents inherit."
-    },
     "workspaces": {
       "title": "Werkruimtes",
       "description": "Werkruimtes waarvan de eigenaar platformondersteuningstoegang heeft ingeschakeld, kunnen hier worden geopend.",
@@ -4690,6 +5426,10 @@
       "supportEnabledUntil": "Ingeschakeld tot {time}",
       "supportOff": "Uit",
       "searchPlaceholder": "Zoeken op naam, e-mailadres eigenaar of ID"
+    },
+    "aiSettings": {
+      "title": "AI Settings",
+      "description": "Central Vertex AI configuration every workspace's AI agents inherit."
     }
   },
   "platformCredentials": {
@@ -5491,10 +6231,19 @@
       "confirmationFlowId": "Bevestigingsflow",
       "cancellationFlowId": "Annuleringsflow",
       "externalConnectionId": "Externe kalender",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
       "reminders": "Herinneringen",
       "reminderTimingValue": "Waarde",
       "reminderTimingUnit": "Eenheid"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
     "locationTypes": {
       "inPerson": "Persoonlijke afspraak",
       "phoneCall": "Telefoongesprek",
@@ -5590,7 +6339,8 @@
     "connectViaFacebook": "Koppelen via Facebook",
     "unsupportedExplanation": "Dit Instagram-account is gekoppeld met Instagram Business Login. Koppel het account via Facebook om Meta Conversions API te kunnen gebruiken.",
     "flowStep": {
-      "whatsappNote": "WhatsApp-gebeurtenissen worden alleen verzonden voor gesprekken die zijn gestart vanuit een click-to-WhatsApp-advertentie."
+      "whatsappNote": "WhatsApp-gebeurtenissen worden alleen verzonden voor gesprekken die zijn gestart vanuit een click-to-WhatsApp-advertentie.",
+      "description": "Plaats een LeadSubmitted-gebeurtenis in de wachtrij voor Messenger, Instagram of WhatsApp."
     },
     "status": {
       "title": "Meta Conversions API",
@@ -5618,8 +6368,9 @@
       "invalidDatasetId": "Voer een geldig Dataset ID in (alleen cijfers).",
       "whatsappNotFound": "WhatsApp-integratie niet gevonden.",
       "testEventCodeRequired": "Sla een testgebeurteniscode op voordat je een testgebeurtenis verzendt.",
-      "noContactForTest": "Nog geen geschikt contact op dit kanaal. Een testgebeurtenis heeft een echt contact nodig om aan toe te wijzen (voor WhatsApp een contact uit een click-to-WhatsApp-advertentie).",
-      "invalidTestEventCode": "De testgebeurteniscode mag alleen letters, cijfers, koppeltekens of underscores bevatten (max. 64)."
+      "invalidTestEventCode": "De testgebeurteniscode mag alleen letters, cijfers, koppeltekens of underscores bevatten (max. 64).",
+      "invalidMessagingId": "Het messaging-id mag alleen letters, cijfers, koppeltekens of onderstrepingstekens bevatten (max. 512).",
+      "capiDisconnected": "Meta CAPI is losgekoppeld voor dit kanaal. Koppel het opnieuw voordat je een testgebeurtenis verzendt."
     },
     "fields": {
       "eventType": {
@@ -5763,10 +6514,21 @@
       "saved": "Testgebeurteniscode opgeslagen.",
       "cleared": "Testgebeurteniscode gewist. Gebeurtenissen zijn weer live.",
       "send": "Testgebeurtenis verzenden",
-      "sent": "Testgebeurtenis in wachtrij geplaatst. Deze verschijnt binnen een minuut onder Test events in Events Manager.",
-      "sendHint": "Verstuurt één voorbeeld-Purchase (100 USD) naar het meest recente contact van dit kanaal.",
+      "sent": "Testgebeurtenis verzonden. Deze verschijnt binnen een minuut onder Test events in Events Manager.",
+      "sendHint": "Verstuurt één voorbeeld-Purchase (100 USD) naar een messaging-id dat je invoert. Er wordt geen opgeslagen contact gebruikt.",
       "activeNotice": "Testmodus staat aan: gebeurtenissen van dit kanaal worden pas weer meegeteld in rapporten zodra de code is gewist.",
-      "openTestEvents": "Test events openen"
+      "openTestEvents": "Test events openen",
+      "dialogTitle": "Testgebeurtenis verzenden",
+      "dialogDescription": "Eén voorbeeld-Purchase (100 USD) wordt verzonden met je testgebeurteniscode. Plak het voorbeeld-messaging-id uit Events Manager → Test events → Messaging → Graph API Explorer, zodat niets aan een echt contact wordt toegeschreven.",
+      "messagingIdLabel": {
+        "messenger": "Contact-id (page_scoped_user_id)",
+        "instagram": "Contact-id (ig_sid)",
+        "whatsapp": "Klik-id (ctwa_clid)"
+      },
+      "messagingIdPlaceholder": "Plak de voorbeeldwaarde van Meta",
+      "messagingIdHint": "Alleen letters, cijfers, koppeltekens en onderstrepingstekens (max. 512).",
+      "cancel": "Annuleren",
+      "confirmSend": "Verzenden"
     }
   },
   "minigames": {
@@ -5828,16 +6590,17 @@
       "jackpotBanner": "Jackpot",
       "luckyWheelHeader": "GELUKSWIEL",
       "gashaponHeader": "GASHAPON",
-      "comingSoon": "Gedetailleerde voorvertoning voor dit speltype volgt binnenkort",
       "drawLotsHeader": "LOTEN TREKKEN",
       "scratchOffHeader": "KRAS & WIN",
-      "scratchOffCardTitle": "Geluksster kraslotjes"
+      "scratchOffCardTitle": "Geluksster kraslotjes",
+      "comingSoon": "Gedetailleerde voorvertoning voor dit speltype volgt binnenkort"
     },
     "form": {
       "generalSettingsTitle": "Algemene instellingen",
       "appearanceTitle": "Uiterlijk",
       "playerSettingsTitle": "Spelerinstellingen",
-      "prizeSettingsTitle": "Prijsinstellingen"
+      "prizeSettingsTitle": "Prijsinstellingen",
+      "validationFailed": "Corrigeer de gemarkeerde velden voordat je opslaat."
     },
     "generalSettings": {
       "showName": "Zichtbaar",
@@ -5845,10 +6608,7 @@
       "rulesDescription": "Spelregels",
       "openerTags": "Tag contacten die de spellink openen",
       "playerTags": "Tag spelers",
-      "newFriendTags": "Tag nieuwe vrienden",
-      "shareEnabled": "Delen met vrienden toestaan",
-      "shareMessage": "Deelbericht",
-      "shareMessageHint": "Gebruik '{{shareUrl}}' om de daadwerkelijke spellink in te voegen — verwijder dit niet."
+      "newFriendTags": "Tag nieuwe vrienden"
     },
     "appearance": {
       "backgroundColor": "Achtergrondkleur",
@@ -5864,6 +6624,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "Aantal trekkingskansen per persoon",
+      "maxSharesPerPerson": "Max. bonustrekkingen uit verwijzingen",
+      "maxSharesPerPersonHint": "Elke vriend die via de uitnodigingslink van deze speler binnenkomt en jou een bericht stuurt, levert hem 1 extra trekking op, tot deze limiet. Zet op 0 om verwijzingsbonussen uit te schakelen. Bonustrekkingen moeten vóór de volgende reset worden gebruikt.",
+      "sharingNode": "Deelstap",
+      "sharingNodeHint": "De flow-stap die wordt uitgevoerd wanneer een vriend de deellink van deze speler opent. Laat leeg om de knop Delen te verbergen.",
       "resetPolicyLabel": "Trekkingen resetten",
       "resetNever": "Aantal trekkingen niet resetten",
       "resetEveryNDays": "Reset het aantal trekkingen elke",
@@ -5882,29 +6646,32 @@
       "forbiddenTitle": "Toegang geweigerd",
       "forbiddenDescription": "Deze link is ongeldig of verlopen.",
       "comingSoonTitle": "Binnenkort beschikbaar",
-      "comingSoonDescription": "Dit type minispel is nog niet speelbaar."
+      "comingSoonDescription": "Dit type minispel is nog niet speelbaar.",
+      "rateLimited": "Te veel verzoeken. Wacht even en probeer het opnieuw."
+    },
+    "list": {
+      "gamesPlayed": "Gespeelde spellen",
+      "participants": "Deelnemers",
+      "winners": "Winnaars",
+      "shares": "Verwijzingen"
     },
     "history": {
       "title": "Geschiedenis",
       "played": "Gespeeld",
       "remaining": "Resterende trekkingen",
+      "shares": "Verwijzingen",
       "openedAt": "Eerst geopend",
       "lastPlayedAt": "Laatst gespeeld",
       "unknownContact": "Onbekend contact",
+      "conversationNotFound": "Geen gesprek gevonden voor dit contact",
+      "popupBlocked": "Sta pop-ups voor deze site toe en probeer het opnieuw.",
       "record": "Logboek",
       "recordDialog": {
         "title": "Speellogboek",
         "win": "Gewonnen",
         "lose": "Geen prijs",
         "empty": "Nog geen speelrecords"
-      },
-      "conversationNotFound": "Geen gesprek gevonden voor dit contact",
-      "popupBlocked": "Sta pop-ups voor deze site toe en probeer het opnieuw."
-    },
-    "list": {
-      "gamesPlayed": "Gespeelde spellen",
-      "participants": "Deelnemers",
-      "winners": "Winnaars"
+      }
     }
   },
   "mediaLibrary": {
@@ -6122,6 +6889,14 @@
   },
   "accountFields": {
     "title": "Botvelden"
+  },
+  "openLink": {
+    "title": "Link openen",
+    "invalidTitle": "Ongeldige link.",
+    "invalidDescription": "Deze link is ongeldig of verlopen.",
+    "openZaloGroup": "Zalo-groep openen",
+    "openZalo": "Zalo openen",
+    "openMessenger": "Messenger openen"
   },
   "platformAiSettings": {
     "title": "AI Settings",

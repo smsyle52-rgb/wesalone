@@ -24,6 +24,7 @@ export const channelTypes = z.enum([
   "smtp",
   "telegram",
   "instagram",
+  "threads",
   "tiktok",
   "api",
 ])
@@ -108,6 +109,12 @@ export type ChannelCapability = {
   requiresCredential: boolean
   /** Relative display order in the picker and the settings accordion. */
   order: number
+  /**
+   * Whether the channel carries voice calls — gates call-only navigation (the
+   * Calls page entry). Being part of this exhaustive record means a future
+   * calling channel fails to compile until it declares its answer here.
+   */
+  callable: boolean
 }
 
 export const CHANNEL_CAPABILITIES: Record<ChannelType, ChannelCapability> = {
@@ -116,30 +123,47 @@ export const CHANNEL_CAPABILITIES: Record<ChannelType, ChannelCapability> = {
     manageable: true,
     requiresCredential: true,
     order: 1,
+    callable: true,
   },
   messenger: {
     creatable: true,
     manageable: true,
     requiresCredential: true,
     order: 2,
+    callable: false,
   },
   instagram: {
     creatable: true,
     manageable: true,
     requiresCredential: true,
     order: 3,
+    callable: false,
+  },
+  // Threads is fully implemented but still waiting on Meta's Threads API
+  // approval, so the product UI hides it from everyone outside a preview
+  // allowlist. That gate depends on the signed-in user, so it cannot live in
+  // this static registry — see
+  // `apps/builder/src/lib/workspace/preview-channels.ts`.
+  threads: {
+    creatable: true,
+    manageable: true,
+    requiresCredential: true,
+    order: 4,
+    callable: false,
   },
   tiktok: {
     creatable: true,
     manageable: true,
     requiresCredential: true,
-    order: 4,
+    order: 5,
+    callable: false,
   },
   telegram: {
     creatable: true,
     manageable: true,
     requiresCredential: false,
-    order: 5,
+    order: 6,
+    callable: false,
   },
   // Zalo is a Vietnamese messenger with no users in Wesal One's market. Hiding
   // it through `Tenant.hiddenChannels` only gates the create picker — it still
@@ -151,25 +175,29 @@ export const CHANNEL_CAPABILITIES: Record<ChannelType, ChannelCapability> = {
     creatable: false,
     manageable: false,
     requiresCredential: true,
-    order: 6,
+    order: 7,
+    callable: false,
   },
   webchat: {
     creatable: true,
     manageable: true,
     requiresCredential: false,
-    order: 7,
+    order: 8,
+    callable: false,
   },
   smtp: {
     creatable: false,
     manageable: true,
     requiresCredential: false,
-    order: 8,
+    order: 9,
+    callable: false,
   },
   api: {
     creatable: true,
     manageable: true,
     requiresCredential: false,
-    order: 9,
+    order: 10,
+    callable: false,
   },
   // Not a real connectable channel — the fallback icon/label for unknown
   // channel strings (see `InboxIcon`'s `isChannelType` guard). Never offered
@@ -178,7 +206,8 @@ export const CHANNEL_CAPABILITIES: Record<ChannelType, ChannelCapability> = {
     creatable: false,
     manageable: false,
     requiresCredential: false,
-    order: 10,
+    order: 11,
+    callable: false,
   },
 }
 
@@ -201,3 +230,67 @@ export const CREATABLE_CHANNELS: ChannelType[] = channelTypes.options
 export const MANAGEABLE_CHANNELS: ChannelType[] = channelTypes.options
   .filter((channel) => CHANNEL_CAPABILITIES[channel].manageable)
   .sort((a, b) => CHANNEL_CAPABILITIES[a].order - CHANNEL_CAPABILITIES[b].order)
+
+/**
+ * Channels that can produce call history, in display order. Derived from
+ * CHANNEL_CAPABILITIES.callable rather than hardcoded so nothing outside that
+ * registry has to name a specific channel to answer "can this workspace ever
+ * have calls?".
+ */
+export const CALL_CAPABLE_CHANNELS: ChannelType[] = channelTypes.options
+  .filter((channel) => CHANNEL_CAPABILITIES[channel].callable)
+  .sort((a, b) => CHANNEL_CAPABILITIES[a].order - CHANNEL_CAPABILITIES[b].order)
+
+/**
+ * Channels that support Meta's WhatsApp/Messenger/Instagram "coexistence"
+ * mode (running alongside the native app; a `CoexistSyncRun` imports the
+ * existing contact/message history once). Subset of `channelTypes`.
+ *
+ * Lives here for the same reason as `channelTypes` (see the comment above):
+ * `packages/database/src/schema/coexist-sync-run.ts` derives its
+ * `coexistChannel` pgEnum from these exact values so the database type and
+ * this list can never drift, and `@chatbotx.io/business` needs the same list
+ * without adding a database dependency.
+ */
+export const coexistChannels = z.enum(["whatsapp", "messenger", "instagram"])
+
+export type CoexistChannel = z.infer<typeof coexistChannels>
+
+/**
+ * Same values as `coexistChannels.options`, exposed as a plain array for
+ * callers that want that shape directly (e.g. `pgEnum`'s second argument).
+ */
+export const COEXIST_CHANNELS = coexistChannels.options
+
+/** Whether a channel string is one of the coexist-eligible channels. */
+export const isCoexistChannel = (
+  channel: string | null | undefined,
+): channel is CoexistChannel =>
+  channel != null && (COEXIST_CHANNELS as readonly string[]).includes(channel)
+
+/**
+ * Channels that support the Automatic Customer Scan (walking a channel's
+ * conversation/follower list to import existing contacts that never
+ * messaged first). Subset of `channelTypes`.
+ *
+ * Lives here for the same reason as `channelTypes`/`coexistChannels` (see the
+ * comments above): `@chatbotx.io/business`'s scan channel registry and
+ * `packages/database`'s scan queries need the same list without adding a
+ * database dependency.
+ */
+export const contactScanChannels = z.enum(["messenger", "instagram"])
+
+export type ContactScanChannel = z.infer<typeof contactScanChannels>
+
+/**
+ * Same values as `contactScanChannels.options`, exposed as a plain array for
+ * callers that want that shape directly.
+ */
+export const CONTACT_SCAN_CHANNELS = contactScanChannels.options
+
+/** Whether a channel string is one of the contact-scan-eligible channels. */
+export const isContactScanChannel = (
+  channel: string | null | undefined,
+): channel is ContactScanChannel =>
+  channel != null &&
+  (CONTACT_SCAN_CHANNELS as readonly string[]).includes(channel)

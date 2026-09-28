@@ -4,24 +4,10 @@ import {
   broadcastService,
   platformSubscriptionService,
 } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { workspaceActionClient } from "@/lib/safe-action"
-import {
-  normalizeScheduleTime,
-  type ScheduleBroadcastSchema,
-  scheduleBroadcastSchema,
-} from "../schema/action"
-
-// A `now` draft gets `schedulesAt = startOfMinute(now) <= now`, so
-// `enqueueBroadcast`'s `schedulesAt <= startTime AND status = scheduled` scan
-// picks it up on its next minute tick — the same path a "send now" create takes.
-const resolveScheduleTime = (parsedInput: ScheduleBroadcastSchema): Date =>
-  normalizeScheduleTime(
-    parsedInput.schedulesType === "future" && parsedInput.schedulesAt
-      ? parsedInput.schedulesAt
-      : new Date().toISOString(),
-  )
+import { resolveScheduleTime, scheduleBroadcastSchema } from "../schema/action"
+import { withBroadcastPlanLimitOutcome } from "./broadcast-plan-limit-outcome"
 
 export const scheduleBroadcastAction = workspaceActionClient
   .bindArgsSchemas([zodBigintAsString(), zodBigintAsString()])
@@ -32,24 +18,20 @@ export const scheduleBroadcastAction = workspaceActionClient
       parsedInput,
     } = props
 
+    // Wesal One: broadcasts are a paid-plan feature — drafts included, so a
+    // free workspace never builds a campaign it could not launch.
     await platformSubscriptionService.assertPaidPlanForWorkspace(workspaceId)
 
-    const result = await broadcastService.scheduleDraft({
-      workspaceId,
-      broadcastId: id,
-      schedulesType: parsedInput.schedulesType,
-      schedulesAt: resolveScheduleTime(parsedInput),
-    })
-
-    // Mirrors `createBroadcastAction`: only an immediate send is a launch; a
-    // future schedule is audited as a launch when the send actually happens.
-    if (parsedInput.schedulesType === "now") {
-      await auditService.record({
+    // The service owns the draft-status guard and the audit record (only
+    // when `schedulesType === "now"`) — shared with the public API's
+    // `schedule` route.
+    return await withBroadcastPlanLimitOutcome(() =>
+      broadcastService.scheduleDraft({
         workspaceId,
-        action: "launch",
-        detail: `launched a broadcast (#${result.id})`,
-      })
-    }
-
-    return result
+        broadcastId: id,
+        schedulesType: parsedInput.schedulesType,
+        schedulesAt: resolveScheduleTime(parsedInput),
+        sendRatePerMinute: parsedInput.sendRatePerMinute,
+      }),
+    )
   })

@@ -3,19 +3,16 @@ import {
   conversationService,
   platformSubscriptionService,
 } from "@chatbotx.io/business"
-import { and, db, eq, isNull } from "@chatbotx.io/database/client"
 import {
   type BroadcastStatus,
   broadcastStatuses,
   broadcastSubactions,
   channelTypes,
+  resolveBroadcastAudienceRange,
+  resolveBroadcastTargetInboxIds,
 } from "@chatbotx.io/database/partials"
 import type { ContactFilterCriteriaInput } from "@chatbotx.io/database/queries"
 import { purgeBroadcastRecipients } from "@chatbotx.io/database/repositories"
-import {
-  broadcastModel,
-  contactsOnBroadcastsModel,
-} from "@chatbotx.io/database/schema"
 import {
   broadcastSendJobId,
   ScheduleJobData,
@@ -31,12 +28,8 @@ const PREPARE_PURGE_INTER_CHUNK_DELAY_MS = 50
 const PREPARE_PURGE_MAX_RUN_DURATION_MS = 60_000
 
 export const prepareBroadcast = async (broadcastId: string) => {
-  const broadcast = await db.query.broadcastModel.findFirst({
-    where: {
-      id: broadcastId,
-      status: "scheduled",
-      deletedAt: { isNull: true },
-    },
+  const broadcast = await broadcastService.findScheduledForPrepare({
+    broadcastId,
   })
 
   if (!broadcast) {
@@ -100,14 +93,11 @@ export const prepareBroadcast = async (broadcastId: string) => {
       broadcastSubactions.enum.messengerTemplateMessage &&
     broadcast.templateId
   ) {
-    const template = await db.query.messengerMessageTemplateModel.findFirst({
-      where: {
-        id: broadcast.templateId,
-        integrationMessenger: { workspaceId: broadcast.workspaceId },
-      },
-      columns: { integrationMessengerId: true },
-    })
-    integrationMessengerId = template?.integrationMessengerId ?? null
+    integrationMessengerId =
+      await broadcastService.resolveTemplateIntegrationMessengerId({
+        workspaceId: broadcast.workspaceId,
+        templateId: broadcast.templateId,
+      })
   }
 
   let hasContactOnBroadcast = false
@@ -117,11 +107,16 @@ export const prepareBroadcast = async (broadcastId: string) => {
     {
       workspaceId: broadcast.workspaceId,
       channels: parsedChannel.success ? [parsedChannel.data] : [],
+      // Targets mode scopes by the target pages (an empty list once every
+      // page is gone means nobody); channel mode leaves it undefined so the
+      // legacy integration columns / channel apply.
+      inboxIds: resolveBroadcastTargetInboxIds(broadcast),
       integrationWhatsappId: broadcast.integrationWhatsappId,
       integrationMessengerId,
       contactFilter:
         broadcast.contactFilter as ContactFilterCriteriaInput | null,
       subaction: parsedSubaction.success ? parsedSubaction.data : undefined,
+      audienceRange: resolveBroadcastAudienceRange(broadcast),
     },
     async (contactInboxes): Promise<boolean | undefined> => {
       const conversations = await conversationService.findDMByContactIds({
@@ -129,9 +124,6 @@ export const prepareBroadcast = async (broadcastId: string) => {
         contactIds: contactInboxes.map(
           (contactInbox) => contactInbox.contactId,
         ),
-        // TikTok resolves its DM by a non-null sourceId; every other channel
-        // keeps the sourceId IS NULL convention.
-        channel: parsedChannel.success ? parsedChannel.data : undefined,
       })
 
       const conversationMap = new Map(
@@ -171,10 +163,7 @@ export const prepareBroadcast = async (broadcastId: string) => {
 
       hasContactOnBroadcast = true
 
-      await db
-        .insert(contactsOnBroadcastsModel)
-        .values(recipients)
-        .onConflictDoNothing()
+      await broadcastService.insertRecipients({ recipients })
 
       contactCount += recipients.length
 
@@ -186,18 +175,12 @@ export const prepareBroadcast = async (broadcastId: string) => {
     ? broadcastStatuses.enum.sending
     : broadcastStatuses.enum.sent
 
-  const [promoted] = await db
-    .update(broadcastModel)
-    .set({ status: broadcastStatus, contactCount })
-    .where(
-      and(
-        eq(broadcastModel.id, broadcastId),
-        eq(broadcastModel.status, broadcastStatuses.enum.scheduled),
-        isNull(broadcastModel.deletedAt),
-        eq(broadcastModel.resumeCount, promotionEpoch),
-      ),
-    )
-    .returning({ id: broadcastModel.id })
+  const promoted = await broadcastService.promoteAfterPrepare({
+    broadcastId,
+    status: broadcastStatus,
+    contactCount,
+    promotionEpoch,
+  })
 
   if (!promoted) {
     // Lost the promotion race — a moveToDraft (or delete) bumped the epoch

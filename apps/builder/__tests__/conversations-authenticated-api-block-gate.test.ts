@@ -10,7 +10,11 @@ type RouteConfig = {
 type ArchiveInput = { workspaceId: string; ids: string[] }
 type HandlerContext = {
   input: ArchiveInput
-  context: { user: { id: string }; workspace: { ownerId: string } }
+  context: {
+    user: { id: string }
+    workspace: { ownerId: string }
+    workspaceMember?: { permissions: unknown }
+  }
 }
 type ProcedureHandler = (args: HandlerContext) => Promise<unknown>
 
@@ -63,18 +67,33 @@ vi.mock("@/middlewares/auth", () => ({
   workspaceAuthorizedMidddleware: vi.fn(),
 }))
 
-const { archiveConversations, getAtLimitMap, getForUser, isCloud } = vi.hoisted(
-  () => ({
-    archiveConversations: vi.fn(),
-    getAtLimitMap: vi.fn(),
-    getForUser: vi.fn(),
-    isCloud: vi.fn(),
-  }),
-)
+const {
+  archiveByIds,
+  canViewContactEmailAndPhone,
+  hasReachedLimit,
+  getForUser,
+  isCloud,
+  listConversations,
+} = vi.hoisted(() => ({
+  archiveByIds: vi.fn(),
+  canViewContactEmailAndPhone: vi.fn(),
+  hasReachedLimit: vi.fn(),
+  getForUser: vi.fn(),
+  isCloud: vi.fn(),
+  listConversations: vi.fn(),
+}))
 
 vi.mock("@chatbotx.io/business", () => ({
-  conversationService: { updateReadStatus: vi.fn() },
-  quotaEnforcementService: { getAtLimitMap },
+  conversationService: {
+    updateReadStatus: vi.fn(),
+    archiveByIds,
+    unarchiveByIds: vi.fn(),
+    assignByContactIds: vi.fn(),
+    setBotEnabledByIds: vi.fn(),
+    setFollowed: vi.fn(),
+    markUnread: vi.fn(),
+  },
+  quotaEnforcementService: { hasReachedLimit },
   userQuotaService: { getForUser },
 }))
 
@@ -93,45 +112,15 @@ vi.mock("@chatbotx.io/business/errors", () => ({
 
 vi.mock("@/env", () => ({ isCloud }))
 
-vi.mock("@/features/conversations/actions/archive-conversation.action", () => ({
-  archiveConversations,
-}))
-vi.mock("@/features/conversations/actions/assign-conversation.action", () => ({
-  assignConversation: vi.fn(),
-}))
-vi.mock("@/features/conversations/actions/disable-bot.action", () => ({
-  disableBotForConversations: vi.fn(),
-}))
-vi.mock("@/features/conversations/actions/enable-bot.action", () => ({
-  enableBotForConversations: vi.fn(),
-}))
-vi.mock("@/features/conversations/actions/follow-conversation.action", () => ({
-  followConversation: vi.fn(),
-}))
-vi.mock(
-  "@/features/conversations/actions/unarchive-conversation.action",
-  () => ({
-    unarchiveConversations: vi.fn(),
-  }),
-)
-vi.mock(
-  "@/features/conversations/actions/unfollow-conversation.action",
-  () => ({
-    unfollowConversation: vi.fn(),
-  }),
-)
-vi.mock("@/features/conversations/actions/unread-conversation.action", () => ({
-  unreadConversation: vi.fn(),
-}))
 vi.mock("@/features/conversations/queries/get-post-details.query", () => ({
   getPostDetailsQuery: vi.fn(),
 }))
 vi.mock("@/features/conversations/queries/list-conversations.query", () => ({
   findConversation: vi.fn(),
-  listConversations: vi.fn(),
+  listConversations,
 }))
 vi.mock("@/features/contacts/permissions", () => ({
-  canViewContactEmailAndPhone: vi.fn(),
+  canViewContactEmailAndPhone,
 }))
 vi.mock("@/lib/auth/utils", () => ({
   getCurrentUserAndTargetWorkspace: vi.fn().mockResolvedValue(null),
@@ -140,6 +129,7 @@ vi.mock("@/lib/auth/utils", () => ({
 await import("@/features/conversations/api/private")
 
 const ARCHIVE_PATH = "/workspaces/{workspaceId}/conversations/archive"
+const LIST_PATH = "/workspaces/{workspaceId}/conversations"
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -149,7 +139,7 @@ beforeEach(() => {
 describe("conversationsAuthenticatedAPI — trial-expired/MAC block gate", () => {
   test("archiveConversationsAuthenticatedAPI rejects a blocked workspace owner with a 402", async () => {
     getForUser.mockResolvedValue({ planStatus: "expired", periodEnd: null })
-    getAtLimitMap.mockResolvedValue({ mac: false })
+    hasReachedLimit.mockResolvedValue(false)
 
     const handler = handlersByPath[ARCHIVE_PATH]
     expect(handler).toBeDefined()
@@ -167,13 +157,13 @@ describe("conversationsAuthenticatedAPI — trial-expired/MAC block gate", () =>
       httpStatusCode: 402,
     })
 
-    expect(archiveConversations).not.toHaveBeenCalled()
+    expect(archiveByIds).not.toHaveBeenCalled()
   })
 
   test("archiveConversationsAuthenticatedAPI proceeds when the owner is not blocked", async () => {
     getForUser.mockResolvedValue({ planStatus: "active", periodEnd: null })
-    getAtLimitMap.mockResolvedValue({ mac: false })
-    archiveConversations.mockResolvedValue(undefined)
+    hasReachedLimit.mockResolvedValue(false)
+    archiveByIds.mockResolvedValue(undefined)
 
     const handler = handlersByPath[ARCHIVE_PATH]
 
@@ -187,10 +177,57 @@ describe("conversationsAuthenticatedAPI — trial-expired/MAC block gate", () =>
       }),
     ).resolves.toEqual({ success: true })
 
-    expect(archiveConversations).toHaveBeenCalledWith({
+    expect(archiveByIds).toHaveBeenCalledWith({
       workspaceId: "workspace-1",
       ids: ["conversation-1"],
       userId: "user-1",
+      triggerContext: {
+        triggerSource: "api",
+        triggerHandler: "archiveConversationAction",
+        triggerType: "conversation_archived",
+      },
     })
+  })
+})
+
+describe("conversationsAuthenticatedAPI — PII permission gate", () => {
+  test("includes email and phone when the workspace member has permission", async () => {
+    canViewContactEmailAndPhone.mockReturnValue(true)
+    listConversations.mockResolvedValue({ data: [], nextCursor: null })
+
+    const handler = handlersByPath[LIST_PATH]
+    await handler?.({
+      input: { workspaceId: "workspace-1", ids: [] },
+      context: {
+        user: { id: "user-1" },
+        workspace: { ownerId: "owner-1" },
+        workspaceMember: { permissions: { contacts: true } },
+      },
+    })
+
+    expect(listConversations).toHaveBeenCalledWith(
+      { workspaceId: "workspace-1", ids: [] },
+      { includeEmailAndPhone: true },
+    )
+  })
+
+  test("omits email and phone when the workspace member lacks permission", async () => {
+    canViewContactEmailAndPhone.mockReturnValue(false)
+    listConversations.mockResolvedValue({ data: [], nextCursor: null })
+
+    const handler = handlersByPath[LIST_PATH]
+    await handler?.({
+      input: { workspaceId: "workspace-1", ids: [] },
+      context: {
+        user: { id: "user-1" },
+        workspace: { ownerId: "owner-1" },
+        workspaceMember: { permissions: { contacts: false } },
+      },
+    })
+
+    expect(listConversations).toHaveBeenCalledWith(
+      { workspaceId: "workspace-1", ids: [] },
+      { includeEmailAndPhone: false },
+    )
   })
 })

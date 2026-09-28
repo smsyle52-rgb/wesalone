@@ -7,13 +7,14 @@ import {
   desc,
   eq,
   ilike,
+  lt,
   sql,
 } from "@chatbotx.io/database/client"
-import type {
-  ChannelType,
-  MinigameOutcomeMessage,
-  MinigamePlayerSettings,
-  MinigamePrizeSettings,
+import {
+  MINIGAME_PRIZE_NAME_TOKEN,
+  type MinigameOutcomeMessage,
+  type MinigamePlayerSettings,
+  type MinigamePrizeSettings,
 } from "@chatbotx.io/database/partials"
 import { createMessageRepository } from "@chatbotx.io/database/repositories"
 import {
@@ -32,6 +33,7 @@ import {
   getPaginationWithDefaults,
   likeContains,
 } from "@chatbotx.io/database/utils"
+import { applySpintax } from "@chatbotx.io/utils/spintax"
 import {
   ChatJobAction,
   chatQueue,
@@ -46,11 +48,22 @@ import { conversationService } from "../conversation/service"
 import { ChatbotXException } from "../errors"
 import { logger } from "../logger"
 import { tagService } from "../tag/service"
+import { isMinigameWithinPlayWindow } from "./play-window"
 import { type MinigamePlayResult, resolveMinigamePrize } from "./resolve-prize"
 import { minigameService } from "./service"
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const MAX_PLAY_RECORDS = 200
+
+/**
+ * Resolves `{{first_name}}`-style contact variables in an outcome message.
+ *
+ * Injected by the app layer rather than imported: `@chatbotx.io/variables`
+ * depends on this package, so importing it here would close a cycle. The one
+ * caller is `playMinigameAction`. Omitting it leaves the placeholders literal
+ * — the behaviour this package had before the resolver existed.
+ */
+export type MinigameContactVariableResolver = (text: string) => Promise<string>
 
 // `winningMessageSettings`/`nonWinningMessageSettings` are unvalidated jsonb
 // columns (no parse-on-read) — a minigame saved before `outcomeMessage` was
@@ -64,35 +77,91 @@ const DEFAULT_OUTCOME_MESSAGE: MinigameOutcomeMessage = {
 
 type MinigameContactListSort = { id: string; desc: boolean }[]
 
+/**
+ * The live "remaining draws" for `resetPolicy: "never"`, where `played` never
+ * resets so the value is a pure function of the configured allowance, the
+ * bonus draws earned from referrals, and how many draws have been spent.
+ *
+ * Keeping this derived (rather than treating `remaining` as an independent
+ * counter) is what lets `resolvePlayState` re-derive on every call without
+ * wiping a referral bonus: a grant moves `sharesCount` and `remaining` by +1
+ * in the same statement, so the two stay algebraically consistent. It also
+ * makes a retried grant idempotent, and makes lowering `maxSharesPerPerson`
+ * claw back uncredited bonus draws the same way lowering `drawsPerPerson`
+ * already claws back base draws.
+ */
+export function deriveRemaining(props: {
+  playerSettings: MinigamePlayerSettings
+  played: number
+  sharesCount: number
+}): number {
+  const { playerSettings, played, sharesCount } = props
+  // Legacy `playerSettings` jsonb predates `maxSharesPerPerson` and has no
+  // such key — `?? 0` keeps referral bonuses off for those minigames.
+  const bonusDraws = Math.min(
+    sharesCount,
+    playerSettings.maxSharesPerPerson ?? 0,
+  )
+  return Math.max(0, playerSettings.drawsPerPerson + bonusDraws - played)
+}
+
+/**
+ * Every branch appends `minigameContactModel.id` as a deterministic
+ * tie-break — `desc(updatedAt)` alone can duplicate or skip rows across
+ * pages when two rows share a timestamp.
+ */
 export function getMinigameContactListOrder(sort?: MinigameContactListSort) {
   const activeSort = sort?.[0]
+  const tieBreak = asc(minigameContactModel.id)
   if (!activeSort) {
-    return desc(minigameContactModel.updatedAt)
+    return [desc(minigameContactModel.updatedAt), tieBreak]
   }
 
   switch (activeSort.id) {
     case "name":
-      return activeSort.desc
-        ? desc(contactModel.fullName)
-        : asc(contactModel.fullName)
+      return [
+        activeSort.desc
+          ? desc(contactModel.fullName)
+          : asc(contactModel.fullName),
+        tieBreak,
+      ]
     case "played":
-      return activeSort.desc
-        ? desc(minigameContactModel.played)
-        : asc(minigameContactModel.played)
+      return [
+        activeSort.desc
+          ? desc(minigameContactModel.played)
+          : asc(minigameContactModel.played),
+        tieBreak,
+      ]
     case "remaining":
-      return activeSort.desc
-        ? desc(minigameContactModel.remaining)
-        : asc(minigameContactModel.remaining)
+      return [
+        activeSort.desc
+          ? desc(minigameContactModel.remaining)
+          : asc(minigameContactModel.remaining),
+        tieBreak,
+      ]
+    case "sharesCount":
+      return [
+        activeSort.desc
+          ? desc(minigameContactModel.sharesCount)
+          : asc(minigameContactModel.sharesCount),
+        tieBreak,
+      ]
     case "openedAt":
-      return activeSort.desc
-        ? desc(minigameContactModel.openedAt)
-        : asc(minigameContactModel.openedAt)
+      return [
+        activeSort.desc
+          ? desc(minigameContactModel.openedAt)
+          : asc(minigameContactModel.openedAt),
+        tieBreak,
+      ]
     case "lastPlayedAt":
-      return activeSort.desc
-        ? desc(minigameContactModel.updatedAt)
-        : asc(minigameContactModel.updatedAt)
+      return [
+        activeSort.desc
+          ? desc(minigameContactModel.updatedAt)
+          : asc(minigameContactModel.updatedAt),
+        tieBreak,
+      ]
     default:
-      return desc(minigameContactModel.updatedAt)
+      return [desc(minigameContactModel.updatedAt), tieBreak]
   }
 }
 
@@ -109,14 +178,29 @@ class MinigameContactService extends BaseService {
     contactId: string
     playerSettings: MinigamePlayerSettings
     contactInboxId?: string
+    /**
+     * The referrer this contact arrived from, carried in a `minigame-share`
+     * ref (see `apps/worker/src/integration/handlers/ref.ts`). Only ever
+     * applied on the INSERT path below — an established player who later
+     * follows somebody's share link is never re-stamped, which is exactly
+     * the "invitee had never played this minigame before" condition.
+     */
+    referrerContactId?: string
     tx?: DatabaseClient
     forUpdate?: boolean
-  }): Promise<MinigameContactModel> {
+    /**
+     * `created` reports whether THIS call inserted the row. It is the single
+     * fact behind both "one referral bonus per invitee, ever" and "the
+     * invitee had never played this minigame" — see
+     * `creditSharedLinkReferral`.
+     */
+  }): Promise<{ state: MinigameContactModel; created: boolean }> {
     const {
       minigameId,
       contactId,
       playerSettings,
       contactInboxId,
+      referrerContactId,
       tx = db,
       forUpdate = false,
     } = props
@@ -161,6 +245,14 @@ class MinigameContactService extends BaseService {
           openedAt: new Date(),
           remaining: playerSettings.drawsPerPerson,
           played: 0,
+          // Deferred referral binding, stamped once at first-ever row
+          // creation. Self-referral is dropped here as well as at grant
+          // time — a link a contact opened themselves must never credit
+          // them.
+          referrerContactId:
+            referrerContactId && referrerContactId !== contactId
+              ? referrerContactId
+              : null,
         })
         .onConflictDoNothing()
         .returning()
@@ -172,7 +264,7 @@ class MinigameContactService extends BaseService {
             participantsCount: sql`${minigameModel.participantsCount} + 1`,
           })
           .where(eq(minigameModel.id, minigameId))
-        return created
+        return { state: created, created: true }
       }
 
       existing = await findExisting()
@@ -188,38 +280,44 @@ class MinigameContactService extends BaseService {
       Date.now() - existing.updatedAt.getTime() >=
         playerSettings.resetIntervalDays * ONE_DAY_MS
     ) {
+      // Bonus draws earned from referrals are deliberately NOT re-granted
+      // here: `sharesCount` is a lifetime counter, so adding it back every
+      // cycle would turn a single referral into an unbounded draw generator.
+      // Unused bonus draws expire with the cycle, while the cap stays
+      // lifetime — a sharer who already hit `maxSharesPerPerson` earns
+      // nothing in later cycles.
       const [updated] = await tx
         .update(minigameContactModel)
         .set({ remaining: playerSettings.drawsPerPerson })
         .where(eq(minigameContactModel.id, existing.id))
         .returning()
-      return updated
+      return { state: updated, created: false }
     }
 
-    // For `never`, `played` never resets, so `drawsPerPerson - played` is
-    // always the correct live "remaining" — re-derive it here so raising
-    // (or lowering) the configured allowance takes effect immediately for
-    // contacts who already have a row, not just newly-created ones. Not
-    // extended to `everyNDays`: `played` there is a lifetime counter, not
-    // "played this cycle", so this formula would go permanently negative
-    // after the first reset — that policy already re-syncs at each
-    // interval boundary above.
+    // For `never`, `played` never resets, so `deriveRemaining` is always the
+    // correct live "remaining" — re-derive it here so raising (or lowering)
+    // the configured allowance takes effect immediately for contacts who
+    // already have a row, not just newly-created ones. Not extended to
+    // `everyNDays`: `played` there is a lifetime counter, not "played this
+    // cycle", so this formula would go permanently negative after the first
+    // reset — that policy already re-syncs at each interval boundary above.
     if (playerSettings.resetPolicy === "never") {
-      const expectedRemaining = Math.max(
-        0,
-        playerSettings.drawsPerPerson - existing.played,
-      )
+      const expectedRemaining = deriveRemaining({
+        playerSettings,
+        played: existing.played,
+        sharesCount: existing.sharesCount,
+      })
       if (existing.remaining !== expectedRemaining) {
         const [updated] = await tx
           .update(minigameContactModel)
           .set({ remaining: expectedRemaining })
           .where(eq(minigameContactModel.id, existing.id))
           .returning()
-        return updated
+        return { state: updated, created: false }
       }
     }
 
-    return existing
+    return { state: existing, created: false }
   }
 
   /**
@@ -236,7 +334,8 @@ class MinigameContactService extends BaseService {
     contactId: string
     playerSettings: MinigamePlayerSettings
     contactInboxId?: string
-  }): Promise<MinigameContactModel> {
+    referrerContactId?: string
+  }): Promise<{ state: MinigameContactModel; created: boolean }> {
     return await db.transaction(
       async (tx) => await this.resolvePlayState({ ...props, tx }),
     )
@@ -305,10 +404,8 @@ class MinigameContactService extends BaseService {
     result: MinigamePlayResult
   }> {
     const { minigameId, contactId, contactInboxId, minigame } = props
-    const now = new Date()
-    const { playedAtFrom, playedAtTo } = minigame.generalSettings
 
-    if (now < new Date(playedAtFrom) || now > new Date(playedAtTo)) {
+    if (!isMinigameWithinPlayWindow(minigame)) {
       throw new ChatbotXException(
         "This minigame is not currently active",
         "minigameNotActive",
@@ -317,7 +414,7 @@ class MinigameContactService extends BaseService {
     }
 
     return await db.transaction(async (tx) => {
-      const state = await this.resolvePlayState({
+      const { state } = await this.resolvePlayState({
         minigameId,
         contactId,
         playerSettings: minigame.playerSettings,
@@ -388,6 +485,141 @@ class MinigameContactService extends BaseService {
   }
 
   /**
+   * Credits one qualified referral to the referrer and grants them one bonus
+   * draw. The cap is enforced *inside* the UPDATE's WHERE, not by a prior
+   * read: under READ COMMITTED a concurrent identical UPDATE blocks on the
+   * row lock and then re-evaluates the predicate against the committed row,
+   * so `sharesCount` can never exceed the cap. Never replace this with a
+   * check-then-write (see the `reliability-concurrency` skill).
+   *
+   * Runs in its OWN transaction, separate from the caller's. Every other
+   * path in this service acquires row locks in the order
+   * (player row -> Minigame row), and this one follows it. Folding the grant
+   * into the transaction that creates the invitee's row would make that path
+   * (invitee row -> Minigame -> referrer row) and deadlock against a
+   * concurrent play by the referrer themselves, who holds their own row and
+   * waits on the Minigame row. The cost of committing separately is a narrow
+   * crash window that can only ever *under*-credit, never over-credit.
+   */
+  private async grantReferralBonus(props: {
+    minigameId: string
+    referrerContactId: string
+    inviteeContactId: string
+    playerSettings: MinigamePlayerSettings
+  }): Promise<boolean> {
+    const { minigameId, referrerContactId, inviteeContactId, playerSettings } =
+      props
+    // Legacy `playerSettings` jsonb has no `maxSharesPerPerson` key at all.
+    const cap = playerSettings.maxSharesPerPerson ?? 0
+    if (cap <= 0 || referrerContactId === inviteeContactId) {
+      return false
+    }
+
+    return await db.transaction(async (tx) => {
+      const [granted] = await tx
+        .update(minigameContactModel)
+        .set({
+          sharesCount: sql`${minigameContactModel.sharesCount} + 1`,
+          remaining: sql`${minigameContactModel.remaining} + 1`,
+          // Self-assign to defeat `sharedColumns.updatedAt.$onUpdate`: this
+          // table overloads `updatedAt` as BOTH the `everyNDays` cycle
+          // marker (`resolvePlayState`) and the admin table's "last played"
+          // column (`list`). Bumping it here would silently postpone the
+          // referrer's next free-draw reset and make the admin table claim
+          // they just played.
+          updatedAt: sql`${minigameContactModel.updatedAt}`,
+        })
+        .where(
+          and(
+            eq(minigameContactModel.minigameId, minigameId),
+            eq(minigameContactModel.contactId, referrerContactId),
+            lt(minigameContactModel.sharesCount, cap),
+          ),
+        )
+        .returning({ id: minigameContactModel.id })
+
+      // No row means the referrer has no play state for this minigame, or
+      // has already hit the cap. Either way there is nothing to count, so
+      // the minigame-wide total must not move — that is what keeps
+      // `Minigame.sharesCount == SUM(MinigameContact.sharesCount)` true.
+      if (!granted) {
+        return false
+      }
+
+      await tx
+        .update(minigameModel)
+        .set({ sharesCount: sql`${minigameModel.sharesCount} + 1` })
+        .where(eq(minigameModel.id, minigameId))
+
+      return true
+    })
+  }
+
+  /**
+   * Credits a referral for a friend who arrived through a player's share
+   * link and ran the minigame's Sharing Node.
+   *
+   * "One bonus per invitee, ever" and "the invitee had never played this
+   * minigame" are BOTH decided by a single fact: whether THIS call created
+   * the invitee's `MinigameContact` row. `resolvePlayState`'s insert uses
+   * `onConflictDoNothing().returning()`, so exactly one concurrent caller
+   * ever sees `created: true` — no check-then-write, no guard column.
+   *
+   * The two writes are deliberately NOT one transaction; see
+   * `grantReferralBonus` for the lock-ordering reason.
+   */
+  async creditSharedLinkReferral(props: {
+    minigame: MinigameModel
+    contactId: string
+    contactInboxId?: string
+    referrerContactId: string
+  }): Promise<boolean> {
+    const { minigame, contactId, contactInboxId, referrerContactId } = props
+    if (referrerContactId === contactId) {
+      return false
+    }
+
+    // Defensive: `runRef` gates on the window too, so this service never has
+    // to trust its caller. Outside the window a credit would create a
+    // `MinigameContact` row, bump `participantsCount` and hand out a bonus
+    // draw that `recordPlay` will refuse to spend.
+    if (!isMinigameWithinPlayWindow(minigame)) {
+      return false
+    }
+
+    const { state, created } = await this.resolveOpenerPlayState({
+      minigameId: minigame.id,
+      contactId,
+      playerSettings: minigame.playerSettings,
+      contactInboxId,
+      referrerContactId,
+    })
+
+    if (!(created && state.referrerContactId)) {
+      return false
+    }
+
+    // Tagging is about the friend having *arrived* through a share link, so
+    // it must not hang off the grant's outcome: a referrer who already hit
+    // `maxSharesPerPerson` (or a minigame with the cap at 0) makes
+    // `grantReferralBonus` return false, which would otherwise leave every
+    // later friend silently untagged.
+    await tagService.attachToContact({
+      workspaceId: minigame.workspaceId,
+      contactId,
+      tagIds: minigame.generalSettings.newFriendTagIds,
+      contactInboxId,
+    })
+
+    return await this.grantReferralBonus({
+      minigameId: minigame.id,
+      referrerContactId: state.referrerContactId,
+      inviteeContactId: contactId,
+      playerSettings: minigame.playerSettings,
+    })
+  }
+
+  /**
    * Records a play and dispatches its side effects (player tagging, then the
    * configured win/lose message) as one unit — the gameplay-outcome
    * business logic this centralizes previously lived in the app-layer
@@ -402,11 +634,18 @@ class MinigameContactService extends BaseService {
     contactId: string
     contactInbox: ContactInboxModel
     minigame: MinigameModel
+    resolveContactVariables?: MinigameContactVariableResolver
   }): Promise<{
     contactState: MinigameContactModel
     result: MinigamePlayResult
   }> {
-    const { minigameId, contactId, contactInbox, minigame } = props
+    const {
+      minigameId,
+      contactId,
+      contactInbox,
+      minigame,
+      resolveContactVariables,
+    } = props
 
     const { contactState, result } = await this.recordPlay({
       minigameId,
@@ -456,6 +695,7 @@ class MinigameContactService extends BaseService {
         contactInbox,
         prizeName,
         outcomeMessage: nonWinningOutcomeMessage,
+        resolveContactVariables,
       })
         // biome-ignore lint/suspicious/noEmptyBlockStatements: fire-and-forget, already logs internally on failure
         .catch(() => {})
@@ -468,6 +708,7 @@ class MinigameContactService extends BaseService {
         contactInbox,
         prizeName,
         outcomeMessage: winningOutcomeMessage,
+        resolveContactVariables,
       })
         // biome-ignore lint/suspicious/noEmptyBlockStatements: fire-and-forget, already logs internally on failure
         .catch(() => {})
@@ -512,6 +753,7 @@ class MinigameContactService extends BaseService {
           contactInboxId: minigameContactModel.contactInboxId,
           played: minigameContactModel.played,
           remaining: minigameContactModel.remaining,
+          sharesCount: minigameContactModel.sharesCount,
           openedAt: minigameContactModel.openedAt,
           lastPlayedAt: minigameContactModel.updatedAt,
           contact: {
@@ -528,7 +770,7 @@ class MinigameContactService extends BaseService {
           eq(minigameContactModel.contactId, contactModel.id),
         )
         .where(whereSQL)
-        .orderBy(getMinigameContactListOrder(input.sort))
+        .orderBy(...getMinigameContactListOrder(input.sort))
         .limit(pagination.limit)
         .offset(pagination.offset),
       db
@@ -593,6 +835,7 @@ class MinigameContactService extends BaseService {
     contactInbox: ContactInboxModel
     prizeName: string
     outcomeMessage: MinigameOutcomeMessage
+    resolveContactVariables?: MinigameContactVariableResolver
   }): Promise<void> {
     await this.sendOutcomeMessage({ ...props, logContext: "lose" })
   }
@@ -603,8 +846,52 @@ class MinigameContactService extends BaseService {
     contactInbox: ContactInboxModel
     prizeName: string
     outcomeMessage: MinigameOutcomeMessage
+    resolveContactVariables?: MinigameContactVariableResolver
   }): Promise<void> {
     await this.sendOutcomeMessage({ ...props, logContext: "win" })
+  }
+
+  /**
+   * Renders the author's outcome copy in three passes, in this order:
+   *
+   * 1. `applySpintax` picks one `{a|b|c}` branch. It runs first so it only
+   *    ever sees author copy — a prize name or a contact field carrying a
+   *    `{x|y}` is data and must ship verbatim.
+   * 2. `{{prize_name}}` — minigame-local, and the only token this message
+   *    understood before contact variables were wired up here.
+   * 3. Contact variables, via the injected resolver.
+   */
+  private async renderOutcomeText(props: {
+    text: string
+    prizeName: string
+    workspaceId: string
+    contactId: string
+    resolveContactVariables?: MinigameContactVariableResolver
+  }): Promise<string> {
+    const withPrizeName = applySpintax(props.text).replaceAll(
+      MINIGAME_PRIZE_NAME_TOKEN,
+      props.prizeName,
+    )
+    if (!props.resolveContactVariables) {
+      return withPrizeName
+    }
+
+    try {
+      return await props.resolveContactVariables(withPrizeName)
+    } catch (error) {
+      // Mirrors the comment-automation and story-reply handlers: an
+      // unresolvable variable degrades to the literal placeholder rather than
+      // costing the player the message they just won.
+      logger.warn(
+        {
+          err: normalizeError(error),
+          workspaceId: props.workspaceId,
+          contactId: props.contactId,
+        },
+        "Failed to resolve variables in minigame outcome message, sending raw text",
+      )
+      return withPrizeName
+    }
   }
 
   private async sendOutcomeMessage(props: {
@@ -614,6 +901,7 @@ class MinigameContactService extends BaseService {
     prizeName: string
     outcomeMessage: MinigameOutcomeMessage
     logContext: "win" | "lose"
+    resolveContactVariables?: MinigameContactVariableResolver
   }): Promise<void> {
     const {
       workspaceId,
@@ -622,6 +910,7 @@ class MinigameContactService extends BaseService {
       prizeName,
       outcomeMessage,
       logContext,
+      resolveContactVariables,
     } = props
     if (!outcomeMessage.enabled) {
       return
@@ -635,7 +924,6 @@ class MinigameContactService extends BaseService {
       const conversation = await conversationService.findDMByContact({
         workspaceId,
         contactId,
-        channel: contactInbox.channel as ChannelType,
       })
       if (!conversation) {
         return
@@ -664,10 +952,22 @@ class MinigameContactService extends BaseService {
         return
       }
 
+      // Rendered before the row is written, not on the way out: this text is
+      // persisted as the Message and the queue job carries that same row, so
+      // resolving later would leave the inbox showing different words than the
+      // contact received.
+      const text = await this.renderOutcomeText({
+        text: outcomeMessage.text,
+        prizeName,
+        workspaceId,
+        contactId,
+        resolveContactVariables,
+      })
+
       const repository = await createMessageRepository()
       const createdAt = new Date()
       const message = await repository.create({
-        text: outcomeMessage.text.replaceAll("{{prize_name}}", prizeName),
+        text,
         messageType: "outgoing",
         workspaceId,
         conversationId: conversation.id,

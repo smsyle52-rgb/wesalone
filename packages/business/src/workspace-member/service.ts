@@ -1,15 +1,44 @@
-import { and, type DatabaseClient, db, eq } from "@chatbotx.io/database/client"
+import {
+  and,
+  type DatabaseClient,
+  db,
+  eq,
+  relationsFilterToSQL,
+} from "@chatbotx.io/database/client"
 import { workspaceMemberRoles } from "@chatbotx.io/database/partials"
+import {
+  type WorkspaceMemberPermissionsRow,
+  workspaceMemberRepository,
+} from "@chatbotx.io/database/repositories"
 import { workspaceMemberModel } from "@chatbotx.io/database/schema"
 import type {
   UserModel,
   WorkspaceMemberModel,
   WorkspaceModel,
 } from "@chatbotx.io/database/types"
+import {
+  getPaginationWithDefaults,
+  likeContains,
+} from "@chatbotx.io/database/utils"
 import { withCache } from "@chatbotx.io/redis"
 import { BaseService } from "../base.service"
+import { notFoundException } from "../errors"
 import { logger } from "../logger"
 import { workspaceUsageService } from "../workspace-usage/service"
+
+type ListWorkspaceMembersInput = {
+  workspaceId: string
+  page?: number | null
+  perPage?: number | null
+  keyword?: string | null
+}
+
+type WorkspaceMemberListRow = WorkspaceMemberModel & { user: UserModel }
+
+type ListWorkspaceMembersResult = {
+  data: WorkspaceMemberListRow[]
+  pageCount: number
+}
 
 type WorkspaceMemberWithWorkspace = WorkspaceMemberModel & {
   workspace: WorkspaceModel
@@ -219,6 +248,35 @@ export class WorkspaceMemberService extends BaseService {
     )
   }
 
+  /**
+   * Bounded, uncached projection over WorkspaceMember.permissions for exactly
+   * userIds — the ring-target snapshot's permissions read, which only needs
+   * permissions for the already-bounded set of online user ids rather than the
+   * whole cached roster listByWorkspaceId loads.
+   */
+  async listPermissionsByUserIds(props: {
+    workspaceId: string
+    userIds: string[]
+    tx?: DatabaseClient
+  }): Promise<WorkspaceMemberPermissionsRow[]> {
+    return await workspaceMemberRepository.listPermissionsByUserIds(props)
+  }
+
+  /**
+   * Durable "last came online" stamp for reporting only — Redis stays the sole
+   * source of truth for live presence, so there's no matching "mark offline"
+   * write. Silent no-op for a synthetic platform-support session (no real
+   * WorkspaceMember row). Does not invalidate listByWorkspaceId's cache tag, so
+   * a cached roster read can briefly serve a stale onlineSince/updatedAt.
+   */
+  async markOnlineBulk(props: {
+    workspaceId: string
+    userIds: string[]
+    tx?: DatabaseClient
+  }): Promise<void> {
+    await workspaceMemberRepository.markOnlineBulk(props)
+  }
+
   async findByWorkspaceIdAndUserId(input: {
     tx?: DatabaseClient
     workspaceId: string
@@ -245,6 +303,123 @@ export class WorkspaceMemberService extends BaseService {
       where: {
         workspaceId,
         userId,
+      },
+      with: {
+        user: true,
+      },
+    })
+  }
+
+  /**
+   * Bulk membership validation for round-robin allocation — returns just the
+   * user ids from `userIds` that are actually members of the workspace.
+   */
+  async listExistingUserIds(props: {
+    workspaceId: string
+    userIds: string[]
+    tx?: DatabaseClient
+  }): Promise<{ userId: string }[]> {
+    const { workspaceId, userIds, tx = db } = props
+    if (userIds.length === 0) {
+      return []
+    }
+    return await tx.query.workspaceMemberModel.findMany({
+      where: { workspaceId, userId: { in: userIds } },
+      columns: { userId: true },
+    })
+  }
+
+  async findByIdOrFail(input: {
+    tx?: DatabaseClient
+    id: string
+    workspaceId: string
+  }): Promise<WorkspaceMemberModel> {
+    const { tx = db, id, workspaceId } = input
+    const member = await tx.query.workspaceMemberModel.findFirst({
+      where: { id, workspaceId },
+    })
+    if (!member) {
+      throw notFoundException("Workspace member not found")
+    }
+    return member
+  }
+
+  async update(input: {
+    tx?: DatabaseClient
+    id: string
+    workspaceId: string
+    data: Partial<typeof workspaceMemberModel.$inferInsert>
+  }): Promise<{ id: string } | undefined> {
+    const { tx = db, id, workspaceId, data } = input
+
+    const updated = await tx
+      .update(workspaceMemberModel)
+      .set(data)
+      .where(
+        and(
+          eq(workspaceMemberModel.id, id),
+          eq(workspaceMemberModel.workspaceId, workspaceId),
+        ),
+      )
+      .returning({
+        id: workspaceMemberModel.id,
+        userId: workspaceMemberModel.userId,
+      })
+
+    const [row] = updated
+    if (!row) {
+      return
+    }
+
+    // The member's permissions/nav are served from the cached
+    // `listByUserId` result; bust it so the change takes effect immediately.
+    await this.invalidateCacheTags(workspaceMemberCacheTag(row.userId))
+
+    return { id: row.id }
+  }
+
+  async listPaginated(
+    input: ListWorkspaceMembersInput,
+  ): Promise<ListWorkspaceMembersResult> {
+    const pagination = getPaginationWithDefaults(input)
+
+    const where = {
+      workspaceId: input.workspaceId,
+      user: input.keyword
+        ? {
+            name: {
+              ilike: likeContains(input.keyword),
+            },
+          }
+        : undefined,
+    }
+
+    const [data, totalRows] = await Promise.all([
+      db.query.workspaceMemberModel.findMany({
+        ...pagination,
+        where,
+        with: {
+          user: true,
+        },
+      }),
+      db.$count(
+        workspaceMemberModel,
+        relationsFilterToSQL(workspaceMemberModel, where),
+      ),
+    ])
+    const pageCount = Math.ceil(totalRows / pagination.limit)
+
+    return { data, pageCount }
+  }
+
+  async findByIdWithUser(input: {
+    id: string
+    workspaceId: string
+  }): Promise<WorkspaceMemberListRow | undefined> {
+    return await db.query.workspaceMemberModel.findFirst({
+      where: {
+        id: input.id,
+        workspaceId: input.workspaceId,
       },
       with: {
         user: true,

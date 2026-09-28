@@ -81,6 +81,21 @@ export const router = {
       default: m.contactsAPIs,
     })),
   ),
+  contactNotesAPI: lazy(() =>
+    import("@/features/contact-notes/api/private").then((m) => ({
+      default: m.contactNotesAuthenticatedAPI,
+    })),
+  ),
+  contactSequencesAPI: lazy(() =>
+    import("@/features/contact-sequences/api/private").then((m) => ({
+      default: m.contactSequencesAuthenticatedAPI,
+    })),
+  ),
+  contactScanAPIs: lazy(() =>
+    import("@/features/contact-scan/api").then((m) => ({
+      default: m.contactScanAPIs,
+    })),
+  ),
   botFieldAPIs: lazy(() =>
     import("@/features/bot-fields/api").then((m) => ({
       default: m.botFieldAPIs,
@@ -191,6 +206,11 @@ export const router = {
       default: m.facebookLeadAdsAPI,
     })),
   ),
+  facebookMarketingMessagesAPI: lazy(() =>
+    import("@/features/facebook-marketing-messages/api").then((m) => ({
+      default: m.facebookMarketingMessagesAPI,
+    })),
+  ),
   sequencesAPI: lazy(() =>
     import("@/features/sequences/api").then((m) => ({
       default: m.sequencesAPI,
@@ -254,6 +274,11 @@ export const router = {
   refLinksAPI: lazy(() =>
     import("@/features/reflinks/api").then((m) => ({ default: m.refLinksAPI })),
   ),
+  realtimeAPI: lazy(() =>
+    import("@/features/realtime/api").then((m) => ({
+      default: m.realtimeAPI,
+    })),
+  ),
   userPersistentMenusAPI: lazy(() =>
     import("@/features/user-persistent-menus/api").then((m) => ({
       default: m.userPersistentMenusAPI,
@@ -265,6 +290,18 @@ export const router = {
     })),
   ),
   analyticsRoutes: authorizedAPI
+    // `workspaceAuthorizedMidddleware` (middlewares/auth.ts) takes an
+    // `(input) => input.workspaceId` mapper. Every other call site applies it
+    // to a single procedure whose `.input()` is already declared, so the
+    // mapper typechecks against a known input type. Here it's applied to the
+    // whole `analyticsRoutes` router before `.router()`, where oRPC has no
+    // single input type to infer from — `input` is `unknown`. The mapper is
+    // correct at runtime because every internal analytics route declares
+    // `workspaceId` in its own `.input()`. Real fix: per-procedure `.use()`
+    // across all 30 internal routes (orthogonal refactor, doubles this PR's
+    // blast radius) — deferred. The new public analytics router
+    // (features/analytics/api/public.ts) is independently typed and needs no
+    // such suppression.
     // @ts-expect-error
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .router(analyticsRoutes),

@@ -5,13 +5,8 @@ import { Button } from "@chatbotx.io/ui/components/ui/button"
 import { ImageIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useCallback, useRef, useState, useTransition } from "react"
-import { listMediaLibraryFiles } from "../queries/files"
-import { listMediaLibraryFolders } from "../queries/folders"
-import {
-  type ListFilesResponse,
-  type ListFoldersResponse,
-  MEDIA_LIBRARY_FILES_PAGE_SIZE,
-} from "../schema"
+import { client } from "@/lib/orpc/orpc"
+import type { ListFilesResponse, ListFoldersResponse } from "../schema"
 import { MediaLibraryDialog } from "./media-library-dialog"
 
 type MediaFile = ListFilesResponse["data"][number]
@@ -64,7 +59,7 @@ export function MediaLibraryTrigger({
       const folderIdValue =
         typeof section === "object" ? section.folderId : undefined
 
-      return listMediaLibraryFiles({
+      return client.mediaLibraryAPI.listMediaLibraryFiles({
         workspaceId,
         filter: filterValue,
         folderId: folderIdValue,
@@ -82,12 +77,12 @@ export function MediaLibraryTrigger({
       const effectiveSearch = search ?? searchQuery
       startTransition(async () => {
         const [foldersData, filesData] = await Promise.all([
-          listMediaLibraryFolders({ workspaceId }),
+          client.mediaLibraryAPI.listMediaLibraryFolders({ workspaceId }),
           fetchFilesPage(section, effectiveSearch, 1),
         ])
         setFolders(foldersData.data)
         setFiles(filesData.data)
-        setHasMoreFiles(filesData.data.length === MEDIA_LIBRARY_FILES_PAGE_SIZE)
+        setHasMoreFiles(pageRef.current < filesData.pageCount)
       })
     },
     [fetchFilesPage, searchQuery, workspaceId],
@@ -105,7 +100,7 @@ export function MediaLibraryTrigger({
       .then((filesData) => {
         pageRef.current = nextPage
         setFiles((current) => [...current, ...filesData.data])
-        setHasMoreFiles(filesData.data.length === MEDIA_LIBRARY_FILES_PAGE_SIZE)
+        setHasMoreFiles(nextPage < filesData.pageCount)
       })
       .finally(() => {
         loadMoreInFlightRef.current = false

@@ -13,13 +13,17 @@
 
 | Task | Skill to read first |
 |------|---------------------|
+| Broad/ambiguous request, onboarding, "where does X live" | `chatbotx-basecode` |
 | New feature / page | `feature-scaffold` |
+| Builder UI component, form, table, dialog, or any user-facing string | `builder-ui-i18n` |
 | New API endpoint | `orpc-api` |
+| New public API endpoint that should surface in the CLI/MCP, or CLI/MCP docs/skill drift | `cli-mcp-docs` |
+| Business logic, new service method, any DB read/write from app code | `business-data-access` |
 | New DB table or migration | `drizzle-database` |
 | New background job or queue | `worker-development` |
 | New channel integration | `integration-channel` |
 | Contact filter field/operator, filter SQL, or contact-based audience | `contact-filter` |
-| Facebook/Messenger comment automation (auto-reply/like/hide on Page post comments) | `fb-comment-automation` |
+| Comment automation (auto-reply/like/hide on post comments — Messenger, Instagram, Threads, TikTok) | `comment-automation` |
 | Minigame tool (Jackpot CRUD, prize draw, public play link/token, extending to a new minigame type) | `minigame` |
 | New flow step with states (success/error/skip routing) | `flow-step-development` |
 | Dev/build/lint commands | `turborepo-workflow` |
@@ -56,5 +60,5 @@ Default to the cheapest tier that fits the task; reserve the top tier for judgme
 - Do not commit `.env` files or secrets.
 - Do not skip `pnpm lint` — the CI will fail.
 - Do not hardcode user-facing strings — use `useTranslations()`.
-- Do not import `db` directly in `apps/` or `integrations/` — all DB access must go through a service (`@chatbotx.io/business`) or repository (`@chatbotx.io/database/repositories`). See `.agents/rules/data-access.md`.
+- Do not import `db` directly in `apps/` or `integrations/` — the chain is `action | API handler → service (@chatbotx.io/business) → repository (@chatbotx.io/database/repositories) → DB`; app code calls a service, never a repository directly (the one exception is a pure read with zero business logic). See `.agents/rules/data-access.md`.
 - Do not use dynamic `import()` in tsdown-built code (`packages/*`, `integrations/*`, `apps/worker`, `apps/cli`, `apps/mcp-server`, `apps/javascript-executor`) — it breaks the tsdown build. In `apps/builder/src` dynamic imports and `next/dynamic` are allowed (and preferred for heavy client islands). See `.agents/rules/no-dynamic-import.md`.

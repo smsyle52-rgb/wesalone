@@ -166,10 +166,17 @@ vi.mock("@chatbotx.io/integration-messenger/apis/page", () => ({
   subscribePageToAppWebhook: mockSubscribePageToAppWebhook,
 }))
 
-vi.mock("@chatbotx.io/sdk", () => ({
-  AuthType: { oauth2: "oauth2", custom: "custom" },
-  SdkException: class SdkException extends Error {},
-}))
+// Spread the real module: the Threads integration reaches this test through
+// the reconnect route's import graph and needs `Integration` (and any other
+// transitive export) to survive the mock.
+vi.mock("@chatbotx.io/sdk", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@chatbotx.io/sdk")>()
+  return {
+    ...actual,
+    AuthType: { ...actual.AuthType, oauth2: "oauth2", custom: "custom" },
+    SdkException: class SdkException extends Error {},
+  }
+})
 
 vi.mock("@chatbotx.io/utils", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@chatbotx.io/utils")>()
@@ -238,14 +245,24 @@ vi.mock("@/lib/log", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
-vi.mock("@/lib/facebook-pending-auth", () => ({
-  encryptAuth: mockEncryptAuth,
-  FB_INSTAGRAM_FACEBOOK_PENDING_AUTH_COOKIE: "igfb-pending-auth",
-  FB_INSTAGRAM_PENDING_AUTH_COOKIE: "ig-pending-auth",
-  FB_MESSENGER_PENDING_AUTH_COOKIE: "messenger-pending-auth",
-  FB_PENDING_AUTH_MAX_AGE: 600,
-}))
+vi.mock("@/lib/facebook-pending-auth", async (importOriginal) => {
+  // The real `pendingAuthCookieOptions` — these tests assert the set site
+  // passes the helper's own value through, not a copy that could drift from
+  // it (the cookie's `path` is what makes the connect routes reachable).
+  const actual =
+    await importOriginal<typeof import("@/lib/facebook-pending-auth")>()
 
+  return {
+    encryptAuth: mockEncryptAuth,
+    FB_INSTAGRAM_FACEBOOK_PENDING_AUTH_COOKIE: "igfb-pending-auth",
+    FB_INSTAGRAM_PENDING_AUTH_COOKIE: "ig-pending-auth",
+    FB_MESSENGER_PENDING_AUTH_COOKIE: "messenger-pending-auth",
+    FB_PENDING_AUTH_MAX_AGE: 600,
+    // The real writer: these tests assert what actually reaches the cookie
+    // store, including the expiry of the picker-scoped predecessor.
+    writePendingAuth: actual.writePendingAuth,
+  }
+})
 vi.mock("@/lib/oauth-broker", () => ({
   buildBrokerCallbackUrl: (path: string) => `https://broker.example.com${path}`,
   getBrokerOrigin: () => "https://broker.example.com",
@@ -334,6 +351,34 @@ describe("handleCallback OAuth reconnect", () => {
     const redirectTarget = new URL(mockRedirect.mock.calls[0][0])
     expect(redirectTarget.searchParams.get("reconnect")).toBe("success")
     expect(redirectTarget.searchParams.get("channel")).toBe("messenger")
+  })
+
+  test("first-channel workspace creation hitting the plan limit redirects to /channels/create?error=… instead of throwing", async () => {
+    const { workspaceLimitReachedException } = await import(
+      "@chatbotx.io/business/errors"
+    )
+    const { workspaceService } = await import("@chatbotx.io/business")
+    vi.mocked(workspaceService.create).mockRejectedValueOnce(
+      workspaceLimitReachedException(),
+    )
+    // Next's real `redirect` throws; mirror that here so the handler stops
+    // where production would, then restore the shared no-op for later tests.
+    mockRedirect.mockImplementation((path: string) => {
+      throw new Error(`redirect:${path}`)
+    })
+    try {
+      await expect(
+        handleCallback(
+          "messenger",
+          buildCallbackRequest("messenger", { referer: REFERER }),
+        ),
+      ).rejects.toThrow("redirect:/channels/create?error=workspaceLimitReached")
+    } finally {
+      mockRedirect.mockImplementation(() => undefined)
+    }
+
+    expect(mockExchangeMessengerCode).not.toHaveBeenCalled()
+    expect(mockCookieSet).not.toHaveBeenCalled()
   })
 
   test("messenger reconnect failure redirects with the error reason", async () => {
@@ -447,7 +492,9 @@ describe("handleCallback OAuth reconnect", () => {
     expect(mockCookieSet).toHaveBeenCalledWith(
       "messenger-pending-auth",
       "encrypted-token",
-      expect.objectContaining({ path: "/channels/messenger/select" }),
+      // Scoped for the connect route, not the picker page — see
+      // `pendingAuthCookieOptions`.
+      expect.objectContaining({ path: "/", httpOnly: true, sameSite: "lax" }),
     )
     expect(mockRedirect).toHaveBeenCalledWith(
       new URL("/channels/messenger/select", REFERER).toString(),

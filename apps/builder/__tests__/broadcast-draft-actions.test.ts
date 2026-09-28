@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { broadcastPlanLimitException } from "@chatbotx.io/business/errors"
+import { TRIAL_BROADCAST_PLAN_POLICY } from "@chatbotx.io/database/partials"
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
 type Handler = (args: {
@@ -38,24 +40,42 @@ const {
   scheduleDraft,
   softDeleteBroadcasts,
   updateDraft,
-  recordAuditLog,
   getCurrentUserAndTargetWorkspace,
   canViewContactEmailAndPhone,
 } = vi.hoisted(() => ({
   scheduleDraft: vi.fn(),
   softDeleteBroadcasts: vi.fn(),
   updateDraft: vi.fn(),
-  recordAuditLog: vi.fn(),
   getCurrentUserAndTargetWorkspace: vi.fn(),
   canViewContactEmailAndPhone: vi.fn(),
 }))
-// Plain object, not vi.fn(): the preset's clearMocks/restoreMocks would wipe it.
-const planGate = vi.hoisted(() => ({ paid: true }))
 
 vi.mock("@/lib/safe-action", () => ({
   workspaceActionClient: workspaceActionClientChain,
   workspaceActionClientAllowExpired: workspaceActionClientAllowExpiredChain,
 }))
+const { MockBroadcastValidationException, returnValidationErrors } = vi.hoisted(
+  () => {
+    class MockBroadcastValidationException extends Error {
+      readonly field: string
+      constructor(message: string, field: string) {
+        super(message)
+        this.field = field
+      }
+    }
+    return {
+      MockBroadcastValidationException,
+      returnValidationErrors: vi.fn((_schema: unknown, errors: unknown) => ({
+        __validationError: errors,
+      })),
+    }
+  },
+)
+
+// Wesal One: broadcasts are a paid-plan feature. Plain object, not vi.fn():
+// the preset's clearMocks/restoreMocks would wipe it.
+const planGate = vi.hoisted(() => ({ paid: true }))
+
 vi.mock("@chatbotx.io/business", () => ({
   broadcastService: { scheduleDraft, softDeleteBroadcasts, updateDraft },
   platformSubscriptionService: {
@@ -64,10 +84,9 @@ vi.mock("@chatbotx.io/business", () => ({
         ? Promise.resolve()
         : Promise.reject(new Error("available on paid plans only")),
   },
+  BroadcastValidationException: MockBroadcastValidationException,
 }))
-vi.mock("@chatbotx.io/business/audit", () => ({
-  auditService: { record: (...args: unknown[]) => recordAuditLog(...args) },
-}))
+vi.mock("next-safe-action", () => ({ returnValidationErrors }))
 vi.mock("@/lib/auth/utils", () => ({ getCurrentUserAndTargetWorkspace }))
 vi.mock("@/features/contacts/permissions", () => ({
   canViewContactEmailAndPhone,
@@ -90,7 +109,6 @@ beforeEach(() => {
   scheduleDraft.mockReset()
   softDeleteBroadcasts.mockReset()
   updateDraft.mockReset()
-  recordAuditLog.mockReset().mockResolvedValue(undefined)
   getCurrentUserAndTargetWorkspace
     .mockReset()
     .mockResolvedValue({ targetWorkspaceMember: { permissions: [] } })
@@ -156,6 +174,23 @@ describe("scheduleBroadcastSchema", () => {
       }).success,
     ).toBe(true)
   })
+
+  test("accepts a nullable send rate and rejects values above the product ceiling", () => {
+    expect(
+      scheduleBroadcastSchema.safeParse({
+        schedulesType: "now",
+        schedulesAt: null,
+        sendRatePerMinute: null,
+      }).success,
+    ).toBe(true)
+    expect(
+      scheduleBroadcastSchema.safeParse({
+        schedulesType: "now",
+        schedulesAt: null,
+        sendRatePerMinute: 1001,
+      }).success,
+    ).toBe(false)
+  })
 })
 
 describe("scheduleBroadcastAction", () => {
@@ -175,11 +210,6 @@ describe("scheduleBroadcastAction", () => {
     })
     expect(input.schedulesAt.getSeconds()).toBe(0)
     expect(input.schedulesAt.getTime()).toBeLessThanOrEqual(Date.now())
-    expect(recordAuditLog).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      action: "launch",
-      detail: "launched a broadcast (#b-1)",
-    })
   })
 
   test("passes the chosen future time", async () => {
@@ -196,21 +226,38 @@ describe("scheduleBroadcastAction", () => {
     expect(scheduleDraft.mock.calls[0][0].schedulesAt.toISOString()).toBe(
       "2030-01-01T09:30:00.000Z",
     )
-    // A future schedule is not a launch yet — the send has not happened.
-    expect(recordAuditLog).not.toHaveBeenCalled()
   })
 
-  test("refuses to launch a draft for a workspace without a paid plan", async () => {
-    planGate.paid = false
+  test("forwards the submitted send rate", async () => {
+    scheduleDraft.mockResolvedValue({ id: "b-1" })
+
+    await scheduleHandler({
+      bindArgsParsedInputs: ["ws-1", "b-1"],
+      parsedInput: {
+        schedulesType: "now",
+        schedulesAt: null,
+        sendRatePerMinute: 120,
+      },
+    })
+
+    expect(scheduleDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ sendRatePerMinute: 120 }),
+    )
+  })
+
+  test("returns a plan-limit outcome for the business exception", async () => {
+    const error = broadcastPlanLimitException("activeBroadcasts", {
+      policy: TRIAL_BROADCAST_PLAN_POLICY,
+      planName: "Trial",
+    })
+    scheduleDraft.mockRejectedValue(error)
 
     await expect(
       scheduleHandler({
         bindArgsParsedInputs: ["ws-1", "b-1"],
         parsedInput: { schedulesType: "now", schedulesAt: null },
       }),
-    ).rejects.toThrow("paid plans only")
-    expect(scheduleDraft).not.toHaveBeenCalled()
-    expect(recordAuditLog).not.toHaveBeenCalled()
+    ).resolves.toEqual({ outcome: "planLimit", limit: error.data })
   })
 })
 
@@ -260,46 +307,56 @@ describe("updateDraftBroadcastAction", () => {
     expect(result).toEqual({ id: "b-1", status: "draft" })
   })
 
-  test("records a launch audit entry when the edit sends the broadcast now", async () => {
-    updateDraft.mockResolvedValue({ id: "b-1", status: "scheduled" })
+  test("surfaces a rejected payload as a field-level error instead of a server error", async () => {
+    updateDraft.mockRejectedValue(
+      new MockBroadcastValidationException("Inbox not found", "targets"),
+    )
 
-    await updateHandler({
-      bindArgsParsedInputs: ["ws-1", "b-1"],
-      parsedInput: { ...parsedInput, saveAsDraft: false },
-    })
-
-    expect(recordAuditLog).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      action: "launch",
-      detail: "launched a broadcast (#b-1)",
-    })
-  })
-
-  test("does not record a launch when the broadcast stays a draft", async () => {
-    updateDraft.mockResolvedValue({ id: "b-1", status: "draft" })
-
-    await updateHandler({
+    const result = await updateHandler({
       bindArgsParsedInputs: ["ws-1", "b-1"],
       parsedInput,
     })
 
-    expect(recordAuditLog).not.toHaveBeenCalled()
-  })
-
-  test("does not record a launch for a future schedule — the send has not happened", async () => {
-    updateDraft.mockResolvedValue({ id: "b-1", status: "scheduled" })
-
-    await updateHandler({
-      bindArgsParsedInputs: ["ws-1", "b-1"],
-      parsedInput: {
-        ...parsedInput,
-        saveAsDraft: false,
-        schedulesType: "future",
-        schedulesAt: "2030-01-01T09:30:00.000Z",
+    expect(result).toEqual({
+      __validationError: {
+        _errors: ["Validation Exception"],
+        targets: { _errors: ["Inbox not found"] },
       },
     })
+  })
 
-    expect(recordAuditLog).not.toHaveBeenCalled()
+  test("lets unexpected service errors propagate", async () => {
+    updateDraft.mockRejectedValue(new Error("database down"))
+
+    await expect(
+      updateHandler({ bindArgsParsedInputs: ["ws-1", "b-1"], parsedInput }),
+    ).rejects.toThrow("database down")
+  })
+
+  test("returns the service result unchanged, whatever status it resolves to", async () => {
+    updateDraft.mockResolvedValue({ id: "b-1", status: "scheduled" })
+
+    const result = await updateHandler({
+      bindArgsParsedInputs: ["ws-1", "b-1"],
+      parsedInput: { ...parsedInput, saveAsDraft: false },
+    })
+
+    expect(result).toEqual({ id: "b-1", status: "scheduled" })
+  })
+
+  test("returns a plan-limit outcome for the business exception", async () => {
+    const error = broadcastPlanLimitException("sendRate", {
+      policy: TRIAL_BROADCAST_PLAN_POLICY,
+      planName: "Trial",
+    })
+    updateDraft.mockRejectedValue(error)
+
+    await expect(
+      updateHandler({
+        bindArgsParsedInputs: ["ws-1", "b-1"],
+        parsedInput: { ...parsedInput, saveAsDraft: false },
+      }),
+    ).resolves.toEqual({ outcome: "planLimit", limit: error.data })
   })
 
   test("treats a member without contact-info permission as canViewEmailAndPhone false", async () => {
@@ -312,5 +369,19 @@ describe("updateDraftBroadcastAction", () => {
     })
 
     expect(updateDraft.mock.calls[0][0].canViewEmailAndPhone).toBe(false)
+  })
+})
+
+describe("scheduleBroadcastAction — Wesal One paid-plan gate", () => {
+  test("refuses a workspace without a paid plan before scheduling", async () => {
+    planGate.paid = false
+
+    await expect(
+      scheduleHandler({
+        bindArgsParsedInputs: ["ws-1", "b-1"],
+        parsedInput: { schedulesType: "now", schedulesAt: null },
+      }),
+    ).rejects.toThrow("paid plans only")
+    expect(scheduleDraft).not.toHaveBeenCalled()
   })
 })

@@ -1,19 +1,28 @@
 import { createHash } from "node:crypto"
-import { aiTimeouts, type systemFunctionNames } from "@chatbotx.io/ai"
+import type { systemFunctionNames } from "@chatbotx.io/ai"
 import type {
   ImageReaderInput,
   SystemToolExecutors,
 } from "@chatbotx.io/ai/server"
 import { usageMeteringService } from "@chatbotx.io/business"
 import type { AttachmentModel } from "@chatbotx.io/database/types"
-import { uploader } from "@chatbotx.io/filesystem"
-import { generateText, type LanguageModel } from "ai"
+import {
+  getHeavyJobCompletionWaitTimeoutMs,
+  getHeavyJobOptions,
+  getHeavyQueueEvents,
+  HeavyJobAction,
+  heavyAnalyzeImageResultSchema,
+  heavyQueue,
+  waitForJobCompletionWithRetries,
+} from "@chatbotx.io/worker-config"
 import { normalizeError } from "universal-error-normalizer"
+import { env } from "../../../../env"
+import {
+  getProviderName,
+  type ReplyModelProviderInfo,
+} from "../../../../lib/ai/reply-model"
 import { logger } from "../../../../lib/logger"
 import { resolveImageAttachment } from "./context-sources/image-source"
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024
-const IMAGE_READER_MAX_OUTPUT_TOKENS = 800
 
 function isArabicLanguage(language?: string): boolean {
   return language?.toLowerCase().startsWith("ar") ?? false
@@ -138,27 +147,47 @@ export function formatToolOutput(props: {
   return output.join("\n")
 }
 
-async function loadImageBuffer(attachment: AttachmentModel): Promise<Buffer> {
-  if (attachment.size > MAX_IMAGE_BYTES) {
-    throw new Error("Image is too large for image reader")
+function hash(input: string): string {
+  return createHash("sha256").update(input).digest("hex").slice(0, 32)
+}
+
+function stableJson(input: unknown): string {
+  if (Array.isArray(input)) {
+    return `[${input.map((value) => stableJson(value)).join(",")}]`
   }
 
-  const buffer = await uploader.getObject(attachment.originPath)
-
-  if (buffer.byteLength > MAX_IMAGE_BYTES) {
-    throw new Error("Image is too large for image reader")
+  if (input && typeof input === "object") {
+    const entries = Object.entries(input).sort(([left], [right]) =>
+      left.localeCompare(right),
+    )
+    return `{${entries
+      .map(([key, value]) => `${JSON.stringify(key)}:${stableJson(value)}`)
+      .join(",")}}`
   }
 
-  return buffer
+  return JSON.stringify(input)
+}
+
+function buildImageReaderJobId(input: {
+  attachmentId: string
+  conversationId: string
+  prompt: string
+  providerInfo: ReplyModelProviderInfo
+}): string {
+  return `heavy-image-reader-${input.conversationId}-${input.attachmentId}-${hash(
+    stableJson({
+      prompt: input.prompt,
+      providerInfo: input.providerInfo,
+    }),
+  )}`
 }
 
 export function createImageReaderExecutor(options: {
   abortSignal?: AbortSignal
   fileOnlyTrigger: boolean
   language?: string
-  model: LanguageModel
   modelId: string
-  provider: string
+  providerInfo: ReplyModelProviderInfo
   triggerMessageId?: string
 }): NonNullable<SystemToolExecutors[typeof systemFunctionNames.imageReader]> {
   return async (args, context) => {
@@ -183,7 +212,6 @@ export function createImageReaderExecutor(options: {
         return copy.unsupportedImage
       }
 
-      const image = await loadImageBuffer(attachment)
       const prompt = buildVisionPrompt({
         attachment,
         fileOnlyTrigger: options.fileOnlyTrigger,
@@ -199,7 +227,7 @@ export function createImageReaderExecutor(options: {
         workspaceId: context.workspaceId,
         operationId: `image-reader:${context.conversationId}:${options.triggerMessageId ?? attachment.id}:${attachment.id}:${queryHash}`,
         category: "image_analysis",
-        provider: options.provider,
+        provider: getProviderName(options.providerInfo),
         model: options.modelId,
         metadata: {
           conversationId: context.conversationId,
@@ -207,40 +235,54 @@ export function createImageReaderExecutor(options: {
         },
       })
 
-      const result = await generateText({
-        model: options.model,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: prompt,
-              },
-              {
-                type: "image",
-                image,
-                mediaType: attachment.mimeType,
-              },
-            ],
+      const job = await heavyQueue.add(
+        HeavyJobAction.analyzeImage,
+        {
+          type: HeavyJobAction.analyzeImage,
+          data: {
+            workspaceId: context.workspaceId,
+            originPath: attachment.originPath,
+            mimeType: attachment.mimeType,
+            sizeBytes: attachment.size,
+            prompt,
+            providerInfo: options.providerInfo,
           },
-        ],
-        maxOutputTokens: IMAGE_READER_MAX_OUTPUT_TOKENS,
-        temperature: 0.2,
-        timeout: {
-          totalMs: aiTimeouts.aiStep,
-          stepMs: aiTimeouts.aiStep,
         },
-        abortSignal: options.abortSignal,
-      })
+        {
+          ...getHeavyJobOptions(HeavyJobAction.analyzeImage),
+          jobId: buildImageReaderJobId({
+            attachmentId: attachment.id,
+            conversationId: context.conversationId,
+            prompt,
+            providerInfo: options.providerInfo,
+          }),
+        },
+      )
 
-      const analysis = result.text.trim()
+      if (!(job && typeof job === "object" && "waitUntilFinished" in job)) {
+        throw new Error("Heavy queue did not return a waitable image job")
+      }
+
+      const rawResult = await waitForJobCompletionWithRetries(
+        job,
+        heavyQueue,
+        getHeavyQueueEvents(),
+        getHeavyJobCompletionWaitTimeoutMs(
+          HeavyJobAction.analyzeImage,
+          env.HEAVY_JOB_WAIT_TIMEOUT_MS,
+        ),
+      )
+      const result = heavyAnalyzeImageResultSchema.parse(rawResult)
+      const analysis = result.analysis.trim()
+      // The model ran in the heavy worker; it reports the tokens back so the
+      // merchant is billed here, where the reservation lives.
       await usageMeteringService.settleLanguage(reservation, {
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        cachedInputTokens: result.usage.inputTokenDetails.cacheReadTokens,
-        reasoningTokens: result.usage.outputTokenDetails.reasoningTokens,
+        inputTokens: result.usage?.inputTokens,
+        outputTokens: result.usage?.outputTokens,
+        cachedInputTokens: result.usage?.cachedInputTokens,
+        reasoningTokens: result.usage?.reasoningTokens,
       })
+      reservation = undefined
       if (!analysis) {
         return copy.emptyAnalysis
       }
@@ -261,7 +303,7 @@ export function createImageReaderExecutor(options: {
           error: normalizedError,
           conversationId: context.conversationId,
           workspaceId: context.workspaceId,
-          provider: options.provider,
+          provider: getProviderName(options.providerInfo),
           modelId: options.modelId,
         },
         "[image-reader] image tool execution failed",

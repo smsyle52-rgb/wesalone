@@ -79,6 +79,11 @@ const makeProps = (provider = "openai") =>
       workspaceId: "ws-1",
       contactId: "contact-1",
     },
+    contactInbox: {
+      id: "contact-inbox-1",
+      contactId: "contact-1",
+      sourceId: "psid-1",
+    },
     step: {
       id: "step-1",
       stepType: "aiExtractData",
@@ -139,6 +144,23 @@ describe("handleAIExtractData", () => {
       status: "error",
       result: null,
     })
+  })
+
+  test("keeps an automatic broadcast extraction failure in bulk delivery", async () => {
+    const metadata = { type: "broadcast", broadcastId: "broadcast-1" }
+
+    await handleAIExtractData({
+      ...makeProps(),
+      metadata,
+      isBulkBroadcast: true,
+    })
+
+    expect(mocks.sendMessageWithRender).toHaveBeenCalledWith(
+      "conv-1",
+      "Error extracting data",
+      undefined,
+      { metadata, isBulkBroadcast: true },
+    )
   })
 
   // The step knows which vendor it ran against; recording every AI failure as

@@ -9,7 +9,7 @@ vi.mock("../src/lib/log", () => ({
   httpLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }))
 
-const { isPublicRoute } = await import("../src/proxy")
+const { isPublicRoute } = await import("../src/lib/public-routes")
 
 describe("isPublicRoute", () => {
   test("allows the routes that must be reachable signed out", () => {

@@ -4,7 +4,6 @@ import {
   type UsageReservation,
   usageMeteringService,
 } from "@chatbotx.io/business"
-import { logProviderError } from "@chatbotx.io/business/error-log"
 import type { AIExtractDataSchema } from "@chatbotx.io/flow-config"
 import { contactVariableService } from "@chatbotx.io/variables"
 import { APICallError, generateObject } from "ai"
@@ -17,6 +16,7 @@ import {
   waitForChatJobCompletion,
 } from "../../utils/message"
 import type { ExecuteStepProps } from "../flow"
+import { logStepProviderError } from "../flow-utils"
 import { aiErrorLogProvider } from "../shared/ai-error-log-provider"
 import { resolveFlowAIModel } from "../shared/flow-ai-model-resolver"
 import type { ExecuteStepResult } from "../step"
@@ -117,6 +117,8 @@ export async function handleAIExtractData({
   flowVersion,
   step,
   triggerMessageId,
+  metadata,
+  isBulkBroadcast,
 }: ExecuteStepProps<AIExtractDataSchema>): Promise<ExecuteStepResult> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
@@ -229,12 +231,11 @@ ${schemaDescription}`
       abortSignal: controller.signal,
       schema: dynamicSchema,
     }).catch(async (error: unknown) => {
-      await logProviderError({
-        provider: aiErrorLogProvider(step.provider),
-        workspaceId: conversation.workspaceId,
-        contactId: conversation.contactId,
+      await logStepProviderError(
+        aiErrorLogProvider(step.provider),
+        { conversation, contactInbox },
         error,
-      })
+      )
       throw error
     })
 
@@ -288,10 +289,15 @@ ${schemaDescription}`
       "Error in handleAIExtractData",
     )
 
-    const job = await sendMessageWithRender(
-      conversation.id,
-      "Error extracting data",
-    )
+    const job =
+      metadata || isBulkBroadcast
+        ? await sendMessageWithRender(
+            conversation.id,
+            "Error extracting data",
+            undefined,
+            { metadata, isBulkBroadcast },
+          )
+        : await sendMessageWithRender(conversation.id, "Error extracting data")
     await waitForChatJobCompletion(job, { conversationId: conversation.id })
 
     return {

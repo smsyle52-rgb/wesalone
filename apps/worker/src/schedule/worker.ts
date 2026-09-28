@@ -29,7 +29,9 @@ import { processBroadcastContacts } from "./handlers/process-broadcast-contacts"
 import { purgeAutomationThrottle } from "./handlers/purge-automation-throttle"
 import { purgeBroadcasts } from "./handlers/purge-broadcasts"
 import { purgeCoexistStaging } from "./handlers/purge-coexist-staging"
+import { purgeCommentAutomationEvents } from "./handlers/purge-comment-automation-events"
 import { purgeErrorLogs } from "./handlers/purge-error-logs"
+import { purgeExpiredCallRecordings } from "./handlers/purge-expired-call-recordings"
 import { purgeWhatsappSignupSessions } from "./handlers/purge-whatsapp-signup-sessions"
 import { purgeWorkspaces } from "./handlers/purge-workspaces"
 import { reconcileBroadcasts } from "./handlers/reconcile-broadcasts"
@@ -39,7 +41,9 @@ import { refreshChannelTokens } from "./handlers/refresh-channel-tokens"
 import { registerSchedules } from "./handlers/register-schedules"
 import { scanAppointmentReminders } from "./handlers/scan-appointment-reminders"
 import { scanCoexistRuns } from "./handlers/scan-coexist-runs"
+import { scanContactScans } from "./handlers/scan-contact-scans"
 import { scanSmartDelay } from "./handlers/scan-smart-delay"
+import { sweepStaleWhatsappCalls } from "./handlers/sweep-stale-whatsapp-calls"
 import { syncUserQuota } from "./handlers/sync-user-quota"
 import { teardownExpiredTrial } from "./handlers/teardown-expired-trial"
 import { unsubscribeExpiredTrials } from "./handlers/unsubscribe-expired-trials"
@@ -130,6 +134,10 @@ async function startScheduleWorker() {
               await scanCoexistRuns()
               return
 
+            case ScheduleJobData.scanContactScans:
+              await scanContactScans()
+              return
+
             case ScheduleJobData.reconcileMetaCatalogSyncs:
               await reconcileMetaCatalogSyncs()
               return
@@ -162,6 +170,18 @@ async function startScheduleWorker() {
             // excludes schedule crons other than the two broadcast handlers).
             case ScheduleJobData.purgeErrorLogs:
               await purgeErrorLogs()
+              return
+
+            case ScheduleJobData.purgeCommentAutomationEvents:
+              await purgeCommentAutomationEvents()
+              return
+
+            case ScheduleJobData.purgeExpiredCallRecordings:
+              await purgeExpiredCallRecordings()
+              return
+
+            case ScheduleJobData.sweepStaleWhatsappCalls:
+              await sweepStaleWhatsappCalls()
               return
 
             case ScheduleJobData.refreshChannelTokens:

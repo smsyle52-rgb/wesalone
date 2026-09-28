@@ -11,81 +11,70 @@ import {
   CardHeader,
   CardTitle,
 } from "@chatbotx.io/ui/components/ui/card"
-import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
-import { useState } from "react"
-import {
-  type CoexistTrigger,
-  FacebookPages,
-  type PickerFacebookPage,
-} from "@/features/integration-messenger/components/messenger-pages"
-import { CoexistPopup } from "@/features/shared/coexist-popup"
+import { CONNECT_PICKER_CARD_CLASS } from "@/features/channel-connect/components/connect-picker-card"
+import type { MessengerPickerItem } from "@/features/integration-messenger/components/messenger-pages"
+import { MessengerPages } from "@/features/integration-messenger/components/messenger-pages"
+
+export type PagesLoadError = {
+  /**
+   * Meta's own sentence (via `mapToChannelError`, which already folds
+   * `error_user_msg` in). Absent when Graph never answered — timeout, DNS,
+   * a malformed body — so the UI falls back to its generic copy, the same
+   * split `throwWhatsappApiActionError` makes for WhatsApp.
+   */
+  providerMessage?: string
+}
 
 type SelectPageProps = {
-  pages: PickerFacebookPage[]
+  items: MessengerPickerItem[]
   bmLookupFailed: boolean
+  /**
+   * Set when `/me/accounts` failed outright. `items` is empty in that case,
+   * so the picker's own "No Facebook Pages found" state renders under a red
+   * box carrying the failure. Meta's sentence wins; the generic copy is only
+   * for failures where Facebook never answered.
+   */
+  loadError?: PagesLoadError
   workspaceId: string
-  referer: string
 }
 
 export function SelectPage({
-  pages,
+  items,
   bmLookupFailed,
+  loadError,
   workspaceId,
-  referer,
 }: SelectPageProps) {
   const t = useTranslations()
-  const router = useRouter()
-  const [coexist, setCoexist] = useState<CoexistTrigger | null>(null)
-
-  const handleCoexistRequired = (trigger: CoexistTrigger) => {
-    setCoexist(trigger)
-  }
-
-  const handleCoexistDone = () => {
-    const resolvedWorkspaceId = coexist?.resolvedWorkspaceId ?? workspaceId
-    setCoexist(null)
-    if (resolvedWorkspaceId) {
-      router.push(`/space/${resolvedWorkspaceId}/settings/channels/messenger`)
-    } else {
-      router.push(referer)
-    }
-  }
 
   return (
-    <>
-      <Card className="mx-auto mt-40 max-w-md">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>
-            {t("actions.connectFeature", { feature: "Messenger" })}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {bmLookupFailed && (
-            <Alert variant="warning">
-              <AlertTitle>
-                {t("messenger.selectPage.bmLookupFailedTitle")}
-              </AlertTitle>
-              <AlertDescription>
-                {t("messenger.selectPage.bmLookupFailedDescription")}
-              </AlertDescription>
-            </Alert>
-          )}
-          <FacebookPages
-            onCoexistRequired={handleCoexistRequired}
-            pages={pages}
-            workspaceId={workspaceId}
-          />
-        </CardContent>
-      </Card>
-      {coexist && (
-        <CoexistPopup
-          channel="messenger"
-          integrationId={coexist.integrationId}
-          onDone={handleCoexistDone}
-          workspaceId={coexist.resolvedWorkspaceId}
-        />
-      )}
-    </>
+    <Card className={CONNECT_PICKER_CARD_CLASS}>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>
+          {t("actions.connectFeature", { feature: "Messenger" })}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loadError !== undefined && (
+          <Alert role="alert" variant="destructive">
+            <AlertDescription>
+              {loadError.providerMessage ??
+                t("messenger.selectPage.loadFailed")}
+            </AlertDescription>
+          </Alert>
+        )}
+        {bmLookupFailed && (
+          <Alert variant="warning">
+            <AlertTitle>
+              {t("messenger.selectPage.bmLookupFailedTitle")}
+            </AlertTitle>
+            <AlertDescription>
+              {t("messenger.selectPage.bmLookupFailedDescription")}
+            </AlertDescription>
+          </Alert>
+        )}
+        <MessengerPages items={items} workspaceId={workspaceId} />
+      </CardContent>
+    </Card>
   )
 }

@@ -4,8 +4,488 @@ exports[`public API spec — operation naming guard > operation list (operationI
 [
   {
     "method": "GET",
+    "operationId": "ads.checkCampaignPrerequisites",
+    "path": "/v1/ads/campaigns/prerequisites",
+  },
+  {
+    "method": "POST",
+    "operationId": "ads.createCampaign",
+    "path": "/v1/ads/campaigns",
+  },
+  {
+    "method": "POST",
+    "operationId": "ads.createRule",
+    "path": "/v1/ads/conversion-rules",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "ads.deleteCampaign",
+    "path": "/v1/ads/campaigns/{id}",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "ads.deleteRule",
+    "path": "/v1/ads/conversion-rules/{id}",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "ads.disconnectConnection",
+    "path": "/v1/ads/connections/{channel}/{integrationId}",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.getAnalyticsOverview",
+    "path": "/v1/ads/analytics/overview",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.getAnalyticsTimeseries",
+    "path": "/v1/ads/analytics/timeseries",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.getCampaignAdAccountDetails",
+    "path": "/v1/ads/campaigns/ad-accounts/{adAccountId}",
+  },
+  {
+    "method": "POST",
+    "operationId": "ads.getCampaignsInsights",
+    "path": "/v1/ads/campaigns/insights",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.getCampaignVideoStatus",
+    "path": "/v1/ads/campaigns/videos/{videoId}/status",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.getCapiDelivery",
+    "path": "/v1/ads/capi-delivery",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.getConversion",
+    "path": "/v1/ads/conversions/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.getFunnel",
+    "path": "/v1/ads/funnel",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.getFunnelTimeseries",
+    "path": "/v1/ads/funnel/timeseries",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.getRule",
+    "path": "/v1/ads/conversion-rules/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.listCampaignAdAccounts",
+    "path": "/v1/ads/campaigns/{channel}/{integrationId}/ad-accounts",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.listCampaignMessengerPages",
+    "path": "/v1/ads/campaigns/messenger-pages",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.listCampaigns",
+    "path": "/v1/ads/campaigns",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.listChannelAdAccounts",
+    "path": "/v1/ads/{channel}/ad-accounts",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.listConnections",
+    "path": "/v1/ads/connections",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.listConversionExportRows",
+    "path": "/v1/ads/conversions/export",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.listCustomAudiences",
+    "path": "/v1/ads/custom-audiences",
+  },
+  {
+    "method": "GET",
+    "operationId": "ads.listRules",
+    "path": "/v1/ads/conversion-rules",
+  },
+  {
+    "method": "POST",
+    "operationId": "ads.pauseCampaign",
+    "path": "/v1/ads/campaigns/{id}/pause",
+  },
+  {
+    "method": "POST",
+    "operationId": "ads.publishCampaign",
+    "path": "/v1/ads/campaigns/{id}/publish",
+  },
+  {
+    "method": "POST",
+    "operationId": "ads.retryCampaign",
+    "path": "/v1/ads/campaigns/{id}/retry",
+  },
+  {
+    "method": "POST",
+    "operationId": "ads.startRetargetAudienceSync",
+    "path": "/v1/ads/retarget-audiences",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "ads.toggleRuleStatus",
+    "path": "/v1/ads/conversion-rules/{id}/status",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "ads.updateRule",
+    "path": "/v1/ads/conversion-rules/{id}",
+  },
+  {
+    "method": "PUT",
+    "operationId": "ads.updateRuleLegacy",
+    "path": "/v1/ads/conversion-rules/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "ads.uploadCampaignVideo",
+    "path": "/v1/ads/campaigns/upload-video",
+  },
+  {
+    "method": "POST",
+    "operationId": "aiAgents.create",
+    "path": "/v1/ai-agents",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "aiAgents.delete",
+    "path": "/v1/ai-agents/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "aiAgents.get",
+    "path": "/v1/ai-agents/{id}",
+  },
+  {
+    "method": "GET",
     "operationId": "aiAgents.list",
     "path": "/v1/ai-agents",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "aiAgents.update",
+    "path": "/v1/ai-agents/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "aiFiles.create",
+    "path": "/v1/ai-files",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "aiFiles.delete",
+    "path": "/v1/ai-files/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "aiFiles.get",
+    "path": "/v1/ai-files/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "aiFiles.list",
+    "path": "/v1/ai-files",
+  },
+  {
+    "method": "POST",
+    "operationId": "aiFunctions.create",
+    "path": "/v1/ai-functions",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "aiFunctions.delete",
+    "path": "/v1/ai-functions/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "aiFunctions.get",
+    "path": "/v1/ai-functions/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "aiFunctions.list",
+    "path": "/v1/ai-functions",
+  },
+  {
+    "method": "PUT",
+    "operationId": "aiFunctions.update",
+    "path": "/v1/ai-functions/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "aiMcpServers.create",
+    "path": "/v1/ai-mcp-servers",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "aiMcpServers.delete",
+    "path": "/v1/ai-mcp-servers/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "aiMcpServers.get",
+    "path": "/v1/ai-mcp-servers/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "aiMcpServers.list",
+    "path": "/v1/ai-mcp-servers",
+  },
+  {
+    "method": "PUT",
+    "operationId": "aiMcpServers.update",
+    "path": "/v1/ai-mcp-servers/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.activeContactsCount",
+    "path": "/v1/analytics/active-contacts-count",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.blockedContactsCount",
+    "path": "/v1/analytics/blocked-contacts-count",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.blockedContactsPerDay",
+    "path": "/v1/analytics/blocked-contacts-per-day",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.botMessagesAiProviders",
+    "path": "/v1/analytics/bot-messages-ai-providers",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.botMessagesByResult",
+    "path": "/v1/analytics/bot-messages-by-result",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.botMessagesNoResponse",
+    "path": "/v1/analytics/bot-messages-no-response",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.botMessagesWithResponse",
+    "path": "/v1/analytics/bot-messages-with-response",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.broadcastStats",
+    "path": "/v1/analytics/broadcasts/{broadcastId}/stats",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.contactCountsPerDay",
+    "path": "/v1/analytics/contact-counts-per-day",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.contactsByDimension",
+    "path": "/v1/analytics/contacts-by-dimension",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.contactsCount",
+    "path": "/v1/analytics/contacts-count",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.conversationArchived",
+    "path": "/v1/analytics/conversation-archived",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.conversationAssigned",
+    "path": "/v1/analytics/conversation-assigned",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.conversationAssignedByAdmin",
+    "path": "/v1/analytics/conversation-assigned-by-admin",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.conversationFollowUps",
+    "path": "/v1/analytics/conversation-followups",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.conversationHandoffs",
+    "path": "/v1/analytics/conversation-handoffs",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.flowStats",
+    "path": "/v1/analytics/flows/{flowId}/stats",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.humanAgentStats",
+    "path": "/v1/analytics/human-agent-stats",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.macActiveContactCount",
+    "path": "/v1/analytics/mac/active-count",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.magicLinkContacts",
+    "path": "/v1/analytics/magic-links/contacts",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.magicLinkStats",
+    "path": "/v1/analytics/magic-links/stats",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.messagesByAdmin",
+    "path": "/v1/analytics/messages-by-admin",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.messagesBySender",
+    "path": "/v1/analytics/messages-by-sender",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.newContactCountsPerDay",
+    "path": "/v1/analytics/new-contact-counts-per-day",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.newContactsCount",
+    "path": "/v1/analytics/new-contacts-count",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.refLinkContacts",
+    "path": "/v1/analytics/ref-links/contacts",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.refLinkStats",
+    "path": "/v1/analytics/ref-links/stats",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "analytics.resetFlowStats",
+    "path": "/v1/analytics/flows/{flowId}/stats",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.sequenceStepStats",
+    "path": "/v1/analytics/sequences/{sequenceId}/steps/{stepId}/stats",
+  },
+  {
+    "method": "GET",
+    "operationId": "analytics.uniqueConversationsByAdmin",
+    "path": "/v1/analytics/unique-conversations-by-admin",
+  },
+  {
+    "method": "POST",
+    "operationId": "appointmentCalendars.create",
+    "path": "/v1/appointment-calendars",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "appointmentCalendars.delete",
+    "path": "/v1/appointment-calendars/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "appointmentCalendars.duplicate",
+    "path": "/v1/appointment-calendars/{id}/duplicate",
+  },
+  {
+    "method": "GET",
+    "operationId": "appointmentCalendars.get",
+    "path": "/v1/appointment-calendars/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "appointmentCalendars.getAvailability",
+    "path": "/v1/appointment-calendars/{id}/availability",
+  },
+  {
+    "method": "GET",
+    "operationId": "appointmentCalendars.list",
+    "path": "/v1/appointment-calendars",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "appointmentCalendars.setActive",
+    "path": "/v1/appointment-calendars/{id}/active",
+  },
+  {
+    "method": "PUT",
+    "operationId": "appointmentCalendars.update",
+    "path": "/v1/appointment-calendars/{id}",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "appointmentExternalCalendars.disconnect",
+    "path": "/v1/appointment-external-calendars/{integrationId}",
+  },
+  {
+    "method": "GET",
+    "operationId": "appointmentExternalCalendars.list",
+    "path": "/v1/appointment-external-calendars",
+  },
+  {
+    "method": "GET",
+    "operationId": "appointmentReminders.list",
+    "path": "/v1/appointment-reminders",
+  },
+  {
+    "method": "POST",
+    "operationId": "appointments.book",
+    "path": "/v1/appointments",
+  },
+  {
+    "method": "POST",
+    "operationId": "appointments.cancel",
+    "path": "/v1/appointments/{id}/cancel",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "appointments.delete",
+    "path": "/v1/appointments/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "appointments.get",
+    "path": "/v1/appointments/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "appointments.list",
+    "path": "/v1/appointments",
   },
   {
     "method": "PUT",
@@ -43,6 +523,26 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "path": "/v1/bot-fields",
   },
   {
+    "method": "POST",
+    "operationId": "broadcasts.clone",
+    "path": "/v1/broadcasts/{id}/clone",
+  },
+  {
+    "method": "POST",
+    "operationId": "broadcasts.create",
+    "path": "/v1/broadcasts",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "broadcasts.delete",
+    "path": "/v1/broadcasts/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "broadcasts.duplicate",
+    "path": "/v1/broadcasts/{id}/duplicate",
+  },
+  {
     "method": "GET",
     "operationId": "broadcasts.get",
     "path": "/v1/broadcasts/{idOrName}",
@@ -56,6 +556,51 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "method": "GET",
     "operationId": "broadcasts.list",
     "path": "/v1/broadcasts",
+  },
+  {
+    "method": "GET",
+    "operationId": "broadcasts.listContacts",
+    "path": "/v1/broadcasts/{id}/contacts",
+  },
+  {
+    "method": "POST",
+    "operationId": "broadcasts.moveToDraft",
+    "path": "/v1/broadcasts/{id}/move-to-draft",
+  },
+  {
+    "method": "POST",
+    "operationId": "broadcasts.resend",
+    "path": "/v1/broadcasts/{id}/resend",
+  },
+  {
+    "method": "POST",
+    "operationId": "broadcasts.resume",
+    "path": "/v1/broadcasts/{id}/resume",
+  },
+  {
+    "method": "POST",
+    "operationId": "broadcasts.schedule",
+    "path": "/v1/broadcasts/{id}/schedule",
+  },
+  {
+    "method": "POST",
+    "operationId": "broadcasts.stop",
+    "path": "/v1/broadcasts/{id}/stop",
+  },
+  {
+    "method": "PUT",
+    "operationId": "broadcasts.update",
+    "path": "/v1/broadcasts/{id}",
+  },
+  {
+    "method": "PUT",
+    "operationId": "broadcasts.updateDraft",
+    "path": "/v1/broadcasts/{id}/draft",
+  },
+  {
+    "method": "GET",
+    "operationId": "capabilities.get",
+    "path": "/v1/capabilities",
   },
   {
     "method": "POST",
@@ -89,8 +634,33 @@ exports[`public API spec — operation naming guard > operation list (operationI
   },
   {
     "method": "POST",
+    "operationId": "contacts.addTagsByName",
+    "path": "/v1/contacts/{identifier}/tags/by-name",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "contacts.applyCustomFieldOperations",
+    "path": "/v1/contacts/{identifier}/custom-fields",
+  },
+  {
+    "method": "POST",
     "operationId": "contacts.block",
     "path": "/v1/contacts/{identifier}/block",
+  },
+  {
+    "method": "POST",
+    "operationId": "contacts.bulkAddTags",
+    "path": "/v1/contacts/bulk/tags",
+  },
+  {
+    "method": "POST",
+    "operationId": "contacts.bulkDelete",
+    "path": "/v1/contacts/bulk/delete",
+  },
+  {
+    "method": "POST",
+    "operationId": "contacts.bulkSubscribeSequences",
+    "path": "/v1/contacts/bulk/sequences",
   },
   {
     "method": "DELETE",
@@ -103,14 +673,34 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "path": "/v1/contacts/{identifier}/custom-fields",
   },
   {
+    "method": "GET",
+    "operationId": "contacts.count",
+    "path": "/v1/contacts/count",
+  },
+  {
     "method": "POST",
     "operationId": "contacts.create",
     "path": "/v1/contacts",
   },
   {
+    "method": "POST",
+    "operationId": "contacts.createNote",
+    "path": "/v1/contacts/{identifier}/notes",
+  },
+  {
     "method": "DELETE",
     "operationId": "contacts.delete",
     "path": "/v1/contacts/{identifier}",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "contacts.deleteNote",
+    "path": "/v1/contacts/{identifier}/notes/{noteId}",
+  },
+  {
+    "method": "POST",
+    "operationId": "contacts.export",
+    "path": "/v1/contacts/export",
   },
   {
     "method": "GET",
@@ -125,7 +715,17 @@ exports[`public API spec — operation naming guard > operation list (operationI
   {
     "method": "GET",
     "operationId": "contacts.getCustomField",
-    "path": "/v1/contacts/{identifier}/custom-fields/{customFieldId}",
+    "path": "/v1/contacts/{identifier}/custom-fields/{idOrName}",
+  },
+  {
+    "method": "GET",
+    "operationId": "contacts.getExportFile",
+    "path": "/v1/contacts/export-files/{fileId}",
+  },
+  {
+    "method": "GET",
+    "operationId": "contacts.getImport",
+    "path": "/v1/contacts/imports/{id}",
   },
   {
     "method": "GET",
@@ -149,8 +749,33 @@ exports[`public API spec — operation naming guard > operation list (operationI
   },
   {
     "method": "GET",
+    "operationId": "contacts.listFilterFields",
+    "path": "/v1/contacts/filter-fields",
+  },
+  {
+    "method": "GET",
+    "operationId": "contacts.listImports",
+    "path": "/v1/contacts/imports",
+  },
+  {
+    "method": "GET",
+    "operationId": "contacts.listInboxes",
+    "path": "/v1/contacts/{identifier}/inboxes",
+  },
+  {
+    "method": "GET",
     "operationId": "contacts.listMessages",
     "path": "/v1/contacts/{identifier}/messages",
+  },
+  {
+    "method": "GET",
+    "operationId": "contacts.listNotes",
+    "path": "/v1/contacts/{identifier}/notes",
+  },
+  {
+    "method": "GET",
+    "operationId": "contacts.listSequences",
+    "path": "/v1/contacts/{identifier}/sequences",
   },
   {
     "method": "GET",
@@ -158,9 +783,19 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "path": "/v1/contacts/{identifier}/tags",
   },
   {
+    "method": "POST",
+    "operationId": "contacts.refreshProfile",
+    "path": "/v1/contacts/{identifier}/refresh-profile",
+  },
+  {
     "method": "DELETE",
     "operationId": "contacts.removeTags",
     "path": "/v1/contacts/{identifier}/tags",
+  },
+  {
+    "method": "POST",
+    "operationId": "contacts.search",
+    "path": "/v1/contacts/search",
   },
   {
     "method": "POST",
@@ -173,14 +808,29 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "path": "/v1/contacts/{identifier}/messages",
   },
   {
-    "method": "POST",
+    "method": "PUT",
     "operationId": "contacts.setCustomField",
+    "path": "/v1/contacts/{identifier}/custom-fields/{idOrName}",
+  },
+  {
+    "method": "POST",
+    "operationId": "contacts.setCustomFieldLegacy",
     "path": "/v1/contacts/{identifier}/custom-fields/{customFieldId}",
   },
   {
     "method": "PUT",
-    "operationId": "contacts.setCustomFields",
-    "path": "/v1/contacts/{identifier}/custom-fields",
+    "operationId": "contacts.setSequences",
+    "path": "/v1/contacts/{identifier}/sequences",
+  },
+  {
+    "method": "PUT",
+    "operationId": "contacts.setTags",
+    "path": "/v1/contacts/{identifier}/tags",
+  },
+  {
+    "method": "POST",
+    "operationId": "contacts.subscribeSequences",
+    "path": "/v1/contacts/{identifier}/sequences",
   },
   {
     "method": "POST",
@@ -193,9 +843,24 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "path": "/v1/contacts/{identifier}/unblock",
   },
   {
-    "method": "PUT",
+    "method": "DELETE",
+    "operationId": "contacts.unsubscribeSequences",
+    "path": "/v1/contacts/{identifier}/sequences",
+  },
+  {
+    "method": "PATCH",
     "operationId": "contacts.update",
     "path": "/v1/contacts/{identifier}",
+  },
+  {
+    "method": "PUT",
+    "operationId": "contacts.updateLegacy",
+    "path": "/v1/contacts/{identifier}",
+  },
+  {
+    "method": "PUT",
+    "operationId": "contacts.updateNote",
+    "path": "/v1/contacts/{identifier}/notes/{noteId}",
   },
   {
     "method": "POST",
@@ -203,9 +868,129 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "path": "/v1/contacts/{identifier}/upsert",
   },
   {
+    "method": "POST",
+    "operationId": "contactScans.create",
+    "path": "/v1/contact-scans",
+  },
+  {
+    "method": "GET",
+    "operationId": "contactScans.getStatus",
+    "path": "/v1/contact-scans/status",
+  },
+  {
+    "method": "GET",
+    "operationId": "contactScans.list",
+    "path": "/v1/contact-scans",
+  },
+  {
+    "method": "POST",
+    "operationId": "conversations.archive",
+    "path": "/v1/conversations/{id}/archive",
+  },
+  {
+    "method": "POST",
+    "operationId": "conversations.assign",
+    "path": "/v1/conversations/{id}/assign",
+  },
+  {
+    "method": "POST",
+    "operationId": "conversations.disableBot",
+    "path": "/v1/conversations/{id}/disable-bot",
+  },
+  {
+    "method": "POST",
+    "operationId": "conversations.enableBot",
+    "path": "/v1/conversations/{id}/enable-bot",
+  },
+  {
+    "method": "POST",
+    "operationId": "conversations.follow",
+    "path": "/v1/conversations/{id}/follow",
+  },
+  {
+    "method": "GET",
+    "operationId": "conversations.get",
+    "path": "/v1/conversations/{id}",
+  },
+  {
     "method": "GET",
     "operationId": "conversations.list",
     "path": "/v1/conversations",
+  },
+  {
+    "method": "POST",
+    "operationId": "conversations.read",
+    "path": "/v1/conversations/{id}/read",
+  },
+  {
+    "method": "POST",
+    "operationId": "conversations.unarchive",
+    "path": "/v1/conversations/{id}/unarchive",
+  },
+  {
+    "method": "POST",
+    "operationId": "conversations.unfollow",
+    "path": "/v1/conversations/{id}/unfollow",
+  },
+  {
+    "method": "POST",
+    "operationId": "conversations.unread",
+    "path": "/v1/conversations/{id}/unread",
+  },
+  {
+    "method": "POST",
+    "operationId": "coupons.archiveTopic",
+    "path": "/v1/coupon-topics/{id}/archive",
+  },
+  {
+    "method": "POST",
+    "operationId": "coupons.createTopic",
+    "path": "/v1/coupon-topics",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "coupons.deleteTopic",
+    "path": "/v1/coupon-topics/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "coupons.getTopic",
+    "path": "/v1/coupon-topics/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "coupons.issueCoupon",
+    "path": "/v1/coupon-topics/{id}/issue",
+  },
+  {
+    "method": "GET",
+    "operationId": "coupons.listContactCoupons",
+    "path": "/v1/contacts/{identifier}/coupons",
+  },
+  {
+    "method": "GET",
+    "operationId": "coupons.listCoupons",
+    "path": "/v1/coupons",
+  },
+  {
+    "method": "GET",
+    "operationId": "coupons.listTopics",
+    "path": "/v1/coupon-topics",
+  },
+  {
+    "method": "POST",
+    "operationId": "coupons.markCouponUsed",
+    "path": "/v1/coupon-topics/{id}/mark-used",
+  },
+  {
+    "method": "POST",
+    "operationId": "coupons.unarchiveTopic",
+    "path": "/v1/coupon-topics/{id}/unarchive",
+  },
+  {
+    "method": "PUT",
+    "operationId": "coupons.updateTopic",
+    "path": "/v1/coupon-topics/{id}",
   },
   {
     "method": "POST",
@@ -233,6 +1018,61 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "path": "/v1/custom-fields/{id}",
   },
   {
+    "method": "POST",
+    "operationId": "dynamicImages.create",
+    "path": "/v1/dynamic-images",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "dynamicImages.delete",
+    "path": "/v1/dynamic-images/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "dynamicImages.get",
+    "path": "/v1/dynamic-images/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "dynamicImages.list",
+    "path": "/v1/dynamic-images",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "dynamicImages.setEnabled",
+    "path": "/v1/dynamic-images/{id}/enabled",
+  },
+  {
+    "method": "PUT",
+    "operationId": "dynamicImages.update",
+    "path": "/v1/dynamic-images/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "emailTopics.create",
+    "path": "/v1/email-topics",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "emailTopics.delete",
+    "path": "/v1/email-topics/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "emailTopics.get",
+    "path": "/v1/email-topics/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "emailTopics.list",
+    "path": "/v1/email-topics",
+  },
+  {
+    "method": "PUT",
+    "operationId": "emailTopics.update",
+    "path": "/v1/email-topics/{id}",
+  },
+  {
     "method": "GET",
     "operationId": "errorLogs.list",
     "path": "/v1/error-logs",
@@ -253,9 +1093,204 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "path": "/v1/external-webhooks",
   },
   {
+    "method": "POST",
+    "operationId": "facebookLeadAds.create",
+    "path": "/v1/facebook-lead-ads",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "facebookLeadAds.delete",
+    "path": "/v1/facebook-lead-ads/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "facebookLeadAds.get",
+    "path": "/v1/facebook-lead-ads/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "facebookLeadAds.list",
+    "path": "/v1/facebook-lead-ads",
+  },
+  {
+    "method": "GET",
+    "operationId": "facebookLeadAds.listForms",
+    "path": "/v1/facebook-lead-ads/forms",
+  },
+  {
+    "method": "GET",
+    "operationId": "facebookLeadAds.listPages",
+    "path": "/v1/facebook-lead-ads/pages",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "facebookLeadAds.update",
+    "path": "/v1/facebook-lead-ads/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "fbComments.create",
+    "path": "/v1/fb-comments",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "fbComments.delete",
+    "path": "/v1/fb-comments/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "fbComments.get",
+    "path": "/v1/fb-comments/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "fbComments.list",
+    "path": "/v1/fb-comments",
+  },
+  {
+    "method": "GET",
+    "operationId": "fbComments.listPosts",
+    "path": "/v1/fb-comments/facebook-posts",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "fbComments.update",
+    "path": "/v1/fb-comments/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "flows.create",
+    "path": "/v1/flows",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "flows.delete",
+    "path": "/v1/flows/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "flows.duplicate",
+    "path": "/v1/flows/{id}/duplicate",
+  },
+  {
+    "method": "GET",
+    "operationId": "flows.get",
+    "path": "/v1/flows/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "flows.import",
+    "path": "/v1/flows/import",
+  },
+  {
     "method": "GET",
     "operationId": "flows.list",
     "path": "/v1/flows",
+  },
+  {
+    "method": "POST",
+    "operationId": "flows.publish",
+    "path": "/v1/flows/{id}/publish",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "flows.update",
+    "path": "/v1/flows/{id}",
+  },
+  {
+    "method": "PUT",
+    "operationId": "flows.updateDraft",
+    "path": "/v1/flows/{id}/draft",
+  },
+  {
+    "method": "POST",
+    "operationId": "flows.validate",
+    "path": "/v1/flows/validate",
+  },
+  {
+    "method": "GET",
+    "operationId": "flows.versions",
+    "path": "/v1/flows/{id}/versions",
+  },
+  {
+    "method": "POST",
+    "operationId": "folders.create",
+    "path": "/v1/folders",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "folders.delete",
+    "path": "/v1/folders/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "folders.list",
+    "path": "/v1/folders",
+  },
+  {
+    "method": "PUT",
+    "operationId": "folders.update",
+    "path": "/v1/folders/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "igComments.create",
+    "path": "/v1/ig-comments",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "igComments.delete",
+    "path": "/v1/ig-comments/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "igComments.get",
+    "path": "/v1/ig-comments/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "igComments.list",
+    "path": "/v1/ig-comments",
+  },
+  {
+    "method": "GET",
+    "operationId": "igComments.listMedia",
+    "path": "/v1/ig-comments/instagram-media",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "igComments.update",
+    "path": "/v1/ig-comments/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "igStories.create",
+    "path": "/v1/ig-stories",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "igStories.delete",
+    "path": "/v1/ig-stories/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "igStories.get",
+    "path": "/v1/ig-stories/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "igStories.list",
+    "path": "/v1/ig-stories",
+  },
+  {
+    "method": "GET",
+    "operationId": "igStories.listStories",
+    "path": "/v1/ig-stories/instagram-stories",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "igStories.update",
+    "path": "/v1/ig-stories/{id}",
   },
   {
     "method": "GET",
@@ -268,9 +1303,59 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "path": "/v1/channels",
   },
   {
+    "method": "POST",
+    "operationId": "inboxTeams.addMembers",
+    "path": "/v1/teams/{id}/members",
+  },
+  {
+    "method": "POST",
+    "operationId": "inboxTeams.create",
+    "path": "/v1/teams",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "inboxTeams.delete",
+    "path": "/v1/teams/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "inboxTeams.get",
+    "path": "/v1/teams/{id}",
+  },
+  {
     "method": "GET",
     "operationId": "inboxTeams.list",
     "path": "/v1/teams",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "inboxTeams.removeMembers",
+    "path": "/v1/teams/{id}/members",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "inboxTeams.update",
+    "path": "/v1/teams/{id}",
+  },
+  {
+    "method": "PUT",
+    "operationId": "integrations.connectAiProvider",
+    "path": "/v1/integrations/ai/{provider}",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "integrations.disconnectAiProvider",
+    "path": "/v1/integrations/ai/{provider}",
+  },
+  {
+    "method": "GET",
+    "operationId": "integrations.get",
+    "path": "/v1/integrations/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "integrations.getAiProvider",
+    "path": "/v1/integrations/ai/{provider}",
   },
   {
     "method": "GET",
@@ -279,8 +1364,323 @@ exports[`public API spec — operation naming guard > operation list (operationI
   },
   {
     "method": "GET",
+    "operationId": "integrations.tokenErrors",
+    "path": "/v1/integrations/status/token-errors",
+  },
+  {
+    "method": "POST",
+    "operationId": "keywords.create",
+    "path": "/v1/keywords",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "keywords.delete",
+    "path": "/v1/keywords/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "keywords.get",
+    "path": "/v1/keywords/{id}",
+  },
+  {
+    "method": "GET",
     "operationId": "keywords.list",
     "path": "/v1/keywords",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "keywords.update",
+    "path": "/v1/keywords/{id}",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "keywords.updateStatus",
+    "path": "/v1/keywords/{id}/status",
+  },
+  {
+    "method": "POST",
+    "operationId": "mediaLibrary.createFile",
+    "path": "/v1/media-library/files",
+  },
+  {
+    "method": "POST",
+    "operationId": "mediaLibrary.createFolder",
+    "path": "/v1/media-library/folders",
+  },
+  {
+    "method": "POST",
+    "operationId": "mediaLibrary.createUploadUrl",
+    "path": "/v1/media-library/files/upload-url",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "mediaLibrary.deleteFile",
+    "path": "/v1/media-library/files/{fileId}",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "mediaLibrary.deleteFolder",
+    "path": "/v1/media-library/folders/{folderId}",
+  },
+  {
+    "method": "GET",
+    "operationId": "mediaLibrary.getFile",
+    "path": "/v1/media-library/files/{fileId}",
+  },
+  {
+    "method": "GET",
+    "operationId": "mediaLibrary.listFiles",
+    "path": "/v1/media-library/files",
+  },
+  {
+    "method": "GET",
+    "operationId": "mediaLibrary.listFolders",
+    "path": "/v1/media-library/folders",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "mediaLibrary.moveFiles",
+    "path": "/v1/media-library/files/move",
+  },
+  {
+    "method": "POST",
+    "operationId": "mediaLibrary.recordAccess",
+    "path": "/v1/media-library/files/{fileId}/access",
+  },
+  {
+    "method": "PUT",
+    "operationId": "mediaLibrary.renameFolder",
+    "path": "/v1/media-library/folders/{folderId}",
+  },
+  {
+    "method": "PUT",
+    "operationId": "mediaLibrary.setFavourite",
+    "path": "/v1/media-library/files/{fileId}/favourite",
+  },
+  {
+    "method": "POST",
+    "operationId": "messages.changeAttributes",
+    "path": "/v1/conversations/{conversationId}/messages/{messageId}/attributes",
+  },
+  {
+    "method": "POST",
+    "operationId": "messages.create",
+    "path": "/v1/conversations/{conversationId}/messages",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "messages.delete",
+    "path": "/v1/conversations/{conversationId}/messages/{messageId}",
+  },
+  {
+    "method": "GET",
+    "operationId": "messages.get",
+    "path": "/v1/conversations/{conversationId}/messages/{messageId}",
+  },
+  {
+    "method": "GET",
+    "operationId": "messages.list",
+    "path": "/v1/conversations/{conversationId}/messages",
+  },
+  {
+    "method": "PUT",
+    "operationId": "messages.update",
+    "path": "/v1/conversations/{conversationId}/messages/{messageId}",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "messengerChannels.updateTagSync",
+    "path": "/v1/messenger-channels/{id}/tag-sync",
+  },
+  {
+    "method": "GET",
+    "operationId": "messengerPersonas.list",
+    "path": "/v1/messenger-personas",
+  },
+  {
+    "method": "POST",
+    "operationId": "minigames.create",
+    "path": "/v1/minigames",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "minigames.delete",
+    "path": "/v1/minigames/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "minigames.deleteMany",
+    "path": "/v1/minigames/bulk-delete",
+  },
+  {
+    "method": "GET",
+    "operationId": "minigames.get",
+    "path": "/v1/minigames/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "minigames.list",
+    "path": "/v1/minigames",
+  },
+  {
+    "method": "GET",
+    "operationId": "minigames.listPlayers",
+    "path": "/v1/minigames/{id}/players",
+  },
+  {
+    "method": "GET",
+    "operationId": "minigames.listPlays",
+    "path": "/v1/minigames/{id}/plays",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "minigames.setEnabled",
+    "path": "/v1/minigames/{id}/enabled",
+  },
+  {
+    "method": "PUT",
+    "operationId": "minigames.update",
+    "path": "/v1/minigames/{id}",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "minigames.updatePartial",
+    "path": "/v1/minigames/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "productCategories.create",
+    "path": "/v1/product-categories",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "productCategories.delete",
+    "path": "/v1/product-categories/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "productCategories.list",
+    "path": "/v1/product-categories",
+  },
+  {
+    "method": "PUT",
+    "operationId": "productCategories.update",
+    "path": "/v1/product-categories/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "products.create",
+    "path": "/v1/products",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "products.delete",
+    "path": "/v1/products/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "products.get",
+    "path": "/v1/products/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "products.list",
+    "path": "/v1/products",
+  },
+  {
+    "method": "PUT",
+    "operationId": "products.update",
+    "path": "/v1/products/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "qrCodes.create",
+    "path": "/v1/qr-codes",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "qrCodes.delete",
+    "path": "/v1/qr-codes/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "qrCodes.get",
+    "path": "/v1/qr-codes/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "qrCodes.list",
+    "path": "/v1/qr-codes",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "qrCodes.update",
+    "path": "/v1/qr-codes/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "questionnaires.create",
+    "path": "/v1/questionnaires",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "questionnaires.delete",
+    "path": "/v1/questionnaires/{id}",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "questionnaires.deleteSubmission",
+    "path": "/v1/questionnaires/{id}/submissions/{submissionId}",
+  },
+  {
+    "method": "POST",
+    "operationId": "questionnaires.duplicate",
+    "path": "/v1/questionnaires/{id}/duplicate",
+  },
+  {
+    "method": "GET",
+    "operationId": "questionnaires.get",
+    "path": "/v1/questionnaires/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "questionnaires.getSubmission",
+    "path": "/v1/questionnaires/{id}/submissions/{submissionId}",
+  },
+  {
+    "method": "GET",
+    "operationId": "questionnaires.getSubmissionStats",
+    "path": "/v1/questionnaires/{id}/submissions/stats",
+  },
+  {
+    "method": "GET",
+    "operationId": "questionnaires.list",
+    "path": "/v1/questionnaires",
+  },
+  {
+    "method": "GET",
+    "operationId": "questionnaires.listSubmissions",
+    "path": "/v1/questionnaires/{id}/submissions",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "questionnaires.rename",
+    "path": "/v1/questionnaires/{id}/rename",
+  },
+  {
+    "method": "PUT",
+    "operationId": "questionnaires.update",
+    "path": "/v1/questionnaires/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "reflinks.create",
+    "path": "/v1/ref-links",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "reflinks.delete",
+    "path": "/v1/ref-links/{id}",
   },
   {
     "method": "GET",
@@ -289,8 +1689,58 @@ exports[`public API spec — operation naming guard > operation list (operationI
   },
   {
     "method": "GET",
+    "operationId": "reflinks.list",
+    "path": "/v1/ref-links",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "reflinks.update",
+    "path": "/v1/ref-links/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "savedReplies.create",
+    "path": "/v1/saved-replies",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "savedReplies.delete",
+    "path": "/v1/saved-replies/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "savedReplies.get",
+    "path": "/v1/saved-replies/{id}",
+  },
+  {
+    "method": "GET",
     "operationId": "savedReplies.list",
     "path": "/v1/saved-replies",
+  },
+  {
+    "method": "PUT",
+    "operationId": "savedReplies.update",
+    "path": "/v1/saved-replies/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "schemas.flowSpec",
+    "path": "/v1/schemas/flow-spec",
+  },
+  {
+    "method": "POST",
+    "operationId": "sequences.create",
+    "path": "/v1/sequences",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "sequences.delete",
+    "path": "/v1/sequences/{id}",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "sequences.deleteStep",
+    "path": "/v1/sequences/{id}/steps/{stepId}",
   },
   {
     "method": "GET",
@@ -301,6 +1751,81 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "method": "GET",
     "operationId": "sequences.list",
     "path": "/v1/sequences",
+  },
+  {
+    "method": "GET",
+    "operationId": "sequences.listStepContacts",
+    "path": "/v1/sequences/{id}/steps/{stepId}/contacts",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "sequences.update",
+    "path": "/v1/sequences/{id}",
+  },
+  {
+    "method": "PUT",
+    "operationId": "sequences.upsertStep",
+    "path": "/v1/sequences/{id}/steps",
+  },
+  {
+    "method": "POST",
+    "operationId": "smtpIntegrations.create",
+    "path": "/v1/smtp-integrations",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "smtpIntegrations.delete",
+    "path": "/v1/smtp-integrations/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "smtpIntegrations.get",
+    "path": "/v1/smtp-integrations/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "smtpIntegrations.list",
+    "path": "/v1/smtp-integrations",
+  },
+  {
+    "method": "PUT",
+    "operationId": "smtpIntegrations.update",
+    "path": "/v1/smtp-integrations/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "spreadsheets.create",
+    "path": "/v1/spreadsheets",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "spreadsheets.delete",
+    "path": "/v1/spreadsheets/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "spreadsheets.get",
+    "path": "/v1/spreadsheets/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "spreadsheets.list",
+    "path": "/v1/spreadsheets",
+  },
+  {
+    "method": "GET",
+    "operationId": "spreadsheets.listWorksheetHeaders",
+    "path": "/v1/spreadsheets/{id}/worksheets/{worksheetName}/headers",
+  },
+  {
+    "method": "GET",
+    "operationId": "spreadsheets.listWorksheets",
+    "path": "/v1/spreadsheets/{id}/worksheets",
+  },
+  {
+    "method": "PUT",
+    "operationId": "spreadsheets.update",
+    "path": "/v1/spreadsheets/{id}",
   },
   {
     "method": "POST",
@@ -334,8 +1859,88 @@ exports[`public API spec — operation naming guard > operation list (operationI
   },
   {
     "method": "GET",
+    "operationId": "token.get",
+    "path": "/v1/token",
+  },
+  {
+    "method": "POST",
+    "operationId": "triggers.create",
+    "path": "/v1/triggers",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "triggers.delete",
+    "path": "/v1/triggers/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "triggers.get",
+    "path": "/v1/triggers/{id}",
+  },
+  {
+    "method": "GET",
     "operationId": "triggers.list",
     "path": "/v1/triggers",
+  },
+  {
+    "method": "PUT",
+    "operationId": "triggers.update",
+    "path": "/v1/triggers/{id}",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "triggers.updateSettings",
+    "path": "/v1/triggers/{id}/settings",
+  },
+  {
+    "method": "POST",
+    "operationId": "userPersistentMenus.create",
+    "path": "/v1/user-persistent-menus",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "userPersistentMenus.delete",
+    "path": "/v1/user-persistent-menus/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "userPersistentMenus.get",
+    "path": "/v1/user-persistent-menus/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "userPersistentMenus.list",
+    "path": "/v1/user-persistent-menus",
+  },
+  {
+    "method": "PUT",
+    "operationId": "userPersistentMenus.update",
+    "path": "/v1/user-persistent-menus/{id}",
+  },
+  {
+    "method": "POST",
+    "operationId": "webchats.create",
+    "path": "/v1/webchats",
+  },
+  {
+    "method": "DELETE",
+    "operationId": "webchats.delete",
+    "path": "/v1/webchats/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "webchats.get",
+    "path": "/v1/webchats/{id}",
+  },
+  {
+    "method": "GET",
+    "operationId": "webchats.list",
+    "path": "/v1/webchats",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "webchats.update",
+    "path": "/v1/webchats/{id}",
   },
   {
     "method": "POST",
@@ -354,6 +1959,11 @@ exports[`public API spec — operation naming guard > operation list (operationI
   },
   {
     "method": "GET",
+    "operationId": "whatsappTemplates.list",
+    "path": "/v1/whatsapp/templates",
+  },
+  {
+    "method": "GET",
     "operationId": "workspaceMembers.get",
     "path": "/v1/members/{memberId}",
   },
@@ -361,6 +1971,11 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "method": "GET",
     "operationId": "workspaceMembers.list",
     "path": "/v1/members",
+  },
+  {
+    "method": "PATCH",
+    "operationId": "zaloChannels.updateTagSync",
+    "path": "/v1/zalo-channels/{id}/tag-sync",
   },
 ]
 `;

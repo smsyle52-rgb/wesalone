@@ -1,6 +1,11 @@
 import type { AIAgentModel } from "@chatbotx.io/database/types"
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
+// The broadcast policy import reaches quota/workspace modules these narrow mocks omit.
+vi.mock("../src/broadcast/plan-policy.service", () => ({
+  broadcastPlanPolicyService: {},
+}))
+
 const {
   mockDelete,
   mockFindFirst,
@@ -15,7 +20,8 @@ const {
   const mockUpdateWhere = vi.fn()
   const mockUpdateSet = vi.fn(() => ({ where: mockUpdateWhere }))
   const mockUpdate = vi.fn(() => ({ set: mockUpdateSet }))
-  const mockInsertValues = vi.fn()
+  const mockInsertReturning = vi.fn(async () => [{ id: "agent-1" }])
+  const mockInsertValues = vi.fn(() => ({ returning: mockInsertReturning }))
   const mockInsert = vi.fn(() => ({ values: mockInsertValues }))
   const mockDeleteWhere = vi.fn()
   const mockDelete = vi.fn(() => ({ where: mockDeleteWhere }))

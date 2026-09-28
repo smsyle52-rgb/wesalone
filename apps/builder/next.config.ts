@@ -30,6 +30,7 @@ const nextConfig: NextConfigWithStaticGenerationConcurrency = {
   transpilePackages: [
     "@chatbotx.io/integration-facebook-ads",
     "@chatbotx.io/business",
+    "@chatbotx.io/analytics",
   ],
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
@@ -84,7 +85,7 @@ const nextConfig: NextConfigWithStaticGenerationConcurrency = {
 
     // Local dev: production routes /ws, /storage, /manage/*, and /portal/*
     // via load balancer / Caddy
-    const wsUrl = env.NEXT_PUBLIC_INTERNAL_WS_URL
+    const realtimeProxyUrl = env.REALTIME_PROXY_URL
     const s3Bucket = process.env.S3_BUCKET ?? "chatbotx"
     const s3Endpoint = process.env.S3_ENDPOINT ?? "http://localhost:9000"
     const portalUrl = process.env.PORTAL_INTERNAL_URL ?? "http://localhost:3201"
@@ -95,7 +96,7 @@ const nextConfig: NextConfigWithStaticGenerationConcurrency = {
     return {
       afterFiles: [
         ...alwaysRewrites,
-        { source: "/ws/:path*", destination: `${wsUrl}/:path*` },
+        { source: "/ws/:path*", destination: `${realtimeProxyUrl}/:path*` },
         {
           source: "/storage/:path*",
           destination: `${s3Endpoint}/${s3Bucket}/:path*`,
@@ -135,6 +136,24 @@ const nextConfig: NextConfigWithStaticGenerationConcurrency = {
   },
   headers() {
     return [
+      // `next dev` serves chunks under stable, content-independent URLs
+      // (`/_next/static/chunks/<module-path>.css`). Anyone developing through a
+      // caching proxy or tunnel (Cloudflare Tunnel in front of localhost) gets
+      // a 4-hour edge cache on those URLs by default, so a newly used Tailwind
+      // class simply never reaches the browser. Tell every cache to stay out
+      // of the way in development; production chunk names are content-hashed
+      // and keep their normal immutable caching.
+      ...(process.env.NODE_ENV === "development"
+        ? [
+            {
+              source: "/_next/static/:path*",
+              headers: [
+                { key: "Cache-Control", value: "no-store, must-revalidate" },
+                { key: "CDN-Cache-Control", value: "no-store" },
+              ],
+            },
+          ]
+        : []),
       {
         source: "/chat-widget/:path*",
         headers: [

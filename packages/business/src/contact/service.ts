@@ -6,6 +6,8 @@ import {
   eq,
   findOrFail,
   inArray,
+  isNull,
+  or,
   sql,
 } from "@chatbotx.io/database/client"
 import {
@@ -17,6 +19,7 @@ import {
   type ContactFilterCriteriaInput,
   contactFilterHasPredicate,
 } from "@chatbotx.io/database/queries"
+import { contactRepository } from "@chatbotx.io/database/repositories"
 import {
   contactInboxModel,
   contactModel,
@@ -32,19 +35,41 @@ import { emitContactCreated } from "@chatbotx.io/events"
 import { uploadFileFromUrl } from "@chatbotx.io/filesystem"
 import { invalidateCacheByTags, withCache } from "@chatbotx.io/redis"
 import { createId } from "@chatbotx.io/utils"
+import { dispatchAuditRecord } from "../audit/dispatcher"
 import { BaseService } from "../base.service"
 import { getContactInboxSinceTime } from "../contact-inbox/service"
 import { ChatbotXException, notFoundException } from "../errors"
 import { logger } from "../logger"
+import { NO_AVATAR_SENTINEL_KEY } from "../media/no-avatar-sentinel"
 import { messageCleanupService } from "../message-cleanup/service"
 import { quotaEnforcementService } from "../quota-enforcement/service"
 import { userQuotaService } from "../user-quota/service"
 import { workspaceService } from "../workspace/service"
 import { workspaceUsageService } from "../workspace-usage/service"
 import { emitContactInfoChangeEvents } from "./contact-info-changes"
-import { PROFILE_NAME_BLANK_CHARACTERS } from "./profile-refresh/rules"
+import { createContactWithInbox } from "./create-with-inbox"
+import {
+  type InsertImportedContactBatchInput,
+  type InsertImportedContactBatchResult,
+  insertImportedContactBatch,
+} from "./insert-imported-batch"
+import {
+  type ContactListScope as ContactListScopeType,
+  count as countContacts,
+  listByCustomFieldValue,
+  list as listContacts,
+} from "./list"
 
-const NUMERIC_RE = /^\d+$/
+/**
+ * Explicit opt-out of workspace-member scoping for the workspace-token
+ * (public API) surface — see `./list`. Re-exported here so callers get it
+ * from the same barrel as `contactService`.
+ */
+export { type ContactTableListRow, UNSCOPED } from "./list"
+
+import { PROFILE_NAME_BLANK_CHARACTERS } from "./profile-refresh/rules"
+import { updateFieldsAndCustomFields } from "./update-fields"
+import { parseContactIdentifier } from "./utils"
 
 // One DELETE per chunk keeps each statement's lock scope and cascade work
 // bounded (mirrors CONTACT_CHUNK_SIZE in tag/service.ts).
@@ -62,6 +87,7 @@ type ContactWriteData = Partial<
     | "city"
     | "blockedAt"
     | "emailOptIn"
+    | "emailVerified"
     | "timezone"
     | "locale"
     | "avatar"
@@ -94,7 +120,124 @@ export type ContactAccessScope = {
   restrictToAssignedUserId?: string
 }
 
+export type ContactListScope = ContactListScopeType
+
 class ContactService extends BaseService {
+  createWithInbox = createContactWithInbox
+  updateFieldsAndCustomFields = updateFieldsAndCustomFields
+  list = listContacts
+  count = countContacts
+  listByCustomFieldValue = listByCustomFieldValue
+  /**
+   * Runs on every contact-addressed public request. Safe to cache: every
+   * contact write path (update, delete, custom-field writes, tag writes)
+   * invalidates `contacts:{id}`, and `withCache` never caches a negative
+   * (undefined) result, so a not-yet-existing contact is never stuck
+   * unresolvable.
+   */
+  async resolveIdByIdentifier(input: {
+    workspaceId: string
+    identifier: string
+  }): Promise<string> {
+    const { where } = parseContactIdentifier(input.identifier)
+    const key = `contacts:${input.workspaceId}:identity:${input.identifier}`
+
+    const id = await withCache(
+      key,
+      async () => {
+        const contact = await contactRepository.findIdByIdentityWhere({
+          workspaceId: input.workspaceId,
+          ...where,
+        })
+        return contact?.id
+      },
+      {
+        dynamicTags: (result) => (result ? [`contacts:${result}`] : undefined),
+      },
+    )
+
+    if (!id) {
+      throw notFoundException("Contact not found")
+    }
+    return id
+  }
+  async deleteAndRecord(ctx: {
+    triggerSource: string
+    workspaceId: string
+    ids: string[]
+    accessScope?: ContactAccessScope
+  }): Promise<{ processedContactIds: string[]; skippedContactIds: string[] }> {
+    const contacts = await contactService.delete(ctx)
+
+    if (contacts.length > 0) {
+      await dispatchAuditRecord({
+        workspaceId: ctx.workspaceId,
+        action: "delete",
+        detail: `deleted contact${contacts.length > 1 ? "s" : ""} (${contacts.map((contact) => `#${contact.id}`).join(", ")})`,
+      })
+    }
+
+    const occurredAt = new Date()
+    for (const contact of contacts) {
+      for (const contactInbox of contact.contactInboxes) {
+        emit("analytics:dashboard", {
+          eventType: "contact:deleted",
+          workspaceId: ctx.workspaceId,
+          contactId: contact.id,
+          occurredAt,
+          source: contactInbox.source,
+          channel: contactInbox.channel,
+          sourceId: contactInbox.sourceId,
+          metadata: {
+            triggerContext: {
+              triggerSource: ctx.triggerSource,
+              triggerHandler: "deleteContact",
+              triggerType: "contact_deleted",
+            },
+          },
+        })
+      }
+    }
+
+    const processedSet = new Set(contacts.map((contact) => contact.id))
+    return {
+      processedContactIds: [...processedSet],
+      skippedContactIds: ctx.ids.filter((id) => !processedSet.has(id)),
+    }
+  }
+
+  async blockAndRecord(ctx: {
+    workspaceId: string
+    id: string
+    accessScope?: ContactAccessScope
+  }) {
+    const contact = await contactService.block(ctx)
+
+    emit("analytics:dashboard", {
+      eventType: "contact:blocked",
+      workspaceId: ctx.workspaceId,
+      contactId: contact.id,
+      occurredAt: contact.blockedAt ?? new Date(),
+      country: contact.country,
+      metadata: {
+        triggerContext: {
+          triggerSource: "api",
+          triggerHandler: "blockContactAction",
+          triggerType: "contact_blocked",
+          origin: "manual",
+        },
+      },
+    })
+  }
+
+  async unblockAndRecord(ctx: {
+    workspaceId: string
+    id: string
+    accessScope?: ContactAccessScope
+  }) {
+    await contactService.unblock(ctx)
+  }
+
   // ─── Legacy generic find (preserved for backward compat) ────────────────
   async findBy(props: {
     tx?: DatabaseClient
@@ -121,19 +264,9 @@ class ContactService extends BaseService {
     tx?: DatabaseClient
   }): Promise<ContactModel | undefined> {
     const { workspaceId, id, accessScope, tx = db } = props
-    // return await withCache(
-    //   `contacts:${workspaceId}:${id}`,
-    //   async () =>
     return await tx.query.contactModel.findFirst({
       where: withContactAccessScope({ id, workspaceId }, accessScope),
     })
-    // {
-    //   dynamicTags: (result) =>
-    //     result
-    //       ? ["contacts", `contacts:${workspaceId}`, `contacts:${result.id}`]
-    //       : undefined,
-    // },
-    // )
   }
 
   async findByIdOrFail(props: {
@@ -146,6 +279,48 @@ class ContactService extends BaseService {
     if (!contact) {
       throw notFoundException("Contact not found")
     }
+    return contact
+  }
+
+  /**
+   * The public-API "get full contact with relations" read — shared by
+   * `get`/`create`/`upsert` in `contacts/api/public/crud.ts` so the
+   * "findPublicById or 404" pair isn't repeated at each call site.
+   */
+  async findPublicContactOrFail(props: { workspaceId: string; id: string }) {
+    const contact = await contactRepository.findPublicById(props)
+    if (!contact) {
+      throw notFoundException("Contact not found")
+    }
+    return contact
+  }
+
+  /**
+   * The contact-detail read shared by the private `get-contact.query.ts`
+   * adapter: applies `restrictToAssignedUserId` against
+   * `conversation.assignedUserId` so that rule lives in one place, alongside
+   * `withContactAccessScope`.
+   */
+  async findDetailOrFail(props: {
+    workspaceId: string
+    id: string
+    accessScope?: ContactAccessScope
+  }) {
+    const { workspaceId, id, accessScope } = props
+    const contact = await contactRepository.findDetailById({ workspaceId, id })
+
+    if (!contact) {
+      throw notFoundException("Contact not found")
+    }
+
+    if (
+      accessScope?.restrictToAssignedUserId &&
+      contact.conversation?.assignedUserId !==
+        accessScope.restrictToAssignedUserId
+    ) {
+      throw notFoundException("Contact not found")
+    }
+
     return contact
   }
 
@@ -299,6 +474,39 @@ class ContactService extends BaseService {
         updated,
       )
     }
+    return updated
+  }
+
+  /**
+   * Conditional write for the flow-step broadcast subscribe/unsubscribe
+   * handlers. Subscribing keeps the `isNull(broadcastSubscribedAt)` idempotency
+   * guard folded into the WHERE (matches the pre-migration worker behavior);
+   * unsubscribing has no such guard since it is always safe to re-clear.
+   */
+  async setBroadcastSubscription(ctx: {
+    workspaceId: string
+    id: string
+    subscribed: boolean
+  }): Promise<ContactModel | undefined> {
+    const [updated] = await db
+      .update(contactModel)
+      .set({ broadcastSubscribedAt: ctx.subscribed ? new Date() : null })
+      .where(
+        and(
+          eq(contactModel.id, ctx.id),
+          eq(contactModel.workspaceId, ctx.workspaceId),
+          ctx.subscribed
+            ? isNull(contactModel.broadcastSubscribedAt)
+            : undefined,
+        ),
+      )
+      .returning()
+
+    if (!updated) {
+      return
+    }
+
+    await this.invalidate({ workspaceId: ctx.workspaceId, ids: [ctx.id] })
     return updated
   }
 
@@ -536,32 +744,8 @@ class ContactService extends BaseService {
   }): Promise<{ contact: ContactModel; isNew: boolean }> {
     const { workspaceId, identifier, data, source, avatar } = props
 
-    const colonIdx = identifier.indexOf(":")
-    if (colonIdx === -1) {
-      throw notFoundException("Invalid identifier format")
-    }
-
-    const prefix = identifier.slice(0, colonIdx)
-    const value = identifier.slice(colonIdx + 1)
-    if (!value) {
-      throw notFoundException("Invalid identifier format")
-    }
-
-    const whereClause: Record<string, unknown> = { workspaceId }
-    if (prefix === "id") {
-      if (!NUMERIC_RE.test(value)) {
-        throw notFoundException("Contact not found")
-      }
-      whereClause.id = value
-    } else if (prefix === "email") {
-      whereClause.email = value
-    } else if (prefix === "phone") {
-      whereClause.phoneNumber = value
-    } else {
-      throw notFoundException(
-        "Invalid identifier format. Use id:, email:, or phone: prefix",
-      )
-    }
+    const { prefix, value, where } = parseContactIdentifier(identifier)
+    const whereClause = { workspaceId, ...where }
 
     const existing = await db.query.contactModel.findFirst({
       where: whereClause,
@@ -714,6 +898,169 @@ class ContactService extends BaseService {
       .set({ emailOptIn: false })
       .where(eq(contactModel.id, cid))
     await invalidateCacheByTags([`contacts:${cid}`])
+  }
+
+  /**
+   * Thin flow-step flag write (email verified / opt-in / opt-out). Skips the
+   * pre-read and `emitContactInfoChangeEvents` that `update()` performs — this
+   * is a hot flow-step path and those steps never emitted before — but DOES
+   * invalidate the contact cache, which the raw `db.update` this replaces did
+   * NOT do. That cache invalidation is a deliberate bug fix; call it out in
+   * the PR body. Do not route through `update()` (adds `findByIdOrFail` +
+   * `emitContactInfoChangeEvents` on this hot step).
+   */
+  async setFlowFlags(
+    ctx: { workspaceId: string; id: string },
+    data: Partial<Pick<ContactModel, "emailVerified" | "emailOptIn">>,
+    tx: DatabaseClient = db,
+  ): Promise<void> {
+    await tx
+      .update(contactModel)
+      .set(data)
+      .where(
+        and(
+          eq(contactModel.id, ctx.id),
+          eq(contactModel.workspaceId, ctx.workspaceId),
+        ),
+      )
+    await this.invalidate({ workspaceId: ctx.workspaceId, ids: [ctx.id] })
+  }
+
+  /**
+   * Adds one comment's tag counts to the lifetime counters behind
+   * `{{total_tagged}}`/`{{total_new_tagged}}`. A DB-side `col + n`, never
+   * read-modify-write, so two comments from the same contact counted at once
+   * both land. Once-per-comment is the caller's job (the comment automation
+   * stamps the comment message before calling this).
+   */
+  async incrementTagCounters(
+    props: {
+      workspaceId: string
+      contactId: string
+      totalTagged: number
+      totalNewTagged: number
+    },
+    tx: DatabaseClient = db,
+  ): Promise<void> {
+    const { workspaceId, contactId, totalTagged, totalNewTagged } = props
+    if (totalTagged <= 0 && totalNewTagged <= 0) {
+      return
+    }
+    await tx
+      .update(contactModel)
+      .set({
+        totalTagged: sql`${contactModel.totalTagged} + ${totalTagged}`,
+        totalNewTagged: sql`${contactModel.totalNewTagged} + ${totalNewTagged}`,
+      })
+      .where(
+        and(
+          eq(contactModel.id, contactId),
+          eq(contactModel.workspaceId, workspaceId),
+        ),
+      )
+    await this.invalidate({ workspaceId, ids: [contactId] })
+  }
+
+  /**
+   * Conditional broadcast subscribe — the `isNull(broadcastSubscribedAt)`
+   * predicate is a TOCTOU guard and MUST stay in the WHERE clause (mirrors
+   * `updateIfProfileNameEmpty`).
+   */
+  async subscribeBroadcastIfUnsubscribed(
+    props: { workspaceId: string; contactId: string },
+    tx: DatabaseClient = db,
+  ): Promise<void> {
+    const { workspaceId, contactId } = props
+    await tx
+      .update(contactModel)
+      .set({ broadcastSubscribedAt: new Date() })
+      .where(
+        and(
+          eq(contactModel.id, contactId),
+          eq(contactModel.workspaceId, workspaceId),
+          isNull(contactModel.broadcastSubscribedAt),
+        ),
+      )
+  }
+
+  /** Unconditional broadcast unsubscribe. Handler keeps `emitContactUnsubscribed`. */
+  async unsubscribeBroadcast(
+    props: { workspaceId: string; contactId: string },
+    tx: DatabaseClient = db,
+  ): Promise<void> {
+    const { workspaceId, contactId } = props
+    await tx
+      .update(contactModel)
+      .set({ broadcastSubscribedAt: null })
+      .where(
+        and(
+          eq(contactModel.id, contactId),
+          eq(contactModel.workspaceId, workspaceId),
+        ),
+      )
+  }
+
+  /**
+   * Conditional avatar write — keeps `isNull(avatar)` in the WHERE clause (a
+   * TOCTOU guard, same pattern as `updateIfProfileNameEmpty`).
+   */
+  async setAvatarIfEmpty(
+    props: { workspaceId: string; contactId: string; avatar: string },
+    tx: DatabaseClient = db,
+  ): Promise<void> {
+    const { workspaceId, contactId, avatar } = props
+    const [updated] = await tx
+      .update(contactModel)
+      .set({ avatar, updatedAt: new Date() })
+      .where(
+        and(
+          eq(contactModel.id, contactId),
+          eq(contactModel.workspaceId, workspaceId),
+          isNull(contactModel.avatar),
+        ),
+      )
+      .returning({ id: contactModel.id })
+    if (updated) {
+      await this.invalidate({ workspaceId, ids: [contactId] })
+    }
+  }
+
+  /**
+   * Conditional avatar write that also permits replacing the negative-cache
+   * sentinel while protecting a real avatar from concurrent refreshes.
+   */
+  async setAvatarIfEmptyOrSentinel(
+    props: { workspaceId: string; contactId: string; avatar: string },
+    tx: DatabaseClient = db,
+  ): Promise<void> {
+    const { workspaceId, contactId, avatar } = props
+    const [updated] = await tx
+      .update(contactModel)
+      .set({ avatar, updatedAt: new Date() })
+      .where(
+        and(
+          eq(contactModel.id, contactId),
+          eq(contactModel.workspaceId, workspaceId),
+          or(
+            isNull(contactModel.avatar),
+            sql`${contactModel.avatar} LIKE ${`${NO_AVATAR_SENTINEL_KEY.replace(/_/g, "\\_")}?time=%`} ESCAPE '\\'`,
+          ),
+        ),
+      )
+      .returning({ id: contactModel.id })
+    if (updated) {
+      await this.invalidate({ workspaceId, ids: [contactId] })
+    }
+  }
+
+  /**
+   * Bulk-insert a validated batch of imported contacts. Body lives in
+   * `./insert-imported-batch` to keep this file's merge surface small.
+   */
+  insertImportedContactBatch(
+    input: InsertImportedContactBatchInput,
+  ): Promise<InsertImportedContactBatchResult> {
+    return insertImportedContactBatch(input)
   }
 }
 

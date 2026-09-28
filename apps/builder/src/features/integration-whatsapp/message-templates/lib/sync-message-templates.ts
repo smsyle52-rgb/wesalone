@@ -1,9 +1,6 @@
-import { buildContext } from "@chatbotx.io/business"
-import { db, eq, inArray } from "@chatbotx.io/database/client"
-import { whatsappMessageTemplateModel } from "@chatbotx.io/database/schema"
+import { buildContext, whatsappMessageTemplateService } from "@chatbotx.io/business"
 import type { IntegrationWhatsappModel } from "@chatbotx.io/database/types"
 import type { WhatsappAuthValue } from "@chatbotx.io/integration-whatsapp"
-import { createId } from "@chatbotx.io/utils"
 import { integrations } from "@/integration"
 
 /**
@@ -34,63 +31,8 @@ export async function syncWhatsappMessageTemplatesForIntegration({
     ctx,
   })
 
-  await db.transaction(async (tx) => {
-    const existingTemplates = await tx
-      .select({
-        id: whatsappMessageTemplateModel.id,
-        sourceId: whatsappMessageTemplateModel.sourceId,
-      })
-      .from(whatsappMessageTemplateModel)
-      .where(
-        eq(
-          whatsappMessageTemplateModel.integrationWhatsappId,
-          integrationWhatsapp.id,
-        ),
-      )
-
-    const incomingSourceIds = new Set(res.data.map((t) => t.id))
-
-    const templatesToDelete = existingTemplates.filter(
-      (t) => !incomingSourceIds.has(t.sourceId),
-    )
-
-    if (templatesToDelete.length > 0) {
-      await tx.delete(whatsappMessageTemplateModel).where(
-        inArray(
-          whatsappMessageTemplateModel.id,
-          templatesToDelete.map((t) => t.id),
-        ),
-      )
-    }
-
-    for (const template of res.data) {
-      const existing = existingTemplates.find((t) => t.sourceId === template.id)
-
-      if (existing) {
-        await tx
-          .update(whatsappMessageTemplateModel)
-          .set({
-            name: template.name,
-            language: template.language,
-            category: template.category,
-            status: template.status,
-            components: template.components,
-          })
-          .where(eq(whatsappMessageTemplateModel.id, existing.id))
-      } else {
-        await tx.insert(whatsappMessageTemplateModel).values([
-          {
-            id: createId(),
-            name: template.name,
-            integrationWhatsappId: integrationWhatsapp.id,
-            language: template.language,
-            category: template.category,
-            status: template.status,
-            sourceId: template.id,
-            components: template.components,
-          },
-        ])
-      }
-    }
+  await whatsappMessageTemplateService.syncFromMeta({
+    integrationWhatsappId: integrationWhatsapp.id,
+    templates: res.data,
   })
 }

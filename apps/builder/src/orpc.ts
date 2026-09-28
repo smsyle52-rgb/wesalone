@@ -4,13 +4,22 @@ import {
 } from "@chatbotx.io/business/errors"
 import { ModelNotfoundException } from "@chatbotx.io/database/errors"
 import type { WorkspaceApiTokenScope } from "@chatbotx.io/database/partials"
+import { FlowAuthoringException } from "@chatbotx.io/flow-config"
 import { SdkException } from "@chatbotx.io/sdk"
-import { ORPCError, onError } from "@orpc/server"
+import { oo } from "@orpc/openapi"
+import { ORPCError, onError, ValidationError } from "@orpc/server"
 import { ActionValidationError } from "next-safe-action"
+import { z } from "zod"
 import { logger } from "./lib/log"
+import type { OperationObjectWithMcp } from "./lib/orpc/mcp-annotations"
+import {
+  commonApiErrors,
+  STRUCTURED_ERROR_CODES,
+} from "./lib/orpc/orpc-error-helper"
 import { authMiddleware } from "./middlewares/auth"
 import { channelApiTokenAuthMidddleware } from "./middlewares/channel-api-token-auth"
 import { base } from "./middlewares/context"
+import { apiIdempotencyMiddleware } from "./middlewares/idempotency"
 import { workspaceTokenAuthMidddleware } from "./middlewares/workspace-token-auth"
 
 const CHANNEL_ERROR_FALLBACK = "The provider rejected the request."
@@ -25,13 +34,33 @@ const CHANNEL_ERROR_FALLBACK = "The provider rejected the request."
  * "(#100) …") reaches the UI instead of a generic 500 — a service must NOT
  * hand-roll its own error wrapping.
  */
+/**
+ * A `ChatbotXException` carrying `data` holds an i18n KEY in `message` (e.g.
+ * `"validation.maxItemsReached"`), which server actions re-localize in their
+ * own catch via `getTranslations()`. This interceptor is sync and has no
+ * request-scoped translator, so it cannot localize — but it must never emit a
+ * bare key to an API consumer. Fall back to the key plus its params so the
+ * response is at least self-describing; a handler that wants real
+ * localization should translate before the error reaches here.
+ */
+function toDisplayMessage(error: ChatbotXException): string {
+  if (!error.data) {
+    return error.message
+  }
+  const params = Object.entries(error.data)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(", ")
+  return params ? `${error.message} (${params})` : error.message
+}
+
 function toKnownOrpcError(
   error: unknown,
 ): ORPCError<string, unknown> | undefined {
   if (error instanceof ChatbotXException) {
     return new ORPCError(error.code, {
-      message: error.message,
+      message: toDisplayMessage(error),
       status: error.httpStatusCode ?? 400,
+      ...(STRUCTURED_ERROR_CODES.has(error.code) ? { data: error.data } : {}),
     })
   }
 
@@ -53,6 +82,47 @@ function toKnownOrpcError(
       message: error.message,
       status: 422,
       data: error.validationErrors,
+    })
+  }
+
+  // `compileFlowSpec` (`@chatbotx.io/flow-config`) rejects an agent-authored
+  // flow spec with every error it found (unknown template/flow names, an
+  // unreachable step, a bad `goto` target, ...) — same 422 shape as
+  // `ActionValidationError` above so a caller has one error contract to
+  // handle, not two.
+  if (error instanceof FlowAuthoringException) {
+    return new ORPCError("invalidRequestData", {
+      message: error.message,
+      status: 422,
+      data: error.errors,
+    })
+  }
+
+  // oRPC's own input-schema parsing throws a raw ORPCError("BAD_REQUEST",
+  // { cause: ValidationError }) before the handler runs, which would
+  // otherwise bypass this mapper entirely and surface as a 400. Remap it to
+  // 422 so every validation failure — schema-level or business-level — uses
+  // the same status.
+  if (
+    error instanceof ORPCError &&
+    error.code === "BAD_REQUEST" &&
+    error.cause instanceof ValidationError
+  ) {
+    return new ORPCError("invalidRequestData", {
+      message: error.message,
+      status: 422,
+      data: error.data,
+    })
+  }
+
+  // Safety net for a raw `ZodError` a handler lets escape directly (e.g.
+  // `someSchema.parse(...)` outside oRPC's own input validation) — same 422
+  // shape as the mapped cases above, instead of falling through to a 500.
+  if (error instanceof z.ZodError) {
+    return new ORPCError("invalidRequestData", {
+      message: error.message,
+      status: 422,
+      data: error.issues,
     })
   }
 
@@ -85,6 +155,8 @@ const withErrorMapping = base.use(onError(mapKnownOrpcErrors))
 
 export const authorizedAPI = withErrorMapping.use(authMiddleware)
 
+const publicAPI = withErrorMapping.errors(commonApiErrors)
+
 /**
  * Enforces the resource-area axis on top of `workspaceTokenAuthMidddleware`.
  * `apiToken.scopes === null` means unrestricted ("All scopes") — every
@@ -110,16 +182,31 @@ const requireTokenScope = (scope: WorkspaceApiTokenScope) =>
 
 /**
  * Every workspace-token endpoint must declare its resource scope — there is
- * no unscoped variant. This is deliberate: removing a bare
- * `workspaceTokenAuthAPI` export makes every current and future endpoint
- * fail to compile until it picks a scope, turning the compile error itself
- * into the router-sweep checklist.
+ * no default. `oo.spec` proxies `requireTokenScope(scope)` so the OpenAPI
+ * generator's `applyCustomOpenAPIOperation` (which walks
+ * `contract["~orpc"].middlewares`) stamps `x-mcp.scope` on every operation
+ * that chains through this middleware — one edit here instead of touching
+ * every one of the ~70 scoped route files. By the time this extender runs,
+ * `current` already reflects the route's own `.route({ spec: mcpSpec(...) })`
+ * (applied earlier, during operation generation), so spreading
+ * `current["x-mcp"]` before writing `scope` keeps a route's declared
+ * `visibility` while `scope` always comes from this middleware — a route
+ * can never spoof its own scope.
  */
 export const workspaceTokenAuthAPIForScope = (scope: WorkspaceApiTokenScope) =>
-  withErrorMapping
+  publicAPI
     .use(workspaceTokenAuthMidddleware)
-    .use(requireTokenScope(scope))
+    .use(
+      oo.spec(requireTokenScope(scope), (current): OperationObjectWithMcp => {
+        const existing = (current as OperationObjectWithMcp)["x-mcp"]
+        return {
+          ...current,
+          "x-mcp": { ...existing, scope },
+        }
+      }),
+    )
+    .use(apiIdempotencyMiddleware)
 
-export const channelApiTokenAPI = withErrorMapping.use(
-  channelApiTokenAuthMidddleware,
-)
+export const channelApiTokenAPI = publicAPI
+  .use(channelApiTokenAuthMidddleware)
+  .use(apiIdempotencyMiddleware)

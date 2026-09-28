@@ -1,5 +1,6 @@
 import {
   type AdReferralChannelType,
+  channelTypes,
   DEFAULT_ADS_CONVERSION_CHANNEL,
 } from "@chatbotx.io/utils/channel"
 import type { IndexColumn } from "drizzle-orm/pg-core"
@@ -18,9 +19,11 @@ import {
   sql,
 } from "../../client"
 import {
-  adReferralPredicate,
-  buildCtwaSegmentPredicate,
-} from "../../queries/contact-filter/ctwa-retarget"
+  adConversationPredicate,
+  anyChannelAdConversationPredicate,
+} from "../../queries/ad-referral"
+import { buildCtwaSegmentPredicate } from "../../queries/contact-filter/ctwa-retarget"
+import { zonedDateKey } from "../../queries/date-bucket"
 import type {
   AdsConversionCapiStatus,
   AdsConversionChannel,
@@ -56,12 +59,12 @@ export type AdsConversionEventAttribution = Pick<
  */
 export type AdReferralAttribution = Pick<ContactInboxModel, "id" | "referral">
 
-type FindWorkspaceEventInput = {
+export type FindWorkspaceEventInput = {
   id: string
   workspaceId: string
 }
 
-type UpdateCapiStatusInput = FindWorkspaceEventInput & {
+export type UpdateCapiStatusInput = FindWorkspaceEventInput & {
   from: Extract<AdsConversionCapiStatus, "pending">
   to: Exclude<AdsConversionCapiStatus, "pending">
   capiSentAt?: Date
@@ -149,6 +152,15 @@ export type AdsConversionExportRow = {
    * channel. Absent for every legacy (single-channel) export call.
    */
   channel?: string
+}
+
+export type ExportSegmentRowsResult = {
+  rows: Array<AdsConversionExportRow & { id: string }>
+  /**
+   * Whether another page exists, derived from a `limit + 1` over-fetch
+   * rather than `rows.length`.
+   */
+  hasMore: boolean
 }
 
 type DateRangeInput = {
@@ -299,23 +311,6 @@ function adReferralIntegrationModel(channel: AdReferralChannel) {
   return adReferralIntegrationModelFactoryByChannel[channel]()
 }
 
-/**
- * Ad-referral attribution predicate pair (messenger/instagram — no
- * `ctwaClid` equivalent exists): `referral.adId` present + `referral.source
- * === "ADS"`. Kept LOCAL to this file (not shared with the identical pair in
- * `contact-inbox/repository.ts`) — importing across repository modules here
- * risks a circular import (`ads-conversion-event/repository.ts` already
- * imports from `contact-inbox/repository.ts` for `AdEligibleInboxChannel`,
- * and the reverse direction is plausible for a future shared helper module),
- * so each file keeps its own copy rather than reaching into the other.
- */
-function adReferralConditions(): SQL[] {
-  return [
-    sql`${contactInboxModel.referral}->>'adId' IS NOT NULL`,
-    sql`${contactInboxModel.referral}->>'source' = 'ADS'`,
-  ]
-}
-
 function adReferralIntegrationId(
   input: Pick<
     AdConversationDateRangeInput,
@@ -339,9 +334,25 @@ function adIntegrationScope(
   return sql`EXISTS (SELECT 1 FROM ${model} WHERE ${model.id} = ${integrationId} AND ${model.workspaceId} = ${input.workspaceId} AND ${model.inboxId} = ${contactInboxModel.inboxId})`
 }
 
+/**
+ * Shared WhatsApp "conversation from a paid ad" filters — the CTWA counterpart
+ * of `adConversationBaseFilters`, and the single definition both
+ * `countCtwaConversationsByAd` and its day-bucketed sibling build on so the two
+ * aggregates cannot drift.
+ *
+ * No explicit `ContactInbox.channel` filter: `referral.ctwaClid` is written by
+ * no channel but WhatsApp, so the predicate is intrinsically scoped.
+ */
+const ctwaConversationBaseFilters = (input: DateRangeInput) => [
+  eq(contactModel.workspaceId, input.workspaceId),
+  adConversationPredicate(channelTypes.enum.whatsapp),
+  gte(contactInboxModel.firstInteractionAt, input.since),
+  lte(contactInboxModel.firstInteractionAt, input.until),
+]
+
 const adConversationBaseFilters = (input: AdConversationDateRangeInput) => [
   eq(contactModel.workspaceId, input.workspaceId),
-  ...adReferralConditions(),
+  adConversationPredicate(input.channel),
   gte(contactInboxModel.firstInteractionAt, input.since),
   lte(contactInboxModel.firstInteractionAt, input.until),
   // Channel scoping is REQUIRED (not just an optimization): messenger and
@@ -588,7 +599,7 @@ export const adsConversionEventRepository = {
       // rule (or vice versa) — that would insert the conversion event under
       // the wrong channel. The aggregate count queries carry the same guard.
       eq(contactInboxModel.channel, input.channel),
-      ...adReferralConditions(),
+      adConversationPredicate(input.channel),
     )
     const selection = {
       id: contactInboxModel.id,
@@ -678,12 +689,7 @@ export const adsConversionEventRepository = {
     input: DateRangeInput,
     tx: DatabaseClient = db,
   ): Promise<CtwaConversationCountByAd[]> {
-    const filters = and(
-      eq(contactModel.workspaceId, input.workspaceId),
-      sql`${contactInboxModel.referral}->>'ctwaClid' IS NOT NULL`,
-      gte(contactInboxModel.firstInteractionAt, input.since),
-      lte(contactInboxModel.firstInteractionAt, input.until),
-    )
+    const filters = and(...ctwaConversationBaseFilters(input))
     const adIdExpression = sql<
       string | null
     >`${contactInboxModel.referral}->>'adId'`
@@ -731,12 +737,7 @@ export const adsConversionEventRepository = {
     input: DateRangeInput,
     tx: DatabaseClient = db,
   ): Promise<CtwaConversationCountByDayAndAd[]> {
-    const filters = and(
-      eq(contactModel.workspaceId, input.workspaceId),
-      sql`${contactInboxModel.referral}->>'ctwaClid' IS NOT NULL`,
-      gte(contactInboxModel.firstInteractionAt, input.since),
-      lte(contactInboxModel.firstInteractionAt, input.until),
-    )
+    const filters = and(...ctwaConversationBaseFilters(input))
     const adIdExpression = sql<
       string | null
     >`${contactInboxModel.referral}->>'adId'`
@@ -751,7 +752,10 @@ export const adsConversionEventRepository = {
     // repeating `dateExpression`: the bound `${timezone}` param would render as
     // a DIFFERENT placeholder ($1 in SELECT vs $6 in GROUP BY) and Postgres
     // rejects the two as non-matching expressions.
-    const dateExpression = sql<string>`to_char(${contactInboxModel.firstInteractionAt} AT TIME ZONE ${timezone}, 'YYYY-MM-DD')`
+    const dateExpression = zonedDateKey(
+      contactInboxModel.firstInteractionAt,
+      timezone,
+    )
     const rows = input.integrationWhatsappId
       ? await tx
           .select({
@@ -848,7 +852,10 @@ export const adsConversionEventRepository = {
     // Explicit date bucketing pinned to `input.timezone` — see
     // countCtwaConversationsByDayAndAd.
     const timezone = input.timezone ?? "UTC"
-    const dateExpression = sql<string>`to_char(${contactInboxModel.firstInteractionAt} AT TIME ZONE ${timezone}, 'YYYY-MM-DD')`
+    const dateExpression = zonedDateKey(
+      contactInboxModel.firstInteractionAt,
+      timezone,
+    )
 
     const rows = await tx
       .select({
@@ -870,7 +877,7 @@ export const adsConversionEventRepository = {
 
   /**
    * "All channels" (Ads Analytics default) conversation counts — reuses
-   * `adReferralPredicate()`, the SAME ctwaClid-OR-ad-referral predicate
+   * `anyChannelAdConversationPredicate()`, the SAME ctwaClid-OR-ad-referral predicate
    * `buildCtwaSegmentPredicate` already uses for its "both channel and
    * integration omitted" case, rather than a parallel predicate. GROUP BY
    * `(adId, channel)`: per-ad identity stays `adId` upstream — the business
@@ -884,7 +891,7 @@ export const adsConversionEventRepository = {
   ): Promise<AllChannelConversationCountByAd[]> {
     const filters = and(
       eq(contactModel.workspaceId, input.workspaceId),
-      adReferralPredicate(),
+      anyChannelAdConversationPredicate(),
       gte(contactInboxModel.firstInteractionAt, input.since),
       lte(contactInboxModel.firstInteractionAt, input.until),
     )
@@ -917,7 +924,7 @@ export const adsConversionEventRepository = {
   ): Promise<AllChannelConversationCountByDayAndAd[]> {
     const filters = and(
       eq(contactModel.workspaceId, input.workspaceId),
-      adReferralPredicate(),
+      anyChannelAdConversationPredicate(),
       gte(contactInboxModel.firstInteractionAt, input.since),
       lte(contactInboxModel.firstInteractionAt, input.until),
     )
@@ -927,7 +934,10 @@ export const adsConversionEventRepository = {
     // Explicit date bucketing pinned to `input.timezone` — see
     // countCtwaConversationsByDayAndAd.
     const timezone = input.timezone ?? "UTC"
-    const dateExpression = sql<string>`to_char(${contactInboxModel.firstInteractionAt} AT TIME ZONE ${timezone}, 'YYYY-MM-DD')`
+    const dateExpression = zonedDateKey(
+      contactInboxModel.firstInteractionAt,
+      timezone,
+    )
 
     const rows = await tx
       .select({
@@ -1023,7 +1033,10 @@ export const adsConversionEventRepository = {
     // Explicit date bucketing pinned to `input.timezone` — see
     // countCtwaConversationsByDayAndAd.
     const timezone = input.timezone ?? "UTC"
-    const dateExpression = sql<string>`to_char(${adsConversionEventModel.occurredAt} AT TIME ZONE ${timezone}, 'YYYY-MM-DD')`
+    const dateExpression = zonedDateKey(
+      adsConversionEventModel.occurredAt,
+      timezone,
+    )
 
     // Same byte-identical-when-falsy, early-return branching as
     // countConversionEventsByAd.
@@ -1099,7 +1112,11 @@ export const adsConversionEventRepository = {
   async listExportSegmentRows(
     input: ExportSegmentInput,
     tx: DatabaseClient = db,
-  ): Promise<Array<AdsConversionExportRow & { id: string }>> {
+  ): Promise<ExportSegmentRowsResult> {
+    // Fetch one row beyond the requested page so `hasMore` reflects the RAW
+    // fetch rather than the post-slice row count.
+    const fetchLimit = input.limit + 1
+
     if (input.segment === "conversations") {
       const filters = and(
         // Contact is in this query's FROM, so scope by workspace here — the
@@ -1133,7 +1150,7 @@ export const adsConversionEventRepository = {
       // CSV column) — branched the same "add the column only when needed"
       // way as countConversionEventsByAd, keeping the legacy shape/rows
       // returned by every existing caller unchanged.
-      const rows = input.allChannels
+      const fetchedRows = input.allChannels
         ? await tx
             .select({ ...baseSelection, channel: contactInboxModel.channel })
             .from(contactInboxModel)
@@ -1143,7 +1160,7 @@ export const adsConversionEventRepository = {
             )
             .where(filters)
             .orderBy(asc(contactInboxModel.id))
-            .limit(input.limit)
+            .limit(fetchLimit)
         : await tx
             .select(baseSelection)
             .from(contactInboxModel)
@@ -1153,18 +1170,31 @@ export const adsConversionEventRepository = {
             )
             .where(filters)
             .orderBy(asc(contactInboxModel.id))
-            .limit(input.limit)
+            .limit(fetchLimit)
 
-      return rows.flatMap((row) =>
-        row.occurredAt
-          ? [
-              {
-                ...row,
-                occurredAt: row.occurredAt,
-              },
-            ]
-          : [],
-      )
+      const hasMore = fetchedRows.length > input.limit
+      const pageRows = hasMore ? fetchedRows.slice(0, input.limit) : fetchedRows
+
+      // `occurredAt` (aliased from `ContactInbox.firstInteractionAt`, a
+      // nullable column) is asserted non-null here rather than filtered: the
+      // `gte`/`lte` bounds `buildCtwaSegmentPredicate` puts on that same
+      // column exclude NULLs under normal SQL three-valued logic, so every
+      // row reaching this point already has one. Asserting (not silently
+      // dropping) means a future predicate change that broke that guarantee
+      // would surface as a thrown error instead of silently losing a row
+      // from the export and permanently mis-anchoring the `afterId` cursor
+      // (which is derived from this same page's last id by every caller).
+      return {
+        rows: pageRows.map((row) => {
+          if (!row.occurredAt) {
+            throw new Error(
+              "listExportSegmentRows: conversations row is missing firstInteractionAt despite the predicate's date-range bounds",
+            )
+          }
+          return { ...row, occurredAt: row.occurredAt }
+        }),
+        hasMore,
+      }
     }
 
     const eventFilters = and(
@@ -1191,7 +1221,7 @@ export const adsConversionEventRepository = {
       occurredAt: adsConversionEventModel.occurredAt,
     }
 
-    return input.allChannels
+    const fetchedEventRows = await (input.allChannels
       ? tx
           .select({
             ...baseEventSelection,
@@ -1208,7 +1238,7 @@ export const adsConversionEventRepository = {
           )
           .where(eventFilters)
           .orderBy(asc(adsConversionEventModel.id))
-          .limit(input.limit)
+          .limit(fetchLimit)
       : tx
           .select(baseEventSelection)
           .from(adsConversionEventModel)
@@ -1222,6 +1252,14 @@ export const adsConversionEventRepository = {
           )
           .where(eventFilters)
           .orderBy(asc(adsConversionEventModel.id))
-          .limit(input.limit)
+          .limit(fetchLimit))
+
+    const hasMoreEvents = fetchedEventRows.length > input.limit
+    return {
+      rows: hasMoreEvents
+        ? fetchedEventRows.slice(0, input.limit)
+        : fetchedEventRows,
+      hasMore: hasMoreEvents,
+    }
   },
 }

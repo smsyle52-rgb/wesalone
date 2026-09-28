@@ -4,17 +4,22 @@ export {
   editComment,
   hideComment,
   likeComment,
-  sendComment,
+  replyToComment,
   sendPrivateReply,
 } from "./apis/comment"
 export {
   ensureMessengerWhitelistedDomain,
+  logMessengerWelcomeProfile,
   normalizeMessengerWhitelistedDomain,
 } from "./apis/page"
 export { getPostDetails } from "./apis/post"
 export { getUserInboxLink } from "./apis/user-inbox-link"
 export * from "./integration"
-export { isRevokedTokenError, mapToChannelError } from "./lib/error-mapper"
+export {
+  isDisconnectSafeError,
+  isRevokedTokenError,
+  mapToChannelError,
+} from "./lib/error-mapper"
 export {
   messengerMenusToCallToActions,
   type PersistentMenuItem,

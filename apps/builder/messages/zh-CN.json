@@ -85,7 +85,6 @@
     "markAsFollowUp": "标记为待后续跟进",
     "markAsUnread": "标记为未读",
     "messagePlaceholder": "消息...",
-    "newLineHint": "Shift + Enter 换行",
     "more": "更多",
     "moreOptions": "更多选项",
     "moreSettings": "更多设置",
@@ -159,6 +158,7 @@
     "moveToDraft": "Move to draft",
     "stop": "Stop",
     "resume": "Resume",
+    "newLineHint": "Shift + Enter 换行",
     "tryAgain": "Try again"
   },
   "activeCampaign": {
@@ -231,7 +231,8 @@
       "adAccountFilter": {
         "all": "所有广告账号",
         "label": "广告账号",
-        "unavailable": "无法加载广告账户——请在设置中检查此集成的 Ads 连接，或工作区的 Facebook Ads 连接。"
+        "unavailable": "无法加载广告账户——请在设置中检查此集成的 Ads 连接，或工作区的 Facebook Ads 连接。",
+        "note": "按广告账号筛选时，在所选日期范围内有转化但花费为 0 或投放为 0 的广告会被隐藏。"
       },
       "channelFilter": {
         "label": "渠道",
@@ -511,6 +512,7 @@
     "newContactsByCountry": "依国家／地区分类的新联系人",
     "newContactsBySource": "依来源分类的新联系人",
     "noData": "无数据",
+    "errorLogRetentionNotice": "仅保留最近 {days} 天的错误日志。",
     "noResults": "无结果。",
     "pagination": {
       "firstPage": "前往第一页",
@@ -519,7 +521,8 @@
       "pageOf": "第 {page} 页（共 {pageCount}）",
       "previousPage": "前往上一页",
       "rowsPerPage": "每页列数",
-      "selectedRows": "已选取 {selected} / {total} 列。"
+      "selectedRows": "已选取 {selected} / {total} 列。",
+      "totalRows": "{total} 行"
     },
     "percentage": "百分比",
     "responseCount": "回应计数",
@@ -532,7 +535,16 @@
     "totalContacts": "联系人总数",
     "uniqueConversationsByAdmins": "真人客服的不重复对话",
     "uniqueConversationsByAdminsHelp": "真人客服至少发送一则消息的联系人数量。",
-    "unknown": "未知"
+    "unknown": "未知",
+    "repliesToComments": "评论回复数",
+    "repliesByDate": "按日期统计回复",
+    "userCommentsOnThisPost": "用户在此帖子的评论",
+    "botRepliesToComments": "机器人的评论回复",
+    "comment": "评论",
+    "message": "消息",
+    "searchByDate": "按日期搜索...",
+    "publicReply": "公开回复",
+    "privateReply": "私信回复"
   },
   "appointmentScheduling": {
     "description": "创建并管理您的预约安排。",
@@ -701,12 +713,6 @@
       "bannerTitle": "已达到每月活跃联系人限制",
       "createDisabled": "创建新的 {feature} 将被停用，直到您升级您的方案。"
     },
-    "paidPlanRequired": {
-      "title": "付费套餐功能",
-      "broadcastsDescription": "群发消息仅适用于付费套餐。升级后即可向联系人发送营销活动。",
-      "contactImportDescription": "导入联系人仅适用于付费套餐。升级后即可导入联系人列表。",
-      "cta": "查看套餐"
-    },
     "pastDue": {
       "message": "您上次付款失败。请更新付款方式以保持工作区可用。"
     },
@@ -717,6 +723,7 @@
     },
     "title": "计费",
     "trial": {
+      "planName": "试用",
       "daysLeft": "试用期：剩下 {days} 天",
       "dismiss": "关闭",
       "endsTomorrow": "试用期将于明天结束",
@@ -740,6 +747,12 @@
       "teamMembers": "团队成员",
       "workspaces": "工作区"
     },
+    "paidPlanRequired": {
+      "title": "付费套餐功能",
+      "broadcastsDescription": "群发消息仅适用于付费套餐。升级后即可向联系人发送营销活动。",
+      "contactImportDescription": "导入联系人仅适用于付费套餐。升级后即可导入联系人列表。",
+      "cta": "查看套餐"
+    },
     "navTitle": "Billing & Subscription"
   },
   "botSimulator": {
@@ -755,7 +768,6 @@
       "audienceFilter": "受众过滤器",
       "integration": "集成",
       "noAudienceFilter": "无受众过滤器",
-      "noTemplate": "无范本",
       "subaction": "子操作",
       "template": "范本",
       "title": "广播详细信息"
@@ -897,6 +909,71 @@
     "resumeDialog": {
       "title": "Resume broadcast",
       "description": "\"{name}\" will continue sending to recipients who have not received it yet."
+    },
+    "planLimitDialog": {
+      "title": "升级您的套餐",
+      "sendRate": "您当前的{plan}套餐支持的群发最高速度为每分钟 {rate} 条消息。请升级套餐，群发速度最高可提升至 {multiplier} 倍。",
+      "activeBroadcasts": "您当前的{plan}套餐一次可运行 {max, plural, one {# 个群发任务} other {# 个群发任务}}。请升级套餐以同时运行更多群发任务。"
+    },
+    "sendLimit": {
+      "title": "限制",
+      "hint": "留空以发送给所有匹配的联系人。",
+      "rateHint": "留空以使用默认发送速率。",
+      "rangeSummary": "联系人 #{start} – #{end}",
+      "rangeFromSummary": "从联系人 #{start} 起",
+      "rangeLabel": "联系人范围",
+      "fromLabel": "从",
+      "toLabel": "到",
+      "allPlaceholder": "全部",
+      "rangeEndBeforeStart": "结束位置不能早于开始位置"
+    }
+  },
+  "commentAutomation": {
+    "stats": {
+      "sent": "已发送",
+      "delivered": "已交付",
+      "seen": "已看过",
+      "clicked": "已点击",
+      "failed": "失败",
+      "missed": "漏回",
+      "noContacts": "找不到联系人",
+      "noComment": "(无内容)",
+      "pageInfo": "第 {page} 页（共 {pageCount}）",
+      "selectedAll": "已全选",
+      "selectedCount": "{count}",
+      "tagAllDialogDescription": "标签将添加到所有已选联系人。",
+      "tagDialogDescription": "标签将添加到 {count} 位联系人。",
+      "tagQueued": "在后台标记 {count} 联系人。",
+      "loadingMore": "加载更多...",
+      "receivers": "接收器"
+    },
+    "missReasons": {
+      "outsideSchedule": "不在时间段内",
+      "postNotMatched": "未选中该帖子",
+      "commentIsReply": "是评论回复",
+      "keywordsNotMatched": "关键词不匹配",
+      "contactNotNew": "联系人不是新用户",
+      "alreadyRepliedOnPost": "已在该帖子回复过",
+      "engagedOnOtherPost": "已在其他帖子互动过",
+      "mentionCountNotMatched": "提及人数不匹配"
+    },
+    "replyTo": {
+      "mentions": "提及人数足够的评论",
+      "mentionCount": "被标记人数",
+      "mentionCountDescription": "仅匹配标记了至少这么多人(@名称)的评论。",
+      "mentionCountOption": "{count, plural, one {# 人} other {# 人}}"
+    },
+    "excludeKeywordsType": {
+      "equal": "评论等于",
+      "contain": "评论包含"
+    },
+    "hideComments": {
+      "hasGif": "包含 GIF",
+      "hasEmoji": "包含表情符号"
+    },
+    "trackUserTags": {
+      "label": "追踪用户是否标记了其他用户",
+      "descriptionText": "统计每条评论中被标记的账号数,并在所有评论中累加到联系人的总数。使用 '{{total_tagged}}' 表示所有被标记的账号,使用 '{{total_new_tagged}}' 表示从未给您的主页发过消息或从未成为联系人的账号。"
     }
   },
   "channels": {
@@ -905,9 +982,14 @@
       "instagram": "此 Instagram 帐户已连接到另一个工作区。",
       "messenger": "此Facebook 页面已连接到另一个工作区。",
       "telegram": "此Telegram 机器人已连接到另一个工作区。",
+      "threads": "此Threads帐户已连接到另一个工作区。",
       "tiktok": "此TikTok帐户已连接到另一个工作区。",
       "whatsapp": "此 WhatsApp 号码已连接到另一个工作区。",
       "zalo": "此Zalo OA 已连接到另一个工作区。"
+    },
+    "missingScopes": {
+      "generic": "连接已取消：部分权限未授予。请重新连接并接受所有请求的权限。",
+      "tiktok": "TikTok 连接已取消：部分权限未授予。请重新连接并接受所有请求的权限。"
     },
     "reconnect": {
       "errors": {
@@ -930,6 +1012,58 @@
       "description": "以下频道未能自动刷新其访问权杖。请重新连接，以持续收发消息。",
       "title": "紧急"
     },
+    "connectMany": {
+      "coexist": {
+        "running": "正在开始同步历史记录…",
+        "done": "已开始同步历史记录",
+        "failed": "历史记录同步失败"
+      },
+      "selectAll": "全选",
+      "selected": "已选择 {count}/{max}",
+      "dialogTitleRunning": "正在连接 {count} 个{feature}…",
+      "dialogTitleDone": "已连接 {connected}/{total}",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "已完成 {done}/{total}",
+      "status": {
+        "waiting": "等待中",
+        "connecting": "连接中…",
+        "connected": "已连接",
+        "duplicated": "已连接过",
+        "limitReached": "已达上限",
+        "failed": "失败",
+        "timedOut": "已超时",
+        "cancelled": "已取消"
+      },
+      "reason": {
+        "notSelectable": "该项目无法选择。",
+        "channelLimit": "已达渠道上限。",
+        "workspaceLimit": "已达工作区上限。",
+        "providerRejected": "服务提供方拒绝了此请求。",
+        "unknown": "出现问题。",
+        "followUpFailed": "设置未完成——请在渠道设置中完成。"
+      },
+      "sessionError": {
+        "sessionExpired": "您的会话已过期，请重新连接。",
+        "notMember": "您已不再是该工作区的成员。",
+        "trialExpired": "您的试用期已结束。",
+        "macLimitReached": "您已达到账户上限。",
+        "credentialMissing": "凭据缺失，请重新连接。"
+      },
+      "cancelRemaining": "取消其余项",
+      "retryFailed": "重试（{count}）",
+      "retry": "重试",
+      "goToChannels": "前往渠道",
+      "close": "关闭",
+      "leaveNotice": "您可以离开此页面，已连接的账号将保留",
+      "stepConnecting": "连接中",
+      "stepCoexist": "同步历史记录",
+      "validation": {
+        "min": "至少选择 1 个",
+        "max": "最多可选择 {max} 个",
+        "duplicate": "选择重复"
+      },
+      "progressLabel": "进度"
+    },
     "channelLimit": "You have reached the number of channels included in your current plan. Disconnect a channel or upgrade your plan to add another one."
   },
   "claude": {
@@ -945,11 +1079,11 @@
   },
   "coexist": {
     "billingNote": "大页面可能需要几个小时才能完成。",
-    "decline": "不同步",
     "descriptionInstagram": "激活后，将从该 Instagram 帐户导入现有的 Instagram 联系人和最多 3 个月的对话记录。",
+    "enable": "激活同步",
+    "decline": "不同步",
     "descriptionMessenger": "激活后，将从该页面导入现有的 Messenger 联系人和最多 3 个月的对话历史记录。",
     "descriptionWhatsapp": "激活后，将从该WhatsApp号码导入联系人和最多 6 个月的聊天记录。",
-    "enable": "激活同步",
     "errors": {
       "alreadyTriggered": "此号码已触发同步。请等待Meta发送历史数据。",
       "notEligible": "此号码不符合历史同步条件。",
@@ -1172,6 +1306,60 @@
     "linkCopied": "链接已拷贝到剪贴板",
     "title": "联系人"
   },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
+  },
   "coupons": {
     "actions": {
       "downloadImportTemplate": "下载导入范本",
@@ -1345,6 +1533,41 @@
     },
     "unknown": "未知"
   },
+  "facebookMarketingMessages": {
+    "deleteWarning": "这只会从 ChatbotX 中移除该广告系列。Meta 消息广告系列仍在投放——请在广告管理工具中暂停或删除。",
+    "title": "Facebook 营销消息",
+    "description": "通过 Messenger 上的个性化推广消息提升互动与销售。",
+    "create": "新建",
+    "grantTitle": "授予 Facebook 访问权限",
+    "grantDescription": "请授予访问权限以使用营销消息功能",
+    "grantAction": "授予访问权限",
+    "reconnect": "重新连接",
+    "expiredWarning": "您的 Facebook 访问权限已过期或被撤销。请重新连接以创建或编辑广告系列。现有广告系列显示在下方，在重新连接前为只读状态。",
+    "fields": {
+      "image": "图片",
+      "video": "视频",
+      "page": "Facebook 主页",
+      "adAccount": "广告账户",
+      "budgetType": "预算类型",
+      "budget": "预算",
+      "daily": "每日预算",
+      "lifetime": "总预算",
+      "templateType": "消息类型",
+      "text": "文本",
+      "button": "按钮",
+      "media": "媒体",
+      "generic": "通用",
+      "greeting": "问候语",
+      "quickReplies": "快速回复",
+      "elements": "卡片"
+    },
+    "errors": {
+      "notConfigured": "尚未配置 Facebook 营销消息。请让管理员设置营销消息配置 ID。",
+      "notGranted": "请授予访问权限以使用营销消息功能。",
+      "tosNotAccepted": "要使用此功能，请在 {url} 接受自定义对象条款",
+      "notFound": "未找到营销消息。"
+    }
+  },
   "facebookAds": {
     "adAccounts": {
       "error": "加载广告帐号失败。请检查您的Facebook广告链接。",
@@ -1384,7 +1607,7 @@
     "create": "创建自动化",
     "deactivated": "自动化已停用",
     "description": "自动处理联系人在 Facebook 贴文下的留言。",
-    "excludeKeywords": "排除包含这些关键字的留言",
+    "excludeKeywords": "排除包含以下内容的评论",
     "excludeKeywordsDescription": "若留言包含任一关键字，收件匣回复与公开回复自动化都会忽略该留言。",
     "hideComments": {
       "all": "隐藏所有留言",
@@ -1409,6 +1632,8 @@
     "options": {
       "ignoreCommentReplies": "忽略留言底下的回复",
       "ignoreCommentRepliesDescription": "若留言是对其他留言的回复，而非顶层留言，则跳过自动化处理。",
+      "trackUserTags": "追踪用户是否标记了其他用户",
+      "trackUserTagsDescription": "统计每条评论中被标记的账号数,并在所有评论中累加到联系人的总数。使用 '{{total_tagged}}' 表示所有被标记的账号,使用 '{{total_new_tagged}}' 表示从未给您的主页发过消息或从未成为联系人的账号。",
       "likeUserComment": "对用户留言按赞",
       "likeUserCommentDescription": "自动对留言者的留言按赞。",
       "replyOncePerUserPerPost": "每则贴文对每位用户只回复一次",
@@ -1416,9 +1641,7 @@
       "replyToNewContactsOnly": "仅回复新联系人",
       "replyToNewContactsOnlyDescription": "仅自动回复过去从未成为此工作区联系人的人。",
       "replyToUsersWhoCommentedOnOtherPosts": "回复曾在其他贴文留言的用户",
-      "replyToUsersWhoCommentedOnOtherPostsDescription": "若用户曾在您其他贴文下留言，仍持续对其回复。",
-      "trackUserTags": "追踪用户是否标记其他人",
-      "trackUserTagsDescription": "当用户在留言中标记或提及其他用户时，触发此自动化。"
+      "replyToUsersWhoCommentedOnOtherPostsDescription": "若用户曾在您其他贴文下留言，仍持续对其回复。"
     },
     "postIdPlaceholder": "输入贴文 ID，每行一笔...",
     "postIdTab": "贴文 ID",
@@ -1430,9 +1653,9 @@
       "specificPosts": "指定贴文"
     },
     "privateReply": "私讯回复（收件匣）",
-    "privateReplyDescription": "将私讯发送到留言者的收件匣。可选择 AI Agent、固定文本范本（支持 spintax）、聊天机器人流程，或停用。",
+    "privateReplyDescription": "将私讯发送到留言者的收件匣。可选择 AI Agent、固定文本范本、聊天机器人流程，或停用。",
     "publicReply": "公开回复留言",
-    "publicReplyDescription": "直接在留言下方发表公开回复。支持最多 10 个文本范本（支持 spintax）、AI Agent、聊天机器人流程，或不回复。",
+    "publicReplyDescription": "直接在留言下方发表公开回复。支持最多 10 个文本范本、AI Agent、聊天机器人流程，或不回复。 每条消息都会作为独立的回复发布。 支持 spintax。",
     "replies": "回复",
     "replyAfter": "回复时间",
     "replyAfterType": {
@@ -1503,6 +1726,11 @@
     "dashboardCta": "在广告仪表盘中查看"
   },
   "fields": {
+    "optionalHint": "(optional)",
+    "marketingMessagesConfigId": {
+      "label": "营销消息配置 ID",
+      "description": "用于请求 marketing_messages_messenger 权限的“Facebook 商务登录”配置 ID。"
+    },
     "accessToken": {
       "label": "访问权杖"
     },
@@ -1533,9 +1761,6 @@
     "aiQueuedMessages": {
       "label": "AI 排队消息"
     },
-    "aiTrigger": {
-      "label": "人工智能触发器"
-    },
     "alphanumericLength": {
       "label": "字母数字长度"
     },
@@ -1556,6 +1781,9 @@
     },
     "appSecret": {
       "label": "应用程序秘密"
+    },
+    "version": {
+      "label": "版本"
     },
     "assignedId": {
       "label": "指派给"
@@ -2043,6 +2271,9 @@
       "loginTitle": "使用 Instagram 登录",
       "viaFacebookTitle": "Instagram 通过 Facebook"
     },
+    "threads": {
+      "label": "Threads"
+    },
     "instagramBusinessFollowsUser": {
       "label": "Instagram 业务跟进用户"
     },
@@ -2071,7 +2302,8 @@
     "javascriptCode": {
       "description": "使用纯 JavaScript 并返回一个值。网络、文件、API 和外部库均不可用。可通过 `input` 对象访问联系人和系统数据。",
       "label": "JavaScript 代码",
-      "placeholder": "return (input.first_name || 'there').toUpperCase()"
+      "placeholder": "return (input.first_name || 'there').toUpperCase()",
+      "objectMapping": "将返回值中的任意 JSON 路径映射到任意自定义字段，方式与外部 API 请求相同。路径和字段由你选择。"
     },
     "jsonPath": {
       "placeholder": "输入 JSON 路径",
@@ -2278,6 +2510,12 @@
     "messengerChannel": {
       "label": "Messenger 频道"
     },
+    "whatsappChannels": {
+      "label": "WhatsApp 渠道"
+    },
+    "messengerChannels": {
+      "label": "Messenger 主页"
+    },
     "messengerTemplateId": {
       "label": "Messenger 范本"
     },
@@ -2363,7 +2601,9 @@
       "used": "已使用"
     },
     "outputCustomField": {
-      "label": "输出自订字段"
+      "label": "输出自订字段",
+      "javascriptOptional": "可选。保存整个返回值。使用上方的 JSON 路径映射写入各个字段。",
+      "javascriptDumpLabel": "完整 JSON 输出（可选）"
     },
     "outputFieldId": {
       "label": "将结果保存到自订字段"
@@ -2513,7 +2753,8 @@
       "location": "位置",
       "number": "号码",
       "phone": "电话",
-      "text": "文本"
+      "text": "文本",
+      "locationDescription": "在 WhatsApp 上，此步骤会发送 Meta 原生的“发送位置”按钮并等待图钉。其他渠道以文本形式发送提示；共享图钉或输入 lat,lng 也可完成该步骤。"
     },
     "requestBody": {
       "keyPlaceholder": "字段",
@@ -2726,8 +2967,13 @@
         "step3": "粘贴下面的凭证以进行连接。"
       },
       "displayName": "显示名称",
+      "needsReauthorizationForComments": "此连接是在评论自动化之前授权的。请重新连接以开始接收评论事件。",
       "label": "TikTok",
-      "openId": "打开ID"
+      "openId": "打开ID",
+      "commentToMessage": "Comment-to-Message",
+      "commentToMessageDescription": "Lets this account answer high-intent comments with a direct message. Required for TikTok comment automations that use a private reply.",
+      "commentToMessageEligibility": "Only available to Business Accounts registered in Vietnam, Indonesia or Thailand, owned by someone over 18, that are registered businesses or have run Messaging Ads, with messaging permissions set to \"Requests\".",
+      "commentToMessageUnknown": "Not checked with TikTok yet — refresh to read the current setting."
     },
     "timezone": {
       "description": "联系人将套用此时区。",
@@ -2928,30 +3174,6 @@
         "done": "完成"
       }
     },
-    "adReferral": {
-      "label": "Ads",
-      "ctwa": "CTWA",
-      "ctm": "CTM",
-      "ctid": "CTID"
-    },
-    "adSource": {
-      "label": "Ad source"
-    },
-    "attribute": {
-      "label": "Attribute"
-    },
-    "header": {
-      "label": "Header"
-    },
-    "aiProvider": {
-      "label": "Provider"
-    },
-    "transcriptionModel": {
-      "label": "Model",
-      "placeholder": "Select a model"
-    },
-    "optionalHint": "(optional)",
-    "selectOptionsPlaceholder": "Select options",
     "tokenPermission": {
       "label": "权限",
       "full": "完全访问",
@@ -2971,7 +3193,43 @@
       "appointments": "预约",
       "media": "媒体",
       "ads": "广告"
-    }
+    },
+    "adReferral": {
+      "label": "Ads",
+      "ctwa": "CTWA",
+      "ctm": "CTM",
+      "ctid": "CTID"
+    },
+    "adSource": {
+      "label": "Ad source"
+    },
+    "manualAppSecret": {
+      "label": "Meta App Secret（可选）",
+      "description": "为此手动连接启用 Webhook 签名验证。可在 Meta App 控制台的 Settings > Basic 中找到。"
+    },
+    "lastCallRecorded": {
+      "label": "最近通话录音"
+    },
+    "lastCallTranscript": {
+      "label": "最近通话转写"
+    },
+    "sendRatePerMinute": {
+      "label": "每分钟发送消息数"
+    },
+    "attribute": {
+      "label": "Attribute"
+    },
+    "header": {
+      "label": "Header"
+    },
+    "aiProvider": {
+      "label": "Provider"
+    },
+    "transcriptionModel": {
+      "label": "Model",
+      "placeholder": "Select a model"
+    },
+    "selectOptionsPlaceholder": "Select options"
   },
   "flowAnalytics": {
     "nodes": {
@@ -3086,6 +3344,8 @@
       "typing": "打字",
       "unarchiveConversation": "取消封存对话",
       "unassignConversation": "取消分配对话",
+      "markConversationAsUnread": "将会话标记为未读",
+      "markConversationAsRead": "将会话标记为已读",
       "unfollowConversation": "取消追踪对话",
       "unsubscribeBroadcast": "退订广播",
       "unsubscribeSequence": "退订串行",
@@ -3099,6 +3359,8 @@
       "export": "导出",
       "importStarted": "流程正在导入中，请稍后查看导入记录以获取结果。",
       "importJsonOnly": "仅限 JSON 文件",
+      "whatsappCallButton": "通过 WhatsApp 通话",
+      "metaConversions": "Meta Conversions API",
       "aiAgentGroup": "AI agent"
     },
     "additionalSteps": "附加步骤",
@@ -3239,6 +3501,14 @@
       "tiktokTitleTruncated": "附加按钮后，TikTok 只会发送这条消息的前 40 个字符——其余部分将被截断。"
     },
     "dataWasSaved": "数据已保存",
+    "media": {
+      "stepUnsupportedOnChannel": "此渠道无法发送该类型的媒体，此步骤会被跳过。请删除该步骤，或将节点切换到支持的渠道。",
+      "buttonsSkippedOnChannel": "此渠道无法随媒体消息发送按钮，按钮会被跳过。请改为放在后面的文本步骤中。"
+    },
+    "whatsappCallButton": {
+      "editButtonTitle": "编辑按钮",
+      "buttonLabel": "按钮标签"
+    },
     "startNode": "Start"
   },
   "folders": {
@@ -3337,6 +3607,14 @@
     "description": "您访问的页面不存在，或可能已被移动。",
     "backToHome": "返回首页"
   },
+  "inboxes": {
+    "markReadOnOutbound": {
+      "label": "将机器人消息标记为已读",
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "description": "启用后，机器人会自动将自己的消息标记为已读"
+    }
+  },
   "inboxTeams": {
     "title": "收件匣团队"
   },
@@ -3350,6 +3628,12 @@
     "tabs": {
       "generalSettings": "常规设置",
       "conversionsApi": "广告优化"
+    },
+    "selectPage": {
+      "noAccountsTitle": "未找到 Instagram 账户",
+      "noAccountsDescription": "在您管理的 Facebook 主页中未找到 Instagram 商业账户。请重新连接 Instagram 并授予所有请求的权限。",
+      "alreadyConnectedNote": "该账户已连接",
+      "tryAgain": "尝试重新连接"
     }
   },
   "instagramCommentAutomation": {
@@ -3371,7 +3655,7 @@
     "create": "创建自动化",
     "deactivated": "自动化已停用",
     "description": "自动处理联系人在 Instagram 贴文下的留言。",
-    "excludeKeywords": "排除包含这些关键字的留言",
+    "excludeKeywords": "排除包含以下内容的评论",
     "excludeKeywordsDescription": "若留言包含任一关键字，收件匣回复与公开回复自动化都会忽略该留言。",
     "hideComments": {
       "all": "隐藏所有留言",
@@ -3394,6 +3678,8 @@
     "options": {
       "ignoreCommentReplies": "忽略留言底下的回复",
       "ignoreCommentRepliesDescription": "若留言是对其他留言的回复，而非顶层留言，则跳过自动化处理。",
+      "trackUserTags": "追踪用户是否标记了其他用户",
+      "trackUserTagsDescription": "统计每条评论中被标记的账号数,并在所有评论中累加到联系人的总数。使用 '{{total_tagged}}' 表示所有被标记的账号,使用 '{{total_new_tagged}}' 表示从未给您的主页发过消息或从未成为联系人的账号。",
       "likeUserComment": "对用户留言按赞",
       "likeUserCommentDescription": "自动对留言者的留言按赞。",
       "replyOncePerUserPerPost": "每则贴文对每位用户只回复一次",
@@ -3412,9 +3698,9 @@
       "specificPosts": "指定贴文"
     },
     "privateReply": "私讯回复（收件匣）",
-    "privateReplyDescription": "将私讯发送到留言者的收件匣。可选择 AI Agent、固定文本范本（支持 spintax）、聊天机器人流程，或停用。",
+    "privateReplyDescription": "将私讯发送到留言者的收件匣。可选择 AI Agent、固定文本范本、聊天机器人流程，或停用。",
     "publicReply": "公开回复留言",
-    "publicReplyDescription": "直接在留言下方发表公开回复。支持最多 10 个文本范本（支持 spintax）、AI Agent、聊天机器人流程，或不回复。",
+    "publicReplyDescription": "直接在留言下方发表公开回复。支持最多 10 个文本范本、AI Agent、聊天机器人流程，或不回复。 每条消息都会作为独立的回复发布。 支持 spintax。",
     "replies": "回复",
     "replyAfter": "回复时间",
     "replyAfterType": {
@@ -3456,6 +3742,192 @@
     "title": "Instagram 留言自动化",
     "trackCommentsOn": "追踪留言的对象",
     "trackCommentsOnDescription": "可套用到已连接帐号上的所有贴文，或缩小范围到您指定的特定贴文。"
+  },
+  "threadsCommentAutomation": {
+    "title": "Threads 评论自动化",
+    "description": "自动处理联系人在 Threads 帖子下的公开评论回复。",
+    "create": "创建自动化",
+    "replies": "回复",
+    "empty": "尚未创建 Threads 评论自动化。",
+    "publicOnlyNote": "Threads 目前仅支持公开回复。",
+    "trackCommentsOn": "追踪评论的对象",
+    "publicReply": "公开回复评论",
+    "publicReplyDescription": "对符合条件的 Threads 评论发表公开回复。 最多 10 条文本消息(支持 spintax),每条作为单独的回复发布。",
+    "replyMessage": "回复消息",
+    "replyFlow": "回复流程",
+    "replyAIAgent": "回复 AI Agent",
+    "includeKeywordsType": "回复对象",
+    "includeKeywords": "要匹配的关键词",
+    "excludeKeywords": "排除包含以下内容的评论",
+    "keywordsPlaceholder": "输入后按 Enter...",
+    "replyAfter": "回复时间",
+    "replyAfterValue": "时间值",
+    "specificPostIds": "指定帖子 ID",
+    "postIdPlaceholder": "输入帖子 ID 后按 Enter...",
+    "card": {
+      "targeting": "目标与回复",
+      "filters": "筛选条件与选项",
+      "replyTiming": "回复时机",
+      "hideComments": "隐藏留言"
+    },
+    "postType": {
+      "all": "所有帖子",
+      "specificPosts": "指定帖子"
+    },
+    "replyType": {
+      "text": "文本消息",
+      "flow": "流程",
+      "AIAgent": "AI Agent",
+      "none": "不回复"
+    },
+    "keywordsType": {
+      "all": "所有评论",
+      "equal": "完全匹配",
+      "contain": "包含"
+    },
+    "replyAfterType": {
+      "immediately": "立即",
+      "seconds": "X 秒后",
+      "minutes": "X 分钟后",
+      "hours": "X 小时后",
+      "randomWithin3Minutes": "3 分钟内随机",
+      "randomWithin5Minutes": "5 分钟内随机",
+      "randomWithin10Minutes": "10 分钟内随机",
+      "randomWithin20Minutes": "20 分钟内随机",
+      "randomWithin30Minutes": "30 分钟内随机",
+      "randomWithin60Minutes": "60 分钟内随机"
+    },
+    "options": {
+      "replyToNewContactsOnly": "仅回复新联系人",
+      "replyOncePerUserPerPost": "每条帖子对每位用户只回复一次",
+      "replyToUsersWhoCommentedOnOtherPosts": "回复曾在其他帖子评论的用户",
+      "ignoreCommentReplies": "忽略评论下的回复"
+    },
+    "validation": {
+      "postIdsMustBeEmptyForAll": "选择所有帖子时，帖子 ID 必须留空。",
+      "postIdsRequired": "选择指定帖子时，请至少填入一个帖子 ID。",
+      "keywordsMustBeEmptyForAll": "匹配所有评论时，关键词必须留空。",
+      "keywordsRequired": "请为所选的匹配方式至少输入一个关键词。",
+      "delayMustBePositive": "延迟时间必须大于零。",
+      "delayMustBeZero": "所选的时机选项不支持延迟时间，请设为零。",
+      "atLeastOneFieldRequired": "请至少填写一个字段。",
+      "replyTextRequired": "请至少输入一条回复消息。",
+      "hideKeywordsRequired": "Enter at least one keyword to hide comments by keyword."
+    },
+    "hideCommentsDescription": "只能隐藏您帖子下的顶级回复。",
+    "hideComments": {
+      "all": "隐藏所有留言",
+      "hasPhoneNumber": "包含电话号码",
+      "hasLink": "包含链接",
+      "hasKeywords": "包含关键字",
+      "keywords": "关键字",
+      "showCommentsAfter": "多久后重新显示留言"
+    },
+    "showCommentsAfter": {
+      "none": "永不"
+    }
+  },
+  "tiktokCommentAutomation": {
+    "title": "TikTok Comment Automation",
+    "description": "Automate replies, likes and hiding on comments under your TikTok videos.",
+    "create": "Create Automation",
+    "replies": "Replies",
+    "empty": "No TikTok comment automations yet.",
+    "deliveryDelayNote": "TikTok delivers comment events within five minutes, so replies are not instant. Any reply delay you set is added on top of that.",
+    "trackCommentsOn": "Track comments on",
+    "publicReply": "Public reply to comment",
+    "publicReplyDescription": "Send a public reply to matching TikTok comments. 最多 10 条文本消息(支持 spintax),每条作为单独的回复发布。",
+    "replyMessage": "Reply message",
+    "replyFlow": "Reply flow",
+    "replyAIAgent": "Reply AI Agent",
+    "includeKeywordsType": "Reply to",
+    "includeKeywords": "Keywords to match",
+    "excludeKeywords": "排除包含以下内容的评论",
+    "keywordsPlaceholder": "Type and press Enter...",
+    "replyAfter": "Reply after",
+    "replyAfterValue": "Value",
+    "specificPostIds": "Specific video IDs",
+    "postIdPlaceholder": "Enter video IDs and press Enter...",
+    "hideCommentsDescription": "Hidden comments stay visible to their author only.",
+    "card": {
+      "targeting": "Targeting & Reply",
+      "filters": "Filters & Options",
+      "hideComments": "Hide Comments",
+      "replyTiming": "Reply Timing"
+    },
+    "postType": {
+      "all": "All videos",
+      "specificPosts": "Specific videos"
+    },
+    "replyType": {
+      "text": "Text message",
+      "flow": "Flow",
+      "AIAgent": "AI Agent",
+      "none": "No reply"
+    },
+    "keywordsType": {
+      "all": "All comments",
+      "equal": "Exact match",
+      "contain": "Contains"
+    },
+    "replyAfterType": {
+      "immediately": "Immediately",
+      "seconds": "After X seconds",
+      "minutes": "After X minutes",
+      "hours": "After X hours",
+      "randomWithin3Minutes": "Random within 3 minutes",
+      "randomWithin5Minutes": "Random within 5 minutes",
+      "randomWithin10Minutes": "Random within 10 minutes",
+      "randomWithin20Minutes": "Random within 20 minutes",
+      "randomWithin30Minutes": "Random within 30 minutes",
+      "randomWithin60Minutes": "Random within 60 minutes"
+    },
+    "options": {
+      "replyToNewContactsOnly": "Only reply to new contacts",
+      "replyOncePerUserPerPost": "Reply only once to each user per video",
+      "replyToUsersWhoCommentedOnOtherPosts": "Reply to users who commented on other videos",
+      "ignoreCommentReplies": "Don't reply to replies to comments",
+      "likeUserComment": "Like the user's comment"
+    },
+    "hide": {
+      "all": "Hide every comment",
+      "hasPhoneNumber": "Hide comments containing a phone number",
+      "hasLink": "Hide comments containing a link",
+      "hasKeywords": "Hide comments containing keywords",
+      "keywords": "Keywords to hide",
+      "showCommentsAfter": "Show hidden comments again after"
+    },
+    "showCommentsAfter": {
+      "none": "Never",
+      "6h": "6 hours",
+      "12h": "12 hours",
+      "1d": "1 day",
+      "2d": "2 days",
+      "3d": "3 days",
+      "4d": "4 days",
+      "5d": "5 days",
+      "6d": "6 days",
+      "7d": "7 days",
+      "8d": "8 days",
+      "9d": "9 days",
+      "10d": "10 days"
+    },
+    "validation": {
+      "postIdsMustBeEmptyForAll": "Video IDs must be empty when targeting all videos.",
+      "postIdsRequired": "Select at least one video ID when targeting specific videos.",
+      "keywordsMustBeEmptyForAll": "Keywords must be empty when matching all comments.",
+      "keywordsRequired": "Enter at least one keyword for the selected match type.",
+      "delayMustBePositive": "Delay value must be greater than zero.",
+      "delayMustBeZero": "Delay value must be zero for the selected timing option.",
+      "hideKeywordsRequired": "Enter at least one keyword to hide comments by keyword.",
+      "atLeastOneFieldRequired": "At least one field is required.",
+      "replyTextRequired": "请至少输入一条回复消息。"
+    },
+    "privateReply": "Private reply (Comment-to-Message)",
+    "privateReplyDescription": "Send a direct message to the commenter. TikTok only allows this for comments it flags as high intent, so it will not fire for every matching comment.",
+    "privateReplyMessage": "Private reply message",
+    "privateReplyHighIntentTitle": "TikTok decides which comments can be messaged",
+    "privateReplyHighIntentNotice": "Comment-to-Message must be enabled on the connected TikTok account, and the account must be a Business Account registered in Vietnam, Indonesia or Thailand. TikTok sends the direct message only for first-level comments it flags as high intent, within 48 hours, once per comment, and not if the commenter already messaged you in the past 24 hours."
   },
   "instagramStoryAutomation": {
     "activated": "自动化已激活",
@@ -3650,6 +4122,7 @@
     "changeHideState": "更改隐藏状态",
     "changeLikeState": "更改类似状态",
     "commentHidden": "此留言已隐藏",
+    "commentMediaUnavailable": "此评论包含无法显示的 GIF、贴纸或图片",
     "connectFailed": "{feature} 连接失败",
     "connectSuccess": "{feature} 连接成功",
     "connectedSuccess": "{feature} 连接成功",
@@ -3667,7 +4140,10 @@
     "deleteFeature": "删除 {feature}",
     "resetFeature": "重置{feature}",
     "resetConfirmation": "这将清空所选{feature}的值。\n此操作无法撤销。",
+    "resetAllConfirmation": "这将清空该联系人所有{feature}的值。\n此操作无法撤销。",
     "resetSuccess": "{feature}重置成功",
+    "clearFeature": "清除{feature}",
+    "clearSuccess": "{feature}清除成功",
     "deleteFileComingSoon": "删除文件功能即将推出",
     "deleteMessageSuccess": "消息已删除",
     "deleteNodeError": "无法删除该区块。请再试一次。",
@@ -3758,11 +4234,27 @@
     "whatsappCarouselButtonsMismatch": "在 WhatsApp 上，轮播需要在每张卡片上使用相同的按钮：每张卡片上有一个链接按钮，或每张卡片上有相同数量的回应按钮",
     "whatsappCarouselLinkButtonNotAlone": "在 WhatsApp 中，带有链接按钮的轮播卡片不能同时包含其他按钮。请移除此卡片上的其他按钮，或将链接按钮改成其他动作。",
     "tiktokCardTitleTooLong": "TikTok 会截断这条消息：附加按钮后，只会发送前 40 个字符。请缩短消息内容或移除按钮。",
+    "sendTextTooLongForChannel": "这条消息超过了该渠道允许的长度。请缩短内容，或将此节点指向限制更高的渠道。",
     "waTemplateMpmNoProducts": "发布前请至少为此多商品按钮添加一个商品。",
     "waTemplateMpmTooManySections": "多商品按钮最多可包含 10 个版块。请在发布前移除部分版块。",
     "waTemplateMpmTooManyProducts": "多商品按钮总共最多可包含 30 个商品。请在发布前移除部分商品。",
     "waTemplateLtoExpirationRequired": "发送前请为限时优惠选择到期时间。",
-    "waTemplateMpmIncompleteProducts": "每个分组至少需要一个已选择的商品——请删除空行或为其选择商品。"
+    "waTemplateMpmIncompleteProducts": "每个分组至少需要一个已选择的商品——请删除空行或为其选择商品。",
+    "mediaStepUnsupported": "此渠道无法发送该类型的媒体。请删除该步骤，或将此节点指向支持的渠道。",
+    "mediaButtonsUnsupported": "此渠道无法随媒体消息发送按钮。请删除按钮，或将其移到此步骤之后的文本步骤中。",
+    "voiceCall": "语音通话",
+    "voiceCallDuration": "语音通话 · {duration}",
+    "missedVoiceCall": "未接语音通话",
+    "declinedVoiceCall": "已拒绝的语音通话",
+    "voiceCallFailed": "失败的语音通话",
+    "unansweredVoiceCall": "无人接听",
+    "canceledVoiceCall": "已取消的通话",
+    "acceptedCallPermission": "已接受通话权限请求",
+    "declinedCallPermission": "已拒绝通话权限请求",
+    "humanAgentWarningDescription": "只有在问题无法于 24 小时内合理解决时，您才可以在 7 天内回复用户的消息。例如周末、假日，或需要超过一天才能完成的案例。请勿因其他原因使用此选项，否则可能让您的 Facebook 粉专或 Instagram 帐号面临风险。如果您不确定，请不要继续。",
+    "sendHumanAgentTag": "发送一封带有 HUMAN_AGENT 标签的消息",
+    "warning": "警告！",
+    "callFailed": "通话问题"
   },
   "messenger": {
     "botProfile": "机器人个人数据",
@@ -3782,6 +4274,7 @@
         "result": {
           "close": "关闭",
           "succeededTitle": "成功",
+          "pendingTitle": "等待 Meta 审核",
           "title": "拷贝结果"
         },
         "succeededCount": "{count} 频道已成功拷贝",
@@ -3819,10 +4312,10 @@
     "personasDescription": "此设置可让您为机器人设置不同的名称和影像",
     "reconnect": "重新连接",
     "reconnectDescription": "请务必重新连接您的机器人。",
-    "selectFacebookPage": "选择Facebook 页",
     "selectPage": {
       "alreadyConnectedNote": "该页面已连接",
       "bmLookupFailedDescription": "重新连接Messenger 并授予商务管理平台访问权限，以便可以列出通过商务管理平台管理的页面。",
+      "loadFailed": "无法加载你的 Facebook 主页",
       "bmLookupFailedTitle": "业务管理平台页面可能遗失",
       "noConnectablePagesDescription": "您不是此页面的管理员",
       "noConnectablePagesTitle": "没有可连接的页面",
@@ -4125,10 +4618,6 @@
     "queues": {
       "title": "队列"
     },
-    "aiSettings": {
-      "title": "AI Settings",
-      "description": "Central Vertex AI configuration every workspace's AI agents inherit."
-    },
     "workspaces": {
       "title": "工作区",
       "description": "所有者已启用平台支持访问的工作区可以在此处打开。",
@@ -4139,6 +4628,10 @@
       "supportEnabledUntil": "已启用，至 {time}",
       "supportOff": "已关闭",
       "searchPlaceholder": "按名称、所有者邮箱或 ID 搜索"
+    },
+    "aiSettings": {
+      "title": "AI Settings",
+      "description": "Central Vertex AI configuration every workspace's AI agents inherit."
     }
   },
   "platformBranding": {
@@ -4686,10 +5179,6 @@
       "description": "AI Agent描述",
       "title": "AI Agent"
     },
-    "aiTriggers": {
-      "description": "人工智能触发器描述",
-      "title": "人工智能触发器"
-    },
     "automatedResponses": {
       "title": "关键字"
     },
@@ -4799,7 +5288,8 @@
     "title": "TikTok"
   },
   "tools": {
-    "title": "工具"
+    "title": "工具",
+    "beta": "Beta"
   },
   "trigger": {
     "actions": {
@@ -4853,7 +5343,9 @@
       "ticketStatusChanged": "票证状态已更改",
       "ticketValueChanged": "票价已更改",
       "unsubscribedFromSequence": "取消订阅串行",
-      "userAskedAboutProduct": "用户询问产品"
+      "userAskedAboutProduct": "用户询问产品",
+      "callRecorded": "通话已录音",
+      "callTranscribed": "通话已转写"
     },
     "day": "日",
     "hour": "小时",
@@ -4894,6 +5386,7 @@
   "validation": {
     "invalidApiKey": "API 密钥无效",
     "maxItemsReached": "最大 {max}{feature}",
+    "maxCharacters": "最多 {max} 个字符。",
     "maxMustBeGreaterThanMin": "{maxField} 必须大于或等于 {minField}",
     "maxSize": "文件大小超出上限"
   },
@@ -5052,14 +5545,7 @@
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "必须提供 WhatsApp Access Token。",
         "appSettingsNotFound": "WhatsApp应用程序设置。",
-        "failedToPersistIntegration": "无法保存WhatsApp 集成。",
-        "noPhoneNumberFound": "找不到 WhatsApp 电话号码。",
-        "noPhoneNumbersFound": "找不到此 WhatsApp 企业帐户的电话号码。",
-        "phoneNumberNotFound": "所选WhatsApp 电话号码找不到。",
-        "unableToVerifyToken": "无法验证WhatsApp 权杖。",
-        "wabaMismatch": "所选WhatsApp 企业帐户与授权不符。",
         "wabaResolveFailed": "无法从授权解析WhatsApp 企业帐号。"
       }
     },
@@ -5080,19 +5566,11 @@
       "qrCodeHint": "扫描 QR Code 以打开 webhook URL",
       "title": "您的 WhatsApp 收件匣已准备好！",
       "verifyToken": "Webhook 验证权杖",
-      "webhookUrl": "Webhook URL"
+      "webhookUrl": "Webhook URL",
+      "multipleTitle": "您的 WhatsApp 收件箱已就绪！"
     },
     "marketingMessageLite": "行销消息 Lite",
     "messageTemplate": {
-      "create": {
-        "trigger": "创建模板",
-        "reviewNote": "Meta 会审核模板，通常需要几分钟到几小时。获批后即可在群发消息中使用。",
-        "nameHint": "仅限小写英文字母、数字和 _，例如 offer_sep",
-        "footer": "页脚（可选）",
-        "quickReply": "快速回复",
-        "submitted": "模板已提交给 Meta 审核",
-        "rejected": "Meta 拒绝了此模板。请检查文本后重试。"
-      },
       "carouselImage": {
         "label": "轮播影像"
       },
@@ -5157,13 +5635,23 @@
       },
       "viewProduct": {
         "label": "查看产品"
+      },
+      "create": {
+        "trigger": "创建模板",
+        "reviewNote": "Meta 会审核模板，通常需要几分钟到几小时。获批后即可在群发消息中使用。",
+        "nameHint": "仅限小写英文字母、数字和 _，例如 offer_sep",
+        "footer": "页脚（可选）",
+        "quickReply": "快速回复",
+        "submitted": "模板已提交给 Meta 审核",
+        "rejected": "Meta 拒绝了此模板。请检查文本后重试。"
       }
     },
     "phoneVerification": {
       "actions": {
         "resendIn": "在 {seconds} 内重新发送",
         "sendCode": "发送代码",
-        "verify": "验证并注册"
+        "verify": "注册",
+        "skip": "跳过"
       },
       "description": "向Meta要求验证码，在此输入验证码，电话号码将自动注册。",
       "errorTitle": "需要电话号码验证",
@@ -5188,7 +5676,8 @@
         "sms": "短信",
         "voice": "语音通话"
       },
-      "title": "验证WhatsApp电话号码"
+      "title": "验证WhatsApp电话号码",
+      "queueProgress": "正在验证 {current}/{total}"
     },
     "reconnect": {
       "errors": {
@@ -5212,7 +5701,6 @@
     "showHeader": {
       "label": "显示标题"
     },
-    "signupSessionExpired": "您的WhatsApp注册会话已过期。请重新开始连接。",
     "tabs": {
       "accountHealths": "帐户健康状况",
       "automation": "自动化",
@@ -5222,7 +5710,8 @@
       "profile": "简介",
       "usefulLinks": "有用链接",
       "conversionsApi": "广告优化",
-      "settings": "设置"
+      "settings": "设置",
+      "calls": "Calls"
     },
     "templateFooter": {
       "label": "范本页脚"
@@ -5231,10 +5720,260 @@
       "label": "范本标头"
     },
     "transferPhoneNumber": "从其他 Whatsapp 供应商转接电话",
-    "capi": {
-      "automaticEvents": {
-        "title": "Automatic Events",
-        "description": "自动将此 WhatsApp 号码的转化事件发送到 Meta。如果缺少权限,请重新连接账户以授予权限。"
+    "selectPage": {
+      "tryAgain": "尝试重新连接"
+    },
+    "manualAppSecretMissingNotice": "在您添加 Meta App Secret 之前，Webhook 签名不会被验证。",
+    "calls": {
+      "title": "WhatsApp Calls",
+      "description": "Let customers call your business on WhatsApp and control how calling works for this number.",
+      "enableLabel": "Enable calling",
+      "enableHelper": "Allow WhatsApp calls to and from this business number.",
+      "iconVisibilityLabel": "Show call icon",
+      "iconVisibilityHelper": "Show the call button in the chat and on your business profile.",
+      "callbackPermissionLabel": "Callback permission requests",
+      "callbackPermissionHelper": "Automatically ask customers for permission to call them back after a missed or completed call.",
+      "propagationNote": "Changes are applied by Meta immediately, but the WhatsApp app of your customers can take up to 7 days to reflect them.",
+      "loadFailed": "Failed to load calling settings from Meta. Check the connection of this number and try again.",
+      "errors": {
+        "notFound": "WhatsApp integration not found",
+        "notWhatsappConversation": "This conversation is not on WhatsApp",
+        "callNotFound": "Call not found",
+        "callNotReady": "The call is not ready to answer yet — try again",
+        "inAppCallingUnavailable": "In-app calling is not configured on this server",
+        "noCallPermission": "The contact has not granted call permission",
+        "permissionRequestLimitReached": "WhatsApp 每 7 天对每位联系人最多只允许发送 2 次通话权限请求。该联系人已达到上限，请稍后再试。",
+        "audioConnectFailed": "Could not connect call audio",
+        "updateFailed": "Meta rejected the calling settings change",
+        "savedOnMetaOnly": "Meta saved the change but this workspace did not. Save again to finish.",
+        "bicUnavailable": "Business-initiated calling is not available for this country",
+        "callAlreadyInProgress": "A call to this contact is already in progress",
+        "hangupFailed": "Could not end the call",
+        "voipCannotAnswer": "This call is no longer available to answer",
+        "voipCallEnded": "The call ended before it could be answered",
+        "voipAnswerFailed": "Could not answer the WhatsApp call",
+        "voipRejectFailed": "无法拒绝此 WhatsApp 通话",
+        "voipHangupFailed": "无法结束此 WhatsApp 通话",
+        "voipNotReservedAgent": "您不是分配给此通话的坐席",
+        "voipCallAccessDenied": "您无权处理此通话",
+        "voipTurnCredentialsRateLimited": "Too many call setup requests. Please wait a moment and try again.",
+        "callNoLongerRinging": "该来电已不再响铃",
+        "transcriptionRequiresRecording": "请先开启通话录音，再开启转写。",
+        "supportSessionCallingBlocked": "平台支持会话期间无法使用通话功能。",
+        "callingAccessDenied": "您在此工作区中无权使用通话功能。",
+        "callArtifactAccessDenied": "您无权查看此通话。",
+        "callHistoryAccessDenied": "您无权访问此工作区的通话记录。"
+      },
+      "permissionRequestTitle": "Request call permission",
+      "permissionRequestDescription": "Ask this customer to allow calls from your business on WhatsApp. Meta limits requests to 1 per 24 hours and 2 per 7 days per customer.",
+      "permissionRequestBodyLabel": "Message",
+      "permissionRequestDefaultBody": "We would like to call you on WhatsApp to help you faster. Do you allow us to call you?",
+      "permissionRequestSent": "Call permission request sent",
+      "inAppCallingLabel": "In-app calling (beta)",
+      "inAppCallingHelper": "Route this number's WhatsApp calls to the inbox so agents can answer them in the browser.",
+      "recordingLabel": "Record calls",
+      "recordingHelper": "录制在收件箱中接听或拨出的通话，并将录音添加到会话中。",
+      "recordingInProgress": "已请求录音",
+      "incomingCall": "Incoming WhatsApp call…",
+      "unknownCaller": "Unknown caller",
+      "incomingCallBanner": "Incoming WhatsApp call",
+      "answer": "Answer",
+      "reject": "Reject",
+      "ringingBadge": "Ringing",
+      "ringingCountdown": "{seconds}s",
+      "updateFailedTitle": "Meta rejected the change",
+      "callContact": "Call on WhatsApp",
+      "dialing": "Calling…",
+      "startCall": "Start WhatsApp call",
+      "retentionLabel": "Recording retention (days)",
+      "retentionHelper": "How long call recordings are kept before they are permanently deleted.",
+      "transcriptionLabel": "Transcribe calls",
+      "transcriptionHelper": "将每通已录制通话的文字记录添加到会话中。",
+      "preflight": {
+        "title": "Calling eligibility",
+        "appSubscriptionMissing": "Configure the WhatsApp webhook for this app in the Meta App Dashboard first, then try again.",
+        "appSubscriptionFailed": "Could not verify the app's 'calls' webhook subscription. Try again shortly.",
+        "callsNotSubscribed": "This app is not subscribed to the 'calls' webhook field, so call events cannot reach ChatbotX (Meta error 138018: technical pre-requisites are not met — ensure at least one app subscribed to the WABA also has the calls webhook field).",
+        "fixButton": "Fix",
+        "fixSuccess": "The app is now subscribed to WhatsApp call webhooks.",
+        "manualIntegrationNotice": "This number was connected manually and has no app credentials here. Subscribe the 'calls' webhook field for your app in the Meta App Dashboard.",
+        "coexistenceWarning": "This number uses WhatsApp Business app coexistence, which Meta does not support for calling. Move it to Cloud API only."
+      },
+      "voipConnecting": "Connecting…",
+      "recordingActivity": {
+        "showTranscript": "显示转录文本",
+        "hideTranscript": "隐藏转录文本"
+      },
+      "outbound": {
+        "needsPermission": "You need permission to call this contact. Request permission first.",
+        "permissionCheckFailed": "We could not check your call permission for this contact right now. Please try again in a moment.",
+        "businessCallingUnavailable": "WhatsApp 尚未为此号码启用商家发起的通话。这取决于所在国家/地区的可用性以及 Meta 的账户资格，因此无法在此处开启。",
+        "callAlreadyInProgress": "A call to this contact is already in progress.",
+        "dailyLimitReached": "You have reached the connected-call limit with this contact for now.",
+        "ineligibleNumber": "This number is not eligible for business-initiated calling.",
+        "recipientUncallable": "This contact cannot be called on WhatsApp right now.",
+        "temporarilyDisabled": "Calling is temporarily disabled for this number due to call quality.",
+        "rateLimited": "Too many call attempts. Please wait a moment and try again.",
+        "paymentIssue": "There is a billing issue with your WhatsApp Business account.",
+        "callingNotEnabled": "Calling is not enabled for this WhatsApp number.",
+        "callFailed": "The call could not be placed. Please try again.",
+        "calling": "Calling…",
+        "ringback": "Ringing…",
+        "micPermissionDenied": "麦克风访问被拒绝。请在浏览器设置中允许麦克风访问，然后重试。",
+        "micNotFound": "未找到麦克风。请连接麦克风后重试。",
+        "callAccessDenied": "您无权拨打此联系人。"
+      },
+      "card": {
+        "audioCall": "语音通话",
+        "recordingUnavailable": "录音已不可用",
+        "recordingNotCaptured": "此通话没有可用的录音",
+        "recordingProcessing": "正在处理录音…",
+        "moreOptions": "更多选项",
+        "download": "下载",
+        "openCallInformation": "打开通话信息",
+        "transcript": "转录文本",
+        "aiSummary": "AI 摘要",
+        "transcriptUnavailable": "转录文本暂不可用",
+        "summaryUnavailable": "AI 摘要暂不可用",
+        "play": "播放",
+        "pause": "暂停",
+        "seek": "跳转",
+        "mute": "静音",
+        "unmute": "取消静音",
+        "playbackFailed": "播放失败",
+        "answeredBy": "由 {name} 接听",
+        "calledBy": "由 {name} 拨打",
+        "callFailed": "通话问题",
+        "callBack": "回拨"
+      },
+      "sheet": {
+        "title": "通话信息",
+        "summaryTab": "AI 摘要",
+        "transcriptTab": "转录文本",
+        "searchLabel": "搜索转录文本",
+        "searchPlaceholder": "搜索转录文本…",
+        "transcriptUnavailable": "此通话的语言暂不支持转录文本",
+        "transcriptError": "无法加载转录文本。请检查网络连接后重试。",
+        "noSearchResults": "没有匹配的片段",
+        "playSegment": "从此处播放",
+        "summaryKeyPoints": "要点",
+        "summaryActionItems": "待办事项",
+        "regenerate": "重新生成",
+        "regenerateConfirmTitle": "要重新生成 AI 摘要吗？",
+        "regenerateConfirmDescription": "这将用新生成的摘要替换当前摘要。",
+        "summaryEmpty": "此通话尚无 AI 摘要。",
+        "generateSummary": "生成摘要"
+      },
+      "summaryDialog": {
+        "title": "生成 AI 摘要",
+        "description": "选择一个已连接的 AI 提供商来总结此通话。",
+        "noProviderTitle": "未连接任何 AI 提供商",
+        "noProviderDescription": "连接一个 AI 集成以生成通话摘要。",
+        "connectLink": "前往 AI 设置",
+        "generate": "生成",
+        "generating": "正在生成…",
+        "generateFailed": "无法生成摘要，请重试。",
+        "retry": "重试",
+        "emptyTranscriptTooltip": "此通话尚无可供摘要的转录文本"
+      },
+      "panel": {
+        "eyebrowCalling": "正在呼叫…",
+        "eyebrowIncoming": "来电",
+        "eyebrowOnCall": "通话中",
+        "statusPreparing": "正在准备…",
+        "statusWaitingForMic": "正在等待麦克风权限…",
+        "statusDeclined": "已拒绝",
+        "statusCallFailed": "通话失败",
+        "statusCallEnded": "通话已结束",
+        "end": "结束",
+        "minimize": "最小化",
+        "goToConversation": "前往对话",
+        "expand": "展开",
+        "dismiss": "关闭",
+        "statusNoAnswer": "无应答",
+        "eyebrowCallEnded": "通话已结束",
+        "statusConnectionLost": "连接已断开",
+        "answerFailed": "无法接听通话。请确认麦克风已连接并已在浏览器中授权，然后重试。",
+        "ringingListTitle": "{count, plural, one {# 个来电} other {# 个来电}}"
+      },
+      "capability": {
+        "title": "通话资格",
+        "enableCalling": "请在设置 > 渠道 > WhatsApp > 通话中启用通话功能。",
+        "reconnectChannel": "请前往设置 > 渠道，重新连接 WhatsApp 渠道。",
+        "ok": "确定",
+        "micPermissionTitle": "麦克风权限",
+        "dialFailureTitle": "无法拨打电话"
+      },
+      "manualIntegrationCallWarning": {
+        "title": "手动连接的号码",
+        "callsSubscription": "此 WhatsApp 号码是手动连接的。请确保您的 Meta 应用已订阅 calls webhook 字段（Meta App Dashboard → WhatsApp → Configuration → Webhook fields → calls），否则外呼将无法接通，来电也不会振铃。",
+        "unsignedWebhook": "此号码也未配置 Meta App Secret，因此其传入的 webhook 未经过签名验证。",
+        "callAnyway": "仍然拨打"
+      },
+      "replaceConfirm": {
+        "title": "结束与 {current} 的通话？",
+        "description": "您正在与 {current} 通话。接听 {incoming} 会立即结束当前通话。",
+        "confirm": "结束并接听",
+        "cancel": "继续通话"
+      },
+      "answerCaller": "接听来自 {name} 的来电",
+      "rejectCaller": "拒接来自 {name} 的来电",
+      "hours": {
+        "title": "通话时间",
+        "description": "客户只能在这些时间内拨打此号码。在此时间之外，WhatsApp 会建议改为聊天，或在开启回拨请求时请求回拨，并显示下次可拨打的时间。",
+        "enabledLabel": "仅在通话时间内接听来电",
+        "timezoneLabel": "时区",
+        "closed": "休息",
+        "openTimeLabel": "{day}：开始时间",
+        "closeTimeLabel": "{day}：结束时间",
+        "addRangeLabel": "为{day}添加时间段",
+        "removeRangeLabel": "删除{day}的时间段",
+        "overnightHint": "每天在 23:59 结束。如需在午夜之后继续营业，请将剩余时间添加到第二天。",
+        "days": {
+          "monday": "星期一",
+          "tuesday": "星期二",
+          "wednesday": "星期三",
+          "thursday": "星期四",
+          "friday": "星期五",
+          "saturday": "星期六",
+          "sunday": "星期日"
+        },
+        "errors": {
+          "rangeOrder": "结束时间必须晚于开始时间。",
+          "rangeOverlap": "这一天的时间段有重叠。",
+          "noOpenHours": "请至少为一天添加时间段。"
+        }
+      },
+      "inboundLabel": "Accept incoming calls",
+      "inboundHelper": "Let customers call in. Turn off to keep dialling out without the inbox ringing.",
+      "page": {
+        "title": "通话",
+        "subtitle": "此工作区的通话记录",
+        "emptyTitle": "暂无通话",
+        "emptyDescription": "当您的团队开始拨打或接听 WhatsApp 通话后，通话记录将显示在这里。",
+        "loadMore": "加载更多",
+        "allActivity": "所有通话",
+        "filterMissed": "未接",
+        "filterNoReply": "无应答",
+        "allInboxes": "所有收件箱",
+        "allAgents": "所有客服",
+        "columnContact": "联系人",
+        "columnInbox": "收件箱",
+        "columnDirection": "方向",
+        "columnAgent": "客服",
+        "columnDuration": "时长",
+        "columnDate": "日期",
+        "directionInbound": "呼入",
+        "directionOutbound": "呼出",
+        "kindOngoing": "进行中",
+        "kindAnsweredInbound": "已接听",
+        "kindAnsweredOutbound": "已接听",
+        "openConversation": "打开会话",
+        "unknownContact": "未知联系人",
+        "emptyFilteredTitle": "没有符合此筛选条件的通话",
+        "emptyFilteredDescription": "请尝试其他筛选条件，或清除筛选以查看所有通话。",
+        "loadMoreError": "无法加载更多通话，请重试。",
+        "callInformation": "通话信息"
       }
     },
     "ecommerce": {
@@ -5302,11 +6041,13 @@
       "title": "标签同步",
       "toggleSuccess": "标签同步设置已更新。"
     },
-    "title": "ZaloOA"
+    "title": "ZaloOA",
+    "refreshPermissions": "刷新权限"
   },
   "metaConversions": {
     "flowStep": {
-      "whatsappNote": "WhatsApp 事件仅针对由点击 WhatsApp 广告发起的对话发送。"
+      "whatsappNote": "WhatsApp 事件仅针对由点击 WhatsApp 广告发起的对话发送。",
+      "description": "为 Messenger、Instagram 或 WhatsApp 排队发送一个 LeadSubmitted 事件。"
     },
     "title": "Conversions API",
     "description": "将 Messenger、Instagram 和 WhatsApp 对话中的转化事件发送给 Meta。",
@@ -5340,8 +6081,9 @@
       "invalidDatasetId": "请输入有效的 Dataset ID（仅数字）。",
       "whatsappNotFound": "未找到 WhatsApp 集成。",
       "testEventCodeRequired": "发送测试事件前请先保存测试事件代码。",
-      "noContactForTest": "此渠道尚无符合条件的联系人。测试事件需要归因到真实联系人（WhatsApp 需为来自 click-to-WhatsApp 广告的联系人）。",
-      "invalidTestEventCode": "测试事件代码只能包含字母、数字、连字符或下划线(最多 64 个字符)。"
+      "invalidTestEventCode": "测试事件代码只能包含字母、数字、连字符或下划线(最多 64 个字符)。",
+      "invalidMessagingId": "消息 ID 只能包含字母、数字、连字符或下划线（最多 512 个字符）。",
+      "capiDisconnected": "此渠道的 Meta CAPI 已断开连接。请先重新连接，再发送测试事件。"
     },
     "fields": {
       "eventType": {
@@ -5485,10 +6227,21 @@
       "saved": "测试事件代码已保存。",
       "cleared": "测试事件代码已清除。事件恢复正常上报。",
       "send": "发送测试事件",
-      "sent": "测试事件已加入队列,一分钟内会出现在 Events Manager 的 Test events 中。",
-      "sendHint": "向该渠道最近的联系人发送一个示例 Purchase 事件(100 USD)。",
+      "sent": "测试事件已发送。一分钟内会出现在 Events Manager 的 Test events 中。",
+      "sendHint": "向你输入的消息 ID 发送一条示例 Purchase（100 USD）。不会使用任何已保存的联系人。",
       "activeNotice": "测试模式已开启:在清除代码之前,该渠道的事件不计入报告。",
-      "openTestEvents": "打开 Test events"
+      "openTestEvents": "打开 Test events",
+      "dialogTitle": "发送测试事件",
+      "dialogDescription": "将携带你的测试事件代码发送一条示例 Purchase（100 USD）。请粘贴 Events Manager → Test events → Messaging → Graph API Explorer 中的示例消息 ID，以免归因到真实联系人。",
+      "messagingIdLabel": {
+        "messenger": "联系人 ID（page_scoped_user_id）",
+        "instagram": "联系人 ID（ig_sid）",
+        "whatsapp": "点击 ID（ctwa_clid）"
+      },
+      "messagingIdPlaceholder": "粘贴 Meta 提供的示例值",
+      "messagingIdHint": "仅限字母、数字、连字符和下划线（最多 512 个字符）。",
+      "cancel": "取消",
+      "confirmSend": "发送"
     }
   },
   "appointments": {
@@ -5583,10 +6336,19 @@
       "confirmationFlowId": "确认流程",
       "cancellationFlowId": "取消流程",
       "externalConnectionId": "外部日历",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
       "reminders": "提醒",
       "reminderTimingValue": "数值",
       "reminderTimingUnit": "单位"
     },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
     "locationTypes": {
       "inPerson": "线下会面",
       "phoneCall": "电话通话",
@@ -5804,16 +6566,17 @@
       "jackpotBanner": "老虎机",
       "luckyWheelHeader": "幸运转盘",
       "gashaponHeader": "扭蛋",
-      "comingSoon": "该游戏类型的详细预览即将推出",
       "drawLotsHeader": "抽签",
       "scratchOffHeader": "刮刮乐",
-      "scratchOffCardTitle": "幸运星刮刮卡"
+      "scratchOffCardTitle": "幸运星刮刮卡",
+      "comingSoon": "该游戏类型的详细预览即将推出"
     },
     "form": {
       "generalSettingsTitle": "常规设置",
       "appearanceTitle": "外观",
       "playerSettingsTitle": "玩家设置",
-      "prizeSettingsTitle": "奖品设置"
+      "prizeSettingsTitle": "奖品设置",
+      "validationFailed": "保存前请修正标红的字段。"
     },
     "generalSettings": {
       "showName": "可见",
@@ -5821,10 +6584,7 @@
       "rulesDescription": "规则说明",
       "openerTags": "为打开游戏链接的联系人打标签",
       "playerTags": "为参与者打标签",
-      "newFriendTags": "为新好友打标签",
-      "shareEnabled": "允许与好友分享",
-      "shareMessage": "分享消息",
-      "shareMessageHint": "使用 '{{shareUrl}}' 插入实际的游戏链接，请勿删除。"
+      "newFriendTags": "为新好友打标签"
     },
     "appearance": {
       "backgroundColor": "背景颜色",
@@ -5840,6 +6600,10 @@
     },
     "playerSettings": {
       "drawsPerPerson": "每人可抽奖次数",
+      "maxSharesPerPerson": "推荐可获得的最多奖励次数",
+      "maxSharesPerPersonHint": "每有一位好友通过该玩家的邀请链接加入并给你发消息，该玩家就多获得 1 次抽奖机会，最多不超过此上限。设为 0 可关闭推荐奖励。奖励次数须在下次重置前使用。",
+      "sharingNode": "分享步骤",
+      "sharingNodeHint": "好友打开该玩家的分享链接时运行的流程步骤。留空则隐藏分享按钮。",
       "resetPolicyLabel": "重置抽奖次数",
       "resetNever": "不重置抽奖次数",
       "resetEveryNDays": "每隔以下天数重置抽奖次数",
@@ -5858,29 +6622,32 @@
       "forbiddenTitle": "访问被拒绝",
       "forbiddenDescription": "此链接无效或已过期。",
       "comingSoonTitle": "即将推出",
-      "comingSoonDescription": "此类型的小游戏暂时无法玩。"
+      "comingSoonDescription": "此类型的小游戏暂时无法玩。",
+      "rateLimited": "请求过于频繁，请稍候再试。"
+    },
+    "list": {
+      "gamesPlayed": "游戏次数",
+      "participants": "参与人数",
+      "winners": "中奖人数",
+      "shares": "推荐人数"
     },
     "history": {
       "title": "历史记录",
       "played": "已玩次数",
       "remaining": "剩余次数",
+      "shares": "推荐人数",
       "openedAt": "首次打开",
       "lastPlayedAt": "最近游玩",
       "unknownContact": "未知联系人",
+      "conversationNotFound": "未找到该联系人的会话",
+      "popupBlocked": "请允许此网站弹出窗口，然后再试一次。",
       "record": "记录",
       "recordDialog": {
         "title": "游戏记录",
         "win": "中奖",
         "lose": "未中奖",
         "empty": "暂无游戏记录"
-      },
-      "conversationNotFound": "未找到该联系人的会话",
-      "popupBlocked": "请允许此网站弹出窗口，然后再试一次。"
-    },
-    "list": {
-      "gamesPlayed": "游戏次数",
-      "participants": "参与人数",
-      "winners": "中奖人数"
+      }
     }
   },
   "userDataWebview": {
@@ -6122,6 +6889,14 @@
   },
   "accountFields": {
     "title": "机器人字段"
+  },
+  "openLink": {
+    "title": "打开链接",
+    "invalidTitle": "链接无效。",
+    "invalidDescription": "此链接无效或已过期。",
+    "openZaloGroup": "打开 Zalo 群组",
+    "openZalo": "打开 Zalo",
+    "openMessenger": "打开 Messenger"
   },
   "platformAiSettings": {
     "title": "AI Settings",

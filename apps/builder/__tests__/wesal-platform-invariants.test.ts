@@ -17,7 +17,7 @@ import { describe, expect, test } from "vitest"
  */
 
 const COMMUNITY_SHORT_CIRCUIT = /if\s*\(\s*isCommunity\(\)\s*\)/
-const SIMILARITY_THRESHOLD = /similarityThreshold\s*=\s*([\d.]+)/
+const PLATFORM_SIMILARITY_THRESHOLD = /platform:\s*([\d.]+)/
 const AUTO_REPLY_ENABLED = /autoReplyEnabled\s*:/
 const AUTO_REPLY_FALSE = /autoReply:\s*false/
 
@@ -85,13 +85,13 @@ describe("Meta's policy pages are reachable without a session", () => {
    * app staying approved. /contact matters for a plainer reason: the people
    * who need it do not have an account yet.
    */
-  const source = read("apps/builder/src/proxy.ts")
+  const source = read("apps/builder/src/lib/public-routes.ts")
 
   test.each([
     "/privacy",
     "/terms",
     "/contact",
-  ])("%s is listed in publicRoutes", (route) => {
+  ])("%s is listed in PUBLIC_ROUTES", (route) => {
     expect(source).toContain(`"${route}"`)
   })
 })
@@ -102,12 +102,14 @@ describe("Knowledge-base retrieval uses a threshold the models can reach", () =>
    * bunched. Measured against the platform's current model
    * (text-embedding-3-small), an Arabic question scores 0.673 against a chunk
    * that answers it verbatim — so 0.7 discards every document ever indexed and
-   * no knowledge base returns a single result.
+   * no knowledge base returns a single result. Since the September ChatbotX
+   * merge the default is per embedding provider; the platform model's entry is
+   * the one every Wesal One workspace retrieves with.
    */
-  const source = read("packages/ai/src/server/tools/files.ts")
+  const source = read("packages/ai/src/server/knowledge-base.ts")
 
-  test("the default similarity threshold stays below the measured ceiling", () => {
-    const match = source.match(SIMILARITY_THRESHOLD)
+  test("the platform similarity threshold stays below the measured ceiling", () => {
+    const match = source.match(PLATFORM_SIMILARITY_THRESHOLD)
     expect(match).not.toBeNull()
     expect(Number(match?.[1])).toBeLessThan(0.673)
   })

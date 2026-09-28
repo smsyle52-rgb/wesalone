@@ -1,7 +1,4 @@
-import {
-  botFieldWorkspaceCacheTags,
-  workspaceService,
-} from "@chatbotx.io/business"
+import { workspaceService } from "@chatbotx.io/business"
 import { db } from "@chatbotx.io/database/client"
 import {
   type SystemFieldType,
@@ -18,13 +15,10 @@ import {
   parseFieldReference,
 } from "@chatbotx.io/flow-config"
 import { withCache } from "@chatbotx.io/redis"
+import { loadBotFields } from "./bot-field-variable-resolver"
 import { isCouponVariable, resolveCouponVariable } from "./coupon-variable"
 import { logger } from "./logger"
-import type {
-  BotFieldValue,
-  ContactCustomFieldValue,
-  ReplaceVariableProps,
-} from "./schema"
+import type { ContactCustomFieldValue, ReplaceVariableProps } from "./schema"
 import {
   extractVariables,
   getContactTimezone,
@@ -208,43 +202,10 @@ const loadFields = async (
   )
 }
 
-/**
- * Cached, unlike the per-contact loads above: `getAll` runs on every message
- * send / automation step, and bot fields are workspace-global and rarely
- * change — an uncached query here would hit Postgres once per send. The
- * cache subscribes to `botFieldService`'s own invalidation tags, so every
- * bot-field write refreshes it. The short TTL is a safety net on top: tag
- * invalidation is best-effort, and a `getAll` racing a not-yet-committed
- * bot-field-creating transaction (template install invalidates inside its
- * tx) could re-cache the pre-commit map — the TTL caps any such staleness
- * instead of letting it live for the default 24h.
- */
-const BOT_FIELDS_CACHE_TTL_SECONDS = 5 * 60
-
-const loadBotFields = async (
-  workspaceId: string,
-): Promise<Map<string, BotFieldValue>> =>
-  await withCache(
-    `bot-fields:${workspaceId}:variable-map`,
-    async () => {
-      const rows = await db.query.botFieldModel.findMany({
-        where: { workspaceId },
-      })
-
-      return new Map(
-        rows.map((row) => [row.id, { type: row.type, value: row.value }]),
-      )
-    },
-    {
-      ttl: BOT_FIELDS_CACHE_TTL_SECONDS,
-      tags: botFieldWorkspaceCacheTags(workspaceId),
-    },
-  )
-
 const CUSTOM_FIELD_NAMES_CACHE_TTL_SECONDS = 5 * 60
 
 /**
- * Cached like `loadBotFields`, and for the same reason: this runs on every
+ * Cached like `loadBotFields` (bot-field-variable-resolver.ts), for the same reason: this runs on every
  * send, while a merchant adds a custom field perhaps once a month. The tag
  * matches the one `customFieldService.invalidate` already publishes, so a
  * renamed or deleted field drops out without a second invalidation path.

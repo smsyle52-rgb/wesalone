@@ -10,6 +10,7 @@ import {
   stepTypes,
 } from "@chatbotx.io/flow-config"
 import {
+  assertCommentPrivateReplyFollowUpDeliverable,
   contentTypes,
   type MessageHandlers,
   type OutgoingContact,
@@ -17,7 +18,7 @@ import {
   type SendFlowStepProps,
 } from "@chatbotx.io/sdk"
 import { sendPrivateReplyMessage } from "../../../apis/comment"
-import { sendInstagramMessage } from "../../../apis/page"
+import { sendMessage as sendMessageApi } from "../../../apis/message"
 import { mapToChannelError } from "../../../lib/error-mapper"
 import { logger } from "../../../lib/logger"
 import {
@@ -26,14 +27,14 @@ import {
   type InstagramMessageAttachmentPayload,
   type InstagramSendMessage,
   type InstagramSendMessageRequest,
-} from "../../../schemas"
+} from "../../../schema"
+import { convertCanonicalQuickReplies } from "./canonical-quick-replies"
 import { getAttachmentTemplate } from "./send-attachment"
 import { convertFlowStepCarousel } from "./send-carousel"
 import { convertFlowStepFile } from "./send-file"
 import { convertFlowStepGif } from "./send-gif"
 import { convertFlowStepMedia } from "./send-media"
 import { convertFlowStepMultipleImages } from "./send-multiple-images"
-import { convertCanonicalInstagramQuickReplies } from "./send-quick-replies"
 import { convertFlowStepQuickReply } from "./send-quick-reply"
 import { convertFlowStepText } from "./send-text"
 
@@ -45,16 +46,17 @@ export const sendMessage: MessageHandlers<InstagramAuthValue>["sendMessage"] =
     } = props
 
     const messageIds: string[] = []
+    let sentCount = 0
     try {
-      const instagramMessages = [...convertMessageToInstagramMessage(message)]
+      const instagramMessages = [...convertMessage(message)]
       const lastMessage = instagramMessages.at(-1)
       if (lastMessage && quickReplies && quickReplies.length > 0) {
-        lastMessage.quick_replies =
-          convertCanonicalInstagramQuickReplies(quickReplies)
+        lastMessage.quick_replies = convertCanonicalQuickReplies(quickReplies)
       }
       for (const instagramMessage of instagramMessages) {
         const payload = buildMessagePayload(contact, instagramMessage)
-        const response = await sendInstagramMessage(ctx.auth, payload)
+        const response = await sendMessageApi(ctx.auth, payload)
+        sentCount += 1
         if (response.message_id) {
           messageIds.push(response.message_id)
         }
@@ -67,10 +69,11 @@ export const sendMessage: MessageHandlers<InstagramAuthValue>["sendMessage"] =
 
     return {
       messageIds,
+      sentCount,
     }
   }
 
-export function* convertMessageToInstagramMessage(
+export function* convertMessage(
   message: OutgoingMessage,
 ): Generator<InstagramSendMessage> {
   if (message.contentType === contentTypes.enum.text) {
@@ -158,9 +161,12 @@ const buildMessagePayload = (
   }
 }
 
-export async function* convertFlowStepToInstagramMessage(
+// Every converter below yields a whole message (`{ text }`, `{ attachment }`,
+// `{ attachments }`), never a bare attachment payload — so `sendFlowStep` can
+// stamp `quick_replies` on the last one it gets back.
+export async function* convertFlowStep(
   props: SendFlowStepProps<InstagramAuthValue>,
-): AsyncGenerator<InstagramMessageAttachmentPayload | InstagramSendMessage> {
+): AsyncGenerator<InstagramSendMessage> {
   const {
     data: { step },
   } = props
@@ -169,16 +175,16 @@ export async function* convertFlowStepToInstagramMessage(
     case stepTypes.enum.sendText:
       yield* convertFlowStepText(
         props as SendFlowStepProps<InstagramAuthValue, SendTextStepSchema>,
-      ) as Generator<InstagramMessageAttachmentPayload | InstagramSendMessage>
+      ) as Generator<InstagramSendMessage>
       break
     case stepTypes.enum.sendImage:
     case stepTypes.enum.sendVideo:
-      await (yield* convertFlowStepMedia(
+      yield* convertFlowStepMedia(
         props as SendFlowStepProps<
           InstagramAuthValue,
           SendImageStepSchema | SendVideoStepSchema
         >,
-      ))
+      )
       break
     case stepTypes.enum.sendMultipleImages:
       yield* convertFlowStepMultipleImages(
@@ -218,53 +224,80 @@ export async function* convertFlowStepToInstagramMessage(
   }
 }
 
-export const sendFlowStep = async (
-  props: SendFlowStepProps<InstagramAuthValue>,
-) => {
-  const {
-    ctx,
-    data: { contact, commentAnchor },
-  } = props
-  const messageIds: string[] = []
-  try {
-    // Consumed by the first Instagram message yielded below, if a private
-    // comment anchor is present — a single flow step can yield more than one
-    // message (e.g. text + attachments), so only the very first send uses the
-    // comment_id-anchored API (exempt from the messaging window); the rest
-    // use the normal path. A "public" anchor is never honored here — it's
-    // delivered via the comment channel's sendComment, not this message
-    // channel's sendFlowStep (see send-flow-step.ts). This check is
-    // defense-in-depth against a public anchor ever reaching this handler by
-    // mistake.
-    let anchorCommentId =
-      commentAnchor?.replyChannel === "private"
-        ? commentAnchor.commentId
-        : undefined
-    for await (const instagramMessage of convertFlowStepToInstagramMessage(
-      props,
-    )) {
-      const response = anchorCommentId
-        ? await sendPrivateReplyMessage(
-            ctx.auth,
-            anchorCommentId,
-            instagramMessage,
-          )
-        : await sendInstagramMessage(
-            ctx.auth,
-            buildMessagePayload(contact, instagramMessage),
-          )
-      anchorCommentId = undefined
-      if (response.message_id) {
-        messageIds.push(response.message_id)
+export const sendFlowStep: MessageHandlers<InstagramAuthValue>["sendFlowStep"] =
+  async (props: SendFlowStepProps<InstagramAuthValue>) => {
+    const {
+      ctx,
+      data: { contact, commentAnchor, quickReplies },
+    } = props
+    const messageIds: string[] = []
+    let sentCount = 0
+    try {
+      // Collected up front rather than sent as they stream: Instagram renders
+      // the quick replies of the *last* message only, and which message is last
+      // isn't knowable mid-stream. A step yields at most a couple of messages,
+      // and each flow step is already its own job, so nothing is held for long.
+      // Without this the `quickReplies` the worker passes in
+      // (`sendFlowStepToChannel`) were dropped on every step but sendQuickReply.
+      const instagramMessages: InstagramSendMessage[] = []
+      for await (const instagramMessage of convertFlowStep(props)) {
+        instagramMessages.push(instagramMessage)
       }
-      logger.info(`Message sent for IGSID: ${contact.sourceId}`)
-    }
-  } catch (error) {
-    logger.error(error, "An error occurred while sending the message")
-    throw mapToChannelError(error)
-  }
 
-  return {
-    messageIds,
+      const lastMessage = instagramMessages.at(-1)
+      if (lastMessage && quickReplies && quickReplies.length > 0) {
+        lastMessage.quick_replies = convertCanonicalQuickReplies(quickReplies)
+      }
+
+      // Claimed by the first Instagram message sent below, if an unspent private
+      // comment anchor is present — a single flow step can yield more than one
+      // message (e.g. text + attachments), so only the very first send uses the
+      // comment_id-anchored API (exempt from the messaging window). Everything
+      // after it — in this step or a later one, which arrives with `spent: true`
+      // — takes the normal path, gated by the guard below.
+      // A "public" anchor is never honored here — it's
+      // delivered via the comment channel's sendComment, not this message
+      // channel's sendFlowStep (see send-flow-step.ts). This check is
+      // defense-in-depth against a public anchor ever reaching this handler by
+      // mistake.
+      const isCommentPrivateRun = commentAnchor?.replyChannel === "private"
+      let anchorCommentId =
+        isCommentPrivateRun && !commentAnchor.spent
+          ? commentAnchor.commentId
+          : undefined
+      for (const instagramMessage of instagramMessages) {
+        // The comment bought exactly one anchored DM and it is gone; a normal DM
+        // only reaches the contact if they have messaged in the last 24h.
+        if (isCommentPrivateRun && !anchorCommentId) {
+          assertCommentPrivateReplyFollowUpDeliverable({
+            commentId: commentAnchor.commentId,
+            lastIncomingMessageAt: contact.lastIncomingMessageAt,
+          })
+        }
+        const response = anchorCommentId
+          ? await sendPrivateReplyMessage(
+              ctx.auth,
+              anchorCommentId,
+              instagramMessage,
+            )
+          : await sendMessageApi(
+              ctx.auth,
+              buildMessagePayload(contact, instagramMessage),
+            )
+        anchorCommentId = undefined
+        sentCount += 1
+        if (response.message_id) {
+          messageIds.push(response.message_id)
+        }
+        logger.info(`Message sent for IGSID: ${contact.sourceId}`)
+      }
+    } catch (error) {
+      logger.error(error, "An error occurred while sending the message")
+      throw mapToChannelError(error)
+    }
+
+    return {
+      messageIds,
+      sentCount,
+    }
   }
-}

@@ -1,0 +1,53 @@
+import { z } from "zod"
+import { listContactsRequest } from "../query"
+
+const contactIncludeOptions = z.enum([
+  "tags",
+  "customFields",
+  "inboxes",
+  "conversation",
+])
+
+const includeDescription =
+  'Relations to embed in each contact. Omit to include everything (default); pass an empty selection or a narrower list — e.g. `["tags"]` — to shrink the response when scanning many contacts.'
+
+export const listContactsPublicRequest = listContactsRequest
+  .omit({ workspaceId: true })
+  .extend({
+    include: z
+      .array(contactIncludeOptions)
+      .optional()
+      .describe(includeDescription),
+    withCount: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe(
+        "Whether to compute totalCount/pageCount. Set to false to skip the count query when you only need the rows — faster on large workspaces.",
+      ),
+  })
+export type ListContactsPublicRequest = z.infer<
+  typeof listContactsPublicRequest
+>
+
+export const countContactsPublicRequest = listContactsRequest.omit({
+  workspaceId: true,
+})
+export type CountContactsPublicRequest = z.infer<
+  typeof countContactsPublicRequest
+>
+
+export const countContactsPublicResponse = z.object({
+  total: z.number().describe("Number of contacts matching the filter."),
+})
+
+export const importContactsPublicResponse = z.object({
+  importId: z
+    .string()
+    .describe(
+      "Id of the background import job. The import runs asynchronously; imported contacts appear in `contacts.list` once it finishes.",
+    ),
+})
+export type ImportContactsPublicResponse = z.infer<
+  typeof importContactsPublicResponse
+>

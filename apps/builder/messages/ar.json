@@ -1,5 +1,6 @@
 {
   "actions": {
+    "retry": "إعادة المحاولة",
     "copy": "نسخ",
     "copyUrl": "انسخ عنوان URL",
     "actions": "الإجراءات",
@@ -71,6 +72,7 @@
     "reset": "إعادة تعيين",
     "save": "حفظ",
     "selectAll": "حدد الكل",
+    "unselect": "إلغاء التحديد",
     "selectRow": "حدد الصف",
     "sendFlow": "إرسال التدفق",
     "sendMessage": "أرسل رسالة",
@@ -110,7 +112,6 @@
     "enterFieldAndPressEnter": "أدخل {field} واضغط على Enter",
     "addAnother": "أضف آخر...",
     "messagePlaceholder": "رسالة...",
-    "newLineHint": "‏Shift + Enter لسطر جديد",
     "signOut": "تسجيل الخروج",
     "backToSignIn": "العودة لتسجيل الدخول",
     "connectFeature": "قم بتوصيل {feature}",
@@ -147,14 +148,13 @@
     "clone": "استنساخ",
     "remove": "إزالة",
     "restore": "استعادة",
-    "retry": "إعادة المحاولة",
-    "unselect": "إلغاء التحديد",
     "loadMore": "تحميل المزيد",
     "saveAsDraft": "حفظ كمسودّة",
     "schedule": "جدولة",
     "moveToDraft": "إرجاع إلى المسودّات",
     "stop": "إيقاف",
     "resume": "استئناف",
+    "newLineHint": "‏Shift + Enter لسطر جديد",
     "tryAgain": "حاول مرة أخرى"
   },
   "errors": {
@@ -256,6 +256,7 @@
     "dateFilterPreset": "مرشح التاريخ مسبقا",
     "noResults": "لا توجد نتائج.",
     "noData": "لا توجد بيانات",
+    "errorLogRetentionNotice": "يتم الاحتفاظ بسجلات الأخطاء لآخر {days} يومًا فقط.",
     "comingSoon": "قريبا",
     "unknown": "غير معروف",
     "pagination": {
@@ -265,10 +266,20 @@
       "firstPage": "انتقل إلى الصفحة الأولى",
       "previousPage": "انتقل إلى الصفحة السابقة",
       "nextPage": "انتقل إلى الصفحة التالية",
-      "lastPage": "انتقل إلى الصفحة الأخيرة"
+      "lastPage": "انتقل إلى الصفحة الأخيرة",
+      "totalRows": "{total} صف"
     },
     "sessionsThroughTheRef": "الجلسات من خلال المرجع \"{ref}\" يوميًا",
-    "sessionsThroughTheMagicLink": "جلسات من خلال الرابط السحري \"{ref}\" يوميا"
+    "sessionsThroughTheMagicLink": "جلسات من خلال الرابط السحري \"{ref}\" يوميا",
+    "repliesToComments": "الردود على التعليقات",
+    "repliesByDate": "الردود حسب التاريخ",
+    "userCommentsOnThisPost": "تعليقات المستخدمين على هذا المنشور",
+    "botRepliesToComments": "ردود الروبوت على التعليقات",
+    "comment": "تعليق",
+    "message": "رسالة",
+    "searchByDate": "البحث حسب التاريخ...",
+    "publicReply": "رد عام",
+    "privateReply": "رد خاص"
   },
   "flowAnalytics": {
     "nodes": {
@@ -328,6 +339,7 @@
       "message": "فشلت دفعتك الأخيرة. قم بتحديث طريقة الدفع الخاصة بك لتبقى مساحة العمل الخاصة بك نشطة."
     },
     "trial": {
+      "planName": "تجريبية",
       "daysLeft": "المحاكمة: {days} أيام متبقية",
       "endsTomorrow": "تنتهي المحاكمة غدا",
       "expired": "لقد انتهت الفترة التجريبية — قم بالترقية للحفاظ على مساحة العمل الخاصة بك نشطة",
@@ -448,7 +460,6 @@
       "audienceFilter": "مرشح الجمهور",
       "noAudienceFilter": "لا يوجد مرشح الجمهور",
       "template": "القالب",
-      "noTemplate": "لا يوجد قالب",
       "integration": "التكامل"
     },
     "filters": {
@@ -507,6 +518,71 @@
     "resumeDialog": {
       "title": "استئناف الرسالة الجماعية",
       "description": "ستتابع «{name}» الإرسال إلى من لم تصلهم بعد."
+    },
+    "planLimitDialog": {
+      "title": "ترقية خطتك",
+      "sendRate": "تدعم خطتك الحالية {plan} حملات البث بسرعة إرسال قصوى تبلغ {rate} رسالة في الدقيقة. يُرجى ترقية خطتك لإرسال حملات البث بسرعة تصل إلى {multiplier} ضعفًا.",
+      "activeBroadcasts": "تُشغّل خطتك الحالية {plan} عدد {max, plural, one {# حملة بث} other {# حملة بث}} في الوقت نفسه. يُرجى ترقية خطتك لتشغيل المزيد من حملات البث معًا."
+    },
+    "sendLimit": {
+      "title": "الحد",
+      "hint": "اتركه فارغًا للإرسال إلى جميع جهات الاتصال المطابقة.",
+      "rateHint": "اتركه فارغًا لاستخدام المعدل الافتراضي.",
+      "rangeSummary": "جهات الاتصال #{start} – #{end}",
+      "rangeFromSummary": "ابتداءً من جهة الاتصال رقم {start}",
+      "rangeLabel": "نطاق جهات الاتصال",
+      "fromLabel": "من",
+      "toLabel": "إلى",
+      "allPlaceholder": "الكل",
+      "rangeEndBeforeStart": "لا يمكن أن يكون موضع النهاية قبل موضع البداية"
+    }
+  },
+  "commentAutomation": {
+    "stats": {
+      "sent": "مُرسَل",
+      "delivered": "مُسلَّم",
+      "seen": "مُشاهَد",
+      "clicked": "منقور عليه",
+      "failed": "فشل",
+      "missed": "التجاهلات",
+      "noContacts": "لم يتم العثور على جهات اتصال",
+      "noComment": "(بدون نص)",
+      "pageInfo": "صفحة {page} من {pageCount}",
+      "selectedAll": "تم تحديد الكل",
+      "selectedCount": "تم تحديد {count}",
+      "tagAllDialogDescription": "ستتم إضافة الوسوم إلى جميع جهات الاتصال المحددة.",
+      "tagDialogDescription": "ستتم إضافة الوسوم إلى {count} جهة/جهات اتصال.",
+      "tagQueued": "جارٍ وسم {count} جهة اتصال في الخلفية.",
+      "loadingMore": "جارٍ تحميل المزيد...",
+      "receivers": "المستلمون"
+    },
+    "missReasons": {
+      "outsideSchedule": "خارج الجدول الزمني",
+      "postNotMatched": "المنشور غير مستهدف",
+      "commentIsReply": "رد على تعليق",
+      "keywordsNotMatched": "الكلمات المفتاحية غير مطابقة",
+      "contactNotNew": "جهة الاتصال ليست جديدة",
+      "alreadyRepliedOnPost": "تم الرد مسبقًا على هذا المنشور",
+      "engagedOnOtherPost": "تفاعل مسبقًا على منشور آخر",
+      "mentionCountNotMatched": "عدد الإشارات غير مطابق"
+    },
+    "replyTo": {
+      "mentions": "التعليقات التي تحتوي على عدد كافٍ من الإشارات",
+      "mentionCount": "عدد الأشخاص المشار إليهم",
+      "mentionCountDescription": "تطابق فقط التعليقات التي تشير إلى هذا العدد من الأشخاص (@الاسم) على الأقل.",
+      "mentionCountOption": "{count, plural, one {# شخص} other {# أشخاص}}"
+    },
+    "excludeKeywordsType": {
+      "equal": "التعليقات المساوية لـ",
+      "contain": "التعليقات التي تحتوي على"
+    },
+    "hideComments": {
+      "hasGif": "يحتوي على GIF",
+      "hasEmoji": "يحتوي على رموز تعبيرية"
+    },
+    "trackUserTags": {
+      "label": "تتبع ما إذا كان المستخدم يشير إلى مستخدمين آخرين",
+      "descriptionText": "يحسب الحسابات المشار إليها في كل تعليق ويضيفها إلى إجماليات جهة الاتصال عبر جميع التعليقات. استخدم '{{total_tagged}}' لكل الحسابات المشار إليها و'{{total_new_tagged}}' للحسابات التي لم تراسل صفحتك أو لم تكن جهة اتصال من قبل."
     }
   },
   "condition": {
@@ -646,10 +722,10 @@
       "systemFields": "مجالات النظام",
       "topicCoupon": "موضوع الكوبون",
       "customFields": "الحقول المخصصة",
+      "botFields": "حقول البوت",
       "email": "البريد الإلكتروني",
       "sms": "الرسائل القصيرة",
-      "ctwaAds": "الإعلانات",
-      "botFields": "حقول البوت"
+      "ctwaAds": "الإعلانات"
     },
     "languages": {
       "ar": "العربية",
@@ -703,9 +779,14 @@
       "instagram": "حساب Instagram هذا متصل بالفعل بمساحة عمل أخرى.",
       "messenger": "صفحة Facebook هذه متصلة بالفعل بمساحة عمل أخرى.",
       "telegram": "روبوت Telegram هذا متصل بالفعل بمساحة عمل أخرى.",
+      "threads": "حساب Threads هذا متصل بالفعل بمساحة عمل أخرى.",
       "tiktok": "حساب TikTok هذا متصل بالفعل بمساحة عمل أخرى.",
       "whatsapp": "رقم WhatsApp هذا متصل بالفعل بمساحة عمل أخرى.",
       "zalo": "إن Zalo OA متصل بالفعل بمساحة عمل أخرى."
+    },
+    "missingScopes": {
+      "generic": "تم إلغاء الاتصال: لم يتم منح بعض الأذونات. يرجى الاتصال مرة أخرى وقبول كل إذن مطلوب.",
+      "tiktok": "تم إلغاء الاتصال بـ TikTok: لم يتم منح بعض الأذونات. يرجى الاتصال مرة أخرى وقبول كل إذن مطلوب."
     },
     "reconnect": {
       "success": "تمت إعادة الاتصال بالقناة بنجاح.",
@@ -726,6 +807,58 @@
       "button": "تحديث كل الأذونات",
       "resultSuccess": "تم تحديث {refreshed} قناة.",
       "resultWithFailures": "تم تحديث {refreshed} قناة، وفشلت {failed}."
+    },
+    "connectMany": {
+      "coexist": {
+        "running": "جارٍ بدء مزامنة السجل…",
+        "done": "بدأت مزامنة السجل",
+        "failed": "فشلت مزامنة السجل"
+      },
+      "selectAll": "تحديد الكل",
+      "selected": "تم تحديد {count}/{max}",
+      "dialogTitleRunning": "جارٍ توصيل {count} {feature}…",
+      "dialogTitleDone": "تم توصيل {connected} من {total}",
+      "progress": "{done}/{total}",
+      "progressAnnouncement": "اكتمل {done} من {total}",
+      "status": {
+        "waiting": "بالانتظار",
+        "connecting": "جارٍ التوصيل…",
+        "connected": "متصل",
+        "duplicated": "متصل بالفعل",
+        "limitReached": "تم بلوغ الحد",
+        "failed": "فشل",
+        "timedOut": "انتهت المهلة",
+        "cancelled": "أُلغي"
+      },
+      "reason": {
+        "notSelectable": "لا يمكن تحديد هذا العنصر.",
+        "channelLimit": "تم بلوغ حد القنوات.",
+        "workspaceLimit": "تم بلوغ حد مساحة العمل.",
+        "providerRejected": "رفض المزوّد هذا الطلب.",
+        "unknown": "حدث خطأ ما.",
+        "followUpFailed": "الإعداد غير مكتمل — أكمله من إعدادات القناة."
+      },
+      "sessionError": {
+        "sessionExpired": "انتهت صلاحية جلستك. يرجى إعادة الاتصال.",
+        "notMember": "لم تعد عضوًا في مساحة العمل هذه.",
+        "trialExpired": "انتهت فترة تجربتك.",
+        "macLimitReached": "لقد بلغت حد حسابك.",
+        "credentialMissing": "بيانات الاعتماد مفقودة. يرجى إعادة الاتصال."
+      },
+      "cancelRemaining": "إلغاء المتبقي",
+      "retryFailed": "إعادة المحاولة ({count})",
+      "retry": "إعادة المحاولة",
+      "goToChannels": "الانتقال إلى القنوات",
+      "close": "إغلاق",
+      "leaveNotice": "يمكنك المغادرة؛ سيتم الاحتفاظ بالحسابات المتصلة",
+      "stepConnecting": "التوصيل",
+      "stepCoexist": "مزامنة السجل",
+      "validation": {
+        "min": "اختر عنصرًا واحدًا على الأقل",
+        "max": "يمكنك تحديد ما يصل إلى {max}",
+        "duplicate": "تحديد مكرر"
+      },
+      "progressLabel": "التقدم"
     },
     "channelLimit": "لقد بلغت عدد القنوات المسموح به في باقتك الحالية. احذف قناة متصلة أو رقِّ باقتك لإضافة قناة جديدة."
   },
@@ -783,6 +916,11 @@
     "deleteConfirmation": "هل أنت متأكد تمامًا؟\nلا يمكن التراجع عن هذا الإجراء.\nسيؤدي هذا إلى حذف {feature} نهائيًا من خوادمنا."
   },
   "fields": {
+    "optionalHint": "(اختياري)",
+    "marketingMessagesConfigId": {
+      "label": "معرّف تكوين الرسائل التسويقية",
+      "description": "معرّف تكوين تسجيل الدخول من فيسبوك للأعمال المستخدم لطلب صلاحية marketing_messages_messenger."
+    },
     "omnichannel": {
       "label": "القناة الشاملة"
     },
@@ -805,6 +943,9 @@
       "viaFacebookTitle": "Instagram عبر Facebook",
       "cloneFromMessenger": "استنساخ من Messenger",
       "clonedFromMessenger": "مستنسخة من Messenger"
+    },
+    "threads": {
+      "label": "Threads"
     },
     "zalo": {
       "label": "زالو الزراعة العضوية"
@@ -919,9 +1060,6 @@
     "aiFunction": {
       "label": "وظيفة الذكاء الاصطناعي"
     },
-    "aiTrigger": {
-      "label": "مشغل الذكاء الاصطناعي"
-    },
     "alphanumericLength": {
       "label": "الطول الأبجدي الرقمي"
     },
@@ -962,6 +1100,9 @@
     },
     "qrCode": {
       "label": "رمز الاستجابة السريعة"
+    },
+    "dynamicImage": {
+      "label": "صورة ديناميكية"
     },
     "minigame": {
       "label": "لعبة مصغّرة"
@@ -1071,6 +1212,15 @@
     "defaultReply": {
       "description": "إنها الاستجابة الافتراضية التي سترسلها مساحة العمل الخاصة بك إلى المستخدمين عندما لا تعرف مساحة العمل كيفية الرد على رسالة المستخدم.",
       "label": "الرد الافتراضي"
+    },
+    "defaultReplyFrequency": {
+      "description": "يحدّد كم مرّة يعمل مسار الردّ الافتراضي مع نفس جهة الاتصال على القناة الواحدة.",
+      "label": "تكرار تفعيل الردّ الافتراضي",
+      "options": {
+        "allTime": "في كل مرّة",
+        "oncePerHour": "مرّة كل ساعة",
+        "oncePerDay": "مرّة كل ٢٤ ساعة"
+      }
     },
     "smartResponseDelaySeconds": {
       "description": "قم بتعيين المدة التي ينتظرها الوكيل الذكي قبل الرد بعد آخر رسالة للمستخدم. إذا أرسل المستخدم رسالة أخرى، تتم إعادة ضبط المؤقت ويتم وضع الرسائل في قائمة الانتظار في استجابة واحدة.",
@@ -1323,6 +1473,9 @@
     "mcpServer": {
       "label": "خادم MCP"
     },
+    "template": {
+      "label": "Template"
+    },
     "systemFunction": {
       "label": "وظيفة النظام",
       "names": {
@@ -1369,7 +1522,15 @@
       "label": "العملية"
     },
     "outputCustomField": {
-      "label": "حقل مخصص للإخراج"
+      "label": "حقل مخصص للإخراج",
+      "javascriptOptional": "اختياري. يخزّن القيمة الكاملة المُرجعة. استخدم تعيين مسار JSON أعلاه لكتابة الحقول الفردية.",
+      "javascriptDumpLabel": "مخرجات JSON الكاملة (اختياري)"
+    },
+    "javascriptCode": {
+      "label": "رمز JavaScript",
+      "placeholder": "return (input.first_name || 'there').toUpperCase()",
+      "description": "استخدم JavaScript خالصًا وأعد قيمة. الشبكة والملفات وواجهات البرمجة والمكتبات الخارجية غير متوفرة. بيانات جهة الاتصال والنظام متاحة عبر الكائن `input`.",
+      "objectMapping": "عيّن أي مسار JSON من القيمة المُرجعة إلى أي حقل مخصص، بنفس طريقة طلب واجهة برمجة التطبيقات الخارجية. أنت تختار المسارات والحقول."
     },
     "httpMethod": {
       "label": "الطريقة"
@@ -1446,6 +1607,12 @@
     "pageUserName": {
       "label": "اسم مستخدم الصفحة"
     },
+    "waUserId": {
+      "label": "معرف مستخدم واتساب"
+    },
+    "waUserName": {
+      "label": "اسم مستخدم واتساب"
+    },
     "purpose": {
       "label": "الغرض",
       "placeholder": "ماذا تفعل هذه الوظيفة؟"
@@ -1517,12 +1684,12 @@
       "label": "الحالة",
       "pending": "في انتظار",
       "processing": "المعالجة",
+      "installing": "جارٍ التثبيت",
       "success": "النجاح",
       "error": "خطأ",
       "completed": "مكتمل",
-      "failed": "فاشل",
-      "installing": "جارٍ التثبيت",
-      "partial": "جزئي"
+      "partial": "جزئي",
+      "failed": "فاشل"
     },
     "subtitle": {
       "placeholder": "أدخل العنوان الفرعي"
@@ -1719,7 +1886,8 @@
       "date": "التاريخ",
       "datetime": "التاريخ والوقت",
       "location": "الموقع",
-      "anyInput": "أي إدخال"
+      "anyInput": "أي إدخال",
+      "locationDescription": "على واتساب، يُرسل هذا زر إرسال الموقع الأصلي من Meta وينتظر الدبوس. القنوات الأخرى تُرسل الطلب كنص؛ مشاركة دبوس أو إدخال lat,lng يكملان الخطوة أيضًا."
     },
     "workspaceMember": {
       "label": "عضو مساحة العمل"
@@ -1854,6 +2022,12 @@
     "messengerChannel": {
       "label": "قناة Messenger"
     },
+    "whatsappChannels": {
+      "label": "قنوات واتساب"
+    },
+    "messengerChannels": {
+      "label": "صفحات ماسنجر"
+    },
     "messages": {
       "label": "الرسائل"
     },
@@ -1961,6 +2135,9 @@
     "appSecret": {
       "label": "سر التطبيق"
     },
+    "version": {
+      "label": "الإصدار"
+    },
     "webhookVerifyToken": {
       "label": "رمز التحقق من Webhook"
     },
@@ -2015,11 +2192,16 @@
       "clientId": "معرف العميل",
       "clientSecret": "سر العميل",
       "displayName": "اسم العرض",
+      "needsReauthorizationForComments": "تم تفويض هذا الاتصال قبل أتمتة التعليقات. أعد الاتصال لبدء تلقي أحداث التعليقات.",
       "connectInstructions": {
         "step1": "قم بإنشاء تطبيق TikTok على <link>developers.tiktok.com</link>.",
         "step2": "قم بتفويض حسابك وانسخ رمز الوصول <strong></strong> و<strong>open ID</strong> و<strong>client Secret</strong>.",
         "step3": "الصق بيانات الاعتماد أدناه للاتصال."
-      }
+      },
+      "commentToMessage": "Comment-to-Message",
+      "commentToMessageDescription": "Lets this account answer high-intent comments with a direct message. Required for TikTok comment automations that use a private reply.",
+      "commentToMessageEligibility": "Only available to Business Accounts registered in Vietnam, Indonesia or Thailand, owned by someone over 18, that are registered businesses or have run Messaging Ads, with messaging permissions set to \"Requests\".",
+      "commentToMessageUnknown": "Not checked with TikTok yet — refresh to read the current setting."
     },
     "drip": {
       "label": "بالتنقيط"
@@ -2145,49 +2327,6 @@
       "placeholder": "اكتب اسم الحدث ثم اضغط Enter",
       "description": "أضف اسم حدث واحداً أو أكثر. عند ربط Make لخطّاف ويب بأحد هذه الأحداث، تُرسَل البيانات إليه عند تنفيذ هذه الخطوة."
     },
-    "n8nEvents": {
-      "label": "الأحداث",
-      "placeholder": "اكتب اسم حدث واضغط Enter",
-      "description": "أضف اسم حدث واحدًا أو أكثر. عندما يربط n8n خطاف ويب بأحد هذه الأحداث، تُرسل إليه البيانات عند تشغيل هذه الخطوة."
-    },
-    "attribute": {
-      "label": "الخاصية"
-    },
-    "header": {
-      "label": "الترويسة"
-    },
-    "aiProvider": {
-      "label": "المزوّد"
-    },
-    "transcriptionModel": {
-      "label": "الموديل",
-      "placeholder": "اختر موديلًا"
-    },
-    "optionalHint": "(اختياري)",
-    "selectOptionsPlaceholder": "اختر من القائمة",
-    "dynamicImage": {
-      "label": "صورة ديناميكية"
-    },
-    "defaultReplyFrequency": {
-      "description": "يحدّد كم مرّة يعمل مسار الردّ الافتراضي مع نفس جهة الاتصال على القناة الواحدة.",
-      "label": "تكرار تفعيل الردّ الافتراضي",
-      "options": {
-        "allTime": "في كل مرّة",
-        "oncePerHour": "مرّة كل ساعة",
-        "oncePerDay": "مرّة كل ٢٤ ساعة"
-      }
-    },
-    "javascriptCode": {
-      "label": "رمز JavaScript",
-      "placeholder": "return (input.first_name || 'there').toUpperCase()",
-      "description": "استخدم JavaScript خالصًا وأعد قيمة. الشبكة والملفات وواجهات البرمجة والمكتبات الخارجية غير متوفرة. بيانات جهة الاتصال والنظام متاحة عبر الكائن `input`."
-    },
-    "waUserId": {
-      "label": "معرف مستخدم واتساب"
-    },
-    "waUserName": {
-      "label": "اسم مستخدم واتساب"
-    },
     "bookingCalendar": {
       "label": "تقويم الحجز"
     },
@@ -2196,6 +2335,11 @@
     },
     "bookingLink": {
       "label": "رابط الحجز"
+    },
+    "n8nEvents": {
+      "label": "الأحداث",
+      "placeholder": "اكتب اسم حدث واضغط Enter",
+      "description": "أضف اسم حدث واحدًا أو أكثر. عندما يربط n8n خطاف ويب بأحد هذه الأحداث، تُرسل إليه البيانات عند تشغيل هذه الخطوة."
     },
     "enabled": {
       "label": "مفعّل"
@@ -2220,18 +2364,6 @@
         "done": "تم"
       }
     },
-    "template": {
-      "label": "Template"
-    },
-    "adReferral": {
-      "label": "Ads",
-      "ctwa": "CTWA",
-      "ctm": "CTM",
-      "ctid": "CTID"
-    },
-    "adSource": {
-      "label": "مصدر الإعلان"
-    },
     "tokenPermission": {
       "label": "الصلاحية",
       "full": "وصول كامل",
@@ -2251,9 +2383,52 @@
       "appointments": "المواعيد",
       "media": "الوسائط",
       "ads": "الإعلانات"
-    }
+    },
+    "adReferral": {
+      "label": "Ads",
+      "ctwa": "CTWA",
+      "ctm": "CTM",
+      "ctid": "CTID"
+    },
+    "adSource": {
+      "label": "مصدر الإعلان"
+    },
+    "manualAppSecret": {
+      "label": "سر تطبيق Meta (اختياري)",
+      "description": "يفعّل التحقق من توقيع الـ webhook لهذا الاتصال اليدوي. يمكنك العثور عليه في لوحة تحكم تطبيق Meta ضمن الإعدادات > أساسي."
+    },
+    "lastCallRecorded": {
+      "label": "آخر تسجيل مكالمة"
+    },
+    "lastCallTranscript": {
+      "label": "آخر تفريغ مكالمة"
+    },
+    "sendRatePerMinute": {
+      "label": "الرسائل في الدقيقة"
+    },
+    "aiTrigger": {
+      "label": "مشغل الذكاء الاصطناعي"
+    },
+    "attribute": {
+      "label": "الخاصية"
+    },
+    "header": {
+      "label": "الترويسة"
+    },
+    "aiProvider": {
+      "label": "المزوّد"
+    },
+    "transcriptionModel": {
+      "label": "الموديل",
+      "placeholder": "اختر موديلًا"
+    },
+    "selectOptionsPlaceholder": "اختر من القائمة"
   },
   "flows": {
+    "export": {
+      "notPublished": "هذا المسار لم يُنشر مطلقًا. يرجى نشره قبل التصدير.",
+      "failed": "فشل التصدير. يرجى المحاولة مرة أخرى."
+    },
     "title": "مسارات المحادثة",
     "quickReplies": {
       "limitReached": "تم الوصول إلى حد الرد السريع ({max})."
@@ -2298,11 +2473,11 @@
       "broadcastActions": "إجراءات البث",
       "callApi": "طلب واجهة برمجة التطبيقات الخارجية",
       "make": "Make",
-      "triggerN8n": "تشغيل n8n",
       "triggers": "المشغّلات",
       "questionnaires": "الاستبيانات",
       "setUpCoupon": "إعداد كوبون",
       "markCouponUsed": "تحديد الكوبون كمستخدم",
+      "executeJavascript": "تنفيذ JavaScript",
       "chooseChannel": "اختر القناة",
       "clearCustomField": "مسح الحقل المخصص",
       "condition": "شرط",
@@ -2344,6 +2519,7 @@
       "sendFile": "إرسال الملف",
       "sendGif": "أرسل جيف",
       "sendImage": "إرسال الصورة",
+      "sendMultipleImages": "عدة صور",
       "sendMessage": "أرسل رسالة",
       "sendNode": "ابدأ عقدة أخرى",
       "sendText": "إرسال النص",
@@ -2363,6 +2539,8 @@
       "transferConversationToHuman": "نقل المحادثة إلى الإنسان",
       "unarchiveConversation": "محادثة غير أرشفة",
       "unassignConversation": "إلغاء تعيين المحادثة",
+      "markConversationAsUnread": "تحديد المحادثة كغير مقروءة",
+      "markConversationAsRead": "تحديد المحادثة كمقروءة",
       "unfollowConversation": "إلغاء متابعة المحادثة",
       "unsubscribeBroadcast": "إلغاء الاشتراك في البث",
       "getUserData": "الحصول على بيانات المستخدم",
@@ -2381,15 +2559,16 @@
       "splitTraffic": "تقسيم حركة المرور",
       "aiEditImage": "تحرير الصورة بالذكاء الاصطناعي",
       "whatsappFlow": "تدفق WhatsApp",
-      "sendMetaCapiEvent": "إرسال حدث Meta CAPI",
-      "executeJavascript": "تنفيذ JavaScript",
       "appointmentScheduling": "جدولة المواعيد",
+      "triggerN8n": "تشغيل n8n",
+      "sendMetaCapiEvent": "إرسال حدث Meta CAPI",
       "import": "استيراد التدفق",
       "export": "تصدير",
       "importStarted": "جارٍ استيراد التدفق. يرجى مراجعة سجل الاستيراد للحصول على النتائج.",
       "importJsonOnly": "ملفات JSON فقط",
-      "aiAgentGroup": "وكيل الذكاء الاصطناعي",
-      "sendMultipleImages": "عدة صور"
+      "whatsappCallButton": "الاتصال عبر واتساب",
+      "metaConversions": "Meta Conversions API",
+      "aiAgentGroup": "وكيل الذكاء الاصطناعي"
     },
     "splitTraffic": {
       "balanceHint": "يجب أن يساوي المبلغ الإجمالي 100%.",
@@ -2426,6 +2605,10 @@
       "addSlide": "إضافة بطاقة",
       "removeSlide": "إزالة البطاقة",
       "whatsappLinkButtonIgnored": "في واتساب، لن يعمل رابط هذه البطاقة: لا يمكن أن تحتوي البطاقة التي تتضمن زر رابط على أزرار أخرى. سيتم إرسال الزر كزر رد بدلًا من ذلك."
+    },
+    "sendMultipleImages": {
+      "removeImage": "إزالة صورة",
+      "selectImage": "اختيار الصور"
     },
     "additionalSteps": "خطوات إضافية",
     "delayType": {
@@ -2494,17 +2677,17 @@
     "setCustomField": {
       "temporalHint": "اتركه فارغاً لحفظ التاريخ/الوقت الحالي."
     },
-    "export": {
-      "notPublished": "هذا المسار لم يُنشر مطلقًا. يرجى نشره قبل التصدير.",
-      "failed": "فشل التصدير. يرجى المحاولة مرة أخرى."
-    },
     "sendText": {
       "tiktokTitleTruncated": "عند إرفاق أزرار، يرسل TikTok أول 40 حرفًا فقط من هذه الرسالة، وسيتم قص الباقي."
     },
     "dataWasSaved": "تم حفظ البيانات",
-    "sendMultipleImages": {
-      "removeImage": "إزالة صورة",
-      "selectImage": "اختيار الصور"
+    "media": {
+      "stepUnsupportedOnChannel": "لا يمكن لهذه القناة إرسال هذا النوع من الوسائط — سيتم تخطي الخطوة. أزِلها أو غيِّر قناة العقدة إلى قناة تدعمها.",
+      "buttonsSkippedOnChannel": "لا يمكن لهذه القناة إرسال أزرار مع رسالة وسائط — سيتم تخطيها. أضِفها إلى خطوة نصية تالية بدلاً من ذلك."
+    },
+    "whatsappCallButton": {
+      "editButtonTitle": "تعديل الزر",
+      "buttonLabel": "تسمية الزر"
     },
     "startNode": "البداية"
   },
@@ -2527,6 +2710,41 @@
   },
   "general": {
     "title": "عام"
+  },
+  "facebookMarketingMessages": {
+    "deleteWarning": "يؤدي هذا إلى إزالة الحملة من ChatbotX فقط. تستمر حملة رسائل ميتا في العمل — أوقفها مؤقتًا أو احذفها من مدير الإعلانات.",
+    "title": "الرسائل التسويقية على فيسبوك",
+    "description": "عزّز التفاعل والمبيعات برسائل ترويجية مخصصة على ماسنجر.",
+    "create": "إنشاء جديد",
+    "grantTitle": "منح حق وصول فيسبوك",
+    "grantDescription": "يُرجى منح حق الوصول لاستخدام ميزة الرسائل التسويقية",
+    "grantAction": "منح حق الوصول",
+    "reconnect": "إعادة الاتصال",
+    "expiredWarning": "انتهت صلاحية وصولك إلى فيسبوك أو تم إبطاله. أعد الاتصال لإنشاء الحملات أو تعديلها. الحملات الحالية معروضة أدناه وللقراءة فقط حتى تعيد الاتصال.",
+    "fields": {
+      "image": "صورة",
+      "video": "فيديو",
+      "page": "صفحة فيسبوك",
+      "adAccount": "حساب إعلاني",
+      "budgetType": "نوع الميزانية",
+      "budget": "الميزانية",
+      "daily": "الميزانية اليومية",
+      "lifetime": "ميزانية العمر",
+      "templateType": "نوع الرسالة",
+      "text": "نص",
+      "button": "زر",
+      "media": "وسائط",
+      "generic": "عام",
+      "greeting": "تحية",
+      "quickReplies": "ردود سريعة",
+      "elements": "بطاقات"
+    },
+    "errors": {
+      "notConfigured": "لم يتم تكوين الرسائل التسويقية على فيسبوك. اطلب من المسؤول تعيين معرّف تكوين الرسائل التسويقية.",
+      "notGranted": "يُرجى منح حق الوصول لاستخدام ميزة الرسائل التسويقية.",
+      "tosNotAccepted": "لاستخدام هذه الميزة، يُرجى قبول شروط الكائن المخصص على {url}",
+      "notFound": "لم يتم العثور على الرسالة التسويقية."
+    }
   },
   "facebookAds": {
     "title": "إعلانات Facebook",
@@ -2557,21 +2775,17 @@
   },
   "ads": {
     "title": "الإعلانات",
+    "dashboardNav": {
+      "whatsapp": "إعلانات Click-to-WhatsApp",
+      "messenger": "إعلانات Click-to-Messenger",
+      "instagram": "إعلانات Click-to-Instagram"
+    },
     "connectAccounts": {
-      "title": "إدارة جميع حساباتك الإعلانية",
-      "description": "تتبّع التحويلات وحسّن حملات إعلانات Click-to-WhatsApp الخاصة بك.",
-      "learnMore": "معرفة المزيد",
       "connectAdAccount": "ربط حساب إعلاني",
       "adAccountName": "اسم الحساب الإعلاني",
-      "disconnect": "قطع الاتصال",
-      "empty": "لا يوجد حساب إعلاني متصل حتى الآن.",
-      "adAccountsTitle": "حسابات Meta الإعلانية",
-      "adAccountsDescription": "اربط إعلانات Facebook لتحميل الحسابات الإعلانية المستخدمة في حملات click-to-WhatsApp.",
       "adAccountsReconnectBanner": "انتهت صلاحية رمز حساب Meta الإعلاني الخاص بك أو فقد الأذونات. أعد ربط إعلانات Facebook للحفاظ على توفر تقارير الإعلانات.",
       "adAccountsNotConnected": "لا توجد حسابات Meta إعلانية متصلة حتى الآن.",
       "adAccountsEmpty": "لم يتم العثور على حسابات Meta إعلانية لاتصال إعلانات Facebook هذا.",
-      "adAccountsNote": "يأتي الإنفاق وجماهير إعادة الاستهداف من هذه الحسابات الإعلانية.",
-      "reconnectBanner": "أعد ربط حساب WhatsApp الخاص بك لتفعيل إرسال أحداث التحويل إلى Meta.",
       "reconnect": "إعادة الاتصال",
       "reconnectSuccess": "تمت إعادة ربط حساب WhatsApp.",
       "selectAccountLabel": "حساب WhatsApp",
@@ -2581,43 +2795,57 @@
         "unverified": "الإذن غير مُتحقّق منه"
       },
       "table": {
+        "wabaId": "معرّف WABA",
         "name": "الاسم",
         "phoneNumber": "رقم الهاتف",
-        "wabaId": "معرّف WABA",
         "permission": "الأحداث التلقائية"
       },
-      "providers": {
-        "meta": "Meta",
-        "googleAds": "Google Ads",
-        "tiktok": "TikTok"
-      },
       "connectWhatsapp": {
+        "cta": "ربط حساب WhatsApp",
         "title": "اربط حساب WhatsApp الخاص بك أولًا",
         "description": "يتطلب تتبع تحويلات Click-to-WhatsApp ربط حساب WhatsApp قبل أن تتمكن من ربط الحسابات الإعلانية وإنشاء مجموعات بيانات التحويل.",
         "step1": "اربط حساب WhatsApp Business الخاص بك في القنوات.",
         "step2": "عد إلى هنا لتفويض Meta Ads واختيار حسابك الإعلاني.",
-        "step3": "سننشئ تلقائيًا مجموعة بيانات التحويل باستخدام حساب WhatsApp Business الخاص بك.",
-        "cta": "ربط حساب WhatsApp"
+        "step3": "سننشئ تلقائيًا مجموعة بيانات التحويل باستخدام حساب WhatsApp Business الخاص بك."
+      },
+      "title": "إدارة جميع حساباتك الإعلانية",
+      "description": "تتبّع التحويلات وحسّن حملات إعلانات Click-to-WhatsApp الخاصة بك.",
+      "learnMore": "معرفة المزيد",
+      "disconnect": "قطع الاتصال",
+      "empty": "لا يوجد حساب إعلاني متصل حتى الآن.",
+      "adAccountsTitle": "حسابات Meta الإعلانية",
+      "adAccountsDescription": "اربط إعلانات Facebook لتحميل الحسابات الإعلانية المستخدمة في حملات click-to-WhatsApp.",
+      "adAccountsNote": "يأتي الإنفاق وجماهير إعادة الاستهداف من هذه الحسابات الإعلانية.",
+      "reconnectBanner": "أعد ربط حساب WhatsApp الخاص بك لتفعيل إرسال أحداث التحويل إلى Meta.",
+      "providers": {
+        "meta": "Meta",
+        "googleAds": "Google Ads",
+        "tiktok": "TikTok"
       }
     },
     "conversionEvents": {
       "title": "أحداث التحويل",
       "tabs": {
         "facebook": "Facebook",
-        "whatsapp": "WhatsApp",
         "instagram": "إنستغرام",
-        "messenger": "Messenger"
+        "messenger": "Messenger",
+        "whatsapp": "WhatsApp"
       },
       "manageAdsAccounts": "إدارة الحسابات الإعلانية",
       "export": "تصدير",
       "selectAll": "تحديد الكل",
       "whatsappAsset": "أصل WhatsApp",
       "selectWhatsappAsset": "اختر أصل WhatsApp",
+      "selectIntegration": "التكامل",
+      "selectIntegrationPlaceholder": "اختر التكامل",
+      "noIntegrationsConnected": "لا توجد عمليات ربط متصلة بهذه القناة بعد.",
+      "connectIntegration": "ربط قناة",
       "templates": "القوالب",
       "selectTemplates": "اختر القوالب",
       "noTemplates": "لم يتم العثور على قوالب معتمدة.",
       "existingRules": "القواعد الحالية",
       "noRules": "لا توجد قواعد تحويل لهذا أصل WhatsApp حتى الآن.",
+      "noRulesGeneric": "لا توجد قواعد تحويل لهذا الربط بعد.",
       "toggleRule": "تفعيل أو تعطيل القاعدة",
       "deleteRule": "حذف القاعدة",
       "qualifyingTemplateMessageSent": "يتم إرسال رسالة القالب المؤهِّلة",
@@ -2667,12 +2895,7 @@
         "then": "ثم",
         "noValueNote": "يسجّل الشراء المبني على قاعدة تحويل شراء دون قيمة طلب — يُحسب ضمن المشتريات لكنه يضيف 0 إلى الإيرادات. يتم تسجيل قيمة الطلب فقط بواسطة Meta Automatic Events.",
         "questionGeneric": "في أي مرحلة من المحادثة تريد تسجيل عملية شراء؟"
-      },
-      "selectIntegration": "التكامل",
-      "selectIntegrationPlaceholder": "اختر التكامل",
-      "noIntegrationsConnected": "لا توجد عمليات ربط متصلة بهذه القناة بعد.",
-      "connectIntegration": "ربط قناة",
-      "noRulesGeneric": "لا توجد قواعد تحويل لهذا الربط بعد."
+      }
     },
     "analytics": {
       "title": "تحليلات الإعلانات",
@@ -2710,12 +2933,19 @@
       "adAccountFilter": {
         "all": "جميع الحسابات الإعلانية",
         "label": "الحساب الإعلاني",
-        "unavailable": "تعذّر تحميل حسابات الإعلانات — تحقّق من اتصال الإعلانات الخاص بهذا التكامل، أو اتصال Facebook Ads الخاص بمساحة العمل، في الإعدادات."
+        "unavailable": "تعذّر تحميل حسابات الإعلانات — تحقّق من اتصال الإعلانات الخاص بهذا التكامل، أو اتصال Facebook Ads الخاص بمساحة العمل، في الإعدادات.",
+        "note": "تُخفى الإعلانات ذات التحويلات ولكن بإنفاق صفري أو توصيل صفري في النطاق الزمني المحدد عند التصفية حسب الحساب الإعلاني."
+      },
+      "channelFilter": {
+        "label": "القناة",
+        "allAccounts": "كل الحسابات",
+        "allChannels": "جميع القنوات"
       },
       "retarget": "إعادة الاستهداف",
       "thoseWhoPurchased": "من قاموا بالشراء",
       "thoseWhoStartedConversation": "من بدؤوا محادثة",
       "sendWhatsappBroadcast": "إرسال بث WhatsApp",
+      "retargetOnChannel": "استهداف مجدد على {channel}",
       "from": "من",
       "to": "إلى",
       "unattributed": "غير مُنسوب",
@@ -2752,18 +2982,7 @@
         "occurredAt": "وقت الحدوث",
         "channel": "القناة"
       },
-      "empty": "لا توجد بيانات حتى الآن. اربط حسابًا إعلانيًا وابدأ بتتبع التحويلات.",
-      "channelFilter": {
-        "label": "القناة",
-        "allAccounts": "كل الحسابات",
-        "allChannels": "جميع القنوات"
-      },
-      "retargetOnChannel": "استهداف مجدد على {channel}"
-    },
-    "dashboardNav": {
-      "whatsapp": "إعلانات Click-to-WhatsApp",
-      "messenger": "إعلانات Click-to-Messenger",
-      "instagram": "إعلانات Click-to-Instagram"
+      "empty": "لا توجد بيانات حتى الآن. اربط حسابًا إعلانيًا وابدأ بتتبع التحويلات."
     }
   },
   "googleSheets": {
@@ -3059,6 +3278,11 @@
     "noWorkspaces": "ليس لديك أية مساحات عمل حتى الآن.",
     "owner": "المالك"
   },
+  "notFound": {
+    "title": "الصفحة غير موجودة",
+    "description": "الصفحة التي تبحث عنها غير موجودة أو ربما تم نقلها.",
+    "backToHome": "العودة إلى الصفحة الرئيسية"
+  },
   "editProfile": {
     "title": "تعديل الملف الشخصي"
   },
@@ -3087,10 +3311,12 @@
     "disconnectFeatureDescription": "هل أنت متأكد أنك تريد فصل {feature}؟",
     "disconnectSuccess": "تم قطع اتصال {feature} بنجاح",
     "reply": "رد",
+    "privateReply": "رد خاص",
     "viewMessage": "عرض الرسالة",
     "changeLikeState": "تغيير مثل الحالة",
     "changeHideState": "تغيير حالة الإخفاء",
     "commentHidden": "تم إخفاء هذا التعليق",
+    "commentMediaUnavailable": "يحتوي هذا التعليق على صورة GIF أو ملصق أو صورة لا يمكن عرضها",
     "messageDeleted": "تم حذف الرسالة.",
     "sendFailed": "فشل الإرسال",
     "repliedToStory": "رد على قصتك",
@@ -3104,6 +3330,8 @@
     "editMessagePlaceholder": "تحرير رسالتك...",
     "saveEdit": "حفظ",
     "cancelEdit": "إلغاء",
+    "replaceAttachment": "استبدال المرفق",
+    "addAttachment": "إضافة مرفق",
     "failedToCopy": "فشل النسخ",
     "failedToPreviewImage": "فشلت معاينة الصورة",
     "loadingData": "جارٍ تحميل البيانات...",
@@ -3127,6 +3355,12 @@
     "duplicatedSuccess": "تم تكرار {feature} بنجاح",
     "duplicateConfirmation": "سيؤدي هذا إلى إنشاء نسخة من {feature} الخاص بك.",
     "deleteFeature": "حذف {feature}",
+    "resetFeature": "إعادة تعيين {feature}",
+    "resetConfirmation": "سيؤدي هذا إلى مسح قيم {feature} المحددة وإعادتها فارغة.\nلا يمكن التراجع عن هذا الإجراء.",
+    "resetAllConfirmation": "سيؤدي هذا إلى مسح جميع قيم {feature} لجهة الاتصال هذه وإعادتها فارغة.\nلا يمكن التراجع عن هذا الإجراء.",
+    "resetSuccess": "تمت إعادة تعيين {feature} بنجاح",
+    "clearFeature": "مسح {feature}",
+    "clearSuccess": "تم مسح {feature} بنجاح",
     "deleteConfirmation": "هل أنت متأكد تماما؟\nلا يمكن التراجع عن هذا الإجراء.\nسيؤدي هذا إلى حذف {feature} الخاص بك نهائيًا من خوادمنا.",
     "addFeature": "أضف {feature}",
     "signOutConfirmation": "هل أنت متأكد أنك تريد تسجيل الخروج؟",
@@ -3177,17 +3411,27 @@
     "historyDepth": "({count})",
     "none": "لا شيء",
     "tiktokCardTitleTooLong": "سيقوم TikTok بتقصير هذه الرسالة: عند إرفاق أزرار، يتم إرسال أول 40 حرفًا فقط. قم بتقصير الرسالة أو إزالة الأزرار.",
+    "sendTextTooLongForChannel": "هذه الرسالة أطول مما تسمح به هذه القناة. اختصرها أو وجّه هذه العقدة إلى قناة ذات حد أعلى.",
     "waTemplateMpmNoProducts": "أضف منتجًا واحدًا على الأقل إلى زر المنتجات المتعددة هذا قبل النشر.",
     "waTemplateMpmTooManySections": "يمكن أن يحتوي زر المنتجات المتعددة على 10 أقسام كحد أقصى. أزل بعض الأقسام قبل النشر.",
     "waTemplateMpmTooManyProducts": "يمكن أن يحتوي زر المنتجات المتعددة على 30 منتجًا كحد أقصى إجمالاً. أزل بعض المنتجات قبل النشر.",
     "waTemplateLtoExpirationRequired": "اختر تاريخ انتهاء العرض المحدود المدة قبل الإرسال.",
     "waTemplateMpmIncompleteProducts": "يحتاج كل قسم إلى منتج واحد محدد على الأقل — احذف الصفوف الفارغة أو اختر منتجًا لها.",
-    "privateReply": "رد خاص",
-    "replaceAttachment": "استبدال المرفق",
-    "addAttachment": "إضافة مرفق",
-    "resetFeature": "إعادة تعيين {feature}",
-    "resetConfirmation": "سيؤدي هذا إلى مسح قيم {feature} المحددة وإعادتها فارغة.\nلا يمكن التراجع عن هذا الإجراء.",
-    "resetSuccess": "تمت إعادة تعيين {feature} بنجاح"
+    "mediaStepUnsupported": "لا يمكن لهذه القناة إرسال هذا النوع من الوسائط. أزِل الخطوة أو وجِّه هذه العقدة إلى قناة تدعمها.",
+    "mediaButtonsUnsupported": "لا يمكن لهذه القناة إرسال أزرار مع رسالة وسائط. أزِل الأزرار أو انقلها إلى خطوة نصية بعد هذه الخطوة.",
+    "voiceCall": "مكالمة صوتية",
+    "voiceCallDuration": "مكالمة صوتية · {duration}",
+    "missedVoiceCall": "مكالمة صوتية فائتة",
+    "declinedVoiceCall": "مكالمة صوتية مرفوضة",
+    "voiceCallFailed": "مكالمة صوتية فاشلة",
+    "unansweredVoiceCall": "لا يوجد رد",
+    "canceledVoiceCall": "مكالمة ملغاة",
+    "acceptedCallPermission": "تم قبول طلب إذن الاتصال",
+    "declinedCallPermission": "تم رفض طلب إذن الاتصال",
+    "sendHumanAgentTag": "إرسال رسالة واحدة باستخدام وسم HUMAN_AGENT",
+    "warning": "تحذير!",
+    "humanAgentWarningDescription": "لا يجوز لك الرد على رسالة المستخدم خلال 7 أيام إلا عندما يتعذر حل المشكلة بشكل معقول خلال 24 ساعة. تشمل الأمثلة عطلات نهاية الأسبوع والعطلات الرسمية والحالات التي تتطلب أكثر من يوم لإكمالها. لا تستخدم هذا الخيار لأي سبب آخر، فقد يعرّض صفحة Facebook أو حساب Instagram الخاص بك للخطر. إذا لم تكن متأكدًا، فلا تتابع.",
+    "callFailed": "مشكلة في المكالمة"
   },
   "instagram": {
     "description": "يتيح لك هذا التكامل إنشاء روبوتات Instagram.",
@@ -3199,6 +3443,12 @@
     "tabs": {
       "generalSettings": "الإعدادات العامة",
       "conversionsApi": "تحسين الإعلانات"
+    },
+    "selectPage": {
+      "noAccountsTitle": "لم يتم العثور على حسابات إنستغرام",
+      "noAccountsDescription": "لم يتم العثور على أي حساب أعمال على إنستغرام مرتبط بصفحات فيسبوك التي تديرها. أعد ربط إنستغرام وامنح جميع الأذونات المطلوبة.",
+      "alreadyConnectedNote": "هذا الحساب متصل بالفعل",
+      "tryAgain": "محاولة إعادة الاتصال"
     }
   },
   "coexist": {
@@ -3213,6 +3463,8 @@
     "toggleHelper": "لا تعمل إعادة التمكين إلا إذا قام Meta بتخزين البيانات مؤقتًا (خلال 24 ساعة من الإعداد). وإلا قم بفصل وإعادة الاتصال.",
     "toggleHelperMessenger": "لا تعمل إعادة التمكين إلا إذا قام Meta بتخزين البيانات مؤقتًا (خلال 24 ساعة من الإعداد). وإلا قم بفصل صفحة Messenger وإعادة توصيلها.",
     "toggleHelperWhatsapp": "لا تعمل إعادة التمكين إلا إذا قام Meta بتخزين البيانات مؤقتًا (خلال 24 ساعة من الإعداد). وإلا قم بفصل وإعادة توصيل رقم WhatsApp.",
+    "aiReadsSyncedHistoryLabel": "يقرأ الذكاء الاصطناعي السجل المتزامن",
+    "aiReadsSyncedHistoryHelper": "عند الإيقاف، لا يرى الذكاء الاصطناعي سوى الرسائل الجديدة.",
     "success": {
       "enabled": "بدأت المزامنة. ستظهر جهات الاتصال والرسائل التاريخية قريبًا.",
       "disabled": "تم تعطيل المزامنة."
@@ -3223,9 +3475,7 @@
       "notEligible": "هذا الرقم غير مؤهل للمزامنة التاريخية.",
       "triggerFailed": "تعذر بدء المزامنة. يرجى المحاولة مرة أخرى في وقت لاحق.",
       "unknown": "تعذر تمكين المزامنة. يرجى المحاولة مرة أخرى في وقت لاحق."
-    },
-    "aiReadsSyncedHistoryLabel": "يقرأ الذكاء الاصطناعي السجل المتزامن",
-    "aiReadsSyncedHistoryHelper": "عند الإيقاف، لا يرى الذكاء الاصطناعي سوى الرسائل الجديدة."
+    }
   },
   "messenger": {
     "description": "يتيح لك هذا التكامل إنشاء روبوتات Messenger.",
@@ -3244,17 +3494,17 @@
     "defaultPersona": "الشخصية الافتراضية",
     "reconnect": "أعد الاتصال",
     "reconnectDescription": "قم دائمًا بإعادة توصيل وكيلك الذكي إذا كان الوكيل الذكي Messenger الخاص بك لا يستجيب، أو إذا بدا لك أي خطأ في الإذن في سجل الأخطاء.",
-    "selectFacebookPage": "حدد صفحة Facebook",
     "selectPage": {
       "noPagesTitle": "لم يتم العثور على صفحات Facebook",
       "noPagesDescription": "تتطلب الصفحات الموجودة داخل Business Manager الوصول إلى Business Manager أثناء الاتصال. أعد توصيل Messenger وامنح جميع الأذونات المطلوبة.",
+      "noConnectablePagesTitle": "لا توجد صفحات متاحة للربط",
+      "noConnectablePagesDescription": "أنت لست مسؤولاً عن هذه الصفحة",
       "bmLookupFailedTitle": "قد تكون صفحات مدير الأعمال مفقودة",
       "bmLookupFailedDescription": "أعد توصيل Messenger وامنح مدير الأعمال حق الوصول حتى يمكن إدراج الصفحات المُدارة من خلال مدير الأعمال.",
+      "loadFailed": "تعذّر تحميل صفحات فيسبوك الخاصة بك",
       "alreadyConnectedNote": "هذه الصفحة متصلة بالفعل",
       "notAdminNote": "مطلوب إذن المسؤول الكامل على الصفحة للاتصال",
-      "tryAgain": "حاول إعادة الاتصال",
-      "noConnectablePagesTitle": "لا توجد صفحات متاحة للربط",
-      "noConnectablePagesDescription": "أنت لست مسؤولاً عن هذه الصفحة"
+      "tryAgain": "حاول إعادة الاتصال"
     },
     "title": "Facebook Messenger",
     "tabs": {
@@ -3298,6 +3548,7 @@
         "result": {
           "title": "نتائج الاستنساخ",
           "succeededTitle": "نجحت",
+          "pendingTitle": "بانتظار مراجعة Meta",
           "close": "إغلاق"
         }
       }
@@ -3312,7 +3563,8 @@
       "on": "على",
       "off": "إيقاف",
       "termsRequired": "يجب على مسؤول الصفحة قبول شروط الاتصال بالصفحة Facebook:"
-    }
+    },
+    "selectFacebookPage": "حدد صفحة Facebook"
   },
   "omnichannel": {
     "title": "القناة الشاملة"
@@ -3387,10 +3639,6 @@
       "description": "وصف وكلاء الذكاء الاصطناعي",
       "title": "وكلاء الذكاء الاصطناعي"
     },
-    "aiTriggers": {
-      "description": "وصف مشغلات الذكاء الاصطناعي",
-      "title": "مشغلات الذكاء الاصطناعي"
-    },
     "automatedResponses": {
       "title": "الكلمات الرئيسية"
     },
@@ -3405,6 +3653,10 @@
     "deepseek": {
       "description": "وصف التكامل DeepSeek",
       "title": "التكامل ديب سيك"
+    },
+    "aiTriggers": {
+      "description": "وصف مشغلات الذكاء الاصطناعي",
+      "title": "مشغلات الذكاء الاصطناعي"
     }
   },
   "auth": {
@@ -3508,6 +3760,7 @@
   "validation": {
     "maxSize": "يتجاوز حجم الملف الحد الأقصى",
     "maxItemsReached": "الحد الأقصى المسموح به لـ {max} {feature} لكل مساحة عمل",
+    "maxCharacters": "الحد الأقصى {max} حرفًا.",
     "invalidApiKey": "مفتاح API غير صالح",
     "maxMustBeGreaterThanMin": "يجب أن يكون {maxField} أكبر من أو يساوي {minField}"
   },
@@ -3557,7 +3810,8 @@
       "verifyToken": "رمز التحقق من Webhook",
       "qrCodeHint": "امسح رمز الاستجابة السريعة ضوئيًا لفتح عنوان URL للويب هوك",
       "moreSettings": "المزيد من الإعدادات",
-      "goToInbox": "خذني إلى هناك"
+      "goToInbox": "خذني إلى هناك",
+      "multipleTitle": "صناديق واتساب الخاصة بك جاهزة الآن!"
     },
     "phoneVerification": {
       "title": "التحقق من رقم هاتف WhatsApp",
@@ -3570,7 +3824,8 @@
       "actions": {
         "sendCode": "إرسال الرمز",
         "resendIn": "إعادة الإرسال خلال {seconds} ث",
-        "verify": "التحقق والتسجيل"
+        "verify": "تسجيل",
+        "skip": "تخطي"
       },
       "fields": {
         "code": {
@@ -3588,18 +3843,12 @@
         "codeNotSent": "تعذّر إرسال رمز تحقق WhatsApp.",
         "codeNotVerified": "تعذّر التحقق من رمز WhatsApp.",
         "registrationFailed": "فشل التحقق من رقم هاتف WhatsApp."
-      }
+      },
+      "queueProgress": "جارٍ التحقق من {current} من {total}"
     },
     "connect": {
       "errors": {
-        "accessTokenRequired": "رمز وصول WhatsApp مطلوب.",
         "appSettingsNotFound": "لم يتم العثور على إعدادات تطبيق WhatsApp.",
-        "failedToPersistIntegration": "تعذّر حفظ تكامل WhatsApp.",
-        "noPhoneNumberFound": "لم يتم العثور على رقم هاتف WhatsApp.",
-        "noPhoneNumbersFound": "لم يتم العثور على أرقام هاتف لحساب WhatsApp Business هذا.",
-        "phoneNumberNotFound": "لم يتم العثور على رقم هاتف WhatsApp المحدد.",
-        "unableToVerifyToken": "تعذّر التحقق من رمز WhatsApp.",
-        "wabaMismatch": "حساب WhatsApp Business المحدد لا يطابق التفويض.",
         "wabaResolveFailed": "تعذّر تحديد حساب WhatsApp Business من التفويض."
       }
     },
@@ -3612,15 +3861,6 @@
     },
     "marketingMessageLite": "رسالة التسويق لايت",
     "messageTemplate": {
-      "create": {
-        "trigger": "إنشاء قالب",
-        "reviewNote": "تراجع ميتا القالب عادةً خلال دقائق إلى ساعات، ويظهر في الرسائل الجماعية بعد اعتماده.",
-        "nameHint": "بالإنجليزية بأحرف صغيرة وأرقام وشرطة سفلية فقط، مثل offer_sep",
-        "footer": "التذييل (اختياري)",
-        "quickReply": "رد سريع",
-        "submitted": "أُرسل القالب إلى ميتا للمراجعة",
-        "rejected": "رفضت ميتا هذا القالب. راجع النص ثم أعد المحاولة."
-      },
       "carouselImage": {
         "label": "صورة دائري"
       },
@@ -3651,8 +3891,6 @@
       "params": {
         "couponCode": "رمز القسيمة",
         "couponCodePlaceholder": "أدخل رمز القسيمة",
-        "quickReplyPayload": "حمولة الرد السريع",
-        "quickReplyPayloadPlaceholder": "أدخل الحمولة (اختياري)",
         "flowToken": "رمز التدفق",
         "flowTokenPlaceholder": "أدخل رمز التدفق",
         "flowNotSynced": "زامن مسارات واتساب لربط الحقول المُرسلة.",
@@ -3684,7 +3922,18 @@
         "mpmSectionLimitReached": "تم الوصول إلى الحد الأقصى 10 أقسام.",
         "mpmProductLimitReached": "تم الوصول إلى الحد الأقصى 30 منتجًا.",
         "mpmProductsSummary": "{productCount} منتج في {sectionCount} أقسام",
-        "unsupportedButtonParam": "هذا النوع من الأزرار غير مدعوم بعد."
+        "unsupportedButtonParam": "هذا النوع من الأزرار غير مدعوم بعد.",
+        "quickReplyPayload": "حمولة الرد السريع",
+        "quickReplyPayloadPlaceholder": "أدخل الحمولة (اختياري)"
+      },
+      "create": {
+        "trigger": "إنشاء قالب",
+        "reviewNote": "تراجع ميتا القالب عادةً خلال دقائق إلى ساعات، ويظهر في الرسائل الجماعية بعد اعتماده.",
+        "nameHint": "بالإنجليزية بأحرف صغيرة وأرقام وشرطة سفلية فقط، مثل offer_sep",
+        "footer": "التذييل (اختياري)",
+        "quickReply": "رد سريع",
+        "submitted": "أُرسل القالب إلى ميتا للمراجعة",
+        "rejected": "رفضت ميتا هذا القالب. راجع النص ثم أعد المحاولة."
       }
     },
     "sampleBodyCardContent": {
@@ -3711,7 +3960,8 @@
       "profile": "الملف الشخصي",
       "usefulLinks": "روابط مفيدة",
       "conversionsApi": "تحسين الإعلانات",
-      "settings": "الإعدادات"
+      "settings": "الإعدادات",
+      "calls": "Calls"
     },
     "accountHealths": {
       "title": "إدارة حساب WhatsApp الخاص بك",
@@ -3841,11 +4091,260 @@
       "label": "رأس القالب"
     },
     "transferPhoneNumber": "نقل الهاتف من مزود Whatsapp آخر",
-    "signupSessionExpired": "انتهت صلاحية جلسة تسجيل WhatsApp. يُرجى بدء الاتصال من جديد.",
-    "capi": {
-      "automaticEvents": {
-        "title": "الأحداث التلقائية",
-        "description": "أرسل أحداث التحويل من رقم واتساب هذا إلى Meta تلقائيًا. إذا كان الإذن مفقودًا، فأعد ربط الحساب لمنحه."
+    "selectPage": {
+      "tryAgain": "محاولة إعادة الاتصال"
+    },
+    "manualAppSecretMissingNotice": "لن يتم التحقق من توقيعات webhook حتى تضيف سر تطبيق Meta الخاص بك.",
+    "calls": {
+      "title": "WhatsApp Calls",
+      "description": "Let customers call your business on WhatsApp and control how calling works for this number.",
+      "enableLabel": "Enable calling",
+      "enableHelper": "Allow WhatsApp calls to and from this business number.",
+      "iconVisibilityLabel": "Show call icon",
+      "iconVisibilityHelper": "Show the call button in the chat and on your business profile.",
+      "callbackPermissionLabel": "Callback permission requests",
+      "callbackPermissionHelper": "Automatically ask customers for permission to call them back after a missed or completed call.",
+      "propagationNote": "Changes are applied by Meta immediately, but the WhatsApp app of your customers can take up to 7 days to reflect them.",
+      "loadFailed": "Failed to load calling settings from Meta. Check the connection of this number and try again.",
+      "errors": {
+        "notFound": "WhatsApp integration not found",
+        "notWhatsappConversation": "This conversation is not on WhatsApp",
+        "callNotFound": "Call not found",
+        "callNotReady": "The call is not ready to answer yet — try again",
+        "inAppCallingUnavailable": "In-app calling is not configured on this server",
+        "noCallPermission": "The contact has not granted call permission",
+        "permissionRequestLimitReached": "يسمح واتساب بإرسال طلبين فقط لإذن الاتصال لكل جهة اتصال خلال 7 أيام. وصلت جهة الاتصال هذه إلى الحد الأقصى — حاول مرة أخرى لاحقًا.",
+        "audioConnectFailed": "Could not connect call audio",
+        "updateFailed": "رفضت Meta تغيير إعدادات المكالمات",
+        "savedOnMetaOnly": "Meta saved the change but this workspace did not. Save again to finish.",
+        "bicUnavailable": "الاتصال الذي يبدأه النشاط التجاري غير متاح لهذا البلد",
+        "callAlreadyInProgress": "توجد مكالمة جارية مع جهة الاتصال هذه",
+        "hangupFailed": "تعذّر إنهاء المكالمة",
+        "voipCannotAnswer": "This call is no longer available to answer",
+        "voipCallEnded": "The call ended before it could be answered",
+        "voipAnswerFailed": "Could not answer the WhatsApp call",
+        "voipRejectFailed": "تعذر رفض مكالمة واتساب",
+        "voipHangupFailed": "تعذر إنهاء مكالمة واتساب",
+        "voipNotReservedAgent": "أنت لست الوكيل المخصص لهذه المكالمة",
+        "voipCallAccessDenied": "ليس لديك إذن للتعامل مع هذه المكالمة",
+        "voipTurnCredentialsRateLimited": "Too many call setup requests. Please wait a moment and try again.",
+        "callNoLongerRinging": "لم تعد تلك المكالمة ترن",
+        "transcriptionRequiresRecording": "فعّل تسجيل المكالمات قبل تفعيل النسخ النصي.",
+        "supportSessionCallingBlocked": "الاتصال غير متاح أثناء جلسة دعم المنصة.",
+        "callingAccessDenied": "ليس لديك إمكانية الوصول إلى الاتصال في مساحة العمل هذه.",
+        "callArtifactAccessDenied": "ليس لديك إذن لعرض هذه المكالمة.",
+        "callHistoryAccessDenied": "ليس لديك إمكانية الوصول إلى سجل المكالمات في مساحة العمل هذه."
+      },
+      "permissionRequestTitle": "Request call permission",
+      "permissionRequestDescription": "Ask this customer to allow calls from your business on WhatsApp. Meta limits requests to 1 per 24 hours and 2 per 7 days per customer.",
+      "permissionRequestBodyLabel": "Message",
+      "permissionRequestDefaultBody": "We would like to call you on WhatsApp to help you faster. Do you allow us to call you?",
+      "permissionRequestSent": "Call permission request sent",
+      "inAppCallingLabel": "In-app calling (beta)",
+      "inAppCallingHelper": "Route this number's WhatsApp calls to the inbox so agents can answer them in the browser.",
+      "recordingLabel": "Record calls",
+      "recordingHelper": "سجّل المكالمات التي يُرد عليها أو تُجرى من صندوق الوارد وأضف التسجيل إلى المحادثة.",
+      "recordingInProgress": "طُلب التسجيل",
+      "incomingCall": "Incoming WhatsApp call…",
+      "unknownCaller": "Unknown caller",
+      "incomingCallBanner": "Incoming WhatsApp call",
+      "answer": "Answer",
+      "reject": "Reject",
+      "ringingBadge": "Ringing",
+      "ringingCountdown": "{seconds}s",
+      "updateFailedTitle": "رفضت Meta هذا التغيير",
+      "callContact": "الاتصال عبر WhatsApp",
+      "dialing": "جارٍ الاتصال…",
+      "startCall": "بدء مكالمة WhatsApp",
+      "retentionLabel": "مدة الاحتفاظ بالتسجيلات (أيام)",
+      "retentionHelper": "المدة التي يتم الاحتفاظ فيها بتسجيلات المكالمات قبل حذفها نهائيًا.",
+      "transcriptionLabel": "تحويل المكالمات إلى نص",
+      "transcriptionHelper": "أضف نصًا مكتوبًا لكل مكالمة مسجّلة إلى المحادثة.",
+      "preflight": {
+        "title": "أهلية المكالمات",
+        "appSubscriptionMissing": "قم بتكوين webhook الخاص بـ WhatsApp لهذا التطبيق في لوحة تحكم تطبيق Meta أولاً، ثم حاول مرة أخرى.",
+        "appSubscriptionFailed": "تعذّر التحقق من اشتراك التطبيق في webhook الخاص بـ 'calls'. حاول مرة أخرى بعد قليل.",
+        "callsNotSubscribed": "هذا التطبيق غير مشترك في حقل webhook الخاص بـ 'calls'، لذا لا يمكن لأحداث المكالمات الوصول إلى ChatbotX (خطأ Meta 138018: المتطلبات التقنية غير مستوفاة — تأكد من أن تطبيقًا واحدًا على الأقل مشتركًا في WABA يحتوي أيضًا على حقل webhook الخاص بالمكالمات).",
+        "fixButton": "إصلاح",
+        "fixSuccess": "التطبيق مشترك الآن في webhooks مكالمات WhatsApp.",
+        "manualIntegrationNotice": "تم توصيل هذا الرقم يدويًا وليس لديه بيانات اعتماد تطبيق هنا. اشترك في حقل webhook الخاص بـ 'calls' لتطبيقك في لوحة تحكم تطبيق Meta.",
+        "coexistenceWarning": "يستخدم هذا الرقم تعايش تطبيق WhatsApp Business، وهو أمر لا تدعمه Meta للمكالمات. انقله إلى Cloud API فقط."
+      },
+      "voipConnecting": "Connecting…",
+      "recordingActivity": {
+        "showTranscript": "إظهار النص",
+        "hideTranscript": "إخفاء النص"
+      },
+      "outbound": {
+        "needsPermission": "You need permission to call this contact. Request permission first.",
+        "permissionCheckFailed": "We could not check your call permission for this contact right now. Please try again in a moment.",
+        "businessCallingUnavailable": "لم تفعّل واتساب المكالمات التي تبدأها الشركة لهذا الرقم. يعتمد ذلك على توفّر الخدمة في بلدك وأهلية الحساب لدى Meta، لذا لا يمكن تفعيله من هنا.",
+        "callAlreadyInProgress": "A call to this contact is already in progress.",
+        "dailyLimitReached": "You have reached the connected-call limit with this contact for now.",
+        "ineligibleNumber": "This number is not eligible for business-initiated calling.",
+        "recipientUncallable": "This contact cannot be called on WhatsApp right now.",
+        "temporarilyDisabled": "Calling is temporarily disabled for this number due to call quality.",
+        "rateLimited": "Too many call attempts. Please wait a moment and try again.",
+        "paymentIssue": "There is a billing issue with your WhatsApp Business account.",
+        "callingNotEnabled": "Calling is not enabled for this WhatsApp number.",
+        "callFailed": "The call could not be placed. Please try again.",
+        "calling": "Calling…",
+        "ringback": "Ringing…",
+        "micPermissionDenied": "تم رفض الوصول إلى الميكروفون. فعّل الوصول من إعدادات المتصفح وحاول مرة أخرى.",
+        "micNotFound": "لم يتم العثور على ميكروفون. قم بتوصيل ميكروفون وحاول مرة أخرى.",
+        "callAccessDenied": "ليس لديك إذن للاتصال بجهة الاتصال هذه."
+      },
+      "card": {
+        "audioCall": "مكالمة صوتية",
+        "recordingUnavailable": "التسجيل غير متوفر بعد الآن",
+        "recordingNotCaptured": "التسجيل غير متاح لهذه المكالمة",
+        "recordingProcessing": "المكالمة قيد المعالجة…",
+        "moreOptions": "خيارات أخرى",
+        "download": "تنزيل",
+        "openCallInformation": "فتح معلومات المكالمة",
+        "transcript": "النص المكتوب",
+        "aiSummary": "ملخص الذكاء الاصطناعي",
+        "transcriptUnavailable": "النص المكتوب غير متاح بعد",
+        "summaryUnavailable": "ملخص الذكاء الاصطناعي غير متاح بعد",
+        "play": "تشغيل",
+        "pause": "إيقاف مؤقت",
+        "seek": "الانتقال",
+        "mute": "كتم الصوت",
+        "unmute": "إلغاء كتم الصوت",
+        "playbackFailed": "فشل التشغيل",
+        "answeredBy": "تم الرد بواسطة {name}",
+        "calledBy": "تم الاتصال بواسطة {name}",
+        "callFailed": "مشكلة في المكالمة",
+        "callBack": "معاودة الاتصال"
+      },
+      "sheet": {
+        "title": "معلومات المكالمة",
+        "summaryTab": "ملخص الذكاء الاصطناعي",
+        "transcriptTab": "النص المكتوب",
+        "searchLabel": "البحث في النص المكتوب",
+        "searchPlaceholder": "البحث في النص المكتوب…",
+        "transcriptUnavailable": "النص المكتوب المكتوب في هذه المكالمة ليس متوفرا",
+        "transcriptError": "تعذّر تحميل النص. تحقق من اتصالك وحاول مرة أخرى.",
+        "noSearchResults": "لا توجد أجزاء مطابقة",
+        "playSegment": "تشفيل من هنا",
+        "summaryKeyPoints": "النقاط الرئيسية",
+        "summaryActionItems": "عناصر العمل",
+        "regenerate": "إعادة الإنشاء",
+        "regenerateConfirmTitle": "هل تريد إعادة إنشاء ملخص الذكاء الاصطناعي؟",
+        "regenerateConfirmDescription": "سيتم استبدال الملخص الحالي بملخص جديد يتم إنشاؤه.",
+        "summaryEmpty": "لا يوجد ملخص ذكاء اصطناعي لهذه المكالمة بعد.",
+        "generateSummary": "إنشاء ملخص"
+      },
+      "summaryDialog": {
+        "title": "إنشاء ملخص بالذكاء الاصطناعي",
+        "description": "اختر مزود ذكاء اصطناعي محدد لتلخيص هذه المكالمة.",
+        "noProviderTitle": "لا يوجد مزود ذكاء اصطناعي محدد",
+        "noProviderDescription": "قم بربط تكامل ذكاء اصطناعي لإنشاء ملخصات المكالمات.",
+        "connectLink": "الانتقال إلى إعدادات الذكاء الاصطناعي",
+        "generate": "إنشاء",
+        "generating": "جارٍ الإنشاء…",
+        "generateFailed": "تعذر إنشاء الملخص. حاول مرة أخرى.",
+        "retry": "إعادة المحاولة",
+        "emptyTranscriptTooltip": "لا يوجد نص مكتوب لهذه المكالمة لتلخيصه بعد"
+      },
+      "panel": {
+        "eyebrowCalling": "جاري الاتصال…",
+        "eyebrowIncoming": "مكالمة واردة",
+        "eyebrowOnCall": "في مكالمة",
+        "statusPreparing": "التحضير…",
+        "statusWaitingForMic": "في انتظار الوصول إلى الميكروفون…",
+        "statusDeclined": "مرفوضة",
+        "statusCallFailed": "فشلت المكالمة",
+        "statusCallEnded": "انتهت المكالمة",
+        "end": "إنهاء",
+        "minimize": "تصغير",
+        "goToConversation": "الانتقال إلى المحادثة",
+        "expand": "توسيع",
+        "dismiss": "إغلاق",
+        "statusNoAnswer": "لا يوجد رد",
+        "eyebrowCallEnded": "انتهت المكالمة",
+        "statusConnectionLost": "انقطع الاتصال",
+        "answerFailed": "تعذّر الرد على المكالمة. تحقق من توصيل الميكروفون والسماح به في المتصفح، ثم حاول مرة أخرى.",
+        "ringingListTitle": "{count, plural, one {# مكالمة واردة} other {# مكالمات واردة}}"
+      },
+      "capability": {
+        "title": "أهلية الاتصال",
+        "enableCalling": "فعّل الاتصال من الإعدادات > القنوات > واتساب > المكالمات.",
+        "reconnectChannel": "يرجى الانتقال إلى الإعدادات > القنوات وإعادة ربط قناة واتساب.",
+        "ok": "حسناً",
+        "micPermissionTitle": "إذن الميكروفون",
+        "dialFailureTitle": "تعذّر إجراء المكالمة"
+      },
+      "manualIntegrationCallWarning": {
+        "title": "رقم متصل يدويًا",
+        "callsSubscription": "تم توصيل رقم واتساب هذا يدويًا. تأكد من أن تطبيق Meta الخاص بك مشترك في حقل webhook الخاص بـ calls (لوحة تحكم تطبيق Meta ← WhatsApp ← Configuration ← Webhook fields ← calls) — وإلا فلن تتصل المكالمات الصادرة ولن ترن المكالمات الواردة.",
+        "unsignedWebhook": "هذا الرقم أيضًا لا يحتوي على مفتاح Meta App Secret مُهيأ، لذا لا يتم التحقق من توقيع الـ webhooks الواردة إليه.",
+        "callAnyway": "الاتصال على أي حال"
+      },
+      "replaceConfirm": {
+        "title": "إنهاء المكالمة مع {current}؟",
+        "description": "أنت في مكالمة مع {current}. الرد على {incoming} سينهي تلك المكالمة فورًا.",
+        "confirm": "إنهاء والرد",
+        "cancel": "متابعة المكالمة"
+      },
+      "answerCaller": "الرد على مكالمة من {name}",
+      "rejectCaller": "رفض مكالمة من {name}",
+      "hours": {
+        "title": "ساعات المكالمات",
+        "description": "لا يمكن للعملاء الاتصال بهذا الرقم إلا خلال هذه الساعات. خارجها، يعرض WhatsApp عليهم الدردشة بدلًا من ذلك، أو طلب معاودة الاتصال إذا كانت طلبات معاودة الاتصال مفعّلة، ويُظهر لهم موعد الاتصال التالي المتاح.",
+        "enabledLabel": "قبول المكالمات خلال ساعات المكالمات فقط",
+        "timezoneLabel": "المنطقة الزمنية",
+        "closed": "مغلق",
+        "openTimeLabel": "{day}: يفتح الساعة",
+        "closeTimeLabel": "{day}: يغلق الساعة",
+        "addRangeLabel": "إضافة ساعات يوم {day}",
+        "removeRangeLabel": "إزالة ساعات يوم {day}",
+        "overnightHint": "ينتهي كل يوم الساعة 23:59. للبقاء متاحًا بعد منتصف الليل، أضف الساعات المتبقية إلى اليوم التالي.",
+        "days": {
+          "monday": "الاثنين",
+          "tuesday": "الثلاثاء",
+          "wednesday": "الأربعاء",
+          "thursday": "الخميس",
+          "friday": "الجمعة",
+          "saturday": "السبت",
+          "sunday": "الأحد"
+        },
+        "errors": {
+          "rangeOrder": "يجب أن يكون وقت الإغلاق بعد وقت الفتح.",
+          "rangeOverlap": "الساعات في هذا اليوم متداخلة.",
+          "noOpenHours": "أضف ساعات ليوم واحد على الأقل."
+        }
+      },
+      "inboundLabel": "Accept incoming calls",
+      "inboundHelper": "Let customers call in. Turn off to keep dialling out without the inbox ringing.",
+      "page": {
+        "title": "المكالمات",
+        "subtitle": "سجل المكالمات لمساحة العمل هذه",
+        "emptyTitle": "لا توجد مكالمات بعد",
+        "emptyDescription": "ستظهر المكالمات هنا بمجرد أن يبدأ فريقك بإجراء أو استقبال مكالمات واتساب.",
+        "loadMore": "تحميل المزيد",
+        "allActivity": "جميع المكالمات",
+        "filterMissed": "فائتة",
+        "filterNoReply": "بدون رد",
+        "allInboxes": "جميع صناديق الوارد",
+        "allAgents": "جميع الوكلاء",
+        "columnContact": "جهة الاتصال",
+        "columnInbox": "صندوق الوارد",
+        "columnDirection": "الاتجاه",
+        "columnAgent": "الوكيل",
+        "columnDuration": "المدة",
+        "columnDate": "التاريخ",
+        "directionInbound": "واردة",
+        "directionOutbound": "صادرة",
+        "kindOngoing": "جارية",
+        "kindAnsweredInbound": "تم الرد",
+        "kindAnsweredOutbound": "تم الرد",
+        "openConversation": "فتح المحادثة",
+        "unknownContact": "جهة اتصال غير معروفة",
+        "emptyFilteredTitle": "لا توجد مكالمات مطابقة لهذا الفلتر",
+        "emptyFilteredDescription": "جرّب فلترًا آخر، أو امسح الفلتر لعرض جميع المكالمات.",
+        "loadMoreError": "تعذر تحميل مزيد من المكالمات. يرجى المحاولة مرة أخرى.",
+        "callInformation": "معلومات المكالمة"
       }
     },
     "ecommerce": {
@@ -3863,7 +4362,8 @@
       "toggleSuccess": "تم تحديث إعداد مزامنة العلامات.",
       "enabledSince": "تم التمكين منذ {date}",
       "disabled": "معطل"
-    }
+    },
+    "refreshPermissions": "تحديث الأذونات"
   },
   "telegram": {
     "description": "يتيح لك هذا التكامل إنشاء روبوتات Telegram.",
@@ -3874,6 +4374,14 @@
     "chatbotInvitationDescription2": "لقد دعاك {userName} للانضمام إلى {chatbotName}.",
     "invalidInvitation": "هذه الدعوة غير صالحة أو منتهية الصلاحية.",
     "workspaceUnavailable": "مساحة العمل هذه لم تعد متاحة."
+  },
+  "inboxes": {
+    "markReadOnOutbound": {
+      "label": "وضع علامة مقروءة على رسائل البوت",
+      "enabled": "مفعّل",
+      "disabled": "معطّل",
+      "description": "عند التفعيل، يقوم البوت تلقائيًا بوضع علامة مقروءة على رسائله"
+    }
   },
   "inboxTeams": {
     "title": "فرق البريد الوارد"
@@ -3891,6 +4399,67 @@
   "qrCodes": {
     "title": "رموز الاستجابة السريعة",
     "description": "قم بإنشاء رموز QR التي ترتبط بتدفقات chatbot الخاصة بك."
+  },
+  "dynamicImages": {
+    "title": "الصور الديناميكية",
+    "description": "أنشئ صورًا مخصصة لكل جهة اتصال من خلفية وطبقات نص/صورة/رمز QR.",
+    "publicUrl": {
+      "label": "الرابط العام",
+      "hint": "انسخ الرابط والصقه في المسار أو البث أو التسلسل الخاص بك لإرسال صور مخصصة."
+    },
+    "editor": {
+      "addElement": "إضافة عنصر",
+      "addImage": "إضافة صورة",
+      "addText": "إضافة نص",
+      "addQrCode": "إضافة رمز QR",
+      "template": "قالب",
+      "templateDialogTitle": "اختر قالبًا",
+      "templateDialogDescription": "اختيار قالب سيستبدل جميع الطبقات الحالية.",
+      "layers": "الطبقات",
+      "noLayers": "لا توجد طبقات بعد. أضف عنصرًا للبدء.",
+      "deleteLayer": "حذف الطبقة",
+      "layerNameImage": "صورة",
+      "layerNameText": "نص",
+      "layerNameQrCode": "رمز QR",
+      "editElement": "تعديل العنصر",
+      "selectElementHint": "حدد عنصرًا في اللوحة لتعديل خصائصه.",
+      "width": "العرض",
+      "height": "الارتفاع",
+      "priority": "الأولوية",
+      "imageType": "نوع الصورة",
+      "imageTypeUrl": "رابط الصورة",
+      "imageTypeAvatarUser": "صورة جهة الاتصال",
+      "imageTypeCustomField": "حقل مخصص",
+      "imageUrl": "رابط الصورة",
+      "uploadImage": "رفع صورة",
+      "customField": "حقل مخصص",
+      "imageStyle": "نمط الصورة",
+      "imageStyleSquare": "مربع",
+      "imageStyleCircle": "دائري",
+      "qrText": "محتوى رمز QR",
+      "qrSize": "الحجم",
+      "qrColor": "اللون",
+      "qrLogo": "الشعار",
+      "uploadLogo": "رفع شعار",
+      "textContent": "محتوى النص",
+      "fontSize": "حجم الخط",
+      "fontFamily": "نوع الخط",
+      "fontFamilyArial": "Arial",
+      "fontFamilySerif": "Serif",
+      "fontFamilyRoboto": "Roboto",
+      "fontFamilyGreatVibes": "Great Vibes",
+      "align": "المحاذاة",
+      "alignLeft": "يسار",
+      "alignCenter": "وسط",
+      "alignRight": "يمين",
+      "color": "اللون",
+      "bold": "غامق",
+      "italic": "مائل",
+      "uppercase": "أحرف كبيرة"
+    },
+    "preview": {
+      "error": "فشل تحميل الصورة الديناميكية المرتبطة. ربما تم حذفها."
+    }
   },
   "magicLinks": {
     "title": "الروابط السحرية",
@@ -3939,7 +4508,9 @@
       "productRemovedFromCart": "تمت إزالة المنتج من سلة التسوق",
       "productOrdered": "تم طلب المنتج",
       "contactReferredANewContact": "جهة الاتصال تمت إحالتها إلى جهة اتصال جديدة",
-      "contactReferredExistingContact": "جهة الاتصال المشار إليها جهة الاتصال الموجودة"
+      "contactReferredExistingContact": "جهة الاتصال المشار إليها جهة الاتصال الموجودة",
+      "callRecorded": "تم تسجيل المكالمة",
+      "callTranscribed": "تم تفريغ المكالمة"
     },
     "actions": {
       "addTag": "إضافة علامة",
@@ -3988,6 +4559,60 @@
     "exportAllNotice": "سيتم تصدير جميع جهات الاتصال المطابقة لعامل التصفية الحالي.",
     "exportTakingLong": "يستغرق التصدير وقتًا أطول من المتوقع",
     "exportTakingLongDescription": "لا تزال عملية التصدير قيد المعالجة. يمكنك إغلاق مربع الحوار هذا والتحقق مرة أخرى خلال بضع دقائق من سجل التصدير."
+  },
+  "contactScan": {
+    "menu": {
+      "importFromFile": "Import from File",
+      "automaticScan": "Automatic Customer Scan"
+    },
+    "title": "Automatic Customer Scan",
+    "submit": "Automatic Scan",
+    "fields": {
+      "inbox": "Inbox",
+      "scanFrom": "Scan Inbox from Time"
+    },
+    "hint": {
+      "range": "The system will scan customers who have messaged the page from {from} until now.",
+      "beforeChoose": "After scanning, you must wait another 24 hours before you can use this feature again."
+    },
+    "status": {
+      "idle": "No scan has been run yet for this inbox. Choose a start date and run your first Automatic Customer Scan.",
+      "running": "The system is performing an automatic scan; estimated completion time is {eta}.",
+      "nextScan": "Next scan time: {at}",
+      "finished": "The system completed the last customer scan request at {at}.",
+      "total": "Total customers scanned: {count}",
+      "waitCooldown": "You must wait another 24 hours before you can use this feature again.",
+      "failed": "The last scan failed. You can try again once the cooldown ends.",
+      "partial": "The last scan finished partially — some conversations could not be imported."
+    },
+    "errors": {
+      "contactScanFromTimeInvalid": "Scan-from time must be in the past.",
+      "contactScanInboxNotFound": "Inbox not found.",
+      "contactScanChannelUnsupported": "This channel does not support Automatic Customer Scan.",
+      "contactScanIntegrationDisconnected": "This inbox is not connected.",
+      "contactScanCooldown": "This inbox was scanned recently. Please wait before scanning again.",
+      "contactScanAlreadyRunning": "A scan is already running for this inbox.",
+      "contactScanForbidden": "You do not have permission to run an Automatic Customer Scan."
+    },
+    "histories": {
+      "title": "Scan History",
+      "columns": {
+        "channel": "Channel",
+        "scanFrom": "Scan from",
+        "importedContacts": "Imported contacts",
+        "scannedConversations": "Scanned conversations",
+        "finishedAt": "Finished at",
+        "error": "Error"
+      },
+      "status": {
+        "init": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "partial": "Partial",
+        "failed": "Failed"
+      },
+      "empty": "No scans have been run yet."
+    }
   },
   "auditLogs": {
     "title": "سجلات التدقيق",
@@ -4121,7 +4746,8 @@
     "afterText": "بعد"
   },
   "tools": {
-    "title": "الأدوات"
+    "title": "الأدوات",
+    "beta": "Beta"
   },
   "aiProviders": {
     "openai": "OpenAI",
@@ -4333,6 +4959,16 @@
     "subscribeError": "تعذّر اشتراك هذه الصفحة في إشعارات العملاء المحتملين من فيسبوك، فلم تُنشأ الأتمتة. أعد ربط الصفحة عبر «إضافة جديدة» ثم حاول مجدداً.",
     "none": "بدون"
   },
+  "clickToMessageAds": {
+    "title": "إعلانات Click-to-Message",
+    "description": "ترسل الإعلانات الأشخاص مباشرة إلى محادثة على Messenger أو Instagram أو WhatsApp.",
+    "empty": {
+      "title": "لا يوجد حساب متصل بهذه القناة",
+      "description": "قم بتوصيل حساب القناة أولاً، ثم عد إلى هنا لإنشاء الإعلانات.",
+      "cta": "الانتقال إلى إعدادات القناة"
+    },
+    "dashboardCta": "عرض على لوحة معلومات الإعلانات"
+  },
   "ecommerce": {
     "title": "التجارة الإلكترونية",
     "description": "إنشاء وإدارة متجر التجارة الإلكترونية الخاص بك."
@@ -4435,10 +5071,6 @@
     "queues": {
       "title": "قوائم الانتظار"
     },
-    "aiSettings": {
-      "title": "إعدادات الذكاء الاصطناعي",
-      "description": "إعداد Vertex AI المركزي الذي يرثه وكلاء الذكاء الاصطناعي في جميع مساحات العمل."
-    },
     "workspaces": {
       "title": "مساحات العمل",
       "description": "يمكن فتح مساحات العمل التي فعّل مالكها وصول الدعم من المنصة هنا.",
@@ -4449,6 +5081,10 @@
       "supportEnabledUntil": "مفعّل حتى {time}",
       "supportOff": "متوقف",
       "searchPlaceholder": "ابحث بالاسم أو بريد المالك الإلكتروني أو المعرف"
+    },
+    "aiSettings": {
+      "title": "إعدادات الذكاء الاصطناعي",
+      "description": "إعداد Vertex AI المركزي الذي يرثه وكلاء الذكاء الاصطناعي في جميع مساحات العمل."
     }
   },
   "platformCredentials": {
@@ -4547,6 +5183,19 @@
     "invalidDescription": "هذا الرابط غير صالح أو انتهت صلاحيته.",
     "unavailableTitle": "إلغاء الاشتراك غير متاح.",
     "unavailableDescription": "مساحة العمل هذه لم تعد متاحة."
+  },
+  "templatesPublicPage": {
+    "invalidTitle": "هذا الرابط لم يعد متاحًا.",
+    "invalidDescription": "رابط مشاركة هذا القالب غير صالح أو معطَّل أو منتهي الصلاحية.",
+    "byPublisher": "بواسطة {publisherName}",
+    "includes": "يتضمن هذا القالب",
+    "videoTitle": "فيديو معاينة القالب",
+    "tryItOut": "جرّبه",
+    "signInToInstall": "سجّل الدخول للتثبيت",
+    "selectWorkspace": "اختر مساحة عمل",
+    "install": "تثبيت",
+    "installStarted": "بدأ التثبيت",
+    "noEligibleWorkspaces": "ليس لديك مساحة عمل مؤهلة لتثبيت هذا القالب."
   },
   "extensionsMe": {
     "actions": {
@@ -4859,15 +5508,15 @@
     "trackCommentsOn": "تتبع التعليقات على",
     "trackCommentsOnDescription": "طبّق هذه الأتمتة على جميع المنشورات في حسابك المتصل، أو حدّدها بمنشورات معينة تختارها.",
     "privateReply": "رد خاص (البريد الوارد)",
-    "privateReplyDescription": "إرسال رسالة خاصة إلى صندوق وارد المعلّق. اختر وكيل الذكاء الاصطناعي، أو نموذج نصي ثابت (مع دعم spintax)، أو مسار روبوت محادثة، أو التعطيل.",
+    "privateReplyDescription": "إرسال رسالة خاصة إلى صندوق وارد المعلّق. اختر وكيل الذكاء الاصطناعي، أو نموذج نصي ثابت، أو مسار روبوت محادثة، أو التعطيل.",
     "publicReply": "رد علني على التعليق",
-    "publicReplyDescription": "نشر رد علني مباشرة أسفل التعليق. يدعم حتى 10 نماذج نصية (مع دعم spintax)، أو وكيل الذكاء الاصطناعي، أو مسار روبوت محادثة، أو بدون رد.",
+    "publicReplyDescription": "نشر رد علني مباشرة أسفل التعليق. يدعم حتى 10 نماذج نصية، أو وكيل الذكاء الاصطناعي، أو مسار روبوت محادثة، أو بدون رد. يتم نشر كل رسالة كرد منفصل. يدعم spintax.",
     "replyMessage": "رسالة الرد",
     "replyMessagePlaceholder": "أدخل رسالة الرد...",
     "includeKeywordsType": "الرد على",
     "includeKeywordsTypeDescription": "اختر التعليقات التي تستجيب لها هذه الأتمتة.",
     "includeKeywords": "الكلمات المفتاحية للمطابقة",
-    "excludeKeywords": "استبعاد التعليقات التي تحتوي على هذه الكلمات المفتاحية",
+    "excludeKeywords": "استبعاد التعليقات التي تحتوي على",
     "excludeKeywordsDescription": "سيتم تجاهل التعليقات التي تحتوي على أي من هذه الكلمات المفتاحية من قبل أتمتة الرد الخاص والعلني.",
     "keywordsPlaceholder": "اكتب واضغط على Enter...",
     "replyAfter": "الرد بعد",
@@ -4927,7 +5576,9 @@
       "replyToUsersWhoCommentedOnOtherPosts": "الرد على المستخدمين الذين علّقوا على منشورات أخرى",
       "replyToUsersWhoCommentedOnOtherPostsDescription": "الاستمرار في الرد على المستخدمين الذين علّقوا سابقًا على منشوراتك الأخرى.",
       "ignoreCommentReplies": "عدم الرد على الردود على التعليقات",
-      "ignoreCommentRepliesDescription": "تجاوز الأتمتة للتعليقات التي هي ردود على تعليقات أخرى، وليست تعليقات من المستوى الأعلى."
+      "ignoreCommentRepliesDescription": "تجاوز الأتمتة للتعليقات التي هي ردود على تعليقات أخرى، وليست تعليقات من المستوى الأعلى.",
+      "trackUserTags": "تتبع ما إذا كان المستخدم يشير إلى مستخدمين آخرين",
+      "trackUserTagsDescription": "يحسب الحسابات المشار إليها في كل تعليق ويضيفها إلى إجماليات جهة الاتصال عبر جميع التعليقات. استخدم '{{total_tagged}}' لكل الحسابات المشار إليها و'{{total_new_tagged}}' للحسابات التي لم تراسل صفحتك أو لم تكن جهة اتصال من قبل."
     },
     "hideComments": {
       "all": "إخفاء جميع التعليقات",
@@ -4953,6 +5604,192 @@
       "instagramFacebookTitle": "تسجيل الدخول إلى إنستغرام عبر فيسبوك",
       "instagramFacebookDescription": "إنستغرام متصل عبر صفحة فيسبوك. يدعم الرد العلني، والرد الخاص، وإخفاء التعليقات، والإعجاب بالتعليقات."
     }
+  },
+  "threadsCommentAutomation": {
+    "title": "Threads Comment Automation",
+    "description": "Automate public Threads comment replies for your contacts.",
+    "create": "Create Automation",
+    "replies": "Replies",
+    "empty": "No Threads comment automations yet.",
+    "publicOnlyNote": "Threads currently supports public replies only.",
+    "trackCommentsOn": "Track comments on",
+    "publicReply": "Public reply to comment",
+    "publicReplyDescription": "Send a public reply to matching Threads comments. حتى 10 رسائل نصية (يدعم spintax)، تُنشر كل منها كرد منفصل.",
+    "replyMessage": "Reply message",
+    "replyFlow": "Reply flow",
+    "replyAIAgent": "Reply AI Agent",
+    "includeKeywordsType": "Reply to",
+    "includeKeywords": "Keywords to match",
+    "excludeKeywords": "استبعاد التعليقات التي تحتوي على",
+    "keywordsPlaceholder": "Type and press Enter...",
+    "replyAfter": "Reply after",
+    "replyAfterValue": "Value",
+    "specificPostIds": "Specific post IDs",
+    "postIdPlaceholder": "Enter post IDs and press Enter...",
+    "card": {
+      "targeting": "Targeting & Reply",
+      "filters": "Filters & Options",
+      "replyTiming": "Reply Timing",
+      "hideComments": "إخفاء التعليقات"
+    },
+    "postType": {
+      "all": "All posts",
+      "specificPosts": "Specific posts"
+    },
+    "replyType": {
+      "text": "Text message",
+      "flow": "Flow",
+      "AIAgent": "AI Agent",
+      "none": "No reply"
+    },
+    "keywordsType": {
+      "all": "All comments",
+      "equal": "Exact match",
+      "contain": "Contains"
+    },
+    "replyAfterType": {
+      "immediately": "Immediately",
+      "seconds": "After X seconds",
+      "minutes": "After X minutes",
+      "hours": "After X hours",
+      "randomWithin3Minutes": "Random within 3 minutes",
+      "randomWithin5Minutes": "Random within 5 minutes",
+      "randomWithin10Minutes": "Random within 10 minutes",
+      "randomWithin20Minutes": "Random within 20 minutes",
+      "randomWithin30Minutes": "Random within 30 minutes",
+      "randomWithin60Minutes": "Random within 60 minutes"
+    },
+    "options": {
+      "replyToNewContactsOnly": "Only reply to new contacts",
+      "replyOncePerUserPerPost": "Reply only once to each user per post",
+      "replyToUsersWhoCommentedOnOtherPosts": "Reply to users who commented on other posts",
+      "ignoreCommentReplies": "Don't reply to replies to comments"
+    },
+    "validation": {
+      "postIdsMustBeEmptyForAll": "Post IDs must be empty when targeting all posts.",
+      "postIdsRequired": "Select at least one post ID when targeting specific posts.",
+      "keywordsMustBeEmptyForAll": "Keywords must be empty when matching all comments.",
+      "keywordsRequired": "Enter at least one keyword for the selected match type.",
+      "delayMustBePositive": "Delay value must be greater than zero.",
+      "delayMustBeZero": "Delay value must be zero for the selected timing option.",
+      "atLeastOneFieldRequired": "At least one field is required.",
+      "replyTextRequired": "أدخل رسالة رد واحدة على الأقل.",
+      "hideKeywordsRequired": "Enter at least one keyword to hide comments by keyword."
+    },
+    "hideCommentsDescription": "يمكن إخفاء الردود المباشرة على منشوراتك فقط.",
+    "hideComments": {
+      "all": "إخفاء جميع التعليقات",
+      "hasPhoneNumber": "يحتوي على رقم هاتف",
+      "hasLink": "يحتوي على رابط",
+      "hasKeywords": "يحتوي على كلمات مفتاحية",
+      "keywords": "الكلمات المفتاحية",
+      "showCommentsAfter": "إظهار التعليقات بعد"
+    },
+    "showCommentsAfter": {
+      "none": "أبدًا"
+    }
+  },
+  "tiktokCommentAutomation": {
+    "title": "TikTok Comment Automation",
+    "description": "Automate replies, likes and hiding on comments under your TikTok videos.",
+    "create": "Create Automation",
+    "replies": "Replies",
+    "empty": "No TikTok comment automations yet.",
+    "deliveryDelayNote": "TikTok delivers comment events within five minutes, so replies are not instant. Any reply delay you set is added on top of that.",
+    "trackCommentsOn": "Track comments on",
+    "publicReply": "Public reply to comment",
+    "publicReplyDescription": "Send a public reply to matching TikTok comments. حتى 10 رسائل نصية (يدعم spintax)، تُنشر كل منها كرد منفصل.",
+    "replyMessage": "Reply message",
+    "replyFlow": "Reply flow",
+    "replyAIAgent": "Reply AI Agent",
+    "includeKeywordsType": "Reply to",
+    "includeKeywords": "Keywords to match",
+    "excludeKeywords": "استبعاد التعليقات التي تحتوي على",
+    "keywordsPlaceholder": "Type and press Enter...",
+    "replyAfter": "Reply after",
+    "replyAfterValue": "Value",
+    "specificPostIds": "Specific video IDs",
+    "postIdPlaceholder": "Enter video IDs and press Enter...",
+    "hideCommentsDescription": "Hidden comments stay visible to their author only.",
+    "card": {
+      "targeting": "Targeting & Reply",
+      "filters": "Filters & Options",
+      "hideComments": "Hide Comments",
+      "replyTiming": "Reply Timing"
+    },
+    "postType": {
+      "all": "All videos",
+      "specificPosts": "Specific videos"
+    },
+    "replyType": {
+      "text": "Text message",
+      "flow": "Flow",
+      "AIAgent": "AI Agent",
+      "none": "No reply"
+    },
+    "keywordsType": {
+      "all": "All comments",
+      "equal": "Exact match",
+      "contain": "Contains"
+    },
+    "replyAfterType": {
+      "immediately": "Immediately",
+      "seconds": "After X seconds",
+      "minutes": "After X minutes",
+      "hours": "After X hours",
+      "randomWithin3Minutes": "Random within 3 minutes",
+      "randomWithin5Minutes": "Random within 5 minutes",
+      "randomWithin10Minutes": "Random within 10 minutes",
+      "randomWithin20Minutes": "Random within 20 minutes",
+      "randomWithin30Minutes": "Random within 30 minutes",
+      "randomWithin60Minutes": "Random within 60 minutes"
+    },
+    "options": {
+      "replyToNewContactsOnly": "Only reply to new contacts",
+      "replyOncePerUserPerPost": "Reply only once to each user per video",
+      "replyToUsersWhoCommentedOnOtherPosts": "Reply to users who commented on other videos",
+      "ignoreCommentReplies": "Don't reply to replies to comments",
+      "likeUserComment": "Like the user's comment"
+    },
+    "hide": {
+      "all": "Hide every comment",
+      "hasPhoneNumber": "Hide comments containing a phone number",
+      "hasLink": "Hide comments containing a link",
+      "hasKeywords": "Hide comments containing keywords",
+      "keywords": "Keywords to hide",
+      "showCommentsAfter": "Show hidden comments again after"
+    },
+    "showCommentsAfter": {
+      "none": "Never",
+      "6h": "6 hours",
+      "12h": "12 hours",
+      "1d": "1 day",
+      "2d": "2 days",
+      "3d": "3 days",
+      "4d": "4 days",
+      "5d": "5 days",
+      "6d": "6 days",
+      "7d": "7 days",
+      "8d": "8 days",
+      "9d": "9 days",
+      "10d": "10 days"
+    },
+    "validation": {
+      "postIdsMustBeEmptyForAll": "Video IDs must be empty when targeting all videos.",
+      "postIdsRequired": "Select at least one video ID when targeting specific videos.",
+      "keywordsMustBeEmptyForAll": "Keywords must be empty when matching all comments.",
+      "keywordsRequired": "Enter at least one keyword for the selected match type.",
+      "delayMustBePositive": "Delay value must be greater than zero.",
+      "delayMustBeZero": "Delay value must be zero for the selected timing option.",
+      "hideKeywordsRequired": "Enter at least one keyword to hide comments by keyword.",
+      "atLeastOneFieldRequired": "At least one field is required.",
+      "replyTextRequired": "أدخل رسالة رد واحدة على الأقل."
+    },
+    "privateReply": "Private reply (Comment-to-Message)",
+    "privateReplyDescription": "Send a direct message to the commenter. TikTok only allows this for comments it flags as high intent, so it will not fire for every matching comment.",
+    "privateReplyMessage": "Private reply message",
+    "privateReplyHighIntentTitle": "TikTok decides which comments can be messaged",
+    "privateReplyHighIntentNotice": "Comment-to-Message must be enabled on the connected TikTok account, and the account must be a Business Account registered in Vietnam, Indonesia or Thailand. TikTok sends the direct message only for first-level comments it flags as high intent, within 48 hours, once per comment, and not if the commenter already messaged you in the past 24 hours."
   },
   "instagramStoryAutomation": {
     "title": "أتمتة الرد على قصص إنستغرام",
@@ -5215,6 +6052,293 @@
       "queueSync": "تعذّر جدولة مزامنة كتالوج ميتا."
     }
   },
+  "bookingWebview": {
+    "metadataTitle": "حجز موعد",
+    "badge": "موعد",
+    "timezone": "المنطقة الزمنية",
+    "empty": "لم يتم العثور على أوقات متاحة.",
+    "noSelection": "اختر وقتًا",
+    "actions": {
+      "book": "حجز موعد",
+      "viewDetails": "عرض التفاصيل"
+    },
+    "errors": {
+      "invalidTokenTitle": "رابط الحجز هذا غير متاح.",
+      "invalidTokenDescription": "قد يكون الرابط غير صالح أو منتهي الصلاحية. يُرجى طلب رابط حجز جديد.",
+      "staleSlot": "هذا الوقت لم يعد متاحًا. يُرجى اختيار وقت آخر.",
+      "availabilityChanged": "تغيّر التوفر أثناء اختيارك للوقت. يُرجى الاختيار مرة أخرى.",
+      "submitFailed": "تعذّر إتمام هذا الطلب. يُرجى المحاولة مرة أخرى."
+    },
+    "success": {
+      "title": "تم حجز موعدك.",
+      "description": "تفاصيل الموعد جاهزة."
+    },
+    "schedule": {
+      "metadataTitle": "تفاصيل الموعد",
+      "defaultMessage": "تمت جدولة موعدك.",
+      "unknownInvitee": "ضيف",
+      "fields": {
+        "invitee": "المدعو",
+        "time": "الوقت",
+        "timezone": "المنطقة الزمنية",
+        "location": "الموقع"
+      },
+      "status": {
+        "scheduled": "مجدول",
+        "cancelled": "ملغى"
+      },
+      "locationTypes": {
+        "inPerson": "اجتماع حضوري",
+        "phoneCall": "مكالمة هاتفية",
+        "onlineMeeting": "اجتماع عبر الإنترنت"
+      }
+    },
+    "cancel": {
+      "metadataTitle": "إلغاء الموعد",
+      "title": "إلغاء الموعد",
+      "description": "إلغاء {calendar} في {time}.",
+      "action": "إلغاء الموعد",
+      "cancelledTitle": "تم إلغاء الموعد",
+      "cancelledDescription": "تم إلغاء هذا الموعد.",
+      "unavailableTitle": "الإلغاء غير متاح",
+      "unavailableDescription": "هذا الموعد ملغى بالفعل أو محذوف أو في الماضي."
+    },
+    "range": {
+      "metadataTitle": "التحقق من التوفر",
+      "empty": "لم يتم التحديد",
+      "successTitle": "تم استلام نطاق التاريخ.",
+      "successDescription": "نحن نتحقق من أوقات المواعيد المتاحة.",
+      "fields": {
+        "startDate": "تاريخ البدء",
+        "endDate": "تاريخ الانتهاء",
+        "startTime": "وقت البدء",
+        "endTime": "وقت الانتهاء"
+      },
+      "actions": {
+        "skip": "تخطي"
+      },
+      "errors": {
+        "invalidRange": "يجب أن يكون تاريخ الانتهاء مطابقًا لتاريخ البدء أو بعده."
+      },
+      "timezoneHint": "تُعرض الأوقات بتوقيت {timezone}."
+    }
+  },
+  "userDataWebview": {
+    "metadataTitle": "اختيار التاريخ",
+    "date": {
+      "title": "اختر تاريخًا"
+    },
+    "datetime": {
+      "title": "اختر تاريخًا ووقتًا"
+    },
+    "noSelection": "اختر تاريخًا",
+    "actions": {
+      "submit": "إرسال"
+    },
+    "success": {
+      "title": "تم حفظ البيانات",
+      "description": "يمكنك الآن إغلاق هذه العلامة."
+    },
+    "errors": {
+      "invalidTokenTitle": "هذا الرابط غير متاح.",
+      "invalidTokenDescription": "قد يكون الرابط غير صالح أو منتهي الصلاحية. يُرجى طلب رابط جديد.",
+      "submitFailed": "تعذّر إتمام هذا الطلب. يُرجى المحاولة مرة أخرى."
+    },
+    "monthLabel": "الشهر",
+    "yearLabel": "السنة"
+  },
+  "appointments": {
+    "title": "المواعيد",
+    "statuses": {
+      "scheduled": "مجدول",
+      "cancelled": "ملغى"
+    },
+    "messages": {
+      "empty": "لا توجد مواعيد بعد."
+    }
+  },
+  "appointmentManagement": {
+    "title": "المواعيد",
+    "singular": "موعد",
+    "unknownContact": "جهة اتصال غير معروفة",
+    "searchPlaceholder": "ابحث بالاسم...",
+    "tabs": {
+      "next": "القادمة",
+      "past": "السابقة"
+    },
+    "fields": {
+      "name": "الاسم",
+      "date": "التاريخ",
+      "status": "الحالة",
+      "calendar": "التقويم"
+    },
+    "statuses": {
+      "scheduled": "مجدول",
+      "cancelled": "ملغى"
+    },
+    "actions": {
+      "cancelAppointment": "إلغاء الموعد"
+    },
+    "dialogs": {
+      "cancelTitle": "إلغاء الموعد",
+      "cancelDescription": "إلغاء هذا الموعد وتنفيذ الإجراءات المرتبطة بالإلغاء.",
+      "deleteTitle": "حذف الموعد",
+      "deleteDescription": "حذف هذا الموعد من قائمة الإدارة. لن يؤدي ذلك إلى تشغيل مسار الإلغاء."
+    },
+    "messages": {
+      "cancelled": "تم إلغاء الموعد.",
+      "deleted": "تم حذف الموعد."
+    }
+  },
+  "appointmentCalendars": {
+    "title": "تقويمات المواعيد",
+    "singular": "تقويم مواعيد",
+    "addNew": "إضافة جديد",
+    "none": "لا شيء",
+    "addReminder": "إضافة تذكير",
+    "reminderSummary": "إرسال تذكير - {calendar} {timing}.",
+    "noExternalConnections": "لا توجد اتصالات بتقويمات خارجية بعد",
+    "dialogDescriptions": {
+      "create": "امنح تقويم مواعيدك اسمًا للبدء.",
+      "rename": "إعادة تسمية تقويم المواعيد هذا."
+    },
+    "tabs": {
+      "calendars": "التقويمات",
+      "appointments": "المواعيد",
+      "externalCalendars": "التقويمات الخارجية"
+    },
+    "sections": {
+      "appointment": "ما هو موعدك",
+      "availability": "متى يمكن للأشخاص الحجز؟",
+      "duration": "ما هي مدة موعدك؟",
+      "location": "أين سيُعقد الموعد؟",
+      "notifications": "الإشعارات",
+      "restrictions": "القيود",
+      "externalCalendar": "ربط Google Calendar"
+    },
+    "fields": {
+      "description": "الوصف",
+      "timezone": "المنطقة الزمنية",
+      "locationType": "نوع الموقع",
+      "locationDetail": "التفاصيل",
+      "durationMinutes": "مدة الموعد",
+      "bufferAfterMinutes": "إضافة وقت بعد مواعيدك",
+      "scheduleWindowType": "يمكن للأشخاص الحجز",
+      "rollingDays": "أيام متجددة",
+      "minAdvanceDays": "الحد الأدنى لعدد أيام الحجز المسبق",
+      "startDate": "تاريخ البدء",
+      "endDate": "تاريخ الانتهاء",
+      "specificDate": "التاريخ",
+      "maxAppointmentsPerUser": "الحد الأقصى للمواعيد لكل مستخدم",
+      "maxAppointmentsUnlimited": "غير محدود",
+      "dailyLimitEnabled": "الحد اليومي",
+      "maxPerDay": "الحد الأقصى في اليوم",
+      "allowGroupMeeting": "السماح باجتماع جماعي",
+      "maxPerSlot": "الحد الأقصى لكل فترة",
+      "confirmationMessage": "رسالة التأكيد",
+      "confirmationFlowId": "مسار التأكيد",
+      "cancellationFlowId": "مسار الإلغاء",
+      "externalConnectionId": "التقويم الخارجي",
+      "externalEventTitleTemplate": "Event title template",
+      "externalEventDescriptionTemplate": "Event description template",
+      "externalEventAttendeesTemplate": "Attendees template",
+      "reminders": "التذكيرات",
+      "reminderTimingValue": "القيمة",
+      "reminderTimingUnit": "الوحدة"
+    },
+    "placeholders": {
+      "externalEventTitleTemplate": "Appointment: '{{booking_calendar}}'",
+      "externalEventDescriptionTemplate": "Add appointment details or variables",
+      "externalEventAttendeesTemplate": "one@example.com, another@example.com"
+    },
+    "externalEventDisclosure": "Template values and attendees are shared with the connected Google Calendar.",
+    "locationTypes": {
+      "inPerson": "اجتماع حضوري",
+      "phoneCall": "مكالمة هاتفية",
+      "onlineMeeting": "اجتماع عبر الإنترنت"
+    },
+    "scheduleWindowTypes": {
+      "rollingDays": "خلال عدد أيام متجددة في المستقبل",
+      "dateRange": "خلال نطاق تاريخ محدد",
+      "specificDay": "يوم محدد واحد",
+      "anyFutureDate": "في أي تاريخ في المستقبل"
+    },
+    "reminderTimingUnits": {
+      "minutes": "دقائق قبل الموعد",
+      "hours": "ساعات قبل الموعد",
+      "days": "أيام قبل الموعد"
+    },
+    "reminderTimingLabels": {
+      "minutes": "{count, plural, one {# دقيقة قبل الموعد} other {# دقائق قبل الموعد}}",
+      "hours": "{count, plural, one {ساعة واحدة قبل الموعد} other {# ساعات قبل الموعد}}",
+      "days": "{count, plural, one {يوم واحد قبل الموعد} other {# أيام قبل الموعد}}"
+    },
+    "weekdays": {
+      "0": "الأحد",
+      "1": "الاثنين",
+      "2": "الثلاثاء",
+      "3": "الأربعاء",
+      "4": "الخميس",
+      "5": "الجمعة",
+      "6": "السبت"
+    },
+    "weekdayEditor": {
+      "description": "حدد الفترات الزمنية المتاحة لهذا اليوم.",
+      "unavailable": "غير متاح",
+      "overlapWarning": "بعض الفترات الزمنية متداخلة. لا يُحتسب الوقت المتداخل مرتين.",
+      "addInterval": "إضافة فترة",
+      "startTime": "وقت البدء",
+      "endTime": "وقت الانتهاء"
+    },
+    "tooltips": {
+      "timezone": "المنطقة الزمنية التي تُنشئ بها هذا التقويم. سيرى الأشخاص التوفر بحسب منطقتهم الزمنية الخاصة.",
+      "confirmationFlow": "المسار الذي يُرسل بمجرد أن يحجز المستخدم موعدًا.",
+      "cancellationFlow": "المسار الذي يُرسل بمجرد إلغاء موعد.",
+      "reminders": "أرسل تذكيرات لتذكير المدعو بالموعد.",
+      "appointmentDuration": "حدد المدة التي سيستغرقها موعدك.",
+      "bufferAfterMinutes": "امنح نفسك بعض الوقت الإضافي لإنهاء المواعيد المحجوزة.",
+      "peopleCanSchedule": "حدد نطاق التواريخ التي يمكنك خلالها قبول الاجتماعات.",
+      "maxAppointmentsPerUser": "الحد الأقصى لعدد المواعيد المستقبلية التي يمكن للمستخدم حجزها.",
+      "rollingDays": "السماح بالحجز حتى عدد معين من الأيام في المستقبل",
+      "minAdvanceDays": "اطلب أن يتم الحجز قبل هذه المدة على الأقل بالأيام. استخدم 0 للسماح بالحجز في اليوم نفسه.",
+      "dailyLimit": "الحد الأقصى لعدد الأشخاص المسموح لهم بالحجز في اليوم الواحد.",
+      "allowGroupMeeting": "السماح لعدة أشخاص بالحجز في نفس الفترة الزمنية.",
+      "externalCalendar": "اربط Google Calendar لمزامنة مواعيدك."
+    },
+    "minutesLabel": "{count} دقيقة"
+  },
+  "externalCalendars": {
+    "title": "التقويمات الخارجية",
+    "connectGoogle": "ربط Google",
+    "emptyEmail": "لا يوجد بريد إلكتروني",
+    "fields": {
+      "provider": "المزوّد",
+      "email": "البريد الإلكتروني",
+      "calendarId": "معرف التقويم",
+      "connected": "متصل",
+      "date": "التاريخ"
+    },
+    "providers": {
+      "googleCalendar": "تقويم Google"
+    },
+    "dialogs": {
+      "editTitle": "تعديل معرف التقويم",
+      "editDescription": "اختر معرف تقويم Google للتحقق من التعارضات وإنشاء أحداث المواعيد.",
+      "deleteTitle": "قطع اتصال التقويم",
+      "deleteDescription": "قطع اتصال تقويم Google هذا عن جدولة المواعيد."
+    },
+    "messages": {
+      "connected": "تم ربط تقويم Google.",
+      "connectFailed": "تعذّر ربط تقويم Google. تحقق من إعدادات Google OAuth وصلاحية الوصول إلى Calendar API، ثم حاول مرة أخرى.",
+      "calendarIdUpdated": "تم تحديث معرف التقويم.",
+      "disconnected": "تم قطع اتصال التقويم."
+    }
+  },
+  "bookingPage": {
+    "metadataTitle": "الحجز",
+    "comingSoonTitle": "صفحة الحجز قريبًا",
+    "comingSoonDescription": "صفحة الحجز العامة هذه غير متاحة بعد."
+  },
   "metaConversions": {
     "title": "Conversions API",
     "description": "أرسِل أحداث «تسجيل عميل محتمل» من محادثات ماسنجر وإنستغرام وواتساب إلى ميتا.",
@@ -5223,7 +6347,8 @@
     "connectViaFacebook": "الربط عبر فيسبوك",
     "unsupportedExplanation": "هذا الحساب مربوط عبر تسجيل دخول إنستغرام للأعمال. وواجهة التحويلات تتطلّب الربط عبر فيسبوك.",
     "flowStep": {
-      "whatsappNote": "أحداث واتساب تُرسَل فقط للمحادثات التي بدأت من إعلان «انقر للمراسلة عبر واتساب»."
+      "whatsappNote": "أحداث واتساب تُرسَل فقط للمحادثات التي بدأت من إعلان «انقر للمراسلة عبر واتساب».",
+      "description": "إضافة حدث LeadSubmitted إلى قائمة الانتظار لـ Messenger أو Instagram أو WhatsApp."
     },
     "status": {
       "title": "Meta Conversions API",
@@ -5248,11 +6373,12 @@
       "saveFailed": "تعذّر الحفظ. حاول مرّة أخرى.",
       "datasetRequired": "احفظ معرّف مجموعة البيانات قبل إضافة رمز الوصول.",
       "invalidToken": "هذا الرمز لا يستطيع الوصول إلى مجموعة البيانات.",
-      "whatsappNotFound": "تكامل واتساب غير موجود.",
       "invalidDatasetId": "أدخل معرّف مجموعة بيانات صالحًا (أرقام فقط).",
+      "whatsappNotFound": "تكامل واتساب غير موجود.",
       "testEventCodeRequired": "احفظ رمز حدث اختبار قبل إرسال حدث اختبار.",
-      "noContactForTest": "لا توجد جهة اتصال مؤهلة على هذه القناة بعد. يحتاج الحدث التجريبي إلى جهة اتصال حقيقية لربطه بها (في WhatsApp، يجب أن تأتي من إعلان click-to-WhatsApp).",
-      "invalidTestEventCode": "يجب ألا يحتوي رمز حدث الاختبار إلا على أحرف وأرقام وشرطات أو شرطات سفلية (بحد أقصى 64)."
+      "invalidTestEventCode": "يجب ألا يحتوي رمز حدث الاختبار إلا على أحرف وأرقام وشرطات أو شرطات سفلية (بحد أقصى 64).",
+      "invalidMessagingId": "يجوز أن يحتوي معرّف المراسلة على أحرف وأرقام وشرطات وشرطات سفلية فقط (بحد أقصى 512).",
+      "capiDisconnected": "تم قطع اتصال Meta CAPI لهذه القناة. أعد الاتصال قبل إرسال حدث اختبار."
     },
     "fields": {
       "eventType": {
@@ -5396,11 +6522,389 @@
       "saved": "تم حفظ رمز حدث الاختبار.",
       "cleared": "تم مسح رمز حدث الاختبار. الأحداث نشطة مجددًا.",
       "send": "إرسال حدث اختبار",
-      "sent": "تم إدراج حدث الاختبار في قائمة الانتظار. سيظهر ضمن Test events في Events Manager خلال دقيقة.",
-      "sendHint": "يرسل حدث Purchase تجريبيًا واحدًا (100 USD) إلى أحدث جهة اتصال في هذه القناة.",
+      "sent": "تم إرسال حدث الاختبار. سيظهر ضمن Test events في Events Manager خلال دقيقة.",
+      "sendHint": "يرسل حدث Purchase نموذجيًا واحدًا (100 USD) إلى معرّف مراسلة تدخله أنت. لا يُستخدم أي جهة اتصال محفوظة.",
       "activeNotice": "وضع الاختبار مفعّل: لا تُحتسب أحداث هذه القناة في التقارير حتى يتم مسح الرمز.",
-      "openTestEvents": "فتح Test events"
+      "openTestEvents": "فتح Test events",
+      "dialogTitle": "إرسال حدث اختبار",
+      "dialogDescription": "سيتم إرسال حدث Purchase نموذجي واحد (100 USD) مع رمز حدث الاختبار الخاص بك. الصق معرّف المراسلة النموذجي من Events Manager → Test events → Messaging → Graph API Explorer، حتى لا يُنسب أي شيء إلى جهة اتصال حقيقية.",
+      "messagingIdLabel": {
+        "messenger": "معرّف جهة الاتصال (page_scoped_user_id)",
+        "instagram": "معرّف جهة الاتصال (ig_sid)",
+        "whatsapp": "معرّف النقرة (ctwa_clid)"
+      },
+      "messagingIdPlaceholder": "الصق القيمة النموذجية من Meta",
+      "messagingIdHint": "أحرف وأرقام وشرطات وشرطات سفلية فقط (بحد أقصى 512).",
+      "cancel": "إلغاء",
+      "confirmSend": "إرسال"
     }
+  },
+  "minigames": {
+    "title": "التلعيب",
+    "description": "أنشئ وأدر ألعاب سحب الحظ المصغّرة لعملائك.",
+    "types": {
+      "luckyWheel": "عجلة الحظ",
+      "jackpot": "جاكبوت",
+      "gashapon": "آلة الكبسولات",
+      "drawLots": "القرعة",
+      "scratchOff": "البطاقة الكاشطة"
+    },
+    "createDialog": {
+      "title": "اختر نوع اللعبة المصغّرة",
+      "comingSoon": "قريباً"
+    },
+    "prizeSettings": {
+      "sumOfProbabilities": "مجموع جميع الاحتمالات: {value}%",
+      "loseProbability": "احتمال الخسارة: {value}%",
+      "winProbability": "احتمال الفوز: {value}%",
+      "newPrize": "جائزة جديدة",
+      "prizeNameCustomFieldLabel": "حفظ اسم الجائزة في الحقل المخصص"
+    },
+    "prizeItemDialog": {
+      "prizeTitle": "تعديل الجائزة",
+      "nonWinningTitle": "تعديل إعداد عدم الفوز",
+      "prizeNameLabel": "اسم الجائزة",
+      "nonWinningTitleLabel": "العنوان",
+      "loseImageDescription": "الحجم الموصى به 120×120 بكسل",
+      "quantityLabel": "كمية الجائزة",
+      "quantityDescription": "عدد المرات المتبقية التي يمكن فيها الفوز بهذه الجائزة؛ ينقص بمقدار 1 مع كل فوز. اتركه فارغًا لعدد غير محدود."
+    },
+    "outcomeMessage": {
+      "enableWin": "إرسال رسالة إلى الفائز الذي حصل على الجائزة",
+      "enableLose": "إرسال رسالة عند عدم فوز اللاعب",
+      "mode": "نوع الرسالة",
+      "modeText": "نص",
+      "modeFlow": "تدفق",
+      "text": "نص الرسالة"
+    },
+    "winningMessageDialog": {
+      "title": "إعدادات رسالة الفوز",
+      "titleLabel": "العنوان",
+      "prizeNameHint": "يمكنك استخدام '{{prize_name}}' في العنوان والوصف لإدراج اسم الجائزة.",
+      "acceptButtonText": "نص زر القبول",
+      "shareButtonText": "نص زر المشاركة",
+      "shareButtonDescription": "وصف زر المشاركة"
+    },
+    "nonWinningMessageDialog": {
+      "title": "إعدادات رسالة عدم الفوز",
+      "titleLabel": "العنوان",
+      "shareButtonText": "نص زر المشاركة",
+      "shareButtonDescription": "وصف زر المشاركة"
+    },
+    "preview": {
+      "start": "ابدأ",
+      "shareWithFriends": "مشاركة مع الأصدقاء",
+      "jackpotHeader": "جاكبوت",
+      "jackpotBanner": "جاكبوت",
+      "luckyWheelHeader": "عجلة الحظ",
+      "gashaponHeader": "جاشابون",
+      "drawLotsHeader": "سحب القرعة",
+      "scratchOffHeader": "اكشط واربح",
+      "scratchOffCardTitle": "بطاقات كشط النجمة المحظوظة",
+      "comingSoon": "المعاينة التفصيلية لهذا النوع من الألعاب قريبًا"
+    },
+    "form": {
+      "generalSettingsTitle": "الإعدادات العامة",
+      "appearanceTitle": "المظهر",
+      "playerSettingsTitle": "إعدادات اللاعب",
+      "prizeSettingsTitle": "إعدادات الجوائز",
+      "validationFailed": "يرجى تصحيح الحقول المميزة قبل الحفظ."
+    },
+    "generalSettings": {
+      "showName": "مرئي",
+      "playedAt": "وقت اللعب",
+      "rulesDescription": "وصف القواعد",
+      "openerTags": "وسم جهات الاتصال التي تفتح رابط اللعبة",
+      "playerTags": "وسم اللاعبين",
+      "newFriendTags": "وسم الأصدقاء الجدد"
+    },
+    "appearance": {
+      "backgroundColor": "لون الخلفية",
+      "machineColor": "لون الجهاز",
+      "decorativeColor": "لون الزخرفة",
+      "ruleTextColor": "لون نص القواعد",
+      "backgroundImage": "صورة الخلفية",
+      "backgroundImageDescription": "العرض الموصى به: 1024 بكسل",
+      "prizeDescriptionImage": "صورة وصف الجائزة (اختياري)",
+      "prizeDescriptionImageDescription": "العرض الموصى به: 750 بكسل",
+      "startButtonImage": "صورة زر البدء",
+      "startButtonImageDescription": "الحجم الموصى به: 360×105 بكسل"
+    },
+    "playerSettings": {
+      "drawsPerPerson": "عدد فرص السحب لكل شخص",
+      "maxSharesPerPerson": "الحد الأقصى للسحوبات الإضافية من الإحالات",
+      "maxSharesPerPersonHint": "كل صديق ينضم عبر رابط دعوة هذا اللاعب ويراسلك يمنحه سحبة إضافية واحدة، بحد أقصى هذا الحد. اضبط 0 لإيقاف مكافآت الإحالة. يجب استخدام السحبات الإضافية قبل إعادة التعيين التالية.",
+      "sharingNode": "خطوة المشاركة",
+      "sharingNodeHint": "خطوة المسار التي تعمل عندما يفتح صديق رابط المشاركة الخاص بهذا اللاعب. اتركه فارغًا لإخفاء زر المشاركة.",
+      "resetPolicyLabel": "إعادة تعيين مرات السحب",
+      "resetNever": "عدم إعادة تعيين عدد مرات السحب",
+      "resetEveryNDays": "إعادة تعيين عدد مرات السحب كل",
+      "resetIntervalDaysSuffix": "يوم/أيام"
+    },
+    "publicUrl": {
+      "label": "الرابط العام",
+      "hint": "انسخ الرابط والصقه في التدفق أو البث أو التسلسل الخاص بك لمشاركة هذه اللعبة المصغّرة."
+    },
+    "play": {
+      "close": "إغلاق",
+      "drawsRemaining": "{count} محاولة متبقية",
+      "noDrawsLeft": "لقد استنفدت محاولاتك في هذه اللعبة.",
+      "notStartedYet": "لم تبدأ هذه اللعبة بعد.",
+      "ended": "انتهت هذه اللعبة.",
+      "forbiddenTitle": "تم رفض الوصول",
+      "forbiddenDescription": "هذا الرابط غير صالح أو منتهي الصلاحية.",
+      "comingSoonTitle": "قريباً",
+      "comingSoonDescription": "هذا النوع من الألعاب غير قابل للعب بعد.",
+      "rateLimited": "طلبات كثيرة جدًا. يُرجى الانتظار لحظة ثم المحاولة مرة أخرى."
+    },
+    "list": {
+      "gamesPlayed": "عدد مرات اللعب",
+      "participants": "المشاركون",
+      "winners": "الفائزون",
+      "shares": "الإحالات"
+    },
+    "history": {
+      "title": "السجل",
+      "played": "عدد مرات اللعب",
+      "remaining": "السحوبات المتبقية",
+      "shares": "الإحالات",
+      "openedAt": "أول فتح",
+      "lastPlayedAt": "آخر لعب",
+      "unknownContact": "جهة اتصال غير معروفة",
+      "conversationNotFound": "لم يتم العثور على محادثة لجهة الاتصال هذه",
+      "popupBlocked": "يُرجى السماح بالنوافذ المنبثقة لهذا الموقع ثم المحاولة مرة أخرى.",
+      "record": "السجل",
+      "recordDialog": {
+        "title": "سجل اللعب",
+        "win": "فاز",
+        "lose": "بدون جائزة",
+        "empty": "لا توجد سجلات لعب بعد"
+      }
+    }
+  },
+  "mediaLibrary": {
+    "title": "مكتبة الوسائط",
+    "searchPlaceholder": "البحث عن الملفات...",
+    "newFolder": "مجلد جديد",
+    "recent": "الأحدث",
+    "favourite": "المفضلة",
+    "upload": "رفع",
+    "select": "تحديد",
+    "bulkSelect": "تحديد متعدد",
+    "deleteFolder": "حذف المجلد",
+    "renameFolder": "إعادة تسمية المجلد",
+    "noFiles": "لا توجد ملفات",
+    "noFolders": "لا توجد مجلدات بعد",
+    "folderNamePlaceholder": "اسم المجلد",
+    "confirmDeleteFolder": "حذف المجلد وجميع ملفاته؟",
+    "confirmDeleteFolderDescription": "سيتم حذف جميع الملفات في هذا المجلد نهائيًا من الخادم. لا يمكن التراجع عن هذا الإجراء.",
+    "confirmDeleteFile": "حذف الملف؟",
+    "confirmDeleteFileDescription": "سيتم حذف هذا الملف نهائيًا من الخادم.",
+    "addToFavourites": "إضافة إلى المفضلة",
+    "removeFromFavourites": "إزالة من المفضلة",
+    "deleteFile": "حذف الملف",
+    "selectOnlyOneFile": "يمكنك تحديد ملف واحد فقط",
+    "confirmDeleteFiles": "{count, plural, =1 {حذف ملف واحد؟} other {حذف # ملفات؟}}",
+    "confirmDeleteFilesDescription": "سيتم حذف هذه الملفات نهائيًا من الخادم. لا يمكن التراجع عن هذا الإجراء.",
+    "filesCount": "{count, plural, =0 {لا توجد ملفات} =1 {ملف واحد} other {# ملفات}}",
+    "openMediaLibrary": "فتح مكتبة الوسائط",
+    "uploadFailed": "فشل رفع {name}"
+  },
+  "adsCampaign": {
+    "title": "الإعلانات",
+    "createCta": "إنشاء إعلان",
+    "prereq": {
+      "notConnected": "قم بربط Facebook Ads لإنشاء إعلانات مراسلة لهذه القناة.",
+      "connectCta": "ربط Facebook Ads"
+    },
+    "specialAdCategory": {
+      "none": "بلا",
+      "housing": "الإسكان",
+      "employment": "التوظيف",
+      "credit": "الائتمان",
+      "issues": "قضايا اجتماعية أو انتخابات أو سياسة",
+      "financialProducts": "المنتجات والخدمات المالية",
+      "onlineGambling": "المقامرة والألعاب عبر الإنترنت"
+    },
+    "fields": {
+      "objective": {
+        "label": "الهدف",
+        "value": "التفاعل (المراسلة)"
+      },
+      "specialAdCategory": {
+        "label": "فئة الإعلان الخاصة",
+        "description": "اختيار فئة مقيّدة يزيل خيارات الاستهداف حسب العمر والجنس وخيارات استهداف أخرى لا تسمح بها Meta لهذه الفئة.",
+        "restrictedNote": "تم تعطيل الاستهداف حسب العمر والجنس لأنه تم اختيار فئة إعلان خاصة مقيّدة."
+      },
+      "adAccount": {
+        "label": "حساب الإعلانات"
+      },
+      "whatsappPage": {
+        "label": "صفحة فيسبوك",
+        "description": "لا تزال إعلانات WhatsApp تتطلب صفحة فيسبوك مرتبطة — اختر الصفحة المتصلة التي تريد استخدامها."
+      },
+      "dailyBudget": {
+        "label": "الميزانية اليومية",
+        "placeholder": "مثال: 2000",
+        "description": "أدخل المبلغ بأصغر وحدة عملة في حساب الإعلانات الخاص بك (مثال: السنت بالنسبة للدولار الأمريكي)."
+      },
+      "countries": {
+        "label": "الدول"
+      },
+      "ageRange": {
+        "min": "الحد الأدنى للعمر",
+        "max": "الحد الأقصى للعمر"
+      },
+      "gender": {
+        "label": "الجنس",
+        "male": "ذكر",
+        "female": "أنثى"
+      },
+      "schedule": {
+        "start": "وقت البدء",
+        "end": "وقت الانتهاء"
+      },
+      "destination": {
+        "label": "الوجهة"
+      },
+      "callToAction": {
+        "label": "دعوة لاتخاذ إجراء",
+        "derivedNote": "يتم اشتقاق زر الدعوة لاتخاذ إجراء ({type}) تلقائيًا من القناة."
+      },
+      "specialAdCategoryCountry": {
+        "label": "بلد فئة الإعلان",
+        "description": "مطلوب من Meta لفئة القضايا الاجتماعية أو الانتخابات أو السياسة — البلد المصرح لك بتشغيل هذه الإعلانات فيه."
+      }
+    },
+    "welcomeMessage": {
+      "title": "رسالة الترحيب",
+      "label": "رسالة الترحيب",
+      "description": "تُرسل تلقائيًا عندما يبدأ شخص ما محادثة من هذا الإعلان.",
+      "mode": {
+        "default": "استخدام رسالة Meta الافتراضية",
+        "single": "رسالة واحدة",
+        "templates": "اختبار ما يصل إلى 5 نسخ من الرسالة"
+      },
+      "messageLabel": "الرسالة",
+      "templateLabel": "النسخة {index}",
+      "headingPlaceholder": "العنوان (اختياري)",
+      "addTemplate": "إضافة نسخة",
+      "templatesLimit": "يمكن اختبار ما يصل إلى {max} نسخة."
+    },
+    "creative": {
+      "mediaRequired": "قم برفع صورة أو فيديو للمتابعة.",
+      "mediaType": {
+        "label": "الوسائط الإبداعية",
+        "orVideo": "أو فيديو",
+        "selectAdAccountFirst": "اختر حساب إعلانات قبل رفع الوسائط.",
+        "uploadImage": "رفع صورة",
+        "uploadVideo": "رفع فيديو"
+      },
+      "uploading": "جارٍ الرفع...",
+      "imageUploadFailed": "فشل تحميل الصورة. يرجى المحاولة مرة أخرى.",
+      "videoProcessing": "جارٍ معالجة الفيديو...",
+      "videoReady": "الفيديو جاهز",
+      "videoProcessingFailed": "فشلت معالجة الفيديو. يرجى تجربة ملف آخر.",
+      "previewAlt": "معاينة الإبداع",
+      "primaryText": "النص الأساسي",
+      "headline": "العنوان الرئيسي"
+    },
+    "wizard": {
+      "createDraft": "إنشاء كمسودة موقوفة",
+      "campaignStep": {
+        "title": "الحملة",
+        "namePlaceholder": "أدخل اسمًا لهذا الإعلان"
+      },
+      "adSetStep": {
+        "title": "مجموعة الإعلانات"
+      },
+      "creativeStep": {
+        "title": "إبداع الإعلان"
+      },
+      "preflightStep": {
+        "title": "المراجعة"
+      },
+      "errors": {
+        "nameRequired": "أدخل اسمًا لهذا الإعلان.",
+        "adAccountRequired": "اختر حساب إعلانات.",
+        "budgetRequired": "أدخل ميزانية يومية.",
+        "countryRequired": "اختر دولة واحدة على الأقل.",
+        "mediaRequired": "ارفع صورة أو فيديو."
+      }
+    },
+    "preflight": {
+      "title": "الملخص",
+      "pausedNote": "يُنشأ هذا الإعلان كمسودة موقوفة. لن يُنشر أي شيء ولن يُنفق أي مال حتى تقوم بنشره."
+    },
+    "publishConfirm": {
+      "title": "هل تريد نشر هذا الإعلان؟",
+      "description": "يؤدي النشر إلى تفعيل الحملة ومجموعة الإعلانات والإعلان بالترتيب. ستبدأ Meta بإنفاق ميزانيتك بمجرد بدء التسليم.",
+      "confirm": "نشر"
+    },
+    "list": {
+      "viewOnMeta": "العرض على Meta",
+      "empty": "لا توجد إعلانات مراسلة حتى الآن.",
+      "createState": "حالة المسودة",
+      "actions": "الإجراءات",
+      "notPublishedYet": "لم يُنشر بعد",
+      "draftReady": "المسودة جاهزة",
+      "createFailed": "فشل الإنشاء",
+      "creating": "جارٍ الإنشاء...",
+      "publish": "نشر",
+      "pause": "إيقاف مؤقت"
+    },
+    "messages": {
+      "created": "تم إنشاء مسودة الإعلان.",
+      "actionSucceeded": "تم."
+    },
+    "box": {
+      "ctwa": {
+        "title": "CTWA",
+        "description": "أنشئ وأدر إعلانات Click-to-WhatsApp هنا."
+      },
+      "ctm": {
+        "title": "CTM",
+        "description": "أنشئ وأدر إعلانات Click-to-Messenger هنا."
+      },
+      "ctid": {
+        "title": "CTID",
+        "description": "أنشئ وأدر إعلانات Click-to-Instagram هنا."
+      },
+      "connectCta": "ربط Facebook Ads",
+      "reconnectCta": "إعادة الربط",
+      "reconnectNeeded": "يحتاج هذا الاتصال إلى إعادة الربط.",
+      "refresh": "تحديث",
+      "whatsappPageRequiredNote": "لا تزال إعلانات النقر للانتقال إلى WhatsApp تتطلب صفحة فيسبوك مرتبطة (متطلب من Meta) — ستختارها عند إنشاء إعلان.",
+      "emptyDashboardNote": "تظهر الإعلانات التي تُنشأ هنا الآن تلقائيًا في لوحة معلومات الإعلانات الخاصة بهذه القناة — اختر هذا التكامل من عامل التصفية هناك لرؤية حساباته وإنفاقه."
+    },
+    "insights": {
+      "title": "الأداء",
+      "empty": "لا توجد بيانات بعد",
+      "impressions": "مرات الظهور",
+      "reach": "الوصول",
+      "spend": "الإنفاق",
+      "clicks": "النقرات",
+      "conversations": "المحادثات",
+      "costPerConversation": "التكلفة/محادثة",
+      "costPerConversationTooltip": "متوسط التكلفة لكل محادثة مراسلة بدأت.",
+      "datePresetLabel": "الفترة:",
+      "datePreset": {
+        "maximum": "كل الأوقات",
+        "last_30d": "آخر 30 يومًا",
+        "last_7d": "آخر 7 أيام"
+      }
+    }
+  },
+  "accountFields": {
+    "title": "حقول البوت"
+  },
+  "openLink": {
+    "title": "فتح الرابط",
+    "invalidTitle": "رابط غير صالح.",
+    "invalidDescription": "هذا الرابط غير صالح أو انتهت صلاحيته.",
+    "openZaloGroup": "فتح مجموعة Zalo",
+    "openZalo": "فتح Zalo",
+    "openMessenger": "فتح Messenger"
   },
   "platformAiSettings": {
     "title": "إعدادات الذكاء الاصطناعي",
@@ -5955,726 +7459,5 @@
         }
       ]
     }
-  },
-  "notFound": {
-    "title": "الصفحة غير موجودة",
-    "description": "الصفحة التي تبحث عنها غير موجودة أو ربما تم نقلها.",
-    "backToHome": "العودة إلى الصفحة الرئيسية"
-  },
-  "dynamicImages": {
-    "title": "الصور الديناميكية",
-    "description": "أنشئ صورًا مخصصة لكل جهة اتصال من خلفية وطبقات نص/صورة/رمز QR.",
-    "publicUrl": {
-      "label": "الرابط العام",
-      "hint": "انسخ الرابط والصقه في المسار أو البث أو التسلسل الخاص بك لإرسال صور مخصصة."
-    },
-    "editor": {
-      "addElement": "إضافة عنصر",
-      "addImage": "إضافة صورة",
-      "addText": "إضافة نص",
-      "addQrCode": "إضافة رمز QR",
-      "template": "قالب",
-      "templateDialogTitle": "اختر قالبًا",
-      "templateDialogDescription": "اختيار قالب سيستبدل جميع الطبقات الحالية.",
-      "layers": "الطبقات",
-      "noLayers": "لا توجد طبقات بعد. أضف عنصرًا للبدء.",
-      "deleteLayer": "حذف الطبقة",
-      "layerNameImage": "صورة",
-      "layerNameText": "نص",
-      "layerNameQrCode": "رمز QR",
-      "editElement": "تعديل العنصر",
-      "selectElementHint": "حدد عنصرًا في اللوحة لتعديل خصائصه.",
-      "width": "العرض",
-      "height": "الارتفاع",
-      "priority": "الأولوية",
-      "imageType": "نوع الصورة",
-      "imageTypeUrl": "رابط الصورة",
-      "imageTypeAvatarUser": "صورة جهة الاتصال",
-      "imageTypeCustomField": "حقل مخصص",
-      "imageUrl": "رابط الصورة",
-      "uploadImage": "رفع صورة",
-      "customField": "حقل مخصص",
-      "imageStyle": "نمط الصورة",
-      "imageStyleSquare": "مربع",
-      "imageStyleCircle": "دائري",
-      "qrText": "محتوى رمز QR",
-      "qrSize": "الحجم",
-      "qrColor": "اللون",
-      "qrLogo": "الشعار",
-      "uploadLogo": "رفع شعار",
-      "textContent": "محتوى النص",
-      "fontSize": "حجم الخط",
-      "fontFamily": "نوع الخط",
-      "fontFamilyArial": "Arial",
-      "fontFamilySerif": "Serif",
-      "fontFamilyRoboto": "Roboto",
-      "fontFamilyGreatVibes": "Great Vibes",
-      "align": "المحاذاة",
-      "alignLeft": "يسار",
-      "alignCenter": "وسط",
-      "alignRight": "يمين",
-      "color": "اللون",
-      "bold": "غامق",
-      "italic": "مائل",
-      "uppercase": "أحرف كبيرة"
-    },
-    "preview": {
-      "error": "فشل تحميل الصورة الديناميكية المرتبطة. ربما تم حذفها."
-    }
-  },
-  "bookingWebview": {
-    "metadataTitle": "حجز موعد",
-    "badge": "موعد",
-    "timezone": "المنطقة الزمنية",
-    "empty": "لم يتم العثور على أوقات متاحة.",
-    "noSelection": "اختر وقتًا",
-    "actions": {
-      "book": "حجز موعد",
-      "viewDetails": "عرض التفاصيل"
-    },
-    "errors": {
-      "invalidTokenTitle": "رابط الحجز هذا غير متاح.",
-      "invalidTokenDescription": "قد يكون الرابط غير صالح أو منتهي الصلاحية. يُرجى طلب رابط حجز جديد.",
-      "staleSlot": "هذا الوقت لم يعد متاحًا. يُرجى اختيار وقت آخر.",
-      "availabilityChanged": "تغيّر التوفر أثناء اختيارك للوقت. يُرجى الاختيار مرة أخرى.",
-      "submitFailed": "تعذّر إتمام هذا الطلب. يُرجى المحاولة مرة أخرى."
-    },
-    "success": {
-      "title": "تم حجز موعدك.",
-      "description": "تفاصيل الموعد جاهزة."
-    },
-    "schedule": {
-      "metadataTitle": "تفاصيل الموعد",
-      "defaultMessage": "تمت جدولة موعدك.",
-      "unknownInvitee": "ضيف",
-      "fields": {
-        "invitee": "المدعو",
-        "time": "الوقت",
-        "timezone": "المنطقة الزمنية",
-        "location": "الموقع"
-      },
-      "status": {
-        "scheduled": "مجدول",
-        "cancelled": "ملغى"
-      },
-      "locationTypes": {
-        "inPerson": "اجتماع حضوري",
-        "phoneCall": "مكالمة هاتفية",
-        "onlineMeeting": "اجتماع عبر الإنترنت"
-      }
-    },
-    "cancel": {
-      "metadataTitle": "إلغاء الموعد",
-      "title": "إلغاء الموعد",
-      "description": "إلغاء {calendar} في {time}.",
-      "action": "إلغاء الموعد",
-      "cancelledTitle": "تم إلغاء الموعد",
-      "cancelledDescription": "تم إلغاء هذا الموعد.",
-      "unavailableTitle": "الإلغاء غير متاح",
-      "unavailableDescription": "هذا الموعد ملغى بالفعل أو محذوف أو في الماضي."
-    },
-    "range": {
-      "metadataTitle": "التحقق من التوفر",
-      "empty": "لم يتم التحديد",
-      "successTitle": "تم استلام نطاق التاريخ.",
-      "successDescription": "نحن نتحقق من أوقات المواعيد المتاحة.",
-      "fields": {
-        "startDate": "تاريخ البدء",
-        "endDate": "تاريخ الانتهاء",
-        "startTime": "وقت البدء",
-        "endTime": "وقت الانتهاء"
-      },
-      "actions": {
-        "skip": "تخطي"
-      },
-      "errors": {
-        "invalidRange": "يجب أن يكون تاريخ الانتهاء مطابقًا لتاريخ البدء أو بعده."
-      },
-      "timezoneHint": "تُعرض الأوقات بتوقيت {timezone}."
-    }
-  },
-  "appointments": {
-    "title": "المواعيد",
-    "statuses": {
-      "scheduled": "مجدول",
-      "cancelled": "ملغى"
-    },
-    "messages": {
-      "empty": "لا توجد مواعيد بعد."
-    }
-  },
-  "appointmentManagement": {
-    "title": "المواعيد",
-    "singular": "موعد",
-    "unknownContact": "جهة اتصال غير معروفة",
-    "searchPlaceholder": "ابحث بالاسم...",
-    "tabs": {
-      "next": "القادمة",
-      "past": "السابقة"
-    },
-    "fields": {
-      "name": "الاسم",
-      "date": "التاريخ",
-      "status": "الحالة",
-      "calendar": "التقويم"
-    },
-    "statuses": {
-      "scheduled": "مجدول",
-      "cancelled": "ملغى"
-    },
-    "actions": {
-      "cancelAppointment": "إلغاء الموعد"
-    },
-    "dialogs": {
-      "cancelTitle": "إلغاء الموعد",
-      "cancelDescription": "إلغاء هذا الموعد وتنفيذ الإجراءات المرتبطة بالإلغاء.",
-      "deleteTitle": "حذف الموعد",
-      "deleteDescription": "حذف هذا الموعد من قائمة الإدارة. لن يؤدي ذلك إلى تشغيل مسار الإلغاء."
-    },
-    "messages": {
-      "cancelled": "تم إلغاء الموعد.",
-      "deleted": "تم حذف الموعد."
-    }
-  },
-  "appointmentCalendars": {
-    "title": "تقويمات المواعيد",
-    "singular": "تقويم مواعيد",
-    "addNew": "إضافة جديد",
-    "none": "لا شيء",
-    "addReminder": "إضافة تذكير",
-    "reminderSummary": "إرسال تذكير - {calendar} {timing}.",
-    "noExternalConnections": "لا توجد اتصالات بتقويمات خارجية بعد",
-    "dialogDescriptions": {
-      "create": "امنح تقويم مواعيدك اسمًا للبدء.",
-      "rename": "إعادة تسمية تقويم المواعيد هذا."
-    },
-    "tabs": {
-      "calendars": "التقويمات",
-      "appointments": "المواعيد",
-      "externalCalendars": "التقويمات الخارجية"
-    },
-    "sections": {
-      "appointment": "ما هو موعدك",
-      "availability": "متى يمكن للأشخاص الحجز؟",
-      "duration": "ما هي مدة موعدك؟",
-      "location": "أين سيُعقد الموعد؟",
-      "notifications": "الإشعارات",
-      "restrictions": "القيود",
-      "externalCalendar": "ربط Google Calendar"
-    },
-    "fields": {
-      "description": "الوصف",
-      "timezone": "المنطقة الزمنية",
-      "locationType": "نوع الموقع",
-      "locationDetail": "التفاصيل",
-      "durationMinutes": "مدة الموعد",
-      "bufferAfterMinutes": "إضافة وقت بعد مواعيدك",
-      "scheduleWindowType": "يمكن للأشخاص الحجز",
-      "rollingDays": "أيام متجددة",
-      "minAdvanceDays": "الحد الأدنى لعدد أيام الحجز المسبق",
-      "startDate": "تاريخ البدء",
-      "endDate": "تاريخ الانتهاء",
-      "specificDate": "التاريخ",
-      "maxAppointmentsPerUser": "الحد الأقصى للمواعيد لكل مستخدم",
-      "maxAppointmentsUnlimited": "غير محدود",
-      "dailyLimitEnabled": "الحد اليومي",
-      "maxPerDay": "الحد الأقصى في اليوم",
-      "allowGroupMeeting": "السماح باجتماع جماعي",
-      "maxPerSlot": "الحد الأقصى لكل فترة",
-      "confirmationMessage": "رسالة التأكيد",
-      "confirmationFlowId": "مسار التأكيد",
-      "cancellationFlowId": "مسار الإلغاء",
-      "externalConnectionId": "التقويم الخارجي",
-      "reminders": "التذكيرات",
-      "reminderTimingValue": "القيمة",
-      "reminderTimingUnit": "الوحدة"
-    },
-    "locationTypes": {
-      "inPerson": "اجتماع حضوري",
-      "phoneCall": "مكالمة هاتفية",
-      "onlineMeeting": "اجتماع عبر الإنترنت"
-    },
-    "scheduleWindowTypes": {
-      "rollingDays": "خلال عدد أيام متجددة في المستقبل",
-      "dateRange": "خلال نطاق تاريخ محدد",
-      "specificDay": "يوم محدد واحد",
-      "anyFutureDate": "في أي تاريخ في المستقبل"
-    },
-    "reminderTimingUnits": {
-      "minutes": "دقائق قبل الموعد",
-      "hours": "ساعات قبل الموعد",
-      "days": "أيام قبل الموعد"
-    },
-    "reminderTimingLabels": {
-      "minutes": "{count, plural, one {# دقيقة قبل الموعد} other {# دقائق قبل الموعد}}",
-      "hours": "{count, plural, one {ساعة واحدة قبل الموعد} other {# ساعات قبل الموعد}}",
-      "days": "{count, plural, one {يوم واحد قبل الموعد} other {# أيام قبل الموعد}}"
-    },
-    "weekdays": {
-      "0": "الأحد",
-      "1": "الاثنين",
-      "2": "الثلاثاء",
-      "3": "الأربعاء",
-      "4": "الخميس",
-      "5": "الجمعة",
-      "6": "السبت"
-    },
-    "weekdayEditor": {
-      "description": "حدد الفترات الزمنية المتاحة لهذا اليوم.",
-      "unavailable": "غير متاح",
-      "overlapWarning": "بعض الفترات الزمنية متداخلة. لا يُحتسب الوقت المتداخل مرتين.",
-      "addInterval": "إضافة فترة",
-      "startTime": "وقت البدء",
-      "endTime": "وقت الانتهاء"
-    },
-    "tooltips": {
-      "timezone": "المنطقة الزمنية التي تُنشئ بها هذا التقويم. سيرى الأشخاص التوفر بحسب منطقتهم الزمنية الخاصة.",
-      "confirmationFlow": "المسار الذي يُرسل بمجرد أن يحجز المستخدم موعدًا.",
-      "cancellationFlow": "المسار الذي يُرسل بمجرد إلغاء موعد.",
-      "reminders": "أرسل تذكيرات لتذكير المدعو بالموعد.",
-      "appointmentDuration": "حدد المدة التي سيستغرقها موعدك.",
-      "bufferAfterMinutes": "امنح نفسك بعض الوقت الإضافي لإنهاء المواعيد المحجوزة.",
-      "peopleCanSchedule": "حدد نطاق التواريخ التي يمكنك خلالها قبول الاجتماعات.",
-      "maxAppointmentsPerUser": "الحد الأقصى لعدد المواعيد المستقبلية التي يمكن للمستخدم حجزها.",
-      "rollingDays": "السماح بالحجز حتى عدد معين من الأيام في المستقبل",
-      "minAdvanceDays": "اطلب أن يتم الحجز قبل هذه المدة على الأقل بالأيام. استخدم 0 للسماح بالحجز في اليوم نفسه.",
-      "dailyLimit": "الحد الأقصى لعدد الأشخاص المسموح لهم بالحجز في اليوم الواحد.",
-      "allowGroupMeeting": "السماح لعدة أشخاص بالحجز في نفس الفترة الزمنية.",
-      "externalCalendar": "اربط Google Calendar لمزامنة مواعيدك."
-    },
-    "minutesLabel": "{count} دقيقة"
-  },
-  "externalCalendars": {
-    "title": "التقويمات الخارجية",
-    "connectGoogle": "ربط Google",
-    "emptyEmail": "لا يوجد بريد إلكتروني",
-    "fields": {
-      "provider": "المزوّد",
-      "email": "البريد الإلكتروني",
-      "calendarId": "معرف التقويم",
-      "connected": "متصل",
-      "date": "التاريخ"
-    },
-    "providers": {
-      "googleCalendar": "تقويم Google"
-    },
-    "dialogs": {
-      "editTitle": "تعديل معرف التقويم",
-      "editDescription": "اختر معرف تقويم Google للتحقق من التعارضات وإنشاء أحداث المواعيد.",
-      "deleteTitle": "قطع اتصال التقويم",
-      "deleteDescription": "قطع اتصال تقويم Google هذا عن جدولة المواعيد."
-    },
-    "messages": {
-      "connected": "تم ربط تقويم Google.",
-      "connectFailed": "تعذّر ربط تقويم Google. تحقق من إعدادات Google OAuth وصلاحية الوصول إلى Calendar API، ثم حاول مرة أخرى.",
-      "calendarIdUpdated": "تم تحديث معرف التقويم.",
-      "disconnected": "تم قطع اتصال التقويم."
-    }
-  },
-  "bookingPage": {
-    "metadataTitle": "الحجز",
-    "comingSoonTitle": "صفحة الحجز قريبًا",
-    "comingSoonDescription": "صفحة الحجز العامة هذه غير متاحة بعد."
-  },
-  "userDataWebview": {
-    "metadataTitle": "اختيار التاريخ",
-    "date": {
-      "title": "اختر تاريخًا"
-    },
-    "datetime": {
-      "title": "اختر تاريخًا ووقتًا"
-    },
-    "noSelection": "اختر تاريخًا",
-    "actions": {
-      "submit": "إرسال"
-    },
-    "success": {
-      "title": "تم حفظ البيانات",
-      "description": "يمكنك الآن إغلاق هذه العلامة."
-    },
-    "errors": {
-      "invalidTokenTitle": "هذا الرابط غير متاح.",
-      "invalidTokenDescription": "قد يكون الرابط غير صالح أو منتهي الصلاحية. يُرجى طلب رابط جديد.",
-      "submitFailed": "تعذّر إتمام هذا الطلب. يُرجى المحاولة مرة أخرى."
-    },
-    "monthLabel": "الشهر",
-    "yearLabel": "السنة"
-  },
-  "minigames": {
-    "title": "التلعيب",
-    "description": "أنشئ وأدر ألعاب سحب الحظ المصغّرة لعملائك.",
-    "types": {
-      "luckyWheel": "عجلة الحظ",
-      "jackpot": "جاكبوت",
-      "gashapon": "آلة الكبسولات",
-      "drawLots": "القرعة",
-      "scratchOff": "البطاقة الكاشطة"
-    },
-    "createDialog": {
-      "title": "اختر نوع اللعبة المصغّرة",
-      "comingSoon": "قريباً"
-    },
-    "prizeSettings": {
-      "sumOfProbabilities": "مجموع جميع الاحتمالات: {value}%",
-      "loseProbability": "احتمال الخسارة: {value}%",
-      "winProbability": "احتمال الفوز: {value}%",
-      "newPrize": "جائزة جديدة",
-      "prizeNameCustomFieldLabel": "حفظ اسم الجائزة في الحقل المخصص"
-    },
-    "prizeItemDialog": {
-      "prizeTitle": "تعديل الجائزة",
-      "nonWinningTitle": "تعديل إعداد عدم الفوز",
-      "prizeNameLabel": "اسم الجائزة",
-      "nonWinningTitleLabel": "العنوان",
-      "loseImageDescription": "الحجم الموصى به 120×120 بكسل",
-      "quantityLabel": "كمية الجائزة",
-      "quantityDescription": "عدد المرات المتبقية التي يمكن فيها الفوز بهذه الجائزة؛ ينقص بمقدار 1 مع كل فوز. اتركه فارغًا لعدد غير محدود."
-    },
-    "winningMessageDialog": {
-      "title": "إعدادات رسالة الفوز",
-      "titleLabel": "العنوان",
-      "acceptButtonText": "نص زر القبول",
-      "shareButtonText": "نص زر المشاركة",
-      "shareButtonDescription": "وصف زر المشاركة",
-      "prizeNameHint": "يمكنك استخدام '{{prize_name}}' في العنوان والوصف لإدراج اسم الجائزة."
-    },
-    "nonWinningMessageDialog": {
-      "title": "إعدادات رسالة عدم الفوز",
-      "titleLabel": "العنوان",
-      "shareButtonText": "نص زر المشاركة",
-      "shareButtonDescription": "وصف زر المشاركة"
-    },
-    "preview": {
-      "start": "ابدأ",
-      "shareWithFriends": "مشاركة مع الأصدقاء",
-      "jackpotHeader": "جاكبوت",
-      "jackpotBanner": "جاكبوت",
-      "comingSoon": "المعاينة التفصيلية لهذا النوع من الألعاب قريبًا",
-      "luckyWheelHeader": "عجلة الحظ",
-      "gashaponHeader": "جاشابون",
-      "drawLotsHeader": "سحب القرعة",
-      "scratchOffHeader": "اكشط واربح",
-      "scratchOffCardTitle": "بطاقات كشط النجمة المحظوظة"
-    },
-    "form": {
-      "generalSettingsTitle": "الإعدادات العامة",
-      "appearanceTitle": "المظهر",
-      "playerSettingsTitle": "إعدادات اللاعب",
-      "prizeSettingsTitle": "إعدادات الجوائز"
-    },
-    "generalSettings": {
-      "playedAt": "وقت اللعب",
-      "rulesDescription": "وصف القواعد",
-      "openerTags": "وسم جهات الاتصال التي تفتح رابط اللعبة",
-      "playerTags": "وسم اللاعبين",
-      "newFriendTags": "وسم الأصدقاء الجدد",
-      "shareEnabled": "السماح بالمشاركة مع الأصدقاء",
-      "shareMessage": "رسالة المشاركة",
-      "shareMessageHint": "استخدم '{{shareUrl}}' لإدراج رابط اللعبة الفعلي — يُرجى عدم إزالته.",
-      "showName": "مرئي"
-    },
-    "appearance": {
-      "backgroundColor": "لون الخلفية",
-      "machineColor": "لون الجهاز",
-      "decorativeColor": "لون الزخرفة",
-      "ruleTextColor": "لون نص القواعد",
-      "backgroundImage": "صورة الخلفية",
-      "backgroundImageDescription": "العرض الموصى به: 1024 بكسل",
-      "prizeDescriptionImage": "صورة وصف الجائزة (اختياري)",
-      "prizeDescriptionImageDescription": "العرض الموصى به: 750 بكسل",
-      "startButtonImage": "صورة زر البدء",
-      "startButtonImageDescription": "الحجم الموصى به: 360×105 بكسل"
-    },
-    "playerSettings": {
-      "drawsPerPerson": "عدد فرص السحب لكل شخص",
-      "resetPolicyLabel": "إعادة تعيين مرات السحب",
-      "resetNever": "عدم إعادة تعيين عدد مرات السحب",
-      "resetEveryNDays": "إعادة تعيين عدد مرات السحب كل",
-      "resetIntervalDaysSuffix": "يوم/أيام"
-    },
-    "publicUrl": {
-      "label": "الرابط العام",
-      "hint": "انسخ الرابط والصقه في التدفق أو البث أو التسلسل الخاص بك لمشاركة هذه اللعبة المصغّرة."
-    },
-    "play": {
-      "close": "إغلاق",
-      "drawsRemaining": "{count} محاولة متبقية",
-      "noDrawsLeft": "لقد استنفدت محاولاتك في هذه اللعبة.",
-      "notStartedYet": "لم تبدأ هذه اللعبة بعد.",
-      "ended": "انتهت هذه اللعبة.",
-      "forbiddenTitle": "تم رفض الوصول",
-      "forbiddenDescription": "هذا الرابط غير صالح أو منتهي الصلاحية.",
-      "comingSoonTitle": "قريباً",
-      "comingSoonDescription": "هذا النوع من الألعاب غير قابل للعب بعد."
-    },
-    "history": {
-      "title": "السجل",
-      "played": "عدد مرات اللعب",
-      "remaining": "السحوبات المتبقية",
-      "openedAt": "أول فتح",
-      "lastPlayedAt": "آخر لعب",
-      "unknownContact": "جهة اتصال غير معروفة",
-      "record": "السجل",
-      "recordDialog": {
-        "title": "سجل اللعب",
-        "win": "فاز",
-        "lose": "بدون جائزة",
-        "empty": "لا توجد سجلات لعب بعد"
-      },
-      "conversationNotFound": "لم يتم العثور على محادثة لجهة الاتصال هذه",
-      "popupBlocked": "يُرجى السماح بالنوافذ المنبثقة لهذا الموقع ثم المحاولة مرة أخرى."
-    },
-    "outcomeMessage": {
-      "enableWin": "إرسال رسالة إلى الفائز الذي حصل على الجائزة",
-      "enableLose": "إرسال رسالة عند عدم فوز اللاعب",
-      "mode": "نوع الرسالة",
-      "modeText": "نص",
-      "modeFlow": "تدفق",
-      "text": "نص الرسالة"
-    },
-    "list": {
-      "gamesPlayed": "عدد مرات اللعب",
-      "participants": "المشاركون",
-      "winners": "الفائزون"
-    }
-  },
-  "clickToMessageAds": {
-    "title": "إعلانات Click-to-Message",
-    "description": "ترسل الإعلانات الأشخاص مباشرة إلى محادثة على Messenger أو Instagram أو WhatsApp.",
-    "empty": {
-      "title": "لا يوجد حساب متصل بهذه القناة",
-      "description": "قم بتوصيل حساب القناة أولاً، ثم عد إلى هنا لإنشاء الإعلانات.",
-      "cta": "الانتقال إلى إعدادات القناة"
-    },
-    "dashboardCta": "عرض على لوحة معلومات الإعلانات"
-  },
-  "templatesPublicPage": {
-    "invalidTitle": "هذا الرابط لم يعد متاحًا.",
-    "invalidDescription": "رابط مشاركة هذا القالب غير صالح أو معطَّل أو منتهي الصلاحية.",
-    "byPublisher": "بواسطة {publisherName}",
-    "includes": "يتضمن هذا القالب",
-    "videoTitle": "فيديو معاينة القالب",
-    "tryItOut": "جرّبه",
-    "signInToInstall": "سجّل الدخول للتثبيت",
-    "selectWorkspace": "اختر مساحة عمل",
-    "install": "تثبيت",
-    "installStarted": "بدأ التثبيت",
-    "noEligibleWorkspaces": "ليس لديك مساحة عمل مؤهلة لتثبيت هذا القالب."
-  },
-  "mediaLibrary": {
-    "title": "مكتبة الوسائط",
-    "searchPlaceholder": "البحث عن الملفات...",
-    "newFolder": "مجلد جديد",
-    "recent": "الأحدث",
-    "favourite": "المفضلة",
-    "upload": "رفع",
-    "select": "تحديد",
-    "bulkSelect": "تحديد متعدد",
-    "deleteFolder": "حذف المجلد",
-    "renameFolder": "إعادة تسمية المجلد",
-    "noFiles": "لا توجد ملفات",
-    "noFolders": "لا توجد مجلدات بعد",
-    "folderNamePlaceholder": "اسم المجلد",
-    "confirmDeleteFolder": "حذف المجلد وجميع ملفاته؟",
-    "confirmDeleteFolderDescription": "سيتم حذف جميع الملفات في هذا المجلد نهائيًا من الخادم. لا يمكن التراجع عن هذا الإجراء.",
-    "confirmDeleteFile": "حذف الملف؟",
-    "confirmDeleteFileDescription": "سيتم حذف هذا الملف نهائيًا من الخادم.",
-    "addToFavourites": "إضافة إلى المفضلة",
-    "removeFromFavourites": "إزالة من المفضلة",
-    "deleteFile": "حذف الملف",
-    "selectOnlyOneFile": "يمكنك تحديد ملف واحد فقط",
-    "confirmDeleteFiles": "{count, plural, =1 {حذف ملف واحد؟} other {حذف # ملفات؟}}",
-    "confirmDeleteFilesDescription": "سيتم حذف هذه الملفات نهائيًا من الخادم. لا يمكن التراجع عن هذا الإجراء.",
-    "filesCount": "{count, plural, =0 {لا توجد ملفات} =1 {ملف واحد} other {# ملفات}}",
-    "openMediaLibrary": "فتح مكتبة الوسائط",
-    "uploadFailed": "فشل رفع {name}"
-  },
-  "adsCampaign": {
-    "title": "الإعلانات",
-    "createCta": "إنشاء إعلان",
-    "prereq": {
-      "notConnected": "قم بربط Facebook Ads لإنشاء إعلانات مراسلة لهذه القناة.",
-      "connectCta": "ربط Facebook Ads"
-    },
-    "specialAdCategory": {
-      "none": "بلا",
-      "housing": "الإسكان",
-      "employment": "التوظيف",
-      "credit": "الائتمان",
-      "issues": "قضايا اجتماعية أو انتخابات أو سياسة",
-      "financialProducts": "المنتجات والخدمات المالية",
-      "onlineGambling": "المقامرة والألعاب عبر الإنترنت"
-    },
-    "fields": {
-      "objective": {
-        "label": "الهدف",
-        "value": "التفاعل (المراسلة)"
-      },
-      "specialAdCategory": {
-        "label": "فئة الإعلان الخاصة",
-        "description": "اختيار فئة مقيّدة يزيل خيارات الاستهداف حسب العمر والجنس وخيارات استهداف أخرى لا تسمح بها Meta لهذه الفئة.",
-        "restrictedNote": "تم تعطيل الاستهداف حسب العمر والجنس لأنه تم اختيار فئة إعلان خاصة مقيّدة."
-      },
-      "adAccount": {
-        "label": "حساب الإعلانات"
-      },
-      "whatsappPage": {
-        "label": "صفحة فيسبوك",
-        "description": "لا تزال إعلانات WhatsApp تتطلب صفحة فيسبوك مرتبطة — اختر الصفحة المتصلة التي تريد استخدامها."
-      },
-      "dailyBudget": {
-        "label": "الميزانية اليومية",
-        "placeholder": "مثال: 2000",
-        "description": "أدخل المبلغ بأصغر وحدة عملة في حساب الإعلانات الخاص بك (مثال: السنت بالنسبة للدولار الأمريكي)."
-      },
-      "countries": {
-        "label": "الدول"
-      },
-      "ageRange": {
-        "min": "الحد الأدنى للعمر",
-        "max": "الحد الأقصى للعمر"
-      },
-      "gender": {
-        "label": "الجنس",
-        "male": "ذكر",
-        "female": "أنثى"
-      },
-      "schedule": {
-        "start": "وقت البدء",
-        "end": "وقت الانتهاء"
-      },
-      "destination": {
-        "label": "الوجهة"
-      },
-      "callToAction": {
-        "label": "دعوة لاتخاذ إجراء",
-        "derivedNote": "يتم اشتقاق زر الدعوة لاتخاذ إجراء ({type}) تلقائيًا من القناة."
-      },
-      "specialAdCategoryCountry": {
-        "label": "بلد فئة الإعلان",
-        "description": "مطلوب من Meta لفئة القضايا الاجتماعية أو الانتخابات أو السياسة — البلد المصرح لك بتشغيل هذه الإعلانات فيه."
-      }
-    },
-    "welcomeMessage": {
-      "title": "رسالة الترحيب",
-      "label": "رسالة الترحيب",
-      "description": "تُرسل تلقائيًا عندما يبدأ شخص ما محادثة من هذا الإعلان.",
-      "mode": {
-        "default": "استخدام رسالة Meta الافتراضية",
-        "single": "رسالة واحدة",
-        "templates": "اختبار ما يصل إلى 5 نسخ من الرسالة"
-      },
-      "messageLabel": "الرسالة",
-      "templateLabel": "النسخة {index}",
-      "headingPlaceholder": "العنوان (اختياري)",
-      "addTemplate": "إضافة نسخة",
-      "templatesLimit": "يمكن اختبار ما يصل إلى {max} نسخة."
-    },
-    "creative": {
-      "mediaRequired": "قم برفع صورة أو فيديو للمتابعة.",
-      "mediaType": {
-        "label": "الوسائط الإبداعية",
-        "orVideo": "أو فيديو",
-        "selectAdAccountFirst": "اختر حساب إعلانات قبل رفع الوسائط.",
-        "uploadImage": "رفع صورة",
-        "uploadVideo": "رفع فيديو"
-      },
-      "uploading": "جارٍ الرفع...",
-      "imageUploadFailed": "فشل تحميل الصورة. يرجى المحاولة مرة أخرى.",
-      "videoProcessing": "جارٍ معالجة الفيديو...",
-      "videoReady": "الفيديو جاهز",
-      "videoProcessingFailed": "فشلت معالجة الفيديو. يرجى تجربة ملف آخر.",
-      "previewAlt": "معاينة الإبداع",
-      "primaryText": "النص الأساسي",
-      "headline": "العنوان الرئيسي"
-    },
-    "wizard": {
-      "createDraft": "إنشاء كمسودة موقوفة",
-      "campaignStep": {
-        "title": "الحملة",
-        "namePlaceholder": "أدخل اسمًا لهذا الإعلان"
-      },
-      "adSetStep": {
-        "title": "مجموعة الإعلانات"
-      },
-      "creativeStep": {
-        "title": "إبداع الإعلان"
-      },
-      "preflightStep": {
-        "title": "المراجعة"
-      },
-      "errors": {
-        "nameRequired": "أدخل اسمًا لهذا الإعلان.",
-        "adAccountRequired": "اختر حساب إعلانات.",
-        "budgetRequired": "أدخل ميزانية يومية.",
-        "countryRequired": "اختر دولة واحدة على الأقل.",
-        "mediaRequired": "ارفع صورة أو فيديو."
-      }
-    },
-    "preflight": {
-      "title": "الملخص",
-      "pausedNote": "يُنشأ هذا الإعلان كمسودة موقوفة. لن يُنشر أي شيء ولن يُنفق أي مال حتى تقوم بنشره."
-    },
-    "publishConfirm": {
-      "title": "هل تريد نشر هذا الإعلان؟",
-      "description": "يؤدي النشر إلى تفعيل الحملة ومجموعة الإعلانات والإعلان بالترتيب. ستبدأ Meta بإنفاق ميزانيتك بمجرد بدء التسليم.",
-      "confirm": "نشر"
-    },
-    "list": {
-      "viewOnMeta": "العرض على Meta",
-      "empty": "لا توجد إعلانات مراسلة حتى الآن.",
-      "createState": "حالة المسودة",
-      "actions": "الإجراءات",
-      "notPublishedYet": "لم يُنشر بعد",
-      "draftReady": "المسودة جاهزة",
-      "createFailed": "فشل الإنشاء",
-      "creating": "جارٍ الإنشاء...",
-      "publish": "نشر",
-      "pause": "إيقاف مؤقت"
-    },
-    "messages": {
-      "created": "تم إنشاء مسودة الإعلان.",
-      "actionSucceeded": "تم."
-    },
-    "box": {
-      "ctwa": {
-        "title": "CTWA",
-        "description": "أنشئ وأدر إعلانات Click-to-WhatsApp هنا."
-      },
-      "ctm": {
-        "title": "CTM",
-        "description": "أنشئ وأدر إعلانات Click-to-Messenger هنا."
-      },
-      "ctid": {
-        "title": "CTID",
-        "description": "أنشئ وأدر إعلانات Click-to-Instagram هنا."
-      },
-      "connectCta": "ربط Facebook Ads",
-      "reconnectCta": "إعادة الربط",
-      "reconnectNeeded": "يحتاج هذا الاتصال إلى إعادة الربط.",
-      "refresh": "تحديث",
-      "whatsappPageRequiredNote": "لا تزال إعلانات النقر للانتقال إلى WhatsApp تتطلب صفحة فيسبوك مرتبطة (متطلب من Meta) — ستختارها عند إنشاء إعلان.",
-      "emptyDashboardNote": "تظهر الإعلانات التي تُنشأ هنا الآن تلقائيًا في لوحة معلومات الإعلانات الخاصة بهذه القناة — اختر هذا التكامل من عامل التصفية هناك لرؤية حساباته وإنفاقه."
-    },
-    "insights": {
-      "title": "الأداء",
-      "empty": "لا توجد بيانات بعد",
-      "impressions": "مرات الظهور",
-      "reach": "الوصول",
-      "spend": "الإنفاق",
-      "clicks": "النقرات",
-      "conversations": "المحادثات",
-      "costPerConversation": "التكلفة/محادثة",
-      "costPerConversationTooltip": "متوسط التكلفة لكل محادثة مراسلة بدأت.",
-      "datePresetLabel": "الفترة:",
-      "datePreset": {
-        "maximum": "كل الأوقات",
-        "last_30d": "آخر 30 يومًا",
-        "last_7d": "آخر 7 أيام"
-      }
-    }
-  },
-  "accountFields": {
-    "title": "حقول البوت"
   }
 }

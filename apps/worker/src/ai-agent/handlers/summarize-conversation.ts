@@ -5,8 +5,7 @@ import {
   isSameContextMessage,
   summarizeConversation,
 } from "@chatbotx.io/ai/server"
-import { usageMeteringService } from "@chatbotx.io/business"
-import { db } from "@chatbotx.io/database/client"
+import { conversationService, usageMeteringService } from "@chatbotx.io/business"
 import {
   AIJobAction,
   type AIJobSummarizeConversation,
@@ -125,7 +124,7 @@ export async function handleSummarizeConversation(
         return
       }
 
-      const conversation = await db.query.conversationModel.findFirst({
+      const conversation = await conversationService.findBy({
         where: { id: conversationId },
       })
 

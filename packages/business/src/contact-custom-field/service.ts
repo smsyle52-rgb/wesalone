@@ -5,6 +5,7 @@ import {
   eq,
   inArray,
 } from "@chatbotx.io/database/client"
+import { contactCustomFieldRepository } from "@chatbotx.io/database/repositories"
 import { contactCustomFieldModel } from "@chatbotx.io/database/schema"
 import { emitCustomFieldChanged } from "@chatbotx.io/events"
 import {
@@ -23,6 +24,8 @@ import {
 } from "@chatbotx.io/utils/datetime"
 import { BaseService } from "../base.service"
 import { botFieldService } from "../bot-field/service"
+import { type ContactAccessScope, contactService } from "../contact/service"
+import { customFieldService } from "../custom-field/service"
 import { ChatbotXException, notFoundException } from "../errors"
 import { logger } from "../logger"
 import {
@@ -169,7 +172,250 @@ const contactCacheTags = (
   ...contactIds.map((contactId) => `contacts:${contactId}`),
 ]
 
+const computeUpdatedFieldValue = ({
+  currentValue,
+  operation,
+  operationValue,
+}: {
+  currentValue: string
+  operation: FieldOperationType
+  operationValue: string
+}): string | null => {
+  switch (operation) {
+    case FieldOperationType.append:
+      return currentValue + operationValue
+    case FieldOperationType.prepend:
+      return operationValue + currentValue
+    case FieldOperationType.increase:
+    case FieldOperationType.decrease: {
+      const currentNumber = Number(currentValue)
+      const operationNumber = Number(operationValue)
+      if (Number.isNaN(currentNumber) || Number.isNaN(operationNumber)) {
+        return null
+      }
+      const updatedNumber =
+        operation === FieldOperationType.increase
+          ? currentNumber + operationNumber
+          : currentNumber - operationNumber
+      return String(updatedNumber)
+    }
+    default:
+      return operationValue
+  }
+}
 class ContactCustomFieldService extends BaseService {
+  /**
+   * Persist-only half of `applyOperationToContacts`, callable with a
+   * caller-supplied `tx` so a multi-operation caller (`applyOperations`) can
+   * fold several calls into one outer transaction. Returns the pending
+   * changes; the caller MUST emit them (via `emitCustomFieldChanges`) only
+   * after that outer transaction commits — see the commit-safety note on
+   * `setValuesInTransaction`.
+   */
+  private async applyOperationToContactsInTransaction(
+    input: {
+      workspaceId: string
+      contactIds: string[]
+      customFieldId: string
+      operation: FieldOperationType
+      value: string
+      sourceTimezone?: string
+      accessScope?: ContactAccessScope
+    },
+    tx: DatabaseClient,
+  ): Promise<
+    Array<{
+      contactId: string
+      changes: PendingContactCustomFieldChange[]
+    }>
+  > {
+    const { workspaceId, accessScope } = input
+    const contacts = await contactService.findManyByIds({
+      workspaceId,
+      ids: input.contactIds,
+      accessScope,
+    })
+    if (contacts.length === 0) {
+      return []
+    }
+
+    const [customField] = await customFieldService.findManyByIds({
+      workspaceId,
+      ids: [input.customFieldId],
+    })
+    if (!customField) {
+      throw notFoundException("Custom field not found")
+    }
+
+    const changes: Array<{
+      contactId: string
+      newValue: string
+    }> = []
+
+    for (const contact of contacts) {
+      const [contactCustomField] = await tx
+        .select({
+          value: contactCustomFieldModel.value,
+        })
+        .from(contactCustomFieldModel)
+        .where(
+          and(
+            eq(contactCustomFieldModel.contactId, contact.id),
+            eq(contactCustomFieldModel.customFieldId, customField.id),
+          ),
+        )
+        .for("update")
+        .limit(1)
+
+      const value = contactCustomField
+        ? computeUpdatedFieldValue({
+            currentValue: contactCustomField.value,
+            operation: input.operation,
+            operationValue: input.value,
+          })
+        : input.value
+
+      if (value === null || value === contactCustomField?.value) {
+        continue
+      }
+
+      changes.push({
+        contactId: contact.id,
+        newValue: value,
+      })
+    }
+
+    return await Promise.all(
+      changes.map(async (change) => ({
+        contactId: change.contactId,
+        changes: await contactCustomFieldService.setValuesInTransaction(
+          {
+            workspaceId,
+            contactId: change.contactId,
+            fields: [{ customFieldId: customField.id, value: change.newValue }],
+            sourceTimezone: input.sourceTimezone,
+          },
+          tx,
+        ),
+      })),
+    )
+  }
+
+  async applyOperationToContacts(input: {
+    workspaceId: string
+    contactIds: string[]
+    customFieldId: string
+    operation: FieldOperationType
+    value: string
+    sourceTimezone?: string
+    accessScope?: ContactAccessScope
+  }) {
+    const { workspaceId } = input
+
+    // Persist inside the transaction, collecting the pending change per contact so
+    // their events can be emitted only after commit. The trigger worker re-reads
+    // the value from the DB, so a mid-transaction emit could observe uncommitted
+    // or rolled-back data.
+    const persistedByContact = await db.transaction((tx) =>
+      this.applyOperationToContactsInTransaction(input, tx),
+    )
+
+    await Promise.all(
+      persistedByContact.map((contact) =>
+        contactCustomFieldService.emitCustomFieldChanges({
+          workspaceId,
+          contactId: contact.contactId,
+          changes: contact.changes,
+        }),
+      ),
+    )
+  }
+
+  /**
+   * Applies a sequence of arithmetic/append operations to one contact's
+   * custom field, in order — the public `PATCH .../custom-fields` handler's
+   * single call site for what would otherwise be a per-op loop in the app
+   * layer.
+   *
+   * All operations run inside one outer transaction: a batch is an
+   * all-or-nothing unit (matching the legacy `setValues`/`setCustomFields`
+   * behavior it replaced), not a sequence of independently-committed writes —
+   * a failure partway (e.g. an unknown `customFieldId`) must roll back every
+   * earlier operation in the same call, not leave them applied. Events are
+   * collected per operation and emitted only after the transaction commits,
+   * for the same uncommitted-read reason `applyOperationToContacts` defers
+   * its own emission.
+   */
+  async applyOperations(input: {
+    workspaceId: string
+    contactId: string
+    operations: Array<{
+      customFieldId: string
+      operation: FieldOperationType
+      value: string
+    }>
+    accessScope?: ContactAccessScope
+  }): Promise<void> {
+    const { workspaceId, contactId, operations, accessScope } = input
+
+    const persistedByContact = await db.transaction(async (tx) => {
+      const allChanges: Array<{
+        contactId: string
+        changes: PendingContactCustomFieldChange[]
+      }> = []
+      for (const op of operations) {
+        const changes = await this.applyOperationToContactsInTransaction(
+          {
+            workspaceId,
+            contactIds: [contactId],
+            customFieldId: op.customFieldId,
+            operation: op.operation,
+            value: op.value,
+            accessScope,
+          },
+          tx,
+        )
+        allChanges.push(...changes)
+      }
+      return allChanges
+    })
+
+    await Promise.all(
+      persistedByContact.map((contact) =>
+        contactCustomFieldService.emitCustomFieldChanges({
+          workspaceId,
+          contactId: contact.contactId,
+          changes: contact.changes,
+        }),
+      ),
+    )
+  }
+
+  async setValueForContact(input: {
+    workspaceId: string
+    contactId: string
+    customFieldId: string
+    value: string
+    accessScope?: ContactAccessScope
+  }) {
+    await contactService.findByIdOrFail({
+      workspaceId: input.workspaceId,
+      id: input.contactId,
+      accessScope: input.accessScope,
+    })
+    const [customField] = await customFieldService.findManyByIds({
+      workspaceId: input.workspaceId,
+      ids: [input.customFieldId],
+    })
+    if (!customField) {
+      throw notFoundException("Custom field not found")
+    }
+    await this.setValues({
+      workspaceId: input.workspaceId,
+      contactId: input.contactId,
+      fields: [{ customFieldId: customField.id, value: input.value }],
+    })
+  }
   async listValues(input: { contactId: string }) {
     return await db.query.contactCustomFieldModel.findMany({
       where: { contactId: input.contactId },
@@ -203,6 +449,21 @@ class ContactCustomFieldService extends BaseService {
       name: row.customField.name,
       value: row.value,
     }))
+  }
+
+  listWithDefinitionByContact(input: {
+    contactId: string
+    workspaceId: string
+  }) {
+    return contactCustomFieldRepository.listWithDefinitionByContact(input)
+  }
+
+  findWithDefinition(input: {
+    contactId: string
+    customFieldId: string
+    workspaceId: string
+  }) {
+    return contactCustomFieldRepository.findWithDefinition(input)
   }
 
   /**

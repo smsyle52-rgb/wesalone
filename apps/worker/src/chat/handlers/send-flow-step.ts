@@ -7,13 +7,14 @@ import {
 import {
   appointmentCalendarService,
   broadcastToGuestParty,
-  broadcastToWorkspaceParty,
   contactInboxService,
   conversationService,
+  publishToWorkspaceParty,
+  resolveMediaUrl,
   resolveTenantSettings,
 } from "@chatbotx.io/business"
+import { wrapOpenLinkUrl } from "@chatbotx.io/business/open-link"
 import { getPublicFileUrl } from "@chatbotx.io/business/utils"
-import { db, eq } from "@chatbotx.io/database/client"
 import {
   channelTypes,
   contentTypes,
@@ -24,25 +25,28 @@ import {
   createMessageRepository,
   type MessageWithAttachments,
 } from "@chatbotx.io/database/repositories"
-import {
-  conversationModel,
-  type messageModel,
-} from "@chatbotx.io/database/schema"
-import type { AttachmentModel, MessageModel } from "@chatbotx.io/database/types"
+import type { messageModel } from "@chatbotx.io/database/schema"
+import type {
+  AttachmentModel,
+  ContactInboxModel,
+  MessageModel,
+} from "@chatbotx.io/database/types"
 import { signAppointmentWebviewToken } from "@chatbotx.io/encryption"
 import { emit } from "@chatbotx.io/event-bus"
 import { uploadFileFromUrl } from "@chatbotx.io/filesystem"
-import type { MetadataPayload } from "@chatbotx.io/flow-config"
+import type { MetadataPayload, StepType } from "@chatbotx.io/flow-config"
 import {
   appendCodeToMagicLink,
   type ButtonStepProps,
   buttonTypes,
   encodeButtonPayload,
   extractMetadata,
+  isBulkOutboundMetadata,
   messageEventTypeSchema,
   type SendCardStepSchema,
   stepTypes,
 } from "@chatbotx.io/flow-config"
+import { logDiagnostic } from "@chatbotx.io/logger"
 import { RealtimeEventType } from "@chatbotx.io/partysocket-config"
 import {
   IntegrationException,
@@ -52,14 +56,21 @@ import {
   type SendFlowStepData,
 } from "@chatbotx.io/sdk"
 import { createId } from "@chatbotx.io/utils"
+import { resolveStackFrames } from "@chatbotx.io/utils/error-log"
 import { resolveContactVariablesDeep } from "@chatbotx.io/variables"
 import type {
   ChatJobSendChatMessage,
   ChatJobSendFlowStep,
 } from "@chatbotx.io/worker-config"
 import { normalizeError } from "universal-error-normalizer"
+import {
+  settleCommentAutomationDelivered,
+  settleCommentAutomationFailure,
+} from "../../lib/comment-automation-anchor"
 import { logger } from "../../lib/logger"
 import {
+  isDeliveredDirectMessage,
+  markConversationReadAfterDelivery,
   recordMessageSendError,
   sendFlowStepToChannel,
   sendMessageToChannel,
@@ -67,6 +78,20 @@ import {
 import { processMessengerTemplate } from "./send-messenger-template"
 import { processWhatsappTemplate } from "./send-whatsapp-template"
 
+/**
+ * Step payloads `sendFlowStep` knows how to hand to a channel. A step outside
+ * this set is dropped with a "Skipping non-deliverable flow step" log and no
+ * error, so an omission here fails silently.
+ *
+ * Related but NOT the same list as `STEP_PRODUCES_MESSAGE`
+ * (`integration/handlers/flow-utils.ts`), which answers "may this step claim
+ * the comment anchor". The two coincide today except for `getUserData`, which
+ * is absent here only because its prompt is synthesized as a `sendText` step
+ * before being enqueued (see `promptStep` in `integration/handlers/
+ * get-user-data.ts`). Keep them in sync by hand: a new step type that sends a
+ * payload of its own needs an entry in both, and neither list is exhaustive
+ * enough for the compiler to catch the omission here.
+ */
 const CHANNEL_DELIVERABLE_STEP_TYPES = new Set<string>([
   stepTypes.enum.sendAudio,
   stepTypes.enum.sendCard,
@@ -80,12 +105,62 @@ const CHANNEL_DELIVERABLE_STEP_TYPES = new Set<string>([
   stepTypes.enum.sendText,
   stepTypes.enum.sendVideo,
   stepTypes.enum.sendWaTemplateMessage,
+  stepTypes.enum.whatsappCallButton,
   stepTypes.enum.whatsappFlow,
   stepTypes.enum.whatsappOptionList,
 ])
 
+type MessageWithResolvedAttachmentUrls = MessageModel & {
+  attachments: (AttachmentModel & { url: string | null })[]
+}
+
+const resolveMessageAttachmentUrls = async (
+  message: MessageModel | MessageWithAttachments,
+  context: { channel: string; storageUrl: string; workspaceId: string },
+): Promise<MessageModel | MessageWithResolvedAttachmentUrls> => {
+  if (!("attachments" in message && Array.isArray(message.attachments))) {
+    return message
+  }
+
+  return {
+    ...message,
+    attachments: await Promise.all(
+      message.attachments.map(async (attachment) => {
+        // Outbound attachments are freshly uploaded/copied storage keys. Proxy
+        // and failed-origin handling remains defensive for legacy row shapes.
+        const url = await resolveMediaUrl(
+          {
+            kind: "attachment",
+            workspaceId: context.workspaceId,
+            attachmentId: attachment.id,
+            originPath: attachment.originPath,
+            channel: context.channel,
+            messageCreatedAt: message.createdAt,
+          },
+          (key) => getPublicFileUrl(key, context.storageUrl),
+        )
+        return { ...attachment, url }
+      }),
+    ),
+  }
+}
+
+/**
+ * Steps whose payload only exists on one channel. On any other channel they
+ * are skipped before a Message row is persisted, so an omnichannel flow never
+ * shows a phantom "sent" message the channel could not deliver.
+ */
+const CHANNEL_EXCLUSIVE_STEP_TYPES: Partial<
+  Record<StepType, ContactInboxModel["channel"]>
+> = {
+  [stepTypes.enum.whatsappCallButton]: channelTypes.enum.whatsapp,
+}
+
 const isBlankTextCarrierStep = (step: SendFlowStepData) => {
-  if (step.stepType === stepTypes.enum.sendText) {
+  if (
+    step.stepType === stepTypes.enum.sendText ||
+    step.stepType === stepTypes.enum.whatsappCallButton
+  ) {
     return !step.text.trim()
   }
 
@@ -109,29 +184,21 @@ const extractBookingPublicLinkSlug = (url: string): string | null => {
 }
 
 const findTargetContactInbox = ({
+  workspaceId,
   contactId,
   contactInboxId,
 }: {
+  workspaceId: string
   contactId: string
   contactInboxId?: string
 }) => {
   if (contactInboxId) {
-    return db.query.contactInboxModel.findFirst({
-      where: {
-        id: contactInboxId,
-        contactId,
-      },
+    return contactInboxService.findByUncached({
+      where: { id: contactInboxId, contactId },
     })
   }
 
-  return db.query.contactInboxModel.findFirst({
-    where: {
-      contactId,
-    },
-    orderBy: {
-      lastMessageAt: "desc",
-    },
-  })
+  return contactInboxService.findRecentByContactId({ workspaceId, contactId })
 }
 
 export const convertButtonsToTemplate = (props: {
@@ -144,6 +211,11 @@ export const convertButtonsToTemplate = (props: {
   const { flowId, flowVersionId, buttons, metadata, contactInboxId } = props
   const broadcastId = extractMetadata("broadcastId", metadata)
   const sequenceStepId = extractMetadata("sequenceStepId", metadata)
+  // Read the same way as the two above, and — critically — the same way each
+  // integration's own encoder reads it. The channel re-encodes the payload the
+  // contact actually taps, so any attribution that lives only here is invisible
+  // to the click. See `send-button.ts` in messenger/instagram{,-facebook}.
+  const commentAutomationId = extractMetadata("commentAutomationId", metadata)
 
   return buttons.map((button) => {
     const buttonPayload = encodeButtonPayload({
@@ -153,6 +225,7 @@ export const convertButtonsToTemplate = (props: {
       broadcastId,
       sequenceStepId,
       contactInboxId,
+      commentAutomationId,
     })
 
     if (button.buttonType === buttonTypes.enum.openWebsite) {
@@ -296,6 +369,90 @@ const signBookingLinksInStep = async (props: {
   return { ...step, cards } as SendFlowStepData
 }
 
+/**
+ * Route an `openWebsite` button's destination through the `/go` interstitial.
+ *
+ * Messenger's `web_url` button always opens Meta's in-app webview, which cannot
+ * follow the custom-scheme handoff a link like `https://zalo.me/g/<id>` relies
+ * on — the contact just gets a blank page. The interstitial carries App Links
+ * meta tags so the button launches the native app instead, and falls back to a
+ * single tappable button when it doesn't. `wrapOpenLinkUrl` decides what is
+ * exempt (our own origin, unresolved variables, an app's own channel).
+ *
+ * Applied at step level, mirroring `signBookingLinksInStep` directly above, and
+ * for the same reason: every channel encoder and `convertButtonsToTemplate`
+ * both read the step this returns, so the wire payload and the persisted
+ * `Message` row cannot drift apart.
+ */
+const wrapOpenLinkButtonIfNeeded = (props: {
+  workspaceId: string
+  appUrl: string
+  channel: string
+  button: ButtonStepProps
+}): ButtonStepProps => {
+  const { button } = props
+  if (button.buttonType !== buttonTypes.enum.openWebsite) {
+    return button
+  }
+
+  const url = wrapOpenLinkUrl({
+    appUrl: props.appUrl,
+    workspaceId: props.workspaceId,
+    url: button.beforeStep.url,
+    channel: props.channel,
+  })
+
+  if (url === button.beforeStep.url) {
+    return button
+  }
+
+  return { ...button, beforeStep: { ...button.beforeStep, url } }
+}
+
+const wrapOpenLinkButtonsIfNeeded = (props: {
+  workspaceId: string
+  appUrl: string
+  channel: string
+  buttons?: ButtonStepProps[]
+}) => {
+  if (!props.buttons?.length) {
+    return props.buttons
+  }
+  return props.buttons.map((button) =>
+    wrapOpenLinkButtonIfNeeded({ ...props, button }),
+  )
+}
+
+const wrapOpenLinksInStep = (props: {
+  workspaceId: string
+  appUrl: string
+  channel: string
+  step: SendFlowStepData
+}): SendFlowStepData => {
+  let step = props.step
+  if ("buttons" in step && step.buttons.length > 0) {
+    const buttons = wrapOpenLinkButtonsIfNeeded({
+      ...props,
+      buttons: step.buttons,
+    })
+    step = { ...step, buttons: buttons ?? [] } as SendFlowStepData
+  }
+  if (!("cards" in step) || step.cards.length === 0) {
+    return step
+  }
+  const cards = step.cards.map((card) => {
+    if (!("buttons" in card) || card.buttons.length === 0) {
+      return card
+    }
+    const buttons = wrapOpenLinkButtonsIfNeeded({
+      ...props,
+      buttons: card.buttons,
+    })
+    return { ...card, buttons: buttons ?? [] } as SendCardStepSchema
+  })
+  return { ...step, cards } as SendFlowStepData
+}
+
 const convertCardsToTemplate = (props: {
   flowId: string
   flowVersionId?: string
@@ -332,27 +489,48 @@ export async function sendFlowStep({
   step,
   trackingContext,
   metadata,
+  isBulkBroadcast,
   richResponse,
   quickReplies,
   sendFrom,
   commentAnchor,
   appointmentId,
 }: ChatJobSendFlowStep["data"]) {
-  const conversation = await db.query.conversationModel.findFirst({
-    where: { id: conversationId },
-    with: { contact: true },
+  const conversation = await conversationService.findByIdWithContactUnscoped({
+    id: conversationId,
   })
   if (!conversation) {
     return
   }
 
   const targetContactInbox = await findTargetContactInbox({
+    workspaceId: conversation.workspaceId,
     contactId: conversation.contactId,
     contactInboxId,
   })
   if (!targetContactInbox) {
     return
   }
+  const isBulkOutbound = isBulkOutboundMetadata(metadata, isBulkBroadcast)
+
+  // What the job actually carried. `metadata` is the carrier the button
+  // encoders read; `commentAnchor` only decides delivery. Note the resolved
+  // inbox may differ from the job's `contactInboxId` (see findTargetContactInbox)
+  // — and it is the RESOLVED one that gets encoded into button payloads.
+  logDiagnostic(
+    logger,
+    () => ({
+      conversationId,
+      jobContactInboxId: contactInboxId ?? null,
+      resolvedContactInboxId: targetContactInbox.id,
+      channel: targetContactInbox.channel,
+      flowId,
+      stepType: step.stepType,
+      metadata: metadata ?? null,
+      commentAnchor: commentAnchor ?? null,
+    }),
+    "sendFlowStep: job received",
+  )
 
   if (step.stepType === stepTypes.enum.sendWaTemplateMessage) {
     if (targetContactInbox.channel !== channelTypes.enum.whatsapp) {
@@ -377,6 +555,7 @@ export async function sendFlowStep({
         step,
         trackingContext,
         metadata,
+        isBulkBroadcast,
       })
     } catch (error) {
       logger.error(
@@ -385,6 +564,20 @@ export async function sendFlowStep({
       )
     }
 
+    return
+  }
+
+  const exclusiveChannel = CHANNEL_EXCLUSIVE_STEP_TYPES[step.stepType]
+  if (exclusiveChannel && targetContactInbox.channel !== exclusiveChannel) {
+    logger.debug(
+      {
+        conversationId,
+        stepId: step.id,
+        stepType: step.stepType,
+        channel: targetContactInbox.channel,
+      },
+      "Skipping channel-exclusive flow step on another channel",
+    )
     return
   }
 
@@ -411,6 +604,7 @@ export async function sendFlowStep({
         step,
         trackingContext,
         metadata,
+        isBulkBroadcast,
       })
     } catch (error) {
       logger.error(
@@ -430,6 +624,7 @@ export async function sendFlowStep({
       channel: targetContactInbox.channel,
       contactInboxId: targetContactInbox.id,
       inboxId: targetContactInbox.inboxId,
+      sourceId: targetContactInbox.sourceId,
     },
     action: {
       flowId,
@@ -454,6 +649,10 @@ export async function sendFlowStep({
     return
   }
 
+  // Spintax is on here because only CHANNEL_DELIVERABLE_STEP_TYPES reach this
+  // point — every string leaf is copy an author wrote for a contact to read.
+  // Code- or data-carrying steps (external request, execute JavaScript) resolve
+  // through their own handlers and deliberately leave it off.
   const resolvedStep = await resolveContactVariablesDeep(
     conversation.contactId,
     step,
@@ -462,6 +661,7 @@ export async function sendFlowStep({
       conversation,
       ...(appointmentId ? { appointmentId } : {}),
     },
+    { spintax: true },
   )
 
   if (isBlankTextCarrierStep(resolvedStep as SendFlowStepData)) {
@@ -479,7 +679,10 @@ export async function sendFlowStep({
   }
 
   const messageText =
-    resolvedStep.stepType === stepTypes.enum.sendText ? resolvedStep.text : null
+    resolvedStep.stepType === stepTypes.enum.sendText ||
+    resolvedStep.stepType === stepTypes.enum.whatsappCallButton
+      ? resolvedStep.text
+      : null
 
   let message: MessageModel | MessageWithAttachments | undefined
 
@@ -517,6 +720,23 @@ export async function sendFlowStep({
       },
     )
 
+    // Runs after the booking signing, not before: the `/booking/picker` URL
+    // that step just minted is same-origin and therefore exempt here, which is
+    // what keeps its Messenger Extensions webview intact.
+    const openLinkProps = {
+      workspaceId: conversation.workspaceId,
+      appUrl,
+      channel: targetContactInbox.channel,
+    }
+    const stepForSend = wrapOpenLinksInStep({
+      ...openLinkProps,
+      step: stepWithSignedBookingLinks,
+    })
+    const quickRepliesForSend = wrapOpenLinkButtonsIfNeeded({
+      ...openLinkProps,
+      buttons: quickRepliesWithSignedBookingLinks,
+    })
+
     let contentAttributes: (typeof messageModel.$inferInsert)["contentAttributes"] =
       {
         metadata,
@@ -528,24 +748,22 @@ export async function sendFlowStep({
       }
 
     const canonicalQuickReplies =
-      quickRepliesWithSignedBookingLinks &&
-      quickRepliesWithSignedBookingLinks.length > 0
+      quickRepliesForSend && quickRepliesForSend.length > 0
         ? convertButtonsToTemplate({
             flowId,
             flowVersionId,
-            buttons: quickRepliesWithSignedBookingLinks,
+            buttons: quickRepliesForSend,
             metadata,
             contactInboxId: targetContactInbox.id,
           })
         : undefined
 
     const canonicalStepButtons =
-      "buttons" in stepWithSignedBookingLinks &&
-      stepWithSignedBookingLinks.buttons.length > 0
+      "buttons" in stepForSend && stepForSend.buttons.length > 0
         ? convertButtonsToTemplate({
             flowId,
             flowVersionId,
-            buttons: stepWithSignedBookingLinks.buttons,
+            buttons: stepForSend.buttons,
             metadata,
             contactInboxId: targetContactInbox.id,
           })
@@ -566,10 +784,7 @@ export async function sendFlowStep({
         ...contentAttributes,
       }
     }
-    if (
-      "cards" in stepWithSignedBookingLinks &&
-      stepWithSignedBookingLinks.cards.length > 0
-    ) {
+    if ("cards" in stepForSend && stepForSend.cards.length > 0) {
       contentAttributes = {
         type: "template",
         payload: {
@@ -577,7 +792,7 @@ export async function sendFlowStep({
           cards: convertCardsToTemplate({
             flowId,
             flowVersionId,
-            cards: stepWithSignedBookingLinks.cards,
+            cards: stepForSend.cards,
             metadata,
             contactInboxId: targetContactInbox.id,
           }),
@@ -601,6 +816,23 @@ export async function sendFlowStep({
       }
     }
 
+    // The comment-automation anchor, stamped in exactly the shape
+    // `readCommentAutomationAnchor` expects (`lib/comment-automation-anchor.ts`)
+    // so a `flow` reply reports delivery and failures through the same path a
+    // `text` reply already does. `replyToCommentId` is part of that shape, so
+    // the private branch has to set it too — the public branch already did,
+    // above, for its own routing reasons.
+    if (commentAnchor?.automationId) {
+      contentAttributes = {
+        ...contentAttributes,
+        replyToCommentId: commentAnchor.commentId,
+        commentAutomation: {
+          automationId: commentAnchor.automationId,
+          replyChannel: commentAnchor.replyChannel,
+        },
+      }
+    }
+
     const messageInput = {
       workspaceId: conversation.workspaceId,
       conversationId: conversation.id,
@@ -619,9 +851,9 @@ export async function sendFlowStep({
     const attachmentInputs: Parameters<
       typeof repository.createWithAttachments
     >[1][0][] = []
-    if ("url" in stepWithSignedBookingLinks) {
+    if ("url" in stepForSend) {
       const uploadedFile = await uploadFileFromUrl(
-        stepWithSignedBookingLinks.url,
+        stepForSend.url,
         `public/space/${conversation.workspaceId}/conversations/${conversation.id}/${createId()}`,
       )
       attachmentInputs.push({
@@ -629,8 +861,8 @@ export async function sendFlowStep({
         workspaceId: conversation.workspaceId,
         conversationId: conversation.id,
       })
-    } else if ("images" in stepWithSignedBookingLinks) {
-      for (const image of stepWithSignedBookingLinks.images) {
+    } else if ("images" in stepForSend) {
+      for (const image of stepForSend.images) {
         const uploadedFile = await uploadFileFromUrl(
           image.url,
           `public/space/${conversation.workspaceId}/conversations/${conversation.id}/${createId()}`,
@@ -647,37 +879,24 @@ export async function sendFlowStep({
       ? await repository.createWithAttachments(messageInput, attachmentInputs)
       : await repository.create(messageInput)
 
-    // Add url to attachments for response
-    if ("attachments" in message && Array.isArray(message.attachments)) {
-      ;(message as { attachments: AttachmentModel[] }).attachments =
-        message.attachments.map((att) => ({
-          ...att,
-          url: getPublicFileUrl(att.originPath, storageUrl),
-        }))
-    }
+    message = await resolveMessageAttachmentUrls(message, {
+      workspaceId: conversation.workspaceId,
+      channel: targetContactInbox.channel,
+      storageUrl,
+    })
 
     const createdMessage = message
-    const trackingInvalidation = await db.transaction(async (tx) => {
-      const invalidation =
-        await contactInboxService.recordOutboundMessageCreated({
-          tx,
-          contactInboxId: targetContactInbox.id,
-          contactId: targetContactInbox.contactId,
-          workspaceId: conversation.workspaceId,
-          at: createdMessage.createdAt,
-        })
-
-      await conversationService.updateFlowStepState({
-        tx,
+    const trackingInvalidation =
+      await conversationService.recordOutboundFlowStep({
         workspaceId: conversation.workspaceId,
         conversationId: conversation.id,
-        lastActivityAt: createdMessage.createdAt,
+        contactInboxId: targetContactInbox.id,
+        contactId: targetContactInbox.contactId,
+        at: createdMessage.createdAt,
+        bumpActivity: !isBulkOutbound,
         lastStep: conversation.currentStep,
         currentStep: resolvedStep.id,
       })
-
-      return invalidation
-    })
     await Promise.all([
       trackingInvalidation
         ? contactInboxService.invalidateTracking(trackingInvalidation)
@@ -696,6 +915,7 @@ export async function sendFlowStep({
             message,
             quickReplies: canonicalQuickReplies,
             metadata,
+            isBulkBroadcast,
             sendFrom,
           },
           0,
@@ -709,7 +929,7 @@ export async function sendFlowStep({
           contactInbox: targetContactInbox,
           flowId,
           flowVersionId,
-          step: stepWithSignedBookingLinks,
+          step: stepForSend,
           metadata,
           richResponse,
           quickReplies: canonicalQuickReplies,
@@ -729,18 +949,24 @@ export async function sendFlowStep({
             commentAnchor?.replyChannel === "private"
               ? commentAnchor
               : undefined,
+          botSentAnalytics: {
+            triggerHandler: "sendFlowStep",
+            triggerType: "message_bot_sent_flow",
+          },
         })
 
-    const promises: Promise<unknown>[] = [
-      broadcastToWorkspaceParty(conversation.workspaceId, {
+    if (!isBulkOutbound) {
+      publishToWorkspaceParty(conversation.workspaceId, {
         eventType: RealtimeEventType.messageCreated,
         data: message,
-      }),
-      channelSend,
-    ]
+      })
+    }
 
+    // The guest webchat widget still needs bulk messages, so this send is
+    // never gated on isBulkOutbound.
+    const broadcasts: Promise<unknown>[] = []
     if (targetContactInbox.channel === channelTypes.enum.webchat) {
-      promises.push(
+      broadcasts.push(
         broadcastToGuestParty(
           {
             workspaceId: conversation.workspaceId,
@@ -754,10 +980,22 @@ export async function sendFlowStep({
       )
     }
 
-    const [, channelResult] = await Promise.all(promises)
-    const providerMessageId = (
-      channelResult as { messageIds?: string[] } | undefined
-    )?.messageIds?.[0]
+    const [channelResult] = await Promise.all([channelSend, ...broadcasts])
+    const providerMessageId = channelResult.messageIds[0]
+
+    if (
+      message &&
+      !isPublicCommentReply &&
+      isDeliveredDirectMessage({ message, result: channelResult })
+    ) {
+      await markConversationReadAfterDelivery({
+        workspaceId: conversation.workspaceId,
+        conversationId: conversation.id,
+        inboxId: targetContactInbox.inboxId,
+        readAt: message.createdAt,
+        silent: isBulkOutbound,
+      })
+    }
 
     await emit(messageEventTypeSchema.enum["message:sent"], {
       ...eventLogData,
@@ -770,24 +1008,14 @@ export async function sendFlowStep({
       occurredAt: new Date(),
     })
 
-    // Send contact tracking event
-    emit("analytics:dashboard", {
-      eventType: "message:bot_sent",
-      workspaceId: conversation.workspaceId,
-      contactId: targetContactInbox.contactId,
-      senderType: "bot",
-      occurredAt: new Date(),
-      source: targetContactInbox.source,
-      sourceId: targetContactInbox.sourceId,
-      channel: targetContactInbox.channel,
-      metadata: {
-        triggerContext: {
-          triggerSource: "worker",
-          triggerHandler: "sendFlowStep",
-          triggerType: "message_bot_sent_flow",
-        },
-      },
+    // A `flow` comment reply reports delivery the same way a `text` one does.
+    // Only the first message of the run can settle it — `markDelivered` is
+    // gated on `deliveredAt IS NULL`, so the rest of the flow's steps are
+    // no-ops rather than inflating the count.
+    await settleCommentAutomationDelivered({
+      contentAttributes: message.contentAttributes,
     })
+
     if (trackingContext) {
       await emit("analytics:dashboard", {
         eventType: "message:bot_received",
@@ -826,6 +1054,9 @@ export async function sendFlowStep({
         flowId,
       },
       errorData: parsedError,
+      // Captured here while the throw is still in hand: `errorData` is a
+      // stackless `ParsedError`, so `ErrorLog.stackTrace` has no other source.
+      errorStack: resolveStackFrames(error),
       occurredAt: new Date(),
       // Always terminal: this catch swallows the error rather than rethrowing,
       // so the step's BullMQ job completes and nothing re-attempts the send.
@@ -838,7 +1069,16 @@ export async function sendFlowStep({
       conversation.workspaceId,
       message?.createdAt,
       parsedError.message,
+      isBulkOutbound,
     )
+
+    // Always terminal here, for the same reason the `message:failed` emit above
+    // says so: this catch swallows the error, so nothing will re-attempt the
+    // send and flipping the automation's event to `failed` cannot be premature.
+    await settleCommentAutomationFailure({
+      contentAttributes: message?.contentAttributes,
+      errorDetail: parsedError.message,
+    })
 
     if (trackingContext) {
       await emit("analytics:dashboard", {
@@ -882,17 +1122,15 @@ export const sendChatMessage = async (
     quickReplies,
     trackingContext,
     metadata,
+    isBulkBroadcast,
   } = props
+  const isBulkOutbound = isBulkOutboundMetadata(metadata, isBulkBroadcast)
 
   const contactInbox =
     targetContactInbox ??
-    (await db.query.contactInboxModel.findFirst({
-      where: {
-        contactId: conversation.contactId,
-      },
-      orderBy: {
-        lastMessageAt: "desc",
-      },
+    (await contactInboxService.findRecentByContactId({
+      workspaceId: conversation.workspaceId,
+      contactId: conversation.contactId,
     }))
   if (!contactInbox) {
     throw new IntegrationException(
@@ -964,45 +1202,30 @@ export const sendChatMessage = async (
       createdAt: new Date(),
     }
 
-    const message = attachmentInput
+    const persistedMessage = attachmentInput
       ? await repository.createWithAttachments(messageInput, [attachmentInput])
       : await repository.create(messageInput)
 
-    // Add url to attachments for response
-    if ("attachments" in message && Array.isArray(message.attachments)) {
-      ;(message as { attachments: AttachmentModel[] }).attachments =
-        message.attachments.map((att) => ({
-          ...att,
-          url: getPublicFileUrl(att.originPath, storageUrl),
-        }))
-    }
-
-    const trackingInvalidation = await db.transaction(async (tx) => {
-      const invalidation =
-        await contactInboxService.recordOutboundMessageCreated({
-          tx,
-          contactInboxId: contactInbox.id,
-          contactId: contactInbox.contactId,
-          workspaceId: conversation.workspaceId,
-          at: message.createdAt,
-        })
-
-      await tx
-        .update(conversationModel)
-        .set({ lastActivityAt: message.createdAt })
-        .where(eq(conversationModel.id, conversation.id))
-
-      return invalidation
+    const message = await resolveMessageAttachmentUrls(persistedMessage, {
+      workspaceId: conversation.workspaceId,
+      channel: contactInbox.channel,
+      storageUrl,
     })
+
+    const trackingInvalidation =
+      await conversationService.recordOutboundMessageActivity({
+        workspaceId: conversation.workspaceId,
+        conversationId: conversation.id,
+        contactInboxId: contactInbox.id,
+        contactId: contactInbox.contactId,
+        at: message.createdAt,
+        bumpActivity: !isBulkOutbound,
+      })
     if (trackingInvalidation) {
       await contactInboxService.invalidateTracking(trackingInvalidation)
     }
 
     const promises: Promise<unknown>[] = [
-      broadcastToWorkspaceParty(conversation.workspaceId, {
-        eventType: RealtimeEventType.messageCreated,
-        data: message,
-      }),
       sendMessageToChannel(
         {
           conversation,
@@ -1015,26 +1238,14 @@ export const sendChatMessage = async (
         willRetryOnThrow,
       ),
     ]
+    if (!isBulkOutbound) {
+      publishToWorkspaceParty(conversation.workspaceId, {
+        eventType: RealtimeEventType.messageCreated,
+        data: message,
+      })
+    }
 
     await Promise.all(promises)
-
-    emit("analytics:dashboard", {
-      eventType: "message:bot_sent",
-      workspaceId: conversation.workspaceId,
-      contactId: contactInbox.contactId,
-      senderType: "bot",
-      occurredAt: new Date(),
-      source: contactInbox.source,
-      sourceId: contactInbox.sourceId,
-      channel: contactInbox.channel,
-      metadata: {
-        triggerContext: {
-          triggerSource: "worker",
-          triggerHandler: "sendChatMessage",
-          triggerType: "message_bot_sent_chat",
-        },
-      },
-    })
 
     if (trackingContext) {
       await emit("analytics:dashboard", {

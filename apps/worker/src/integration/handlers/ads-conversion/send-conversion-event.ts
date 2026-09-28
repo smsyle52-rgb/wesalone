@@ -1,20 +1,23 @@
 import {
   ADS_INTEGRATION_FK_BY_CHANNEL,
   type AdReferralChannel,
+  adsConversionService,
+  capiDatasetResourceType,
   contactInboxService,
   contactService,
   hashContactUserData,
   integrationWhatsappService,
   isAdReferralChannel,
+  isCapiDisconnected,
   type MetaConversionsIntegrationByChannel,
   metaConversionsService,
-  resolveCapiAccessToken,
+  resolveCapiAccessTokenForChannel,
+  resolveCapiScopeStateForChannel,
   whatsappAuthForCapiScopeSchema,
   withBlockedOwnerGuard,
   workspaceService,
 } from "@chatbotx.io/business"
 import { logProviderError } from "@chatbotx.io/business/error-log"
-import { adsConversionEventRepository } from "@chatbotx.io/database/repositories"
 import type { AdsConversionEventModel } from "@chatbotx.io/database/types"
 import {
   buildDatasetName,
@@ -35,7 +38,6 @@ import type {
 import type { AdsConversionJobSendConversionEvent } from "@chatbotx.io/worker-config"
 import { logger } from "../../../lib/logger"
 import {
-  datasetResourceType,
   findEventIntegration,
   refreshScopeCache,
 } from "../meta-conversions/capi-scope-checkers"
@@ -80,7 +82,7 @@ const capiEventNameByEventType = {
 async function markEventFailed(
   event: Pick<AdsConversionEventModel, "id" | "workspaceId">,
 ): Promise<void> {
-  await adsConversionEventRepository.updateCapiStatus({
+  await adsConversionService.updateCapiStatus({
     id: event.id,
     workspaceId: event.workspaceId,
     ...failedStatus,
@@ -166,10 +168,29 @@ async function reportTerminalCapiFailure(input: {
    * destinations.
    */
   provider: ErrorLogProvider
+  /**
+   * The contact's channel-side id (`ContactInbox.sourceId`).
+   *
+   * Set on the messenger/instagram branch, which resolves and validates a
+   * contact inbox before sending. Deliberately unset on the WhatsApp branch:
+   * its only contact-inbox resolution happens inside `resolveWhatsappUserData`
+   * for best-effort enrichment and is never returned, and `event.contactInboxId`
+   * is nullable there anyway (an automatic event ingested without attribution).
+   * The identity that failed on that branch is the `ctwaClid`/WABA, not a person.
+   */
+  sourceId?: string | null
+  /**
+   * The contact this failure concerned. Set alongside `sourceId` on the
+   * messenger/instagram branch — that branch validates the contact inbox
+   * workspace-scoped before sending, so the id is safe to persist — and unset
+   * on the WhatsApp branch for the same reason `sourceId` is. This is the field
+   * the builder's Error Log table renders; `sourceId` is not shown anywhere.
+   */
+  contactId?: string | null
 }): Promise<void> {
-  const { event, error, provider } = input
+  const { contactId, event, error, provider, sourceId } = input
 
-  await adsConversionEventRepository.updateCapiStatus({
+  await adsConversionService.updateCapiStatus({
     id: event.id,
     workspaceId: event.workspaceId,
     ...failedStatus,
@@ -177,6 +198,8 @@ async function reportTerminalCapiFailure(input: {
   await logProviderError({
     provider,
     workspaceId: event.workspaceId,
+    contactId,
+    sourceId,
     error,
     httpCode: "400",
   })
@@ -247,7 +270,7 @@ async function handleSendWhatsappConversionEvent(
       },
       "AdsConversionEvent missing WhatsApp attribution fields; marking failed",
     )
-    await adsConversionEventRepository.updateCapiStatus({
+    await adsConversionService.updateCapiStatus({
       id: event.id,
       workspaceId: event.workspaceId,
       ...failedStatus,
@@ -265,9 +288,14 @@ async function handleSendWhatsappConversionEvent(
     return
   }
 
-  const auth = whatsappAuthForCapiScopeSchema.parse(integration.auth)
-  if (!integration.hasCapiScope) {
-    await adsConversionEventRepository.updateCapiStatus({
+  const oauth = whatsappAuthForCapiScopeSchema.parse(integration.auth)
+  const auth = await resolveCapiAccessTokenForChannel("whatsapp", integration)
+  const scopeState = await resolveCapiScopeStateForChannel(
+    "whatsapp",
+    integration,
+  )
+  if (auth.source !== "manual" && !scopeState.hasCapiScope) {
+    await adsConversionService.updateCapiStatus({
       id: event.id,
       workspaceId: event.workspaceId,
       ...skippedNoScopeStatus,
@@ -299,7 +327,7 @@ async function handleSendWhatsappConversionEvent(
           wabaId,
           accessToken,
           datasetName: buildDatasetName(wabaName),
-          version: auth.version,
+          version: oauth.version,
         }),
     })
 
@@ -307,8 +335,8 @@ async function handleSendWhatsappConversionEvent(
 
     await sendWhatsappConversionEvent({
       datasetId,
-      accessToken: auth.tokens.accessToken,
-      version: auth.version,
+      accessToken: auth.accessToken,
+      version: oauth.version,
       event: {
         eventType: event.eventType,
         occurredAt: event.occurredAt,
@@ -334,7 +362,7 @@ async function handleSendWhatsappConversionEvent(
     return
   }
 
-  await adsConversionEventRepository.updateCapiStatus({
+  await adsConversionService.updateCapiStatus({
     id: event.id,
     workspaceId: event.workspaceId,
     ...sentStatus,
@@ -387,9 +415,9 @@ async function handleSendMetaChannelConversionEvent(
     return
   }
 
-  // A user-intent CAPI disconnect blocks the send, mirroring
-  // `send-meta-capi-event.ts`'s `capiDisconnectedAt` guard.
-  if ("capiDisconnectedAt" in integration && integration.capiDisconnectedAt) {
+  // A user-intent CAPI disconnect blocks the send, same gate as
+  // `send-meta-capi-event.ts`.
+  if (isCapiDisconnected(integration)) {
     await markEventFailed(event)
     return
   }
@@ -460,14 +488,14 @@ async function handleSendMetaChannelConversionEvent(
   })
 
   try {
-    const auth = await resolveCapiAccessToken(integration)
+    const auth = await resolveCapiAccessTokenForChannel(channel, integration)
     const integrationForSend =
       auth.source === "manual"
         ? integration
         : await refreshScopeCache(channel, integration)
 
     if (auth.source === "manual" && !integrationForSend.datasetId) {
-      await adsConversionEventRepository.updateCapiStatus({
+      await adsConversionService.updateCapiStatus({
         id: event.id,
         workspaceId: event.workspaceId,
         ...skippedNoScopeStatus,
@@ -475,8 +503,8 @@ async function handleSendMetaChannelConversionEvent(
       return
     }
 
-    if (auth.source === "oauth" && !integrationForSend.hasCapiScope) {
-      await adsConversionEventRepository.updateCapiStatus({
+    if (auth.source !== "manual" && !integrationForSend.hasCapiScope) {
+      await adsConversionService.updateCapiStatus({
         id: event.id,
         workspaceId: event.workspaceId,
         ...skippedNoScopeStatus,
@@ -492,7 +520,7 @@ async function handleSendMetaChannelConversionEvent(
             integration: integrationForSend,
             provisionDataset: ({ accessToken, resourceId, resourceName }) =>
               ensureMetaConversionsDataset({
-                resourceType: datasetResourceType(channel),
+                resourceType: capiDatasetResourceType(channel),
                 resourceId,
                 accessToken,
                 datasetName: buildDatasetName(resourceName),
@@ -535,11 +563,14 @@ async function handleSendMetaChannelConversionEvent(
       event,
       error,
       provider: "meta-conversions",
+      // Both already validated by the workspace/inbox guard above.
+      contactId: contactInbox.contactId,
+      sourceId: contactInbox.sourceId,
     })
     return
   }
 
-  await adsConversionEventRepository.updateCapiStatus({
+  await adsConversionService.updateCapiStatus({
     id: event.id,
     workspaceId: event.workspaceId,
     ...sentStatus,
@@ -551,7 +582,7 @@ export async function handleSendConversionEvent(
   data: SendConversionEventData,
 ): Promise<void> {
   await withBlockedOwnerGuard(data.workspaceId, async () => {
-    const event = await adsConversionEventRepository.findWorkspaceEvent({
+    const event = await adsConversionService.findWorkspaceEvent({
       id: data.adsConversionEventId,
       workspaceId: data.workspaceId,
     })

@@ -30,6 +30,15 @@ vi.mock("@/lib/auth/utils", () => ({
   getCurrentUserId: vi.fn(async () => "user-1"),
 }))
 
+// The pending-approval channel allowlist (Threads) reads the session. These
+// suites cover tenant channel policy, not that gate, so it is stubbed as
+// "previewer" and passes every channel through untouched.
+vi.mock("@/lib/workspace/preview-channels", () => ({
+  PREVIEW_CHANNELS: ["threads"],
+  canSeePreviewChannels: vi.fn(async () => true),
+  filterPreviewChannels: vi.fn(async (channels: string[]) => [...channels]),
+}))
+
 vi.mock("@/lib/platform-credential-owner", () => ({
   resolvePlatformOwnerId: mockResolvePlatformOwnerId,
 }))
@@ -148,6 +157,7 @@ describe("channels/create — platform owner fan-out", () => {
         "instagram",
         "instagramFacebook",
         "messenger",
+        "threads",
         "tiktok",
         "whatsapp",
         "zalo",

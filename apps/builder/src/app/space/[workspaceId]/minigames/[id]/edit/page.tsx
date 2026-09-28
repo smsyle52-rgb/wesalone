@@ -1,10 +1,8 @@
 import { getIdFromParams } from "@chatbotx.io/utils"
 import { notFound } from "next/navigation"
-import { CustomFieldStoreProvider } from "@/features/custom-fields/provider/custom-field-store-context"
-import { FlowStoreProvider } from "@/features/flows/provider/flow-store-context"
+
 import { MinigameForm } from "@/features/minigames/minigame-form"
 import { findMinigame } from "@/features/minigames/queries"
-import { TagStoreProvider } from "@/features/tags/provider/tag-store-context"
 import { getBrokerOrigin } from "@/lib/oauth-broker"
 
 export default async function EditMinigamePage({
@@ -28,17 +26,11 @@ export default async function EditMinigamePage({
   const publicUrl = `${getBrokerOrigin()}/minigames?minigameId=${minigame.id}&token={{minigame_play_token}}`
 
   return (
-    <FlowStoreProvider workspaceId={workspaceId}>
-      <TagStoreProvider workspaceId={workspaceId}>
-        <CustomFieldStoreProvider workspaceId={workspaceId}>
-          <MinigameForm
-            minigame={minigame}
-            mode="edit"
-            publicUrl={publicUrl}
-            workspaceId={workspaceId}
-          />
-        </CustomFieldStoreProvider>
-      </TagStoreProvider>
-    </FlowStoreProvider>
+    <MinigameForm
+      minigame={minigame}
+      mode="edit"
+      publicUrl={publicUrl}
+      workspaceId={workspaceId}
+    />
   )
 }

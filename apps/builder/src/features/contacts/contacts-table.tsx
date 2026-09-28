@@ -3,7 +3,9 @@
 import type { ChannelType } from "@chatbotx.io/database/partials"
 import { DataTable } from "@chatbotx.io/ui/components/data-table/data-table"
 import { DataTableColumnHeader } from "@chatbotx.io/ui/components/data-table/data-table-column-header"
+import { DataTableSkeleton } from "@chatbotx.io/ui/components/data-table/data-table-skeleton"
 import { DataTableToolbar } from "@chatbotx.io/ui/components/data-table/data-table-toolbar"
+import { Button } from "@chatbotx.io/ui/components/ui/button"
 import { Checkbox } from "@chatbotx.io/ui/components/ui/checkbox"
 import {
   Tooltip,
@@ -11,28 +13,26 @@ import {
   TooltipTrigger,
 } from "@chatbotx.io/ui/components/ui/tooltip"
 import { useDataTable } from "@chatbotx.io/ui/hooks/use-data-table"
-import type { Column, ColumnDef, Row } from "@tanstack/react-table"
+import type { ColumnDef, Row } from "@tanstack/react-table"
 import { format, formatDistanceToNow } from "date-fns"
 import { useSearchParams } from "next/navigation"
 import { useFormatter, useTranslations } from "next-intl"
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   type ContactFilterCriteria,
   ContactListFilterButton,
   ContactListFilterPanel,
-  EMPTY_CONTACT_FILTER,
   useContactFilterQueryState,
 } from "@/features/contact-filter"
 import { EMAIL_PHONE_RESTRICTED_FILTER_FIELDS } from "@/features/contact-filter/lib/restricted-fields"
-import { client } from "@/lib/orpc/orpc"
 import { getUserName } from "../users/schema/resource"
 import { ContactNameCell } from "./components/contact-name-cell"
 import { CONTACTS_DEFAULT_PER_PAGE } from "./constants"
 import { ContactListAction } from "./contacts-list-action"
-import type { listContacts } from "./queries/list-contacts.queries"
+import { useContacts } from "./hooks/use-contacts"
+import { getContactsListInput } from "./lib/contact-list-input"
 import type { ExportContactsFilter } from "./schema/action"
-import type { ListContactsResponse } from "./schema/query"
-import type { ContactResource } from "./schema/resource"
+import type { ContactTableRow } from "./schema/query"
 import { getLatestContactLastReadAt } from "./utils"
 import { useDateFnsLocale } from "@/hooks/use-date-fns-locale"
 
@@ -48,7 +48,7 @@ function ContactCard({
   row,
   workspaceId,
 }: {
-  row: Row<ListContactsResponse["data"][number]>
+  row: Row<ContactTableRow>
   workspaceId: string
 }) {
   const t = useTranslations()
@@ -86,137 +86,65 @@ function ContactCard({
   )
 }
 
-const parseSortParam = (value: string | null) => {
-  if (!value) {
-    return []
-  }
-
-  try {
-    const parsed = JSON.parse(value)
-    if (!Array.isArray(parsed)) {
-      return []
-    }
-
-    return parsed.filter(
-      (sort): sort is { id: string; desc: boolean } =>
-        typeof sort?.id === "string" && typeof sort?.desc === "boolean",
-    )
-  } catch {
-    return []
-  }
-}
-
 type ContactsTableProps = {
   canViewEmailAndPhone?: boolean
-  initialContactFilter?: ContactFilterCriteria
   workspaceId: string
-  promises: Promise<[Awaited<ReturnType<typeof listContacts>>]>
 }
 
 export function ContactsTable({
   canViewEmailAndPhone = true,
-  initialContactFilter = EMPTY_CONTACT_FILTER,
   workspaceId,
-  promises,
 }: ContactsTableProps) {
   const dateLocale = useDateFnsLocale()
   const t = useTranslations()
   const formatter = useFormatter()
   const searchParams = useSearchParams()
   const searchParamsKey = searchParams.toString()
-  const [
-    {
-      data: initialData,
-      pageCount: initialPageCount,
-      totalCount: initialTotalCount,
-      totalCountCapped: initialTotalCountCapped,
-    },
-  ] = use(promises)
-  const [tableData, setTableData] =
-    useState<ListContactsResponse["data"]>(initialData)
-  const [tablePageCount, setTablePageCount] = useState(initialPageCount)
-  const [tableTotalCount, setTableTotalCount] = useState(initialTotalCount)
-  const [tableTotalCountCapped, setTableTotalCountCapped] = useState(
-    initialTotalCountCapped,
-  )
-  const didHydrateInitialDataRef = useRef(false)
   const {
     filter: contactFilter,
     setFilter: setContactFilter,
     isActive: isContactFilterActive,
-  } = useContactFilterQueryState({ initialFilter: initialContactFilter })
-  const [optimisticContactFilter, setOptimisticContactFilter] =
-    useState<ContactFilterCriteria>(contactFilter)
+  } = useContactFilterQueryState()
+  // The URL page the user was on when the filter last changed. Until the
+  // throttled `?page=` reset lands, that stale page is forced to 1 so the new
+  // filter never fetches (or renders) an out-of-range page.
+  const [filterChangedOnPage, setFilterChangedOnPage] = useState<number | null>(
+    null,
+  )
   const [showContactFilterPanel, setShowContactFilterPanel] = useState(
     isContactFilterActive,
   )
-  const isOptimisticContactFilterActive =
-    optimisticContactFilter.conditions.length > 0
   const excludedFilterFields = useMemo(
     () =>
       canViewEmailAndPhone ? [] : [...EMAIL_PHONE_RESTRICTED_FILTER_FIELDS],
     [canViewEmailAndPhone],
   )
 
-  const keyword = useMemo(() => {
-    const params = new URLSearchParams(searchParamsKey)
-    return params.get("keyword") ?? undefined
-  }, [searchParamsKey])
-
-  useEffect(() => {
-    if (!didHydrateInitialDataRef.current) {
-      didHydrateInitialDataRef.current = true
-      return
-    }
-
-    let ignore = false
-    const params = new URLSearchParams(searchParamsKey)
-
-    client.contactsAPIs
-      .listContactsByPOSTAuthenticatedAPI({
-        workspaceId,
-        page: Number(params.get("page") ?? "1"),
-        perPage: Number(
-          params.get("perPage") ?? String(CONTACTS_DEFAULT_PER_PAGE),
-        ),
-        sort: parseSortParam(params.get("sort")),
-        keyword: params.get("keyword") ?? undefined,
-        contactFilter: isContactFilterActive ? contactFilter : undefined,
-      })
-      .then((response) => {
-        if (ignore) {
-          return
-        }
-
-        setTableData(response.data)
-        setTablePageCount(response.pageCount)
-        setTableTotalCount(response.totalCount)
-        setTableTotalCountCapped(response.totalCountCapped)
-      })
-      .catch(() => {
-        if (ignore) {
-          return
-        }
-
-        setTableData(initialData)
-        setTablePageCount(initialPageCount)
-        setTableTotalCount(initialTotalCount)
-        setTableTotalCountCapped(initialTotalCountCapped)
-      })
-
-    return () => {
-      ignore = true
-    }
-  }, [
-    contactFilter,
-    initialData,
-    initialPageCount,
-    initialTotalCount,
-    initialTotalCountCapped,
-    isContactFilterActive,
-    searchParamsKey,
-    workspaceId,
-  ])
+  const searchParamsRecord = useMemo(
+    () => Object.fromEntries(new URLSearchParams(searchParamsKey).entries()),
+    [searchParamsKey],
+  )
+  const urlListInput = useMemo(
+    () => getContactsListInput(workspaceId, searchParamsRecord, contactFilter),
+    [contactFilter, searchParamsRecord, workspaceId],
+  )
+  if (
+    filterChangedOnPage !== null &&
+    urlListInput.page !== filterChangedOnPage
+  ) {
+    setFilterChangedOnPage(null)
+  }
+  const listContactsInput =
+    urlListInput.page === filterChangedOnPage
+      ? { ...urlListInput, page: 1 }
+      : urlListInput
+  const keyword = listContactsInput.keyword
+  const contactsQuery = useContacts(listContactsInput)
+  const contactsResponse = contactsQuery.data
+  const tableData = contactsResponse?.data ?? []
+  const tablePageCount = contactsResponse?.pageCount ?? 0
+  const tableTotalCount = contactsResponse?.totalCount ?? 0
+  const tableTotalCountCapped = contactsResponse?.totalCountCapped ?? false
 
   useEffect(() => {
     if (isContactFilterActive) {
@@ -224,25 +152,16 @@ export function ContactsTable({
     }
   }, [isContactFilterActive])
 
-  useEffect(() => {
-    setOptimisticContactFilter(contactFilter)
-  }, [contactFilter])
-
   const exportFilter = useMemo<ExportContactsFilter>(
-    () => ({
-      keyword,
-      contactFilter: isOptimisticContactFilterActive
-        ? optimisticContactFilter
-        : undefined,
-    }),
-    [keyword, isOptimisticContactFilterActive, optimisticContactFilter],
+    () => ({ keyword, contactFilter: listContactsInput.contactFilter }),
+    [keyword, listContactsInput.contactFilter],
   )
   const totalCountDisplay = formatter.number(tableTotalCount)
   const totalCountLabel = tableTotalCountCapped
     ? t("contacts.countCapped", { count: totalCountDisplay })
     : t("contacts.countExact", { count: totalCountDisplay })
 
-  const columns = useMemo<ColumnDef<ListContactsResponse["data"][number]>[]>(
+  const columns = useMemo<ColumnDef<ContactTableRow>[]>(
     () => [
       {
         id: "select",
@@ -304,7 +223,7 @@ export function ContactsTable({
       },
       {
         accessorKey: "source",
-        header: ({ column }: { column: Column<ContactResource, unknown> }) => (
+        header: ({ column }) => (
           <DataTableColumnHeader
             column={column}
             title={t("fields.source.label")}
@@ -430,23 +349,39 @@ export function ContactsTable({
       columnPinning: { right: ["actions"] },
     },
     getRowId: (originalRow) => originalRow.id,
-    shallow: false,
+    shallow: true,
     clearOnDefault: true,
   })
 
   const handleContactFilterChange = useCallback(
     (next: ContactFilterCriteria) => {
-      table.setPageIndex(0)
-      setOptimisticContactFilter(next)
-      setContactFilter(next).catch(() => {
-        setOptimisticContactFilter(contactFilter)
-      })
+      if (urlListInput.page !== 1) {
+        setFilterChangedOnPage(urlListInput.page)
+        table.setPageIndex(0)
+      }
+      setContactFilter(next)
     },
-    [contactFilter, setContactFilter, table],
+    [setContactFilter, table, urlListInput.page],
   )
+
+  if (!contactsResponse && contactsQuery.isPending) {
+    return <DataTableSkeleton columnCount={6} filterCount={1} rowCount={10} />
+  }
+
+  if (!contactsResponse && contactsQuery.isError) {
+    return (
+      <div className="flex flex-col items-start gap-3" role="alert">
+        <p>{t("messages.unknownError")}</p>
+        <Button onClick={() => contactsQuery.refetch()} type="button">
+          {t("actions.retry")}
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <DataTable
+      aria-busy={contactsQuery.isFetching}
       className="[&_tbody_td]:py-3 [&_tbody_td]:text-[15px] [&_tbody_tr]:h-16"
       mobileCard={(row) => <ContactCard row={row} workspaceId={workspaceId} />}
       table={table}
@@ -454,21 +389,27 @@ export function ContactsTable({
       {showContactFilterPanel && (
         <ContactListFilterPanel
           excludeFields={excludedFilterFields}
-          filter={optimisticContactFilter}
+          filter={contactFilter}
           onFilterChange={handleContactFilterChange}
         />
       )}
+      {contactsQuery.isFetching ? (
+        <span aria-live="polite" className="sr-only" role="status">
+          {t("actions.loading")}
+        </span>
+      ) : null}
       <DataTableToolbar table={table}>
         <span className="whitespace-nowrap text-muted-foreground text-sm">
           {totalCountLabel}
         </span>
         <ContactListFilterButton
-          active={isOptimisticContactFilterActive}
-          filter={optimisticContactFilter}
+          active={isContactFilterActive}
+          filter={contactFilter}
           onToggle={() => setShowContactFilterPanel((current) => !current)}
           open={showContactFilterPanel}
         />
         <ContactListAction
+          disabled={contactsQuery.isPlaceholderData}
           filter={exportFilter}
           table={table}
           workspaceId={workspaceId}

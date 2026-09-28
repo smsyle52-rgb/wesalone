@@ -1,5 +1,17 @@
-import { index, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core"
-import { bigintAsString, sharedColumns } from "../partials/shared"
+import {
+  boolean,
+  index,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core"
+import type { InboxDisconnectReason } from "../partials/conversation"
+import {
+  bigintAsString,
+  sharedColumns,
+  timestampConfig,
+} from "../partials/shared"
 import { workspaceModel } from "./workspace"
 
 export const inboxModel = pgTable(
@@ -16,6 +28,9 @@ export const inboxModel = pgTable(
         onUpdate: "cascade",
       }),
     status: text().notNull().default("connected"),
+    markReadOnOutbound: boolean().notNull().default(false),
+    disconnectedAt: timestamp(timestampConfig),
+    disconnectReason: text().$type<InboxDisconnectReason>(),
   },
   (table) => [
     index("Inbox_workspaceId_idx").using(

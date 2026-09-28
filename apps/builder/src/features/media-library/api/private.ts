@@ -1,14 +1,9 @@
+import {
+  mediaLibraryFileService,
+  mediaLibraryService,
+} from "@chatbotx.io/business"
 import { workspaceAuthorizedMidddleware } from "@/middlewares/auth"
 import { authorizedAPI } from "@/orpc"
-import { listMediaLibraryFiles, listMediaLibraryFolders } from "../queries"
-import {
-  createMediaLibraryFile,
-  createMediaLibraryFolder,
-  deleteMediaLibraryFile,
-  deleteMediaLibraryFolder,
-  renameMediaLibraryFolder,
-  toggleMediaLibraryFavourite,
-} from "../queries/mutations"
 import {
   createFileRequest,
   createFolderRequest,
@@ -35,7 +30,11 @@ export const mediaLibraryAuthenticatedAPI = {
     .input(listFoldersRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .output(listFoldersResponse)
-    .handler(async ({ input }) => listMediaLibraryFolders(input)),
+    .handler(async ({ input }) => ({
+      data: await mediaLibraryService.listFolders({
+        workspaceId: input.workspaceId,
+      }),
+    })),
 
   createMediaLibraryFolder: authorizedAPI
     .route({
@@ -47,7 +46,7 @@ export const mediaLibraryAuthenticatedAPI = {
     .input(createFolderRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .output(createFolderResponse)
-    .handler(async ({ input }) => createMediaLibraryFolder(input)),
+    .handler(async ({ input }) => mediaLibraryService.createFolder(input)),
 
   renameMediaLibraryFolder: authorizedAPI
     .route({
@@ -58,7 +57,7 @@ export const mediaLibraryAuthenticatedAPI = {
     })
     .input(renameFolderRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
-    .handler(async ({ input }) => renameMediaLibraryFolder(input)),
+    .handler(async ({ input }) => mediaLibraryService.renameFolder(input)),
 
   deleteMediaLibraryFolder: authorizedAPI
     .route({
@@ -69,7 +68,7 @@ export const mediaLibraryAuthenticatedAPI = {
     })
     .input(deleteFolderRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
-    .handler(async ({ input }) => deleteMediaLibraryFolder(input)),
+    .handler(async ({ input }) => mediaLibraryService.deleteFolder(input)),
 
   listMediaLibraryFiles: authorizedAPI
     .route({
@@ -81,7 +80,7 @@ export const mediaLibraryAuthenticatedAPI = {
     .input(listFilesRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .output(listFilesResponse)
-    .handler(async ({ input }) => listMediaLibraryFiles(input)),
+    .handler(async ({ input }) => mediaLibraryFileService.list(input)),
 
   createMediaLibraryFile: authorizedAPI
     .route({
@@ -93,7 +92,7 @@ export const mediaLibraryAuthenticatedAPI = {
     .input(createFileRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .output(mediaLibraryFileResource)
-    .handler(async ({ input }) => createMediaLibraryFile(input)),
+    .handler(async ({ input }) => mediaLibraryService.createFile(input)),
 
   deleteMediaLibraryFile: authorizedAPI
     .route({
@@ -104,7 +103,7 @@ export const mediaLibraryAuthenticatedAPI = {
     })
     .input(deleteFileRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
-    .handler(async ({ input }) => deleteMediaLibraryFile(input)),
+    .handler(async ({ input }) => mediaLibraryService.deleteFile(input)),
 
   toggleMediaLibraryFavourite: authorizedAPI
     .route({
@@ -115,5 +114,5 @@ export const mediaLibraryAuthenticatedAPI = {
     })
     .input(toggleFavouriteRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
-    .handler(async ({ input }) => toggleMediaLibraryFavourite(input)),
+    .handler(async ({ input }) => mediaLibraryService.toggleFavourite(input)),
 }

@@ -1,5 +1,6 @@
 import type {
   BroadcastEventType,
+  CommentAutomationEventType,
   SequenceStepEventType,
 } from "@chatbotx.io/analytics/schemas"
 import type {
@@ -60,7 +61,11 @@ export type ExportContactsFilter = {
 export type JobExportContacts = {
   type: typeof DefaultJobAction.exportContacts
   data: {
-    requestedUserId: string
+    // Optional: a workspace-token (public API) export has no session user.
+    // `runJobWithAuditContext` falls back to `SYSTEM_ACTOR` and
+    // `auditService.record`'s `userId` is itself optional, so every consumer
+    // already tolerates this — `fileModel.userId` is nullable too.
+    requestedUserId?: string
     workspaceId: string
     fileId: string
     fields: string[]
@@ -116,6 +121,11 @@ export type JobBulkTagContacts = {
         sequenceId: string
         stepId: string
         eventType: SequenceStepEventType
+      }
+    | {
+        source: "commentAutomation"
+        automationId: string
+        eventType: CommentAutomationEventType
       }
   )
 }

@@ -2,6 +2,7 @@ import {
   isWorkspaceScheduledForDeletion,
   workspaceApiTokenService,
 } from "@chatbotx.io/business"
+import { withAuditContext } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { hashToken } from "@chatbotx.io/business/workspace-api-token/credentials"
 import { ORPCError } from "@orpc/server"
@@ -14,10 +15,14 @@ import {
 } from "@/lib/workspace/authorize-workspace-access"
 import { base, type RequestApiToken } from "./context"
 
-const assertNotRateLimited = (workspaceId: string): Promise<void> =>
+const assertNotRateLimited = (
+  workspaceId: string,
+  resHeaders?: Headers,
+): Promise<void> =>
   assertApiNotRateLimited({
     scope: "workspace-token-rate-limit",
     key: workspaceId,
+    resHeaders,
   })
 
 // Generous ceiling: this bucket aggregates every workspace behind one egress
@@ -26,11 +31,21 @@ const assertNotRateLimited = (workspaceId: string): Promise<void> =>
 // limiter below can never see (an invalid token resolves to no workspace).
 const PREAUTH_REQUEST_LIMIT = 600
 
-const assertPreAuthNotRateLimited = (headers: Headers): Promise<void> =>
+const assertPreAuthNotRateLimited = (
+  headers: Headers,
+  resHeaders?: Headers,
+): Promise<void> =>
   assertApiNotRateLimited({
     scope: "workspace-token-preauth-rate-limit",
     key: getGuestClientIp(headers),
     limit: PREAUTH_REQUEST_LIMIT,
+    resHeaders,
+  })
+
+const invalidTokenError = () =>
+  new ORPCError("INVALID_CHATBOT_TOKEN", {
+    status: 401,
+    message: "Invalid or missing workspace API token",
   })
 
 export const workspaceTokenAuthMidddleware = base.middleware(
@@ -51,7 +66,7 @@ export const workspaceTokenAuthMidddleware = base.middleware(
     // retries, so a developer's own bad token looked like a platform outage —
     // measured against the live API on 8 Sep 2026, before this line.
     if (!token) {
-      throw new ORPCError("INVALID_CHATBOT_TOKEN", { status: 401 })
+      throw invalidTokenError()
     }
     if (!bearerToken && apiKeyToken) {
       logger.warn(
@@ -60,14 +75,11 @@ export const workspaceTokenAuthMidddleware = base.middleware(
       )
     }
 
-    // Best-effort IP-keyed gate BEFORE the lookup: requests with invalid
-    // tokens never reach the per-workspace limiter below, so without this a
-    // token-guessing flood gets unthrottled hash + DB lookups.
-    await assertPreAuthNotRateLimited(context.headers)
+    // The IP-keyed gate must run BEFORE hashing/looking up the token: it
+    // exists to stop unauthenticated token-guessing floods, and a request
+    // already over the ceiling must not pay for a hash + DB/Redis lookup.
+    await assertPreAuthNotRateLimited(context.headers, context.resHeaders)
 
-    // Hash-only lookup: WorkspaceApiToken.tokenHash is authoritative for
-    // auth. The deprecated Workspace.token column (kept read-only for
-    // {{api_key}}) is never consulted here.
     const tokenHash = await hashToken(token)
     let auth: Awaited<
       ReturnType<typeof workspaceApiTokenService.findWorkspaceByTokenHash>
@@ -86,16 +98,16 @@ export const workspaceTokenAuthMidddleware = base.middleware(
           { err: error, tokenHash },
           "Workspace token cache pointed at a purged workspace",
         )
-        throw new ORPCError("INVALID_CHATBOT_TOKEN", { status: 401 })
+        throw invalidTokenError()
       }
       throw error
     }
     if (!auth) {
-      throw new ORPCError("INVALID_CHATBOT_TOKEN", { status: 401 })
+      throw invalidTokenError()
     }
     const { workspace, apiToken } = auth
 
-    await assertNotRateLimited(workspace.id)
+    await assertNotRateLimited(workspace.id, context.resHeaders)
 
     if (isWorkspaceScheduledForDeletion(workspace)) {
       throw new ORPCError("FORBIDDEN", {
@@ -104,14 +116,16 @@ export const workspaceTokenAuthMidddleware = base.middleware(
     }
 
     const method = procedure["~orpc"].route.method
+    const path = procedure["~orpc"].route.path
 
-    // Read-only tokens may only GET/HEAD — unlike the owner-quota gate below,
-    // DELETE is not exempt here: a read_only token must not be able to
-    // delete data. Checked before the owner-quota gate — no DB call needed
-    // to enforce this.
+    // Read-only tokens may only GET/HEAD (plus a narrow, explicit allowlist
+    // of POST-for-read routes — see `READ_ONLY_TOKEN_ALLOWED_POST_PATHS`) —
+    // unlike the owner-quota gate below, DELETE is not exempt here: a
+    // read_only token must not be able to delete data. Checked before the
+    // owner-quota gate — no DB call needed to enforce this.
     if (
       apiToken.permission === "read_only" &&
-      !isReadOnlyTokenAllowedMethod(method)
+      !isReadOnlyTokenAllowedMethod(method, path)
     ) {
       throw new ORPCError("FORBIDDEN", {
         message: "Read-only token cannot perform this operation",
@@ -122,6 +136,7 @@ export const workspaceTokenAuthMidddleware = base.middleware(
     // Reads and deletes stay open (invariant #14).
     await assertWorkspaceOwnerAccessForMethod({
       method,
+      path,
       ownerId: workspace.ownerId,
     })
 
@@ -133,11 +148,27 @@ export const workspaceTokenAuthMidddleware = base.middleware(
       isDefault: apiToken.isDefault,
     }
 
-    return await next({
-      context: {
-        workspace,
-        apiToken: requestApiToken,
+    // There is no synthetic token user, and `AuditService.record` hard-
+    // requires both userId and workspaceId — so the workspace owner is the
+    // only truthful principal to attribute a token-driven change to.
+    // `source` carries the token id so it stays distinguishable from the
+    // owner's own UI actions in the audit trail.
+    return await withAuditContext(
+      {
+        userId: workspace.ownerId,
+        workspaceId: workspace.id,
+        ipAddress: getGuestClientIp(context.headers),
+        userAgent: context.headers.get("user-agent") ?? undefined,
+        source: `api-token:${requestApiToken.id}`,
       },
-    })
+      () =>
+        next({
+          context: {
+            workspace,
+            apiToken: requestApiToken,
+            apiCredentialId: `api-token:${requestApiToken.id}`,
+          },
+        }),
+    )
   },
 )

@@ -6,14 +6,10 @@ import {
   possibleErrorsOnDeletingResource,
   possibleErrorsOnFindingResource,
   possibleErrorsOnListingResource,
-  possibleErrorsOnUpdatingResource,
+  possibleErrorsOnMutatingResource,
 } from "@/lib/orpc/orpc-error-helper"
 import { publicListRequest } from "@/lib/public-api/list"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
-import { createTag } from "../actions/create-tag-action"
-import { deleteTag } from "../actions/delete-tag-action"
-import { updateTag } from "../actions/update-tag-action"
-import { listTags } from "../queries"
 import { createTagRequest } from "../schema/action"
 import { publicListTagsResponse } from "../schema/query"
 import { publicTagResource, tagResource } from "../schema/resource"
@@ -26,6 +22,8 @@ export const tagsPublicRouter = {
       method: "GET",
       path: "/v1/tags",
       summary: "Get all tags",
+      description:
+        "Lists every tag in the workspace. Use `tags.create` to add one, or `contacts.addTags` to attach existing ones to a contact.",
       tags: ["Tags"],
     })
     .input(publicListRequest)
@@ -33,7 +31,7 @@ export const tagsPublicRouter = {
     .errors(possibleErrorsOnListingResource)
     .handler(
       async ({ context, input }) =>
-        await listTags({
+        await tagService.list({
           ...input,
           workspaceId: context.workspace.id,
           sort: [{ id: "createdAt", desc: true }],
@@ -44,7 +42,9 @@ export const tagsPublicRouter = {
     .route({
       method: "POST",
       path: "/v1/tags",
-      summary: "Create a new tag",
+      summary: "Create tag",
+      description:
+        "Adds a workspace tag and returns its id for later attachment to contacts. Use `tags.list` to check for an existing tag, or `contacts.addTags` to attach it.",
       successStatus: 201,
       tags: ["Tags"],
     })
@@ -52,8 +52,8 @@ export const tagsPublicRouter = {
     .output(publicTagResource)
     .errors(possibleErrorsOnCreatingResource)
     .handler(async ({ context, input }) => {
-      const { data } = await createTag({
-        ...input,
+      const { data } = await tagService.create({
+        data: input,
         workspaceId: context.workspace.id,
       })
 
@@ -64,10 +64,18 @@ export const tagsPublicRouter = {
     .route({
       method: "GET",
       path: "/v1/tags/{idOrName}",
-      summary: "Get tag by id or name",
+      summary: "Get tag",
+      description:
+        "Returns one tag's id and name. Use `tags.list` to find its id or name first.",
       tags: ["Tags"],
     })
-    .input(z.object({ idOrName: z.string() }))
+    .input(
+      z.object({
+        idOrName: z
+          .string()
+          .describe("Tag id or name. Get it from `tags.list`."),
+      }),
+    )
     .output(tagResource.pick({ id: true, name: true }))
     .errors(possibleErrorsOnFindingResource)
     .handler(
@@ -83,22 +91,25 @@ export const tagsPublicRouter = {
       method: "PUT",
       path: "/v1/tags/{id}",
       summary: "Update tag",
+      description:
+        "Renames an existing tag. Use `tags.list` to find its id first.",
       tags: ["Tags"],
     })
     .input(
-      createTagRequest
-        .pick({ name: true })
-        .and(z.object({ id: zodBigintAsString() })),
+      createTagRequest.pick({ name: true }).and(
+        z.object({
+          id: zodBigintAsString().describe("Tag id. Get it from `tags.list`."),
+        }),
+      ),
     )
     .output(publicTagResource)
-    .errors(possibleErrorsOnUpdatingResource)
+    .errors(possibleErrorsOnMutatingResource)
     .handler(async ({ context, input }) => {
       const { id, ...rest } = input
-      return await updateTag({
-        workspaceId: context.workspace.id,
-        id,
-        parsedInput: rest,
-      })
+      return await tagService.update(
+        { workspaceId: context.workspace.id, id },
+        rest,
+      )
     }),
 
   delete: workspaceTokenAuthAPI
@@ -106,17 +117,23 @@ export const tagsPublicRouter = {
       method: "DELETE",
       path: "/v1/tags/{id}",
       summary: "Delete tag",
+      description:
+        "Removes a tag from the workspace. Use `tags.list` to find its id first.",
       successStatus: 204,
       tags: ["Tags"],
     })
-    .input(z.object({ id: zodBigintAsString() }))
+    .input(
+      z.object({
+        id: zodBigintAsString().describe("Tag id. Get it from `tags.list`."),
+      }),
+    )
     .errors(possibleErrorsOnDeletingResource)
     .handler(async ({ context, input }) => {
       const { id } = input
 
-      return await deleteTag({
+      return await tagService.softDelete({
         workspaceId: context.workspace.id,
-        id,
+        ids: [id],
       })
     }),
 }

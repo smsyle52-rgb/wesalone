@@ -30,6 +30,19 @@ vi.mock("@chatbotx.io/database/schema", () => ({
   errorLogModel: { _: "ErrorLog" },
 }))
 
+// The handler under test only needs `insertErrorLogs` — reimplemented here
+// against the mocked `insert`/`values` above, matching
+// `packages/database/src/repositories/error-log/repository.ts` verbatim —
+// rather than the real repositories barrel: vitest's SSR deps optimizer
+// bundles the whole `@chatbotx.io/database` package graph together once any
+// subpath is imported, which otherwise pulls in `contactRepository`'s real
+// contact-filter query graph (needs the real schema, conflicting with the
+// narrow mock above).
+vi.mock("@chatbotx.io/database/repositories", () => ({
+  insertErrorLogs: (rows: unknown[]) =>
+    insert().values(rows).onConflictDoNothing(),
+}))
+
 const warn = vi.fn()
 const error = vi.fn()
 vi.mock("../src/lib/logger", () => ({
@@ -125,6 +138,52 @@ describe("writeErrorLogs", () => {
     ])
   })
 
+  it("persists the stack frames the producer captured", async () => {
+    const writeErrorLogs = await load()
+
+    await writeErrorLogs([
+      payload({
+        error: {
+          message: "boom",
+          httpCode: "400",
+          stackTrace: "    at /srv/app/x.ts:1:1",
+        },
+      }),
+    ])
+
+    expect(written()).toEqual([
+      expect.objectContaining({ stackTrace: "    at /srv/app/x.ts:1:1" }),
+    ])
+  })
+
+  it("writes stackTrace as null when the producer had no stack", async () => {
+    const writeErrorLogs = await load()
+
+    await writeErrorLogs([payload()])
+
+    expect(written()).toEqual([expect.objectContaining({ stackTrace: null })])
+  })
+
+  it("writes sourceId as null when the producer had none", async () => {
+    const writeErrorLogs = await load()
+
+    await writeErrorLogs([payload()])
+
+    expect(written()).toEqual([expect.objectContaining({ sourceId: null })])
+  })
+
+  it("persists the channel-side sourceId on a row with no contact at all", async () => {
+    const writeErrorLogs = await load()
+
+    // The creation path: `getProfile` failed before the Contact row existed,
+    // so the channel-side id is the row's only identity.
+    await writeErrorLogs([payload({ sourceId: "psid-9" })])
+
+    expect(written()).toEqual([
+      expect.objectContaining({ contactId: null, sourceId: "psid-9" }),
+    ])
+  })
+
   it("writes the real httpCode instead of a hardcoded 500", async () => {
     const writeErrorLogs = await load()
 
@@ -189,12 +248,16 @@ describe("writeErrorLogs", () => {
       .mockResolvedValue(undefined)
 
     const result = await writeErrorLogs([
-      payload({ contactId: "deleted-contact" }),
+      payload({ contactId: "deleted-contact", sourceId: "psid-9" }),
     ])
 
     // batch, row, row without its contact
     expect(values).toHaveBeenCalledTimes(3)
-    expect(written(2)).toEqual([expect.objectContaining({ contactId: null })])
+    // Dropping the contact attribution must NOT drop the channel-side id —
+    // it is the only thing left identifying who the failure concerned.
+    expect(written(2)).toEqual([
+      expect.objectContaining({ contactId: null, sourceId: "psid-9" }),
+    ])
     // The row landed, so nothing is handed back for retry.
     expect(result).toBeUndefined()
   })

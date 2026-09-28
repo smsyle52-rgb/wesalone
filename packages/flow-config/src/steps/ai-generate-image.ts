@@ -32,8 +32,8 @@ export const IMAGE_DEFAULT_EXTENSION = "png" as const
 export const IMAGE_DEFAULT_MIME_TYPE = "image/png" as const
 
 export const defaultModels = {
-  openai: "gpt-image-1",
-  gemini: "gemini-3.1-flash-image-preview",
+  openai: "gpt-image-2",
+  gemini: "gemini-3.1-flash-image",
 } as const
 
 export const aiGenerateImageProvider = z.enum(["openai", "gemini"])

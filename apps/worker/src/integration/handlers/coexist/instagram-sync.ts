@@ -5,7 +5,7 @@ import type {
   IntegrationInstagramModel,
 } from "@chatbotx.io/database/types"
 import {
-  COEXIST_ATTACHMENT_JOB_PRIORITY,
+  buildCoexistPageJobId,
   IntegrationJobAction,
   type IntegrationJobCoexistInstagramSync,
   integrationQueue,
@@ -53,8 +53,9 @@ const runInstagramCoexistPull = async <
   const { runId, integrationId, workspaceId } = data
   const jobStart = Date.now()
 
-  const failRun = (currentError: string): Promise<void> =>
-    coexistService.markFailed({ runId, currentError })
+  const failRun = async (currentError: string): Promise<void> => {
+    await coexistService.markFailed({ runId, currentError })
+  }
 
   const initialContext = await adapter.loadContext({
     workspaceId,
@@ -64,7 +65,7 @@ const runInstagramCoexistPull = async <
     await failRun("Instagram integration not found or coexist disabled")
     return
   }
-  const claimed = await coexistService.claimRun({ runId })
+  const claimed = await coexistService.claimRunWithNewToken({ runId })
   if (!claimed) {
     logger.warn(
       { runId, integrationId },
@@ -153,7 +154,6 @@ const runInstagramCoexistPull = async <
       pageNumber += 1
 
       const activityUpdates: CoexistActivityUpdate[] = []
-      const attachmentIds: string[] = []
       let pageImportedContacts = 0
       let pageImportedMessages = 0
       let pageSkipped = 0
@@ -302,8 +302,6 @@ const runInstagramCoexistPull = async <
 
                 pageImportedMessages += imported.importedMessages
                 pageSkipped += imported.skippedMessages
-                attachmentIds.push(...imported.insertedAttachmentIds)
-
                 const aiMarkerMessageId = context.integration
                   .coexistAiReadsSyncedHistory
                   ? null
@@ -356,31 +354,9 @@ const runInstagramCoexistPull = async <
       skippedTotal += pageSkipped
       failedTotal += pageFailed
 
-      if (attachmentIds.length > 0) {
-        await integrationQueue.addBulk(
-          attachmentIds.map((attachmentId) => ({
-            name: IntegrationJobAction.coexistAttachmentDownload,
-            data: {
-              type: IntegrationJobAction.coexistAttachmentDownload,
-              data: {
-                attachmentId,
-                workspaceId,
-                channel: "instagram" as const,
-                integrationId,
-              },
-            },
-            opts: {
-              jobId: `att-${attachmentId}`,
-              priority: COEXIST_ATTACHMENT_JOB_PRIORITY,
-              attempts: 5,
-              backoff: { type: "exponential", delay: 30_000 },
-              removeOnComplete: true,
-              removeOnFail: { count: 100 },
-            },
-          })),
-        )
-      }
-
+      // Attachment bytes hydrate lazily through the media proxy. The resume
+      // watermark therefore advances after message/attachment INSERT success,
+      // independently of any later download or mirror attempt.
       await coexistService.updateProgress({
         runId,
         fields: {
@@ -414,7 +390,11 @@ const runInstagramCoexistPull = async <
           data: { runId, integrationId, workspaceId },
         },
         {
-          jobId: `coexist-run-${runId}-${claimed.attempts}-page-${pageNumber + 1}`,
+          jobId: buildCoexistPageJobId({
+            runId,
+            attempts: claimed.attempts,
+            pageNumber: pageNumber + 1,
+          }),
           attempts: 1,
           removeOnComplete: true,
           removeOnFail: { count: 100 },

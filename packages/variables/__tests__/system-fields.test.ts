@@ -25,6 +25,8 @@ const {
   mockAppointmentFindBy,
   mockAppointmentFindLatestForContact,
   mockResolveDefaultTokenPlaintext,
+  mockResolveContactAvatarUrl,
+  mockEnsureContactAvatarMirrored,
   testEncryptionKey,
 } = vi.hoisted(() => ({
   mockConversationFindBy: vi.fn().mockResolvedValue({
@@ -48,6 +50,41 @@ const {
   mockAppointmentFindBy: vi.fn(),
   mockAppointmentFindLatestForContact: vi.fn(),
   mockResolveDefaultTokenPlaintext: vi.fn(),
+  mockEnsureContactAvatarMirrored: vi.fn(),
+  mockResolveContactAvatarUrl: vi.fn(
+    async (
+      input: {
+        contact: { avatar: string | null }
+        contactInbox: { channel: string; id: string } | null
+        workspaceId: string
+      },
+      finalize: (key: string) => string | Promise<string>,
+      ensureMirrored?: (input: {
+        contactInboxId: string
+        workspaceId: string
+      }) => Promise<{ avatar: string } | null>,
+    ) => {
+      if (input.contact.avatar) {
+        return await finalize(input.contact.avatar)
+      }
+      if (
+        !(
+          input.contactInbox &&
+          ["messenger", "instagram"].includes(input.contactInbox.channel)
+        )
+      ) {
+        return null
+      }
+      if (ensureMirrored) {
+        const mirrored = await ensureMirrored({
+          contactInboxId: input.contactInbox.id,
+          workspaceId: input.workspaceId,
+        })
+        return mirrored ? await finalize(mirrored.avatar) : null
+      }
+      return `https://app.example.com/media/avatar/${input.contactInbox.id}`
+    },
+  ),
   testEncryptionKey:
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 }))
@@ -77,6 +114,7 @@ vi.mock("@chatbotx.io/business", () => ({
   },
   resolveWorkspaceAppUrl: mockResolveWorkspaceAppUrl,
   resolveTenantSettings: mockResolveTenantSettings,
+  resolveContactAvatarUrl: mockResolveContactAvatarUrl,
   workspaceMemberService: {
     findWithUserByWorkspaceIdAndUserId:
       mockFindMemberWithUserByWorkspaceIdAndUserId,
@@ -97,6 +135,10 @@ vi.mock("@chatbotx.io/business/system-field", () => ({
     create: mockSystemFieldCreate,
   },
   resolveGenderLabel: mockResolveGenderLabel,
+}))
+
+vi.mock("@chatbotx.io/channel-registry/media-hydration", () => ({
+  ensureContactAvatarMirrored: mockEnsureContactAvatarMirrored,
 }))
 
 vi.mock("@chatbotx.io/encryption/link-signature", () => ({
@@ -199,6 +241,7 @@ describe("getSystemFieldValue", () => {
   beforeEach(() => {
     cache.clear()
     vi.clearAllMocks()
+    mockEnsureContactAvatarMirrored.mockResolvedValue(null)
   })
 
   test("user_hash uses ENCRYPTION_KEY with the contact inbox source id and id", async () => {
@@ -679,18 +722,52 @@ describe("getSystemFieldValue", () => {
     ).resolves.toBe("https://example.com/ad")
   })
 
-  // total_new_tagged / total_tagged have no upstream data source yet — the
-  // resolver hardcodes null. This locks that in so wiring them up is deliberate.
-  test("tag counters stay null until a data source exists", async () => {
-    await expect(
-      getSystemFieldValue(
-        createContext(),
-        systemFieldTypes.enum.total_new_tagged,
-      ),
-    ).resolves.toBeNull()
-    await expect(
-      getSystemFieldValue(createContext(), systemFieldTypes.enum.total_tagged),
-    ).resolves.toBeNull()
+  // Lifetime totals accumulated on the contact by the comment-automation
+  // worker when an automation has `trackUserTags` on.
+  describe("tag counters", () => {
+    test("resolve the contact's accumulated totals", async () => {
+      const tracked = { ...contact, totalTagged: 7, totalNewTagged: 3 }
+
+      await expect(
+        getSystemFieldValue(
+          createContext({ contact: tracked }),
+          systemFieldTypes.enum.total_tagged,
+        ),
+      ).resolves.toBe("7")
+      await expect(
+        getSystemFieldValue(
+          createContext({ contact: tracked }),
+          systemFieldTypes.enum.total_new_tagged,
+        ),
+      ).resolves.toBe("3")
+    })
+
+    // Zero is a real answer ("nobody was tagged yet") and must survive as "0"
+    // — returning null here would render an empty string in the reply.
+    test("keep a zero count as '0'", async () => {
+      await expect(
+        getSystemFieldValue(
+          createContext({
+            contact: { ...contact, totalTagged: 0, totalNewTagged: 0 },
+          }),
+          systemFieldTypes.enum.total_tagged,
+        ),
+      ).resolves.toBe("0")
+    })
+
+    // A contact serialized into a job payload before the columns existed.
+    test("stay null when the contact carries no counters", async () => {
+      const legacy = { ...contact } as Record<string, unknown>
+      legacy.totalTagged = undefined
+      legacy.totalNewTagged = undefined
+
+      await expect(
+        getSystemFieldValue(
+          createContext({ contact: legacy as ContactModel }),
+          systemFieldTypes.enum.total_tagged,
+        ),
+      ).resolves.toBeNull()
+    })
   })
 
   test("user_id resolves to the contact id even without a contact inbox", async () => {
@@ -1089,9 +1166,10 @@ describe("getSystemFieldValue", () => {
     ).resolves.toBe(
       "http://localhost:3123/storage/public/space/workspace-1/avatars/a.png",
     )
+    expect(mockEnsureContactAvatarMirrored).not.toHaveBeenCalled()
   })
 
-  test("avatar keeps absolute URLs and leaves null as null", async () => {
+  test("avatar keeps an absolute mirrored URL unchanged", async () => {
     await expect(
       getSystemFieldValue(
         createContext({
@@ -1103,18 +1181,111 @@ describe("getSystemFieldValue", () => {
         systemFieldTypes.enum.avatar,
       ),
     ).resolves.toBe("https://cdn.example.com/a.png")
+  })
+
+  test("avatar resolves a mirrored storage key to its public URL", async () => {
+    mockResolveTenantSettings.mockResolvedValue({
+      storageUrl: "http://localhost:3123/storage/",
+    })
 
     await expect(
       getSystemFieldValue(
         createContext({
           contact: {
             ...contact,
-            avatar: null,
+            avatar: "public/space/workspace-1/avatars/avatar-field.png",
           } as ContactModel,
         }),
         systemFieldTypes.enum.avatar,
       ),
+    ).resolves.toBe(
+      "http://localhost:3123/storage/public/space/workspace-1/avatars/avatar-field.png",
+    )
+    expect(mockEnsureContactAvatarMirrored).not.toHaveBeenCalled()
+  })
+
+  test.each([
+    [systemFieldTypes.enum.profile_pic, "messenger"],
+    [systemFieldTypes.enum.avatar, "instagram"],
+  ])("%s returns a durable URL for a pending %s avatar", async (field, channel) => {
+    mockResolveTenantSettings.mockResolvedValue({
+      storageUrl: "http://localhost:3123/storage/",
+    })
+    mockEnsureContactAvatarMirrored.mockResolvedValue({
+      avatar: "public/space/workspace-1/avatars/mirrored.png",
+    })
+
+    await expect(
+      getSystemFieldValue(
+        createContext({
+          contact: { ...contact, avatar: null } as ContactModel,
+          contactInbox: { ...contactInbox, channel } as ContactInboxModel,
+        }),
+        field,
+      ),
+    ).resolves.toBe(
+      "http://localhost:3123/storage/public/space/workspace-1/avatars/mirrored.png",
+    )
+    expect(mockEnsureContactAvatarMirrored).toHaveBeenCalledWith({
+      contactInboxId: "contact-inbox-1",
+      workspaceId: "workspace-1",
+    })
+  })
+
+  test.each([
+    systemFieldTypes.enum.profile_pic,
+    systemFieldTypes.enum.avatar,
+  ])("%s resolves a no-avatar sentinel to its public URL", async (field) => {
+    mockResolveTenantSettings.mockResolvedValue({
+      storageUrl: "http://localhost:3123/storage/",
+    })
+    mockEnsureContactAvatarMirrored.mockResolvedValue({
+      avatar: "public/img/no_avatar.jpg?time=1234",
+    })
+
+    await expect(
+      getSystemFieldValue(
+        createContext({
+          contact: { ...contact, avatar: null } as ContactModel,
+        }),
+        field,
+      ),
+    ).resolves.toBe(
+      "http://localhost:3123/storage/public/img/no_avatar.jpg?time=1234",
+    )
+  })
+
+  test.each([
+    systemFieldTypes.enum.profile_pic,
+    systemFieldTypes.enum.avatar,
+  ])("%s remains null when the mirror reports a missing contact", async (field) => {
+    await expect(
+      getSystemFieldValue(
+        createContext({
+          contact: { ...contact, avatar: null } as ContactModel,
+        }),
+        field,
+      ),
     ).resolves.toBeNull()
+  })
+
+  test.each([
+    systemFieldTypes.enum.profile_pic,
+    systemFieldTypes.enum.avatar,
+  ])("%s returns null for a WhatsApp contact without an avatar", async (field) => {
+    await expect(
+      getSystemFieldValue(
+        createContext({
+          contact: { ...contact, avatar: null } as ContactModel,
+          contactInbox: {
+            ...contactInbox,
+            channel: "whatsapp",
+          } as ContactInboxModel,
+        }),
+        field,
+      ),
+    ).resolves.toBeNull()
+    expect(mockEnsureContactAvatarMirrored).not.toHaveBeenCalled()
   })
 
   test("account_image resolves workspace logo storage paths", async () => {

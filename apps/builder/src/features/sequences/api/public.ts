@@ -1,8 +1,26 @@
+import { sequenceService } from "@chatbotx.io/business/sequence"
+import { zodBigintAsString } from "@chatbotx.io/utils"
 import z from "zod"
+import { mcpSpec } from "@/lib/orpc/mcp-annotations"
+import {
+  possibleErrorsOnCreatingResource,
+  possibleErrorsOnDeletingResource,
+  possibleErrorsOnFindingResource,
+  possibleErrorsOnListingResource,
+  possibleErrorsOnMutatingResource,
+} from "@/lib/orpc/orpc-error-helper"
 import { publicListRequest } from "@/lib/public-api/list"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
-import { getSequence, listSequences } from "../queries"
-import { listSequencesResponse } from "../schema/action"
+import {
+  createSequenceRequest,
+  listSequencesResponse,
+  publicUpsertSequenceStepRequest,
+  updateSequenceSchema,
+} from "../schema/action"
+import {
+  publicListSequenceStepContactsRequest,
+  publicListSequenceStepContactsResponse,
+} from "../schema/public"
 import { sequenceResource } from "../schema/resource"
 
 const workspaceTokenAuthAPI = workspaceTokenAuthAPIForScope("broadcasts")
@@ -13,13 +31,17 @@ export const sequencesPublicRouter = {
       method: "GET",
       path: "/v1/sequences",
       summary: "List sequences",
+      description:
+        "Use this to find sequence ids before inspecting steps with `sequences.get` or subscribing contacts with `contacts.subscribeSequences`. Returns sequences available in the workspace.",
       tags: ["Sequences"],
+      spec: mcpSpec({ visibility: "default" }),
     })
     .input(publicListRequest)
     .output(listSequencesResponse)
+    .errors(possibleErrorsOnListingResource)
     .handler(
       async ({ context, input }) =>
-        await listSequences({
+        await sequenceService.list({
           ...input,
           workspaceId: context.workspace.id,
         }),
@@ -29,13 +51,202 @@ export const sequencesPublicRouter = {
     .route({
       method: "GET",
       path: "/v1/sequences/{id}",
-      summary: "Get sequence details",
+      summary: "Get sequence",
+      description:
+        "Use this to inspect one sequence and its steps after finding its id with `sequences.list`. Call `sequences.update` to change its settings or `sequences.upsertStep` to edit steps.",
       tags: ["Sequences"],
+      spec: mcpSpec({ visibility: "default" }),
     })
-    .input(z.object({ id: z.string() }))
+    .input(
+      z.object({
+        id: z.string().describe("Sequence id. Get it from `sequences.list`."),
+      }),
+    )
     .output(sequenceResource)
+    .errors(possibleErrorsOnFindingResource)
     .handler(
       async ({ context, input }) =>
-        await getSequence(context.workspace.id, input.id),
+        await sequenceService.findWithSteps({
+          workspaceId: context.workspace.id,
+          id: input.id,
+        }),
     ),
+
+  create: workspaceTokenAuthAPI
+    .route({
+      method: "POST",
+      path: "/v1/sequences",
+      summary: "Create sequence",
+      description:
+        "Creates an empty sequence. Add steps afterward via the builder UI or `sequences.upsertStep`.",
+      successStatus: 201,
+      tags: ["Sequences"],
+    })
+    .input(createSequenceRequest)
+    .output(z.object({ sequenceId: z.string() }))
+    .errors(possibleErrorsOnCreatingResource)
+    .handler(
+      async ({ context, input }) =>
+        await sequenceService.create({
+          ...input,
+          workspaceId: context.workspace.id,
+        }),
+    ),
+
+  update: workspaceTokenAuthAPI
+    .route({
+      method: "PATCH",
+      path: "/v1/sequences/{id}",
+      summary: "Update sequence name or active state",
+      description:
+        "Changes a sequence name or active state without replacing its steps. Call `sequences.get` to inspect the current sequence, or use `sequences.list` to resolve its id.",
+      successStatus: 204,
+      tags: ["Sequences"],
+      spec: mcpSpec({ visibility: "default" }),
+    })
+    .input(
+      updateSequenceSchema.and(
+        z.object({
+          id: zodBigintAsString().describe(
+            "Sequence id. Get it from `sequences.list`.",
+          ),
+        }),
+      ),
+    )
+    .errors(possibleErrorsOnMutatingResource)
+    .handler(async ({ context, input }) => {
+      const { id, ...data } = input
+      await sequenceService.update(
+        { workspaceId: context.workspace.id, id },
+        data,
+      )
+    }),
+
+  delete: workspaceTokenAuthAPI
+    .route({
+      method: "DELETE",
+      path: "/v1/sequences/{id}",
+      summary: "Delete sequence",
+      description: "Permanently deletes a sequence and all of its steps.",
+      successStatus: 204,
+      tags: ["Sequences"],
+    })
+    .input(
+      z.object({
+        id: zodBigintAsString().describe(
+          "Sequence id. Get it from `sequences.list`.",
+        ),
+      }),
+    )
+    .errors(possibleErrorsOnDeletingResource)
+    .handler(
+      async ({ context, input }) =>
+        await sequenceService.delete({
+          workspaceId: context.workspace.id,
+          id: input.id,
+        }),
+    ),
+
+  upsertStep: workspaceTokenAuthAPI
+    .route({
+      method: "PUT",
+      path: "/v1/sequences/{id}/steps",
+      summary: "Create or update sequence step",
+      description:
+        "Use this to add or edit a delay/wait step or a send-flow step in a sequence. Pass stepId to update an existing step; omit it to create a new one.",
+      tags: ["Sequences"],
+    })
+    .input(
+      publicUpsertSequenceStepRequest.and(
+        z.object({
+          id: zodBigintAsString().describe(
+            "Sequence id. Get it from `sequences.list`.",
+          ),
+        }),
+      ),
+    )
+    .output(z.object({ stepId: z.string() }))
+    .errors(possibleErrorsOnMutatingResource)
+    .handler(async ({ context, input }) => {
+      // The `{id}` path segment is the sole source of truth for which
+      // sequence is being scoped/owned — the body has no `sequenceId` field
+      // to reconcile against it (see `publicUpsertSequenceStepRequest`).
+      const { id, stepId, ...data } = input
+      await sequenceService.assertOwned({
+        workspaceId: context.workspace.id,
+        sequenceId: id,
+      })
+      return await sequenceService.upsertStep({
+        workspaceId: context.workspace.id,
+        sequenceId: id,
+        stepId,
+        data,
+      })
+    }),
+
+  deleteStep: workspaceTokenAuthAPI
+    .route({
+      method: "DELETE",
+      path: "/v1/sequences/{id}/steps/{stepId}",
+      summary: "Delete sequence step",
+      description:
+        "Permanently removes one step from a sequence, identified by its `stepId`. Use `sequences.get` to see current steps first.",
+      successStatus: 204,
+      tags: ["Sequences"],
+    })
+    .input(
+      z.object({
+        id: zodBigintAsString().describe(
+          "Sequence id. Get it from `sequences.list`.",
+        ),
+        stepId: zodBigintAsString().describe("Sequence step id."),
+      }),
+    )
+    .errors(possibleErrorsOnDeletingResource)
+    .handler(async ({ context, input }) => {
+      await sequenceService.assertOwned({
+        workspaceId: context.workspace.id,
+        sequenceId: input.id,
+      })
+      // `{id}` is not decorative: without it the step resolves by `stepId`
+      // alone and a step of another sequence in the same workspace would be
+      // deleted through this sequence's URL.
+      await sequenceService.deleteStep({
+        workspaceId: context.workspace.id,
+        sequenceId: input.id,
+        stepId: input.stepId,
+      })
+    }),
+
+  listStepContacts: workspaceTokenAuthAPI
+    .route({
+      method: "GET",
+      path: "/v1/sequences/{id}/steps/{stepId}/contacts",
+      summary: "List sequence step recipients by event type",
+      description:
+        "Returns contacts that reached one lifecycle event (e.g. sent, opened) at one step of a sequence.",
+      tags: ["Sequences"],
+    })
+    .input(publicListSequenceStepContactsRequest)
+    .output(publicListSequenceStepContactsResponse)
+    .errors(possibleErrorsOnFindingResource)
+    .handler(async ({ context, input }) => {
+      // `{id}` is the ownership anchor: without `assertOwned`, a `stepId`
+      // belonging to another workspace's sequence would resolve through the
+      // analytics lookup instead of 404ing (same reason `deleteStep` asserts).
+      await sequenceService.assertOwned({
+        workspaceId: context.workspace.id,
+        sequenceId: input.id,
+      })
+      const { data, total, pageCount } =
+        await sequenceService.listStepContactsPage({
+          workspaceId: context.workspace.id,
+          sequenceId: input.id,
+          stepId: input.stepId,
+          eventType: input.eventType,
+          page: input.page,
+          perPage: input.perPage,
+        })
+      return { data, total, pageCount }
+    }),
 }

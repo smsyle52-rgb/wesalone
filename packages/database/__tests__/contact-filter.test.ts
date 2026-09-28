@@ -424,6 +424,47 @@ describe("applyContactFilter", () => {
     expect(query.params).toContain("John@Example.com")
   })
 
+  // Pins the exact mapping the deleted `contacts.findByCustomField` public
+  // endpoint's `customFieldId: "email"`/`"phone"` magic values performed
+  // (`packages/business/src/contact/list.ts` `listByCustomFieldValue`,
+  // restored as the `contacts.findByCustomField` deprecated alias) —
+  // `email`/`phone` as static contact-filter fields cover the same lookup,
+  // case-insensitively (looser than the deleted endpoint's exact match, so
+  // no caller loses a match migrating to `contacts.list`).
+  test("renders static free-text eq on email/phone as case-insensitive column equality", () => {
+    const emailQuery = renderContactWhere(
+      applyContactFilter({
+        operator: "and",
+        conditions: [
+          {
+            field: "email",
+            operator: operatorTypes.enum.eq,
+            value: "Ada@Example.com",
+          },
+        ],
+      }),
+    )
+    expect(emailQuery.sql.toLowerCase()).toContain('"contact"."email" ilike')
+    expect(emailQuery.params).toContain("Ada@Example.com")
+
+    const phoneQuery = renderContactWhere(
+      applyContactFilter({
+        operator: "and",
+        conditions: [
+          {
+            field: "phone",
+            operator: operatorTypes.enum.eq,
+            value: "+15551234567",
+          },
+        ],
+      }),
+    )
+    expect(phoneQuery.sql.toLowerCase()).toContain(
+      '"contact"."phonenumber" ilike',
+    )
+    expect(phoneQuery.params).toContain("+15551234567")
+  })
+
   test("keeps enum and select equality case-sensitive", () => {
     const genderQuery = renderContactWhere(
       applyContactFilter({
@@ -2332,9 +2373,8 @@ describe("applyContactFilter — CTWA fields", () => {
     expect(positive.sql).toContain(
       `"ContactInbox"."referral"->>'adId' IS NOT NULL`,
     )
-    expect(positive.sql).toContain(
-      `"ContactInbox"."referral"->>'source' = 'ADS'`,
-    )
+    expect(positive.sql).toContain(`"ContactInbox"."referral"->>'source' = `)
+    expect(positive.params).toContain("ADS")
 
     const negative = renderContactWhere(
       applyContactFilter({
@@ -2612,7 +2652,8 @@ describe("applyContactFilter — ctwaRetarget", () => {
     expect(query.sql).toContain(
       `"ContactInbox"."referral"->>'ctwaClid' IS NOT NULL`,
     )
-    expect(query.sql).toContain(`"ContactInbox"."referral"->>'source' = 'ADS'`)
+    expect(query.sql).toContain(`"ContactInbox"."referral"->>'source' = `)
+    expect(query.params).toContain("ADS")
   })
 
   test("channel: whatsapp renders the ctwaClid-keyed predicate (pre-generalization behavior)", () => {
@@ -2659,7 +2700,8 @@ describe("applyContactFilter — ctwaRetarget", () => {
     expect(query.sql).toContain(
       `"ContactInbox"."referral"->>'adId' IS NOT NULL`,
     )
-    expect(query.sql).toContain(`"ContactInbox"."referral"->>'source' = 'ADS'`)
+    expect(query.sql).toContain(`"ContactInbox"."referral"->>'source' = `)
+    expect(query.params).toContain("ADS")
     expect(query.sql).not.toContain(
       `"ContactInbox"."referral"->>'ctwaClid' IS NOT NULL`,
     )

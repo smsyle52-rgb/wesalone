@@ -5,11 +5,15 @@ import {
   type SendTextStepSchema,
   type SendWaTemplateMessageStepSchema,
   stepTypes,
+  type WhatsappCallButtonStepSchema,
   type WhatsappFlowStepSchema,
   type WhatsappOptionListStepSchema,
 } from "@chatbotx.io/flow-config"
 import {
   contentTypes,
+  getWhatsappCallPermissionRequest,
+  isWhatsappNativeLocationRequest,
+  type MessageButtonTemplate,
   type MessageHandlers,
   type OutgoingMessage,
 } from "@chatbotx.io/sdk"
@@ -27,7 +31,12 @@ import {
   isBsuidRecipient,
   resolveRecipientParams,
 } from "../../../lib/recipient"
-import type { RawWhatsappMessage, WhatsappAuthValue } from "../../../schema"
+import type {
+  LocationRequestMessage,
+  RawWhatsappMessage,
+  WhatsappAuthValue,
+} from "../../../schema"
+import { clampText, messageLimits } from "../message-limits"
 import { generateOutgoingMessages as convertFlowStepCarousel } from "./send-carousel"
 import {
   convertFlowStepImage,
@@ -35,12 +44,52 @@ import {
 } from "./send-image"
 import { convertFlowStepText } from "./send-text"
 import { convertFlowStepWaTemplate } from "./send-wa-template"
+import { convertFlowStepWhatsappCallButton } from "./whatsapp-call-button"
 import { convertFlowStepWhatsappFlow } from "./whatsapp-flow"
 import { convertFlowStepWhatsappOptionList } from "./whatsapp-option-list"
 
+function buildLocationRequestMessage(bodyText: string): LocationRequestMessage {
+  return {
+    _type: "location_request",
+    type: "interactive",
+    interactive: {
+      type: "location_request_message",
+      body: { text: clampText(bodyText, messageLimits.bodyText) },
+      action: { name: "send_location" },
+    },
+  }
+}
+
 function* convertMessageToWhatsappMessage(
   message: OutgoingMessage,
-): Generator<ClientMessage | null> {
+  quickReplies?: MessageButtonTemplate[],
+): Generator<ClientMessage | RawWhatsappMessage | null> {
+  if (isWhatsappNativeLocationRequest(quickReplies)) {
+    const bodyText = message.text?.trim()
+    if (bodyText) {
+      yield buildLocationRequestMessage(bodyText)
+    }
+    return
+  }
+
+  // A permission-request message renders as Meta's call_permission_request
+  // interactive with the message text as its body — never as plain text.
+  if (
+    getWhatsappCallPermissionRequest(message.contentAttributes) &&
+    message.text
+  ) {
+    yield {
+      _type: "interactive_call_permission_request",
+      type: "interactive",
+      interactive: {
+        type: "call_permission_request",
+        body: { text: message.text },
+        action: { name: "call_permission_request" },
+      },
+    }
+    return
+  }
+
   if (message.contentType === contentTypes.enum.text) {
     if (message.text) {
       yield new Text(message.text)
@@ -141,6 +190,16 @@ function* convertFlowStepToWhatsappMessage(
         >[0],
       )
       break
+    case stepTypes.enum.whatsappCallButton:
+      yield* convertFlowStepWhatsappCallButton(
+        props as Parameters<
+          MessageHandlers<
+            WhatsappAuthValue,
+            WhatsappCallButtonStepSchema
+          >["sendFlowStep"]
+        >[0],
+      )
+      break
     case stepTypes.enum.whatsappFlow:
       yield* convertFlowStepWhatsappFlow(
         props as Parameters<
@@ -156,11 +215,15 @@ function* convertFlowStepToWhatsappMessage(
   }
 }
 
-/** `whatsapp-api-js` models neither payload, so both are posted as-is. */
+/** `whatsapp-api-js` models none of these payloads, so they're posted as-is. */
 const isRawWhatsappMessage = (
   message: ClientMessage | RawWhatsappMessage,
 ): message is RawWhatsappMessage =>
-  message._type === "template" || message._type === "interactive_carousel"
+  message._type === "template" ||
+  message._type === "interactive_carousel" ||
+  message._type === "interactive_voice_call" ||
+  message._type === "interactive_call_permission_request" ||
+  message._type === "location_request"
 
 /**
  * Builds the Cloud API message-body fields (everything after
@@ -232,15 +295,19 @@ export const sendMessage: MessageHandlers<WhatsappAuthValue>["sendMessage"] =
   async (props) => {
     const {
       ctx,
-      data: { contact, message },
+      data: { contact, message, quickReplies },
     } = props
     const whatsappClient = getWhatsappClient(ctx.auth)
     const messageIds: string[] = []
+    let sentCount = 0
     const recipientParams = resolveRecipientParams(contact)
     const isBsuidKeyedRecipient = isBsuidRecipient(recipientParams)
 
     try {
-      for (const whatsappMessage of convertMessageToWhatsappMessage(message)) {
+      for (const whatsappMessage of convertMessageToWhatsappMessage(
+        message,
+        quickReplies,
+      )) {
         if (!whatsappMessage) {
           logger.error(message, "Unable to parse outgoing message")
           continue
@@ -254,18 +321,22 @@ export const sendMessage: MessageHandlers<WhatsappAuthValue>["sendMessage"] =
           },
           "sendMessage: dispatching outgoing message",
         )
-        const sendResponse = isBsuidKeyedRecipient
-          ? await postRawMessage({
-              client: whatsappClient,
-              phoneNumberId: ctx.auth.metadata.phoneNumber.id,
-              recipientParams,
-              message: whatsappMessage,
-            })
-          : await whatsappClient.sendMessage(
-              ctx.auth.metadata.phoneNumber.id,
-              contact.sourceId,
-              whatsappMessage,
-            )
+        // Raw payloads (unmodeled by whatsapp-api-js) must bypass the lib
+        // sender for every recipient, not just BSUID-keyed ones — mirrors
+        // sendFlowStep below.
+        const sendResponse =
+          isRawWhatsappMessage(whatsappMessage) || isBsuidKeyedRecipient
+            ? await postRawMessage({
+                client: whatsappClient,
+                phoneNumberId: ctx.auth.metadata.phoneNumber.id,
+                recipientParams,
+                message: whatsappMessage,
+              })
+            : await whatsappClient.sendMessage(
+                ctx.auth.metadata.phoneNumber.id,
+                contact.sourceId,
+                whatsappMessage,
+              )
 
         const serverError = sendResponse as ServerErrorResponse
 
@@ -276,6 +347,8 @@ export const sendMessage: MessageHandlers<WhatsappAuthValue>["sendMessage"] =
           )
           throw mapToChannelError(serverError.error)
         }
+
+        sentCount += 1
 
         const messageId = (sendResponse as ServerSentMessageResponse)
           ?.messages?.[0]?.id
@@ -305,6 +378,7 @@ export const sendMessage: MessageHandlers<WhatsappAuthValue>["sendMessage"] =
     // as the Message row's sourceId (coexist echo dedup — see sendFlowStep).
     return {
       messageIds,
+      sentCount,
     }
   }
 
@@ -316,6 +390,7 @@ export const sendFlowStep: MessageHandlers<WhatsappAuthValue>["sendFlowStep"] =
     } = props
     const whatsappClient = getWhatsappClient(ctx.auth)
     const messageIds: string[] = []
+    let sentCount = 0
     const recipientParams = resolveRecipientParams(contact)
     const isBsuidKeyedRecipient = isBsuidRecipient(recipientParams)
 
@@ -356,6 +431,8 @@ export const sendFlowStep: MessageHandlers<WhatsappAuthValue>["sendFlowStep"] =
           throw mapToChannelError(serverError.error)
         }
 
+        sentCount += 1
+
         const messageId = (sendResponse as ServerSentMessageResponse)
           ?.messages?.[0]?.id
         if (messageId) {
@@ -379,5 +456,5 @@ export const sendFlowStep: MessageHandlers<WhatsappAuthValue>["sendFlowStep"] =
       throw mapToChannelError(error)
     }
 
-    return { messageIds }
+    return { messageIds, sentCount }
   }

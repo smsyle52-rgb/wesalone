@@ -16,11 +16,13 @@ import { useFormContext } from "react-hook-form"
 import { PlainTextTiptapEditor } from "./plain-text-tiptap-editor"
 
 export type PlainTextEditorFieldProps = {
+  botFieldsOnly?: boolean
   label?: string
   name: string
   required?: boolean
   placeholder?: string
   formItemClassName?: string
+  editorClassName?: string
   showEmojiPicker?: boolean
   channels?: ChannelType[]
   includeCouponVariables?: boolean
@@ -32,11 +34,13 @@ export type PlainTextEditorFieldProps = {
 }
 
 export const PlainTextEditorField = ({
+  botFieldsOnly = false,
   name,
   description,
   label,
   required = false,
   formItemClassName,
+  editorClassName,
   placeholder,
   channels,
   includeCouponVariables = false,
@@ -46,7 +50,7 @@ export const PlainTextEditorField = ({
   inline = false,
 }: PlainTextEditorFieldProps) => {
   const { control, getValues } = useFormContext()
-  const t = useTranslations()
+  const t = useTranslations("fields")
 
   const [initValue, setInitValue] = useState<string | undefined>(undefined)
 
@@ -66,14 +70,16 @@ export const PlainTextEditorField = ({
               {label}
               {!required && (
                 <span className="self-start font-normal text-xxs">
-                  {t("fields.optionalHint")}
+                  {t("optionalHint")}
                 </span>
               )}
             </FormLabel>
           ) : null}
           <FormControl>
             <PlainTextTiptapEditor
+              botFieldsOnly={botFieldsOnly}
               channels={channels}
+              className={editorClassName}
               includeBotFieldVariables={includeBotFieldVariables}
               includeCouponVariables={includeCouponVariables}
               includeRawCustomFieldVariables={includeRawCustomFieldVariables}

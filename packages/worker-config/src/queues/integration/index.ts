@@ -1,3 +1,4 @@
+import type { CommentReply } from "@chatbotx.io/database/partials"
 import type { AdsConversionChannel } from "@chatbotx.io/database/schema"
 import type {
   ContactInboxModel,
@@ -18,12 +19,18 @@ import {
 import { queueNames } from "../../lib/types"
 import type { BotResponseTrackingContext } from "../types"
 
+export * from "./coexist-job-ids"
+export * from "./contact-scan-job-ids"
+
 export const IntegrationJobAction = {
   sendFlow: "sendFlow",
+  resumeHeavyStep: "resumeHeavyStep",
   sendSequenceFlow: "sendSequenceFlow",
   runRef: "runRef",
   incomingMessage: "incomingMessage",
   incomingComment: "incomingComment",
+  tiktokHighIntentComment: "tiktokHighIntentComment",
+  deferredCommentPrivateReply: "deferredCommentPrivateReply",
   updateIncomingComment: "updateIncomingComment",
   deleteIncomingComment: "deleteIncomingComment",
   deleteIncomingMessage: "deleteIncomingMessage",
@@ -48,6 +55,10 @@ export const IntegrationJobAction = {
   coexistInstagramSync: "coexistInstagramSync",
   coexistAttachmentDownload: "coexistAttachmentDownload",
   adsAutomaticEvent: "adsAutomaticEvent",
+  whatsappCallEvent: "whatsappCallEvent",
+  whatsappCallRecordingReady: "whatsappCallRecordingReady",
+  whatsappCallNativeRecordingFetch: "whatsappCallNativeRecordingFetch",
+  whatsappCallNativeTranscriptFetch: "whatsappCallNativeTranscriptFetch",
   updateContactAvatar: "updateContactAvatar",
   channelLabelChange: "channelLabelChange",
   processCommentAutomation: "processCommentAutomation",
@@ -61,6 +72,7 @@ export const IntegrationJobAction = {
   sendConversionEvent: "sendConversionEvent",
   sendMetaCapiEvent: "sendMetaCapiEvent",
   syncRetargetAudience: "syncRetargetAudience",
+  contactScan: "contactScan",
 } as const
 
 type IntegrationJobActionValue =
@@ -75,6 +87,16 @@ export type IntegrationJobReceiveMessage = {
   }
 }
 
+/**
+ * Profiles tagged inside a comment. Facebook resolves these to real user ids
+ * (`message_tags` on the feed webhook); Instagram supplies nothing here and is
+ * resolved from `@handle` text instead — see `comment-automation/comment-tags`.
+ */
+export type CommentTag = {
+  id: string
+  name?: string
+}
+
 export type IntegrationJobReceiveComment = {
   type: typeof IntegrationJobAction.incomingComment
   data: {
@@ -86,7 +108,17 @@ export type IntegrationJobReceiveComment = {
       parentId?: string
       fromId: string
       fromName?: string
+      fromUsername?: string
+      /**
+       * Commenter's profile picture, when the channel's webhook pushes it
+       * directly on the reply payload (Threads) rather than requiring a
+       * separate on-demand profile lookup (Messenger/Instagram). A public
+       * URL — `receiveComment` downloads and re-uploads it to the tenant's
+       * own storage before it ever reaches `Contact.avatar`.
+       */
+      fromAvatarUrl?: string
       message?: string
+      tags?: CommentTag[]
       createdTime: number
     }
   }
@@ -162,6 +194,8 @@ export type IntegrationJobRunFlowNode = {
     flowVersionId?: string
     nodeId?: string
     startFromStepId?: string
+    /** Stable logical execution identity for asynchronous flow continuations. */
+    flowExecutionKey?: string
     /**
      * Set when this job resumes a button/quickReply's own multi-step chain
      * (one step per job) rather than a node's. Without it, resolving by
@@ -188,11 +222,28 @@ export type IntegrationJobRunFlowNode = {
      * never a duplicate send).
      */
     initialBroadcastDispatch?: boolean
+    /**
+     * Preserves bulk delivery across automatic flow continuations. It must not
+     * be set for a flow started by an inbound button or quick reply.
+     */
+    isBulkBroadcast?: boolean
     appointmentId?: string
     sendFrom?: "inbox"
     origin?: "channel"
     /** See {@link CommentAnchor}. */
     commentAnchor?: CommentAnchor
+  }
+}
+
+/**
+ * Durable continuation for a flow step that completed on the heavy worker.
+ * It reuses the normal send-flow payload so the flow engine remains the sole
+ * owner of success/error routing.
+ */
+export type IntegrationJobResumeHeavyStep = {
+  type: typeof IntegrationJobAction.resumeHeavyStep
+  data: IntegrationJobRunFlowNode["data"] & {
+    outcomeKey: string
   }
 }
 
@@ -384,15 +435,6 @@ export type IntegrationJobCoexistInstagramSync = {
  * handler additionally checks the originPath prefix to no-op on retries
  * where a prior worker already finished the upload.
  */
-/**
- * BullMQ priority for coexist attachment downloads. Jobs without a priority
- * (0, the default) are always taken before prioritized ones, so a history
- * backfill that stages thousands of media downloads can no longer starve
- * incoming customer messages on the shared integration queue — as it did on
- * 2026-09-26, when one backfill queued ~2,200 downloads ahead of live traffic.
- */
-export const COEXIST_ATTACHMENT_JOB_PRIORITY = 100
-
 export type IntegrationJobCoexistAttachmentDownload = {
   type: typeof IntegrationJobAction.coexistAttachmentDownload
   data: {
@@ -402,6 +444,194 @@ export type IntegrationJobCoexistAttachmentDownload = {
     integrationId: string
   }
 }
+
+/**
+ * One normalized event from Meta's calls webhook field. Mirrors
+ * WhatsappCallEventPayload from the integration package (worker-config can't
+ * depend on integration packages).
+ */
+export type IntegrationJobWhatsappCallEvent = {
+  type: typeof IntegrationJobAction.whatsappCallEvent
+  data: {
+    integrationType: "whatsapp"
+    integrationIdentifier: string
+    payload: {
+      phoneNumberId: string
+      contact?: {
+        /** Absent for a Username/BSUID-only caller (no phone number exposed). */
+        waId?: string
+        /** Business-scoped user id (BSUID). */
+        userId?: string
+        parentUserId?: string
+        username?: string
+        name?: string
+      }
+      event:
+        | {
+            kind: "connect"
+            wacid: string
+            direction: "userInitiated" | "businessInitiated"
+            from?: string
+            to?: string
+            /** BSUID counterparts of from/to (Username/BSUID-only legs). */
+            fromUserId?: string
+            toUserId?: string
+            fromParentUserId?: string
+            toParentUserId?: string
+            timestamp?: string
+            /**
+             * Meta's biz_opaque_callback_data echo (the outbound attemptId).
+             */
+            bizOpaqueCallbackData?: string
+          }
+        | {
+            kind: "terminate"
+            wacid: string
+            direction?: "userInitiated" | "businessInitiated"
+            status: "COMPLETED" | "FAILED"
+            from?: string
+            to?: string
+            fromUserId?: string
+            toUserId?: string
+            fromParentUserId?: string
+            toParentUserId?: string
+            timestamp?: string
+            startTime?: string
+            endTime?: string
+            durationSeconds?: number
+            bizOpaqueCallbackData?: string
+            /** Media-drop diagnosis (e.g. 138021/138022/138023). */
+            errors?: { code?: number; title?: string; message?: string }[]
+          }
+        | {
+            kind: "status"
+            wacid: string
+            status: "RINGING" | "ACCEPTED" | "REJECTED"
+            recipientId?: string
+            /** BSUID counterpart of recipientId. */
+            recipientUserId?: string
+            timestamp?: string
+            bizOpaqueCallbackData?: string
+          }
+    }
+  }
+}
+
+/**
+ * A call recording landed in object storage. The handler stamps it onto the
+ * WhatsappCall row (by DB callId, never an external id), drops an audio message
+ * into the conversation, fires callRecorded, and chains the transcription job.
+ */
+export type IntegrationJobWhatsappCallRecordingReady = {
+  type: typeof IntegrationJobAction.whatsappCallRecordingReady
+  data: {
+    /** WhatsappCall.id (bigint string) — never a wacid/attemptId. */
+    callId: string
+    /** Enables the worker-level blocked-owner guard. */
+    workspaceId: string
+    /** Object-storage path of the audio file (not a public URL). */
+    recordingPath: string
+    mimeType?: string
+    sizeBytes?: number
+    durationSeconds?: number
+    /** For logs only: wacid ?? attemptId, never used to look the row up. */
+    correlationId?: string
+  }
+}
+
+/**
+ * WhatsappCall.id-keyed, replay-safe jobId shared by every enqueuer so a
+ * duplicate enqueue for the same call is always deduped by BullMQ.
+ */
+export const whatsappCallRecordingReadyJobId = (callId: string): string =>
+  `rec-ready-${callId}`
+
+/**
+ * The webhook's call_recording_available event carries only a short-lived
+ * audio.url + audio.id, so the download must happen promptly. wacid is kept
+ * alongside for idempotent job-id keying since a webhook can be redelivered
+ * before wacid is durably attached.
+ */
+export type IntegrationJobWhatsappCallNativeRecordingFetch = {
+  type: typeof IntegrationJobAction.whatsappCallNativeRecordingFetch
+  data: {
+    /**
+     * WhatsappCall.id (bigint string) — absent when the webhook raced the row-
+     * creating job and the row didn't exist yet. The handler always re-resolves
+     * by wacid, so this is only a fast-path hint.
+     */
+    whatsappCallId?: string
+    /**
+     * calls[].id from the webhook — used for idempotent job-id keying and to
+     * resolve the row when whatsappCallId is absent.
+     */
+    wacid: string
+    /**
+     * Enables the worker-level blocked-owner guard; absent when the row wasn't
+     * resolvable at enqueue time, matching resolveWorkspaceId's fail-open
+     * behavior.
+     */
+    workspaceId?: string
+    /** Graph Media API id for the recording audio. */
+    audioMediaId: string
+    /** Meta's short-lived (~5-min) download URL. */
+    audioUrl: string
+    /** e.g. audio/ogg; codecs=opus. */
+    mimeType: string
+  }
+}
+
+/**
+ * wacid-keyed, replay-safe jobId for the native recording fetch, idempotent
+ * across webhook redelivery.
+ */
+export const whatsappCallNativeRecordingFetchJobId = (wacid: string): string =>
+  `native-rec-fetch-${wacid}`
+
+/**
+ * Meta-native call transcript delivery: the webhook's
+ * call_transcription_available event carries only a media id + short-lived url
+ * — the diarized JSON body is fetched separately by the handler. Independent of
+ * the recording fetch job: the two events race and write disjoint columns, so
+ * neither waits on the other.
+ */
+export type IntegrationJobWhatsappCallNativeTranscriptFetch = {
+  type: typeof IntegrationJobAction.whatsappCallNativeTranscriptFetch
+  data: {
+    /**
+     * WhatsappCall.id (bigint string) — absent when the webhook raced the row-
+     * creating job and the row didn't exist yet. The handler always re-resolves
+     * by wacid.
+     */
+    whatsappCallId?: string
+    /**
+     * calls[].id from the webhook — used for idempotent job-id keying and to
+     * resolve the row when whatsappCallId is absent.
+     */
+    wacid: string
+    /**
+     * Enables the worker-level blocked-owner guard; absent when the row wasn't
+     * resolvable at enqueue time, matching resolveWorkspaceId's fail-open
+     * behavior.
+     */
+    workspaceId?: string
+    /** Graph Media API id for the transcript document. */
+    documentMediaId: string
+    /** Meta's short-lived download URL. */
+    documentUrl: string
+  }
+}
+
+/**
+ * wacid-keyed, replay-safe jobId for the native transcript fetch, distinct from
+ * the recording-fetch job id so the two never collide for the same call.
+ */
+export const whatsappCallNativeTranscriptFetchJobId = (wacid: string): string =>
+  `native-transcript-fetch-${wacid}`
+
+// Speech-to-text over a stored recording moved to the dedicated
+// callTranscription queue so it can carry its own BullMQ limiter independent of
+// this shared queue's traffic.
 
 export type IntegrationJobAdsAutomaticEvent = {
   type: typeof IntegrationJobAction.adsAutomaticEvent
@@ -465,13 +695,10 @@ export type AdsConversionJobEvaluateTemplateSent = {
 }
 
 /**
- * Generic conversion-trigger evaluation job shared by every trigger type
- * beyond `templateSent` (tagApplied, keywordMatched, contactReplied). The
- * `occurrence` discriminant carries just enough context for
- * `adsConversionService.evaluateConversionTrigger` to match it against each
- * enabled rule's `trigger` — see `packages/business/src/ads-conversion/schema.ts`.
- * `channel`/`integrationId` generalize the previous WhatsApp-only
- * `integrationWhatsappId` field (Phase 2 generalization).
+ * Generic conversion-trigger evaluation job shared by every trigger type beyond
+ * templateSent. The occurrence discriminant gives evaluateConversionTrigger
+ * enough context to match each enabled rule's trigger. channel/integrationId
+ * generalize the previous WhatsApp-only field.
  */
 export type AdsConversionJobEvaluateConversionTrigger = {
   type: typeof IntegrationJobAction.evaluateConversionTrigger
@@ -488,11 +715,9 @@ export type AdsConversionJobEvaluateConversionTrigger = {
 }
 
 /**
- * `channel`/`integrationMessengerId`/`integrationInstagramId` widen this
- * beyond WhatsApp (Phase 3 retarget chain widening) — additive next to the
- * pre-existing `integrationWhatsappId` field so an omitted `channel` keeps
- * every pre-Phase-3 caller's WhatsApp-or-any-account behavior unchanged.
- * Mirrors `RetargetAdInput` in `packages/business/src/ads-conversion/schema.ts`.
+ * channel/integrationMessengerId/integrationInstagramId widen this beyond
+ * WhatsApp, additive next to integrationWhatsappId so an omitted channel keeps
+ * prior callers' behavior unchanged.
  */
 export type AdsConversionJobSyncRetargetAudience = {
   type: typeof IntegrationJobAction.syncRetargetAudience
@@ -544,7 +769,84 @@ export type IntegrationJobProcessCommentAutomation = {
     parentId?: string
     fromId: string
     message?: string
+    tags?: CommentTag[]
     createdTime: number
+  }
+}
+
+/**
+ * TikTok flagged a comment as high intent, which is the only way to obtain a
+ * `comment_id` its Comment-to-Message DM will accept.
+ *
+ * Deliberately thin: the event carries no post id, so the handler's whole job is
+ * to stamp the flag onto the comment already ingested from `comment.update` and
+ * let the automation path read it. Nothing here identifies an automation.
+ */
+export type IntegrationJobTiktokHighIntentComment = {
+  type: typeof IntegrationJobAction.tiktokHighIntentComment
+  data: {
+    integrationType: string
+    integrationIdentifier: string
+    commentId: string
+    commentText?: string
+    uniqueIdentifier?: string
+    isFollower?: boolean
+    /** Epoch seconds — when the comment was written, not when it was flagged. */
+    commentedAt: number
+  }
+}
+
+/**
+ * A private reply the automation matched but could not send yet, because the
+ * channel only permits a DM once it has flagged the comment high intent and
+ * that flag had not arrived.
+ *
+ * Carries the whole candidate rather than a row id. The automation pass is the
+ * only place that knows which automation matched, and re-deriving it later
+ * would re-run `replyOncePerUserPerPost` against the dedup row this very
+ * comment just wrote — declining every time. The job re-checks the flag on a
+ * bounded schedule and either sends or records one blocked event.
+ */
+export type IntegrationJobDeferredCommentPrivateReply = {
+  type: typeof IntegrationJobAction.deferredCommentPrivateReply
+  data: {
+    integrationType: string
+    integrationIdentifier: string
+    workspaceId: string
+    automationId: string
+    channelType:
+      | "messenger"
+      | "instagram"
+      | "instagramFacebook"
+      | "threads"
+      | "tiktok"
+    commentId: string
+    postId: string
+    conversationId: string
+    contactInboxId: string
+    message?: string
+    /** Epoch seconds, as `processCommentAutomation` received it. */
+    createdTime: number
+    /** ISO-8601; the `occurredAt` every analytics row for this comment shares. */
+    occurredAtIso: string
+    privateReply: CommentReply
+    dedup?: {
+      automationId: string
+      contactId: string
+      postId: string
+      workspaceId: string
+    }
+    /**
+     * The automation's `replyAfter`, in ms, exactly as the inline path received
+     * it. Optional because jobs enqueued before this field existed are still in
+     * flight; the handler reads it as `?? 0`, which is what they did anyway.
+     *
+     * The handler spends what is LEFT of it, not the whole thing — the deferral
+     * wait already ran down part of the clock.
+     */
+    delay?: number
+    /** Index into the handler's re-check schedule; 0 on the first enqueue. */
+    attempt: number
   }
 }
 
@@ -559,7 +861,12 @@ export type IntegrationJobCommentAIReply = {
     commentId: string
     agentId: string
     replyChannel: "public" | "private"
-    channelType: "messenger" | "instagram" | "instagramFacebook"
+    channelType:
+      | "messenger"
+      | "instagram"
+      | "instagramFacebook"
+      | "threads"
+      | "tiktok"
     message?: string
     parentMessageId?: string | null
     parentMessageCreatedAt?: string | null
@@ -607,6 +914,20 @@ export type IntegrationJobProcessLeadgen = {
   }
 }
 
+/**
+ * Runs one budgeted chunk of an Automatic Customer Scan run. Only carries
+ * `runId`/`workspaceId` — channel, integration, and inbox are read off the
+ * claimed run row instead of the payload, so a stale/forged job can't steer
+ * the engine at another channel or workspace.
+ */
+export type IntegrationJobContactScan = {
+  type: typeof IntegrationJobAction.contactScan
+  data: {
+    runId: string
+    workspaceId: string
+  }
+}
+
 export type IntegrationJobData =
   | IntegrationJobReceiveMessage
   | IntegrationJobReceiveComment
@@ -616,6 +937,7 @@ export type IntegrationJobData =
   | IntegrationJobMessageReaction
   | IntegrationJobMessageStatus
   | IntegrationJobRunFlowNode
+  | IntegrationJobResumeHeavyStep
   | IntegrationJobSendFlowPostback
   | IntegrationJobSendFlowQuickReply
   | IntegrationJobAgentMarkAsRead
@@ -633,9 +955,15 @@ export type IntegrationJobData =
   | IntegrationJobCoexistInstagramSync
   | IntegrationJobCoexistAttachmentDownload
   | IntegrationJobAdsAutomaticEvent
+  | IntegrationJobWhatsappCallEvent
+  | IntegrationJobWhatsappCallRecordingReady
+  | IntegrationJobWhatsappCallNativeRecordingFetch
+  | IntegrationJobWhatsappCallNativeTranscriptFetch
   | IntegrationJobUpdateContactAvatar
   | IntegrationJobChannelLabelChange
   | IntegrationJobProcessCommentAutomation
+  | IntegrationJobTiktokHighIntentComment
+  | IntegrationJobDeferredCommentPrivateReply
   | IntegrationJobCommentAIReply
   | IntegrationJobProcessLeadgen
   | IntegrationJobProcessStoryReplyAutomation
@@ -645,6 +973,7 @@ export type IntegrationJobData =
   | AdsConversionJobEvaluateTemplateSent
   | AdsConversionJobEvaluateConversionTrigger
   | AdsConversionJobSyncRetargetAudience
+  | IntegrationJobContactScan
 
 export const integrationQueue = isNoRedisEnv()
   ? fakeQueue
@@ -653,15 +982,12 @@ export const integrationQueue = isNoRedisEnv()
       defaultJobOptions,
     })
 
-// Ads-conversion jobs need a stronger retry policy than the integration
-// queue default (`attempts: 2` / 5s) — CAPI sends and retarget syncs call
-// out to Meta and should ride out transient 5xx/429s over minutes, not
-// seconds. `sendConversionEvent` additionally gets an explicit BullMQ
-// `priority` so it's picked ahead of the other 3 ads actions once queued —
-// note BullMQ processes *unprioritized* (priority 0, the default for the
-// ~30 existing integration actions) jobs before ANY prioritized job, so this
-// only orders ads-conversion jobs relative to each other, not ahead of the
-// rest of the integration queue. See BullMQ `priority` docs + plan §2.2/HIGH-1.
+// Ads-conversion jobs need a stronger retry policy than the queue default since
+// CAPI sends and retarget syncs call out to Meta and should ride out transient
+// 5xx/429s over minutes. sendConversionEvent also gets a BullMQ priority so
+// it's picked ahead of the other 3 ads actions — note BullMQ processes
+// unprioritized jobs before any prioritized one, so this only orders ads-
+// conversion jobs relative to each other.
 const CAPI_EVENT_PRIORITY = 1
 
 const adsConversionRetryOptions: JobsOptions = {
@@ -669,6 +995,20 @@ const adsConversionRetryOptions: JobsOptions = {
   backoff: {
     type: "exponential",
     delay: 30_000,
+  },
+}
+
+/**
+ * The native recording/transcript fetch jobs can be enqueued before the
+ * WhatsappCall row exists (racing the row-creating webhook/job). The handler
+ * throws a retryable error while it's missing; this bounds retries to roughly
+ * an hour rather than the default short-lived policy.
+ */
+const NATIVE_CALL_CAPTURE_RETRY_OPTIONS: JobsOptions = {
+  attempts: 13,
+  backoff: {
+    type: "fixed",
+    delay: 300_000,
   },
 }
 
@@ -683,6 +1023,10 @@ const jobOptionsByAction: Partial<
   },
   [IntegrationJobAction.sendMetaCapiEvent]: adsConversionRetryOptions,
   [IntegrationJobAction.syncRetargetAudience]: adsConversionRetryOptions,
+  [IntegrationJobAction.whatsappCallNativeRecordingFetch]:
+    NATIVE_CALL_CAPTURE_RETRY_OPTIONS,
+  [IntegrationJobAction.whatsappCallNativeTranscriptFetch]:
+    NATIVE_CALL_CAPTURE_RETRY_OPTIONS,
 }
 
 /**

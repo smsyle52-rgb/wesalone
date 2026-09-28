@@ -26,6 +26,7 @@ export const ScheduleJobData = {
   reconcileMac: "reconcileMac",
   maintainMacPartitions: "maintainMacPartitions",
   scanCoexistRuns: "scanCoexistRuns",
+  scanContactScans: "scanContactScans",
   reconcileMetaCatalogSyncs: "reconcileMetaCatalogSyncs",
   purgeCoexistStaging: "purgeCoexistStaging",
   purgeWhatsappSignupSessions: "purgeWhatsappSignupSessions",
@@ -34,12 +35,16 @@ export const ScheduleJobData = {
   purgeBroadcasts: "purgeBroadcasts",
   purgeAutomationThrottle: "purgeAutomationThrottle",
   purgeErrorLogs: "purgeErrorLogs",
+  purgeCommentAutomationEvents: "purgeCommentAutomationEvents",
   refreshChannelTokens: "refreshChannelTokens",
   unsubscribeExpiredTrials: "unsubscribeExpiredTrials",
   teardownExpiredTrial: "teardownExpiredTrial",
   expireStalePendingOrders: "expireStalePendingOrders",
   processBillingLifecycle: "processBillingLifecycle",
   notifyMacLimitReached: "notifyMacLimitReached",
+  // WhatsApp calling.
+  purgeExpiredCallRecordings: "purgeExpiredCallRecordings",
+  sweepStaleWhatsappCalls: "sweepStaleWhatsappCalls",
 } as const
 
 /**
@@ -156,6 +161,11 @@ export type ScheduleJobScanCoexistRuns = {
   data: Record<string, never>
 }
 
+export type ScheduleJobScanContactScans = {
+  type: typeof ScheduleJobData.scanContactScans
+  data: Record<string, never>
+}
+
 export type ScheduleJobReconcileMetaCatalogSyncs = {
   type: typeof ScheduleJobData.reconcileMetaCatalogSyncs
   data: Record<string, never>
@@ -206,6 +216,11 @@ export type ScheduleJobPurgeErrorLogs = {
   data: Record<string, never>
 }
 
+export type ScheduleJobPurgeCommentAutomationEvents = {
+  type: typeof ScheduleJobData.purgeCommentAutomationEvents
+  data: Record<string, never>
+}
+
 export type ScheduleJobRefreshChannelTokens = {
   type: typeof ScheduleJobData.refreshChannelTokens
   // No `channels` = refresh every channel. The short-lived scheduler passes
@@ -238,6 +253,18 @@ export type ScheduleJobNotifyMacLimitReached = {
   data: Record<string, never>
 }
 
+/** Daily retention sweep: deletes expired call recordings' S3 objects and clears the columns. */
+export type ScheduleJobPurgeExpiredCallRecordings = {
+  type: typeof ScheduleJobData.purgeExpiredCallRecordings
+  data: Record<string, never>
+}
+
+/** Every 5 minutes: `ringing` call rows older than 90s that were never finalized -> `failed`. */
+export type ScheduleJobSweepStaleWhatsappCalls = {
+  type: typeof ScheduleJobData.sweepStaleWhatsappCalls
+  data: Record<string, never>
+}
+
 export type ScheduleJobData =
   | ScheduleJobBroadcast
   | ScheduleJobEnqueueBroadcast
@@ -255,6 +282,7 @@ export type ScheduleJobData =
   | ScheduleJobReconcileMac
   | ScheduleJobMaintainMacPartitions
   | ScheduleJobScanCoexistRuns
+  | ScheduleJobScanContactScans
   | ScheduleJobReconcileMetaCatalogSyncs
   | ScheduleJobPurgeCoexistStaging
   | ScheduleJobPurgeWhatsappSignupSessions
@@ -263,12 +291,15 @@ export type ScheduleJobData =
   | ScheduleJobPurgeBroadcasts
   | ScheduleJobPurgeAutomationThrottle
   | ScheduleJobPurgeErrorLogs
+  | ScheduleJobPurgeCommentAutomationEvents
   | ScheduleJobRefreshChannelTokens
   | ScheduleJobUnsubscribeExpiredTrials
   | ScheduleJobTeardownExpiredTrial
   | ScheduleJobExpireStalePendingOrders
   | ScheduleJobProcessBillingLifecycle
   | ScheduleJobNotifyMacLimitReached
+  | ScheduleJobPurgeExpiredCallRecordings
+  | ScheduleJobSweepStaleWhatsappCalls
 
 export const scheduleQueue = isNoRedisEnv()
   ? fakeQueue

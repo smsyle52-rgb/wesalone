@@ -8,6 +8,7 @@ import { InstagramLoginSelect } from "@/features/integration-instagram/component
 import { generateInstagramRedirectUri } from "@/features/integration-instagram/libs/oauth"
 import { generateInstagramFacebookRedirectUri } from "@/features/integration-instagram/libs/oauth-facebook"
 import { TelegramConnect } from "@/features/integration-telegram/components/telegram-connect"
+import { generateThreadsRedirectUri } from "@/features/integration-threads/libs/oauth"
 import { generateTiktokRedirectUri } from "@/features/integration-tiktok/libs/tiktok"
 import { SimpleCreateWebchat } from "@/features/integration-webchat/simple-create-webchat"
 import WhatsappCreate from "@/features/integration-whatsapp/components/whatsapp-create"
@@ -17,6 +18,11 @@ import { requireWorkspacePermission } from "@/lib/auth/require-workspace-permiss
 import { getCurrentUserId } from "@/lib/auth/utils"
 import { resolvePlatformOwnerId } from "@/lib/platform-credential-owner"
 import { buildProviderCallbackUrl } from "@/lib/provider-origin"
+import {
+  CREATE_CHANNEL_ERROR_MESSAGE_KEYS,
+  isCreateChannelErrorCode,
+} from "@/lib/workspace/create-first-workspace"
+import { filterPreviewChannels } from "@/lib/workspace/preview-channels"
 
 export const dynamic = "force-dynamic"
 
@@ -24,6 +30,8 @@ type CreateChannelPageProps = {
   searchParams: Promise<{
     channel?: string | null
     workspaceId?: string | null
+    /** Set by the OAuth callback / SSO-reuse route when the first-channel workspace could not be created (plan limit). */
+    error?: string | null
   }>
 }
 
@@ -54,8 +62,11 @@ export default async function CreateChannelPage(props: CreateChannelPageProps) {
   // hiding is a hint, never an access control. Never consulted by
   // webhooks/outbound send/`Inbox` itself, so an already-connected inbox of a
   // hidden channel keeps working unaffected.
-  const visibleChannels =
-    await tenantService.resolveVisibleChannels(platformOwnerId)
+  // `filterPreviewChannels` layers the pending-provider-approval allowlist
+  // (Threads) on top of that policy — same UI-only semantics.
+  const visibleChannels = await filterPreviewChannels(
+    await tenantService.resolveVisibleChannels(platformOwnerId),
+  )
   const isVisible = (channel: ChannelType) => visibleChannels.includes(channel)
 
   if (selectedChannel === "telegram" && isVisible("telegram")) {
@@ -70,33 +81,44 @@ export default async function CreateChannelPage(props: CreateChannelPageProps) {
     return <CreateApiForm autoOpen={true} workspaceId={workspaceId} />
   }
 
-  const [whatsapp, messenger, instagram, instagramFacebook, zalo, tiktok] =
-    await Promise.all([
-      platformCredentialService.resolveForOwner({
-        ownerId: platformOwnerId,
-        type: "whatsapp",
-      }),
-      platformCredentialService.resolveForOwner({
-        ownerId: platformOwnerId,
-        type: "messenger",
-      }),
-      platformCredentialService.resolveForOwner({
-        ownerId: platformOwnerId,
-        type: "instagram",
-      }),
-      platformCredentialService.resolveForOwner({
-        ownerId: platformOwnerId,
-        type: "instagramFacebook",
-      }),
-      platformCredentialService.resolveForOwner({
-        ownerId: platformOwnerId,
-        type: "zalo",
-      }),
-      platformCredentialService.resolveForOwner({
-        ownerId: platformOwnerId,
-        type: "tiktok",
-      }),
-    ])
+  const [
+    whatsapp,
+    messenger,
+    instagram,
+    instagramFacebook,
+    threads,
+    zalo,
+    tiktok,
+  ] = await Promise.all([
+    platformCredentialService.resolveForOwner({
+      ownerId: platformOwnerId,
+      type: "whatsapp",
+    }),
+    platformCredentialService.resolveForOwner({
+      ownerId: platformOwnerId,
+      type: "messenger",
+    }),
+    platformCredentialService.resolveForOwner({
+      ownerId: platformOwnerId,
+      type: "instagram",
+    }),
+    platformCredentialService.resolveForOwner({
+      ownerId: platformOwnerId,
+      type: "instagramFacebook",
+    }),
+    platformCredentialService.resolveForOwner({
+      ownerId: platformOwnerId,
+      type: "threads",
+    }),
+    platformCredentialService.resolveForOwner({
+      ownerId: platformOwnerId,
+      type: "zalo",
+    }),
+    platformCredentialService.resolveForOwner({
+      ownerId: platformOwnerId,
+      type: "tiktok",
+    }),
+  ])
 
   if (selectedChannel === "whatsapp" && whatsapp && isVisible("whatsapp")) {
     const oauthCallbackUrl = await buildProviderCallbackUrl(
@@ -153,6 +175,11 @@ export default async function CreateChannelPage(props: CreateChannelPageProps) {
     redirect(redirectUri)
   }
 
+  if (selectedChannel === "threads" && threads && isVisible("threads")) {
+    const redirectUri = await generateThreadsRedirectUri(threads, workspaceId)
+    redirect(redirectUri)
+  }
+
   if (selectedChannel === "zalo" && zalo && isVisible("zalo")) {
     const redirectUri = await generateZaloRedirectUri(zalo, workspaceId)
     redirect(redirectUri)
@@ -163,26 +190,29 @@ export default async function CreateChannelPage(props: CreateChannelPageProps) {
     redirect(redirectUri)
   }
 
-  const configuredChannels: ChannelType[] = []
-  if (whatsapp) {
-    configuredChannels.push("whatsapp")
-  }
-  if (messenger) {
-    configuredChannels.push("messenger")
-  }
-  if (instagram) {
-    configuredChannels.push("instagram")
-  }
-  if (zalo && isVisible("zalo")) {
-    configuredChannels.push("zalo")
-  }
-  if (tiktok) {
-    configuredChannels.push("tiktok")
-  }
+  // `instagramFacebook` is deliberately absent: it is a login flavor of the
+  // `instagram` channel, never a channel of its own.
+  const configuredChannels: ChannelType[] = (
+    [
+      ["whatsapp", whatsapp],
+      ["messenger", messenger],
+      ["instagram", instagram],
+      ["threads", threads],
+      ["zalo", zalo],
+      ["tiktok", tiktok],
+    ] as const
+  )
+    .filter(([, credential]) => Boolean(credential))
+    .map(([channel]) => channel)
+
+  const errorMessageKey = isCreateChannelErrorCode(searchParams.error)
+    ? CREATE_CHANNEL_ERROR_MESSAGE_KEYS[searchParams.error]
+    : undefined
 
   return (
     <InboxSelectCard
       configuredChannels={configuredChannels}
+      errorMessageKey={errorMessageKey}
       offeredChannels={visibleChannels}
     />
   )

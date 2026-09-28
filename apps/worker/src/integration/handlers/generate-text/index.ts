@@ -8,16 +8,16 @@ import {
   type UsageReservation,
   usageMeteringService,
 } from "@chatbotx.io/business"
-import { logProviderError } from "@chatbotx.io/business/error-log"
 import { isMessageStorageError } from "@chatbotx.io/database/errors"
 import type { AIGenerateTextSchema } from "@chatbotx.io/flow-config"
 import { APICallError, streamText } from "ai"
 import { normalizeError } from "universal-error-normalizer"
 import { logger } from "../../../lib/logger"
 import { saveResultToCustomField } from "../../utils/contact"
-import type { ExecuteStepProps } from "../flow-utils"
+import { type ExecuteStepProps, logStepProviderError } from "../flow-utils"
 import { aiErrorLogProvider } from "../shared/ai-error-log-provider"
 import { resolveFlowAIModel } from "../shared/flow-ai-model-resolver"
+import { createMcpTokenResolver } from "../shared/resolve-mcp-token"
 import type { ExecuteStepResult } from "../step"
 import { buildAIMessages } from "./messages"
 
@@ -91,6 +91,7 @@ export async function handleAIGenerateText({
       mcp: {
         McpClient,
         normalizeMcpContent,
+        resolveToken: createMcpTokenResolver(conversation.workspaceId),
       },
     })
     cleanupToolset = cleanup
@@ -151,12 +152,11 @@ export async function handleAIGenerateText({
       throw err
     }
     const error = normalizeError(err)
-    await logProviderError({
-      provider: aiErrorLogProvider(step.provider),
-      workspaceId: conversation.workspaceId,
-      contactId: conversation.contactId,
-      error: err,
-    })
+    await logStepProviderError(
+      aiErrorLogProvider(step.provider),
+      { conversation, contactInbox },
+      err,
+    )
     if (APICallError.isInstance(err) && err.statusCode === 402) {
       logger.error({ err: error }, "AI provider insufficient credits")
       return {

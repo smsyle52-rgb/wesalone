@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto"
-import { getPlatformEmbeddingProviderOptions } from "@chatbotx.io/ai/server"
 import { usageMeteringService } from "@chatbotx.io/business"
 import {
   aiConversationSourceStatuses,
@@ -18,7 +17,10 @@ import {
 import { embed } from "ai"
 import { normalizeError } from "universal-error-normalizer"
 import { z } from "zod"
-import { resolveEmbeddingModel } from "../../../../../ai-agent/lib/embedding-model"
+import {
+  getEmbeddingProviderOptions,
+  resolveEmbeddingModel,
+} from "../../../../../ai-agent/lib/embedding-model"
 import { logger } from "../../../../../lib/logger"
 import type {
   ConversationContextSnippet,
@@ -208,7 +210,7 @@ async function retrieveUrlChunks(
     }))
   }
 
-  const embeddingModel = await resolveEmbeddingModel(
+  const { model: embeddingModel, provider } = await resolveEmbeddingModel(
     resolvedSource.source.workspaceId,
   )
 
@@ -227,8 +229,10 @@ async function retrieveUrlChunks(
     const result = await embed({
       model: embeddingModel,
       value: input.query,
-      providerOptions:
-        await getPlatformEmbeddingProviderOptions("RETRIEVAL_QUERY"),
+      providerOptions: await getEmbeddingProviderOptions(
+        provider,
+        "RETRIEVAL_QUERY",
+      ),
     })
     embedding = result.embedding
     await usageMeteringService.settleUnits(

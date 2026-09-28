@@ -1,18 +1,19 @@
 "use server"
 
-import { buildContext } from "@chatbotx.io/business"
+import {
+  buildContext,
+  inboxService,
+  instagramIntegrationService,
+} from "@chatbotx.io/business"
 import { moveBrandingMenuLast } from "@chatbotx.io/business/branding"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
-import { db, eq, findOrFail } from "@chatbotx.io/database/client"
+import { db, findOrFail } from "@chatbotx.io/database/client"
 import {
   type InstagramConversationStarter,
   type InstagramPersistentMenu,
   instagramPersistentMenuTypes,
 } from "@chatbotx.io/database/partials"
-import {
-  flowVersionModel,
-  integrationInstagramModel,
-} from "@chatbotx.io/database/schema"
+import { flowVersionModel } from "@chatbotx.io/database/schema"
 import type {
   IntegrationInstagramModel,
   WorkspaceModel,
@@ -53,20 +54,21 @@ export const updateInstagramAction = workspaceActionClient
       bindArgsParsedInputs: WorkspaceIdAndIdRequestParams
     }) => {
       try {
-        await db.transaction(async (tx) => {
+        const inboxId = await db.transaction(async (tx) => {
           const integrationInstagramData = await findIntegrationInstagram({
             workspaceId: ctx.workspace.id,
             id,
           })
 
-          await tx
-            .update(integrationInstagramModel)
-            .set({
+          await instagramIntegrationService.updateProfileFields(
+            { id },
+            {
               welcomeFlowId: parsedInput.welcomeFlowId,
               conversationStarters: parsedInput.conversationStarters,
               persistentMenus: parsedInput.persistentMenus,
-            })
-            .where(eq(integrationInstagramModel.id, id))
+            },
+            tx,
+          )
 
           if (integrationInstagramData) {
             const auth = integrationInstagramData.auth as InstagramAuthValue
@@ -118,7 +120,17 @@ export const updateInstagramAction = workspaceActionClient
               )
             }
           }
+
+          return integrationInstagramData.inboxId
         })
+
+        if (parsedInput.markReadOnOutbound !== undefined) {
+          await inboxService.updateMarkReadOnOutbound({
+            workspaceId: ctx.workspace.id,
+            id: inboxId,
+            enabled: parsedInput.markReadOnOutbound,
+          })
+        }
       } catch (error) {
         logger.error({ err: error }, "Failed to update Instagram integration")
         throw new ChatbotXException("Failed to update Instagram integration")

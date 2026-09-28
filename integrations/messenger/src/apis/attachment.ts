@@ -2,6 +2,7 @@ import type { FileType } from "@chatbotx.io/sdk"
 import {
   type Context,
   defaultMimeTypeForFileType,
+  guessFileTypeFromMimeType,
   type IncomingAttachment,
   resolveIncomingFileType,
 } from "@chatbotx.io/sdk"
@@ -48,16 +49,26 @@ export const uploadAttachment = (
 export const getMessageAttachmentEntity = async ({
   ctx,
   attachment,
+  authorize = true,
+  requireMedia = false,
 }: {
   ctx: Context<MessengerAuthValue>
   attachment: MessengerAttachment
+  // False for a URL outside Facebook's CDN, so the page token never leaks to a
+  // third-party host.
+  authorize?: boolean
+  // Rejects a non image/video response (e.g. an HTML landing page) before it
+  // is uploaded to storage.
+  requireMedia?: boolean
 }): Promise<IncomingAttachment | undefined> => {
   if (!attachment.payload.url) {
     throw new Error("No attachment URL found")
   }
   const response = await fetch(attachment.payload.url as string, {
     headers: {
-      Authorization: `Bearer ${ctx.auth.tokens.accessToken}`,
+      ...(authorize
+        ? { Authorization: `Bearer ${ctx.auth.tokens.accessToken}` }
+        : {}),
       "User-Agent": "node",
     },
   })
@@ -67,11 +78,25 @@ export const getMessageAttachmentEntity = async ({
     )
   }
 
-  const originPath = `${ctx.storagePrefix}/${createId()}`
-  const bytes = await response.arrayBuffer()
+  // Type from the webhook's declared kind, not only the CDN header: Meta
+  // serves voice clips as application/octet-stream, which would file them as
+  // `file` and keep them away from speech-to-text.
   const headerMimeType = response.headers.get("content-type")
   const fileType = resolveIncomingFileType(headerMimeType, attachment.type)
   const mimeType = headerMimeType ?? defaultMimeTypeForFileType(fileType)
+  // Judged on the response itself: the declared kind says what the post
+  // linked to, not whether this URL actually served media.
+  const servedType = headerMimeType
+    ? guessFileTypeFromMimeType(headerMimeType)
+    : "file"
+  if (requireMedia && servedType !== "image" && servedType !== "video") {
+    throw new Error(
+      `Attachment is not an image or video (${mimeType}): ${attachment.payload.url}`,
+    )
+  }
+
+  const originPath = `${ctx.storagePrefix}/${createId()}`
+  const bytes = await response.arrayBuffer()
 
   await ctx.uploader?.putObject(originPath, Buffer.from(bytes), {
     ACL: "public-read",

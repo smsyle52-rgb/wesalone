@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-export const geminiEmbeddingModels = z.enum(["text-embedding-004"])
+export const geminiEmbeddingModels = z.enum(["gemini-embedding-001"])
 export type GeminiEmbeddingModel = z.infer<typeof geminiEmbeddingModels>
 
 // Availability is per-project and changes without notice: `gemini-3-flash` was
@@ -26,6 +26,10 @@ export type GeminiEmbeddingModel = z.infer<typeof geminiEmbeddingModels>
 // shown to exist here. Try it on one workspace and watch that workspace's
 // replies before moving anyone else — a model that 404s takes every agent on it
 // offline, which is exactly what happened on 29 Jul.
+//
+// The gemini-2.5 family was retired from the catalog in the September ChatbotX
+// merge; persisted 2.5 ids are remapped to gemini-3.7-flash by
+// `normalizeAIModelId` (server/factory.ts).
 export const geminiModels = z.enum([
   "gemini-3-pro-image-preview",
   "gemini-3.8-flash",
@@ -34,11 +38,6 @@ export const geminiModels = z.enum([
   "gemini-3.5-flash-lite",
   "gemini-3.5-flash",
   "gemini-3.1-flash-lite",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-2.5-pro",
-  "gemini-2.0-flash-thinking-exp",
-  "gemini-3-flash",
   "gemini-3.1-pro-preview",
 ])
 export type GeminiModel = z.infer<typeof geminiModels>
@@ -71,18 +70,6 @@ export const geminiAnalyzeImageModelOptions: {
     label: "Gemini 3.1 Pro Preview",
     value: geminiModels.enum["gemini-3.1-pro-preview"],
   },
-  {
-    label: "Gemini 2.5 Flash-Lite",
-    value: geminiModels.enum["gemini-2.5-flash-lite"],
-  },
-  {
-    label: "Gemini 2.5 Flash",
-    value: geminiModels.enum["gemini-2.5-flash"],
-  },
-  {
-    label: "Gemini 2.5 Pro",
-    value: geminiModels.enum["gemini-2.5-pro"],
-  },
 ]
 
 export const geminiModelOptions: { label: string; value: GeminiModel }[] = [
@@ -114,21 +101,9 @@ export const geminiModelOptions: { label: string; value: GeminiModel }[] = [
     label: "Gemini 3.1 Flash Lite",
     value: geminiModels.enum["gemini-3.1-flash-lite"],
   },
-  {
-    label: "Gemini 2.5 Flash Lite",
-    value: geminiModels.enum["gemini-2.5-flash-lite"],
-  },
-  {
-    label: "Gemini 2.5 Flash",
-    value: geminiModels.enum["gemini-2.5-flash"],
-  },
-  {
-    label: "Gemini 2.5 Pro",
-    value: geminiModels.enum["gemini-2.5-pro"],
-  },
 ]
 
-export const geminiImageModels = z.enum(["gemini-3.1-flash-image-preview"])
+export const geminiImageModels = z.enum(["gemini-3.1-flash-image"])
 export type GeminiImageModel = z.infer<typeof geminiImageModels>
 
 export const geminiImageModelOptions: {
@@ -136,7 +111,7 @@ export const geminiImageModelOptions: {
   value: GeminiImageModel
 }[] = [
   {
-    label: "Imagen 3",
-    value: geminiImageModels.enum["gemini-3.1-flash-image-preview"],
+    label: "Gemini 3.1 Flash Image",
+    value: geminiImageModels.enum["gemini-3.1-flash-image"],
   },
 ]

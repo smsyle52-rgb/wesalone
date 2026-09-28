@@ -1,4 +1,7 @@
-import type { adsEligibleChannelTypes } from "@chatbotx.io/utils/channel"
+import type {
+  AdReferralChannelType,
+  adsEligibleChannelTypes,
+} from "@chatbotx.io/utils/channel"
 import {
   and,
   type DatabaseClient,
@@ -8,6 +11,7 @@ import {
   type SQL,
   sql,
 } from "../../client"
+import { adConversationPredicate } from "../../queries/ad-referral"
 import type { AdsConversionChannel } from "../../schema"
 import {
   contactInboxModel,
@@ -16,7 +20,11 @@ import {
   integrationMessengerModel,
   integrationWhatsappModel,
 } from "../../schema"
-import type { ContactInboxModel } from "../../types"
+import type {
+  ContactInboxModel,
+  ContactModel,
+  ConversationModel,
+} from "../../types"
 
 export type WhatsappCtwaInboxRow = {
   contactInboxId: string
@@ -40,18 +48,16 @@ export type AdEligibleInboxByContactRow = {
 }
 
 /**
- * Ad-referral attribution predicate pair (messenger/instagram — no
- * `ctwaClid` equivalent exists): `referral.adId` present + `referral.source
- * === "ADS"`. Kept LOCAL to this file (not shared with the identical pair in
- * `ads-conversion-event/repository.ts`) — see that file's own copy for the
- * circular-import hazard that rules out a shared module.
+ * Messenger/Instagram ad-referral attribution, from the shared leaf module.
+ *
+ * NOT used for the WhatsApp entry below: this map feeds CAPI eligibility, not
+ * reporting, and the CAPI send needs a real `ctwaClid` (see
+ * `evaluateWhatsappTemplateSent`). Widening WhatsApp here would only push rows
+ * into the evaluator for it to drop again — wasted work per request.
  */
-function adReferralConditions(): SQL[] {
-  return [
-    sql`${contactInboxModel.referral}->>'adId' IS NOT NULL`,
-    sql`${contactInboxModel.referral}->>'source' = 'ADS'`,
-  ]
-}
+const adReferralConditions = (channel: AdReferralChannelType): SQL[] => [
+  adConversationPredicate(channel),
+]
 
 type AdEligibleIntegrationModel =
   | typeof integrationWhatsappModel
@@ -87,21 +93,105 @@ const adEligibleInboxChannelConfigs = {
   messenger: {
     model: () => integrationMessengerModel,
     channel: "messenger",
-    referralConditions: adReferralConditions,
+    referralConditions: () => adReferralConditions("messenger"),
   },
   instagram: {
     model: () => integrationInstagramModel,
     channel: "instagram",
-    referralConditions: adReferralConditions,
+    referralConditions: () => adReferralConditions("instagram"),
   },
 } satisfies Record<AdEligibleInboxChannel, AdEligibleInboxChannelConfig>
 
 export type ContactInboxWorkspaceRow = Pick<
   ContactInboxModel,
-  "id" | "channel" | "inboxId"
+  "id" | "channel" | "inboxId" | "sourceId"
+>
+
+/**
+ * The projection producing a {@link ContactInboxWorkspaceRow}. Shared by the
+ * four queries that return one, so the row type and the columns actually
+ * selected cannot drift apart — adding a column to the type above is a compile
+ * error until it is added here too.
+ */
+const contactInboxWorkspaceRowColumns = {
+  id: contactInboxModel.id,
+  channel: contactInboxModel.channel,
+  inboxId: contactInboxModel.inboxId,
+  sourceId: contactInboxModel.sourceId,
+} satisfies Record<keyof ContactInboxWorkspaceRow, unknown>
+
+/**
+ * The columns a coexist history patch needs to decide (a) which ContactInbox a
+ * `wa_id` belongs to and (b) how far back it may safely read messages.
+ */
+export type ContactInboxBySourceIdRow = Pick<
+  ContactInboxModel,
+  "id" | "sourceId" | "lastIncomingMessageAt" | "createdAt"
 >
 
 export const contactInboxRepository = {
+  listWithInboxNameByContactId(
+    input: { contactId: string; workspaceId: string },
+    tx: DatabaseClient = db,
+  ) {
+    return tx.query.contactInboxModel.findMany({
+      where: {
+        contactId: input.contactId,
+        inbox: { workspaceId: input.workspaceId },
+      },
+      orderBy: { id: "asc" },
+      columns: {
+        id: true,
+        contactId: true,
+        inboxId: true,
+        channel: true,
+        source: true,
+        sourceId: true,
+        sourceUserId: true,
+        sourceUsername: true,
+        language: true,
+        lastIncomingMessageAt: true,
+        contactLastReadAt: true,
+      },
+      with: { inbox: { columns: { name: true } } },
+    })
+  },
+  /**
+   * Resolves a batch of channel-side ids (`sourceId` — a WhatsApp `wa_id`, a
+   * Messenger PSID, …) to their ContactInbox rows within ONE inbox, in a single
+   * round trip. Rows with a null `sourceId` cannot be addressed this way and
+   * are dropped.
+   *
+   * A missing key is meaningful to the caller, not an error: the WhatsApp
+   * coexist flush uses it to tell "Meta delivered a patch before the message it
+   * targets" (carry the patch, retry next flush) from "resolved".
+   */
+  async findByInboxAndSourceIds(
+    input: { inboxId: string; sourceIds: string[] },
+    tx: DatabaseClient = db,
+  ): Promise<ContactInboxBySourceIdRow[]> {
+    const sourceIds = Array.from(new Set(input.sourceIds))
+    if (sourceIds.length === 0) {
+      return []
+    }
+    const rows = await tx
+      .select({
+        id: contactInboxModel.id,
+        sourceId: contactInboxModel.sourceId,
+        lastIncomingMessageAt: contactInboxModel.lastIncomingMessageAt,
+        createdAt: contactInboxModel.createdAt,
+      })
+      .from(contactInboxModel)
+      .where(
+        and(
+          eq(contactInboxModel.inboxId, input.inboxId),
+          inArray(contactInboxModel.sourceId, sourceIds),
+        ),
+      )
+
+    return rows.filter((row) => Boolean(row.sourceId))
+  },
+
   /**
    * Single-row, workspace-scoped load of a contact inbox by id — the cheap
    * "does this contact inbox even exist / what channel is it" lookup, so a
@@ -115,11 +205,7 @@ export const contactInboxRepository = {
     tx: DatabaseClient = db,
   ): Promise<ContactInboxWorkspaceRow | null> {
     const [row] = await tx
-      .select({
-        id: contactInboxModel.id,
-        channel: contactInboxModel.channel,
-        inboxId: contactInboxModel.inboxId,
-      })
+      .select(contactInboxWorkspaceRowColumns)
       .from(contactInboxModel)
       .innerJoin(
         inboxModel,
@@ -149,11 +235,7 @@ export const contactInboxRepository = {
     tx: DatabaseClient = db,
   ): Promise<ContactInboxWorkspaceRow | null> {
     const [row] = await tx
-      .select({
-        id: contactInboxModel.id,
-        channel: contactInboxModel.channel,
-        inboxId: contactInboxModel.inboxId,
-      })
+      .select(contactInboxWorkspaceRowColumns)
       .from(contactInboxModel)
       .innerJoin(
         inboxModel,
@@ -188,11 +270,7 @@ export const contactInboxRepository = {
     tx: DatabaseClient = db,
   ): Promise<ContactInboxWorkspaceRow | null> {
     const [row] = await tx
-      .select({
-        id: contactInboxModel.id,
-        channel: contactInboxModel.channel,
-        inboxId: contactInboxModel.inboxId,
-      })
+      .select(contactInboxWorkspaceRowColumns)
       .from(contactInboxModel)
       .innerJoin(
         inboxModel,
@@ -202,43 +280,6 @@ export const contactInboxRepository = {
         ),
       )
       .where(eq(contactInboxModel.contactId, input.contactId))
-      .orderBy(mostRecentMessageFirst())
-      .limit(1)
-
-    return row ?? null
-  },
-
-  /**
-   * The most recently active contact-inbox in one inbox — the recipient a
-   * "Send test event" CAPI check is attributed to, since Meta requires a real
-   * page-scoped id / phone number even for test events. `requireCtwaClid`
-   * narrows to click-to-WhatsApp-attributed rows, the only ones Meta accepts
-   * for a WhatsApp business-messaging event.
-   */
-  async findMostRecentByInbox(
-    input: { inboxId: string; workspaceId: string; requireCtwaClid?: boolean },
-    tx: DatabaseClient = db,
-  ): Promise<ContactInboxWorkspaceRow | null> {
-    const [row] = await tx
-      .select({
-        id: contactInboxModel.id,
-        channel: contactInboxModel.channel,
-        inboxId: contactInboxModel.inboxId,
-      })
-      .from(contactInboxModel)
-      .innerJoin(
-        inboxModel,
-        and(
-          eq(inboxModel.id, contactInboxModel.inboxId),
-          eq(inboxModel.workspaceId, input.workspaceId),
-        ),
-      )
-      .where(
-        and(
-          eq(contactInboxModel.inboxId, input.inboxId),
-          input.requireCtwaClid ? ctwaReferralCondition() : undefined,
-        ),
-      )
       .orderBy(mostRecentMessageFirst())
       .limit(1)
 
@@ -375,5 +416,165 @@ export const contactInboxRepository = {
     )
 
     return perChannelRows.flat()
+  },
+
+  /**
+   * Resolve a contact inbox with its `conversation` + `contact` relations,
+   * by an arbitrary `where` (e.g. `{ inboxId, sourceId }` or
+   * `{ inboxId, sourceUserId }`) — used by `message-status.ts`'s
+   * `resolveStatusContactInbox` behind `resolveWithSourceUserIdFallback`.
+   * Keep the caller's probe order/spread exactly as-is; this repo method
+   * only executes one shape of the query.
+   */
+  findWithConversationAndContact(
+    props: { where: Record<string, unknown> },
+    tx: DatabaseClient = db,
+  ): Promise<
+    | (ContactInboxModel & {
+        conversation: ConversationModel | null
+        contact: ContactModel
+      })
+    | undefined
+  > {
+    return tx.query.contactInboxModel.findFirst({
+      where: props.where,
+      with: { conversation: true, contact: true },
+    })
+  },
+
+  /**
+   * Resolve a contact inbox with its `contact` relation, by an arbitrary
+   * `where` — used by `received-message.ts`'s `resolveExistingContactInbox`
+   * behind `resolveWithSourceUserIdFallback`. Keep the caller's
+   * `{ inboxId, channel, ...where }` spread and probe order exactly as-is.
+   */
+  findWithContact(
+    props: { where: Record<string, unknown> },
+    tx: DatabaseClient = db,
+  ): Promise<(ContactInboxModel & { contact: ContactModel }) | undefined> {
+    return tx.query.contactInboxModel.findFirst({
+      where: props.where,
+      with: { contact: true },
+    })
+  },
+
+  /**
+   * Resolve `{ id, contactId }` for contact inboxes matching an inbox +
+   * source-id list — used by `inbox_labels/sync.ts`'s `findInboxes` to map
+   * external label event user ids to local contacts.
+   */
+  listIdsByInboxAndSourceIds(
+    props: { inboxId: string; sourceIds: string[] },
+    tx: DatabaseClient = db,
+  ): Promise<Pick<ContactInboxModel, "id" | "contactId">[]> {
+    return tx.query.contactInboxModel.findMany({
+      where: { inboxId: props.inboxId, sourceId: { in: props.sourceIds } },
+      columns: { id: true, contactId: true },
+    })
+  },
+
+  /**
+   * Map `sourceId → { id, lastIncomingMessageAt, createdAt }` for an inbox —
+   * used by `coexist/whatsapp-flush.ts` to resolve identity columns for a
+   * batch of staged contacts.
+   */
+  listIdentityColumnsByInboxAndSourceIds(
+    props: { inboxId: string; sourceIds: string[] },
+    tx: DatabaseClient = db,
+  ): Promise<
+    Pick<
+      ContactInboxModel,
+      "id" | "sourceId" | "lastIncomingMessageAt" | "createdAt"
+    >[]
+  > {
+    if (props.sourceIds.length === 0) {
+      return Promise.resolve([])
+    }
+    return tx.query.contactInboxModel.findMany({
+      where: { inboxId: props.inboxId, sourceId: { in: props.sourceIds } },
+      columns: {
+        id: true,
+        sourceId: true,
+        lastIncomingMessageAt: true,
+        createdAt: true,
+      },
+    })
+  },
+
+  /**
+   * Single-row load of a contact inbox by id together with its conversation —
+   * deliberately NOT workspace-scoped in the query itself. Used by the public
+   * `/r/[workspaceId]/[name]` magic-link route, which validates the caller's
+   * workspace by comparing `conversation.workspaceId` against the route's
+   * `workspaceId` at the call site instead: filtering by workspace here would
+   * make a cross-workspace inbox indistinguishable from "inbox gone" and lose
+   * the ability to log which workspace the mismatched inbox actually belongs
+   * to.
+   */
+  async findByIdWithConversation(
+    input: { id: string },
+    tx: DatabaseClient = db,
+  ): Promise<
+    (ContactInboxModel & { conversation: ConversationModel | null }) | undefined
+  > {
+    return await tx.query.contactInboxModel.findFirst({
+      where: { id: input.id },
+      with: {
+        conversation: true,
+      },
+    })
+  },
+
+  /**
+   * `sync-channel-labels.ts` scan page: every contact inbox on one inbox,
+   * keyset-paginated by id. Returns full rows (the handler reads `sourceId`,
+   * `contactId`, etc. off the whole model when scanning).
+   */
+  async listByInboxPage(
+    input: { inboxId: string; afterId?: string; limit: number },
+    tx: DatabaseClient = db,
+  ) {
+    return await tx.query.contactInboxModel.findMany({
+      where: {
+        inboxId: input.inboxId,
+        ...(input.afterId ? { id: { gt: input.afterId } } : {}),
+      },
+      orderBy: { id: "asc" },
+      limit: input.limit,
+    })
+  },
+
+  /**
+   * `sync-tag.ts` delete path: resolves the distinct contact ids owning a
+   * page of contact-inbox ids, so the caller can prune `ContactsToTags` rows
+   * for exactly those contacts.
+   */
+  async listContactIdsByIds(
+    input: { ids: string[] },
+    tx: DatabaseClient = db,
+  ): Promise<{ contactId: string }[]> {
+    if (input.ids.length === 0) {
+      return []
+    }
+    return await tx.query.contactInboxModel.findMany({
+      where: { id: { in: input.ids } },
+      columns: { contactId: true },
+    })
+  },
+
+  /**
+   * `sync-tag.ts` attach path: every contact-inbox for a contact, with no
+   * `workspaceId` filter (the caller has only a `contactId` in scope at this
+   * point). Distinct from `contactInboxService.listByContactId`, which
+   * requires `workspaceId` and is cached — this is an uncached, unscoped
+   * full-row read.
+   */
+  async listByContactId(
+    input: { contactId: string },
+    tx: DatabaseClient = db,
+  ): Promise<ContactInboxModel[]> {
+    return await tx.query.contactInboxModel.findMany({
+      where: { contactId: input.contactId },
+    })
   },
 }

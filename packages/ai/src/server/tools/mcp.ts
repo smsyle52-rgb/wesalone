@@ -49,6 +49,10 @@ export type McpClientConstructor = new (params: {
   name: string
 }) => McpClientLike
 
+export type McpTokenResolution =
+  | { reason: string; status: "unresolved" }
+  | { status: "resolved"; token: string }
+
 const isMcpTextContent = (
   value: JsonValue,
 ): value is z.infer<typeof mcpTextContentSchema> =>
@@ -66,9 +70,10 @@ export async function getMCPServerTools(
      * unattributed — an order with no customer on it.
      */
     contactId?: string | null
+    resolveToken?: (token: string) => Promise<McpTokenResolution>
   },
 ): Promise<{ tools: ToolSet; clients: McpClientLike[] }> {
-  const { McpClient, normalizeMcpContent, contactId } = options
+  const { McpClient, normalizeMcpContent, contactId, resolveToken } = options
   try {
     const tools: ToolSet = {}
     const clients: McpClientLike[] = []
@@ -88,8 +93,15 @@ export async function getMCPServerTools(
     }
 
     const results = await Promise.allSettled(
-      mcpServers.map((mcpServer) => {
-        const auth = aiMcpServerAuth.parse(mcpServer.auth)
+      mcpServers.map(async (mcpServer) => {
+        let auth = aiMcpServerAuth.parse(mcpServer.auth)
+        if (auth.type === "token" && resolveToken) {
+          const resolution = await resolveToken(auth.token)
+          if (resolution.status !== "resolved") {
+            return { client: null, tools: {} }
+          }
+          auth = { ...auth, token: resolution.token }
+        }
         const client = new McpClient({
           url: mcpServer.url,
           auth,
@@ -147,7 +159,9 @@ export async function getMCPServerTools(
     for (const result of results) {
       if (result.status === "fulfilled") {
         Object.assign(tools, result.value.tools)
-        clients.push(result.value.client)
+        if (result.value.client) {
+          clients.push(result.value.client)
+        }
       } else {
         const normalized = normalizeError(result.reason)
         logger.error(

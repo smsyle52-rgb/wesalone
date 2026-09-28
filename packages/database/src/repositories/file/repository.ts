@@ -4,6 +4,30 @@ import type { FileModel } from "../../types"
 
 export const fileRepository = {
   /**
+   * Updates a `File` row scoped to `(id, workspaceId)` so a caller can never
+   * write another workspace's upload row. Used by the contact-export job to
+   * persist progress/status on its own export file.
+   */
+  async updateForWorkspace(
+    input: {
+      id: string
+      workspaceId: string
+      values: Partial<typeof fileModel.$inferInsert>
+    },
+    tx: DatabaseClient = db,
+  ): Promise<void> {
+    await tx
+      .update(fileModel)
+      .set(input.values)
+      .where(
+        and(
+          eq(fileModel.id, input.id),
+          eq(fileModel.workspaceId, input.workspaceId),
+        ),
+      )
+  },
+
+  /**
    * Ownership proof for a presigned-upload `File` row — scoped to
    * `(id, workspaceId)` so a caller can never probe another workspace's
    * upload by guessing a `fileId`. Used by the messaging-ad creative
@@ -12,7 +36,7 @@ export const fileRepository = {
    * `path` is trusted — never trust the request body's key alone.
    */
   async findByIdForWorkspace(
-    input: { id: string; workspaceId: string },
+    input: { id: string; workspaceId: string; userId?: string },
     tx: DatabaseClient = db,
   ): Promise<FileModel | null> {
     const [row] = await tx
@@ -22,9 +46,18 @@ export const fileRepository = {
         and(
           eq(fileModel.id, input.id),
           eq(fileModel.workspaceId, input.workspaceId),
+          input.userId ? eq(fileModel.userId, input.userId) : undefined,
         ),
       )
       .limit(1)
     return row ?? null
+  },
+
+  async create(
+    values: typeof fileModel.$inferInsert,
+    tx: DatabaseClient = db,
+  ): Promise<FileModel> {
+    const [row] = await tx.insert(fileModel).values(values).returning()
+    return row
   },
 }

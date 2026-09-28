@@ -1,4 +1,4 @@
-import { db, eq } from "@chatbotx.io/database/client"
+import { db, eq, inArray } from "@chatbotx.io/database/client"
 import { userModel } from "@chatbotx.io/database/schema"
 import type { UserModel } from "@chatbotx.io/database/types"
 import { BaseService } from "../base.service"
@@ -24,6 +24,34 @@ class UserService extends BaseService {
       throw notFoundException("User not found")
     }
     return user
+  }
+
+  async findNameAndEmail(
+    userId: string,
+  ): Promise<{ name: string | null; email: string | null } | undefined> {
+    return await db.query.userModel.findFirst({
+      where: { id: userId },
+      columns: { name: true, email: true },
+    })
+  }
+
+  /**
+   * Of the given ids, the ones that still have a `User` row. Used to drop ids
+   * that outlived their user — a deleted `User` cascades its `UserQuota` row but
+   * not the Redis live-counter key, so reconciling such a ghost id would violate
+   * the `UserQuota → User` foreign key on every run.
+   */
+  async listExistingIds(input: { ids: string[] }): Promise<string[]> {
+    if (input.ids.length === 0) {
+      return []
+    }
+
+    const rows = await db
+      .select({ id: userModel.id })
+      .from(userModel)
+      .where(inArray(userModel.id, input.ids))
+
+    return rows.map((row) => row.id)
   }
 }
 

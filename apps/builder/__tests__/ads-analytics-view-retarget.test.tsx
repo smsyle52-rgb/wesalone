@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 
-import type { CapiDeliverySummary } from "@chatbotx.io/business"
+import type {
+  AdsAnalyticsData,
+  AdsAnalyticsTimeseriesRow,
+  CapiDeliverySummary,
+} from "@chatbotx.io/business"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { AdsAnalyticsView } from "@/features/ads/components/ads-analytics-view"
-import type { AdsAnalyticsData } from "@/features/ads/lib/merge-analytics"
-import type { AdsAnalyticsTimeseriesRow } from "@/features/ads/queries/analytics"
 import type { AdsAnalyticsSearchParams } from "@/features/ads/schema/analytics"
 
 const mockExecute = vi.fn()
@@ -279,12 +281,17 @@ describe("AdsAnalyticsView — single-channel retarget row actions", () => {
     const buttons = Array.from(
       container.querySelectorAll<HTMLButtonElement>("button[data-menu-item]"),
     )
-    const purchasesButton = buttons.find(
-      (button) => button.textContent === "ads.analytics.thoseWhoPurchased",
+    // Was "ads.analytics.thoseWhoPurchased" — that entry is
+    // TEMPORARILY HIDDEN (conversion tracking unfinished), so this drives the same
+    // regression through the one segment still rendered. Switch it back when
+    // the purchases/leads entries are restored.
+    const conversationsButton = buttons.find(
+      (button) =>
+        button.textContent === "ads.analytics.thoseWhoStartedConversation",
     )
 
     await act(async () => {
-      purchasesButton?.click()
+      conversationsButton?.click()
       await flush()
     })
 

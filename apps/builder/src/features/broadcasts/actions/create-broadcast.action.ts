@@ -4,18 +4,13 @@ import {
   broadcastService,
   platformSubscriptionService,
 } from "@chatbotx.io/business"
-import { auditService } from "@chatbotx.io/business/audit"
-import { db } from "@chatbotx.io/database/client"
-import { findBroadcastChannelCapability } from "@chatbotx.io/database/partials"
-import { pruneEmailPhoneFilterConditions } from "@chatbotx.io/database/queries/contact-filter/permission"
-import { broadcastModel } from "@chatbotx.io/database/schema"
-import { startOfMinute } from "date-fns"
-import { returnValidationErrors } from "next-safe-action"
 import { workspaceIdrequestParams } from "@/features/common/schema"
 import { canViewContactEmailAndPhone } from "@/features/contacts/permissions"
 import { getCurrentUserAndTargetWorkspace } from "@/lib/auth/utils"
 import { workspaceActionClient } from "@/lib/safe-action"
 import { createBroadcastRequest } from "../schema/action"
+import { withBroadcastPlanLimitOutcome } from "./broadcast-plan-limit-outcome"
+import { withBroadcastValidationErrors } from "./broadcast-validation-error"
 
 export const createBroadcastAction = workspaceActionClient
   .bindArgsSchemas(workspaceIdrequestParams)
@@ -26,11 +21,10 @@ export const createBroadcastAction = workspaceActionClient
       parsedInput,
     } = props
 
-    // Broadcasts are a paid-plan feature — drafts included, so a free
-    // workspace never builds a campaign it could not launch.
+    // Wesal One: broadcasts are a paid-plan feature — drafts included, so a
+    // free workspace never builds a campaign it could not launch.
     await platformSubscriptionService.assertPaidPlanForWorkspace(workspaceId)
 
-    let broadcastName = "Broadcast"
     const userAndWorkspace = await getCurrentUserAndTargetWorkspace(workspaceId)
     const canViewEmailAndPhone = userAndWorkspace
       ? canViewContactEmailAndPhone(
@@ -38,163 +32,13 @@ export const createBroadcastAction = workspaceActionClient
         )
       : false
 
-    const capability = findBroadcastChannelCapability(parsedInput.channel)
-    if (!capability) {
-      return returnValidationErrors(createBroadcastRequest, {
-        _errors: ["Validation Exception"],
-        channel: {
-          _errors: ["Unsupported broadcast channel"],
-        },
-      })
-    }
-
-    if (!capability.subactions.includes(parsedInput.subaction)) {
-      return returnValidationErrors(createBroadcastRequest, {
-        _errors: ["Validation Exception"],
-        subaction: {
-          _errors: ["Unsupported broadcast subaction"],
-        },
-      })
-    }
-
-    if (!(parsedInput.flowId || parsedInput.templateId)) {
-      return returnValidationErrors(createBroadcastRequest, {
-        _errors: ["Validation Exception"],
-        flowId: {
-          _errors: ["Either flow or template must be selected"],
-        },
-      })
-    }
-
-    if (parsedInput.templateId && !capability.supportsTemplateBroadcast) {
-      return returnValidationErrors(createBroadcastRequest, {
-        _errors: ["Validation Exception"],
-        templateId: {
-          _errors: ["Template broadcasts are not supported for this channel"],
-        },
-      })
-    }
-
-    // Never trust integration ids from the client: they scope the audience,
-    // so a foreign id would let a broadcast target another workspace's pages.
-    if (parsedInput.integrationMessengerId) {
-      const integration = await db.query.integrationMessengerModel.findFirst({
-        where: {
-          id: parsedInput.integrationMessengerId,
+    return await withBroadcastValidationErrors(() =>
+      withBroadcastPlanLimitOutcome(() =>
+        broadcastService.create({
+          ...parsedInput,
           workspaceId,
-        },
-        columns: { id: true },
-      })
-      if (!integration) {
-        return returnValidationErrors(createBroadcastRequest, {
-          _errors: ["Validation Exception"],
-          integrationMessengerId: {
-            _errors: ["Integration not found"],
-          },
-        })
-      }
-    }
-
-    if (parsedInput.integrationWhatsappId) {
-      const integration = await db.query.integrationWhatsappModel.findFirst({
-        where: {
-          id: parsedInput.integrationWhatsappId,
-          workspaceId,
-        },
-        columns: { id: true },
-      })
-      if (!integration) {
-        return returnValidationErrors(createBroadcastRequest, {
-          _errors: ["Validation Exception"],
-          integrationWhatsappId: {
-            _errors: ["Integration not found"],
-          },
-        })
-      }
-    }
-
-    // Validate flow if flowId is provided
-    if (parsedInput.flowId) {
-      const flow = await db.query.flowModel.findFirst({
-        where: {
-          workspaceId,
-          id: parsedInput.flowId,
-        },
-      })
-      if (!flow) {
-        return returnValidationErrors(createBroadcastRequest, {
-          _errors: ["Validation Exception"],
-          flowId: {
-            _errors: ["Flow not found"],
-          },
-        })
-      }
-      broadcastName = flow.name
-    }
-
-    if (parsedInput.templateId) {
-      const templateBroadcastName =
-        await broadcastService.resolveTemplateBroadcastName({
-          workspaceId,
-          channel: parsedInput.channel,
-          templateId: parsedInput.templateId,
-          integrationMessengerId: parsedInput.integrationMessengerId,
-          integrationWhatsappId: parsedInput.integrationWhatsappId,
-        })
-
-      if (!templateBroadcastName) {
-        return returnValidationErrors(createBroadcastRequest, {
-          _errors: ["Validation Exception"],
-          templateId: {
-            _errors: ["Template not found"],
-          },
-        })
-      }
-
-      broadcastName = templateBroadcastName
-    }
-
-    const { buttons, saveAsDraft, ...insertValues } = parsedInput
-    const contactFilter = pruneEmailPhoneFilterConditions(
-      insertValues.contactFilter,
-      canViewEmailAndPhone,
+          canViewEmailAndPhone,
+        }),
+      ),
     )
-
-    const [broadcast] = await db
-      .insert(broadcastModel)
-      .values({
-        ...insertValues,
-        contactFilter,
-        name: broadcastName,
-        workspaceId,
-        status: saveAsDraft ? "draft" : "scheduled",
-        schedulesAt: startOfMinute(
-          new Date(parsedInput.schedulesAt ?? new Date()),
-        ),
-        templateData: parsedInput.templateData
-          ? {
-              ...(parsedInput.templateData as Record<string, unknown>),
-              buttons: buttons ?? [],
-            }
-          : null,
-      })
-      .returning()
-
-    await auditService.record({
-      workspaceId,
-      action: "create",
-      detail: `created a new broadcast (#${broadcast.id})`,
-    })
-
-    // A draft is never launched — it only leaves `draft` through
-    // `scheduleBroadcastAction`, which records its own `launch` entry.
-    if (parsedInput.schedulesType === "now" && !saveAsDraft) {
-      await auditService.record({
-        workspaceId,
-        action: "launch",
-        detail: `launched a broadcast (#${broadcast.id})`,
-      })
-    }
-
-    return broadcast
   })

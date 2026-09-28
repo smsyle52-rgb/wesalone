@@ -1,7 +1,7 @@
 "use server"
 
+import { integrationWhatsappService } from "@chatbotx.io/business"
 import { zodBigintAsString } from "@chatbotx.io/utils"
-import { findIntegrationWhatsapp } from "@/features/integration-whatsapp/queries"
 import { workspaceActionClient } from "@/lib/safe-action"
 import { syncWhatsappMessageTemplatesForIntegration } from "../lib/sync-message-templates"
 
@@ -12,10 +12,11 @@ export const syncMessageTemplateAction = workspaceActionClient
       bindArgsParsedInputs: [workspaceId, id],
     } = props
 
-    const integrationWhatsapp = await findIntegrationWhatsapp({
-      workspaceId,
-      id,
-    })
+    const integrationWhatsapp =
+      await integrationWhatsappService.findByIdForWorkspace({ workspaceId, id })
+    if (!integrationWhatsapp) {
+      throw new Error("Whatsapp integration not found")
+    }
 
     await syncWhatsappMessageTemplatesForIntegration({
       workspaceId,

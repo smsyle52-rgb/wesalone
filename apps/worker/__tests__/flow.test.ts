@@ -4,8 +4,9 @@ import type {
   ButtonStepProps,
   EdgeSchema,
   FlowNode,
+  StepType,
 } from "@chatbotx.io/flow-config"
-import { encodeButtonPayload } from "@chatbotx.io/flow-config"
+import { encodeButtonPayload, stepTypes } from "@chatbotx.io/flow-config"
 import { SdkException } from "@chatbotx.io/sdk"
 import type { IntegrationJobRunFlowNode } from "@chatbotx.io/worker-config"
 import { beforeEach, describe, expect, type Mock, test, vi } from "vitest"
@@ -422,10 +423,11 @@ describe("flow action target resolution", () => {
     expect(integrationQueueAdd).toHaveBeenCalled()
     const [action, job] = integrationQueueAdd.mock.calls[0] as unknown as [
       string,
-      { data: { nodeId: string } },
+      { data: { nodeId: string; isBulkBroadcast?: boolean } },
     ]
     expect(action).toBe("sendFlow")
     expect(job.data.nodeId).toBe("node-2")
+    expect(job.data.isBulkBroadcast).toBeUndefined()
   }
 
   test("runFlowPostback advances the flow for a node quick reply", async () => {
@@ -587,23 +589,60 @@ describe("seekConnectedNode", () => {
 })
 
 describe("MESSAGE_PRODUCING_STEP_TYPES", () => {
-  test("matches exactly the step types mapped to sendFlowMessage in flowStepHandlers", async () => {
-    const { MESSAGE_PRODUCING_STEP_TYPES } = await import(
+  // Exhaustiveness itself is a compile-time property of
+  // `Record<StepType, boolean>` — tsc fails if a new step type is unclassified.
+  // What the compiler cannot check is the other direction: a step WIRED to
+  // `sendFlowMessage` but marked `false` would be silently denied the anchor.
+  test("every step mapped to sendFlowMessage is marked as producing a message", async () => {
+    const { STEP_PRODUCES_MESSAGE } = await import(
       "../src/integration/handlers/flow-utils"
     )
     const { flowStepHandlers, sendFlowMessage } = await import(
       "../src/integration/handlers/step"
     )
 
-    const actualMessageProducingTypes = new Set(
-      Object.entries(flowStepHandlers)
-        .filter(([, handler]) => handler === sendFlowMessage)
-        .map(([stepType]) => stepType),
+    const wiredToSendFlowMessage = Object.entries(flowStepHandlers)
+      .filter(([, handler]) => handler === sendFlowMessage)
+      .map(([stepType]) => stepType)
+
+    const misclassified = wiredToSendFlowMessage.filter(
+      (stepType) => !STEP_PRODUCES_MESSAGE[stepType as StepType],
     )
 
-    expect(new Set(MESSAGE_PRODUCING_STEP_TYPES)).toEqual(
-      actualMessageProducingTypes,
+    expect(misclassified).toEqual([])
+  })
+
+  // `getUserData` is the case the classification exists for: it sends its
+  // prompt from its own handler, so no wiring check can infer it.
+  test("marks getUserData as producing a message even though it is not wired to sendFlowMessage", async () => {
+    const { STEP_PRODUCES_MESSAGE, MESSAGE_PRODUCING_STEP_TYPES } =
+      await import("../src/integration/handlers/flow-utils")
+    const { flowStepHandlers, sendFlowMessage } = await import(
+      "../src/integration/handlers/step"
     )
+
+    expect(flowStepHandlers[stepTypes.enum.getUserData]).not.toBe(
+      sendFlowMessage,
+    )
+    expect(STEP_PRODUCES_MESSAGE[stepTypes.enum.getUserData]).toBe(true)
+    expect(MESSAGE_PRODUCING_STEP_TYPES.has(stepTypes.enum.getUserData)).toBe(
+      true,
+    )
+  })
+
+  // These two also send from their own handler, but through `sendChatMessage`,
+  // whose job type carries no `commentAnchor` — so they must NOT claim it.
+  // Pinned so the pairing is broken loudly if someone flips them without
+  // adding the forwarding.
+  test("keeps steps that cannot forward the anchor out of the set", async () => {
+    const { STEP_PRODUCES_MESSAGE } = await import(
+      "../src/integration/handlers/flow-utils"
+    )
+
+    expect(STEP_PRODUCES_MESSAGE[stepTypes.enum.appointmentScheduling]).toBe(
+      false,
+    )
+    expect(STEP_PRODUCES_MESSAGE[stepTypes.enum.questionnaires]).toBe(false)
   })
 })
 
@@ -1064,6 +1103,25 @@ describe("runStepsAndQuickReplies — per-step re-dispatch", () => {
     expect(action).toBe("sendFlow")
     expect(job.data.startFromStepId).toBe("step-2")
     expect(job.data.nodeId).toBe("node-1")
+  })
+
+  test("preserves bulk outbound state for the next step in an initial broadcast flow", async () => {
+    const step1 = { ...makeStep("sendText"), id: "step-1" }
+    const step2 = { ...makeStep("sendText"), id: "step-2" }
+    const props = {
+      ...makeBaseProps(),
+      details: { steps: [step1, step2] },
+      isBulkBroadcast: true,
+      triggerNextNode: false,
+    }
+
+    await runStepsAndQuickReplies(props)
+
+    const [, job] = integrationQueueAdd.mock.calls[0] as unknown as [
+      string,
+      { data: { isBulkBroadcast?: boolean } },
+    ]
+    expect(job.data.isBulkBroadcast).toBe(true)
   })
 
   test("runs beforeStep on initial entry (startFromStepId undefined)", async () => {
@@ -1554,7 +1612,13 @@ describe("runStepsAndQuickReplies — commentAnchor propagation", () => {
     replyChannel: "private" as const,
   }
 
-  test("forwards commentAnchor into the first message-producing step, and drops it from the next-step re-dispatch", async () => {
+  // A claimed private anchor keeps travelling marked `spent` instead of being
+  // dropped: the channel handler needs it to tell a comment-triggered follow-up
+  // (which Meta only delivers inside the contact's own 24h window) apart from a
+  // plain flow message.
+  const spentAnchor = { ...commentAnchor, spent: true }
+
+  test("forwards commentAnchor into the first message-producing step, then marks it spent for the next-step re-dispatch", async () => {
     const step1 = { ...makeStep("sendText"), id: "step-1" }
     const step2 = { ...makeStep("sendText"), id: "step-2" }
     const props = {
@@ -1576,9 +1640,9 @@ describe("runStepsAndQuickReplies — commentAnchor propagation", () => {
     expect(integrationQueueAdd).toHaveBeenCalledOnce()
     const [, nextJob] = integrationQueueAdd.mock.calls[0] as unknown as [
       string,
-      { data: { commentAnchor?: typeof commentAnchor } },
+      { data: { commentAnchor?: typeof spentAnchor } },
     ]
-    expect(nextJob.data.commentAnchor).toBeUndefined()
+    expect(nextJob.data.commentAnchor).toEqual(spentAnchor)
   })
 
   test("forwards commentAnchor through a non-message step to the next-step re-dispatch", async () => {
@@ -1627,7 +1691,7 @@ describe("runStepsAndQuickReplies — commentAnchor propagation", () => {
     expect(integrationQueueAdd).not.toHaveBeenCalled()
   })
 
-  test("does not forward commentAnchor to the next-node dispatch once a message step consumed it", async () => {
+  test("marks the anchor spent on the next-node dispatch once a message step claimed it", async () => {
     const nextNode: FlowNode = {
       id: "node-2",
       position: { x: 0, y: 0 },
@@ -1664,10 +1728,10 @@ describe("runStepsAndQuickReplies — commentAnchor propagation", () => {
     expect(integrationQueueAdd).toHaveBeenCalledOnce()
     const [, nextNodeJob] = integrationQueueAdd.mock.calls[0] as unknown as [
       string,
-      { data: { nodeId: string; commentAnchor?: typeof commentAnchor } },
+      { data: { nodeId: string; commentAnchor?: typeof spentAnchor } },
     ]
     expect(nextNodeJob.data.nodeId).toBe("node-2")
-    expect(nextNodeJob.data.commentAnchor).toBeUndefined()
+    expect(nextNodeJob.data.commentAnchor).toEqual(spentAnchor)
   })
 
   test("forwards commentAnchor to the next-node dispatch when no step consumed it", async () => {
@@ -1707,7 +1771,7 @@ describe("runStepsAndQuickReplies — commentAnchor propagation", () => {
     expect(nextNodeJob.data.commentAnchor).toEqual(commentAnchor)
   })
 
-  test("branch routing (step states) does not carry commentAnchor once the branching step consumed it", async () => {
+  test("branch routing (step states) carries the anchor marked spent once the branching step claimed it", async () => {
     const stateId = "state-success"
     const step = {
       ...makeStep("sendText", [{ id: stateId, stateType: "success" as const }]),
@@ -1743,10 +1807,299 @@ describe("runStepsAndQuickReplies — commentAnchor propagation", () => {
     expect(integrationQueueAdd).toHaveBeenCalledOnce()
     const [, branchJob] = integrationQueueAdd.mock.calls[0] as unknown as [
       string,
-      { data: { nodeId: string; commentAnchor?: typeof commentAnchor } },
+      { data: { nodeId: string; commentAnchor?: typeof spentAnchor } },
     ]
     expect(branchJob.data.nodeId).toBe("node-next")
-    expect(branchJob.data.commentAnchor).toBeUndefined()
+    expect(branchJob.data.commentAnchor).toEqual(spentAnchor)
+  })
+})
+
+// `getUserData` sends its prompt through its own handler rather than
+// `sendFlowMessage`, so it was left out of MESSAGE_PRODUCING_STEP_TYPES and
+// handed `commentAnchor: undefined`. A question-first flow then never claimed
+// the single comment_id-anchored DM Meta grants per comment, and a question
+// after a `sendText` reached the channel with no anchor at all — so
+// `assertCommentPrivateReplyFollowUpDeliverable` never ran and a closed window
+// surfaced as a generic Send API rejection instead of a readable reason.
+describe("executeMultipleSteps — getUserData claims the commentAnchor", () => {
+  const commentAnchor = {
+    commentId: "comment-1",
+    replyChannel: "private" as const,
+  }
+  const spentAnchor = { ...commentAnchor, spent: true }
+
+  async function spyOnGetUserData() {
+    const { flowStepHandlers } = await import(
+      "../src/integration/handlers/step"
+    )
+    return mockSpy(flowStepHandlers, "getUserData").mockResolvedValue({
+      status: "wait",
+      result: null,
+    })
+  }
+
+  test("hands the unspent private anchor to a getUserData step that sends first", async () => {
+    const getUserDataSpy = await spyOnGetUserData()
+    const props = {
+      ...makeBaseProps(),
+      steps: [makeStep("getUserData")],
+      commentAnchor,
+    }
+
+    await executeMultipleSteps(props)
+
+    expect(getUserDataSpy.mock.calls[0]?.[0].commentAnchor).toEqual(
+      commentAnchor,
+    )
+  })
+
+  // `getUserData` returns "wait", which ends this pass — the step after it runs
+  // from a later job. The spent anchor rides out on the result so that job (and
+  // the channel handler behind it) knows the one anchored DM is already gone.
+  test("marks the anchor spent on the result, so the resumed run takes the window-gated path", async () => {
+    await spyOnGetUserData()
+    const props = {
+      ...makeBaseProps(),
+      steps: [makeStep("getUserData")],
+      commentAnchor,
+    }
+
+    const result = await executeMultipleSteps(props)
+
+    expect(result?.commentAnchor).toEqual(spentAnchor)
+  })
+
+  test("hands a spent anchor to a getUserData step that follows a sendText", async () => {
+    const getUserDataSpy = await spyOnGetUserData()
+    const { flowStepHandlers } = await import(
+      "../src/integration/handlers/step"
+    )
+    mockSpy(flowStepHandlers, "sendText").mockResolvedValue(undefined)
+    const props = {
+      ...makeBaseProps(),
+      steps: [
+        { ...makeStep("sendText"), id: "step-1" },
+        { ...makeStep("getUserData"), id: "step-2" },
+      ],
+      commentAnchor,
+    }
+
+    await executeMultipleSteps(props)
+
+    expect(getUserDataSpy.mock.calls[0]?.[0].commentAnchor).toEqual(spentAnchor)
+  })
+
+  // A public anchor is never consumed, so the prompt posts as a comment reply —
+  // which is what the contact's next comment resolves back to. Before this it
+  // went out as a plain DM on the comment-anchored conversation, where nothing
+  // could reach the contact.
+  test("hands an unconsumed public anchor to getUserData", async () => {
+    const getUserDataSpy = await spyOnGetUserData()
+    const publicAnchor = {
+      commentId: "comment-1",
+      replyChannel: "public" as const,
+    }
+    const props = {
+      ...makeBaseProps(),
+      steps: [makeStep("getUserData")],
+      commentAnchor: publicAnchor,
+    }
+
+    await executeMultipleSteps(props)
+
+    expect(getUserDataSpy.mock.calls[0]?.[0].commentAnchor).toEqual(
+      publicAnchor,
+    )
+  })
+
+  test("leaves commentAnchor undefined when the run did not start from a comment", async () => {
+    const getUserDataSpy = await spyOnGetUserData()
+    const props = { ...makeBaseProps(), steps: [makeStep("getUserData")] }
+
+    await executeMultipleSteps(props)
+
+    expect(getUserDataSpy).toHaveBeenCalledOnce()
+    expect(getUserDataSpy.mock.calls[0]?.[0].commentAnchor).toBeUndefined()
+  })
+
+  // The claim must not happen until the handler has run and not errored.
+  // `getUserData` writes its challenge row before sending, so a DB failure
+  // there returns "error" having sent nothing — and because the step declares
+  // only [success, skip], an error does not branch and the loop continues. If
+  // the anchor were claimed up front, the next step would be refused a private
+  // reply that was never sent.
+  test("does not claim the anchor when the step errored before sending", async () => {
+    const { flowStepHandlers } = await import(
+      "../src/integration/handlers/step"
+    )
+    mockSpy(flowStepHandlers, "getUserData").mockResolvedValue({
+      status: "error",
+      result: null,
+      errorMessage: "challenge write failed",
+    })
+    const sendTextSpy = mockSpy(flowStepHandlers, "sendText").mockResolvedValue(
+      undefined,
+    )
+    const props = {
+      ...makeBaseProps(),
+      steps: [
+        { ...makeStep("getUserData"), id: "step-1" },
+        { ...makeStep("sendText"), id: "step-2" },
+      ],
+      commentAnchor,
+    }
+
+    await executeMultipleSteps(props)
+
+    expect(sendTextSpy).toHaveBeenCalledOnce()
+    expect(sendTextSpy.mock.calls[0]?.[0].commentAnchor).toEqual(commentAnchor)
+  })
+
+  test("still claims the anchor for a message step that succeeded", async () => {
+    const { flowStepHandlers } = await import(
+      "../src/integration/handlers/step"
+    )
+    mockSpy(flowStepHandlers, "sendText").mockResolvedValue(undefined)
+    const sendImageSpy = mockSpy(
+      flowStepHandlers,
+      "sendImage",
+    ).mockResolvedValue(undefined)
+    const props = {
+      ...makeBaseProps(),
+      steps: [
+        { ...makeStep("sendText"), id: "step-1" },
+        { ...makeStep("sendImage"), id: "step-2" },
+      ],
+      commentAnchor,
+    }
+
+    await executeMultipleSteps(props)
+
+    expect(sendImageSpy.mock.calls[0]?.[0].commentAnchor).toEqual(spentAnchor)
+  })
+})
+
+describe("runStepsAndQuickReplies — public commentAnchor is never consumed", () => {
+  beforeEach(() => {
+    integrationQueueAdd.mockClear()
+    chatQueueAdd.mockClear()
+  })
+
+  const publicAnchor = {
+    commentId: "comment-1",
+    replyChannel: "public" as const,
+  }
+
+  // A public reply flow answers on the post for its whole run: unlike a private
+  // anchor (one comment_id-anchored DM per comment), `POST /{comment-id}/replies`
+  // takes repeated calls. Consuming it after the first step sent every later
+  // step to a DM whose recipient is the comment-scoped `from.id` — undeliverable
+  // and swallowed, so whichever step happened to be second silently vanished.
+  test.each([
+    ["sendText", "sendImage"],
+    ["sendImage", "sendText"],
+  ])("keeps a public commentAnchor for the next step's re-dispatch (%s then %s)", async (firstStepType, secondStepType) => {
+    const step1 = { ...makeStep(firstStepType), id: "step-1" }
+    const step2 = { ...makeStep(secondStepType), id: "step-2" }
+    const props = {
+      ...makeBaseProps(),
+      details: { steps: [step1, step2] },
+      triggerNextNode: false,
+      commentAnchor: publicAnchor,
+    }
+
+    await runStepsAndQuickReplies(props)
+
+    expect(chatQueueAdd).toHaveBeenCalledOnce()
+    const [, chatJob] = chatQueueAdd.mock.calls[0] as unknown as [
+      string,
+      { data: { commentAnchor?: typeof publicAnchor } },
+    ]
+    expect(chatJob.data.commentAnchor).toEqual(publicAnchor)
+
+    expect(integrationQueueAdd).toHaveBeenCalledOnce()
+    const [, nextJob] = integrationQueueAdd.mock.calls[0] as unknown as [
+      string,
+      {
+        data: {
+          startFromStepId: string
+          commentAnchor?: typeof publicAnchor
+        }
+      },
+    ]
+    expect(nextJob.data.startFromStepId).toBe("step-2")
+    expect(nextJob.data.commentAnchor).toEqual(publicAnchor)
+  })
+
+  test("forwards a public commentAnchor to the next-node dispatch after a message step", async () => {
+    const nextNode: FlowNode = {
+      id: "node-2",
+      position: { x: 0, y: 0 },
+      measured: { width: 100, height: 100 },
+      data: { name: "Next", isStartNode: false, details: { steps: [] } },
+    }
+    const edges: EdgeSchema[] = [
+      {
+        id: "e1",
+        source: "node-1",
+        sourceHandle: "node-1",
+        target: "node-2",
+        targetHandle: "input",
+      },
+    ]
+    const flowVersion = makeFlowVersion([nextNode], edges)
+    const props = {
+      ...makeBaseProps(flowVersion),
+      details: { steps: [{ ...makeStep("sendText"), id: "step-1" }] },
+      triggerNextNode: true,
+      commentAnchor: publicAnchor,
+    }
+
+    await runStepsAndQuickReplies(props)
+
+    expect(chatQueueAdd).toHaveBeenCalledOnce()
+    expect(integrationQueueAdd).toHaveBeenCalledOnce()
+    const [, nextNodeJob] = integrationQueueAdd.mock.calls[0] as unknown as [
+      string,
+      { data: { nodeId: string; commentAnchor?: typeof publicAnchor } },
+    ]
+    expect(nextNodeJob.data.nodeId).toBe("node-2")
+    expect(nextNodeJob.data.commentAnchor).toEqual(publicAnchor)
+  })
+
+  test("branch routing carries a public commentAnchor past the branching step", async () => {
+    const stateId = "state-success"
+    const step = {
+      ...makeStep("sendText", [{ id: stateId, stateType: "success" as const }]),
+      id: "step-1",
+    }
+    const flowVersion = makeFlowVersion(
+      [],
+      [
+        {
+          id: "e1",
+          source: "n1",
+          sourceHandle: stateId,
+          target: "node-next",
+          targetHandle: "input",
+        },
+      ],
+    )
+    const props = {
+      ...makeBaseProps(flowVersion),
+      steps: [step],
+      commentAnchor: publicAnchor,
+    }
+
+    await executeMultipleSteps(props)
+
+    expect(integrationQueueAdd).toHaveBeenCalledOnce()
+    const [, branchJob] = integrationQueueAdd.mock.calls[0] as unknown as [
+      string,
+      { data: { nodeId: string; commentAnchor?: typeof publicAnchor } },
+    ]
+    expect(branchJob.data.nodeId).toBe("node-next")
+    expect(branchJob.data.commentAnchor).toEqual(publicAnchor)
   })
 })
 

@@ -7,7 +7,13 @@ import {
   minigameService,
 } from "@chatbotx.io/business/minigame"
 import { verifyMinigamePlayToken } from "@chatbotx.io/encryption/minigame-play-token"
+import { contactVariableService } from "@chatbotx.io/variables"
+import { headers } from "next/headers"
 import { getTranslations } from "next-intl/server"
+import {
+  checkGuestRateLimit,
+  resolveGuestRateLimitKey,
+} from "@/lib/rate-limit/guest-rate-limit"
 import { actionClient } from "@/lib/safe-action"
 import { MINIGAME_PLAY_SCREENS } from "../components/play/minigame-play-screen-registry"
 import { playMinigameRequest } from "../schema/action"
@@ -46,6 +52,26 @@ export const playMinigameAction = actionClient
     }
     const contactId = contactInbox.contactId
 
+    // The per-contact `remaining` counter used to be the only throttle on this
+    // unauthenticated endpoint; referral bonuses make it worth abusing, so
+    // meter it by IP too. `webchatId` is just the key namespace despite its
+    // name — prefixing keeps minigame buckets off webchat's.
+    //
+    // With no header-setting proxy in front, every player would otherwise
+    // share the one `UNKNOWN_CLIENT_IP` bucket and a popular minigame would
+    // 429 everyone. The play token's `contactInboxId` is a per-player
+    // identity that is already verified above, so it is a safe substitute.
+    const rateLimit = await checkGuestRateLimit({
+      webchatId: `minigame:${minigame.id}`,
+      clientIp: resolveGuestRateLimitKey(
+        await headers(),
+        `contact-inbox:${payload.contactInboxId}`,
+      ),
+    })
+    if (rateLimit.limited) {
+      throw new ChatbotXException(t("rateLimited"), "rateLimited", 429)
+    }
+
     let contactState: Awaited<
       ReturnType<typeof minigameContactService.recordPlayAndDispatch>
     >["contactState"]
@@ -59,6 +85,19 @@ export const playMinigameAction = actionClient
           contactId,
           contactInbox,
           minigame,
+          // Injected because `@chatbotx.io/variables` depends on
+          // `@chatbotx.io/business`, so the service cannot import it. The
+          // arrow keeps `contactVariableService` as the receiver, and the
+          // contact load happens inside — only a text-mode outcome message
+          // that is actually enabled ever calls this.
+          resolveContactVariables: async (text) =>
+            await contactVariableService.replaceAll({
+              text,
+              variables: await contactVariableService.getAll({
+                contactId,
+                contactInbox,
+              }),
+            }),
         }))
     } catch (error) {
       if (

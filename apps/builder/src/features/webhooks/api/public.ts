@@ -7,15 +7,10 @@ import {
   possibleErrorsOnDeletingResource,
   possibleErrorsOnListingResource,
 } from "@/lib/orpc/orpc-error-helper"
-import {
-  paginateInMemory,
-  publicListRequest,
-  publicListResponse,
-} from "@/lib/public-api/list"
+import { publicListRequest, publicListResponse } from "@/lib/public-api/list"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
 
 import { conditionSchema } from "../../conditions/schema"
-import { toConditionColumns } from "../../conditions/to-condition-columns"
 import { publicWebhookResource } from "../schema/resource"
 
 const workspaceTokenAuthAPI = workspaceTokenAuthAPIForScope("integrations")
@@ -32,21 +27,27 @@ export const webhooksPublicRouter = {
       method: "GET",
       path: "/v1/webhooks",
       summary: "List webhooks",
+      description:
+        "Use this to find registered webhook ids before removing one with `webhooks.delete`. Returns webhooks registered in this workspace.",
       tags: ["Webhooks"],
     })
     .input(publicListRequest)
     .output(publicListResponse(publicWebhookResource))
     .errors(possibleErrorsOnListingResource)
-    .handler(async ({ context, input }) => {
-      const data = await webhookService.listByWorkspaceId(context.workspace.id)
-      return paginateInMemory(data, input)
-    }),
+    .handler(
+      async ({ context, input }) =>
+        await webhookService.list({
+          workspaceId: context.workspace.id,
+          page: input.page,
+          perPage: input.perPage,
+        }),
+    ),
 
   create: workspaceTokenAuthAPI
     .route({
       method: "POST",
       path: "/v1/webhooks",
-      summary: "Register a webhook",
+      summary: "Register webhook",
       description:
         "Registers a URL to receive system events (e.g. new contact, tag applied). Automation platforms (e.g. n8n) can call this to auto-attach a webhook when a workflow is activated.",
       successStatus: 201,
@@ -54,9 +55,19 @@ export const webhooksPublicRouter = {
     })
     .input(
       z.object({
-        name: z.string().trim().min(1).max(255),
-        url: z.string().trim().url().max(1000),
-        conditions: z.array(conditionSchema).min(1),
+        name: z.string().trim().min(1).max(255).describe("Webhook name."),
+        url: z
+          .string()
+          .trim()
+          .url()
+          .max(1000)
+          .describe(
+            "URL to receive HTTP POST requests when a matching event occurs.",
+          ),
+        conditions: z
+          .array(conditionSchema)
+          .min(1)
+          .describe("Event conditions that trigger this webhook."),
       }),
     )
     .output(webhookResource)
@@ -68,7 +79,7 @@ export const webhooksPublicRouter = {
         workspaceId: context.workspace.id,
         name,
         url,
-        conditions: conditions.map(toConditionColumns),
+        conditions,
       })
     }),
 
@@ -76,11 +87,19 @@ export const webhooksPublicRouter = {
     .route({
       method: "DELETE",
       path: "/v1/webhooks/{id}",
-      summary: "Unregister a webhook",
+      summary: "Unregister webhook",
+      description:
+        "Permanently deletes a registered webhook. Use `webhooks.list` to find its id first.",
       successStatus: 204,
       tags: ["Webhooks"],
     })
-    .input(z.object({ id: zodBigintAsString() }))
+    .input(
+      z.object({
+        id: zodBigintAsString().describe(
+          "Webhook id. Get it from `webhooks.list`.",
+        ),
+      }),
+    )
     .errors(possibleErrorsOnDeletingResource)
     .handler(async ({ context, input }) => {
       await webhookService.unregister({

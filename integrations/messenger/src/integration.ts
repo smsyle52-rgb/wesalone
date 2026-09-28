@@ -3,14 +3,18 @@ import {
   Integration,
   type IntegrationDefinition,
 } from "@chatbotx.io/sdk"
-import { getCommentAttachment, getCommentAttachmentType } from "./apis/comment"
+import {
+  getCommentAttachment,
+  getCommentAttachmentType,
+  getCommentMessageTags,
+} from "./apis/comment"
 import {
   type CloneMessengerTemplateProps,
   clonePageMessageTemplate,
   listPageMessageTemplates,
 } from "./apis/message-templates"
 import {
-  deleteMessengerProfileFields,
+  deleteProfileFields,
   exchangeLongLivedToken,
   syncPersonas,
   unsubscribePageFromAppWebhook,
@@ -52,6 +56,7 @@ const config: IntegrationDefinition<
     getUserInboxLink,
     getCommentAttachmentType,
     getCommentAttachment,
+    getCommentMessageTags,
     listMessageTemplates: async ({ ctx, input }) =>
       listPageMessageTemplates(ctx.auth, input),
     cloneMessageTemplate: async ({
@@ -77,7 +82,7 @@ const config: IntegrationDefinition<
   },
   disconnect: async (auth: MessengerAuthValue): Promise<void> => {
     try {
-      await deleteMessengerProfileFields({
+      await deleteProfileFields({
         ctx: { auth },
         fields: ["persistent_menu"],
       })

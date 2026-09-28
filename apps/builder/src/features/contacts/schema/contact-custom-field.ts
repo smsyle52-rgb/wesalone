@@ -17,7 +17,7 @@ export const contactCustomFieldResource = createSelectSchema(
 )
 
 export const addContactCustomFieldRequest = z.object({
-  ids: z.array(zodBigintAsString()),
+  ids: z.array(zodBigintAsString()).max(200),
   customFieldId: zodBigintAsString(),
   operation: z.enum(FieldOperationType),
   value: z.string().trim(),
@@ -35,6 +35,13 @@ export const deleteContactCustomFieldsRequest = z.object({
 })
 export type DeleteContactCustomFieldsRequest = z.infer<
   typeof deleteContactCustomFieldsRequest
+>
+
+export const resetContactCustomFieldsRequest = z.object({
+  contactId: zodBigintAsString(),
+})
+export type ResetContactCustomFieldsRequest = z.infer<
+  typeof resetContactCustomFieldsRequest
 >
 
 export const listContactCustomFieldsRequest = z.object({
