@@ -95,7 +95,9 @@ describe("user query hooks", () => {
     queryClient.clear()
   })
 
-  test("requests workspace members and inbox teams with unpaginated inputs", async () => {
+  // Wesal One ships without the licensed inbox-teams API: the teams hook never
+  // makes a request and always reports an empty list.
+  test("requests workspace members unpaginated and never asks for inbox teams", async () => {
     act(() => {
       root.render(
         <QueryClientProvider client={queryClient}>
@@ -106,8 +108,8 @@ describe("user query hooks", () => {
 
     await vi.waitFor(() => {
       expect(mockListWorkspaceMembers).toHaveBeenCalledTimes(1)
-      expect(mockListInboxTeams).toHaveBeenCalledTimes(1)
     })
+    expect(mockListInboxTeams).not.toHaveBeenCalled()
     expect(mockListWorkspaceMembers).toHaveBeenCalledWith(
       {
         workspaceId: "workspace-1",
@@ -115,24 +117,16 @@ describe("user query hooks", () => {
       },
       expect.anything(),
     )
-    expect(mockListInboxTeams).toHaveBeenCalledWith(
-      {
-        workspaceId: "workspace-1",
-      },
-      expect.anything(),
-    )
   })
 
-  test("unwraps workspace member and inbox team response data", async () => {
+  test("unwraps workspace member response data; inbox teams stay empty", async () => {
     const workspaceMembers = [{ id: "member-1" }]
-    const inboxTeams = [{ id: "team-1" }]
+    const inboxTeams: unknown[] = []
     let data: { inboxTeams: unknown; workspaceMembers: unknown } | undefined
     mockListWorkspaceMembers.mockResolvedValue({
       data: workspaceMembers,
       pageCount: 1,
     })
-    mockListInboxTeams.mockResolvedValue({ data: inboxTeams })
-
     act(() => {
       root.render(
         <QueryClientProvider client={queryClient}>
@@ -204,7 +198,7 @@ describe("user query hooks", () => {
     expect(state?.inboxTeamsIsError).toBe(false)
   })
 
-  test("invalidates both user-backed lists, and a refetch returns fresh data", async () => {
+  test("invalidates the workspace member list, and a refetch returns fresh data", async () => {
     let invalidate: (() => unknown) | null = null
     let data: { inboxTeams: unknown; workspaceMembers: unknown } | undefined
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries")
@@ -225,22 +219,19 @@ describe("user query hooks", () => {
     // A wrong query key on either invalidated entry would leave that half of
     // `data` stuck on stale values forever, timing the final `waitFor` out.
     const refreshedMembers = [{ id: "member-2" }]
-    const refreshedTeams = [{ id: "team-2" }]
     mockListWorkspaceMembers.mockResolvedValue({
       data: refreshedMembers,
       pageCount: 1,
     })
-    mockListInboxTeams.mockResolvedValue({ data: refreshedTeams })
-
     await act(async () => {
       await invalidate?.()
     })
 
-    expect(invalidateQueries).toHaveBeenCalledTimes(2)
+    expect(invalidateQueries).toHaveBeenCalledTimes(1)
     await vi.waitFor(() => {
       expect(data).toEqual({
         workspaceMembers: refreshedMembers,
-        inboxTeams: refreshedTeams,
+        inboxTeams: [],
       })
     })
   })

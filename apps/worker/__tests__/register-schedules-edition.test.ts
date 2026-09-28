@@ -7,6 +7,8 @@ const { mockUpsertJobScheduler, mockRemoveJobScheduler, envState } = vi.hoisted(
     envState: {
       NEXT_PUBLIC_EDITION: "community",
       QUOTA_SYNC_INTERVAL_SECONDS: 60,
+      // On, so the edition assertions below see only cloud-gated removals.
+      WESAL_BILLING_JOBS_ENABLED: "true",
     },
   }),
 )
@@ -42,6 +44,10 @@ vi.mock("@chatbotx.io/worker-config", () => ({
     purgeAutomationThrottle: "purgeAutomationThrottle",
     refreshChannelTokens: "refreshChannelTokens",
     unsubscribeExpiredTrials: "unsubscribeExpiredTrials",
+    processBillingLifecycle: "processBillingLifecycle",
+    expireStalePendingOrders: "expireStalePendingOrders",
+    notifyMacLimitReached: "notifyMacLimitReached",
+    notifyPointsBalance: "notifyPointsBalance",
   },
   scheduleQueue: new FakeQueue(),
 }))
@@ -66,8 +72,39 @@ const upsertedRepeatOptionsFor = (name: string) =>
     | { pattern?: string; every?: number }
     | undefined
 
+const WESAL_BILLING = [
+  "processBillingLifecycle",
+  "expireStalePendingOrders",
+  "notifyMacLimitReached",
+  "notifyPointsBalance",
+] as const
+
 beforeEach(() => {
   vi.clearAllMocks()
+  envState.WESAL_BILLING_JOBS_ENABLED = "true"
+})
+
+describe("registerSchedules — Wesal One billing crons", () => {
+  test("registers every billing cron when WESAL_BILLING_JOBS_ENABLED is on", async () => {
+    await registerSchedules()
+
+    const names = upsertedNames()
+    for (const name of WESAL_BILLING) {
+      expect(names).toContain(name)
+    }
+  })
+
+  test("registers none, and removes persisted ones, when it is off", async () => {
+    envState.WESAL_BILLING_JOBS_ENABLED = "false"
+
+    await registerSchedules()
+
+    const names = upsertedNames()
+    for (const name of WESAL_BILLING) {
+      expect(names).not.toContain(name)
+      expect(mockRemoveJobScheduler).toHaveBeenCalledWith(name)
+    }
+  })
 })
 
 describe("registerSchedules — edition gating", () => {

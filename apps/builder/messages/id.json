@@ -366,7 +366,22 @@
       "contactImportDescription": "Impor kontak hanya tersedia di paket berbayar. Tingkatkan paket Anda untuk mengimpor daftar kontak Anda.",
       "cta": "Lihat paket"
     },
-    "navTitle": "Billing & Subscription"
+    "navTitle": "Billing & Subscription",
+    "pointsLow": {
+      "bannerTitle": "AI points are running low",
+      "bannerDescription": "{available} points left. When they run out, the AI agent stops replying and new conversations go to your team.",
+      "bannerCta": "Top up points"
+    },
+    "pointsDepleted": {
+      "bannerTitle": "AI points have run out",
+      "bannerDescription": "{available} points left. The AI agent has stopped replying: customers get a short \"our team will reply\" message and conversations go to your team.",
+      "bannerCta": "Top up points"
+    },
+    "pointsGrace": {
+      "bannerTitle": "AI replies will need points soon",
+      "bannerDescription": "From {date} the AI agent needs points to keep answering. You have {available} points: choose a plan before then, or new conversations will go to your team.",
+      "bannerCta": "Choose a plan"
+    }
   },
   "broadcasts": {
     "title": "Broadcast",
