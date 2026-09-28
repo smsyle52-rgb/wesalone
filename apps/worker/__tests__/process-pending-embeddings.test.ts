@@ -81,7 +81,10 @@ describe("processPendingEmbedding", () => {
       provider: "platform",
     })
     mocks.reserve.mockResolvedValue(reservation)
-    mocks.embed.mockResolvedValue({ embedding: [0.1, 0.2], usage: { tokens: 42 } })
+    mocks.embed.mockResolvedValue({
+      embedding: [0.1, 0.2],
+      usage: { tokens: 42 },
+    })
     mocks.update.mockReturnValue({
       set: () => ({ where: async () => undefined }),
     })

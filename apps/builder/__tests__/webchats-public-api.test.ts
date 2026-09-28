@@ -246,9 +246,7 @@ describe("PATCH /v1/webchats/{id}", () => {
       workspaceId: "workspace-1",
       id: "wc-1",
       data: expect.objectContaining({
-        persistentMenus: [
-          expect.objectContaining({ label: BRANDING_TITLE }),
-        ],
+        persistentMenus: [expect.objectContaining({ label: BRANDING_TITLE })],
       }),
     })
   })
