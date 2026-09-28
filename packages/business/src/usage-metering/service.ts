@@ -473,8 +473,26 @@ const getUsageSummary = async (workspaceId: string, days = 30) => {
   })
 }
 
+/**
+ * Wallet owners who ran any metered AI call in the last `days` days: the set
+ * whose balance is worth watching. An idle owner cannot run out mid-reply.
+ */
+const listOwnersWithRecentUsage = async (days: number): Promise<string[]> => {
+  const rows = await db
+    .selectDistinct({ userId: billableUsageEventModel.userId })
+    .from(billableUsageEventModel)
+    .where(
+      gte(
+        billableUsageEventModel.createdAt,
+        new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+      ),
+    )
+  return rows.map((row) => row.userId)
+}
+
 export const usageMeteringService = {
   reserve,
+  listOwnersWithRecentUsage,
   settleLanguage,
   settleUnits,
   release,

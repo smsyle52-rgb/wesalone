@@ -18,6 +18,10 @@ import {
   type SignUpVerificationProps,
 } from "./emails/sign-up-verification"
 import {
+  buildPointsBalanceNoticeMjml,
+  type PointsBalanceNoticeProps,
+} from "./emails/points-balance"
+import {
   buildUsageLimitReachedMjml,
   type UsageLimitReachedProps,
 } from "./emails/usage-limit-reached"
@@ -237,5 +241,23 @@ export const sendUsageLimitReached = async (
     email,
     props.subject,
     await compileMjml(buildUsageLimitReachedMjml(props)),
+  )
+}
+
+export type { PointsBalanceNoticeKind } from "./emails/points-balance"
+
+/**
+ * Tells a merchant their AI points are running low, or have run out and the
+ * agent is handing conversations to the team. Platform mail, like
+ * `sendUsageLimitReached`.
+ */
+export const sendPointsBalanceNotice = async (
+  email: string,
+  props: PointsBalanceNoticeProps,
+) => {
+  await sendMail(
+    email,
+    props.subject,
+    await compileMjml(buildPointsBalanceNoticeMjml(props)),
   )
 }
