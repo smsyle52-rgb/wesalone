@@ -23,6 +23,7 @@ import { expireStalePendingOrders } from "./handlers/expire-stale-pending-orders
 import { finalizeBroadcasts } from "./handlers/finalize-broadcasts"
 import { maintainMacPartitions } from "./handlers/maintain-mac-partitions"
 import { notifyMacLimitReached } from "./handlers/notify-mac-limit-reached"
+import { notifyPointsBalance } from "./handlers/notify-points-balance"
 import { prepareBroadcast } from "./handlers/prepare-broadcast"
 import { processBillingLifecycle } from "./handlers/process-billing-lifecycle"
 import { processBroadcastContacts } from "./handlers/process-broadcast-contacts"
@@ -198,6 +199,10 @@ async function startScheduleWorker() {
 
             case ScheduleJobData.notifyMacLimitReached:
               await notifyMacLimitReached()
+              return
+
+            case ScheduleJobData.notifyPointsBalance:
+              await notifyPointsBalance()
               return
 
             case ScheduleJobData.unsubscribeExpiredTrials:

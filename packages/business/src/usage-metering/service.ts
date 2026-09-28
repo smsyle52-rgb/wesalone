@@ -490,8 +490,12 @@ const listOwnersWithRecentUsage = async (days: number): Promise<string[]> => {
   return rows.map((row) => row.userId)
 }
 
+/** Whether points are actually debited and a short balance refuses a call. */
+const isEnforced = (): boolean => env.AI_POINTS_ENFORCEMENT_MODE === "enforce"
+
 export const usageMeteringService = {
   reserve,
+  isEnforced,
   listOwnersWithRecentUsage,
   settleLanguage,
   settleUnits,

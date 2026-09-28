@@ -19,6 +19,7 @@ import { notFound } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ExpiredBanner } from "@/components/expired-banner"
 import type { QuotaSummary } from "@/components/nav-usage"
+import { PointsBalanceBanner } from "@/components/points-balance-banner"
 import { RefreshOnNavigation } from "@/components/refresh-on-navigation"
 import { ScheduledDeletionBanner } from "@/components/scheduled-deletion-banner"
 import { SupportAccessBanner } from "@/components/support-access-banner"
@@ -187,6 +188,10 @@ export default async function WorkspaceLayout({
             <RefreshOnNavigation workspaceId={workspaceId} />
           )}
           <ExpiredBanner blocked={cloud && blocked} reason={blockReason} />
+          <PointsBalanceBanner
+            ownerId={targetWorkspace.ownerId}
+            workspaceId={workspaceId}
+          />
           <TokenRefreshErrorDialog
             errors={tokenRefreshErrors}
             workspaceId={workspaceId}

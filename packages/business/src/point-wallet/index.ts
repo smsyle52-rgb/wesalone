@@ -1,3 +1,7 @@
+export {
+  classifyPointsBalance,
+  type PointsBalanceStatus,
+} from "./balance-status"
 export type {
   CreateGrantOptions,
   DebitMicroPointsOptions,

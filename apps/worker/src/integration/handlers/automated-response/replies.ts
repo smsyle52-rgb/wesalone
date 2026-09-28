@@ -21,6 +21,7 @@ import {
   normalizeMcpContent,
 } from "@chatbotx.io/ai/server"
 import {
+  InsufficientPointsError,
   type UsageReservation,
   usageMeteringService,
   userQuotaService,
@@ -56,6 +57,7 @@ import { logProviderAttempt } from "../shared/provider-attempt-logger"
 import { reserveUsageOrUnmetered } from "../shared/reserve-usage"
 import { createMcpTokenResolver } from "../shared/resolve-mcp-token"
 import { triggerDefaultReplyFlow } from "./default-reply"
+import { handlePointsExhausted } from "./points-exhausted"
 import { handleRichAIReply } from "./rich-reply"
 import { createDocumentReaderExecutor } from "./system-tools/document-reader"
 import { createImageReaderExecutor } from "./system-tools/image-reader"
@@ -177,7 +179,20 @@ export async function replyByAI(
   try {
     for (const [index, providerInfo] of providers.entries()) {
       const attemptStartedAt = Date.now()
-      const result = await runAIReply(props, providerInfo, controller.signal)
+      let result: Awaited<ReturnType<typeof runAIReply>>
+      try {
+        result = await runAIReply(props, providerInfo, controller.signal)
+      } catch (error) {
+        // Out of points is the workspace's state, not this provider's: every
+        // other candidate would be refused the same way.
+        if (error instanceof InsufficientPointsError) {
+          return await handlePointsExhausted(props, {
+            provider: getProviderName(providerInfo),
+            modelId: providerInfo.model,
+          })
+        }
+        throw error
+      }
       const durationMs = Date.now() - attemptStartedAt
       // A `null` result can also mean the provider was intentionally skipped
       // (not configured / auto-reply off) or an empty completion / error —
@@ -1295,6 +1310,10 @@ async function runAIReply(
   } catch (error) {
     if (reservation) {
       await usageMeteringService.release(reservation, error)
+    }
+    if (error instanceof InsufficientPointsError) {
+      // Handled once for the whole reply by replyByAI (graceful stop).
+      throw error
     }
     const normalizedError = normalizeError(error)
     logger.error(

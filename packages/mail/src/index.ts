@@ -1,6 +1,10 @@
 import mjml2html from "mjml"
 import { esc } from "./emails/base-template"
 import {
+  buildPointsBalanceNoticeMjml,
+  type PointsBalanceNoticeProps,
+} from "./emails/points-balance"
+import {
   buildResetPasswordMjml,
   type ResetPasswordProps,
 } from "./emails/reset-password"
@@ -17,10 +21,6 @@ import {
   buildSignUpVerificationMjml,
   type SignUpVerificationProps,
 } from "./emails/sign-up-verification"
-import {
-  buildPointsBalanceNoticeMjml,
-  type PointsBalanceNoticeProps,
-} from "./emails/points-balance"
 import {
   buildUsageLimitReachedMjml,
   type UsageLimitReachedProps,

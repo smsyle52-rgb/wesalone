@@ -19,10 +19,45 @@ const CLOUD_ONLY_SCHEDULERS = [
   ScheduleJobData.unsubscribeExpiredTrials,
 ] as const
 
+/**
+ * Wesal One billing crons, gated by WESAL_BILLING_JOBS_ENABLED. They were
+ * handled by the schedule worker but dropped from registration in the rebase
+ * onto ChatbotX v1.1.6, so monthly point grants never renewed and expired paid
+ * subscriptions were never closed. Enabling them is a deliberate step: the
+ * first run renews overdue free periods and expires lapsed paid ones.
+ */
+const WESAL_BILLING_SCHEDULERS = [
+  { name: ScheduleJobData.processBillingLifecycle, pattern: "*/5 * * * *" },
+  { name: ScheduleJobData.expireStalePendingOrders, pattern: "* * * * *" },
+  { name: ScheduleJobData.notifyMacLimitReached, pattern: "*/2 * * * *" },
+  { name: ScheduleJobData.notifyPointsBalance, pattern: "*/10 * * * *" },
+] as const
+
+const registerWesalBillingSchedules = async () => {
+  if (!(scheduleQueue instanceof Queue)) {
+    return
+  }
+  for (const { name, pattern } of WESAL_BILLING_SCHEDULERS) {
+    if (env.WESAL_BILLING_JOBS_ENABLED === "true") {
+      await scheduleQueue.upsertJobScheduler(
+        name,
+        { pattern },
+        { name, data: { type: name, data: {} } },
+      )
+    } else {
+      // Persisted in Redis: switching the flag off must also stop a
+      // scheduler an earlier boot registered.
+      await scheduleQueue.removeJobScheduler(name)
+    }
+  }
+}
+
 export const registerSchedules = async () => {
   if (!(scheduleQueue instanceof Queue)) {
     return
   }
+
+  await registerWesalBillingSchedules()
 
   const isCloud = env.NEXT_PUBLIC_EDITION === "cloud"
   if (!isCloud) {

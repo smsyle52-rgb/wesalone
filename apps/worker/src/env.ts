@@ -9,6 +9,14 @@ export const env = createEnv({
   server: {
     NEXT_PUBLIC_EDITION: editionRule,
     QUOTA_SYNC_INTERVAL_SECONDS: z.coerce.number().int().min(10).default(60),
+    // Wesal One billing crons: monthly point grants and subscription expiry,
+    // stale reservation release, checkout order expiry, and the MAC-limit and
+    // points-balance notices. Off until explicitly enabled per environment —
+    // the first run changes live subscriptions, so it is a deliberate switch.
+    WESAL_BILLING_JOBS_ENABLED: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     WEBHOOK_WORKER_CONCURRENCY: z.coerce
       .number()
       .int()

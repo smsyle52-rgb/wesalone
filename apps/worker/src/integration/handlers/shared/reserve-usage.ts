@@ -23,9 +23,9 @@ import { logger } from "../../../lib/logger"
  * is a deliberate refusal, not a malfunction, and it only fires when
  * AI_POINTS_ENFORCEMENT_MODE is `enforce`.
  *
- * NOTE: that refusal currently still reaches the customer as silence. Telling
- * the customer and notifying the merchant is separate, required work before
- * enforcement is ever switched on.
+ * The customer-facing reply catches that refusal once and hands the
+ * conversation to the team with a polite line (automated-response/
+ * points-exhausted.ts); the merchant is told by the points-balance notice.
  */
 export const reserveUsageOrUnmetered = async (
   options: ReserveUsageOptions,

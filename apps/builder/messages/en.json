@@ -366,7 +366,17 @@
       "contactImportDescription": "Contact import is available on paid plans only. Upgrade to import your contact lists.",
       "cta": "View plans"
     },
-    "navTitle": "Billing & Subscription"
+    "navTitle": "Billing & Subscription",
+    "pointsLow": {
+      "bannerTitle": "AI points are running low",
+      "bannerDescription": "{available} points left. When they run out, the AI agent stops replying and new conversations go to your team.",
+      "bannerCta": "Top up points"
+    },
+    "pointsDepleted": {
+      "bannerTitle": "AI points have run out",
+      "bannerDescription": "{available} points left. The AI agent has stopped replying: customers get a short \"our team will reply\" message and conversations go to your team.",
+      "bannerCta": "Top up points"
+    }
   },
   "broadcasts": {
     "title": "Broadcasts",

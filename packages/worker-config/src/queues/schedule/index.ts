@@ -42,6 +42,7 @@ export const ScheduleJobData = {
   expireStalePendingOrders: "expireStalePendingOrders",
   processBillingLifecycle: "processBillingLifecycle",
   notifyMacLimitReached: "notifyMacLimitReached",
+  notifyPointsBalance: "notifyPointsBalance",
   // WhatsApp calling.
   purgeExpiredCallRecordings: "purgeExpiredCallRecordings",
   sweepStaleWhatsappCalls: "sweepStaleWhatsappCalls",
@@ -253,6 +254,11 @@ export type ScheduleJobNotifyMacLimitReached = {
   data: Record<string, never>
 }
 
+export type ScheduleJobNotifyPointsBalance = {
+  type: typeof ScheduleJobData.notifyPointsBalance
+  data: Record<string, never>
+}
+
 /** Daily retention sweep: deletes expired call recordings' S3 objects and clears the columns. */
 export type ScheduleJobPurgeExpiredCallRecordings = {
   type: typeof ScheduleJobData.purgeExpiredCallRecordings
@@ -298,6 +304,7 @@ export type ScheduleJobData =
   | ScheduleJobExpireStalePendingOrders
   | ScheduleJobProcessBillingLifecycle
   | ScheduleJobNotifyMacLimitReached
+  | ScheduleJobNotifyPointsBalance
   | ScheduleJobPurgeExpiredCallRecordings
   | ScheduleJobSweepStaleWhatsappCalls
 
