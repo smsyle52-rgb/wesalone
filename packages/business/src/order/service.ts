@@ -44,6 +44,9 @@ import { withBlockedOwnerGuard } from "../workspace-lifecycle/with-blocked-owner
 /** First order number a merchant ever sees. Their request: #1 looks new. */
 const FIRST_ORDER_NUMBER = 5000
 
+/** A customer-quoted reference that is an order number, not a record id. */
+const ORDER_NUMBER_REFERENCE = /^\d{1,9}$/
+
 /**
  * Next free order number for one workspace, as SQL so the read and the write
  * happen in a single INSERT. Counted per workspace — a merchant's first order
@@ -225,7 +228,7 @@ class OrderService extends BaseService {
     const { workspaceId, reference } = props
     const trimmed = reference.trim()
 
-    if (/^\d{1,9}$/.test(trimmed)) {
+    if (ORDER_NUMBER_REFERENCE.test(trimmed)) {
       const byNumber = await db.query.orderModel.findFirst({
         where: { workspaceId, orderNumber: Number(trimmed) },
         with: {

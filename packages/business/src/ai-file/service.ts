@@ -28,10 +28,10 @@ import { ChatbotXException } from "../errors"
 import { integrationGeminiService } from "../integration-gemini/service"
 import { integrationOpenAIService } from "../integration-openai/service"
 import { logger } from "../logger"
-import { platformAiSettingService } from "../platform-ai-setting/service"
-import { userQuotaService } from "../user-quota/service"
 import { assertPublicUrl } from "../net/ssrf-guard"
+import { platformAiSettingService } from "../platform-ai-setting/service"
 import type { PaginatedResult } from "../types"
+import { userQuotaService } from "../user-quota/service"
 
 export const AI_FILE_MAX_UPLOAD_BYTES = 100 * 1000 * 1000
 

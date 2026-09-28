@@ -2,6 +2,7 @@ import type { SelectOption } from "@chatbotx.io/ui/components/form/select-field"
 import type { MultiSelectGroup } from "@chatbotx.io/ui/components/ui/sersavan/multi-select"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useMemo } from "react"
+import type { InboxTeamResource } from "@/features/inbox-teams/schema/resource"
 import { useWorkspaceId } from "@/hooks/routing"
 import { orpc } from "@/lib/orpc/query"
 import { maxPerPage } from "@/lib/shared-request"
@@ -18,17 +19,16 @@ export const useWorkspaceMembers = (
     }),
   )
 
+// Inbox teams are managed by the commercially licensed enterprise tree, which
+// Wesal One does not ship (see features/inbox-teams/schema/resource.ts), so
+// there is no API to ask and never a team to offer. Same shape as a query so
+// the call sites stay upstream's.
+const NO_INBOX_TEAMS: InboxTeamResource[] = []
+
 export const useInboxTeams = (
-  workspaceId: string | undefined,
-  options?: { enabled?: boolean },
-) =>
-  useQuery(
-    orpc.inboxTeamsAPI.listInboxTeamsAuthenticatedAPI.queryOptions({
-      input: { workspaceId: workspaceId ?? "" },
-      enabled: Boolean(workspaceId) && (options?.enabled ?? true),
-      select: (res) => res.data,
-    }),
-  )
+  _workspaceId: string | undefined,
+  _options?: { enabled?: boolean },
+) => ({ data: NO_INBOX_TEAMS, isPending: false })
 
 export const useInvalidateUsers = () => {
   const queryClient = useQueryClient()
@@ -39,9 +39,6 @@ export const useInvalidateUsers = () => {
         queryClient.invalidateQueries({
           queryKey:
             orpc.workspaceMembersAPI.listWorkspaceMembersAuthenticatedAPI.key(),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.inboxTeamsAPI.listInboxTeamsAuthenticatedAPI.key(),
         }),
       ]),
     [queryClient],

@@ -30,11 +30,11 @@ import { getPublicFileUrl } from "@chatbotx.io/utils"
 import { AlertTriangle, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useLocale, useTranslations } from "next-intl"
+import { OrderActions } from "@/features/orders/order-actions"
 import {
   OrderStatusBadge,
   PaymentStatusBadge,
 } from "@/features/orders/order-status-badge"
-import { OrderActions } from "@/features/orders/order-actions"
 import type { getOrderDetail } from "@/features/orders/queries"
 import { useTenantSettings } from "@/features/tenant"
 

@@ -17,7 +17,7 @@ import { describe, expect, test } from "vitest"
  */
 
 const COMMUNITY_SHORT_CIRCUIT = /if\s*\(\s*isCommunity\(\)\s*\)/
-const PLATFORM_SIMILARITY_THRESHOLD = /platform:\s*([\d.]+)/
+const PLATFORM_SIMILARITY_THRESHOLD = /\bplatform:\s*([\d.]+)/
 const AUTO_REPLY_ENABLED = /autoReplyEnabled\s*:/
 const AUTO_REPLY_FALSE = /autoReply:\s*false/
 

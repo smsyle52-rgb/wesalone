@@ -33,7 +33,7 @@ describe("buildFacebookOAuthDialogUrl", () => {
       JSON.parse(
         new URL(
           buildFacebookOAuthDialogUrl({
-            resellerOrigin: RESELLER_ORIGIN,
+            resellerUrl: RESELLER_URL,
             redirectUri: `${BROKER_URL}/integrations/whatsapp/callback`,
             clientId: "client-1",
             configId: "config-1",
@@ -57,7 +57,7 @@ describe("buildFacebookOAuthDialogUrl", () => {
 
     const result = new URL(
       buildFacebookOAuthDialogUrl({
-        resellerOrigin: RESELLER_ORIGIN,
+        resellerUrl: RESELLER_URL,
         redirectUri: `${BROKER_URL}/integrations/whatsapp/callback`,
         clientId: "client-1",
         configId: "config-1",
@@ -83,7 +83,7 @@ describe("buildFacebookOAuthDialogUrl", () => {
 
     const result = new URL(
       buildFacebookOAuthDialogUrl({
-        resellerOrigin: RESELLER_ORIGIN,
+        resellerUrl: RESELLER_URL,
         redirectUri: `${BROKER_URL}/integrations/whatsapp/callback`,
         clientId: "client-1",
         configId: "config-1",
@@ -106,7 +106,7 @@ describe("buildFacebookOAuthDialogUrl", () => {
 
     const result = new URL(
       buildFacebookOAuthDialogUrl({
-        resellerOrigin: RESELLER_ORIGIN,
+        resellerUrl: RESELLER_URL,
         redirectUri: `${BROKER_URL}/integrations/whatsapp/callback`,
         clientId: "client-1",
         configId: "config-1",
@@ -128,7 +128,7 @@ describe("buildFacebookOAuthDialogUrl", () => {
 
     const result = new URL(
       buildFacebookOAuthDialogUrl({
-        resellerOrigin: RESELLER_ORIGIN,
+        resellerUrl: RESELLER_URL,
         redirectUri: `${BROKER_URL}/integrations/whatsapp/callback`,
         clientId: "client-1",
         configId: "config-1",

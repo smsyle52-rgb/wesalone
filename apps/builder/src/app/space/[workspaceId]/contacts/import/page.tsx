@@ -19,7 +19,10 @@ export default async function ImportContactsPage({
 
   return (
     <ImportForm>
-      <PaidPlanRequiredBanner feature="contactImport" workspaceId={workspaceId} />
+      <PaidPlanRequiredBanner
+        feature="contactImport"
+        workspaceId={workspaceId}
+      />
       <ImportContactsForm workspaceId={workspaceId} />
     </ImportForm>
   )

@@ -1,8 +1,8 @@
-import { META_CAPI_PARTNER_AGENT } from "@chatbotx.io/utils/meta-capi"
 import type {
   HashedCapiUserData,
   PurchaseContentItem,
 } from "@chatbotx.io/utils/meta-capi"
+import { META_CAPI_PARTNER_AGENT } from "@chatbotx.io/utils/meta-capi"
 import ky from "ky"
 import { z } from "zod"
 import { API_URL, DEFAULT_API_VERSION } from "../constants"

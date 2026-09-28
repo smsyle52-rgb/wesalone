@@ -15,9 +15,11 @@ import { describe, expect, test } from "vitest"
 const nextOrderNumber = (existing: number[]) =>
   (existing.length ? Math.max(...existing) : 4999) + 1
 
+const ORDER_NUMBER_REFERENCE = /^\d{1,9}$/
+
 /** Mirrors the reference branch in `orderService.getByNumberOrId`. */
 const looksLikeOrderNumber = (reference: string) =>
-  /^\d{1,9}$/.test(reference.trim())
+  ORDER_NUMBER_REFERENCE.test(reference.trim())
 
 describe("order numbering", () => {
   test("a merchant's first order is 5000, not 1", () => {

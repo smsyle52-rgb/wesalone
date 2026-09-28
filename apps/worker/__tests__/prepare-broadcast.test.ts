@@ -145,7 +145,7 @@ describe("prepareBroadcast", () => {
   })
 
   test("cancels instead of sending when the workspace has no paid plan", async () => {
-    findFirstBroadcast.mockResolvedValue(baseBroadcast())
+    findScheduledForPrepare.mockResolvedValue(baseBroadcast())
     unpaidWorkspaceIds.add(WORKSPACE_ID)
 
     await prepareBroadcast(BROADCAST_ID)
@@ -156,12 +156,13 @@ describe("prepareBroadcast", () => {
     })
     expect(purgeBroadcastRecipientsSpy).not.toHaveBeenCalled()
     expect(forEachAudienceChunk).not.toHaveBeenCalled()
-    expect(updateCalls).toHaveLength(0)
+    expect(insertRecipients).not.toHaveBeenCalled()
+    expect(promoteAfterPrepare).not.toHaveBeenCalled()
     expect(scheduleAddSpy).not.toHaveBeenCalled()
   })
 
   test("does not cancel a paid workspace's broadcast", async () => {
-    findFirstBroadcast.mockResolvedValue(baseBroadcast())
+    findScheduledForPrepare.mockResolvedValue(baseBroadcast())
 
     await prepareBroadcast(BROADCAST_ID)
 

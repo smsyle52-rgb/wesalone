@@ -41,12 +41,7 @@ import {
   IntegrationJobAction,
   integrationQueue,
 } from "@chatbotx.io/worker-config"
-import {
-  type ModelMessage,
-  stepCountIs,
-  streamText,
-  type ToolSet,
-} from "ai"
+import { type ModelMessage, stepCountIs, streamText, type ToolSet } from "ai"
 import { normalizeError } from "universal-error-normalizer"
 import {
   createReplyModel,
@@ -172,10 +167,9 @@ export async function replyByAI(
   // stored fallback chain. Its synthetic candidates end with Azure OpenAI.
   // `null` means disabled, so this behaves exactly as before this setting existed.
   const platformOverride = await getActivePlatformAiOverride()
-  const providers: ReplyModelProviderInfo[] =
-    platformOverride
-      ? buildPlatformOverrideCandidates(platformOverride)
-      : (aiAgent.models as AIAgentProviderModels)
+  const providers: ReplyModelProviderInfo[] = platformOverride
+    ? buildPlatformOverrideCandidates(platformOverride)
+    : (aiAgent.models as AIAgentProviderModels)
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
@@ -334,10 +328,9 @@ export async function generateAIReplyText(
   }
 
   const platformOverride = await getActivePlatformAiOverride()
-  const providers: ReplyModelProviderInfo[] =
-    platformOverride
-      ? buildPlatformOverrideCandidates(platformOverride)
-      : (aiAgent.models as AIAgentProviderModels)
+  const providers: ReplyModelProviderInfo[] = platformOverride
+    ? buildPlatformOverrideCandidates(platformOverride)
+    : (aiAgent.models as AIAgentProviderModels)
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)

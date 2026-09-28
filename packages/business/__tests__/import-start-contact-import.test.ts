@@ -118,9 +118,9 @@ describe("importService.startContactImport", () => {
   test("refuses a workspace without a paid plan before touching the file or the queue", async () => {
     planGate.paid = false
 
-    await expect(
-      importService.startContactImport(BASE_INPUT),
-    ).rejects.toThrow("paid plans only")
+    await expect(importService.startContactImport(BASE_INPUT)).rejects.toThrow(
+      "paid plans only",
+    )
     expect(mocks.fileFindFirst).not.toHaveBeenCalled()
     expect(mocks.queueAdd).not.toHaveBeenCalled()
   })

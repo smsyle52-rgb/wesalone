@@ -14,8 +14,8 @@ import {
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import { Card, CardContent } from "@chatbotx.io/ui/components/ui/card"
 import { formatDate } from "@chatbotx.io/ui/lib/format"
-import { formatDistanceToNowStrict } from "date-fns"
 import type { Locale } from "date-fns"
+import { formatDistanceToNowStrict } from "date-fns"
 import { AlertTriangleIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 import { useLocale, useTranslations } from "next-intl"
 import { useAction } from "next-safe-action/hooks"
@@ -48,7 +48,7 @@ function formatCountdown(target: string | Date | null, locale: Locale) {
 function useCountdown(target: string | Date | null) {
   const locale = useDateFnsLocale()
   const [countdown, setCountdown] = useState(() =>
-    formatCountdown(target, locale)
+    formatCountdown(target, locale),
   )
 
   useEffect(() => {

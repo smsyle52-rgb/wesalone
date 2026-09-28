@@ -40,7 +40,7 @@ function requestedScopes() {
     generateAuthUrl({
       clientId: "1437258534807702",
       redirectUrl: "https://wesal.one/integrations/instagram-facebook/callback",
-    })
+    }),
   )
   return (url.searchParams.get("scope") ?? "").split(",").filter(Boolean)
 }
@@ -64,7 +64,7 @@ describe("instagram-facebook OAuth", () => {
         clientId: "1437258534807702",
         redirectUrl:
           "https://wesal.one/integrations/instagram-facebook/callback",
-      })
+      }),
     )
     expect(url.origin).toBe("https://www.facebook.com")
     expect(url.pathname).toMatch(DIALOG_PATH)

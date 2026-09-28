@@ -113,7 +113,7 @@ export async function editImageOutput({
         throw new ExpectedHeavyStepError("AI integration not found")
       }
 
-        try {
+      try {
         model = createAIImageModelInstance({
           model: aiConfig,
           provider: step.provider,

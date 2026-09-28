@@ -77,10 +77,7 @@ describe("isPublicRoute", () => {
     // merchant whose session lapsed mid-connect was told the page does not
     // exist. Meta's own callback lands on `/integrations/...`, not here, so
     // gating this path does not touch the OAuth return.
-    for (const pathname of [
-      "/channels/create",
-      "/channels/create/messenger",
-    ]) {
+    for (const pathname of ["/channels/create", "/channels/create/messenger"]) {
       expect(isPublicRoute(pathname), pathname).toBe(false)
     }
     expect(isPublicRoute("/channels")).toBe(true)

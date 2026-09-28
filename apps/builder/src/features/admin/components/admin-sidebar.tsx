@@ -8,9 +8,8 @@ import {
 } from "@chatbotx.io/ui/components/ui/sidebar"
 import {
   BrainIcon,
-  CoinsIcon,
   Building2Icon,
-  CircleHelpIcon,
+  CoinsIcon,
   Grid2x2PlusIcon,
   ListTodoIcon,
   RadioTowerIcon,

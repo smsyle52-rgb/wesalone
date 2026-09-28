@@ -25,6 +25,7 @@ import {
   useContactFilterQueryState,
 } from "@/features/contact-filter"
 import { EMAIL_PHONE_RESTRICTED_FILTER_FIELDS } from "@/features/contact-filter/lib/restricted-fields"
+import { useDateFnsLocale } from "@/hooks/use-date-fns-locale"
 import { getUserName } from "../users/schema/resource"
 import { ContactNameCell } from "./components/contact-name-cell"
 import { CONTACTS_DEFAULT_PER_PAGE } from "./constants"
@@ -34,7 +35,6 @@ import { getContactsListInput } from "./lib/contact-list-input"
 import type { ExportContactsFilter } from "./schema/action"
 import type { ContactTableRow } from "./schema/query"
 import { getLatestContactLastReadAt } from "./utils"
-import { useDateFnsLocale } from "@/hooks/use-date-fns-locale"
 
 /**
  * One contact rendered as a card, for the narrow-viewport view of the table.

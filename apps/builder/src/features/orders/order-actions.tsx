@@ -75,7 +75,11 @@ export function OrderActions({
         size="sm"
         variant="outline"
       >
-        {cancel.isPending ? <Loader2Icon className="animate-spin" /> : <XIcon />}
+        {cancel.isPending ? (
+          <Loader2Icon className="animate-spin" />
+        ) : (
+          <XIcon />
+        )}
         {t("orders.actions.cancel")}
       </Button>
     </div>

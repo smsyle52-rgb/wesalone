@@ -22,6 +22,9 @@ const {
   mockUploadFile,
   mockUploadFileFromUrl,
   mockFindManyAiFile,
+  mockDbDeleteWhere,
+  mockGetActivePlatformAiSetting,
+  mockAssertPlanResourceCapacity,
 } = vi.hoisted(() => {
   const mockInsertReturning = vi.fn()
   const mockInsertValues = vi.fn(() => ({ returning: mockInsertReturning }))
@@ -44,6 +47,9 @@ const {
     mockUploadFile: vi.fn(),
     mockUploadFileFromUrl: vi.fn(),
     mockFindManyAiFile: vi.fn(async () => []),
+    mockDbDeleteWhere: vi.fn(async () => undefined),
+    mockGetActivePlatformAiSetting: vi.fn(async () => null),
+    mockAssertPlanResourceCapacity: vi.fn(async () => undefined),
   }
 })
 
@@ -56,6 +62,7 @@ vi.mock("@chatbotx.io/database/client", () => ({
       },
     },
     insert: mockInsert,
+    delete: vi.fn(() => ({ where: mockDbDeleteWhere })),
     transaction: vi.fn(async (callback: (tx: unknown) => unknown) =>
       callback({ delete: vi.fn(() => ({ where: mockTxDeleteWhere })) }),
     ),
@@ -122,6 +129,17 @@ vi.mock("../src/integration-gemini/service", () => ({
   integrationGeminiService: { findByWorkspaceId: mockFindByWorkspaceIdGemini },
 }))
 
+// Wesal One: the platform embedding model and the owner's plan limits.
+vi.mock("../src/platform-ai-setting/service", () => ({
+  platformAiSettingService: { getActive: mockGetActivePlatformAiSetting },
+}))
+
+vi.mock("../src/user-quota/service", () => ({
+  userQuotaService: {
+    assertPlanResourceCapacity: mockAssertPlanResourceCapacity,
+  },
+}))
+
 const { aiFileService, AI_FILE_MAX_UPLOAD_BYTES } = await import(
   "../src/ai-file/service"
 )
@@ -134,6 +152,8 @@ function lastAuditDetail(): string {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockGetActivePlatformAiSetting.mockResolvedValue(null)
+  mockAssertPlanResourceCapacity.mockResolvedValue(undefined)
   mockFindByWorkspaceIdOpenAI.mockResolvedValue({ id: "openai-1" })
   mockFindByWorkspaceIdGemini.mockResolvedValue(undefined)
   mockInsertReturning.mockResolvedValue([
@@ -296,27 +316,70 @@ describe("aiFileService.create", () => {
     )
     expect(mockInsert).not.toHaveBeenCalled()
   })
+
+  test("accepts the platform embedding model when the workspace has no key of its own", async () => {
+    mockFindByWorkspaceIdOpenAI.mockResolvedValue(undefined)
+    mockFindByWorkspaceIdGemini.mockResolvedValue(undefined)
+    mockGetActivePlatformAiSetting.mockResolvedValue({
+      embeddingModel: "gemini-embedding-001",
+    } as never)
+
+    await aiFileService.create(workspaceId, {
+      name: "manual.pdf",
+      path: "workspaces/workspace-1/ai-files/uploaded.pdf",
+      mimeType: "application/pdf",
+      size: 456,
+    })
+
+    expect(mockInsert).toHaveBeenCalled()
+    expect(mockQueueAdd).toHaveBeenCalled()
+  })
+
+  test("refuses a knowledge document over the owner's plan limit before storing it", async () => {
+    mockAssertPlanResourceCapacity.mockRejectedValueOnce(
+      new ChatbotXException("Plan limit reached", "planLimitReached", 403),
+    )
+
+    await expect(
+      aiFileService.create(workspaceId, {
+        name: "manual.pdf",
+        path: "workspaces/workspace-1/ai-files/uploaded.pdf",
+        mimeType: "application/pdf",
+        size: 456,
+      }),
+    ).rejects.toThrow("Plan limit reached")
+    expect(mockAssertPlanResourceCapacity).toHaveBeenCalledWith(
+      workspaceId,
+      "knowledgeDocuments",
+    )
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
 })
 
 describe("aiFileService.delete", () => {
-  test("deletes storage, embeddings, and the row, then audits", async () => {
+  test("deletes the row, audits, then removes the storage object", async () => {
     await aiFileService.delete({ workspaceId, id: "file-1" })
 
+    expect(mockDbDeleteWhere).toHaveBeenCalled()
     expect(mockDeleteObject).toHaveBeenCalledWith(
       "workspaces/workspace-1/ai-files/file-1",
+    )
+    expect(mockDbDeleteWhere.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteObject.mock.invocationCallOrder[0],
     )
     expect(lastAuditDetail()).toBe("deleted a Knowledge (#file-1)")
   })
 
-  test("swallows a storage failure instead of throwing", async () => {
+  test("keeps the delete when storage cleanup fails, so the row can never become undeletable", async () => {
     mockDeleteObject.mockRejectedValueOnce(new Error("s3 unavailable"))
 
     await expect(
       aiFileService.delete({ workspaceId, id: "file-1" }),
     ).resolves.toBeUndefined()
 
+    expect(mockDbDeleteWhere).toHaveBeenCalled()
     expect(mockLoggerWarn).toHaveBeenCalled()
-    expect(dispatchAuditRecord).not.toHaveBeenCalled()
+    expect(lastAuditDetail()).toBe("deleted a Knowledge (#file-1)")
   })
 
   test("throws when the file does not belong to the workspace", async () => {

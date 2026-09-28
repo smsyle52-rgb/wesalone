@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useEffect, useMemo } from "react"
+import { useDateFnsLocale } from "@/hooks/use-date-fns-locale"
 import { useUserAvatarUrl } from "@/lib/auth/avatar"
 import { useChatStore } from "../chat/store/chat-store-provider"
 import { useAvatarUrl } from "../contacts/utils"
@@ -43,7 +44,6 @@ import {
 } from "./queries/resolve-last-message-preview"
 import type { ListConversationItemResource } from "./schema/resource"
 import { adBadgeLabelKey, selectAdBadge } from "./utils/ad-badge"
-import { useDateFnsLocale } from "@/hooks/use-date-fns-locale"
 
 // Icon shown next to a call preview snippet. Mirrors whatsapp-call-card.tsx's
 // icon choices so the preview and the card agree per call outcome.
