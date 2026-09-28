@@ -25,6 +25,24 @@ import { messageCleanupService } from "../message-cleanup/service"
  * here (not imported) because this service must not create a cross-domain
  * import cycle with `contact-inbox`; keep the two in sync if either changes.
  */
+/**
+ * Rows per multi-row INSERT. node-postgres writes the bind parameter count as
+ * a 16-bit signed integer, so a statement above 32,767 parameters is rejected
+ * ("bind message has 37000 parameter formats but 0 parameters"). One WhatsApp
+ * history payload can carry ~1,000 contacts, and Contact now has 37 columns —
+ * a single insert overflowed and every such batch was lost. 500 rows keeps
+ * even the widest of these tables far under the limit.
+ */
+const INSERT_CHUNK_ROWS = 500
+
+const chunkRows = <T>(rows: T[]): T[][] => {
+  const chunks: T[][] = []
+  for (let i = 0; i < rows.length; i += INSERT_CHUNK_ROWS) {
+    chunks.push(rows.slice(i, i + INSERT_CHUNK_ROWS))
+  }
+  return chunks
+}
+
 const buildContactInboxIdentityWhere = (props: {
   inboxId: string
   sourceIds: string[]
@@ -288,7 +306,9 @@ class CoexistImportService extends BaseService {
           avatar: entry.avatar,
         }))
 
-        await tx.insert(contactModel).values(contactRows)
+        for (const rows of chunkRows(contactRows)) {
+          await tx.insert(contactModel).values(rows)
+        }
 
         const contactInboxRows = acceptedNew.map(([sourceId, entry], i) => ({
           id: createId(),
@@ -313,15 +333,24 @@ class CoexistImportService extends BaseService {
         // Targetless DO NOTHING: a concurrent import can win EITHER identity
         // index — (inboxId, sourceId) or the partial (inboxId, sourceUserId) —
         // and a targeted clause would let the second one abort the whole batch.
-        const insertedInboxes = await tx
-          .insert(contactInboxModel)
-          .values(contactInboxRows)
-          .onConflictDoNothing()
-          .returning({
-            id: contactInboxModel.id,
-            sourceId: contactInboxModel.sourceId,
-            contactId: contactInboxModel.contactId,
-          })
+        const insertedInboxes: {
+          id: string
+          sourceId: string
+          contactId: string
+        }[] = []
+        for (const rows of chunkRows(contactInboxRows)) {
+          insertedInboxes.push(
+            ...(await tx
+              .insert(contactInboxModel)
+              .values(rows)
+              .onConflictDoNothing()
+              .returning({
+                id: contactInboxModel.id,
+                sourceId: contactInboxModel.sourceId,
+                contactId: contactInboxModel.contactId,
+              })),
+          )
+        }
 
         const insertedSourceIds = new Set(
           insertedInboxes.map((r) => r.sourceId),
@@ -409,11 +438,8 @@ class CoexistImportService extends BaseService {
         const conversationsToInsert = conversationRows.filter(
           (_row, i) => !racedSet2.has(acceptedNew[i]?.[0]),
         )
-        if (conversationsToInsert.length > 0) {
-          await tx
-            .insert(conversationModel)
-            .values(conversationsToInsert)
-            .onConflictDoNothing()
+        for (const rows of chunkRows(conversationsToInsert)) {
+          await tx.insert(conversationModel).values(rows).onConflictDoNothing()
         }
 
         // Resolve conversation ids for everything just inserted (or raced).
