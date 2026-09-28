@@ -25,16 +25,16 @@ const env = keys()
  * "timeout exceeded when trying to connect", which silently killed WhatsApp
  * connects mid-flow.
  *
- * Sized against the database, not the concurrency: the shared db-f1-micro
- * instance allows ~25 connections and also serves the legacy app, while this
- * codebase runs at most 4 instances (builder + realtime, maxScale 2 each). Four
- * per pool therefore caps this app at ~16 and leaves headroom rather than
- * trading a slow path for connection exhaustion. Raise the instance tier before
- * raising this much further.
+ * Sized against the database, not the concurrency. The four-connection cap
+ * belonged to the shared Cloud SQL db-f1-micro (~25 connections); production
+ * now runs its own Postgres on AWS with max_connections=300 and about a dozen
+ * processes holding a pool, so upstream's 10 fits with wide headroom — and a
+ * channel connect needs 2 per in-flight request plus 2 spare
+ * (__tests__/connect-pool-ceiling.test.ts).
  */
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  max: 4,
+  max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 20_000,
 })

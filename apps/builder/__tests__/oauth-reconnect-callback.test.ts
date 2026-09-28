@@ -101,6 +101,11 @@ vi.mock("@/lib/auth/assert-workspace-super-admin", () => ({
 }))
 
 vi.mock("@chatbotx.io/business", () => ({
+  // Wesal One reuses a workspace the user already owns before creating one;
+  // this user owns none, so the create path below still runs.
+  workspaceMemberService: {
+    listByUserId: vi.fn().mockResolvedValue([]),
+  },
   messengerIntegrationService: {
     findByIdForWorkspace: mockFindMessengerIntegration,
     updateAuth: mockUpdateMessengerIntegrationAuth,

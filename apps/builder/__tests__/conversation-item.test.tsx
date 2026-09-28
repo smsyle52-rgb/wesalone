@@ -6,6 +6,8 @@ import { useWhatsappVoipCallStore } from "@/features/integration-whatsapp/callin
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
+  // Wesal One formats conversation times in the UI language.
+  useLocale: () => "en",
 }))
 
 const executeReadActionMock = vi.fn()

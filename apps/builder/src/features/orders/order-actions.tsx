@@ -38,7 +38,7 @@ export function OrderActions({
         router.refresh()
       },
       onError: ({ error }) =>
-        toast.error(error.serverError ?? t("messages.somethingWentWrong")),
+        toast.error(error.serverError ?? t("messages.unknownError")),
     },
   )
 
@@ -48,7 +48,7 @@ export function OrderActions({
       router.refresh()
     },
     onError: ({ error }) =>
-      toast.error(error.serverError ?? t("messages.somethingWentWrong")),
+      toast.error(error.serverError ?? t("messages.unknownError")),
   })
 
   if (status !== "draft" && status !== "confirmed") {

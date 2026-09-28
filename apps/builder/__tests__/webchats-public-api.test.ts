@@ -46,6 +46,11 @@ const { workspaceTokenAuthAPIForScope, capturedProcedures } = vi.hoisted(() => {
   }
 })
 
+// Wesal One brands the menu entry with its own title.
+const { BRANDING_TITLE } = await vi.importActual<
+  typeof import("@chatbotx.io/business/branding")
+>("@chatbotx.io/business/branding")
+
 vi.mock("@/orpc", () => ({ workspaceTokenAuthAPIForScope }))
 
 const integrationWebchatService = {
@@ -162,7 +167,7 @@ describe("POST /v1/webchats", () => {
         data: expect.objectContaining({
           persistentMenus: [
             expect.objectContaining({
-              label: "⚡ Built with chatbotx.io",
+              label: BRANDING_TITLE,
               type: "url",
             }),
           ],
@@ -242,7 +247,7 @@ describe("PATCH /v1/webchats/{id}", () => {
       id: "wc-1",
       data: expect.objectContaining({
         persistentMenus: [
-          expect.objectContaining({ label: "⚡ Built with chatbotx.io" }),
+          expect.objectContaining({ label: BRANDING_TITLE }),
         ],
       }),
     })
