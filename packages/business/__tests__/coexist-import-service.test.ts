@@ -315,3 +315,30 @@ describe("coexistImportService.resolveOrCreateContactLinks", () => {
     })
   })
 })
+
+describe("coexistImportService.resolveOrCreateContactLinks — insert size", () => {
+  test("a large history batch is inserted in chunks under the bind parameter limit", async () => {
+    // node-postgres rejects a statement above 32,767 parameters; one WhatsApp
+    // history payload can carry thousands of contacts.
+    const fixture = buildTx([])
+    const sourceIds = Array.from({ length: 1200 }, (_, i) => `s${i}`)
+
+    await run(fixture, {
+      workspaceId: "ws-1",
+      inboxId: "inbox-1",
+      inboxChannel: "whatsapp",
+      dedup: new Map(
+        sourceIds.map((sourceId) => [sourceId, { sourceId, firstName: "A" }]),
+      ),
+      sourceIds,
+      sourceUserIds: [],
+    }).catch(() => undefined)
+
+    const contactChunks = fixture.calls.contactInsertValues.map((r) => r.length)
+    const inboxChunks = fixture.calls.contactInboxInsertValues.map(
+      (r) => r.length,
+    )
+    expect(contactChunks).toEqual([500, 500, 200])
+    expect(inboxChunks).toEqual([500, 500, 200])
+  })
+})
