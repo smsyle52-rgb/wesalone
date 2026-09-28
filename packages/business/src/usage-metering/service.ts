@@ -104,10 +104,32 @@ const getReservedMicroPoints = async (
   return BigInt(row?.total ?? "0")
 }
 
+/**
+ * The mode actually in force right now: `shadow` becomes `enforce` once
+ * AI_POINTS_ENFORCE_FROM has passed.
+ */
+const effectiveMode = (): "off" | "shadow" | "enforce" => {
+  const mode = env.AI_POINTS_ENFORCEMENT_MODE
+  if (
+    mode === "shadow" &&
+    env.AI_POINTS_ENFORCE_FROM &&
+    Date.now() >= Date.parse(env.AI_POINTS_ENFORCE_FROM)
+  ) {
+    return "enforce"
+  }
+  return mode
+}
+
+/** When enforcement is scheduled to begin, if it has not begun yet. */
+const scheduledEnforcementStart = (): Date | null =>
+  effectiveMode() === "shadow" && env.AI_POINTS_ENFORCE_FROM
+    ? new Date(env.AI_POINTS_ENFORCE_FROM)
+    : null
+
 const reserve = async (
   opts: ReserveUsageOptions,
 ): Promise<UsageReservation> => {
-  if (env.AI_POINTS_ENFORCEMENT_MODE === "off") {
+  if (effectiveMode() === "off") {
     return { enabled: false, operationId: opts.operationId }
   }
   const ownerId = await requireWorkspaceOwner(opts.workspaceId)
@@ -159,10 +181,7 @@ const reserve = async (
 
     const available = await getAvailableMicroPoints(wallet.id, tx)
     const reserved = await getReservedMicroPoints(wallet.id, tx)
-    if (
-      env.AI_POINTS_ENFORCEMENT_MODE === "enforce" &&
-      available - reserved < requested
-    ) {
+    if (effectiveMode() === "enforce" && available - reserved < requested) {
       throw new InsufficientPointsError(
         toVisiblePoints(available - reserved),
         toVisiblePoints(requested),
@@ -245,7 +264,7 @@ const settleMicroPoints = async (props: {
       event.id,
     )
     if (
-      env.AI_POINTS_ENFORCEMENT_MODE === "enforce" &&
+      effectiveMode() === "enforce" &&
       available - otherReserved < props.microPoints
     ) {
       await tx
@@ -264,7 +283,7 @@ const settleMicroPoints = async (props: {
       return null
     }
 
-    if (env.AI_POINTS_ENFORCEMENT_MODE === "enforce") {
+    if (effectiveMode() === "enforce") {
       await pointWalletService.debitMicroPointsFromWallet(
         {
           userId: event.userId,
@@ -491,11 +510,12 @@ const listOwnersWithRecentUsage = async (days: number): Promise<string[]> => {
 }
 
 /** Whether points are actually debited and a short balance refuses a call. */
-const isEnforced = (): boolean => env.AI_POINTS_ENFORCEMENT_MODE === "enforce"
+const isEnforced = (): boolean => effectiveMode() === "enforce"
 
 export const usageMeteringService = {
   reserve,
   isEnforced,
+  scheduledEnforcementStart,
   listOwnersWithRecentUsage,
   settleLanguage,
   settleUnits,

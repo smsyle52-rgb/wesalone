@@ -1,5 +1,5 @@
 import {
-  classifyPointsBalance,
+  pointsNoticeStatus,
   pointWalletService,
   usageMeteringService,
 } from "@chatbotx.io/business"
@@ -13,6 +13,12 @@ import { CoinsIcon } from "lucide-react"
 import Link from "next/link"
 import { getFormatter, getTranslations } from "next-intl/server"
 import { logger } from "@/lib/log"
+
+const NAMESPACE_BY_STATUS = {
+  low: "billing.pointsLow",
+  depleted: "billing.pointsDepleted",
+  grace: "billing.pointsGrace",
+} as const
 
 /**
  * Warns the merchant inside the dashboard when the workspace owner's AI points
@@ -29,7 +35,10 @@ export async function PointsBalanceBanner({
   ownerId: string
   workspaceId: string
 }) {
-  if (!usageMeteringService.isEnforced()) {
+  // During a scheduled switch to enforcement, an owner who would be stopped
+  // is warned ahead of the date instead.
+  const enforceDate = usageMeteringService.scheduledEnforcementStart()
+  if (!(usageMeteringService.isEnforced() || enforceDate)) {
     return null
   }
 
@@ -42,14 +51,14 @@ export async function PointsBalanceBanner({
     return null
   }
 
-  const status = classifyPointsBalance(balance)
+  const status = pointsNoticeStatus(balance, {
+    graceActive: Boolean(enforceDate),
+  })
   if (!status) {
     return null
   }
 
-  const t = await getTranslations(
-    status === "depleted" ? "billing.pointsDepleted" : "billing.pointsLow",
-  )
+  const t = await getTranslations(NAMESPACE_BY_STATUS[status])
   const format = await getFormatter()
 
   return (
@@ -67,6 +76,9 @@ export async function PointsBalanceBanner({
         <p>
           {t("bannerDescription", {
             available: format.number(Math.floor(balance.totalAvailablePoints)),
+            date: enforceDate
+              ? format.dateTime(enforceDate, { dateStyle: "long" })
+              : "",
           })}
         </p>
         <Link

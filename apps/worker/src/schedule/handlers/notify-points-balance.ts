@@ -1,5 +1,5 @@
 import {
-  classifyPointsBalance,
+  pointsNoticeStatus,
   pointWalletService,
   usageMeteringService,
   workspaceService,
@@ -19,6 +19,12 @@ const ACTIVE_WINDOW_DAYS = 30
 /** A sent notice is not repeated for this long unless the balance recovers. */
 const NOTICE_TTL_SECONDS = 30 * 24 * 60 * 60
 
+const NOTICE_SUBJECTS: Record<PointsBalanceNoticeKind, string> = {
+  grace: "تنبيه مسبق: الرد الآلي سيحتاج إلى رصيد نقاط",
+  low: "رصيد نقاط الذكاء الاصطناعي أوشك على النفاد",
+  depleted: "نفد رصيد نقاط الذكاء الاصطناعي — تحوّلت المحادثات إلى فريقك",
+}
+
 const noticeKey = (kind: PointsBalanceNoticeKind, userId: string) =>
   `points-balance-notice:${kind}:${userId}`
 
@@ -31,7 +37,10 @@ const noticeKey = (kind: PointsBalanceNoticeKind, userId: string) =>
  * debited, so a "low" balance would be a false alarm.
  */
 export async function notifyPointsBalance(): Promise<void> {
-  if (!usageMeteringService.isEnforced()) {
+  // During a scheduled switch to enforcement (AI_POINTS_ENFORCE_FROM), owners
+  // who would be stopped get one advance warning instead.
+  const enforceDate = usageMeteringService.scheduledEnforcementStart()
+  if (!(usageMeteringService.isEnforced() || enforceDate)) {
     return
   }
   await distributedLock.runExclusive({
@@ -44,11 +53,14 @@ export async function notifyPointsBalance(): Promise<void> {
       for (const userId of owners) {
         try {
           const balance = await pointWalletService.getWalletBalance(userId)
-          const kind = classifyPointsBalance(balance)
+          const kind = pointsNoticeStatus(balance, {
+            graceActive: Boolean(enforceDate),
+          })
           if (!kind) {
             await distributedStore.delete([
               noticeKey("low", userId),
               noticeKey("depleted", userId),
+              noticeKey("grace", userId),
             ])
             continue
           }
@@ -60,10 +72,8 @@ export async function notifyPointsBalance(): Promise<void> {
             const builderUrl = process.env.NEXT_PUBLIC_BUILDER_URL ?? ""
             await sendPointsBalanceNotice(target.email, {
               kind,
-              subject:
-                kind === "depleted"
-                  ? "نفد رصيد نقاط الذكاء الاصطناعي — تحوّلت المحادثات إلى فريقك"
-                  : "رصيد نقاط الذكاء الاصطناعي أوشك على النفاد",
+              subject: NOTICE_SUBJECTS[kind],
+              enforceDate: enforceDate ?? undefined,
               brandName: "Wesal One",
               brandLogoUrl: `${builderUrl}/logo.png`,
               brandUrl: builderUrl,

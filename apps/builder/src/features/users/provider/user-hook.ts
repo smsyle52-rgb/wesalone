@@ -28,7 +28,12 @@ const NO_INBOX_TEAMS: InboxTeamResource[] = []
 export const useInboxTeams = (
   _workspaceId: string | undefined,
   _options?: { enabled?: boolean },
-) => ({ data: NO_INBOX_TEAMS, isPending: false })
+) => ({
+  data: NO_INBOX_TEAMS,
+  isPending: false,
+  isError: false,
+  error: null,
+})
 
 export const useInvalidateUsers = () => {
   const queryClient = useQueryClient()

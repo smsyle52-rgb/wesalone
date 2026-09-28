@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest"
-import { classifyPointsBalance } from "../src/point-wallet/balance-status"
+import {
+  classifyPointsBalance,
+  pointsNoticeStatus,
+} from "../src/point-wallet/balance-status"
 
 describe("classifyPointsBalance", () => {
   test("is depleted below one reply's reservation (50 points)", () => {
@@ -39,5 +42,32 @@ describe("classifyPointsBalance", () => {
         monthlyGrantedPoints: 1000,
       }),
     ).toBe("low")
+  })
+})
+
+describe("pointsNoticeStatus", () => {
+  test("during the grace period only a would-be-stopped owner is warned", () => {
+    const grace = { graceActive: true }
+    expect(
+      pointsNoticeStatus(
+        { totalAvailablePoints: 0, monthlyGrantedPoints: 0 },
+        grace,
+      ),
+    ).toBe("grace")
+    expect(
+      pointsNoticeStatus(
+        { totalAvailablePoints: 100, monthlyGrantedPoints: 10_000 },
+        grace,
+      ),
+    ).toBeNull()
+  })
+
+  test("once enforced it reports the balance itself", () => {
+    expect(
+      pointsNoticeStatus(
+        { totalAvailablePoints: 0, monthlyGrantedPoints: 0 },
+        { graceActive: false },
+      ),
+    ).toBe("depleted")
   })
 })

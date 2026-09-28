@@ -29,3 +29,21 @@ export function classifyPointsBalance(balance: {
   )
   return balance.totalAvailablePoints <= lowThreshold ? "low" : null
 }
+
+export type PointsNoticeStatus = PointsBalanceStatus | "grace"
+
+/**
+ * What the owner should be told. While enforcement is only scheduled
+ * (`graceActive`), nobody is short of anything yet, so only an owner who would
+ * be stopped on the day gets the advance "grace" warning.
+ */
+export function pointsNoticeStatus(
+  balance: { totalAvailablePoints: number; monthlyGrantedPoints: number },
+  options: { graceActive: boolean },
+): PointsNoticeStatus | null {
+  const status = classifyPointsBalance(balance)
+  if (!options.graceActive) {
+    return status
+  }
+  return status === "depleted" ? "grace" : null
+}

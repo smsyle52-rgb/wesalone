@@ -1,6 +1,8 @@
 export {
   classifyPointsBalance,
   type PointsBalanceStatus,
+  type PointsNoticeStatus,
+  pointsNoticeStatus,
 } from "./balance-status"
 export type {
   CreateGrantOptions,

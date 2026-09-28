@@ -17,6 +17,11 @@ export const keys = () =>
       AI_POINTS_ENFORCEMENT_MODE: z
         .enum(["off", "shadow", "enforce"])
         .default("off"),
+      // Scheduled switch to enforcement: with the mode at `shadow` and this
+      // set, points start being enforced at this instant (ISO 8601). Before
+      // it, merchants who would be stopped get one advance warning. Lets a
+      // grace period end on time without anyone redeploying at midnight.
+      AI_POINTS_ENFORCE_FROM: z.iso.datetime({ offset: true }).optional(),
       AI_POINTS_RESERVATION_TTL_MINUTES: z.coerce
         .number()
         .int()

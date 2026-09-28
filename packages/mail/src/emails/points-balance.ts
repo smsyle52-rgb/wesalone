@@ -1,6 +1,6 @@
 import { type BaseEmailProps, buildSystemEmail, esc } from "./base-template"
 
-export type PointsBalanceNoticeKind = "low" | "depleted"
+export type PointsBalanceNoticeKind = "low" | "depleted" | "grace"
 
 export type PointsBalanceNoticeProps = BaseEmailProps & {
   kind: PointsBalanceNoticeKind
@@ -10,6 +10,8 @@ export type PointsBalanceNoticeProps = BaseEmailProps & {
   /** The period's plan allowance, when the owner has one. */
   monthlyPoints: number | null
   topUpUrl: string
+  /** For `grace`: when the agent will stop answering without points. */
+  enforceDate?: Date
 }
 
 /**
@@ -31,6 +33,39 @@ export function buildPointsBalanceNoticeMjml(
     monthlyPoints && monthlyPoints > 0
       ? ` من أصل ${esc(Math.floor(monthlyPoints).toLocaleString("en-US"))} نقطة في باقتك`
       : ""
+
+  const stopDate = props.enforceDate
+    ? props.enforceDate.toLocaleDateString("ar", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : ""
+
+  if (kind === "grace") {
+    const body = `<mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-text padding="0 0 12px 0">نودّ إعلامك مسبقًا: ابتداءً من <strong>${esc(stopDate)}</strong> سيحتاج الوكيل الآلي في مساحة العمل <strong>${esc(workspaceName)}</strong> إلى رصيد من نقاط الذكاء الاصطناعي ليواصل الرد على عملائك.</mj-text>
+        <mj-text padding="0 0 12px 0">رصيدك الحالي ${esc(available)} نقطة. إن لم تشترك في باقة أو تشحن رصيدك قبل هذا التاريخ، سيتوقف الرد الآلي، وسيتلقى عملاؤك رسالة بأن فريقك سيرد عليهم، وتنتقل المحادثات إلى فريقك.</mj-text>
+        <mj-text padding="0">لا تتأثر رسائل عملائك: تصلك وتُحفظ في صندوق الوارد كالمعتاد.</mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 0 16px 0">
+      <mj-column>
+        <mj-button href="${esc(topUpUrl)}" align="right">اختر باقة</mj-button>
+      </mj-column>
+    </mj-section>`
+    return buildSystemEmail(
+      {
+        ...props,
+        dir: "rtl",
+        signOff: "مع التحية،",
+        signature: props.brandName,
+      },
+      body,
+    )
+  }
 
   const lead =
     kind === "depleted"
