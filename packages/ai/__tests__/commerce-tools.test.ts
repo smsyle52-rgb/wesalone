@@ -23,6 +23,7 @@ vi.mock("@chatbotx.io/business", () => ({
     createDraft: mocks.createDraft,
     addItem: mocks.addItem,
     getById: mocks.getOrderById,
+    getByNumberOrId: mocks.getOrderById,
   },
 }))
 

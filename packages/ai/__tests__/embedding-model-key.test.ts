@@ -1,13 +1,12 @@
 import { describe, expect, it, vi } from "vitest"
 
-vi.mock("@chatbotx.io/ai/server", () => ({
+vi.mock("../src/server/platform-provider", () => ({
   getPlatformEmbeddingModel: vi.fn(),
+  getPlatformEmbeddingProviderOptions: vi.fn(),
 }))
 vi.mock("@chatbotx.io/database/client", () => ({ db: {} }))
 
-const { embeddingModelKey } = await import(
-  "../src/ai-agent/lib/embedding-model"
-)
+const { embeddingModelKey } = await import("../src/server/embedding-model")
 
 describe("embeddingModelKey", () => {
   it("distinguishes models so a re-embed is a new metering operation", () => {
