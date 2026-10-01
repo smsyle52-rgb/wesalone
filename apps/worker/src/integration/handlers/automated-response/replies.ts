@@ -1115,6 +1115,7 @@ async function runAIReply(
       },
     })
 
+    let streamFailed = false
     const buildToolStats = () => ({
       steps: stepCount,
       toolCallsCount,
@@ -1130,6 +1131,20 @@ async function runAIReply(
     // already-delivered reply look like it never happened and risk a
     // duplicate send from the caller's error handling.
     const settleUsage = async () => {
+      // A failed stream never resolves `totalUsage` (the `onError` rethrow
+      // above leaves it pending), so awaiting it here parked the job until its
+      // timeout and the next candidate in the chain was never tried — seen
+      // when the primary model answered 400. Release the hold and move on.
+      if (streamFailed) {
+        if (reservation) {
+          await usageMeteringService.release(
+            reservation,
+            new Error("AI stream failed before producing a reply"),
+          )
+          reservation = undefined
+        }
+        return
+      }
       try {
         // Awaited even without a reservation: `totalUsage` rejecting is how a
         // total reply failure surfaces, and that signal must not disappear
@@ -1188,6 +1203,7 @@ async function runAIReply(
       },
       { sendParts: true },
     ).catch((streamError) => {
+      streamFailed = true
       const normalizedError = normalizeError(streamError)
       logger.error(
         {

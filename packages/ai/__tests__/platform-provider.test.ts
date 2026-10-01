@@ -74,6 +74,7 @@ vi.mock("../src/logger", () => ({
 
 const {
   buildPlatformOverrideCandidates,
+  mergeConsecutiveAssistantMessages,
   getActivePlatformAiOverride,
   getPlatformAiEnvStatus,
   getPlatformAzureOpenAIChatModel,
@@ -238,6 +239,35 @@ describe("Azure Foundry first-choice chat model", () => {
     } finally {
       clearFoundryEnv()
     }
+  })
+})
+
+describe("mergeConsecutiveAssistantMessages", () => {
+  const text = (value: string) => [{ type: "text" as const, text: value }]
+
+  test("drops an exact repeat and joins distinct back-to-back replies", () => {
+    const merged = mergeConsecutiveAssistantMessages([
+      { role: "system", content: "sys" },
+      { role: "user", content: text("hi") },
+      { role: "assistant", content: text("a") },
+      { role: "assistant", content: text("a") },
+      { role: "assistant", content: text("b") },
+      { role: "user", content: text("ok") },
+      { role: "user", content: text("more") },
+    ])
+
+    expect(merged.map((message) => message.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+      "user",
+      "user",
+    ])
+    expect(merged[2]?.content).toEqual([
+      ...text("a"),
+      ...text("\n"),
+      ...text("b"),
+    ])
   })
 })
 

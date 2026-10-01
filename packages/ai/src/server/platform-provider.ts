@@ -12,6 +12,7 @@ import type {
   EmbeddingModel,
   ImageModel,
   LanguageModel,
+  LanguageModelMiddleware,
   TranscriptionModel,
 } from "ai"
 import { defaultSettingsMiddleware, generateText, wrapLanguageModel } from "ai"
@@ -557,10 +558,47 @@ const AZURE_FOUNDRY_CHAT_API_VERSION = "2024-10-21"
  * tool calls and streaming included — only on the deployment-scoped Chat
  * Completions path, with the catalog model id in the request body.
  */
+type FoundryPrompt = Parameters<
+  NonNullable<LanguageModelMiddleware["transformParams"]>
+>[0]["params"]["prompt"]
+
+/**
+ * Collapse runs of assistant turns into one. Muse Spark rejects a request in
+ * which two assistant messages follow each other (400 `invalid_end_turn.
+ * same_role_assistant`, seen on the first production conversation), and stored
+ * histories do contain such runs — a reply recorded twice, or two replies sent
+ * before the customer answered. An exact repeat is dropped; anything else is
+ * joined so no reply text is lost.
+ */
+export function mergeConsecutiveAssistantMessages(
+  prompt: FoundryPrompt,
+): FoundryPrompt {
+  const merged: FoundryPrompt = []
+  for (const message of prompt) {
+    const previous = merged.at(-1)
+    if (message.role !== "assistant" || previous?.role !== "assistant") {
+      merged.push(message)
+      continue
+    }
+    if (JSON.stringify(previous.content) === JSON.stringify(message.content)) {
+      continue
+    }
+    merged[merged.length - 1] = {
+      ...previous,
+      content: [
+        ...previous.content,
+        { type: "text", text: "\n" },
+        ...message.content,
+      ],
+    }
+  }
+  return merged
+}
+
 function getPlatformAzureFoundryChatModel(
   config: PlatformAzureFoundryChatConfig,
 ): LanguageModel {
-  return createOpenAI({
+  const model = createOpenAI({
     baseURL: new URL(
       `openai/deployments/${encodeURIComponent(config.deployment)}`,
       config.endpoint,
@@ -578,6 +616,17 @@ function getPlatformAzureFoundryChatModel(
       return fetch(url, init)
     },
   }).chat(config.model)
+
+  return wrapLanguageModel({
+    model,
+    middleware: {
+      specificationVersion: "v3",
+      transformParams: async ({ params }) => ({
+        ...params,
+        prompt: mergeConsecutiveAssistantMessages(params.prompt),
+      }),
+    },
+  })
 }
 
 /**
