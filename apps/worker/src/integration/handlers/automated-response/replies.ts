@@ -49,6 +49,7 @@ import {
   getProviderName,
   type ReplyAIProvider,
   type ReplyModelProviderInfo,
+  replyModelMaxRetries,
 } from "../../../lib/ai/reply-model"
 import { logger } from "../../../lib/logger"
 import { handoffExecutorService } from "../../../trigger/services/handoff-executor.service"
@@ -1040,6 +1041,7 @@ async function runAIReply(
         return
       },
       stopWhen: stepCountIs(MAX_REPLY_STEPS),
+      maxRetries: replyModelMaxRetries(providerInfo),
       timeout: {
         totalMs: aiTimeouts.aiTotal,
         stepMs: aiTimeouts.aiStep,

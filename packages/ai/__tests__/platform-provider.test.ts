@@ -186,6 +186,61 @@ describe("getPlatformAiEnvStatus — presence only", () => {
   })
 })
 
+describe("Azure Foundry first-choice chat model", () => {
+  const override = {
+    chatModel: "gemini-3.5-flash",
+    fallbackModel: null,
+    location: "global",
+    projectId: "khadamatk-auth",
+    capabilities: defaultCapabilities,
+    azureOpenAI: {
+      endpoint: "https://aoai.example/",
+      apiKey: "test-key",
+      location: "uaenorth",
+      chatDeployment: "wesal-chat",
+      embeddingDeployment: "wesal-embedding",
+    },
+  }
+  const foundryEnv = {
+    AZURE_FOUNDRY_CHAT_ENDPOINT: "https://foundry.example/",
+    AZURE_FOUNDRY_CHAT_API_KEY: "foundry-key",
+    AZURE_FOUNDRY_CHAT_DEPLOYMENT: "wesal-muse",
+    AZURE_FOUNDRY_CHAT_MODEL: "muse-spark-1.3",
+  }
+  const clearFoundryEnv = () => {
+    for (const key of Object.keys(foundryEnv)) {
+      delete (envMock as Record<string, unknown>)[key]
+    }
+  }
+
+  test("answers first and keeps every other candidate as its fallback", () => {
+    Object.assign(envMock, foundryEnv)
+    try {
+      expect(buildPlatformOverrideCandidates(override)).toEqual([
+        { platformAzureOpenAI: true, model: "muse-spark-1.3" },
+        { platformVertex: true, model: "gemini-3.5-flash" },
+        { platformAzureOpenAI: true, model: "wesal-chat" },
+      ])
+    } finally {
+      clearFoundryEnv()
+    }
+  })
+
+  test("is ignored unless all four settings are present", () => {
+    Object.assign(envMock, foundryEnv, {
+      AZURE_FOUNDRY_CHAT_API_KEY: undefined,
+    })
+    try {
+      expect(buildPlatformOverrideCandidates(override)).toEqual([
+        { platformVertex: true, model: "gemini-3.5-flash" },
+        { platformAzureOpenAI: true, model: "wesal-chat" },
+      ])
+    } finally {
+      clearFoundryEnv()
+    }
+  })
+})
+
 describe("platform Gemini then Azure OpenAI candidates", () => {
   test("creates Vertex primary and optional Vertex fallback before Azure", () => {
     const candidates = buildPlatformOverrideCandidates({

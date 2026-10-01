@@ -23,6 +23,14 @@ export const keys = () =>
       AZURE_OPENAI_LOCATION: z.string().trim().min(1).optional(),
       AZURE_OPENAI_CHAT_DEPLOYMENT: z.string().trim().min(1).optional(),
       AZURE_OPENAI_EMBEDDING_DEPLOYMENT: z.string().trim().min(1).optional(),
+      // Optional first-choice platform chat model hosted on an Azure AI
+      // Foundry resource (a non-OpenAI model such as Meta's Muse Spark). All
+      // four must be set; when its quota is exhausted the reply falls through
+      // to the remaining platform candidates.
+      AZURE_FOUNDRY_CHAT_ENDPOINT: z.url().optional(),
+      AZURE_FOUNDRY_CHAT_API_KEY: z.string().trim().min(1).optional(),
+      AZURE_FOUNDRY_CHAT_DEPLOYMENT: z.string().trim().min(1).optional(),
+      AZURE_FOUNDRY_CHAT_MODEL: z.string().trim().min(1).optional(),
       // Vertex AI authenticates with Azure Managed Identity through Google
       // Workload Identity Federation. None of these values is a credential.
       VERTEX_AI_PROJECT_ID: z.string().trim().min(1).optional(),

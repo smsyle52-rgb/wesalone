@@ -115,6 +115,7 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   getPlatformAzureOpenAIProvider: getPlatformAzureOpenAIProviderMock,
   getPlatformVertexChatModel: getPlatformVertexChatModelMock,
   getPlatformVertexProvider: getPlatformVertexProviderMock,
+  isPlatformAzureFoundryChatModel: () => false,
   isPlatformAzureOpenAIModelCandidate: isPlatformAzureOpenAIModelCandidateImpl,
   isPlatformVertexModelCandidate: isPlatformVertexModelCandidateImpl,
   McpClient: vi.fn(),

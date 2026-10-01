@@ -54,6 +54,33 @@ function getPlatformAzureOpenAIConfig(): PlatformAzureOpenAIConfig | null {
   }
 }
 
+export type PlatformAzureFoundryChatConfig = {
+  endpoint: string
+  apiKey: string
+  deployment: string
+  model: string
+}
+
+/**
+ * The optional first-choice chat model on an Azure AI Foundry resource. It is
+ * addressed by its catalog model id (e.g. `muse-spark-1.3`), which is also what
+ * the candidate carries, so no new candidate shape reaches queued job payloads.
+ */
+export function getPlatformAzureFoundryChatConfig(): PlatformAzureFoundryChatConfig | null {
+  const endpoint = env.AZURE_FOUNDRY_CHAT_ENDPOINT
+  const apiKey = env.AZURE_FOUNDRY_CHAT_API_KEY
+  const deployment = env.AZURE_FOUNDRY_CHAT_DEPLOYMENT
+  const model = env.AZURE_FOUNDRY_CHAT_MODEL
+  if (!(endpoint && apiKey && deployment && model)) {
+    return null
+  }
+  return { endpoint, apiKey, deployment, model }
+}
+
+export function isPlatformAzureFoundryChatModel(modelId: string): boolean {
+  return getPlatformAzureFoundryChatConfig()?.model === modelId
+}
+
 /**
  * Build the external-account configuration for Google Workload Identity
  * Federation. Azure Container Apps supplies the endpoint and header for the
@@ -451,6 +478,12 @@ export function buildPlatformOverrideCandidates(
     } else {
       candidates.push(azureCandidate)
     }
+    // The Foundry model answers first; every candidate above stays behind it
+    // as the fallback for when its (small) quota is used up.
+    const foundry = getPlatformAzureFoundryChatConfig()
+    if (foundry) {
+      candidates.unshift({ platformAzureOpenAI: true, model: foundry.model })
+    }
   }
   return candidates
 }
@@ -514,6 +547,38 @@ export async function getPlatformTranscriptionModel(): Promise<{
 
 /** API version of Azure's deployment-scoped audio endpoint. */
 const AZURE_OPENAI_AUDIO_API_VERSION = "2024-06-01"
+/** API version of Azure's deployment-scoped chat completions endpoint. */
+const AZURE_FOUNDRY_CHAT_API_VERSION = "2024-10-21"
+
+/**
+ * Non-OpenAI Foundry models are not served on the `/openai/v1` Responses
+ * surface (measured 2 Oct 2026 with muse-spark-1.3: 400 on Responses, and
+ * `/openai/v1/chat/completions` cannot resolve the deployment). They answer —
+ * tool calls and streaming included — only on the deployment-scoped Chat
+ * Completions path, with the catalog model id in the request body.
+ */
+function getPlatformAzureFoundryChatModel(
+  config: PlatformAzureFoundryChatConfig,
+): LanguageModel {
+  return createOpenAI({
+    baseURL: new URL(
+      `openai/deployments/${encodeURIComponent(config.deployment)}`,
+      config.endpoint,
+    ).toString(),
+    apiKey: config.apiKey,
+    headers: { "api-key": config.apiKey },
+    name: "azure-openai",
+    fetch: (input, init) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL
+          ? input.toString()
+          : input.url,
+      )
+      url.searchParams.set("api-version", AZURE_FOUNDRY_CHAT_API_VERSION)
+      return fetch(url, init)
+    },
+  }).chat(config.model)
+}
 
 /**
  * Azure serves Whisper only on the deployment-scoped path
@@ -603,6 +668,10 @@ export function getPlatformAzureOpenAIChatModel(
   modelId: string,
   override: Pick<PlatformAzureOpenAIConfig, "endpoint" | "apiKey">,
 ): LanguageModel {
+  const foundry = getPlatformAzureFoundryChatConfig()
+  if (foundry?.model === modelId) {
+    return getPlatformAzureFoundryChatModel(foundry)
+  }
   return getPlatformAzureOpenAIProvider(override)(modelId)
 }
 

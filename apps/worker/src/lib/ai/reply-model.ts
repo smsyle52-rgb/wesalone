@@ -8,6 +8,7 @@ import {
   getPlatformAzureOpenAIProvider,
   getPlatformVertexChatModel,
   getPlatformVertexProvider,
+  isPlatformAzureFoundryChatModel,
   isPlatformAzureOpenAIModelCandidate,
   isPlatformVertexModelCandidate,
   type PlatformModelCandidate,
@@ -54,6 +55,21 @@ export function getProviderName(
     : providerInfo.provider
 }
 
+/**
+ * The Foundry model's quota is small and a fallback candidate follows it, so a
+ * rate-limited call must fail over at once instead of sitting in the SDK's
+ * retry backoff (which honours `retry-after`, up to a minute) while the
+ * customer waits. `undefined` keeps the SDK default for every other model.
+ */
+export function replyModelMaxRetries(
+  providerInfo: ReplyModelProviderInfo,
+): number | undefined {
+  return isPlatformAzureOpenAIModelCandidate(providerInfo) &&
+    isPlatformAzureFoundryChatModel(providerInfo.model)
+    ? 0
+    : undefined
+}
+
 export async function createReplyModel(props: {
   providerInfo: ReplyModelProviderInfo
   workspaceId: string
@@ -82,9 +98,11 @@ export async function createReplyModel(props: {
     if (!override?.azureOpenAI) {
       return null
     }
-    const providerInstance = getPlatformAzureOpenAIProvider(
-      override.azureOpenAI,
-    )
+    // The Foundry model has no OpenAI provider-native tools (web search), so
+    // it gets no provider instance and that tool is reported as unsupported.
+    const providerInstance = isPlatformAzureFoundryChatModel(providerInfo.model)
+      ? undefined
+      : getPlatformAzureOpenAIProvider(override.azureOpenAI)
     return {
       model: getPlatformAzureOpenAIChatModel(
         providerInfo.model,
