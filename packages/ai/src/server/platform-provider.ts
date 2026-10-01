@@ -721,7 +721,19 @@ export function getPlatformAzureOpenAIChatModel(
   if (foundry?.model === modelId) {
     return getPlatformAzureFoundryChatModel(foundry)
   }
-  return getPlatformAzureOpenAIProvider(override)(modelId)
+  const model = getPlatformAzureOpenAIProvider(override)(modelId)
+  const reasoningEffort = env.AZURE_OPENAI_CHAT_REASONING_EFFORT
+  // Only the platform chat deployment is the reasoning model; capability
+  // deployments resolved through this helper keep their own defaults.
+  if (!reasoningEffort || modelId !== env.AZURE_OPENAI_CHAT_DEPLOYMENT) {
+    return model
+  }
+  return wrapLanguageModel({
+    model,
+    middleware: defaultSettingsMiddleware({
+      settings: { providerOptions: { openai: { reasoningEffort } } },
+    }),
+  })
 }
 
 /** A bounded inference probe used by the super-admin validation action. */

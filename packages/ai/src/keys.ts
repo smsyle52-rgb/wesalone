@@ -23,6 +23,12 @@ export const keys = () =>
       AZURE_OPENAI_LOCATION: z.string().trim().min(1).optional(),
       AZURE_OPENAI_CHAT_DEPLOYMENT: z.string().trim().min(1).optional(),
       AZURE_OPENAI_EMBEDDING_DEPLOYMENT: z.string().trim().min(1).optional(),
+      // Reasoning effort for the platform chat deployment when it is a
+      // reasoning model (gpt-5 family). Unset leaves the model default, which
+      // for gpt-5-mini is `medium` — too slow for a chat reply.
+      AZURE_OPENAI_CHAT_REASONING_EFFORT: z
+        .enum(["minimal", "low", "medium", "high"])
+        .optional(),
       // Optional first-choice platform chat model hosted on an Azure AI
       // Foundry resource (a non-OpenAI model such as Meta's Muse Spark). All
       // four must be set; when its quota is exhausted the reply falls through
