@@ -143,7 +143,25 @@ const processGenerator = createSnowflakeGenerator({
   placeId: resolveSnowflakePlaceId(),
 })
 
-export const createId = (): string => processGenerator.generate()
+/**
+ * True when the id survives a round trip through a JS `number`. better-auth
+ * runs with `generateId: "serial"` and reads `User`/`Account`/`Session` ids
+ * back as numbers, so an id above 2^53 that is not exactly representable (any
+ * odd one today) is silently rounded to its neighbour — the follow-up
+ * `Account` insert then points at a user that does not exist and sign-up fails.
+ */
+export const isNumberSafeId = (id: string): boolean =>
+  BigInt(Number(id)) === BigInt(id)
+
+// Skipping the unrepresentable ids keeps them strictly increasing; at most a
+// few draws are discarded per call.
+export const createId = (): string => {
+  let id = processGenerator.generate()
+  while (!isNumberSafeId(id)) {
+    id = processGenerator.generate()
+  }
+  return id
+}
 
 export const resolveId = (id: string) => NumericSnowflakeIDs.resolve(id)
 

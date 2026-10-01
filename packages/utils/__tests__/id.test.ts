@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import {
   createId,
   createSnowflakeGenerator,
+  isNumberSafeId,
   resolveId,
   resolveSnowflakePlaceId,
   SNOWFLAKE_PLACE_ID_MAX,
@@ -53,6 +54,20 @@ describe("createId", () => {
     expect(new Set(ids).size).toBe(3000)
     for (let i = 1; i < ids.length; i++) {
       expect(BigInt(ids[i]) > BigInt(ids[i - 1])).toBe(true)
+    }
+  })
+})
+
+describe("number-safe ids", () => {
+  test("flags an id a JS number would round", () => {
+    expect(isNumberSafeId("11719428641355892")).toBe(true)
+    expect(isNumberSafeId("11719428641355893")).toBe(false)
+  })
+
+  test("createId only returns ids that survive a number round trip", () => {
+    for (let i = 0; i < 5000; i += 1) {
+      const id = createId()
+      expect(String(Number(id))).toBe(id)
     }
   })
 })
