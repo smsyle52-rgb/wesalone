@@ -503,12 +503,47 @@ export async function getPlatformTranscriptionModel(): Promise<{
     }
   }
   return {
-    model: getPlatformAzureOpenAIProvider(capability).transcription(
+    model: getPlatformAzureOpenAITranscriptionProvider(
+      capability,
       capability.model,
-    ),
+    ).transcription(capability.model),
     modelId: capability.model,
     region: capability.location,
   }
+}
+
+/** API version of Azure's deployment-scoped audio endpoint. */
+const AZURE_OPENAI_AUDIO_API_VERSION = "2024-06-01"
+
+/**
+ * Azure serves Whisper only on the deployment-scoped path
+ * (`/openai/deployments/<name>/audio/transcriptions?api-version=…`); the
+ * `/openai/v1` surface the chat provider uses answers DeploymentNotFound for
+ * it (measured 2 Oct 2026). So transcription gets its own base URL, and the
+ * mandatory `api-version` is added to each request.
+ */
+function getPlatformAzureOpenAITranscriptionProvider(
+  override: Pick<PlatformAzureOpenAIConfig, "endpoint" | "apiKey">,
+  deployment: string,
+): OpenAIProvider {
+  return createOpenAI({
+    baseURL: new URL(
+      `openai/deployments/${encodeURIComponent(deployment)}`,
+      override.endpoint,
+    ).toString(),
+    apiKey: override.apiKey,
+    headers: { "api-key": override.apiKey },
+    name: "azure-openai",
+    fetch: (input, init) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL
+          ? input.toString()
+          : input.url,
+      )
+      url.searchParams.set("api-version", AZURE_OPENAI_AUDIO_API_VERSION)
+      return fetch(url, init)
+    },
+  })
 }
 
 /**
