@@ -10,6 +10,14 @@ export const keys = () =>
       AI_INTEGRATION_CACHE_TTL_SECONDS: z.coerce.number().default(60 * 60),
       // Azure OpenAI is the platform provider. These remain optional so an
       // incomplete deployment fails closed to workspace providers.
+      // Which platform chat provider answers first. `azureOpenAI` puts the
+      // Azure OpenAI deployment ahead of Vertex (which stays as the fallback) —
+      // the switch for a Vertex outage or billing suspension, without touching
+      // the admin AI settings.
+      PLATFORM_AI_CHAT_PRIMARY: z
+        .enum(["vertex", "azureOpenAI"])
+        .optional()
+        .default("vertex"),
       AZURE_OPENAI_ENDPOINT: z.url().optional(),
       AZURE_OPENAI_API_KEY: z.string().trim().min(1).optional(),
       AZURE_OPENAI_LOCATION: z.string().trim().min(1).optional(),

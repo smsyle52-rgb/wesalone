@@ -442,10 +442,15 @@ export function buildPlatformOverrideCandidates(
     candidates.push({ platformVertex: true, model: override.fallbackModel })
   }
   if (override.azureOpenAI) {
-    candidates.push({
+    const azureCandidate: PlatformModelCandidate = {
       platformAzureOpenAI: true,
       model: override.azureOpenAI.chatDeployment,
-    })
+    }
+    if (env.PLATFORM_AI_CHAT_PRIMARY === "azureOpenAI") {
+      candidates.unshift(azureCandidate)
+    } else {
+      candidates.push(azureCandidate)
+    }
   }
   return candidates
 }
