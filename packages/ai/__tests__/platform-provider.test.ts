@@ -227,6 +227,31 @@ describe("Azure Foundry first-choice chat model", () => {
     }
   })
 
+  test("a second Foundry model sits between the first and the rest", () => {
+    Object.assign(envMock, foundryEnv, {
+      AZURE_FOUNDRY_CHAT_FALLBACK_DEPLOYMENT: "wesal-grok-fast",
+      AZURE_FOUNDRY_CHAT_FALLBACK_MODEL: "grok-4-1-fast-non-reasoning",
+    })
+    try {
+      expect(
+        buildPlatformOverrideCandidates(override).map((item) => item.model),
+      ).toEqual([
+        "muse-spark-1.3",
+        "grok-4-1-fast-non-reasoning",
+        "gemini-3.5-flash",
+        "wesal-chat",
+      ])
+    } finally {
+      clearFoundryEnv()
+      for (const key of [
+        "AZURE_FOUNDRY_CHAT_FALLBACK_DEPLOYMENT",
+        "AZURE_FOUNDRY_CHAT_FALLBACK_MODEL",
+      ]) {
+        delete (envMock as Record<string, unknown>)[key]
+      }
+    }
+  })
+
   test("is ignored unless all four settings are present", () => {
     Object.assign(envMock, foundryEnv, {
       AZURE_FOUNDRY_CHAT_API_KEY: undefined,

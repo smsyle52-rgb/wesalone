@@ -78,8 +78,27 @@ export function getPlatformAzureFoundryChatConfig(): PlatformAzureFoundryChatCon
   return { endpoint, apiKey, deployment, model }
 }
 
+/**
+ * Every Foundry chat model in the order it should answer: the first-choice
+ * model, then the optional second one hosted on the same resource.
+ */
+export function getPlatformAzureFoundryChatConfigs(): PlatformAzureFoundryChatConfig[] {
+  const primary = getPlatformAzureFoundryChatConfig()
+  if (!primary) {
+    return []
+  }
+  const deployment = env.AZURE_FOUNDRY_CHAT_FALLBACK_DEPLOYMENT
+  const model = env.AZURE_FOUNDRY_CHAT_FALLBACK_MODEL
+  if (!(deployment && model) || model === primary.model) {
+    return [primary]
+  }
+  return [primary, { ...primary, deployment, model }]
+}
+
 export function isPlatformAzureFoundryChatModel(modelId: string): boolean {
-  return getPlatformAzureFoundryChatConfig()?.model === modelId
+  return getPlatformAzureFoundryChatConfigs().some(
+    (config) => config.model === modelId,
+  )
 }
 
 /**
@@ -481,10 +500,14 @@ export function buildPlatformOverrideCandidates(
     }
     // The Foundry model answers first; every candidate above stays behind it
     // as the fallback for when its (small) quota is used up.
-    const foundry = getPlatformAzureFoundryChatConfig()
-    if (foundry) {
-      candidates.unshift({ platformAzureOpenAI: true, model: foundry.model })
-    }
+    candidates.unshift(
+      ...getPlatformAzureFoundryChatConfigs().map(
+        (config): PlatformModelCandidate => ({
+          platformAzureOpenAI: true,
+          model: config.model,
+        }),
+      ),
+    )
   }
   return candidates
 }
@@ -717,8 +740,10 @@ export function getPlatformAzureOpenAIChatModel(
   modelId: string,
   override: Pick<PlatformAzureOpenAIConfig, "endpoint" | "apiKey">,
 ): LanguageModel {
-  const foundry = getPlatformAzureFoundryChatConfig()
-  if (foundry?.model === modelId) {
+  const foundry = getPlatformAzureFoundryChatConfigs().find(
+    (config) => config.model === modelId,
+  )
+  if (foundry) {
     return getPlatformAzureFoundryChatModel(foundry)
   }
   const model = getPlatformAzureOpenAIProvider(override)(modelId)

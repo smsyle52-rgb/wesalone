@@ -37,6 +37,14 @@ export const keys = () =>
       AZURE_FOUNDRY_CHAT_API_KEY: z.string().trim().min(1).optional(),
       AZURE_FOUNDRY_CHAT_DEPLOYMENT: z.string().trim().min(1).optional(),
       AZURE_FOUNDRY_CHAT_MODEL: z.string().trim().min(1).optional(),
+      // Optional second Foundry model on the same resource, tried right after
+      // the first one and before the remaining platform candidates.
+      AZURE_FOUNDRY_CHAT_FALLBACK_DEPLOYMENT: z
+        .string()
+        .trim()
+        .min(1)
+        .optional(),
+      AZURE_FOUNDRY_CHAT_FALLBACK_MODEL: z.string().trim().min(1).optional(),
       // Vertex AI authenticates with Azure Managed Identity through Google
       // Workload Identity Federation. None of these values is a credential.
       VERTEX_AI_PROJECT_ID: z.string().trim().min(1).optional(),
