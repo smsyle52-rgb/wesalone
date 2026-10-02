@@ -52,6 +52,9 @@ export const keys = () =>
         .min(1)
         .optional(),
       AZURE_FOUNDRY_CHAT_FALLBACK_MODEL: z.string().trim().min(1).optional(),
+      AZURE_FOUNDRY_CHAT_FALLBACK_REASONING_EFFORT: z
+        .enum(["minimal", "low", "medium", "high"])
+        .optional(),
       // Vertex AI authenticates with Azure Managed Identity through Google
       // Workload Identity Federation. None of these values is a credential.
       VERTEX_AI_PROJECT_ID: z.string().trim().min(1).optional(),

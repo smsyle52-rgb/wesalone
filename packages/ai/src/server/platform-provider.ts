@@ -101,7 +101,12 @@ export function getPlatformAzureFoundryChatConfigs(): PlatformAzureFoundryChatCo
   }
   return [
     primary,
-    { ...primary, deployment, model, reasoningEffort: undefined },
+    {
+      ...primary,
+      deployment,
+      model,
+      reasoningEffort: env.AZURE_FOUNDRY_CHAT_FALLBACK_REASONING_EFFORT,
+    },
   ]
 }
 
