@@ -75,6 +75,7 @@ vi.mock("../src/logger", () => ({
 const {
   buildPlatformOverrideCandidates,
   mergeConsecutiveAssistantMessages,
+  withFoundryReasoningEffort,
   getActivePlatformAiOverride,
   getPlatformAiEnvStatus,
   getPlatformAzureOpenAIChatModel,
@@ -264,6 +265,23 @@ describe("Azure Foundry first-choice chat model", () => {
     } finally {
       clearFoundryEnv()
     }
+  })
+})
+
+describe("withFoundryReasoningEffort", () => {
+  test("adds the effort to a JSON body and leaves everything else alone", () => {
+    const init = { method: "POST", body: JSON.stringify({ model: "m" }) }
+
+    expect(
+      JSON.parse(
+        withFoundryReasoningEffort(init, { reasoningEffort: "low" })
+          ?.body as string,
+      ),
+    ).toEqual({ model: "m", reasoning_effort: "low" })
+    expect(withFoundryReasoningEffort(init, {})).toBe(init)
+    expect(
+      withFoundryReasoningEffort(undefined, { reasoningEffort: "low" }),
+    ).toBeUndefined()
   })
 })
 

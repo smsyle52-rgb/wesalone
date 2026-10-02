@@ -60,6 +60,7 @@ export type PlatformAzureFoundryChatConfig = {
   apiKey: string
   deployment: string
   model: string
+  reasoningEffort?: string
 }
 
 /**
@@ -75,7 +76,13 @@ export function getPlatformAzureFoundryChatConfig(): PlatformAzureFoundryChatCon
   if (!(endpoint && apiKey && deployment && model)) {
     return null
   }
-  return { endpoint, apiKey, deployment, model }
+  return {
+    endpoint,
+    apiKey,
+    deployment,
+    model,
+    reasoningEffort: env.AZURE_FOUNDRY_CHAT_REASONING_EFFORT,
+  }
 }
 
 /**
@@ -92,7 +99,10 @@ export function getPlatformAzureFoundryChatConfigs(): PlatformAzureFoundryChatCo
   if (!(deployment && model) || model === primary.model) {
     return [primary]
   }
-  return [primary, { ...primary, deployment, model }]
+  return [
+    primary,
+    { ...primary, deployment, model, reasoningEffort: undefined },
+  ]
 }
 
 export function isPlatformAzureFoundryChatModel(modelId: string): boolean {
@@ -618,6 +628,35 @@ export function mergeConsecutiveAssistantMessages(
   return merged
 }
 
+/**
+ * Add `reasoning_effort` to the request body. Set on the wire rather than via
+ * provider options because the SDK only forwards that option for model ids it
+ * recognises as OpenAI reasoning models.
+ */
+export function withFoundryReasoningEffort(
+  init: RequestInit | undefined,
+  config: Pick<PlatformAzureFoundryChatConfig, "reasoningEffort">,
+): RequestInit | undefined {
+  if (!(config.reasoningEffort && typeof init?.body === "string")) {
+    return init
+  }
+  try {
+    const body = JSON.parse(init.body) as Record<string, unknown>
+    if (body.reasoning_effort !== undefined) {
+      return init
+    }
+    return {
+      ...init,
+      body: JSON.stringify({
+        ...body,
+        reasoning_effort: config.reasoningEffort,
+      }),
+    }
+  } catch {
+    return init
+  }
+}
+
 function getPlatformAzureFoundryChatModel(
   config: PlatformAzureFoundryChatConfig,
 ): LanguageModel {
@@ -636,7 +675,7 @@ function getPlatformAzureFoundryChatModel(
           : input.url,
       )
       url.searchParams.set("api-version", AZURE_FOUNDRY_CHAT_API_VERSION)
-      return fetch(url, init)
+      return fetch(url, withFoundryReasoningEffort(init, config))
     },
   }).chat(config.model)
 

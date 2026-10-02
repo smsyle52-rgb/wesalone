@@ -37,6 +37,13 @@ export const keys = () =>
       AZURE_FOUNDRY_CHAT_API_KEY: z.string().trim().min(1).optional(),
       AZURE_FOUNDRY_CHAT_DEPLOYMENT: z.string().trim().min(1).optional(),
       AZURE_FOUNDRY_CHAT_MODEL: z.string().trim().min(1).optional(),
+      // Reasoning effort sent with every call to the first-choice Foundry
+      // model. Left unset, muse-spark-1.3 spent 1,000–1,900 output tokens
+      // thinking per reply (measured 2 Oct 2026), often using up the whole
+      // output budget and returning no text.
+      AZURE_FOUNDRY_CHAT_REASONING_EFFORT: z
+        .enum(["minimal", "low", "medium", "high"])
+        .optional(),
       // Optional second Foundry model on the same resource, tried right after
       // the first one and before the remaining platform candidates.
       AZURE_FOUNDRY_CHAT_FALLBACK_DEPLOYMENT: z
