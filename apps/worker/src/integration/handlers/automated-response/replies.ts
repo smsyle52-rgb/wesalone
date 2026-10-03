@@ -53,7 +53,7 @@ import {
 } from "../../../lib/ai/reply-model"
 import { logger } from "../../../lib/logger"
 import { handoffExecutorService } from "../../../trigger/services/handoff-executor.service"
-import { sendMessageAndWait, sendMessageWithRender } from "../../utils/message"
+import { sendMessageAndWait } from "../../utils/message"
 import { logProviderAttempt } from "../shared/provider-attempt-logger"
 import { reserveUsageOrUnmetered } from "../shared/reserve-usage"
 import { createMcpTokenResolver } from "../shared/resolve-mcp-token"
@@ -122,13 +122,6 @@ const MAX_REPLY_STEPS = 5
  * looping.
  */
 const MAX_KNOWLEDGE_SEARCHES = 2
-
-function getNoResponseFallback(language?: string): string {
-  if (language?.toLowerCase().startsWith("ar")) {
-    return "عذرًا، لم أتمكن من إنشاء رد كامل الآن. يرجى إعادة صياغة طلبك أو تحديد ما تحتاجه وسأساعدك."
-  }
-  return helpTexts.fallbackLookup
-}
 
 /**
  * Vertex rejects a generation request whose final conversation turn is from
@@ -223,9 +216,10 @@ export async function replyByAI(
     clearTimeout(timeoutId)
   }
 
-  // A configured agent must never leave the customer without any response.
-  // Every candidate has already run in order (Vertex first, then Azure), so
-  // this is an explicit, localized clarification rather than silent failure.
+  // Every candidate has already run in order and none produced a reply. Stay
+  // silent: the canned "sorry, I could not generate a reply" line read as the
+  // agent breaking down mid-sale, and the owner prefers no message to that one
+  // (3 Oct 2026). The warning below is what the production monitor counts.
   const primaryCandidate = providers[0]
   const provider = primaryCandidate
     ? getProviderName(primaryCandidate)
@@ -239,13 +233,7 @@ export async function replyByAI(
       modelId,
       candidatesTried: providers.length,
     },
-    "[automated-response] all AI candidates completed without a response; sending localized fallback",
-  )
-  await sendMessageWithRender(
-    props.conversation.id,
-    getNoResponseFallback(
-      props.workspaceLanguage ?? props.contactInbox.language ?? undefined,
-    ),
+    "[automated-response] all AI candidates completed without a response; staying silent",
   )
   return {
     responded: true,
@@ -1278,9 +1266,9 @@ async function runAIReply(
       return null
     }
 
-    // Last-resort fallback: loop finished but no assistant text was produced.
-    // Do NOT leak raw tool outputs; prefer the workspace's configured default
-    // reply flow, and only fall back to a clarifying question if none is set.
+    // Last resort: tools ran but no assistant text was produced. Do NOT leak
+    // raw tool outputs; hand over to the workspace's default reply flow if it
+    // has one, otherwise stay silent.
     if (toolCallsCount > 0 || toolResultsCount > 0) {
       await settleUsage()
       const defaultReplyResult = await triggerDefaultReplyFlow({
@@ -1301,19 +1289,19 @@ async function runAIReply(
             }
           : undefined,
       })
-      // `skipped` (no flow configured / flow invalid) preserves the old
-      // behavior: send the canned clarifying text. `throttled` means a valid
-      // default reply flow exists but its activation window is still open for
-      // this contact/channel — stay silent rather than double-message with a
-      // canned line on top of a flow that already fired recently.
-      if (defaultReplyResult === "skipped") {
-        await sendMessageWithRender(
-          conversation.id,
-          getNoResponseFallback(
-            props.workspaceLanguage ?? props.contactInbox.language ?? undefined,
-          ),
-        )
-      }
+      // No default reply flow (`skipped`) or one still inside its activation
+      // window (`throttled`): stay silent rather than send a canned apology.
+      logger.warn(
+        {
+          conversationId: conversation.id,
+          workspaceId: conversation.workspaceId,
+          provider,
+          modelId: selectedModelId,
+          defaultReplyResult,
+          ...buildToolStats(),
+        },
+        "[automated-response] tools ran but the model wrote no reply",
+      )
       return {
         responded: true,
         provider,

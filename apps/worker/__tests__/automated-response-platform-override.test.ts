@@ -331,9 +331,8 @@ describe("replyByAI (DM auto-reply) — platform Azure OpenAI override", () => {
       modelId: "gemini-3.7-flash",
       usedFallbackText: true,
     })
-    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
-      "conv-1",
-      "عذرًا، لم أتمكن من إنشاء رد كامل الآن. يرجى إعادة صياغة طلبك أو تحديد ما تحتاجه وسأساعدك.",
-    )
+    // No canned apology: when every candidate fails the customer gets no
+    // message at all.
+    expect(sendMessageWithRenderMock).not.toHaveBeenCalled()
   })
 })

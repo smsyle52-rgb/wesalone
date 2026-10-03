@@ -452,10 +452,8 @@ describe("replyByAI — rich mode routing", () => {
     expect(result).toMatchObject({ responded: true, usedFallbackText: true })
     expect(sendMessageAndWaitMock).not.toHaveBeenCalled()
     expect(sendRichMessagesMock).not.toHaveBeenCalled()
-    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
-      "conv-1",
-      "I've found some data, but I couldn't generate a complete answer yet.",
-    )
+    // The canned apology was removed: no message is sent.
+    expect(sendMessageWithRenderMock).not.toHaveBeenCalled()
   })
 
   test("missing triggerMessageId → rich mode disabled warning logged", async () => {
@@ -534,10 +532,8 @@ describe("replyByAI — rich mode routing", () => {
     expect(sendRichMessagesMock).toHaveBeenCalledOnce()
     expect(executeRichActionsMock).toHaveBeenCalledOnce()
     expect(appendHistoryMock).not.toHaveBeenCalled()
-    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
-      "conv-1",
-      "I've found some data, but I couldn't generate a complete answer yet.",
-    )
+    // The canned apology was removed: no message is sent.
+    expect(sendMessageWithRenderMock).not.toHaveBeenCalled()
   })
 
   test("actions-only response with no executed actions → localized fallback sent", async () => {
@@ -557,10 +553,8 @@ describe("replyByAI — rich mode routing", () => {
     expect(result).toMatchObject({ responded: true, usedFallbackText: true })
     expect(sendRichMessagesMock).not.toHaveBeenCalled()
     expect(appendHistoryMock).not.toHaveBeenCalled()
-    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
-      "conv-1",
-      "I've found some data, but I couldn't generate a complete answer yet.",
-    )
+    // The canned apology was removed: no message is sent.
+    expect(sendMessageWithRenderMock).not.toHaveBeenCalled()
     expect(warnMock).toHaveBeenCalledWith(
       expect.objectContaining({
         executionId: baseProps.triggerMessageId,
@@ -581,10 +575,8 @@ describe("replyByAI — rich mode routing", () => {
     // outer fallback provides a clear customer-facing reply.
     expect(sendMessageAndWaitMock).not.toHaveBeenCalled()
     expect(result).toMatchObject({ responded: true, usedFallbackText: true })
-    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
-      "conv-1",
-      "I've found some data, but I couldn't generate a complete answer yet.",
-    )
+    // The canned apology was removed: no message is sent.
+    expect(sendMessageWithRenderMock).not.toHaveBeenCalled()
   })
 })
 

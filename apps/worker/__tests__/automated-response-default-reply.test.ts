@@ -609,7 +609,7 @@ describe("replyByAI — default reply flow fallback", () => {
     expect(sendMessageWithRenderMock).not.toHaveBeenCalled()
   })
 
-  test("falls back to the canned help text when no default reply flow is configured", async () => {
+  test("stays silent when no default reply flow is configured", async () => {
     const result = await replyByAI({
       ...baseProps,
       aiAgent: makeAIAgent(),
@@ -618,13 +618,12 @@ describe("replyByAI — default reply flow fallback", () => {
 
     expect(result?.usedFallbackText).toBe(true)
     expect(integrationQueueAddMock).not.toHaveBeenCalled()
-    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
-      baseProps.conversation.id,
-      expect.stringContaining("I've found some data"),
-    )
+    // The canned apology was removed: with no usable default reply flow the
+    // customer gets no message.
+    expect(sendMessageWithRenderMock).not.toHaveBeenCalled()
   })
 
-  test("falls back to the canned help text when the configured default reply flow is invalid", async () => {
+  test("stays silent when the configured default reply flow is invalid", async () => {
     findByFlowMock.mockResolvedValueOnce(undefined)
 
     const result = await replyByAI({
@@ -635,10 +634,9 @@ describe("replyByAI — default reply flow fallback", () => {
 
     expect(result?.usedFallbackText).toBe(true)
     expect(integrationQueueAddMock).not.toHaveBeenCalled()
-    expect(sendMessageWithRenderMock).toHaveBeenCalledWith(
-      baseProps.conversation.id,
-      expect.stringContaining("I've found some data"),
-    )
+    // The canned apology was removed: with no usable default reply flow the
+    // customer gets no message.
+    expect(sendMessageWithRenderMock).not.toHaveBeenCalled()
   })
 
   test("removes dangling assistant turns before calling the model", async () => {
@@ -680,9 +678,8 @@ describe("replyByAI — default reply flow fallback", () => {
     expect(result?.usedFallbackText).toBe(true)
     expect(result?.responded).toBe(true)
     expect(integrationQueueAddMock).not.toHaveBeenCalled()
-    // Throttled → no flow enqueued AND no canned text either (silence within
-    // the activation window), unlike the `skipped` (no/invalid flow) case
-    // above which still sends the canned fallback text.
+    // Throttled → no flow enqueued and no canned text (silence within the
+    // activation window).
     expect(sendMessageWithRenderMock).not.toHaveBeenCalled()
   })
 })
