@@ -5799,6 +5799,9 @@
     "inventoryPolicy": {
       "dont_track": "不追蹤庫存",
       "track": "追蹤庫存"
+    },
+    "images": {
+      "invalidUrl": "That is not an image. Upload a photo from your device, or paste a link that starts with https://"
     }
   },
   "tiktok": {

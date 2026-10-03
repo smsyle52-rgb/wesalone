@@ -5766,6 +5766,9 @@
     "inventoryPolicy": {
       "dont_track": "Don't track inventory",
       "track": "Track inventory"
+    },
+    "images": {
+      "invalidUrl": "That is not an image. Upload a photo from your device, or paste a link that starts with https://"
     }
   },
   "tiktok": {

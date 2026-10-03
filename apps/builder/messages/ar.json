@@ -5413,6 +5413,9 @@
     "inventoryPolicy": {
       "dont_track": "لا تتبع المخزون",
       "track": "تتبع المخزون"
+    },
+    "images": {
+      "invalidUrl": "هذه ليست صورة. ارفع صورة من جهازك، أو الصق رابطًا يبدأ بـ https://"
     }
   },
   "tiktok": {

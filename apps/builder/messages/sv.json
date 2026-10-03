@@ -4937,7 +4937,10 @@
       "tags": "Taggar",
       "variants": "Varianter"
     },
-    "title": "Produkter"
+    "title": "Produkter",
+    "images": {
+      "invalidUrl": "That is not an image. Upload a photo from your device, or paste a link that starts with https://"
+    }
   },
   "qrCodeGenerator": {
     "description": "Skapa och hantera dina QR-koder.",

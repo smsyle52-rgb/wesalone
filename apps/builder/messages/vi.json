@@ -6053,6 +6053,9 @@
     "inventoryPolicy": {
       "dont_track": "Không theo dõi kho hàng",
       "track": "Theo dõi kho hàng"
+    },
+    "images": {
+      "invalidUrl": "That is not an image. Upload a photo from your device, or paste a link that starts with https://"
     }
   },
   "tiktok": {

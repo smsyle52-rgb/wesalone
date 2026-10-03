@@ -4937,7 +4937,10 @@
       "tags": "标签",
       "variants": "变体"
     },
-    "title": "产品"
+    "title": "产品",
+    "images": {
+      "invalidUrl": "That is not an image. Upload a photo from your device, or paste a link that starts with https://"
+    }
   },
   "qrCodeGenerator": {
     "description": "创建并管理您的 QR Code。",

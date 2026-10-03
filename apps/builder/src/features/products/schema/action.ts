@@ -3,6 +3,26 @@ import { DEFAULT_PRODUCT_CURRENCY } from "../constants"
 
 const CURRENCY_CODE_LENGTH = 3
 
+/**
+ * A product image has to be a plain http(s) address a browser — and WhatsApp —
+ * can fetch as is. The link box used to accept any text, so a merchant typed
+ * the product name into it; the stored "url" then crashed the edit page
+ * (`next/image` throws on an unparsable src) and gave the AI agent nothing to
+ * send. Template placeholders (`{{user_id}}` in a dynamic-image link) are
+ * rejected for the same reason: nothing resolves them for a product photo.
+ */
+export const isProductImageUrl = (value: string): boolean => {
+  if (value.includes("{{")) {
+    return false
+  }
+  try {
+    const { protocol } = new URL(value)
+    return protocol === "https:" || protocol === "http:"
+  } catch {
+    return false
+  }
+}
+
 export const productFormRequest = z.object({
   name: z.string().trim().min(1).max(255).default("").describe("Product name."),
   shortDescription: z
@@ -64,7 +84,12 @@ export const productFormRequest = z.object({
       z.object({
         id: z.string().optional(),
         mode: z.enum(["link", "file"]).default("file"),
-        url: z.string().default(""),
+        url: z
+          .string()
+          .default("")
+          .refine((value) => value === "" || isProductImageUrl(value), {
+            message: "Product image must be an http(s) image URL.",
+          }),
       }),
     )
     .default([])

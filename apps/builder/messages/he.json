@@ -3767,6 +3767,9 @@
     "inventoryPolicy": {
       "dont_track": "אין לעקוב אחר המלאי",
       "track": "מעקב אחר מלאי"
+    },
+    "images": {
+      "invalidUrl": "That is not an image. Upload a photo from your device, or paste a link that starts with https://"
     }
   },
   "tiktok": {

@@ -5970,7 +5970,10 @@
       "tags": "Etichete",
       "variants": "Variante"
     },
-    "title": "Produse"
+    "title": "Produse",
+    "images": {
+      "invalidUrl": "That is not an image. Upload a photo from your device, or paste a link that starts with https://"
+    }
   },
   "qrCodeGenerator": {
     "description": "Creează și gestionează codurile tale QR.",
