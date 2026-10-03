@@ -74,6 +74,7 @@ vi.mock("../src/logger", () => ({
 
 const {
   buildPlatformOverrideCandidates,
+  dropToolStepText,
   mergeConsecutiveAssistantMessages,
   withFoundryReasoningEffort,
   getActivePlatformAiOverride,
@@ -282,6 +283,53 @@ describe("withFoundryReasoningEffort", () => {
     expect(
       withFoundryReasoningEffort(undefined, { reasoningEffort: "low" }),
     ).toBeUndefined()
+  })
+})
+
+describe("dropToolStepText", () => {
+  const run = async (parts: { type: string; delta?: string }[]) => {
+    const out: string[] = []
+    const reader = new ReadableStream({
+      start(controller) {
+        for (const part of parts) {
+          controller.enqueue(part)
+        }
+        controller.close()
+      },
+    })
+      .pipeThrough(dropToolStepText())
+      .getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) {
+        break
+      }
+      out.push(value.type)
+    }
+    return out
+  }
+
+  test("drops narration in a step that calls a tool", async () => {
+    expect(
+      await run([
+        { type: "text-start" },
+        { type: "text-delta", delta: "one moment" },
+        { type: "text-end" },
+        { type: "tool-call" },
+        { type: "finish" },
+      ]),
+    ).toEqual(["tool-call", "finish"])
+  })
+
+  test("keeps the text of a plain answer, before finish", async () => {
+    expect(
+      await run([
+        { type: "text-start" },
+        { type: "text-delta", delta: "the price is 3800" },
+        { type: "text-end" },
+        { type: "finish" },
+      ]),
+    ).toEqual(["text-start", "text-delta", "text-end", "finish"])
   })
 })
 

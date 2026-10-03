@@ -662,6 +662,47 @@ export function withFoundryReasoningEffort(
   }
 }
 
+type FoundryStreamPart = { type: string }
+
+/**
+ * Hold back a step's text until it is known whether the step calls a tool, and
+ * drop it if it does. Muse Spark narrates before each tool call ("one moment,
+ * let me check the menu…"); the reply pipeline streams every step's text to
+ * the customer, so those asides arrived glued to the real answer. Text of the
+ * final, tool-free step passes through unchanged.
+ */
+export function dropToolStepText<
+  T extends FoundryStreamPart,
+>(): TransformStream<T, T> {
+  let held: T[] = []
+  let callsTool = false
+  return new TransformStream<T, T>({
+    transform(part, controller) {
+      if (part.type.startsWith("text-")) {
+        if (!callsTool) {
+          held.push(part)
+        }
+        return
+      }
+      if (part.type === "tool-call" || part.type.startsWith("tool-input")) {
+        callsTool = true
+        held = []
+      } else if (part.type === "finish") {
+        for (const text of held) {
+          controller.enqueue(text)
+        }
+        held = []
+      }
+      controller.enqueue(part)
+    },
+    flush(controller) {
+      for (const text of held) {
+        controller.enqueue(text)
+      }
+    },
+  })
+}
+
 function getPlatformAzureFoundryChatModel(
   config: PlatformAzureFoundryChatConfig,
 ): LanguageModel {
@@ -692,6 +733,10 @@ function getPlatformAzureFoundryChatModel(
         ...params,
         prompt: mergeConsecutiveAssistantMessages(params.prompt),
       }),
+      wrapStream: async ({ doStream }) => {
+        const { stream, ...rest } = await doStream()
+        return { stream: stream.pipeThrough(dropToolStepText()), ...rest }
+      },
     },
   })
 }

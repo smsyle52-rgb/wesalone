@@ -1266,6 +1266,18 @@ async function runAIReply(
       }
     }
 
+    // The model failed part-way (a 429 on the step after a tool call is the
+    // common case) and the customer has been sent nothing. Hand the turn to
+    // the next candidate instead of apologising — unless a tool with a side
+    // effect already ran, where a second model could repeat it.
+    if (
+      streamFailed &&
+      !SIDE_EFFECT_TOOLS.some((toolName) => toolNamesSet.has(toolName))
+    ) {
+      await settleUsage()
+      return null
+    }
+
     // Last-resort fallback: loop finished but no assistant text was produced.
     // Do NOT leak raw tool outputs; prefer the workspace's configured default
     // reply flow, and only fall back to a clarifying question if none is set.
@@ -1361,6 +1373,12 @@ async function runAIReply(
     }
   }
 }
+
+/** Tools that change something outside the conversation when they run. */
+const SIDE_EFFECT_TOOLS: string[] = [
+  systemFunctionNames.createOrder,
+  systemFunctionNames.connectUserToHuman,
+]
 
 function appendUnavailableWebSearchPolicy(
   systemPrompt: string,
