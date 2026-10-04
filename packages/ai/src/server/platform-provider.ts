@@ -540,7 +540,9 @@ export async function getPlatformCapabilityLanguageModel(
       capability.model,
     )
   }
-  return getPlatformAzureOpenAIProvider(capability)(capability.model)
+  // Through the chat helper so a reasoning deployment gets the configured
+  // effort instead of the model's slower default.
+  return getPlatformAzureOpenAIChatModel(capability.model, capability)
 }
 
 export async function getPlatformCapabilityImageModel(

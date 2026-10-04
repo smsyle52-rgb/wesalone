@@ -15,6 +15,7 @@ import {
   heavyQueue,
   waitForJobCompletionWithRetries,
 } from "@chatbotx.io/worker-config"
+import type { ModelMessage } from "ai"
 import { normalizeError } from "universal-error-normalizer"
 import { env } from "../../../../env"
 import {
@@ -40,12 +41,13 @@ function getImageReaderCopy(language?: string) {
       userQuestion: "سؤال المستخدم",
       selectionContext: "سياق اختيار الصورة",
       imageTitle: "عنوان الصورة",
+      conversationContext: "آخر ما دار في المحادثة (للسياق فقط، لا تُجب عنه)",
       fileOnlyInstruction:
-        "إذا لم يطرح المستخدم سؤالًا محددًا، فقدم ملخصًا قصيرًا واقترح التفاصيل التي يمكنه السؤال عنها لاحقًا.",
+        "إذا لم يطرح المستخدم سؤالًا محددًا، فصف باختصار ما في الصورة واذكر ما يبدو أن العميل يريده منها بحسب سياق المحادثة (صنف يسأل عنه، إيصال دفع، مشكلة، مستند).",
       outputImage: "الصورة",
       outputAnalysis: "التحليل",
       outputFollowUp:
-        "متابعة: اسأل المستخدم عن التفصيل المحدد في الصورة الذي يريد معرفة المزيد عنه.",
+        "متابعة: استخدم هذا التحليل لتكمل خدمة العميل ضمن المحادثة نفسها وبحسب تعليماتك: اربط الصورة بما كان يطلبه وأجب أو اتخذ الخطوة التالية. لا تسأله أي تفصيل يريد معرفته عن الصورة إلا إذا كان قصده غير واضح فعلًا.",
       missingContext: "يمكنني قراءة الصور فقط عند توفر سياق المحادثة.",
       unsupportedImage: "لم أجد صورة مدعومة في هذه المحادثة بعد.",
       emptyAnalysis:
@@ -67,12 +69,13 @@ function getImageReaderCopy(language?: string) {
     userQuestion: "User question",
     selectionContext: "Image selection context",
     imageTitle: "Image title",
+    conversationContext: "Recent conversation (context only, do not answer it)",
     fileOnlyInstruction:
-      "If the user did not ask a specific question, provide a short summary and suggest what detail they can ask about next.",
+      "If the user did not ask a specific question, briefly describe the image and say what the customer most likely wants from it given the conversation (a product they are asking about, a payment receipt, a problem, a document).",
     outputImage: "Image",
     outputAnalysis: "Analysis",
     outputFollowUp:
-      "Follow-up: Ask the user what specific detail in the image they want to know more about.",
+      "Follow-up: Use this analysis to keep serving the customer in the same conversation and under your instructions: tie the image to what they were asking for and answer or take the next step. Do not ask which detail of the image they want unless their intent is genuinely unclear.",
     missingContext:
       "I can only read images when conversation context is available.",
     unsupportedImage:
@@ -96,8 +99,50 @@ function getReadableImageTitle(
   )
 }
 
+/** How much of the conversation the vision model is shown. */
+const IMAGE_CONTEXT_MAX_TURNS = 6
+const IMAGE_CONTEXT_MAX_CHARS = 1200
+
+function messageText(message: ModelMessage): string {
+  if (typeof message.content === "string") {
+    return message.content
+  }
+  return message.content
+    .map((part) => (part.type === "text" ? part.text : ""))
+    .join(" ")
+}
+
+/**
+ * The last few turns as plain text. The vision model sees the image with none
+ * of the conversation, so its description came back generic ("an ad for a
+ * printing company — which detail would you like?") and the agent lost the
+ * thread of what the customer was actually asking for.
+ */
+export function buildImageConversationContext(
+  messages: ModelMessage[],
+): string | undefined {
+  const turns = messages
+    .filter(
+      (message) => message.role === "user" || message.role === "assistant",
+    )
+    .map((message) => ({
+      role: message.role,
+      text: messageText(message).replace(/\s+/g, " ").trim(),
+    }))
+    .filter((turn) => turn.text.length > 0)
+    .slice(-IMAGE_CONTEXT_MAX_TURNS)
+    .map(
+      (turn) => `${turn.role === "user" ? "customer" : "agent"}: ${turn.text}`,
+    )
+  if (turns.length === 0) {
+    return
+  }
+  return turns.join("\n").slice(-IMAGE_CONTEXT_MAX_CHARS)
+}
+
 export function buildVisionPrompt(props: {
   attachment: AttachmentModel
+  conversationContext?: string
   fileOnlyTrigger: boolean
   input: ImageReaderInput
   language?: string
@@ -122,6 +167,12 @@ export function buildVisionPrompt(props: {
 
   if (props.fileOnlyTrigger) {
     lines.push(copy.fileOnlyInstruction)
+  }
+
+  if (props.conversationContext?.trim()) {
+    lines.push(
+      `${copy.conversationContext}:\n${props.conversationContext.trim()}`,
+    )
   }
 
   return lines.join("\n")
@@ -184,6 +235,7 @@ function buildImageReaderJobId(input: {
 
 export function createImageReaderExecutor(options: {
   abortSignal?: AbortSignal
+  conversationContext?: string
   fileOnlyTrigger: boolean
   language?: string
   modelId: string
@@ -214,6 +266,7 @@ export function createImageReaderExecutor(options: {
 
       const prompt = buildVisionPrompt({
         attachment,
+        conversationContext: options.conversationContext,
         fileOnlyTrigger: options.fileOnlyTrigger,
         input: args,
         language: options.language,

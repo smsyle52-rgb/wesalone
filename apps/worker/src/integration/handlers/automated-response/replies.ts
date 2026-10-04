@@ -61,7 +61,10 @@ import { triggerDefaultReplyFlow } from "./default-reply"
 import { handlePointsExhausted } from "./points-exhausted"
 import { handleRichAIReply } from "./rich-reply"
 import { createDocumentReaderExecutor } from "./system-tools/document-reader"
-import { createImageReaderExecutor } from "./system-tools/image-reader"
+import {
+  buildImageConversationContext,
+  createImageReaderExecutor,
+} from "./system-tools/image-reader"
 import { createUrlReaderExecutor } from "./system-tools/url-reader"
 import {
   buildTrackingContext,
@@ -574,6 +577,9 @@ function createReplyToolset(options: {
       }),
       [systemFunctionNames.imageReader]: createImageReaderExecutor({
         abortSignal: options.abortSignal,
+        conversationContext: buildImageConversationContext(
+          options.props.messages,
+        ),
         fileOnlyTrigger: options.props.fileOnlyTrigger,
         language:
           options.props.workspaceLanguage ??

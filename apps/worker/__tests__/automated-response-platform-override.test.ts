@@ -185,7 +185,10 @@ vi.mock(
 )
 vi.mock(
   "../src/integration/handlers/automated-response/system-tools/image-reader",
-  () => ({ createImageReaderExecutor: vi.fn(() => vi.fn()) }),
+  () => ({
+    buildImageConversationContext: vi.fn(),
+    createImageReaderExecutor: vi.fn(() => vi.fn()),
+  }),
 )
 vi.mock(
   "../src/integration/handlers/automated-response/system-tools/url-reader",
