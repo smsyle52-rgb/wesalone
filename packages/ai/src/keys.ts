@@ -44,8 +44,12 @@ export const keys = () =>
       AZURE_FOUNDRY_CHAT_REASONING_EFFORT: z
         .enum(["minimal", "low", "medium", "high"])
         .optional(),
-      // Optional second Foundry model on the same resource, tried right after
-      // the first one and before the remaining platform candidates.
+      // Optional second Foundry model, tried right after the first one and
+      // before the remaining platform candidates. It may live on another
+      // resource (another subscription's quota pool); endpoint and key default
+      // to the first model's.
+      AZURE_FOUNDRY_CHAT_FALLBACK_ENDPOINT: z.url().optional(),
+      AZURE_FOUNDRY_CHAT_FALLBACK_API_KEY: z.string().trim().min(1).optional(),
       AZURE_FOUNDRY_CHAT_FALLBACK_DEPLOYMENT: z
         .string()
         .trim()

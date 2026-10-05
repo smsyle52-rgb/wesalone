@@ -102,7 +102,8 @@ export function getPlatformAzureFoundryChatConfigs(): PlatformAzureFoundryChatCo
   return [
     primary,
     {
-      ...primary,
+      endpoint: env.AZURE_FOUNDRY_CHAT_FALLBACK_ENDPOINT ?? primary.endpoint,
+      apiKey: env.AZURE_FOUNDRY_CHAT_FALLBACK_API_KEY ?? primary.apiKey,
       deployment,
       model,
       reasoningEffort: env.AZURE_FOUNDRY_CHAT_FALLBACK_REASONING_EFFORT,
