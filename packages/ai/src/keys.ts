@@ -23,6 +23,10 @@ export const keys = () =>
       AZURE_OPENAI_LOCATION: z.string().trim().min(1).optional(),
       AZURE_OPENAI_CHAT_DEPLOYMENT: z.string().trim().min(1).optional(),
       AZURE_OPENAI_EMBEDDING_DEPLOYMENT: z.string().trim().min(1).optional(),
+      // Optional separate resource for the speech-to-text deployment (both
+      // must be set). Without them transcription uses the endpoint above.
+      AZURE_OPENAI_STT_ENDPOINT: z.url().optional(),
+      AZURE_OPENAI_STT_API_KEY: z.string().trim().min(1).optional(),
       // Reasoning effort for the platform chat deployment when it is a
       // reasoning model (gpt-5 family). Unset leaves the model default, which
       // for gpt-5-mini is `medium` — too slow for a chat reply.

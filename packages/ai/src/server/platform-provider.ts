@@ -577,9 +577,17 @@ export async function getPlatformTranscriptionModel(): Promise<{
       region: capability.location,
     }
   }
+  // The stronger transcription models are not offered in every region, so the
+  // speech deployment may sit on a different resource than the chat one.
+  const sttEndpoint = env.AZURE_OPENAI_STT_ENDPOINT
+  const sttApiKey = env.AZURE_OPENAI_STT_API_KEY
+  const resource =
+    sttEndpoint && sttApiKey
+      ? { endpoint: sttEndpoint, apiKey: sttApiKey }
+      : capability
   return {
     model: getPlatformAzureOpenAITranscriptionProvider(
-      capability,
+      resource,
       capability.model,
     ).transcription(capability.model),
     modelId: capability.model,
