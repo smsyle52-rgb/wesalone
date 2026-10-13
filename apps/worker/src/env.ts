@@ -17,6 +17,12 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("false"),
+    // Drops the provider-native web search tool from every AI agent reply,
+    // whatever the agent has enabled.
+    AI_AGENT_WEB_SEARCH_DISABLED: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     WEBHOOK_WORKER_CONCURRENCY: z.coerce
       .number()
       .int()

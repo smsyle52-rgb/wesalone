@@ -51,6 +51,7 @@ import {
   type ReplyModelProviderInfo,
   replyModelMaxRetries,
 } from "../../../lib/ai/reply-model"
+import { env } from "../../../env"
 import { logger } from "../../../lib/logger"
 import { handoffExecutorService } from "../../../trigger/services/handoff-executor.service"
 import { sendMessageAndWait } from "../../utils/message"
@@ -493,10 +494,14 @@ function createReplyToolset(options: {
     options.props.allowedSystemFunctionIds,
   )
   const webSearchToolValue = `${toolPrefixes.enum.sys}:${systemFunctionNames.webSearch}`
-  const hasWebSearchTool = tools.includes(webSearchToolValue)
-  const toolsetTools = hasWebSearchTool
+  const agentHasWebSearchTool = tools.includes(webSearchToolValue)
+  const toolsetTools = agentHasWebSearchTool
     ? tools.filter((tool) => tool !== webSearchToolValue)
     : tools
+  // Provider-native search is billed per query on the platform's account, so
+  // the platform can switch it off for every agent without editing them.
+  const hasWebSearchTool =
+    agentHasWebSearchTool && env.AI_AGENT_WEB_SEARCH_DISABLED !== "true"
   let nativeWebSearchTool: { omitReason?: string; tool?: ToolSet[string] } = {
     omitReason: undefined,
     tool: undefined,

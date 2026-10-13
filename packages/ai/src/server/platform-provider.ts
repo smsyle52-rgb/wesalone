@@ -516,14 +516,19 @@ export function buildPlatformOverrideCandidates(
     }
     // The Foundry model answers first; every candidate above stays behind it
     // as the fallback for when its (small) quota is used up.
-    candidates.unshift(
-      ...getPlatformAzureFoundryChatConfigs().map(
-        (config): PlatformModelCandidate => ({
-          platformAzureOpenAI: true,
-          model: config.model,
-        }),
-      ),
+    const foundryCandidates = getPlatformAzureFoundryChatConfigs().map(
+      (config): PlatformModelCandidate => ({
+        platformAzureOpenAI: true,
+        model: config.model,
+      }),
     )
+    if (env.PLATFORM_AI_CHAT_PRIMARY === "vertexFirst") {
+      // Vertex answers first; the Foundry models sit between it and the Azure
+      // OpenAI deployment.
+      candidates.splice(-1, 0, ...foundryCandidates)
+    } else {
+      candidates.unshift(...foundryCandidates)
+    }
   }
   return candidates
 }

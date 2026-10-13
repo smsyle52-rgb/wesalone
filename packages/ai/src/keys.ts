@@ -13,9 +13,10 @@ export const keys = () =>
       // Which platform chat provider answers first. `azureOpenAI` puts the
       // Azure OpenAI deployment ahead of Vertex (which stays as the fallback) —
       // the switch for a Vertex outage or billing suspension, without touching
-      // the admin AI settings.
+      // the admin AI settings. `vertexFirst` keeps Vertex ahead of the Foundry
+      // models too, which otherwise always answer before it.
       PLATFORM_AI_CHAT_PRIMARY: z
-        .enum(["vertex", "azureOpenAI"])
+        .enum(["vertex", "azureOpenAI", "vertexFirst"])
         .optional()
         .default("vertex"),
       AZURE_OPENAI_ENDPOINT: z.url().optional(),

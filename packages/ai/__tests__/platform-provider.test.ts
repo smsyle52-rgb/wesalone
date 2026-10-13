@@ -254,6 +254,33 @@ describe("Azure Foundry first-choice chat model", () => {
     }
   })
 
+  test("vertexFirst keeps Vertex ahead of the Foundry models", () => {
+    Object.assign(envMock, foundryEnv, {
+      AZURE_FOUNDRY_CHAT_FALLBACK_DEPLOYMENT: "wesal-grok-fast",
+      AZURE_FOUNDRY_CHAT_FALLBACK_MODEL: "grok-4-1-fast-non-reasoning",
+      PLATFORM_AI_CHAT_PRIMARY: "vertexFirst",
+    })
+    try {
+      expect(
+        buildPlatformOverrideCandidates(override).map((item) => item.model),
+      ).toEqual([
+        "gemini-3.5-flash",
+        "muse-spark-1.3",
+        "grok-4-1-fast-non-reasoning",
+        "wesal-chat",
+      ])
+    } finally {
+      clearFoundryEnv()
+      for (const key of [
+        "AZURE_FOUNDRY_CHAT_FALLBACK_DEPLOYMENT",
+        "AZURE_FOUNDRY_CHAT_FALLBACK_MODEL",
+        "PLATFORM_AI_CHAT_PRIMARY",
+      ]) {
+        delete (envMock as Record<string, unknown>)[key]
+      }
+    }
+  })
+
   test("is ignored unless all four settings are present", () => {
     Object.assign(envMock, foundryEnv, {
       AZURE_FOUNDRY_CHAT_API_KEY: undefined,
