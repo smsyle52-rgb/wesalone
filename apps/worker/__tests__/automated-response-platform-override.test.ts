@@ -311,6 +311,46 @@ describe("replyByAI (DM auto-reply) — platform Azure OpenAI override", () => {
     )
   })
 
+  test("an agent on its own Gemini key still answers on the platform chain", async () => {
+    state.platformOverride = {
+      chatModel: "gemini-3.8-flash",
+      fallbackModel: null,
+      location: "global",
+    }
+
+    const result = await replyByAI({
+      ...baseProps,
+      aiAgent: makeAIAgent({
+        models: [{ provider: "gemini", model: "gemini-3.5-flash" }],
+      }),
+    })
+
+    expect(result?.provider).toBe("vertex")
+    expect(getAIIntegrationInDBMock).not.toHaveBeenCalled()
+  })
+
+  test("an agent whose first model is OpenRouter tries the merchant's key first and reserves no points for it", async () => {
+    state.platformOverride = {
+      chatModel: "gemini-3.8-flash",
+      fallbackModel: null,
+      location: "global",
+    }
+
+    await replyByAI({
+      ...baseProps,
+      aiAgent: makeAIAgent({
+        models: [{ provider: "openrouter", model: "openai/gpt-5.4-mini" }],
+      }),
+    })
+
+    expect(getAIIntegrationInDBMock).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: "ws-1", provider: "openrouter" }),
+    )
+    expect(usageMeteringReserveMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "openrouter" }),
+    )
+  })
+
   test("sends a localized Arabic fallback instead of silently returning null when every candidate yields no text", async () => {
     state.platformOverride = {
       chatModel: "gemini-3.7-flash",

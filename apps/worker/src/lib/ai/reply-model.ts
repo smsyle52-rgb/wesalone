@@ -56,6 +56,41 @@ export function getProviderName(
 }
 
 /**
+ * A model billed to the merchant's own OpenRouter key. Only OpenRouter: the
+ * per-workspace Gemini keys left over from August must not take over again.
+ */
+export function isMerchantKeyProvider(
+  providerInfo: ReplyModelProviderInfo,
+): boolean {
+  return (
+    !isPlatformVertexModelCandidate(providerInfo) &&
+    !isPlatformAzureOpenAIModelCandidate(providerInfo) &&
+    !isOpenaiCompatibleProviderModel(providerInfo) &&
+    providerInfo.provider === "openrouter"
+  )
+}
+
+/**
+ * The candidates a reply tries, in order. With the platform override on, an
+ * agent whose first model is the merchant's own OpenRouter key answers on it
+ * first and keeps the platform chain behind it; every other agent gets the
+ * platform chain alone, exactly as before.
+ */
+export function resolveReplyProviders(
+  agentModels: AIAgentModelConfig[],
+  platformCandidates: PlatformModelCandidate[] | null,
+): ReplyModelProviderInfo[] {
+  if (!platformCandidates) {
+    return agentModels
+  }
+  const first = agentModels[0]
+  if (!(first && isMerchantKeyProvider(first))) {
+    return platformCandidates
+  }
+  return [...agentModels.filter(isMerchantKeyProvider), ...platformCandidates]
+}
+
+/**
  * The Foundry model's quota is small and a fallback candidate follows it, so a
  * rate-limited call must fail over at once instead of sitting in the SDK's
  * retry backoff (which honours `retry-after`, up to a minute) while the

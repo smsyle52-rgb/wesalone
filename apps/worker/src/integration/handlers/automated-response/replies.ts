@@ -47,9 +47,11 @@ import { normalizeError } from "universal-error-normalizer"
 import {
   createReplyModel,
   getProviderName,
+  isMerchantKeyProvider,
   type ReplyAIProvider,
   type ReplyModelProviderInfo,
   replyModelMaxRetries,
+  resolveReplyProviders,
 } from "../../../lib/ai/reply-model"
 import { env } from "../../../env"
 import { logger } from "../../../lib/logger"
@@ -164,12 +166,14 @@ export async function replyByAI(
   }
 
   // Platform-locked Vertex setting takes precedence over the agent's own
-  // stored fallback chain. Its synthetic candidates end with Azure OpenAI.
+  // stored fallback chain (except a merchant's own OpenRouter key, which goes
+  // first). Its synthetic candidates end with Azure OpenAI.
   // `null` means disabled, so this behaves exactly as before this setting existed.
   const platformOverride = await getActivePlatformAiOverride()
-  const providers: ReplyModelProviderInfo[] = platformOverride
-    ? buildPlatformOverrideCandidates(platformOverride)
-    : (aiAgent.models as AIAgentProviderModels)
+  const providers = resolveReplyProviders(
+    aiAgent.models as AIAgentProviderModels,
+    platformOverride ? buildPlatformOverrideCandidates(platformOverride) : null,
+  )
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
@@ -336,9 +340,10 @@ export async function generateAIReplyText(
   }
 
   const platformOverride = await getActivePlatformAiOverride()
-  const providers: ReplyModelProviderInfo[] = platformOverride
-    ? buildPlatformOverrideCandidates(platformOverride)
-    : (aiAgent.models as AIAgentProviderModels)
+  const providers = resolveReplyProviders(
+    aiAgent.models as AIAgentProviderModels,
+    platformOverride ? buildPlatformOverrideCandidates(platformOverride) : null,
+  )
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
@@ -371,21 +376,27 @@ export async function generateAIReplyText(
       }
       const provider = getProviderName(providerInfo)
 
-      activeReservation = await reserveUsageOrUnmetered(
-        {
-          workspaceId: conversation.workspaceId,
-          operationId: `${props.operationId}:${provider}:${providerInfo.model}`,
-          category: "language",
-          provider,
-          model: providerInfo.model,
-          metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
-        },
-        {
-          provider,
-          modelId: providerInfo.model,
-          conversationId: conversation.id,
-        },
-      )
+      // The merchant pays OpenRouter directly for this model: no points.
+      activeReservation = isMerchantKeyProvider(providerInfo)
+        ? undefined
+        : await reserveUsageOrUnmetered(
+            {
+              workspaceId: conversation.workspaceId,
+              operationId: `${props.operationId}:${provider}:${providerInfo.model}`,
+              category: "language",
+              provider,
+              model: providerInfo.model,
+              metadata: {
+                conversationId: conversation.id,
+                aiAgentId: aiAgent.id,
+              },
+            },
+            {
+              provider,
+              modelId: providerInfo.model,
+              conversationId: conversation.id,
+            },
+          )
 
       const result = await streamText({
         model: modelConfig.model,
@@ -865,21 +876,27 @@ async function runAIReply(
       return null
     }
 
-    reservation = await reserveUsageOrUnmetered(
-      {
-        workspaceId: conversation.workspaceId,
-        operationId: `auto-reply:${props.triggerMessageId ?? conversation.updatedAt.toISOString()}:${provider}:${selectedModelId}`,
-        category: "language",
-        provider,
-        model: selectedModelId,
-        metadata: { conversationId: conversation.id, aiAgentId: aiAgent.id },
-      },
-      {
-        provider,
-        modelId: selectedModelId,
-        conversationId: conversation.id,
-      },
-    )
+    // The merchant pays OpenRouter directly for this model: no points.
+    reservation = isMerchantKeyProvider(providerInfo)
+      ? undefined
+      : await reserveUsageOrUnmetered(
+          {
+            workspaceId: conversation.workspaceId,
+            operationId: `auto-reply:${props.triggerMessageId ?? conversation.updatedAt.toISOString()}:${provider}:${selectedModelId}`,
+            category: "language",
+            provider,
+            model: selectedModelId,
+            metadata: {
+              conversationId: conversation.id,
+              aiAgentId: aiAgent.id,
+            },
+          },
+          {
+            provider,
+            modelId: selectedModelId,
+            conversationId: conversation.id,
+          },
+        )
 
     const startTime = Date.now()
 
