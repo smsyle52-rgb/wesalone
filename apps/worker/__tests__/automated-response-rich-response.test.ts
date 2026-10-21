@@ -3,6 +3,7 @@ import type {
   ContactInboxModel,
   ConversationModel,
 } from "@chatbotx.io/database/types"
+import { processStreamingText } from "@chatbotx.io/ai"
 import { type ModelMessage, streamText } from "ai"
 import { beforeEach, describe, expect, test, vi } from "vitest"
 import { replyByAI } from "../src/integration/handlers/automated-response/replies"
@@ -416,6 +417,29 @@ describe("replyByAI — rich mode routing", () => {
     expect(executeRichActionsMock).toHaveBeenCalledOnce()
     expect(sendMessageAndWaitMock).not.toHaveBeenCalled()
     expect(appendHistoryMock).toHaveBeenCalledOnce()
+  })
+
+  test("a failed rich stream does not wait for its usage (which never resolves)", async () => {
+    vi.mocked(streamText).mockImplementationOnce(
+      async () =>
+        ({
+          textStream: emptyAsyncIterable(),
+          totalUsage: new Promise(() => undefined),
+        }) as unknown as Awaited<ReturnType<typeof streamText>>,
+    )
+    vi.mocked(processStreamingText).mockRejectedValueOnce(
+      new Error("Resource exhausted"),
+    )
+
+    const outcome = await Promise.race([
+      replyByAI({
+        ...baseProps,
+        aiAgent: makeAIAgent({ isRichResponse: true }),
+      }).then(() => "finished"),
+      new Promise((resolve) => setTimeout(() => resolve("hung"), 2000)),
+    ])
+
+    expect(outcome).toBe("finished")
   })
 
   test("plain_text AI response → sendMessageAndWait called, responded: true", async () => {

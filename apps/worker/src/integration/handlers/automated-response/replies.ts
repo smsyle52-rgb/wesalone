@@ -1198,6 +1198,11 @@ async function runAIReply(
         modelId: selectedModelId,
         startTime,
         buildToolStats,
+        // Without this, settleUsage awaited the failed stream's usage forever
+        // and each such reply held a worker slot until a restart (21 Oct 2026).
+        onStreamFailed: () => {
+          streamFailed = true
+        },
       })
       await settleUsage()
       return richResult

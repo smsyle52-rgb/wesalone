@@ -24,6 +24,8 @@ type HandleRichAIReplyOptions = {
   buildToolStats: () => ReplyByAIExecutionResult["toolStats"]
   directSendTracker: DirectSendTracker
   modelId: string
+  /** Told when the stream failed, so the caller does not wait for its usage. */
+  onStreamFailed?: () => void
   props: ReplyByAIProps
   provider: ReplyAIProvider
   startTime: number
@@ -34,6 +36,7 @@ export async function handleRichAIReply({
   buildToolStats,
   directSendTracker,
   modelId,
+  onStreamFailed,
   props,
   provider,
   startTime,
@@ -47,6 +50,7 @@ export async function handleRichAIReply({
     },
     { sendParts: false },
   ).catch(async (streamError) => {
+    onStreamFailed?.()
     const normalizedError = normalizeError(streamError)
     logger.error(
       {
