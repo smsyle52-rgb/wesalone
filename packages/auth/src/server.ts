@@ -25,7 +25,6 @@ import {
   sendResetPassword,
   sendSignUpVerification,
 } from "@chatbotx.io/mail"
-import type { SmtpTransportOptions } from "@chatbotx.io/mail/transport"
 import {
   createId,
   getLocaleFromRequest,

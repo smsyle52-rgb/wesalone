@@ -47,11 +47,6 @@ const { workspaceTokenAuthAPIForScope, capturedProcedures } = vi.hoisted(() => {
   }
 })
 
-// Wesal One brands the menu entry with its own title.
-const { BRANDING_TITLE } = await vi.importActual<
-  typeof import("@chatbotx.io/business/branding")
->("@chatbotx.io/business/branding")
-
 vi.mock("@/orpc", () => ({ workspaceTokenAuthAPIForScope }))
 
 const integrationWebchatService = {

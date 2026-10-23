@@ -29,7 +29,6 @@ import {
 } from "@chatbotx.io/business"
 import type {
   AIAgentActionRule,
-  AIAgentModelConfig,
   AIAgentProviderModels,
   DefaultReplyFrequency,
 } from "@chatbotx.io/database/partials"
@@ -208,9 +207,9 @@ export async function replyByAI(
           controller.signal,
           executedRuleIds,
           {
-          firstOutputTimeoutMs: isLastCandidate
-            ? 0
-            : env.AI_REPLY_FIRST_OUTPUT_TIMEOUT_MS,
+            firstOutputTimeoutMs: isLastCandidate
+              ? 0
+              : env.AI_REPLY_FIRST_OUTPUT_TIMEOUT_MS,
           },
         )
       } catch (error) {

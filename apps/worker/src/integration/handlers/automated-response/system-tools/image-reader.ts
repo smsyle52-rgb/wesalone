@@ -9,7 +9,6 @@ import {
   ensureAttachmentStored,
   MediaNotReadyError,
 } from "@chatbotx.io/channel-registry/media-hydration"
-import type { AIAgentModelConfig } from "@chatbotx.io/database/partials"
 import type { AttachmentModel } from "@chatbotx.io/database/types"
 import {
   getHeavyJobCompletionWaitTimeoutMs,

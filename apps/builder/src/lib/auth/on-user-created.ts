@@ -33,7 +33,6 @@ export async function onUserCreated(user: AuthCreatedUser): Promise<void> {
     )
   }
 
-
   // The bootstrap row is stamped on every edition, not only cloud. Upstream's
   // `!isCloud()` return is correct for a self-hosted install serving its own
   // owner — no quota row means unlimited, which is what that operator wants.

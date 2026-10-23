@@ -6,6 +6,7 @@ import {
   CardContent,
   CardHeader,
 } from "@chatbotx.io/ui/components/ui/card"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { GenericOAuthSignIn } from "@/features/auth/generic-oauth-sign-in"

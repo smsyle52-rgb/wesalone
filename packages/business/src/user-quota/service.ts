@@ -26,7 +26,6 @@ import {
   aiFileModel,
   connectionModel,
   contactModel,
-  inboxModel,
   platformSubscriptionModel,
   productModel,
   ROOT_TENANT_ID,
