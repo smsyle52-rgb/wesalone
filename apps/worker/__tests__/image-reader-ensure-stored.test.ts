@@ -29,6 +29,14 @@ vi.mock("@chatbotx.io/worker-config", () => ({
   })),
 }))
 vi.mock("../src/env", () => ({ env: { HEAVY_JOB_WAIT_TIMEOUT_MS: 1000 } }))
+// Wesal meters image analysis in points; the meter is irrelevant to storage.
+vi.mock("@chatbotx.io/business", () => ({
+  usageMeteringService: {
+    reserve: vi.fn(async () => ({ operationId: "op-1" })),
+    settleLanguage: vi.fn(async () => undefined),
+    release: vi.fn(async () => undefined),
+  },
+}))
 vi.mock("../src/lib/ai/reply-model", () => ({
   getProviderName: () => "provider",
 }))

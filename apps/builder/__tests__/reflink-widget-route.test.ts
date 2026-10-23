@@ -109,8 +109,9 @@ describe("GET /api/reflink-widget/[reflinkId]", () => {
         logoUrl: null,
         logoBackgroundColor: "#111827",
         logoForegroundColor: "#ffffff",
-        poweredByLabel: "by",
-        toggleLabel: "Chat with us",
+        // Wesal One defaults to Arabic when the visitor sends no language.
+        poweredByLabel: "بواسطة",
+        toggleLabel: "تحدث معنا",
       },
     })
   })
@@ -132,8 +133,8 @@ describe("GET /api/reflink-widget/[reflinkId]", () => {
         "https://files.acme.test/public/space/ws-1/media-library/logo123",
       logoBackgroundColor: "#111827",
       logoForegroundColor: "#ffffff",
-      poweredByLabel: "by",
-      toggleLabel: "Chat with us",
+      poweredByLabel: "بواسطة",
+      toggleLabel: "تحدث معنا",
     })
   })
 

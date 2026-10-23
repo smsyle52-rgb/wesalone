@@ -86,7 +86,9 @@ describe("WorkspacesList — community edition, zero workspaces", () => {
     expect(createLink).not.toBeNull()
   })
 
-  test("still hides the card once the workspace already exists", async () => {
+  // Wesal One is a hosted multi-tenant platform: the card stays visible and the
+  // plan quota decides whether another workspace can be created.
+  test("keeps the card once a workspace already exists", async () => {
     const el = await renderWorkspacesList([
       {
         id: "1",
@@ -102,7 +104,7 @@ describe("WorkspacesList — community edition, zero workspaces", () => {
     ])
 
     const createLink = el.querySelector('a[href="/channels/create"]')
-    expect(createLink).toBeNull()
+    expect(createLink).not.toBeNull()
   })
 
   test("distinguishes a scheduled deletion from a purge in progress", async () => {

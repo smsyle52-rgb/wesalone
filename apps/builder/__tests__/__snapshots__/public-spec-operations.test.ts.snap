@@ -1738,41 +1738,6 @@ exports[`public API spec — operation naming guard > operation list (operationI
     "path": "/v1/inboxes/{id}",
   },
   {
-    "method": "POST",
-    "operationId": "inboxTeams.addMembers",
-    "path": "/v1/teams/{id}/members",
-  },
-  {
-    "method": "POST",
-    "operationId": "inboxTeams.create",
-    "path": "/v1/teams",
-  },
-  {
-    "method": "DELETE",
-    "operationId": "inboxTeams.delete",
-    "path": "/v1/teams/{id}",
-  },
-  {
-    "method": "GET",
-    "operationId": "inboxTeams.get",
-    "path": "/v1/teams/{id}",
-  },
-  {
-    "method": "GET",
-    "operationId": "inboxTeams.list",
-    "path": "/v1/teams",
-  },
-  {
-    "method": "DELETE",
-    "operationId": "inboxTeams.removeMembers",
-    "path": "/v1/teams/{id}/members",
-  },
-  {
-    "method": "PATCH",
-    "operationId": "inboxTeams.update",
-    "path": "/v1/teams/{id}",
-  },
-  {
     "method": "DELETE",
     "operationId": "instagramChannels.disconnect",
     "path": "/v1/instagram-channels/{id}",

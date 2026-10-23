@@ -59,7 +59,9 @@ describe("onUserCreated platform admin bootstrap", () => {
     await onUserCreated(createdUser)
 
     expect(provisionBootstrapAdmin).toHaveBeenCalledWith(createdUser)
-    expect(ensureBootstrapPlan).not.toHaveBeenCalled()
+    // Wesal One runs the community edition as a hosted platform, so every
+    // sign-up gets its bootstrap plan; only the entitlement job is cloud-only.
+    expect(ensureBootstrapPlan).toHaveBeenCalled()
     expect(quotaQueueAdd).not.toHaveBeenCalled()
   })
 

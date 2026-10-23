@@ -69,6 +69,7 @@ vi.mock("@chatbotx.io/ai/server", () => ({
   ),
   isPlatformAzureOpenAIModelCandidate: vi.fn(() => false),
   isPlatformVertexModelCandidate: vi.fn(() => false),
+  appendAIAgentActionToolProtocol: (p: string) => p,
   appendFabricationGuard: (p: string) => p,
   appendHandoffPolicy: (p: string) => p,
   appendKnowledgeBaseGuard: (p: string) => p,
