@@ -44,6 +44,7 @@ import {
 } from "@chatbotx.io/worker-config"
 import { type ModelMessage, stepCountIs, streamText, type ToolSet } from "ai"
 import { normalizeError } from "universal-error-normalizer"
+import { env } from "../../../env"
 import {
   createReplyModel,
   getProviderName,
@@ -53,7 +54,6 @@ import {
   replyModelMaxRetries,
   resolveReplyProviders,
 } from "../../../lib/ai/reply-model"
-import { env } from "../../../env"
 import { logger } from "../../../lib/logger"
 import { handoffExecutorService } from "../../../trigger/services/handoff-executor.service"
 import { sendMessageAndWait } from "../../utils/message"
@@ -181,9 +181,14 @@ export async function replyByAI(
   try {
     for (const [index, providerInfo] of providers.entries()) {
       const attemptStartedAt = Date.now()
+      const isLastCandidate = index === providers.length - 1
       let result: Awaited<ReturnType<typeof runAIReply>>
       try {
-        result = await runAIReply(props, providerInfo, controller.signal)
+        result = await runAIReply(props, providerInfo, controller.signal, {
+          firstOutputTimeoutMs: isLastCandidate
+            ? 0
+            : env.AI_REPLY_FIRST_OUTPUT_TIMEOUT_MS,
+        })
       } catch (error) {
         // Out of points is the workspace's state, not this provider's: every
         // other candidate would be refused the same way.
@@ -855,15 +860,47 @@ function filterToolsByAllowedSystemFunctions(
   })
 }
 
+/**
+ * Cuts a reply attempt that has produced nothing within `timeoutMs`, so the
+ * next model in the chain answers instead of the customer waiting out the
+ * full step timeout. On 23 Oct 2026 gemini-3.7-flash took 50–110s per reply
+ * under load at Google while the fallback answered in about 5s, and customers
+ * waited over a minute for every reply. Once the model has produced anything
+ * (`clear()` on the first chunk) the normal step and chunk timeouts apply.
+ */
+function startFirstOutputDeadline(
+  parent: AbortSignal,
+  timeoutMs: number,
+): { signal: AbortSignal; timedOut: () => boolean; clear: () => void } {
+  if (timeoutMs <= 0) {
+    return { signal: parent, timedOut: () => false, clear: () => undefined }
+  }
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort(new Error(`no model output within ${timeoutMs}ms`))
+  }, timeoutMs)
+  return {
+    signal: AbortSignal.any([parent, controller.signal]),
+    timedOut: () => timedOut,
+    clear: () => clearTimeout(timer),
+  }
+}
+
 async function runAIReply(
   props: ReplyByAIProps,
   providerInfo: ReplyModelProviderInfo,
   abortSignal: AbortSignal,
+  options: { firstOutputTimeoutMs?: number } = {},
 ): Promise<null | ReplyByAIExecutionResult> {
   const { conversation, messages, aiAgent } = props
   const provider = getProviderName(providerInfo)
   let cleanup: (() => Promise<void>) | undefined
   let reservation: UsageReservation | undefined
+  let firstOutputDeadline:
+    | ReturnType<typeof startFirstOutputDeadline>
+    | undefined
 
   try {
     const selectedModelId = providerInfo.model
@@ -1015,6 +1052,11 @@ async function runAIReply(
         "[automated-response] removed dangling assistant turns before model request",
       )
     }
+    const deadline = startFirstOutputDeadline(
+      abortSignal,
+      options.firstOutputTimeoutMs ?? 0,
+    )
+    firstOutputDeadline = deadline
     const result = await streamText({
       model: modelConfig.model,
       system: systemPrompt,
@@ -1121,7 +1163,9 @@ async function runAIReply(
           )
         }
       },
-      abortSignal,
+      abortSignal: deadline.signal,
+      // Any text, reasoning or tool-call chunk means the model is answering.
+      onChunk: () => deadline.clear(),
       // Provider failures are emitted into the stream, not thrown. Without
       // this the stream ends with zero steps and the customer gets silence,
       // while the only trace is a "usage settlement failed" warning — a reply
@@ -1189,6 +1233,24 @@ async function runAIReply(
       }
     }
 
+    // An aborted stream ends cleanly (no error) with no text, and its usage
+    // never resolves: release the reservation and hand the turn to the next
+    // candidate. Nothing was sent, since sending needs model output.
+    const handOffAfterFirstOutputTimeout = async () => {
+      streamFailed = true
+      await settleUsage()
+      logger.warn(
+        {
+          provider,
+          modelId: selectedModelId,
+          conversationId: conversation.id,
+          workspaceId: conversation.workspaceId,
+          firstOutputTimeoutMs: options.firstOutputTimeoutMs,
+        },
+        "[automated-response] model produced no output before its deadline; trying the next candidate",
+      )
+    }
+
     if (richModeEnabled) {
       const richResult = await handleRichAIReply({
         props,
@@ -1204,6 +1266,10 @@ async function runAIReply(
           streamFailed = true
         },
       })
+      if (deadline.timedOut() && !richResult && !directSendTracker.sent) {
+        await handOffAfterFirstOutputTimeout()
+        return null
+      }
       await settleUsage()
       return richResult
     }
@@ -1237,6 +1303,11 @@ async function runAIReply(
       )
       return { messageCount: 0, fullText: "" }
     })
+
+    if (deadline.timedOut() && messageCount === 0 && !directSendTracker.sent) {
+      await handOffAfterFirstOutputTimeout()
+      return null
+    }
 
     if (directSendTracker.sent) {
       await settleUsage()
@@ -1378,6 +1449,7 @@ async function runAIReply(
     )
     return null
   } finally {
+    firstOutputDeadline?.clear()
     try {
       await cleanup?.()
     } catch (cleanupError) {

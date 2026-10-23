@@ -23,6 +23,15 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("false"),
+    // How long a reply model may stay silent before the next model in the
+    // chain answers instead. Applies only until the model's first output and
+    // never to the last model in the chain. 0 turns it off.
+    AI_REPLY_FIRST_OUTPUT_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(60_000)
+      .default(20_000),
     WEBHOOK_WORKER_CONCURRENCY: z.coerce
       .number()
       .int()
