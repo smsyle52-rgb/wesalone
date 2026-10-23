@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./errors": "./src/errors.ts",
     "./media-hydration": "./src/media-hydration.ts",
-    "./registry": "./src/registry.ts"
+    "./registry": "./src/registry.ts",
+    "./thread-control": "./src/thread-control.ts"
   },
   "scripts": {
     "build": "tsdown",
@@ -25,6 +26,7 @@
     "@chatbotx.io/integration-drip": "workspace:*",
     "@chatbotx.io/integration-facebook-ads": "workspace:*",
     "@chatbotx.io/integration-get-response": "workspace:*",
+    "@chatbotx.io/integration-google-ads": "workspace:*",
     "@chatbotx.io/integration-google-calendar": "workspace:*",
     "@chatbotx.io/integration-google-sheets": "workspace:*",
     "@chatbotx.io/integration-instagram": "workspace:*",
@@ -46,7 +48,7 @@
     "@chatbotx.io/redis": "workspace:*",
     "@chatbotx.io/sdk": "workspace:*",
     "@chatbotx.io/utils": "workspace:*",
-    "image-size": "^2.0.2"
+    "@chatbotx.io/worker-config": "workspace:*"
   },
   "devDependencies": {
     "@chatbotx.io/typescript-config": "workspace:*",

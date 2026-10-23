@@ -14,7 +14,6 @@ import {
   TooltipTrigger,
 } from "@chatbotx.io/ui/components/ui/tooltip"
 import { cn } from "@chatbotx.io/ui/lib/utils"
-import { formatDistanceToNowStrict } from "date-fns"
 import {
   MailIcon,
   MessageCircleMoreIcon,
@@ -26,24 +25,33 @@ import {
   StarIcon,
   UsersRoundIcon,
 } from "lucide-react"
-import { useTranslations } from "next-intl"
-import { useEffect, useMemo } from "react"
-import { useDateFnsLocale } from "@/hooks/use-date-fns-locale"
+import { useFormatter, useTranslations } from "next-intl"
+import { useMemo } from "react"
+import { useNow } from "@/hooks/use-now"
 import { useUserAvatarUrl } from "@/lib/auth/avatar"
 import { useChatStore } from "../chat/store/chat-store-provider"
 import { useAvatarUrl } from "../contacts/utils"
 import { InboxIcon } from "../inboxes/components/inbox-icon"
 import { useWhatsappVoipCallStore } from "../integration-whatsapp/calling/voip/voip-call-store"
 import { useOptionalWhatsappVoipCallContext } from "../integration-whatsapp/calling/voip/whatsapp-voip-call-context"
+import { useTenantSettings } from "../tenant/tenant-settings-provider"
+import { SlaPill } from "./components/sla-pill"
+import { ThreadControlPill } from "./components/thread-control-pill"
 import { useMarkConversationRead } from "./hooks/use-mark-conversation-read"
 import { isConversationUnread } from "./lib/is-conversation-unread"
+import { type ShortTimeUnit, shortTimeAgo } from "./lib/short-time-ago"
 import {
   type CallPreviewKind,
   resolveCallPreviewKind,
   resolveLastMessagePreview,
 } from "./queries/resolve-last-message-preview"
 import type { ListConversationItemResource } from "./schema/resource"
-import { adBadgeLabelKey, selectAdBadge } from "./utils/ad-badge"
+import {
+  adBadgeLabelKey,
+  googleAdsBadgeLabelKey,
+  selectAdBadge,
+  selectGoogleAdsBadge,
+} from "./utils/ad-badge"
 
 // Icon shown next to a call preview snippet. Mirrors whatsapp-call-card.tsx's
 // icon choices so the preview and the card agree per call outcome.
@@ -129,6 +137,41 @@ const AD_BADGE_STYLE = {
   color: "#6d28d9",
 } as const
 
+const AGE_LABEL_KEY: Record<Exclude<ShortTimeUnit, "now">, string> = {
+  minute: "messages.timeAgo.minutes",
+  hour: "messages.timeAgo.hours",
+  day: "messages.timeAgo.days",
+  month: "messages.timeAgo.months",
+  year: "messages.timeAgo.years",
+}
+
+const EXACT_TIME_FORMAT = { dateStyle: "medium", timeStyle: "short" } as const
+
+/**
+ * "5m" / "3h" / "8d" for the row's last activity (never seconds — see
+ * `shortTimeAgo`), with the exact time as the tooltip, re-rendered on the
+ * shared minute tick so the list keeps up with the clock without anyone
+ * touching it. Isolated in its own component so the tick re-renders only
+ * this text, not the whole row.
+ */
+function LastActivityAgo({ at }: { at: Date | string }) {
+  const t = useTranslations()
+  const format = useFormatter()
+  const now = useNow()
+  const date = new Date(at)
+  const age = shortTimeAgo(date, now)
+  return (
+    <time
+      dateTime={date.toISOString()}
+      title={format.dateTime(date, EXACT_TIME_FORMAT)}
+    >
+      {age.unit === "now"
+        ? t("messages.timeAgo.now")
+        : t(AGE_LABEL_KEY[age.unit], { count: age.count })}
+    </time>
+  )
+}
+
 // Compact violet "Ads" pill shown on the conversation row's bottom line when
 // the contact arrived from a Meta ad. The ad title (when present) is surfaced
 // in a tooltip. Channel-specific label (CTWA/CTM/CTID) is resolved by the caller.
@@ -168,11 +211,11 @@ export default function ConversationItem({
   conversation,
   onSelect,
 }: ConversationItemProps) {
-  const dateLocale = useDateFnsLocale()
   const t = useTranslations()
   const activeConversationId = useChatStore(
     (state) => state.activeConversationId,
   )
+  const clearManuallyUnread = useChatStore((state) => state.clearManuallyUnread)
   const isActive = conversation.id === activeConversationId
   // Narrowed to the matching call's id (not a boolean) so Answer/Reject can
   // target the right offer, while still only re-rendering this row when its
@@ -196,7 +239,12 @@ export default function ConversationItem({
   const assignedInboxTeamOptionName =
     assigneeOptionNameByValue.get(`t_${conversation.assignedInboxTeamId}`) ??
     null
-  const previewText = resolveLastMessagePreview(conversation.messages?.[0], t)
+  const { name: brand } = useTenantSettings()
+  const previewText = resolveLastMessagePreview(
+    conversation.messages?.[0],
+    t,
+    brand,
+  )
   const callPreviewKind = resolveCallPreviewKind(conversation.messages?.[0])
   const CallPreviewIcon = callPreviewKind
     ? CALL_PREVIEW_ICON_BY_KIND[callPreviewKind]
@@ -208,6 +256,14 @@ export default function ConversationItem({
   // (see `resolveAdReferral`); `selectAdBadge` picks the first non-empty
   // adTitle for the tooltip independently of which inbox triggered the badge.
   const adBadge = selectAdBadge(conversation.contactInboxes)
+  // Google Ads click-to-message badge (gclid/gbraid on the contact inbox) —
+  // a separate, Meta-independent pill; carries no click id, only the type.
+  const googleAdsBadge = selectGoogleAdsBadge(
+    conversation.contactInboxes?.map(({ channel, googleAdsClick }) => ({
+      channel,
+      googleAdsClick: googleAdsClick ?? null,
+    })),
+  )
 
   const contactAvatar = useMemo(
     () => (
@@ -227,14 +283,10 @@ export default function ConversationItem({
     [conversation.contact, avatarUrl, isUnread],
   )
 
+  // Opening a conversation is read by the thread pane (`useThreadReadTracking`),
+  // which is mounted on every layout; a row effect would miss the mobile
+  // case, where selecting unmounts the list before the row could react.
   const markConversationRead = useMarkConversationRead()
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: only the active transition triggers a read
-  useEffect(() => {
-    if (isActive) {
-      markConversationRead(conversation)
-    }
-  }, [isActive])
 
   return (
     <div className="relative w-full">
@@ -245,7 +297,10 @@ export default function ConversationItem({
         )}
         onClick={() => {
           onSelect()
+          // Clicking the already-open row is a deliberate (re)open: it ends
+          // an explicit "mark as unread" and reads the thread.
           if (isActive) {
+            clearManuallyUnread(conversation.id)
             markConversationRead(conversation)
           }
         }}
@@ -333,20 +388,31 @@ export default function ConversationItem({
             <span className="truncate">{previewText}</span>
           </div>
           <div className="flex items-center justify-between gap-1 text-xs">
-            {adBadge ? (
-              <AdBadgePill
-                adTitle={adBadge.adTitle}
-                label={t(adBadgeLabelKey(adBadge.channel))}
+            <div className="flex min-w-0 items-center gap-1">
+              {adBadge && (
+                <AdBadgePill
+                  adTitle={adBadge.adTitle}
+                  label={t(adBadgeLabelKey(adBadge.channel))}
+                />
+              )}
+              {googleAdsBadge && (
+                <AdBadgePill
+                  adTitle={null}
+                  label={t(googleAdsBadgeLabelKey(googleAdsBadge.channel))}
+                />
+              )}
+              <ThreadControlPill conversation={conversation} />
+              <SlaPill
+                responseDueAt={conversation.responseDueAt}
+                responseSlaBreachingAt={conversation.responseSlaBreachingAt}
               />
-            ) : (
-              <span />
-            )}
-            <span className="text-neutral-400">
-              {conversation.lastActivityAt
-                ? formatDistanceToNowStrict(conversation.lastActivityAt, {
-                    locale: dateLocale,
-                  })
-                : " "}
+            </div>
+            <span className="text-neutral-400" suppressHydrationWarning>
+              {conversation.lastActivityAt ? (
+                <LastActivityAgo at={conversation.lastActivityAt} />
+              ) : (
+                " "
+              )}
             </span>
           </div>
         </div>

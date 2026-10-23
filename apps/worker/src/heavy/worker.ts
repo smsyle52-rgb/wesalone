@@ -1,6 +1,8 @@
+import { flushAllPendingWorkspaceRealtimeEvents } from "@chatbotx.io/business"
+import { optimizeStoredImage } from "@chatbotx.io/business/media/optimize-stored-image"
 import {
   defaultWorkerOptions,
-  getRedisConnection,
+  getQueueConnection,
   type HeavyFlowContinuation,
   HeavyJobAction,
   type HeavyJobData,
@@ -264,6 +266,23 @@ async function startHeavyWorker() {
               return await extractFallbackTextSnippets(jobData.data)
             case HeavyJobAction.analyzeImage:
               return await analyzeImage(jobData.data)
+            case HeavyJobAction.optimizeStoredImage: {
+              // One info line per job: outcome plus bytes before/after, so
+              // storage savings and skip reasons can be read off the logs.
+              const startedAt = Date.now()
+              const result = await optimizeStoredImage(jobData.data)
+              logger.info(
+                {
+                  jobId: job.id,
+                  kind: jobData.data.kind,
+                  workspaceId: jobData.data.workspaceId,
+                  ...result,
+                  durationMs: Date.now() - startedAt,
+                },
+                "Stored image optimization finished",
+              )
+              return
+            }
             default: {
               const _exhaustive: never = jobData
               logger.warn(
@@ -323,7 +342,7 @@ async function startHeavyWorker() {
       return result
     },
     {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.heavy),
       ...defaultWorkerOptions,
       concurrency: env.HEAVY_WORKER_CONCURRENCY,
       // AI provider calls are allowed to run for HEAVY_JOB_WAIT_TIMEOUT_MS;
@@ -407,6 +426,7 @@ async function startHeavyWorker() {
     isShuttingDown = true
     try {
       await worker.close()
+      await flushAllPendingWorkspaceRealtimeEvents()
       process.exit(0)
     } catch (err) {
       logger.error(

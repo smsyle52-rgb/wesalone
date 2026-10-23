@@ -18,13 +18,16 @@ import {
   CopyIcon,
   Gamepad2Icon,
   ImagesIcon,
+  LayoutTemplateIcon,
   LinkIcon,
   MapIcon,
   MegaphoneIcon,
   QrCodeIcon,
   TicketPercentIcon,
+  TrophyIcon,
   UserCheck2Icon,
   Wand2Icon,
+  WebhookIcon,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
@@ -86,10 +89,6 @@ export const TOOLS_CONFIG = [
     labelKey: "threadsCommentAutomation.title",
     descriptionKey: "threadsCommentAutomation.description",
     icon: SiThreads,
-    // Threads is still awaiting Meta's API approval, so this card only shows
-    // for the preview allowlist (`lib/workspace/preview-channels.ts`), the
-    // same gate that hides the channel itself. Drop the flag once approved.
-    previewOnly: true,
     getLink: (id: string) => `/space/${id}/threads-comments`,
   },
   {
@@ -97,10 +96,6 @@ export const TOOLS_CONFIG = [
     labelKey: "tiktokCommentAutomation.title",
     descriptionKey: "tiktokCommentAutomation.description",
     icon: SiTiktok,
-    // TikTok delivers comment events within five minutes rather than in real
-    // time, and the write scopes are still pending approval — the card is
-    // marked Beta so the delay reads as a known limitation, not a fault.
-    beta: true,
     getLink: (id: string) => `/space/${id}/tiktok-comments`,
   },
   {
@@ -173,6 +168,20 @@ export const TOOLS_CONFIG = [
     icon: Gamepad2Icon,
     getLink: (id: string) => `/space/${id}/minigames`,
   },
+  {
+    id: "leaderboards",
+    labelKey: "leaderboards.title",
+    descriptionKey: "leaderboards.description",
+    icon: TrophyIcon,
+    getLink: (id: string) => `/space/${id}/leaderboards`,
+  },
+  {
+    id: "mini-apps",
+    labelKey: "miniApps.title",
+    descriptionKey: "miniApps.description",
+    icon: LayoutTemplateIcon,
+    getLink: (id: string) => `/space/${id}/mini-apps`,
+  },
   // {
   //   id: "webhooks",
   //   labelKey: "webhooks.title",
@@ -180,6 +189,29 @@ export const TOOLS_CONFIG = [
   //   icon: UsersIcon,
   //   getLink: (id: string) => `/space/${id}/webhooks`,
   // },
+  {
+    id: "bot-simulator",
+    labelKey: "botSimulator.title",
+    descriptionKey: "botSimulator.description",
+    icon: BotIcon,
+    getLink: (id: string) => `/space/${id}/bot-simulator`,
+  },
+  {
+    id: "decision-profiles",
+    labelKey: "decision.title",
+    descriptionKey: "decision.toolDescription",
+    icon: BotIcon,
+    permission: "superAdmin",
+    getLink: (id: string) => `/space/${id}/tools/decision-profiles`,
+  },
+  {
+    id: "inbound-webhooks",
+    labelKey: "inboundWebhooks.title",
+    descriptionKey: "inboundWebhooks.description",
+    icon: WebhookIcon,
+    permission: "superAdmin",
+    getLink: (id: string) => `/space/${id}/inbound-webhooks`,
+  },
   {
     id: "places-near-me",
     labelKey: "placesNearMe.title",
@@ -191,12 +223,6 @@ export const TOOLS_CONFIG = [
     labelKey: "pollManager.title",
     descriptionKey: "pollManager.description",
     icon: UserCheck2Icon,
-  },
-  {
-    id: "bot-simulator",
-    labelKey: "botSimulator.title",
-    descriptionKey: "botSimulator.description",
-    icon: BotIcon,
   },
 ] as const
 

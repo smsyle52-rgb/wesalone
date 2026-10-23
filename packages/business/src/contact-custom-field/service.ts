@@ -7,7 +7,10 @@ import {
 } from "@chatbotx.io/database/client"
 import { contactCustomFieldRepository } from "@chatbotx.io/database/repositories"
 import { contactCustomFieldModel } from "@chatbotx.io/database/schema"
-import { emitCustomFieldChanged } from "@chatbotx.io/events"
+import {
+  type DecisionFlowOrigin,
+  emitCustomFieldChanged,
+} from "@chatbotx.io/events"
 import {
   FieldOperationType,
   FieldReferenceKind,
@@ -89,6 +92,7 @@ type EmitCustomFieldChangesInput = {
   contactId: string
   changes: PendingContactCustomFieldChange[]
   contactInboxId?: string
+  decisionFlowOrigin?: DecisionFlowOrigin
 }
 
 type DeleteByKeyInput = {
@@ -204,6 +208,16 @@ const computeUpdatedFieldValue = ({
   }
 }
 class ContactCustomFieldService extends BaseService {
+  async listSelectedDefinitionValuesByContact(input: {
+    contactId: string
+    customFieldIds: string[]
+    workspaceId: string
+  }) {
+    return await contactCustomFieldRepository.listSelectedDefinitionValuesByContact(
+      input,
+    )
+  }
+
   /**
    * Persist-only half of `applyOperationToContacts`, callable with a
    * caller-supplied `tx` so a multi-operation caller (`applyOperations`) can
@@ -354,9 +368,11 @@ class ContactCustomFieldService extends BaseService {
       operation: FieldOperationType
       value: string
     }>
+    sourceTimezone?: string
     accessScope?: ContactAccessScope
   }): Promise<void> {
-    const { workspaceId, contactId, operations, accessScope } = input
+    const { workspaceId, contactId, operations, sourceTimezone, accessScope } =
+      input
 
     const persistedByContact = await db.transaction(async (tx) => {
       const allChanges: Array<{
@@ -371,6 +387,7 @@ class ContactCustomFieldService extends BaseService {
             customFieldId: op.customFieldId,
             operation: op.operation,
             value: op.value,
+            sourceTimezone,
             accessScope,
           },
           tx,
@@ -396,6 +413,7 @@ class ContactCustomFieldService extends BaseService {
     contactId: string
     customFieldId: string
     value: string
+    sourceTimezone?: string
     accessScope?: ContactAccessScope
   }) {
     await contactService.findByIdOrFail({
@@ -414,6 +432,7 @@ class ContactCustomFieldService extends BaseService {
       workspaceId: input.workspaceId,
       contactId: input.contactId,
       fields: [{ customFieldId: customField.id, value: input.value }],
+      sourceTimezone: input.sourceTimezone,
     })
   }
   async listValues(input: { contactId: string }) {
@@ -643,7 +662,13 @@ class ContactCustomFieldService extends BaseService {
   async emitCustomFieldChanges(
     input: EmitCustomFieldChangesInput,
   ): Promise<void> {
-    const { workspaceId, contactId, changes, contactInboxId } = input
+    const {
+      workspaceId,
+      contactId,
+      changes,
+      contactInboxId,
+      decisionFlowOrigin,
+    } = input
 
     for (const change of changes) {
       emitCustomFieldChanged(
@@ -654,6 +679,7 @@ class ContactCustomFieldService extends BaseService {
         change.oldValue,
         change.newValue,
         contactInboxId,
+        decisionFlowOrigin,
       ).catch((error: unknown) => {
         logger.warn(
           {

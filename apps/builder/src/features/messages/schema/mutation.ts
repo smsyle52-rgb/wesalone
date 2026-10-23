@@ -1,4 +1,5 @@
 import { channelTypes } from "@chatbotx.io/database/partials"
+import { sendProductsContentSchema } from "@chatbotx.io/flow-config"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { z } from "zod"
 import { zodGuestConversationId } from "@/features/integration-webchat/lib/guest-conversation-id"
@@ -6,16 +7,48 @@ import { zodGuestConversationId } from "@/features/integration-webchat/lib/guest
 const MAX_FILE_SIZE = 5 * 1000 * 1000
 
 const mediaLibraryFileRequest = z.object({
-  path: z.string().min(1),
+  path: z
+    .string()
+    .min(1)
+    .describe(
+      "Storage path of an existing Media Library file (`path` from `mediaLibrary.listFiles` or `mediaLibrary.createFile`). The file is looked up by this value.",
+    ),
   // Display-only; the server resolves the public URL from `path` itself.
-  url: z.string().optional(),
-  mimeType: z.string().min(1),
-  name: z.string().nullish(),
-  size: z.number().int().nonnegative(),
+  url: z
+    .string()
+    .optional()
+    .describe(
+      "Optional public URL, display only; the server resolves the real URL from `path`.",
+    ),
+  mimeType: z
+    .string()
+    .min(1)
+    .describe("File MIME type, e.g. `image/png`; informational."),
+  name: z.string().nullish().describe("File display name; informational."),
+  size: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe("File size in bytes; informational."),
 })
+
+const bypassField = z
+  .boolean()
+  .optional()
+  .describe("Skip the WhatsApp standby send gate (agent dismissed the lock).")
 
 export const createMessageRequest = z
   .union([
+    // Listed first, like the Media Library branches below: z.object() strips
+    // unknown keys, so a body that also carries `text` would otherwise match the
+    // text branch and silently lose its products. A valid `products` wins; one
+    // that fails its own schema falls through to the other branches, as a
+    // body with an invalid `flowId` already does.
+    z.object({
+      products: sendProductsContentSchema.describe(
+        "Catalog products to send instead of text, on channels with product messages (WhatsApp today) inside the customer-service window. Product ids come from `products.listSendable` (scope `ecommerce`); put the text in `products.body`. Cannot be combined with text, files, media, `flowId` or a comment reply: when `products` is valid only it is sent. Fails with `validation` (422) when the message breaks the channel's rules, and `productMessageUnresolvable` (422, `data.reason`) when the channel has no product messages, no catalog is connected, or some ids are not sendable.",
+      ),
+    }),
     z.object({
       text: z.string().trim().min(1).max(1000).describe("Message text."),
       files: z
@@ -127,6 +160,16 @@ export const createMessageRequest = z
     }),
   )
 export type CreateMessageRequest = z.infer<typeof createMessageRequest>
+
+/**
+ * Builder-only variant of `createMessageRequest`: the interactive composer may
+ * set `bypassThreadControlLock` to skip the WhatsApp standby send gate after the
+ * agent dismisses the routing lock. Kept off `createMessageRequest` itself so the
+ * public and private message APIs never accept or advertise it.
+ */
+export const createMessageWithRoutingBypassRequest = createMessageRequest.and(
+  z.object({ bypassThreadControlLock: bypassField }),
+)
 
 export const createWebchatMessageRequest = z
   .union([

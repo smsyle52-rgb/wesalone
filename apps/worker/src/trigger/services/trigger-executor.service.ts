@@ -16,21 +16,25 @@ export class TriggerExecutorService {
     input: TriggerExecutionInput,
   ): Promise<void> {
     const { id: triggerId, workspaceId, actions } = trigger
-    const { contactId, contactInboxId } = input
-
+    const { contactId, contactInboxId, decisionFlowOrigin, occurrenceId } =
+      input
     try {
       setTriggerExecutionContext({ source: "worker" })
 
       const actionsArray = Array.isArray(actions) ? actions : []
 
-      for (const action of actionsArray) {
+      for (const [index, action] of actionsArray.entries()) {
         try {
           await this.actionExecutor.execute({
             action: action as Record<string, unknown>,
             contactId,
-            triggerId,
+            source: { kind: "trigger", triggerId },
             workspaceId,
             contactInboxId,
+            decisionFlowOrigin,
+            occurrenceKey: occurrenceId
+              ? `trigger:${occurrenceId}:${triggerId}:${index}`
+              : undefined,
           })
         } catch (err) {
           logger.error(

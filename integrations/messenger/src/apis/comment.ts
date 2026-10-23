@@ -230,6 +230,69 @@ type CommentAttachmentResponse = {
 const COMMENT_ATTACHMENT_FIELDS =
   "attachment{type,url,unshimmed_url,target,media}"
 
+/**
+ * "Time the comment was made on a live video" — present only on a comment
+ * written on a live broadcast, which is how a Facebook Live comment is told
+ * apart: the `feed` webhook delivers it as an ordinary `item: "comment"`.
+ */
+const COMMENT_LIVE_FIELD = "live_broadcast_timestamp"
+
+/**
+ * `live_status` of a video that is or was a live broadcast. A reel or an
+ * uploaded video carries no live status.
+ */
+const LIVE_VIDEO_STATUSES = new Set(["LIVE", "LIVE_STOPPED"])
+
+/**
+ * Whether the broadcast timestamp marks a live comment. Facebook can send the
+ * field on a comment that was never live — a reel comment arrives with it —
+ * so presence alone is not a signal: only a positive timestamp is.
+ */
+function hasLiveBroadcastTimestamp(timestamp: number | null | undefined) {
+  return typeof timestamp === "number" && timestamp > 0
+}
+
+/**
+ * Confirms a timestamped comment sits on a live video, so a reel or uploaded
+ * video comment is never answered as live. Only runs when the timestamp
+ * already says live, so ordinary comments pay no extra Graph call. When
+ * Facebook names no video, or the lookup fails, the timestamp stands.
+ */
+async function isOnLiveVideo(
+  ctx: Context<MessengerAuthValue>,
+  commentId: string,
+): Promise<boolean> {
+  const { version = DEFAULT_API_VERSION } = ctx.auth
+  const endpoint = `${version}/${commentId}`
+  try {
+    const res = await rescue(endpoint, () =>
+      facebookGraphClient.get<{ object?: { live_status?: string } }>(endpoint, {
+        headers: {
+          Authorization: `Bearer ${ctx.auth.tokens.accessToken}`,
+        },
+        searchParams: { fields: "object{live_status}" },
+      }),
+    )
+    if (!res.object) {
+      return true
+    }
+    return LIVE_VIDEO_STATUSES.has(res.object.live_status ?? "")
+  } catch (error) {
+    logger.warn(
+      { err: error, commentId },
+      "Failed to confirm the comment's live video, trusting its broadcast timestamp",
+    )
+    return true
+  }
+}
+
+export type CommentAttachmentLookup = {
+  type: string | null
+  attachment?: IncomingAttachment
+  /** The comment was made on a live broadcast. */
+  isLive: boolean
+}
+
 function toHttpsUrl(link: string | undefined): string | null {
   if (!link) {
     return null
@@ -318,31 +381,38 @@ async function downloadFirstGifCandidate(
 /**
  * Fetches a comment's attachment and, for photo and GIF attachments, downloads
  * and uploads it to storage as an IncomingAttachment. Other attachment types
- * (video_inline, share, sticker) are reported by type only.
+ * (video_inline, share, sticker) are reported by type only — a video comment's
+ * file is taken from the `feed` webhook's `video` URL instead (see
+ * `receiveComment`).
  */
 export const getCommentAttachment = async (props: {
   ctx: Context<MessengerAuthValue>
   input: { commentId: string }
-}): Promise<{ type: string | null; attachment?: IncomingAttachment }> => {
+}): Promise<CommentAttachmentLookup> => {
   const { ctx, input } = props
   const { version = DEFAULT_API_VERSION } = ctx.auth
   const endpoint = `${version}/${input.commentId}`
 
   const res = await rescue(endpoint, () =>
-    facebookGraphClient.get<{ attachment?: CommentAttachmentResponse }>(
-      endpoint,
-      {
-        headers: {
-          Authorization: `Bearer ${ctx.auth.tokens.accessToken}`,
-        },
-        searchParams: {
-          fields: COMMENT_ATTACHMENT_FIELDS,
-        },
+    facebookGraphClient.get<{
+      attachment?: CommentAttachmentResponse
+      live_broadcast_timestamp?: number | null
+    }>(endpoint, {
+      headers: {
+        Authorization: `Bearer ${ctx.auth.tokens.accessToken}`,
       },
-    ),
+      searchParams: {
+        // Rides on this lookup, which already runs once per comment, so
+        // telling a live comment apart costs no extra Graph call.
+        fields: `${COMMENT_ATTACHMENT_FIELDS},${COMMENT_LIVE_FIELD}`,
+      },
+    }),
   )
 
   const type = res.attachment?.type ?? null
+  const isLive =
+    hasLiveBroadcastTimestamp(res.live_broadcast_timestamp) &&
+    (await isOnLiveVideo(ctx, input.commentId))
   const imageUrl = res.attachment?.media?.image?.src
 
   if (type === "photo" && imageUrl) {
@@ -353,15 +423,15 @@ export const getCommentAttachment = async (props: {
       logger.error(error, "Failed to download comment attachment")
       return
     })
-    return { type, attachment }
+    return { type, attachment, isLive }
   }
 
   if (res.attachment && type?.startsWith("animated_image")) {
     const attachment = await downloadFirstGifCandidate(ctx, res.attachment)
-    return { type, attachment }
+    return { type, attachment, isLive }
   }
 
-  return { type }
+  return { type, isLive }
 }
 
 /**
@@ -384,4 +454,56 @@ export const hideComment = (
       json: { is_hidden: hidden },
     }),
   )
+}
+
+export type FacebookPostComment = {
+  id: string
+  message?: string
+  created_time: string
+  from?: { id: string; name?: string }
+  parent?: { id: string }
+  message_tags?: { id?: string; name?: string }[]
+}
+
+export type FacebookPostCommentPage = {
+  comments: FacebookPostComment[]
+  /** Cursor for the next page; absent on the last one. */
+  nextCursor?: string
+}
+
+/**
+ * One page of a post's comments, newest first.
+ *
+ * `filter=stream` is required: Graph defaults this edge to `toplevel`, which
+ * omits replies. `order=reverse_chronological` lets the caller stop at the
+ * first comment older than its window.
+ */
+export const listPostComments = (props: {
+  auth: MessengerAuthValue
+  postId: string
+  after?: string
+}): Promise<FacebookPostCommentPage> => {
+  const { auth, postId, after } = props
+  const { version = DEFAULT_API_VERSION } = auth
+  const endpoint = `${version}/${postId}/comments`
+
+  return rescue(endpoint, async () => {
+    const res = await facebookGraphClient.get<{
+      data: FacebookPostComment[]
+      paging?: { cursors?: { after?: string }; next?: string }
+    }>(endpoint, {
+      headers: { Authorization: `Bearer ${auth.tokens.accessToken}` },
+      searchParams: {
+        fields: "id,message,created_time,from{id,name},parent{id},message_tags",
+        order: "reverse_chronological",
+        filter: "stream",
+        limit: "100",
+        ...(after ? { after } : {}),
+      },
+    })
+    return {
+      comments: res.data,
+      nextCursor: res.paging?.next ? res.paging.cursors?.after : undefined,
+    }
+  })
 }

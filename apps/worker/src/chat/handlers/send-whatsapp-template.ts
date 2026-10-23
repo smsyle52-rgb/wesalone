@@ -1,9 +1,9 @@
 import {
   contactInboxService,
   conversationService,
-  publishToWorkspaceParty,
+  messageService,
+  queueMessageCreatedEvent,
 } from "@chatbotx.io/business"
-import { createMessageRepository } from "@chatbotx.io/database/repositories"
 import type { messageModel } from "@chatbotx.io/database/schema"
 import type {
   ContactInboxModel,
@@ -20,7 +20,6 @@ import {
   stepTypes,
   type TemplateComponent,
 } from "@chatbotx.io/flow-config"
-import { RealtimeEventType } from "@chatbotx.io/partysocket-config"
 import {
   ChannelError,
   ChannelErrorCategory,
@@ -34,6 +33,7 @@ import { contactVariableService } from "@chatbotx.io/variables"
 import type {
   BotResponseTrackingContext,
   ChatJobSendWhatsappTemplateMessage,
+  ChatJobSendWhatsappTemplateToConversation,
 } from "@chatbotx.io/worker-config"
 import {
   replaceWhatsappTemplateVariables,
@@ -94,6 +94,11 @@ export interface ProcessWhatsappTemplateParams {
     versionId?: string
     buttons: SendWaTemplateMessageStepSchema["buttons"]
   }
+  /**
+   * Set when a workspace member triggered this send: the sent analytics are
+   * then recorded as a human agent message instead of a bot message.
+   */
+  humanSender?: { adminId: string }
   isBulkBroadcast?: boolean
   metadata?: MetadataPayload
   step?: SendWaTemplateMessageStepSchema
@@ -188,6 +193,7 @@ export async function processWhatsappTemplate(
     metadata,
     isBulkBroadcast,
     willRetryOnThrow = false,
+    humanSender,
   } = params
   const isBulkOutbound = isBulkOutboundMetadata(
     metadata,
@@ -290,8 +296,7 @@ export async function processWhatsappTemplate(
       }
     }
 
-    const repository = await createMessageRepository()
-    newMessage = await repository.create({
+    newMessage = await messageService.create({
       contactInboxId: contactInbox.id,
       workspaceId: conversation.workspaceId,
       conversationId: conversation.id,
@@ -317,16 +322,19 @@ export async function processWhatsappTemplate(
         contactId: contactInbox.contactId,
         at: createdMessage.createdAt,
         bumpActivity: !isBulkOutbound,
+        // Template sends are proactive, never a reply to the last message.
+        closeHumanReplyWindow: false,
       })
     if (trackingInvalidation) {
       await contactInboxService.invalidateTracking(trackingInvalidation)
     }
 
     if (!isBulkOutbound) {
-      publishToWorkspaceParty(conversation.workspaceId, {
-        eventType: RealtimeEventType.messageCreated,
-        data: newMessage,
-      })
+      queueMessageCreatedEvent(
+        conversation.workspaceId,
+        newMessage,
+        conversation,
+      )
     }
 
     const result = await sendFlowStepToChannel({
@@ -348,9 +356,18 @@ export async function processWhatsappTemplate(
       },
       metadata,
       messageId: newMessage.id,
+      // Any responder may send a template and it never changes thread
+      // ownership, so the conversation-routing send gate lets it through.
+      isTemplateMessage: true,
       botSentAnalytics: {
         triggerHandler: "processWhatsappTemplate",
-        triggerType: "message_bot_sent_whatsapp_template",
+        triggerType: humanSender
+          ? "message_human_sent_whatsapp_template"
+          : "message_bot_sent_whatsapp_template",
+      },
+      humanSender: humanSender && {
+        ...humanSender,
+        occurredAt: createdMessage.createdAt,
       },
     })
 
@@ -391,12 +408,12 @@ export async function processWhatsappTemplate(
 
     if (providerMessageId) {
       try {
-        await repository.updateSourceId(
-          newMessage.id,
-          providerMessageId,
-          conversation.workspaceId,
-          newMessage.createdAt,
-        )
+        await messageService.updateSourceId({
+          id: newMessage.id,
+          sourceId: providerMessageId,
+          workspaceId: conversation.workspaceId,
+          createdAt: newMessage.createdAt,
+        })
       } catch (err) {
         logger.error(
           err,
@@ -540,6 +557,68 @@ export async function sendWhatsappTemplateMessage(
         broadcastId,
       },
       "Error sending WhatsApp template message for broadcast",
+    )
+    if (shouldSuppressRetryableChannelError(error, contactInbox.channel)) {
+      return
+    }
+    throw error
+  }
+}
+
+/**
+ * Sends one approved WhatsApp template to a single open conversation with the
+ * agent's runtime params. Shares the whole delivery engine with the broadcast
+ * path (`processWhatsappTemplate`: variable resolution, message row, realtime,
+ * provider send, `isTemplateMessage` 24h/standby bypass) but skips the
+ * broadcast sendability guard, since there is no broadcast.
+ */
+export async function sendWhatsappTemplateToConversation(
+  data: ChatJobSendWhatsappTemplateToConversation["data"],
+  willRetryOnThrow = false,
+): Promise<ProcessWhatsappTemplateResult | undefined> {
+  const {
+    conversation,
+    contactInbox,
+    templateId,
+    templateData,
+    metadata,
+    initiatedBy,
+    adminId,
+  } = data
+
+  try {
+    const validated = await validateWhatsappTemplate(
+      templateId,
+      contactInbox.inboxId,
+    )
+    if (!validated) {
+      throw new Error(
+        `WhatsApp template not found or not approved: ${templateId}`,
+      )
+    }
+
+    const { template } = validated
+    const templateParams =
+      templateData ??
+      extractTemplateParams((template.components as TemplateComponent[]) || [])
+
+    return await processWhatsappTemplate({
+      conversation,
+      contactInbox,
+      willRetryOnThrow,
+      template: {
+        id: template.id,
+        name: template.name,
+        language: template.language,
+        params: templateParams,
+      },
+      metadata,
+      humanSender: initiatedBy === "user" && adminId ? { adminId } : undefined,
+    })
+  } catch (error) {
+    logger.error(
+      { err: error, conversationId: conversation.id, templateId },
+      "Error sending WhatsApp template message to conversation",
     )
     if (shouldSuppressRetryableChannelError(error, contactInbox.channel)) {
       return

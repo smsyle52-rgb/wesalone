@@ -6,48 +6,53 @@ import {
 } from "@chatbotx.io/analytics"
 import {
   appointmentCalendarService,
-  broadcastToGuestParty,
   contactInboxService,
   conversationService,
-  publishToWorkspaceParty,
+  messageService,
+  type PreparedProductMessage,
+  productMessageService,
+  publishGuestRealtimeEvent,
+  queueMessageCreatedEvent,
   resolveMediaUrl,
   resolveTenantSettings,
 } from "@chatbotx.io/business"
+import { logProviderErrorForChannel } from "@chatbotx.io/business/error-log"
 import { wrapOpenLinkUrl } from "@chatbotx.io/business/open-link"
 import { getPublicFileUrl } from "@chatbotx.io/business/utils"
 import {
   channelTypes,
-  contentTypes,
   messageTypes,
   senderTypes,
 } from "@chatbotx.io/database/partials"
-import {
-  createMessageRepository,
-  type MessageWithAttachments,
-} from "@chatbotx.io/database/repositories"
+import type { MessageWithAttachments } from "@chatbotx.io/database/repositories"
 import type { messageModel } from "@chatbotx.io/database/schema"
 import type {
   AttachmentModel,
   ContactInboxModel,
+  ConversationModel,
   MessageModel,
 } from "@chatbotx.io/database/types"
 import { signAppointmentWebviewToken } from "@chatbotx.io/encryption"
 import { emit } from "@chatbotx.io/event-bus"
 import { uploadFileFromUrl } from "@chatbotx.io/filesystem"
-import type { MetadataPayload, StepType } from "@chatbotx.io/flow-config"
+import type { MetadataPayload } from "@chatbotx.io/flow-config"
 import {
   appendCodeToMagicLink,
   type ButtonStepProps,
   buttonTypes,
+  channelDeliverableStepTypes,
   encodeButtonPayload,
   extractMetadata,
+  getChannelFlowPolicy,
   isBulkOutboundMetadata,
+  isProactiveOutboundMetadata,
   messageEventTypeSchema,
   type SendCardStepSchema,
+  stepSupport,
   stepTypes,
 } from "@chatbotx.io/flow-config"
 import { logDiagnostic } from "@chatbotx.io/logger"
-import { RealtimeEventType } from "@chatbotx.io/partysocket-config"
+import { RealtimeEventType } from "@chatbotx.io/realtime-protocol"
 import {
   IntegrationException,
   type MessageButtonTemplate,
@@ -63,11 +68,15 @@ import type {
   ChatJobSendFlowStep,
 } from "@chatbotx.io/worker-config"
 import { normalizeError } from "universal-error-normalizer"
+import { isBulkSendOrigin } from "../../lib/bulk-send-origin"
 import {
   settleCommentAutomationDelivered,
   settleCommentAutomationFailure,
 } from "../../lib/comment-automation-anchor"
 import { logger } from "../../lib/logger"
+import { resolveMiniAppLinks } from "../utils/mini-app-buttons"
+import { mapStepButtons } from "../utils/step-buttons"
+import { resolveStoredStepContent } from "../utils/stored-step-content"
 import {
   isDeliveredDirectMessage,
   markConversationReadAfterDelivery,
@@ -77,38 +86,6 @@ import {
 } from "./send-message"
 import { processMessengerTemplate } from "./send-messenger-template"
 import { processWhatsappTemplate } from "./send-whatsapp-template"
-
-/**
- * Step payloads `sendFlowStep` knows how to hand to a channel. A step outside
- * this set is dropped with a "Skipping non-deliverable flow step" log and no
- * error, so an omission here fails silently.
- *
- * Related but NOT the same list as `STEP_PRODUCES_MESSAGE`
- * (`integration/handlers/flow-utils.ts`), which answers "may this step claim
- * the comment anchor". The two coincide today except for `getUserData`, which
- * is absent here only because its prompt is synthesized as a `sendText` step
- * before being enqueued (see `promptStep` in `integration/handlers/
- * get-user-data.ts`). Keep them in sync by hand: a new step type that sends a
- * payload of its own needs an entry in both, and neither list is exhaustive
- * enough for the compiler to catch the omission here.
- */
-const CHANNEL_DELIVERABLE_STEP_TYPES = new Set<string>([
-  stepTypes.enum.sendAudio,
-  stepTypes.enum.sendCard,
-  stepTypes.enum.sendCarousel,
-  stepTypes.enum.sendFile,
-  stepTypes.enum.sendGif,
-  stepTypes.enum.sendImage,
-  stepTypes.enum.sendMessengerTemplateMessage,
-  stepTypes.enum.sendMultipleImages,
-  stepTypes.enum.sendQuickReply,
-  stepTypes.enum.sendText,
-  stepTypes.enum.sendVideo,
-  stepTypes.enum.sendWaTemplateMessage,
-  stepTypes.enum.whatsappCallButton,
-  stepTypes.enum.whatsappFlow,
-  stepTypes.enum.whatsappOptionList,
-])
 
 type MessageWithResolvedAttachmentUrls = MessageModel & {
   attachments: (AttachmentModel & { url: string | null })[]
@@ -145,21 +122,11 @@ const resolveMessageAttachmentUrls = async (
   }
 }
 
-/**
- * Steps whose payload only exists on one channel. On any other channel they
- * are skipped before a Message row is persisted, so an omnichannel flow never
- * shows a phantom "sent" message the channel could not deliver.
- */
-const CHANNEL_EXCLUSIVE_STEP_TYPES: Partial<
-  Record<StepType, ContactInboxModel["channel"]>
-> = {
-  [stepTypes.enum.whatsappCallButton]: channelTypes.enum.whatsapp,
-}
-
 const isBlankTextCarrierStep = (step: SendFlowStepData) => {
   if (
     step.stepType === stepTypes.enum.sendText ||
-    step.stepType === stepTypes.enum.whatsappCallButton
+    step.stepType === stepTypes.enum.whatsappCallButton ||
+    step.stepType === stepTypes.enum.sendViewCatalog
   ) {
     return !step.text.trim()
   }
@@ -340,34 +307,16 @@ const signBookingLinksInStep = async (props: {
   executedFlowVersionId?: string
   appUrl: string
   step: SendFlowStepData
-}): Promise<SendFlowStepData> => {
-  let step = props.step
-  if ("buttons" in step && step.buttons.length > 0) {
-    const buttons = await signBookingButtonsIfNeeded({
-      ...props,
-      stepId: step.id,
-      buttons: step.buttons,
-    })
-    step = { ...step, buttons: buttons ?? [] } as SendFlowStepData
-  }
-  if (!("cards" in step) || step.cards.length === 0) {
-    return step
-  }
-  const cards = await Promise.all(
-    step.cards.map(async (card) => {
-      if (!("buttons" in card) || card.buttons.length === 0) {
-        return card
-      }
-      const buttons = await signBookingButtonsIfNeeded({
+}): Promise<SendFlowStepData> =>
+  await mapStepButtons(
+    props.step,
+    async (buttons) =>
+      (await signBookingButtonsIfNeeded({
         ...props,
-        stepId: step.id,
-        buttons: card.buttons,
-      })
-      return { ...card, buttons: buttons ?? [] } as SendCardStepSchema
-    }),
+        stepId: props.step.id,
+        buttons,
+      })) ?? [],
   )
-  return { ...step, cards } as SendFlowStepData
-}
 
 /**
  * Route an `openWebsite` button's destination through the `/go` interstitial.
@@ -423,35 +372,16 @@ const wrapOpenLinkButtonsIfNeeded = (props: {
   )
 }
 
-const wrapOpenLinksInStep = (props: {
+const wrapOpenLinksInStep = async (props: {
   workspaceId: string
   appUrl: string
   channel: string
   step: SendFlowStepData
-}): SendFlowStepData => {
-  let step = props.step
-  if ("buttons" in step && step.buttons.length > 0) {
-    const buttons = wrapOpenLinkButtonsIfNeeded({
-      ...props,
-      buttons: step.buttons,
-    })
-    step = { ...step, buttons: buttons ?? [] } as SendFlowStepData
-  }
-  if (!("cards" in step) || step.cards.length === 0) {
-    return step
-  }
-  const cards = step.cards.map((card) => {
-    if (!("buttons" in card) || card.buttons.length === 0) {
-      return card
-    }
-    const buttons = wrapOpenLinkButtonsIfNeeded({
-      ...props,
-      buttons: card.buttons,
-    })
-    return { ...card, buttons: buttons ?? [] } as SendCardStepSchema
-  })
-  return { ...step, cards } as SendFlowStepData
-}
+}): Promise<SendFlowStepData> =>
+  await mapStepButtons(
+    props.step,
+    (buttons) => wrapOpenLinkButtonsIfNeeded({ ...props, buttons }) ?? [],
+  )
 
 const convertCardsToTemplate = (props: {
   flowId: string
@@ -478,6 +408,53 @@ const convertCardsToTemplate = (props: {
           })
         : undefined,
   }))
+}
+
+/**
+ * A `sendProducts` step stores product ids; the products to show are resolved
+ * here, before any Message row exists, so a step that cannot be sent leaves no
+ * phantom message behind. Throws `ProductMessageUnresolvableError` or a `validation`
+ * exception, which the
+ * caller's terminal catch records once.
+ */
+async function resolveProductMessageForStep(props: {
+  step: SendFlowStepData
+  conversation: Pick<ConversationModel, "workspaceId" | "contactId" | "id">
+  contactInbox: Pick<ContactInboxModel, "channel" | "sourceId">
+  flowId: string
+  metadata?: MetadataPayload
+}): Promise<PreparedProductMessage | undefined> {
+  const { step, conversation, contactInbox, flowId, metadata } = props
+  if (step.stepType !== stepTypes.enum.sendProducts) {
+    return
+  }
+
+  const prepared = await productMessageService.prepareOutgoing({
+    workspaceId: conversation.workspaceId,
+    channel: contactInbox.channel,
+    content: step,
+    onMissing: "drop",
+  })
+  if (prepared.missing.length > 0) {
+    const productIds = prepared.missing.map(({ productId }) => productId)
+    logger.warn(
+      { conversationId: conversation.id, flowId, stepId: step.id, productIds },
+      "Product message sent without products that are no longer sendable",
+    )
+    // A broadcast or sequence repeats this for every recipient; its per-run
+    // analytics already count it, so it never gets an ErrorLog row of its own.
+    if (!isBulkSendOrigin(metadata)) {
+      await logProviderErrorForChannel(contactInbox.channel, {
+        workspaceId: conversation.workspaceId,
+        contactId: conversation.contactId,
+        sourceId: contactInbox.sourceId,
+        error: new Error(
+          `Product message sent without ${productIds.length} product(s) that are no longer in the catalog: ${productIds.join(", ")}`,
+        ),
+      })
+    }
+  }
+  return prepared
 }
 
 export async function sendFlowStep({
@@ -531,6 +508,30 @@ export async function sendFlowStep({
     }),
     "sendFlowStep: job received",
   )
+  // The node's authored channel (used by publish/import validation) is a
+  // best-effort declaration — an omnichannel node is reachable from any
+  // conversation, so the RESOLVED contact inbox's channel can be narrower
+  // than what validation allowed. Re-check against the same policy table
+  // here, the one place every step ultimately funnels through before a
+  // Message row or channel dispatch happens, so a mismatch is skipped (like
+  // any other non-deliverable step) instead of throwing inside the channel's
+  // `convertFlowStep` — the outgoing-message handlers no longer swallow an
+  // unhandled stepType, they throw.
+  if (
+    getChannelFlowPolicy(targetContactInbox.channel)?.steps[step.stepType] ===
+    stepSupport.unsupported
+  ) {
+    logger.debug(
+      {
+        conversationId,
+        stepId: step.id,
+        stepType: step.stepType,
+        channel: targetContactInbox.channel,
+      },
+      "Skipping flow step unsupported on the resolved channel",
+    )
+    return
+  }
 
   if (step.stepType === stepTypes.enum.sendWaTemplateMessage) {
     if (targetContactInbox.channel !== channelTypes.enum.whatsapp) {
@@ -564,20 +565,6 @@ export async function sendFlowStep({
       )
     }
 
-    return
-  }
-
-  const exclusiveChannel = CHANNEL_EXCLUSIVE_STEP_TYPES[step.stepType]
-  if (exclusiveChannel && targetContactInbox.channel !== exclusiveChannel) {
-    logger.debug(
-      {
-        conversationId,
-        stepId: step.id,
-        stepType: step.stepType,
-        channel: targetContactInbox.channel,
-      },
-      "Skipping channel-exclusive flow step on another channel",
-    )
     return
   }
 
@@ -635,7 +622,9 @@ export async function sendFlowStep({
     nodeId: step.nodeId,
   }
 
-  if (!CHANNEL_DELIVERABLE_STEP_TYPES.has(step.stepType)) {
+  // getUserData produces an outgoing message through its own handler, so it is
+  // deliberately excluded from channel-deliverable steps.
+  if (!channelDeliverableStepTypes.includes(step.stepType)) {
     logger.debug(
       {
         conversationId,
@@ -649,7 +638,7 @@ export async function sendFlowStep({
     return
   }
 
-  // Spintax is on here because only CHANNEL_DELIVERABLE_STEP_TYPES reach this
+  // Spintax is on here because only channelDeliverableStepTypes reach this
   // point — every string leaf is copy an author wrote for a contact to read.
   // Code- or data-carrying steps (external request, execute JavaScript) resolve
   // through their own handlers and deliberately leave it off.
@@ -678,20 +667,42 @@ export async function sendFlowStep({
     return
   }
 
-  const messageText =
-    resolvedStep.stepType === stepTypes.enum.sendText ||
-    resolvedStep.stepType === stepTypes.enum.whatsappCallButton
-      ? resolvedStep.text
-      : null
+  const storedContent = resolveStoredStepContent(
+    resolvedStep as SendFlowStepData,
+  )
 
   let message: MessageModel | MessageWithAttachments | undefined
 
   try {
-    const [repository, tenantSettings] = await Promise.all([
-      createMessageRepository(),
-      resolveTenantSettings({ workspaceId: conversation.workspaceId }),
-    ])
+    const preparedProductMessage = await resolveProductMessageForStep({
+      step: resolvedStep as SendFlowStepData,
+      conversation,
+      contactInbox: targetContactInbox,
+      flowId,
+      metadata,
+    })
+    const tenantSettings = await resolveTenantSettings({
+      workspaceId: conversation.workspaceId,
+    })
     const { appUrl, storageUrl } = tenantSettings
+    // Open Mini App buttons become link buttons first, so everything below
+    // (booking signing, the `/go` wrap, every channel encoder) only ever sees
+    // `openWebsite`. The Mini App URL is same-origin, so `/go` leaves it alone.
+    const {
+      step: stepWithMiniAppLinks,
+      quickReplies: quickRepliesWithMiniAppLinks,
+    } = await resolveMiniAppLinks({
+      workspaceId: conversation.workspaceId,
+      contactId: conversation.contactId,
+      conversationId: conversation.id,
+      contactInboxId: targetContactInbox.id,
+      flowId,
+      flowVersionId,
+      metadata,
+      appUrl,
+      step: resolvedStep as SendFlowStepData,
+      quickReplies,
+    })
     const stepWithSignedBookingLinks = await signBookingLinksInStep({
       workspaceId: conversation.workspaceId,
       contactId: conversation.contactId,
@@ -702,7 +713,7 @@ export async function sendFlowStep({
       flowVersionId,
       executedFlowVersionId,
       appUrl,
-      step: resolvedStep as SendFlowStepData,
+      step: stepWithMiniAppLinks,
     })
     const quickRepliesWithSignedBookingLinks = await signBookingButtonsIfNeeded(
       {
@@ -716,7 +727,7 @@ export async function sendFlowStep({
         executedFlowVersionId,
         stepId: stepWithSignedBookingLinks.id,
         appUrl,
-        buttons: quickReplies,
+        buttons: quickRepliesWithMiniAppLinks,
       },
     )
 
@@ -728,7 +739,7 @@ export async function sendFlowStep({
       appUrl,
       channel: targetContactInbox.channel,
     }
-    const stepForSend = wrapOpenLinksInStep({
+    const stepForSend = await wrapOpenLinksInStep({
       ...openLinkProps,
       step: stepWithSignedBookingLinks,
     })
@@ -739,6 +750,7 @@ export async function sendFlowStep({
 
     let contentAttributes: (typeof messageModel.$inferInsert)["contentAttributes"] =
       {
+        ...storedContent.contentAttributes,
         metadata,
         richResponse,
         stepId: resolvedStep.id,
@@ -773,6 +785,13 @@ export async function sendFlowStep({
       ...canonicalStepButtons,
       ...(canonicalQuickReplies ?? []),
     ]
+
+    if (preparedProductMessage) {
+      contentAttributes = {
+        ...preparedProductMessage.contentAttributes,
+        ...contentAttributes,
+      }
+    }
 
     if (displayButtons.length > 0) {
       contentAttributes = {
@@ -838,10 +857,10 @@ export async function sendFlowStep({
       conversationId: conversation.id,
       contactInboxId: targetContactInbox.id,
       messageType: messageTypes.enum.outgoing,
-      contentType: contentTypes.enum.text,
+      contentType: storedContent.contentType,
       senderType: senderTypes.enum.bot,
       sourceId: null,
-      text: messageText,
+      text: storedContent.text ?? preparedProductMessage?.text ?? null,
       contentAttributes,
       createdAt: new Date(),
       ...(isPublicCommentReply ? { type: "comment" as const } : {}),
@@ -849,8 +868,8 @@ export async function sendFlowStep({
 
     // Upload file(s) if any
     const attachmentInputs: Parameters<
-      typeof repository.createWithAttachments
-    >[1][0][] = []
+      typeof messageService.createWithAttachments
+    >[0]["attachments"] = []
     if ("url" in stepForSend) {
       const uploadedFile = await uploadFileFromUrl(
         stepForSend.url,
@@ -876,8 +895,11 @@ export async function sendFlowStep({
     }
 
     message = attachmentInputs.length
-      ? await repository.createWithAttachments(messageInput, attachmentInputs)
-      : await repository.create(messageInput)
+      ? await messageService.createWithAttachments({
+          message: messageInput,
+          attachments: attachmentInputs,
+        })
+      : await messageService.create(messageInput)
 
     message = await resolveMessageAttachmentUrls(message, {
       workspaceId: conversation.workspaceId,
@@ -894,6 +916,12 @@ export async function sendFlowStep({
         contactId: targetContactInbox.contactId,
         at: createdMessage.createdAt,
         bumpActivity: !isBulkOutbound,
+        // An inbox-originated flow send is an agent reply: createOutgoing's
+        // producer claim owns the close and the measurement, so the worker
+        // must not consume the window first.
+        closeHumanReplyWindow: !(
+          sendFrom === "inbox" || isProactiveOutboundMetadata(metadata)
+        ),
         lastStep: conversation.currentStep,
         currentStep: resolvedStep.id,
       })
@@ -930,6 +958,7 @@ export async function sendFlowStep({
           flowId,
           flowVersionId,
           step: stepForSend,
+          productMessage: preparedProductMessage?.message,
           metadata,
           richResponse,
           quickReplies: canonicalQuickReplies,
@@ -956,10 +985,7 @@ export async function sendFlowStep({
         })
 
     if (!isBulkOutbound) {
-      publishToWorkspaceParty(conversation.workspaceId, {
-        eventType: RealtimeEventType.messageCreated,
-        data: message,
-      })
+      queueMessageCreatedEvent(conversation.workspaceId, message, conversation)
     }
 
     // The guest webchat widget still needs bulk messages, so this send is
@@ -967,7 +993,7 @@ export async function sendFlowStep({
     const broadcasts: Promise<unknown>[] = []
     if (targetContactInbox.channel === channelTypes.enum.webchat) {
       broadcasts.push(
-        broadcastToGuestParty(
+        publishGuestRealtimeEvent(
           {
             workspaceId: conversation.workspaceId,
             guestConversationId: targetContactInbox.sourceId,
@@ -976,7 +1002,12 @@ export async function sendFlowStep({
             eventType: RealtimeEventType.messageCreated,
             data: message,
           },
-        ),
+        ).catch((error) => {
+          logger.error(
+            { err: error, workspaceId: conversation.workspaceId },
+            "Failed to publish guest realtime event for flow step",
+          )
+        }),
       )
     }
 
@@ -1021,6 +1052,8 @@ export async function sendFlowStep({
         eventType: "message:bot_received",
         workspaceId: trackingContext.workspaceId,
         conversationId: trackingContext.conversationId,
+        channel: targetContactInbox.channel,
+        inboxId: targetContactInbox.inboxId,
         messageId: trackingContext.messageId,
         occurredAt: new Date(),
         hasResponse: true,
@@ -1069,7 +1102,7 @@ export async function sendFlowStep({
       conversation.workspaceId,
       message?.createdAt,
       parsedError.message,
-      isBulkOutbound,
+      { conversationId: conversation.id, silent: isBulkOutbound },
     )
 
     // Always terminal here, for the same reason the `message:failed` emit above
@@ -1085,6 +1118,8 @@ export async function sendFlowStep({
         eventType: "message:bot_received",
         workspaceId: trackingContext.workspaceId,
         conversationId: trackingContext.conversationId,
+        channel: targetContactInbox.channel,
+        inboxId: targetContactInbox.inboxId,
         messageId: trackingContext.messageId,
         occurredAt: new Date(),
         hasResponse: false,
@@ -1143,13 +1178,14 @@ export const sendChatMessage = async (
   }
 
   try {
-    const [repository, { storageUrl }] = await Promise.all([
-      createMessageRepository(),
-      resolveTenantSettings({ workspaceId: conversation.workspaceId }),
-    ])
+    const { storageUrl } = await resolveTenantSettings({
+      workspaceId: conversation.workspaceId,
+    })
 
     let attachmentInput:
-      | Parameters<typeof repository.createWithAttachments>[1][0]
+      | Parameters<
+          typeof messageService.createWithAttachments
+        >[0]["attachments"][0]
       | undefined
     let messageText = text
 
@@ -1203,8 +1239,11 @@ export const sendChatMessage = async (
     }
 
     const persistedMessage = attachmentInput
-      ? await repository.createWithAttachments(messageInput, [attachmentInput])
-      : await repository.create(messageInput)
+      ? await messageService.createWithAttachments({
+          message: messageInput,
+          attachments: [attachmentInput],
+        })
+      : await messageService.create(messageInput)
 
     const message = await resolveMessageAttachmentUrls(persistedMessage, {
       workspaceId: conversation.workspaceId,
@@ -1220,6 +1259,7 @@ export const sendChatMessage = async (
         contactId: contactInbox.contactId,
         at: message.createdAt,
         bumpActivity: !isBulkOutbound,
+        closeHumanReplyWindow: !isProactiveOutboundMetadata(metadata),
       })
     if (trackingInvalidation) {
       await contactInboxService.invalidateTracking(trackingInvalidation)
@@ -1233,16 +1273,19 @@ export const sendChatMessage = async (
           message,
           quickReplies,
           metadata,
+          isBulkBroadcast,
         },
         0,
         willRetryOnThrow,
       ),
     ]
     if (!isBulkOutbound) {
-      publishToWorkspaceParty(conversation.workspaceId, {
-        eventType: RealtimeEventType.messageCreated,
-        data: message,
-      })
+      queueMessageCreatedEvent(
+        conversation.workspaceId,
+        message,
+        conversation,
+        contactInbox.inboxId,
+      )
     }
 
     await Promise.all(promises)
@@ -1252,6 +1295,8 @@ export const sendChatMessage = async (
         eventType: "message:bot_received",
         workspaceId: trackingContext.workspaceId,
         conversationId: trackingContext.conversationId,
+        channel: contactInbox.channel,
+        inboxId: contactInbox.inboxId,
         messageId: trackingContext.messageId,
         occurredAt: new Date(),
         hasResponse: true,
@@ -1284,6 +1329,8 @@ export const sendChatMessage = async (
         eventType: "message:bot_received",
         workspaceId: trackingContext.workspaceId,
         conversationId: trackingContext.conversationId,
+        channel: contactInbox.channel,
+        inboxId: contactInbox.inboxId,
         messageId: trackingContext.messageId,
         occurredAt: new Date(),
         hasResponse: false,

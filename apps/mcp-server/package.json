@@ -2,6 +2,11 @@
   "name": "chatbotx-mcp",
   "version": "0.0.0-dev",
   "description": "MCP Server for ChatbotX — gives AI agents access to your ChatbotX workspace via the Model Context Protocol",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChatbotXIO/ChatbotX.git",
+    "directory": "apps/mcp-server"
+  },
   "keywords": [
     "mcp",
     "chatbotx",
@@ -13,7 +18,7 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "bin": {
-    "chatbotx-mcp": "./dist/index.mjs"
+    "chatbotx-mcp": "dist/index.mjs"
   },
   "exports": {
     ".": {
@@ -26,7 +31,7 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "publishConfig": {
     "access": "public"
@@ -43,7 +48,7 @@
     "eval:search": "tsx evals/search-audit.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "@t3-oss/env-core": "^0.13.11",
     "dotenv": "^17.4.2",
     "zod": "^4.3.6"
@@ -51,7 +56,7 @@
   "devDependencies": {
     "@ai-sdk/openai": "^3.0.54",
     "@chatbotx.io/flow-config": "workspace:*",
-    "@orpc/zod": "^1.14.0",
+    "@orpc/zod": "^1.15.4",
     "@types/node": "24.x",
     "ai": "^6.0.170",
     "dotenv-cli": "^11.0.0",

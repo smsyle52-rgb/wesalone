@@ -4,13 +4,11 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const {
   mockAuditRecord,
-  mockDbInsert,
   mockFindOrFail,
   mockFindByIdOrFail,
   mockFindNameAndEmail,
   mockGetCurrentUserAndTargetWorkspace,
-  mockInsertReturning,
-  mockInsertValues,
+  mockInvitationCreate,
   mockInvalidateCacheByTags,
   mockIsCommunity,
   mockQuotaHasReachedLimit,
@@ -18,6 +16,8 @@ const {
   mockUpdateMember,
   mockWorkspaceFindById,
   mockWorkspaceMemberServiceDelete,
+  mockInvalidateMembershipCache,
+  mockDbInsert,
 } = vi.hoisted(() => {
   const mockInsertReturning = vi.fn()
   const mockInsertValues = vi.fn(() => ({ returning: mockInsertReturning }))
@@ -31,14 +31,16 @@ const {
     mockFindNameAndEmail: vi.fn(),
     mockGetCurrentUserAndTargetWorkspace: vi.fn(),
     mockInsertReturning,
+    mockInvitationCreate: vi.fn(),
     mockWorkspaceMemberServiceDelete: vi.fn(),
     mockInsertValues,
     mockInvalidateCacheByTags: vi.fn(),
     mockIsCommunity: vi.fn(),
     mockQuotaHasReachedLimit: vi.fn(),
-    mockRevokeWorkspaceMemberConnections: vi.fn(),
+    mockRevokeWorkspaceMemberConnections: vi.fn().mockResolvedValue(true),
     mockUpdateMember: vi.fn(),
     mockWorkspaceFindById: vi.fn(),
+    mockInvalidateMembershipCache: vi.fn(),
   }
 })
 
@@ -67,16 +69,21 @@ vi.mock("@/lib/auth/utils", () => ({
 vi.mock("@chatbotx.io/business", () => ({
   workspaceMemberCacheTag: (userId: string) =>
     `users:${userId}:workspace-members`,
+  invitationService: {
+    create: mockInvitationCreate,
+  },
   quotaEnforcementService: {
     hasReachedLimit: mockQuotaHasReachedLimit,
   },
-  revokeWorkspaceMemberConnections: mockRevokeWorkspaceMemberConnections,
+  tryRevokeWorkspaceMemberRealtimeConnections:
+    mockRevokeWorkspaceMemberConnections,
   userService: {
     findNameAndEmail: mockFindNameAndEmail,
   },
   workspaceMemberService: {
     delete: mockWorkspaceMemberServiceDelete,
     findByIdOrFail: mockFindByIdOrFail,
+    invalidateMembershipCache: mockInvalidateMembershipCache,
     update: mockUpdateMember,
   },
   workspaceService: {
@@ -188,7 +195,7 @@ function updateActionCtx(permissions = granularPermissions) {
 
 function getInsertedValues() {
   return (
-    mockInsertValues.mock.calls as unknown as [[{ permissions: unknown }]]
+    mockInvitationCreate.mock.calls as unknown as [[{ permissions: unknown }]]
   )[0][0]
 }
 
@@ -221,9 +228,10 @@ describe("inviteWorkspaceMemberAction", () => {
       ownerId: "owner-1",
     })
     mockQuotaHasReachedLimit.mockResolvedValue(false)
-    mockInsertReturning.mockResolvedValue([
-      { id: "invitation-id", code: "invite-code" },
-    ])
+    mockInvitationCreate.mockResolvedValue({
+      id: "invitation-id",
+      code: "invite-code",
+    })
     mockIsCommunity.mockReturnValue(false)
   })
 
@@ -239,7 +247,7 @@ describe("inviteWorkspaceMemberAction", () => {
     )
 
     expect(mockQuotaHasReachedLimit).not.toHaveBeenCalled()
-    expect(mockDbInsert).not.toHaveBeenCalled()
+    expect(mockInvitationCreate).not.toHaveBeenCalled()
   })
 
   test("forces full super-admin permissions for community invitations", async () => {
@@ -309,7 +317,10 @@ describe("updateWorkspaceMemberAction", () => {
       name: "Target User",
       email: "target@example.com",
     })
-    mockUpdateMember.mockResolvedValue({ id: MEMBER_ID })
+    mockUpdateMember.mockResolvedValue({
+      id: MEMBER_ID,
+      revokeWarning: false,
+    })
   })
 
   test("records a role_change audit event with the target member's name", async () => {
@@ -340,6 +351,7 @@ describe("updateWorkspaceMemberAction", () => {
       id: MEMBER_ID,
       workspaceId: WORKSPACE_ID,
       data: { ...updateInput, permissions: fullPermissions },
+      revokeRealtime: true,
     })
   })
 
@@ -352,6 +364,7 @@ describe("updateWorkspaceMemberAction", () => {
       id: MEMBER_ID,
       workspaceId: WORKSPACE_ID,
       data: { ...updateInput, permissions: normalizedGranularPermissions },
+      revokeRealtime: true,
     })
   })
 
@@ -364,6 +377,7 @@ describe("updateWorkspaceMemberAction", () => {
       id: MEMBER_ID,
       workspaceId: WORKSPACE_ID,
       data: { ...updateInput, permissions: assignedOnlyPermissions },
+      revokeRealtime: true,
     })
   })
 
@@ -380,6 +394,7 @@ describe("updateWorkspaceMemberAction", () => {
       id: MEMBER_ID,
       workspaceId: WORKSPACE_ID,
       data: { ...updateInput, permissions: normalizedGranularPermissions },
+      revokeRealtime: true,
     })
   })
 
@@ -432,6 +447,7 @@ describe("updateWorkspaceMemberAction", () => {
       id: MEMBER_ID,
       workspaceId: WORKSPACE_ID,
       data: { ...updateInput, permissions: normalizedGranularPermissions },
+      revokeRealtime: false,
     })
     // Permissions didn't actually change, so this must not be recorded as
     // a "changed role" audit event.
@@ -448,6 +464,7 @@ describe("updateWorkspaceMemberAction", () => {
       id: MEMBER_ID,
       workspaceId: WORKSPACE_ID,
       data: { ...updateInput, permissions: normalizedGranularPermissions },
+      revokeRealtime: true,
     })
     expect(mockAuditRecord).toHaveBeenCalledWith({
       action: "role_change",
@@ -467,6 +484,27 @@ describe("updateWorkspaceMemberAction", () => {
     expect(mockFindNameAndEmail).not.toHaveBeenCalled()
     expect(mockAuditRecord).not.toHaveBeenCalled()
   })
+
+  test("returns revokeWarning when permission reauthentication cannot close sockets", async () => {
+    mockUpdateMember.mockResolvedValueOnce({
+      id: MEMBER_ID,
+      revokeWarning: true,
+    })
+
+    await expect(
+      (updateWorkspaceMemberAction as (props: unknown) => Promise<unknown>)(
+        updateActionCtx(),
+      ),
+    ).resolves.toEqual({ revokeWarning: true })
+  })
+
+  test("returns no revokeWarning when permission reauthentication closes sockets", async () => {
+    await expect(
+      (updateWorkspaceMemberAction as (props: unknown) => Promise<unknown>)(
+        updateActionCtx(),
+      ),
+    ).resolves.toEqual({ revokeWarning: false })
+  })
 })
 
 function deleteActionCtx() {
@@ -478,17 +516,18 @@ function deleteActionCtx() {
 describe("deleteWorkspaceMemberAction", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockFindOrFail.mockResolvedValue({
+    mockFindByIdOrFail.mockResolvedValue({
       id: MEMBER_ID,
       userId: MEMBER_USER_ID,
       workspaceId: WORKSPACE_ID,
       role: "agent",
     })
     mockCurrentMember()
+    mockWorkspaceMemberServiceDelete.mockResolvedValue({ revokeWarning: false })
   })
 
   test("rejects deleting the workspace owner", async () => {
-    mockFindOrFail.mockResolvedValue({
+    mockFindByIdOrFail.mockResolvedValue({
       id: MEMBER_ID,
       userId: MEMBER_USER_ID,
       workspaceId: WORKSPACE_ID,
@@ -518,7 +557,7 @@ describe("deleteWorkspaceMemberAction", () => {
     expect(mockWorkspaceMemberServiceDelete).not.toHaveBeenCalled()
   })
 
-  test("invalidates the removed member's cached workspace list", async () => {
+  test("leaves cache invalidation of the removed member to the service", async () => {
     await (deleteWorkspaceMemberAction as (props: unknown) => Promise<unknown>)(
       deleteActionCtx(),
     )
@@ -527,9 +566,9 @@ describe("deleteWorkspaceMemberAction", () => {
       id: MEMBER_ID,
       workspaceId: WORKSPACE_ID,
     })
-    expect(mockInvalidateCacheByTags).toHaveBeenCalledWith([
-      `users:${MEMBER_USER_ID}:workspace-members`,
-    ])
+    // Cache invalidation (user, roster and schedule tags) is the service's job.
+    expect(mockInvalidateCacheByTags).not.toHaveBeenCalled()
+    expect(mockInvalidateMembershipCache).not.toHaveBeenCalled()
   })
 
   test("deletes the member without mutating team-member quota", async () => {
@@ -538,8 +577,32 @@ describe("deleteWorkspaceMemberAction", () => {
     )
 
     expect(mockWorkspaceMemberServiceDelete).toHaveBeenCalledOnce()
-    expect(mockInvalidateCacheByTags).toHaveBeenCalledWith([
-      `users:${MEMBER_USER_ID}:workspace-members`,
-    ])
+    // Cache invalidation (user, roster and schedule tags) is the service's job.
+    expect(mockInvalidateCacheByTags).not.toHaveBeenCalled()
+    expect(mockInvalidateMembershipCache).not.toHaveBeenCalled()
+  })
+
+  test("returns revokeWarning when a deleted member's socket revoke is deferred", async () => {
+    mockWorkspaceMemberServiceDelete.mockResolvedValueOnce({
+      revokeWarning: true,
+    })
+
+    await expect(
+      (deleteWorkspaceMemberAction as (props: unknown) => Promise<unknown>)(
+        deleteActionCtx(),
+      ),
+    ).resolves.toEqual({ revokeWarning: true })
+  })
+
+  test("returns no revokeWarning when a deleted member's sockets are closed", async () => {
+    mockWorkspaceMemberServiceDelete.mockResolvedValueOnce({
+      revokeWarning: false,
+    })
+
+    await expect(
+      (deleteWorkspaceMemberAction as (props: unknown) => Promise<unknown>)(
+        deleteActionCtx(),
+      ),
+    ).resolves.toEqual({ revokeWarning: false })
   })
 })

@@ -12,9 +12,10 @@ const {
   mockRecordOutboundMessageSent,
   mockRecordSendFailure,
   mockChatQueueAdd,
-  mockBroadcastToWorkspaceParty,
+  mockQueueWorkspaceRealtimeEvent,
   mockRecordPermanentGrant,
   mockMarkReadByOutbound,
+  mockFindConversation,
 } = vi.hoisted(() => {
   const updateChain = {
     set: vi.fn().mockReturnThis(),
@@ -42,9 +43,10 @@ const {
     mockRecordOutboundMessageSent: vi.fn().mockResolvedValue(undefined),
     mockRecordSendFailure: vi.fn().mockResolvedValue(undefined),
     mockChatQueueAdd: vi.fn().mockResolvedValue(undefined),
-    mockBroadcastToWorkspaceParty: vi.fn().mockResolvedValue(undefined),
+    mockQueueWorkspaceRealtimeEvent: vi.fn().mockResolvedValue(undefined),
     mockRecordPermanentGrant: vi.fn().mockResolvedValue(undefined),
     mockMarkReadByOutbound: vi.fn().mockResolvedValue(true),
+    mockFindConversation: vi.fn(),
   }
 })
 
@@ -60,11 +62,48 @@ vi.mock("@chatbotx.io/business", () => ({
     recordSendFailure: mockRecordSendFailure,
   },
   contactService: { unblockIfBlocked: mockContactUnblockIfBlocked },
-  conversationService: { markReadByOutbound: mockMarkReadByOutbound },
-  broadcastToWorkspaceParty: mockBroadcastToWorkspaceParty,
-  publishToWorkspaceParty: mockBroadcastToWorkspaceParty,
+  conversationService: {
+    findBy: mockFindConversation,
+    markReadByOutbound: mockMarkReadByOutbound,
+  },
+  publishWorkspaceRealtimeEvent: mockQueueWorkspaceRealtimeEvent,
+  queueWorkspaceRealtimeEvent: mockQueueWorkspaceRealtimeEvent,
+  messageService: {
+    findWithAttachments: vi.fn().mockResolvedValue(null),
+    updateAttributes: vi.fn().mockResolvedValue(undefined),
+    updateSendError: (input: {
+      createdAt: Date
+      id: string
+      sendError: string | null
+      workspaceId: string
+    }) =>
+      mockUpdateSendError(
+        input.id,
+        input.sendError,
+        input.workspaceId,
+        input.createdAt,
+      ),
+    updateSourceId: (input: {
+      createdAt: Date
+      id: string
+      sourceId: string
+      workspaceId: string
+    }) =>
+      mockUpdateSourceId(
+        input.id,
+        input.sourceId,
+        input.workspaceId,
+        input.createdAt,
+      ),
+  },
   whatsappCallPermissionService: {
     recordPermanentGrant: mockRecordPermanentGrant,
+  },
+  // These rows never observed conversation routing: the current row is the
+  // job's row (the real service returns it without a query).
+  threadControlService: {
+    refreshForRouting: ({ contactInbox }: { contactInbox: unknown }) =>
+      Promise.resolve(contactInbox),
   },
 }))
 
@@ -75,10 +114,15 @@ vi.mock("@chatbotx.io/database/client", () => ({
   eq: vi.fn((col: unknown, val: unknown) => ({ __eq: [col, val] })),
 }))
 
-vi.mock("@chatbotx.io/database/schema", () => ({
-  messageModel: { id: "id", sourceId: "sourceId" },
-  whatsappFlowModel: { id: "id", sourceId: "sourceId" },
-}))
+vi.mock("@chatbotx.io/database/schema", () => {
+  const schema = { pick: vi.fn(() => schema) }
+  return {
+    createSelectSchema: vi.fn(() => schema),
+    integrationWebchatModel: {},
+    messageModel: { id: "id", sourceId: "sourceId" },
+    whatsappFlowModel: { id: "id", sourceId: "sourceId" },
+  }
+})
 
 vi.mock("@chatbotx.io/event-bus", () => ({
   emit: mockEmit,
@@ -107,7 +151,6 @@ vi.mock("../src/services/integrations", () => ({
 }))
 
 vi.mock("@chatbotx.io/worker-config", () => ({
-  ChatJobAction: { broadcastEvent: "broadcastEvent" },
   chatQueue: { add: mockChatQueueAdd },
 }))
 
@@ -161,6 +204,7 @@ describe("chat send-message handlers", () => {
         runChannelHandler: mockRunChannelHandler,
       },
     })
+    mockFindConversation.mockResolvedValue(conversation)
   })
 
   test("passes sendFrom to sendMessage channel handler", async () => {
@@ -468,6 +512,136 @@ describe("chat send-message handlers", () => {
     expect(mockEmit.mock.calls.filter(isBotSentDashboardCall)).toHaveLength(0)
   })
 
+  describe("human-sent dashboard events", () => {
+    const outgoing = (overrides: Record<string, unknown>) =>
+      ({
+        id: "msg-human-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        contactInboxId: "ci-1",
+        contentType: "text",
+        messageType: "outgoing",
+        senderType: "user",
+        senderId: "admin-1",
+        sourceId: null,
+        text: "hello from an agent",
+        createdAt: new Date("2026-07-09T08:37:21.108Z"),
+        ...overrides,
+      }) as never
+
+    const humanSentCalls = () =>
+      mockEmit.mock.calls.filter(
+        (call) =>
+          call[0] === "analytics:dashboard" &&
+          (call[1] as { eventType?: string }).eventType ===
+            "message:human_sent",
+      )
+
+    test("emits one human-sent event per accepted part with admin, channel, inbox and a stable id", async () => {
+      mockRunChannelHandler.mockResolvedValueOnce({
+        messageIds: ["m1", "m2"],
+        sentCount: 2,
+      })
+
+      await sendMessageToChannel({
+        conversation: conversation as never,
+        contactInbox: contactInbox as never,
+        message: outgoing({}),
+      })
+
+      const calls = humanSentCalls()
+      expect(calls).toHaveLength(2)
+      expect(calls.map((call) => call[1])).toEqual([
+        expect.objectContaining({
+          adminId: "admin-1",
+          senderType: "human",
+          channel: "messenger",
+          inboxId: "inbox-1",
+          contactId: "contact-1",
+          eventId: "msg-human-1:0",
+          occurredAt: new Date("2026-07-09T08:37:21.108Z"),
+        }),
+        expect.objectContaining({
+          eventId: "msg-human-1:1",
+          occurredAt: new Date("2026-07-09T08:37:21.108Z"),
+        }),
+      ])
+      expect(mockEmit.mock.calls.filter(isBotSentDashboardCall)).toHaveLength(0)
+    })
+
+    test("re-running the same message yields the same logical ids", async () => {
+      const message = outgoing({})
+      await sendMessageToChannel({
+        conversation: conversation as never,
+        contactInbox: contactInbox as never,
+        message,
+      })
+      await sendMessageToChannel({
+        conversation: conversation as never,
+        contactInbox: contactInbox as never,
+        message,
+      })
+
+      const ids = humanSentCalls().map(
+        (call) => (call[1] as { eventId: string }).eventId,
+      )
+      expect(ids).toEqual(["msg-human-1:0", "msg-human-1:0"])
+    })
+
+    test.each([
+      "api",
+      "system",
+      "contact",
+    ] as const)("emits no human-sent event for a %s sender", async (senderType) => {
+      await sendMessageToChannel({
+        conversation: conversation as never,
+        contactInbox: contactInbox as never,
+        message: outgoing({ senderType }),
+      })
+
+      expect(humanSentCalls()).toHaveLength(0)
+    })
+
+    test("emits nothing for a user message without a sender id", async () => {
+      await sendMessageToChannel({
+        conversation: conversation as never,
+        contactInbox: contactInbox as never,
+        message: outgoing({ senderId: null }),
+      })
+
+      expect(humanSentCalls()).toHaveLength(0)
+    })
+
+    test("emits nothing when the channel send fails", async () => {
+      mockRunChannelHandler.mockRejectedValueOnce(new Error("channel down"))
+
+      await sendMessageToChannel({
+        conversation: conversation as never,
+        contactInbox: contactInbox as never,
+        message: outgoing({}),
+      }).catch(() => undefined)
+
+      expect(humanSentCalls()).toHaveLength(0)
+    })
+
+    test("does not retry the send when the human-sent emit rejects", async () => {
+      mockEmit.mockImplementationOnce((type: string) =>
+        type === "analytics:dashboard"
+          ? Promise.reject(new Error("redis unavailable"))
+          : Promise.resolve(undefined),
+      )
+
+      await expect(
+        sendMessageToChannel({
+          conversation: conversation as never,
+          contactInbox: contactInbox as never,
+          message: outgoing({}),
+        }),
+      ).resolves.toEqual({ messageIds: ["mid-1"], sentCount: 1 })
+      expect(mockRunChannelHandler).toHaveBeenCalledTimes(1)
+    })
+  })
+
   test("does not retry the send when the bot-sent analytics emit rejects", async () => {
     // Regression: the message is already live on the channel at this point —
     // a rejected analytics emit must be swallowed, not rethrown, or BullMQ
@@ -654,6 +828,53 @@ describe("chat send-message handlers", () => {
     })
   })
 
+  test("a member-initiated flow-step send is a human message, with or without a message id", async () => {
+    const step = {
+      id: "step-1",
+      nodeId: "node-1",
+      stepType: "sendText",
+      text: "hello",
+    } as never
+    const sentAt = new Date("2026-07-09T08:37:21.108Z")
+    const humanCalls = () =>
+      mockEmit.mock.calls
+        .filter(
+          (call) =>
+            call[0] === "analytics:dashboard" &&
+            (call[1] as { eventType?: string }).eventType ===
+              "message:human_sent",
+        )
+        .map(([, payload]) => payload as Record<string, unknown>)
+
+    await sendFlowStepToChannel({
+      conversation: conversation as never,
+      contactInbox: contactInbox as never,
+      flowId: "",
+      step,
+      messageId: "msg-9",
+      botSentAnalytics: { triggerHandler: "t", triggerType: "t" },
+      humanSender: { adminId: "admin-1", occurredAt: sentAt },
+    })
+    await sendFlowStepToChannel({
+      conversation: conversation as never,
+      contactInbox: contactInbox as never,
+      flowId: "",
+      step,
+      botSentAnalytics: { triggerHandler: "t", triggerType: "t" },
+      humanSender: { adminId: "admin-1", occurredAt: sentAt },
+    })
+
+    const [withId, withoutId] = humanCalls()
+    expect(withId).toMatchObject({
+      adminId: "admin-1",
+      eventId: "msg-9:0",
+      occurredAt: sentAt,
+    })
+    expect(withoutId).toMatchObject({ adminId: "admin-1", occurredAt: sentAt })
+    expect(withoutId).not.toHaveProperty("eventId")
+    expect(mockEmit.mock.calls.filter(isBotSentDashboardCall)).toHaveLength(0)
+  })
+
   test("emits flow-step bot events using supplied trigger metadata", async () => {
     mockRunChannelHandler.mockResolvedValueOnce({
       messageIds: ["p1", "p2"],
@@ -811,9 +1032,168 @@ describe("chat send-message handlers", () => {
       "ws-1",
       expect.any(Date),
     )
-    expect(mockBroadcastToWorkspaceParty).toHaveBeenCalledWith("ws-1", {
+    expect(mockQueueWorkspaceRealtimeEvent).toHaveBeenCalledWith("ws-1", {
       eventType: "messageFailed",
       data: { messageId: "msg-1", error: "sdk error" },
+      route: { assignedTeamIds: [], assignedUserIds: [] },
+    })
+  })
+
+  test("routes a send-failure event to the conversation's assigned agent/team, not just full-access members", async () => {
+    // Assigned-scope members need this failed-send event for their
+    // conversation.
+    const error = new ChannelError(
+      "expired human agent window",
+      ChannelErrorCategory.PAYLOAD_INVALID,
+      { code: "messenger_human_agent_window_expired" },
+    )
+    mockRunChannelHandler.mockRejectedValueOnce(error)
+
+    const assignedConversation = {
+      ...conversation,
+      assignedUserId: "user-42",
+      assignedInboxTeamId: "team-7",
+    }
+    mockFindConversation.mockResolvedValue(assignedConversation)
+
+    await sendMessageToChannel({
+      conversation: assignedConversation as never,
+      contactInbox: contactInbox as never,
+      message: {
+        id: "msg-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        contactInboxId: "ci-1",
+        contentType: "text",
+        messageType: "outgoing",
+        senderType: "user",
+        text: "hello",
+        createdAt: new Date("2026-07-09T08:37:21.108Z"),
+      } as never,
+    })
+
+    expect(mockQueueWorkspaceRealtimeEvent).toHaveBeenCalledWith("ws-1", {
+      eventType: "messageFailed",
+      data: { messageId: "msg-1", error: "sdk error" },
+      route: { assignedTeamIds: ["team-7"], assignedUserIds: ["user-42"] },
+    })
+  })
+
+  test("routes a send failure using the conversation's assignment at emission time", async () => {
+    mockRunChannelHandler.mockRejectedValueOnce(
+      new ChannelError(
+        "expired human agent window",
+        ChannelErrorCategory.PAYLOAD_INVALID,
+        { code: "messenger_human_agent_window_expired" },
+      ),
+    )
+    mockFindConversation.mockResolvedValue({
+      ...conversation,
+      assignedInboxTeamId: "team-current",
+      assignedUserId: "user-current",
+    })
+
+    await sendMessageToChannel({
+      conversation: {
+        ...conversation,
+        assignedInboxTeamId: "team-queued",
+        assignedUserId: "user-queued",
+      } as never,
+      contactInbox: contactInbox as never,
+      message: {
+        id: "msg-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        contactInboxId: "ci-1",
+        contentType: "text",
+        messageType: "outgoing",
+        senderType: "user",
+        text: "hello",
+        createdAt: new Date("2026-07-09T08:37:21.108Z"),
+      } as never,
+    })
+
+    expect(mockFindConversation).toHaveBeenCalledWith({
+      where: { id: "conv-1", workspaceId: "ws-1" },
+    })
+    expect(mockQueueWorkspaceRealtimeEvent).toHaveBeenCalledWith("ws-1", {
+      eventType: "messageFailed",
+      data: { messageId: "msg-1", error: "sdk error" },
+      route: {
+        assignedTeamIds: ["team-current"],
+        assignedUserIds: ["user-current"],
+      },
+    })
+  })
+
+  test("routes a comment reply's messageIdAssigned event with a route, full-access by default", async () => {
+    mockRunChannelHandler.mockResolvedValueOnce({
+      messageIds: ["reply-1"],
+      sentCount: 1,
+    })
+
+    await sendMessageToChannel({
+      conversation: conversation as never,
+      contactInbox: contactInbox as never,
+      message: {
+        id: "msg-comment-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        contactInboxId: "ci-1",
+        contentType: "text",
+        messageType: "outgoing",
+        senderType: "user",
+        text: "comment reply",
+        type: "comment",
+        parentId: "parent-1",
+        createdAt: new Date("2026-07-09T08:37:21.108Z"),
+      } as never,
+    })
+
+    expect(mockQueueWorkspaceRealtimeEvent).toHaveBeenCalledWith("ws-1", {
+      eventType: "messageIdAssigned",
+      data: { messageId: "msg-comment-1", commentId: "reply-1" },
+      route: { assignedTeamIds: [], assignedUserIds: [] },
+    })
+  })
+
+  test("routes a comment reply's messageIdAssigned event to the conversation's assigned agent/team", async () => {
+    // Assigned-scope members need the provider comment id for their
+    // conversation.
+    mockRunChannelHandler.mockResolvedValueOnce({
+      messageIds: ["reply-1"],
+      sentCount: 1,
+    })
+
+    const assignedConversation = {
+      ...conversation,
+      assignedUserId: "user-42",
+      assignedInboxTeamId: "team-7",
+    }
+    mockFindConversation.mockResolvedValue(assignedConversation)
+
+    await sendMessageToChannel({
+      conversation: assignedConversation as never,
+      contactInbox: contactInbox as never,
+      message: {
+        id: "msg-comment-1",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        contactInboxId: "ci-1",
+        contentType: "text",
+        messageType: "outgoing",
+        senderType: "user",
+        text: "comment reply",
+        type: "comment",
+        parentId: "parent-1",
+        createdAt: new Date("2026-07-09T08:37:21.108Z"),
+      } as never,
+    })
+
+    expect(mockQueueWorkspaceRealtimeEvent).toHaveBeenCalledWith("ws-1", {
+      eventType: "messageIdAssigned",
+      data: { messageId: "msg-comment-1", commentId: "reply-1" },
+      route: { assignedTeamIds: ["team-7"], assignedUserIds: ["user-42"] },
     })
   })
 
@@ -856,7 +1236,7 @@ describe("chat send-message handlers", () => {
       "ws-1",
       expect.any(Date),
     )
-    expect(mockBroadcastToWorkspaceParty).not.toHaveBeenCalled()
+    expect(mockQueueWorkspaceRealtimeEvent).not.toHaveBeenCalled()
   })
 
   test("publishes a broadcast continuation send error", async () => {
@@ -891,12 +1271,13 @@ describe("chat send-message handlers", () => {
       } as never,
     })
 
-    expect(mockBroadcastToWorkspaceParty).toHaveBeenCalledWith("ws-1", {
+    expect(mockQueueWorkspaceRealtimeEvent).toHaveBeenCalledWith("ws-1", {
       eventType: "messageFailed",
       data: {
         messageId: "msg-broadcast-continuation",
         error: "sdk error",
       },
+      route: { assignedTeamIds: [], assignedUserIds: [] },
     })
   })
 
@@ -917,7 +1298,7 @@ describe("chat send-message handlers", () => {
     })
 
     expect(mockUpdateSendError).not.toHaveBeenCalled()
-    expect(mockBroadcastToWorkspaceParty).not.toHaveBeenCalled()
+    expect(mockQueueWorkspaceRealtimeEvent).not.toHaveBeenCalled()
   })
 
   test("clears a prior sendError when a retry (attemptsMade > 0) succeeds", async () => {
@@ -949,9 +1330,10 @@ describe("chat send-message handlers", () => {
       "ws-1",
       createdAt,
     )
-    expect(mockBroadcastToWorkspaceParty).toHaveBeenCalledWith("ws-1", {
+    expect(mockQueueWorkspaceRealtimeEvent).toHaveBeenCalledWith("ws-1", {
       eventType: "messageFailed",
       data: { messageId: "msg-1", clientId: "client-1", error: null },
+      route: { assignedTeamIds: [], assignedUserIds: [] },
     })
   })
 
@@ -992,7 +1374,7 @@ describe("chat send-message handlers", () => {
       "ws-1",
       createdAt,
     )
-    expect(mockBroadcastToWorkspaceParty).not.toHaveBeenCalled()
+    expect(mockQueueWorkspaceRealtimeEvent).not.toHaveBeenCalled()
   })
 
   test("does not clear sendError on a first-attempt (non-retry) successful send", async () => {
@@ -1147,7 +1529,7 @@ describe("chat send-message handlers", () => {
     )
   })
 
-  test("reconciles Meta 138017 on a call_permission_request: records the grant, broadcasts the call-mode refresh, STILL shows the send-error icon, and never rethrows", async () => {
+  test("records a reconciled Meta 138017 send error when the realtime refresh cannot publish", async () => {
     // 138017 = the consumer already granted a permanent permission. The worker
     // records the local grant and nudges open threads to refetch
     // `useOutboundCallMode` (button flips to direct-dial) — but the request
@@ -1161,6 +1543,9 @@ describe("chat send-message handlers", () => {
       { code: 138_017 },
     )
     mockRunChannelHandler.mockRejectedValueOnce(error)
+    mockQueueWorkspaceRealtimeEvent.mockRejectedValueOnce(
+      new Error("Redis unavailable"),
+    )
 
     await expect(
       sendMessageToChannel({
@@ -1181,17 +1566,16 @@ describe("chat send-message handlers", () => {
       }),
     ).resolves.toEqual({ messageIds: [], sentCount: 0 })
 
-    // Grant reconciled + button flipped to direct-dial.
     expect(mockRecordPermanentGrant).toHaveBeenCalledWith({
       workspaceId: "ws-1",
       contactInboxId: "ci-1",
       grantedAt: expect.any(Date),
     })
-    expect(mockBroadcastToWorkspaceParty).toHaveBeenCalledWith("ws-1", {
+    expect(mockQueueWorkspaceRealtimeEvent).toHaveBeenCalledWith("ws-1", {
       eventType: "whatsappCallPermissionUpdated",
       data: { conversationId: "conv-1" },
+      route: { assignedTeamIds: [], assignedUserIds: [] },
     })
-    // The send-error icon is still surfaced (this is the correction).
     expect(mockEmit).toHaveBeenCalledWith(
       "message:failed",
       expect.objectContaining({ action: { messageId: "msg-1" } }),

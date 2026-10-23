@@ -7,6 +7,7 @@ import {
   eq,
   gt,
   gte,
+  inArray,
   isNotNull,
   isNull,
   lt,
@@ -16,10 +17,14 @@ import {
   sql,
   sum,
 } from "@chatbotx.io/database/client"
-import { planStatuses } from "@chatbotx.io/database/partials"
+import {
+  ACTIVE_CONNECTION_STATUSES,
+  planStatuses,
+} from "@chatbotx.io/database/partials"
 import {
   aiAgentModel,
   aiFileModel,
+  connectionModel,
   contactModel,
   inboxModel,
   platformSubscriptionModel,
@@ -965,10 +970,13 @@ class UserQuotaService extends BaseService {
   /**
    * Live at-limit check for `teamMembers`; the quota row still supplies the
    * plan limit while the distinct member count comes directly from the DB.
+   * `additionalCount` generalizes a single pending insert (the default) to a
+   * batch — e.g. an owner plus N members created together.
    */
   async isTeamMemberLimitReached(
     scope: { ownerId: string } | { tenantId: string },
     limitUserId: string,
+    additionalCount = 1,
   ): Promise<boolean> {
     const [quota, realCount] = await Promise.all([
       this.getForUser(limitUserId),
@@ -978,7 +986,7 @@ class UserQuotaService extends BaseService {
       return false
     }
     const { limit } = this.readMetricValues(quota, "teamMembers")
-    return limit !== null && realCount >= limit
+    return limit !== null && realCount + additionalCount > limit
   }
 
   async getRemainingSlots(
@@ -1054,6 +1062,19 @@ class UserQuotaService extends BaseService {
   }
 
   /**
+   * Atomically admit one live unit using a quota row already loaded by the
+   * caller. A missing row is unlimited; no quota row is fetched here.
+   */
+  admit(
+    userId: string,
+    metric: QuotaMetric,
+    quota: UserQuotaModel | null,
+  ): Promise<number | null> {
+    const { limit } = this.metricValues(quota, metric)
+    return this.store.admit(userId, metric, limit)
+  }
+
+  /**
    * Write-through a +1 usage increment to BOTH the DB column and the Redis live
    * counter, then bust the row cache — so the gate (`hasCapacity`, DB-read) and
    * the display (`getLiveUsage`, Redis-read) never disagree. The shared store
@@ -1061,6 +1082,17 @@ class UserQuotaService extends BaseService {
    */
   async consume(userId: string, metric: QuotaMetric): Promise<void> {
     await this.store.consume(userId, metric, 1)
+  }
+
+  /** Persist an admitted unit and invalidate the quota row cache. */
+  async commitAdmission(userId: string, metric: QuotaMetric): Promise<void> {
+    await this.store.upsertMetricBy(userId, metric, 1)
+    await this.store.invalidate(userId)
+  }
+
+  /** Best-effort release of one previously admitted live unit. */
+  async revokeAdmission(userId: string, metric: QuotaMetric): Promise<void> {
+    await this.store.decrementBy(userId, metric, 1)
   }
 
   async release(userId: string, metric: QuotaMetric): Promise<void> {
@@ -1084,10 +1116,16 @@ class UserQuotaService extends BaseService {
   }
 
   /**
-   * Shared `contacts ⋈ workspace` / `workspaces` / `inboxes ⋈ workspace`
+   * Shared `contacts ⋈ workspace` / `workspaces` / active-channel-`Connection`
    * count block behind both `reconcileOwnerPoolUsage` (tenant-scoped `where`)
    * and `reconcileUserSelfUsage` (owner-scoped `where`) — same three queries,
    * differing only in which workspace predicate is applied.
+   *
+   * `channelsUsed` counts distinct `Connection` rows (`kind = "channel"` AND
+   * `status IN` {@link ACTIVE_CONNECTION_STATUSES}) joined to `workspace`,
+   * NOT raw `Inbox` rows: an `Inbox` can exist with no backing `Connection`
+   * at all (orphaned) or with one that's paused/needs_reauth/disconnected,
+   * and neither case should hold a channel-quota slot.
    */
   private async countWorkspaceScopedUsage(where: SQL): Promise<{
     contactsUsed: number
@@ -1108,13 +1146,19 @@ class UserQuotaService extends BaseService {
         db.select({ count: count() }).from(workspaceModel).where(where),
 
         db
-          .select({ count: count() })
-          .from(inboxModel)
+          .select({ count: countDistinct(connectionModel.id) })
+          .from(connectionModel)
           .innerJoin(
             workspaceModel,
-            eq(inboxModel.workspaceId, workspaceModel.id),
+            eq(connectionModel.workspaceId, workspaceModel.id),
           )
-          .where(where),
+          .where(
+            and(
+              where,
+              eq(connectionModel.kind, "channel"),
+              inArray(connectionModel.status, ACTIVE_CONNECTION_STATUSES),
+            ),
+          ),
       ])
 
     return {

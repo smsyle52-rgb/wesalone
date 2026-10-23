@@ -107,6 +107,7 @@ vi.mock("@chatbotx.io/ai", () => ({
 
 vi.mock("@chatbotx.io/ai/server", () => ({
   aiContextService: { appendHistory: appendHistoryMock },
+  appendAIAgentActionToolProtocol: (p: string) => p,
   appendFabricationGuard: (p: string) => p,
   appendHandoffPolicy: (p: string) => p,
   appendKnowledgeBaseGuard: (p: string) => p,
@@ -403,6 +404,7 @@ describe("triggerDefaultReplyFlow", () => {
           conversationId: conversation.id,
           contactInboxId: contactInbox.id,
           flowId: "flow-1",
+          startedByContactMessage: true,
         }),
       }),
     )

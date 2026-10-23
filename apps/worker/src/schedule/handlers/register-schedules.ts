@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto"
 import { channelTypes } from "@chatbotx.io/database/partials"
 import {
   PURGE_BROADCASTS_INTERVAL_MINUTES,
@@ -51,6 +52,7 @@ const registerWesalBillingSchedules = async () => {
     }
   }
 }
+const LICENSE_REFRESH_MINUTE = randomInt(60)
 
 export const registerSchedules = async () => {
   if (!(scheduleQueue instanceof Queue)) {
@@ -69,6 +71,20 @@ export const registerSchedules = async () => {
   }
 
   await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.dispatchProfileSnapshots,
+    {
+      pattern: "* * * * *",
+    },
+    {
+      name: ScheduleJobData.dispatchProfileSnapshots,
+      data: {
+        type: ScheduleJobData.dispatchProfileSnapshots,
+        data: {},
+      },
+    },
+  )
+
+  await scheduleQueue.upsertJobScheduler(
     ScheduleJobData.enqueueBroadcast,
     {
       pattern: "* * * * *",
@@ -80,6 +96,20 @@ export const registerSchedules = async () => {
         data: {
           schedulesAt: new Date(),
         },
+      },
+    },
+  )
+
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.enqueueRecurringBroadcasts,
+    {
+      pattern: "* * * * *",
+    },
+    {
+      name: ScheduleJobData.enqueueRecurringBroadcasts,
+      data: {
+        type: ScheduleJobData.enqueueRecurringBroadcasts,
+        data: {},
       },
     },
   )
@@ -234,6 +264,49 @@ export const registerSchedules = async () => {
   )
 
   await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.maintainLeaderboardPartitions,
+    {
+      pattern: "20 1 * * *",
+    },
+    {
+      name: ScheduleJobData.maintainLeaderboardPartitions,
+      data: {
+        type: ScheduleJobData.maintainLeaderboardPartitions,
+        data: {},
+      },
+    },
+  )
+
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.finishOverdueLeaderboards,
+    {
+      pattern: "* * * * *",
+    },
+    {
+      name: ScheduleJobData.finishOverdueLeaderboards,
+      data: {
+        type: ScheduleJobData.finishOverdueLeaderboards,
+        data: {},
+      },
+    },
+  )
+
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.maintainLeaderboardRankings,
+    {
+      // Minute 1 so a 22:00 reset rebuilds right after the day rolls over.
+      pattern: "1 * * * *",
+    },
+    {
+      name: ScheduleJobData.maintainLeaderboardRankings,
+      data: {
+        type: ScheduleJobData.maintainLeaderboardRankings,
+        data: {},
+      },
+    },
+  )
+
+  await scheduleQueue.upsertJobScheduler(
     ScheduleJobData.scanCoexistRuns,
     {
       pattern: "* * * * *",
@@ -256,6 +329,20 @@ export const registerSchedules = async () => {
       name: ScheduleJobData.scanContactScans,
       data: {
         type: ScheduleJobData.scanContactScans,
+        data: {},
+      },
+    },
+  )
+
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.scanAiHandoverBulkRuns,
+    {
+      pattern: "* * * * *",
+    },
+    {
+      name: ScheduleJobData.scanAiHandoverBulkRuns,
+      data: {
+        type: ScheduleJobData.scanAiHandoverBulkRuns,
         data: {},
       },
     },
@@ -305,6 +392,35 @@ export const registerSchedules = async () => {
     },
   )
 
+  // The inbound-webhook outbox sweep and its retention apply to every edition.
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.redispatchInboundWebhookRequests,
+    {
+      pattern: "*/5 * * * *",
+    },
+    {
+      name: ScheduleJobData.redispatchInboundWebhookRequests,
+      data: {
+        type: ScheduleJobData.redispatchInboundWebhookRequests,
+        data: {},
+      },
+    },
+  )
+
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.purgeInboundWebhookRequests,
+    {
+      pattern: "30 3 * * *",
+    },
+    {
+      name: ScheduleJobData.purgeInboundWebhookRequests,
+      data: {
+        type: ScheduleJobData.purgeInboundWebhookRequests,
+        data: {},
+      },
+    },
+  )
+
   // Same "retention applies to every edition" reasoning as `purgeErrorLogs`
   // above; offset 15 minutes so the two chunked deletes do not contend.
   await scheduleQueue.upsertJobScheduler(
@@ -330,6 +446,19 @@ export const registerSchedules = async () => {
       name: ScheduleJobData.purgeWhatsappSignupSessions,
       data: {
         type: ScheduleJobData.purgeWhatsappSignupSessions,
+        data: {},
+      },
+    },
+  )
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.purgeExpiredConnectSessions,
+    {
+      pattern: "0 * * * *",
+    },
+    {
+      name: ScheduleJobData.purgeExpiredConnectSessions,
+      data: {
+        type: ScheduleJobData.purgeExpiredConnectSessions,
         data: {},
       },
     },
@@ -361,6 +490,30 @@ export const registerSchedules = async () => {
       name: ScheduleJobData.clearExpiredSupportAccess,
       data: {
         type: ScheduleJobData.clearExpiredSupportAccess,
+        data: {},
+      },
+    },
+  )
+
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.googleAdsHousekeeping,
+    { pattern: "*/10 * * * *" },
+    {
+      name: ScheduleJobData.googleAdsHousekeeping,
+      data: {
+        type: ScheduleJobData.googleAdsHousekeeping,
+        data: {},
+      },
+    },
+  )
+
+  await scheduleQueue.upsertJobScheduler(
+    ScheduleJobData.googleAdsSyncSetups,
+    { pattern: "30 3 * * *" },
+    {
+      name: ScheduleJobData.googleAdsSyncSetups,
+      data: {
+        type: ScheduleJobData.googleAdsSyncSetups,
         data: {},
       },
     },
@@ -429,6 +582,26 @@ export const registerSchedules = async () => {
       },
     },
   )
+
+  if (env.NEXT_PUBLIC_EDITION === "community") {
+    // upsertJobScheduler persists in Redis: a scheduler left by an earlier
+    // licensed boot keeps firing after a downgrade until it is removed.
+    await scheduleQueue.removeJobScheduler(ScheduleJobData.refreshLicense)
+  } else {
+    await scheduleQueue.upsertJobScheduler(
+      ScheduleJobData.refreshLicense,
+      {
+        pattern: `${LICENSE_REFRESH_MINUTE} * * * *`,
+      },
+      {
+        name: ScheduleJobData.refreshLicense,
+        data: {
+          type: ScheduleJobData.refreshLicense,
+          data: {},
+        },
+      },
+    )
+  }
 
   if (isCloud) {
     await scheduleQueue.upsertJobScheduler(

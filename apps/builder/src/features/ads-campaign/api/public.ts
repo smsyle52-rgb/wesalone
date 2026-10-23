@@ -9,21 +9,27 @@ import { facebookAdAccountSchema } from "@chatbotx.io/integration-facebook-ads"
 import { ORPCError } from "@orpc/server"
 import { z } from "zod"
 import {
-  possibleErrorsOnCreatingResource,
+  possibleErrorsOnChangingMessagingAd,
+  possibleErrorsOnCreatingAdImageUpload,
+  possibleErrorsOnCreatingMessagingAd,
+  possibleErrorsOnDeletingMessagingAd,
   possibleErrorsOnDeletingResource,
-  possibleErrorsOnFindingResource,
   possibleErrorsOnListingResource,
-  possibleErrorsOnMutatingResource,
+  possibleErrorsOnReadingMessagingAds,
+  possibleErrorsOnRetryingMessagingAd,
   possibleIdempotencyErrors,
 } from "@/lib/orpc/orpc-error-helper"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
 import { ADS_CAMPAIGNS_INSIGHTS_PATH } from "../lib/api-paths"
+import { createAdsCreativeImageUpload } from "../lib/create-creative-image-upload"
 import { getMessagingAdsContextForIntegration } from "../lib/facebook-ads-runner"
 import { toMessagingAdOperationResource } from "../lib/resource-mapper"
 import {
   adAccountDetailsPublicRequest,
   adAccountDetailsPublicRequestParams,
   checkPrerequisitesPublicRequest,
+  createAdImageUploadPublicRequest,
+  createAdImageUploadPublicResponse,
   createMessagingAdPublicRequest,
   disconnectConnectionPublicRequestParams,
   listAdAccountsPublicRequest,
@@ -103,7 +109,7 @@ export const adsCampaignPublicRouter = {
     })
     .input(createMessagingAdPublicRequest)
     .output(messagingAdOperationPublicResource)
-    .errors(possibleErrorsOnCreatingResource)
+    .errors(possibleErrorsOnCreatingMessagingAd)
     .handler(async ({ context, input }) => {
       // Re-validated through the private `createMessagingAdRequest` (the
       // single source of truth for this schema's rules — CREDIT rejection,
@@ -140,7 +146,7 @@ export const adsCampaignPublicRouter = {
     })
     .input(operationIdPublicParams)
     .output(messagingAdOperationPublicResource)
-    .errors(possibleErrorsOnMutatingResource)
+    .errors(possibleErrorsOnRetryingMessagingAd)
     .handler(async ({ context, input }) => {
       const record = await messagingAdCampaignService.retryDraft({
         operationId: input.id,
@@ -155,12 +161,12 @@ export const adsCampaignPublicRouter = {
       path: "/v1/ads/campaigns/{id}/publish",
       summary: "Publish messaging ad",
       description:
-        "Publishes a draft messaging ad's campaign/ad set/ad to Meta so it starts delivering. Use `ads.pauseCampaign` to pause it afterward.",
+        "Sets a created messaging ad's campaign, ad set and ad to active on Meta (Meta may still review or reject delivery). If Meta rejects a step, the call tries to pause the levels it already activated (best effort; failures are kept in `cleanupError`) and returns 200 with `publishState: publishFailed` and the reason in `lastError`. Publish only after the campaign, ad set and ad are all created (`ads.retryCampaign` resumes an interrupted creation). Use `ads.pauseCampaign` to pause it afterward.",
       tags: ["Ads"],
     })
     .input(operationIdPublicParams)
     .output(messagingAdOperationPublicResource)
-    .errors(possibleErrorsOnMutatingResource)
+    .errors(possibleErrorsOnChangingMessagingAd)
     .handler(async ({ context, input }) => {
       const record = await messagingAdCampaignService.publish({
         operationId: input.id,
@@ -175,12 +181,12 @@ export const adsCampaignPublicRouter = {
       path: "/v1/ads/campaigns/{id}/pause",
       summary: "Pause published messaging ad on Meta",
       description:
-        "Pauses delivery of a published messaging ad without deleting it. There is no dedicated resume operation — publish again or edit via Meta directly.",
+        "Pauses delivery of a published messaging ad without deleting it, level by level (ad, ad set, campaign). Best effort: a level Meta refuses to pause is reported in `lastError`/`cleanupError` while the call still returns 200. There is no dedicated resume operation — publish again or edit via Meta directly.",
       tags: ["Ads"],
     })
     .input(operationIdPublicParams)
     .output(messagingAdOperationPublicResource)
-    .errors(possibleErrorsOnMutatingResource)
+    .errors(possibleErrorsOnChangingMessagingAd)
     .handler(async ({ context, input }) => {
       const record = await messagingAdCampaignService.pause({
         operationId: input.id,
@@ -195,12 +201,12 @@ export const adsCampaignPublicRouter = {
       path: "/v1/ads/campaigns/{id}",
       summary: "Delete messaging ad campaign/ad set/ad on Meta",
       description:
-        "Permanently removes a messaging ad's campaign/ad set/ad from Meta. Use `ads.listCampaigns` to find its `id` first.",
+        "Deletes a messaging ad's ad, ad set and campaign on Meta (best effort, level by level). The local record is kept; if Meta refuses a level, `publishState` stays `deleting` with the reason in `cleanupError` while the call still returns 200. Use `ads.listCampaigns` to find its `id` first.",
       tags: ["Ads"],
     })
     .input(operationIdPublicParams)
     .output(messagingAdOperationPublicResource)
-    .errors(possibleErrorsOnDeletingResource)
+    .errors(possibleErrorsOnDeletingMessagingAd)
     .handler(async ({ context, input }) => {
       const record = await messagingAdCampaignService.deleteOperation({
         operationId: input.id,
@@ -215,12 +221,12 @@ export const adsCampaignPublicRouter = {
       path: "/v1/ads/campaigns",
       summary: "List messaging ads",
       description:
-        "Use this to find messaging-ad ids before publishing, pausing, or deleting one. Returns messaging ads created in this workspace.",
+        "Use this to find messaging-ad ids before publishing, pausing, or deleting one. Returns the messaging ads of one channel integration (`channel`, `integrationId`). `refresh` re-reads delivery state from Meta; it is ignored for read_only tokens.",
       tags: ["Ads"],
     })
     .input(listMessagingAdsPublicRequest)
     .output(z.object({ data: z.array(messagingAdOperationPublicResource) }))
-    .errors(possibleErrorsOnListingResource)
+    .errors(possibleErrorsOnReadingMessagingAds)
     .handler(async ({ context, input: { refresh, ...input } }) => {
       const rows = await messagingAdCampaignService.list({
         ...input,
@@ -249,7 +255,7 @@ export const adsCampaignPublicRouter = {
     .input(messagingAdsInsightsPublicRequest)
     .output(z.object({ data: z.array(messagingAdInsightResource) }))
     .errors({
-      ...possibleErrorsOnListingResource,
+      ...possibleErrorsOnReadingMessagingAds,
       ...possibleIdempotencyErrors,
     })
     .handler(async ({ context, input: { refresh, ...input } }) => ({
@@ -277,7 +283,7 @@ export const adsCampaignPublicRouter = {
     })
     .input(listAdAccountsPublicRequestParams.and(listAdAccountsPublicRequest))
     .output(z.object({ data: z.array(facebookAdAccountSchema) }))
-    .errors(possibleErrorsOnFindingResource)
+    .errors(possibleErrorsOnReadingMessagingAds)
     .handler(async ({ context, input: { refresh, ...input } }) => ({
       data: await listCachedMessagingAdAccounts({
         ...input,
@@ -299,13 +305,35 @@ export const adsCampaignPublicRouter = {
       adAccountDetailsPublicRequestParams.and(adAccountDetailsPublicRequest),
     )
     .output(adAccountDetailsResource)
-    .errors(possibleErrorsOnFindingResource)
+    .errors(possibleErrorsOnReadingMessagingAds)
     .handler(({ context, input: { refresh, ...input } }) =>
       getCachedMessagingAdAccountDetails({
         ...input,
         workspaceId: context.workspace.id,
         forceRefresh: resolveForceRefresh(context, refresh),
       }),
+    ),
+
+  createCampaignImageUpload: workspaceTokenAuthAPI
+    .route({
+      method: "POST",
+      path: "/v1/ads/campaigns/upload-image",
+      summary: "Create campaign image upload URL",
+      description:
+        'Step 1 of an image creative: declares the image (`fileName`, `mimeType` jpeg/png/gif/webp matching the extension, `fileSize` in bytes, max 10 MB) and returns `imageKey` and `fileId` plus a presigned `presignedPostUrl`. Upload the bytes to it with an HTTP PUT, then pass `imageKey` and `fileId` as `creative.media` (`kind: "image"`) in `ads.createCampaign`. The image is verified against the workspace when the campaign is created.',
+      successStatus: 201,
+      tags: ["Ads"],
+    })
+    .input(createAdImageUploadPublicRequest)
+    .output(createAdImageUploadPublicResponse)
+    .errors(possibleErrorsOnCreatingAdImageUpload)
+    .handler(
+      async ({ context, input }) =>
+        await createAdsCreativeImageUpload({
+          ...input,
+          workspaceId: context.workspace.id,
+          userId: null,
+        }),
     ),
 
   uploadCampaignVideo: workspaceTokenAuthAPI
@@ -319,7 +347,7 @@ export const adsCampaignPublicRouter = {
     })
     .input(uploadAdVideoPublicRequest)
     .output(z.object({ videoId: z.string() }))
-    .errors(possibleErrorsOnCreatingResource)
+    .errors(possibleErrorsOnCreatingMessagingAd)
     .handler(async ({ context, input }) => {
       const { ctx, integration } = await getMessagingAdsContextForIntegration({
         ...input,
@@ -354,7 +382,7 @@ export const adsCampaignPublicRouter = {
         isError: z.boolean(),
       }),
     )
-    .errors(possibleErrorsOnFindingResource)
+    .errors(possibleErrorsOnReadingMessagingAds)
     .handler(async ({ context, input }) => {
       const { ctx, integration } = await getMessagingAdsContextForIntegration({
         ...input,
@@ -383,7 +411,7 @@ export const adsCampaignPublicRouter = {
         ),
       }),
     )
-    .errors(possibleErrorsOnListingResource)
+    .errors(possibleErrorsOnReadingMessagingAds)
     .handler(async ({ context, input }) => {
       if (input.channel !== "whatsapp") {
         throw new ChatbotXException(
@@ -409,14 +437,24 @@ export const adsCampaignPublicRouter = {
       tags: ["Ads"],
     })
     .input(checkPrerequisitesPublicRequest)
-    .output(z.object({ connected: z.boolean() }))
-    .errors(possibleErrorsOnFindingResource)
+    .output(
+      z.object({
+        connected: z.boolean(),
+        reconnectNeeded: z
+          .boolean()
+          .describe(
+            "True when a connection exists but is no longer active: reconnect it in the builder before creating campaigns.",
+          ),
+      }),
+    )
+    .errors(possibleErrorsOnReadingMessagingAds)
     .handler(async ({ context, input }) => {
       const connection = await messagingAdsConnectionService.findForIntegration(
         { ...input, workspaceId: context.workspace.id },
       )
       return {
-        connected: Boolean(connection && connection.status === "active"),
+        connected: connection?.status === "active",
+        reconnectNeeded: Boolean(connection) && connection?.status !== "active",
       }
     }),
 
@@ -426,7 +464,7 @@ export const adsCampaignPublicRouter = {
       path: "/v1/ads/connections",
       summary: "List messaging-ads connections for channel",
       description:
-        "Returns messaging-ads connections for one channel, including their status. Use `ads.disconnectConnection` to remove one.",
+        "Returns the messaging-ads connections for one channel whose stored status is active; a connection marked invalid is not listed (reconnect it in the builder). Use `ads.disconnectConnection` to remove one.",
       tags: ["Ads"],
     })
     .input(listConnectionsPublicRequestParams)
@@ -441,6 +479,8 @@ export const adsCampaignPublicRouter = {
         data: connections.map((connection) => ({
           id: connection.id,
           channel: connection.channel,
+          // "" when the connection has no channel FK (it cannot be disconnected
+          // through `ads.disconnectConnection`, which needs a channel integration).
           integrationId:
             connection.integrationWhatsappId ??
             connection.integrationMessengerId ??

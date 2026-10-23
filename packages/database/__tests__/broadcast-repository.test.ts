@@ -130,6 +130,135 @@ describe("broadcastRepository.listWithRelations", () => {
   })
 })
 
+describe("broadcastRepository recurrence filters", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const whereOf = async (
+    input: Parameters<typeof broadcastRepository.listWithRelations>[0],
+  ) => {
+    mocks.findMany.mockResolvedValue([])
+    await broadcastRepository.listWithRelations(input)
+    return (
+      mocks.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }
+    ).where
+  }
+
+  test("shows runs and templates by default, so existing callers see no change", async () => {
+    const where = await whereOf({ workspaceId: "ws-1" })
+    expect(where.occurrenceAt).toBeUndefined()
+    expect(where.OR).toBeUndefined()
+    expect(where.parentBroadcastId).toBeUndefined()
+    expect(where.schedulesType).toBeUndefined()
+  })
+
+  test("includeRuns=false hides runs through occurrenceAt, which outlives a purged template", async () => {
+    const where = await whereOf({ workspaceId: "ws-1", includeRuns: false })
+    expect(where.occurrenceAt).toEqual({ isNull: true })
+  })
+
+  test("excludeTemplates keeps everything except a recurring broadcast without an occurrence", async () => {
+    const where = await whereOf({ workspaceId: "ws-1", excludeTemplates: true })
+    expect(where.OR).toEqual([
+      { schedulesType: { ne: "recurring" } },
+      { occurrenceAt: { isNotNull: true } },
+    ])
+  })
+
+  test("parentBroadcastId and schedulesType narrow the list", async () => {
+    const where = await whereOf({
+      workspaceId: "ws-1",
+      parentBroadcastId: "tpl-1",
+      schedulesType: "recurring",
+    })
+    expect(where.parentBroadcastId).toBe("tpl-1")
+    expect(where.schedulesType).toBe("recurring")
+  })
+
+  test("loads the schedule summary and the parent name without extra queries", async () => {
+    mocks.findMany.mockResolvedValue([])
+    await broadcastRepository.listWithRelations({ workspaceId: "ws-1" })
+    const call = mocks.findMany.mock.calls[0]?.[0] as {
+      with: {
+        recurrence: { columns: Record<string, boolean> }
+        parent: unknown
+      }
+    }
+    expect(Object.keys(call.with.recurrence.columns)).toEqual(
+      expect.arrayContaining([
+        "rule",
+        "nextRunAt",
+        "occurrenceCount",
+        "pausedAt",
+        "endedAt",
+      ]),
+    )
+    expect(call.with.parent).toEqual({ columns: { id: true, name: true } })
+  })
+})
+
+describe("broadcastRepository list filters", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  test("narrows by channel and schedule window", async () => {
+    mocks.findMany.mockResolvedValue([])
+    const from = new Date("2026-10-01T00:00:00Z")
+    const to = new Date("2026-10-31T00:00:00Z")
+
+    await broadcastRepository.listWithRelations({
+      workspaceId: "ws-1",
+      channel: "whatsapp",
+      scheduledFrom: from,
+      scheduledTo: to,
+    })
+
+    const call = mocks.findMany.mock.calls[0]?.[0] as {
+      where: { channel?: string; schedulesAt?: { gte?: Date; lte?: Date } }
+    }
+    expect(call.where.channel).toBe("whatsapp")
+    expect(call.where.schedulesAt).toEqual({ gte: from, lte: to })
+  })
+
+  test("adds no schedule or channel condition when none is given", async () => {
+    mocks.findMany.mockResolvedValue([])
+
+    await broadcastRepository.listWithRelations({ workspaceId: "ws-1" })
+
+    const call = mocks.findMany.mock.calls[0]?.[0] as {
+      where: { channel?: string; schedulesAt?: unknown }
+    }
+    expect(call.where.channel).toBeUndefined()
+    expect(call.where.schedulesAt).toBeUndefined()
+  })
+
+  test("an empty or unknown sort still orders by newest first", async () => {
+    mocks.findMany.mockResolvedValue([])
+
+    await broadcastRepository.listWithRelations({
+      workspaceId: "ws-1",
+      sort: [],
+    })
+
+    const call = mocks.findMany.mock.calls[0]?.[0] as { orderBy: unknown }
+    expect(call.orderBy).toEqual({ createdAt: "desc" })
+  })
+
+  test("get-by-id loads the target pages too", async () => {
+    mocks.findFirst.mockResolvedValue({ id: "b" })
+
+    await broadcastRepository.findByIdOrName({
+      workspaceId: "ws-1",
+      idOrName: "7",
+    })
+
+    const call = mocks.findFirst.mock.calls[0]?.[0] as { with: unknown }
+    expect(call.with).toHaveProperty("targets")
+  })
+})
+
 describe("broadcastRepository.listAudience / countAudience", () => {
   beforeEach(() => {
     vi.clearAllMocks()

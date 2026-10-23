@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { automatedResponseService } from "@chatbotx.io/automated-response"
 import { broadcastService } from "@chatbotx.io/business"
 import { and, db, eq } from "@chatbotx.io/database/client"
@@ -18,6 +19,7 @@ import {
   type EdgeSchema,
   type FlowActionTargetType,
   type FlowNode,
+  findWhatsappFlowStepByButtonId,
   flowActionTargetTypes,
   flowEventTypeSchema,
   isQuickReplyCarrierStep,
@@ -33,7 +35,6 @@ import {
   SdkException,
   type Variables,
 } from "@chatbotx.io/sdk"
-import { createId } from "@chatbotx.io/utils"
 import {
   type BotResponseTrackingContext,
   IntegrationJobAction,
@@ -49,10 +50,19 @@ import {
 } from "../../lib/db"
 import { logger } from "../../lib/logger"
 import {
+  isDurableFlowExecutionKey,
+  mintRandomFlowExecutionKey,
+} from "../flow-execution-key"
+import {
   type ExecuteMultipleStepsProps,
   MESSAGE_PRODUCING_STEP_TYPES,
   seekConnectedNode,
 } from "./flow-utils"
+import {
+  armQuickReplySettings,
+  clearQuickReplyChallengeOnTap,
+  clearQuickReplyPendingOnFlowEntry,
+} from "./quick-reply-settings"
 import { executeRichActions } from "./rich-response/action-executor"
 import { richButtonPayloadSchema } from "./rich-response/button-payload"
 import {
@@ -60,16 +70,40 @@ import {
   flowStepHandlers,
   type StepRoutingStatus,
 } from "./step"
-import {
-  applyWhatsappFlowResponseSideEffects,
-  findWhatsappFlowStepByButtonId,
-} from "./whatsapp-flow-response"
+import { applyWhatsappFlowResponseSideEffects } from "./whatsapp-flow-response"
 
 const ROUTING_STATUSES = new Set<StepRoutingStatus>([
   "success",
   "error",
   "skip",
 ])
+
+/**
+ * A state branch is enqueued after its parent step finishes. Reusing this id
+ * on a parent-job retry prevents the same completed decision/action from
+ * starting the target node twice. Node visits are part of the identity so a
+ * deliberate loop can still revisit the same state in a later iteration.
+ */
+function getStateContinuationJobId(input: {
+  flowExecutionKey: string | undefined
+  nodeVisits: NodeVisits | undefined
+  sourceStepId: string
+  stateId: string
+  targetNodeId: string
+}): string | undefined {
+  if (!isDurableFlowExecutionKey(input.flowExecutionKey)) {
+    return
+  }
+
+  const identity = JSON.stringify({
+    flowExecutionKey: input.flowExecutionKey,
+    nodeVisits: input.nodeVisits,
+    sourceStepId: input.sourceStepId,
+    stateId: input.stateId,
+    targetNodeId: input.targetNodeId,
+  })
+  return `flow-state-${createHash("sha256").update(identity).digest("hex")}`
+}
 
 function findQuickReplyCarrierStep(props: {
   channel: string | null | undefined
@@ -121,6 +155,7 @@ type ExecuteStepsAndQuickRepliesProps = {
   nodeVisits?: NodeVisits
   triggerMessageId?: string
   triggerMessageCreatedAt?: Date
+  startedByContactMessage?: boolean
   commentAnchor?: CommentAnchor
   appointmentId?: string
   flowExecutionKey?: string
@@ -146,7 +181,7 @@ function resolveFlowExecutionKey(
     return options.flowExecutionKey
   }
 
-  const flowExecutionKey = `flow-inline-${createId()}`
+  const flowExecutionKey = mintRandomFlowExecutionKey("flow-inline-")
   logger.warn(
     { ...context, flowExecutionKey },
     "Flow execution is missing parent job id; generated fallback key",
@@ -300,6 +335,7 @@ export const runFlowNode = async (
       isBulkBroadcast:
         props.isBulkBroadcast ?? props.initialBroadcastDispatch === true,
       sendFrom,
+      startedByContactMessage: props.startedByContactMessage,
       nodeVisits: props.nodeVisits,
       commentAnchor,
       appointmentId: props.appointmentId,
@@ -395,12 +431,24 @@ export async function runStepsAndQuickReplies(
     nodeVisits = { ...props.nodeVisits, [props.targetNodeId]: count }
   }
 
+  if (targetType === "node" && !props.startFromStepId && props.targetNodeId) {
+    await clearQuickReplyPendingOnFlowEntry({
+      workspaceId: props.conversation.workspaceId,
+      conversation: props.conversation,
+      contactInboxId: props.contactInbox.id,
+      flowId: flowVersion.flowId,
+    })
+  }
+
   // run before step
   // Skip startAnotherNode beforeStep for buttons/quickReplies: the edge-following below
   // already navigates to the same target node, so running beforeStep would execute it twice.
+  // An openMiniApp beforeStep only says which Mini App the link opened; by the
+  // time this runs (on submit) there is nothing left for it to do.
   const skipBeforeStep =
     (targetType === "button" || targetType === "quickReply") &&
-    details.beforeStep?.stepType === stepTypes.enum.startAnotherNode
+    (details.beforeStep?.stepType === stepTypes.enum.startAnotherNode ||
+      details.beforeStep?.stepType === stepTypes.enum.openMiniApp)
 
   // Tracks the comment anchor's state. A `private` anchor is claimed by the
   // first message-producing step and continues marked `spent`; a `public` one
@@ -447,6 +495,26 @@ export async function runStepsAndQuickReplies(
     })
     remainingAnchor = result?.commentAnchor
 
+    if (
+      targetType === "node" &&
+      quickReplies.length > 0 &&
+      quickReplyCarrier?.id === currentStep.id &&
+      result?.status !== "wait" &&
+      result?.status !== "retry"
+    ) {
+      await armQuickReplySettings({
+        workspaceId: props.conversation.workspaceId,
+        conversation: props.conversation,
+        contactInboxId: props.contactInbox.id,
+        flowId: flowVersion.flowId,
+        flowVersionId: props.useLatestFlowVersion ? null : flowVersion.id,
+        nodeId: targetId,
+        details,
+        metadata: props.metadata,
+        sendFrom: props.sendFrom,
+      })
+    }
+
     if (result?.status === "wait" || result?.status === "retry") {
       return result
     }
@@ -483,7 +551,16 @@ export async function runStepsAndQuickReplies(
           trackingContext: props.trackingContext,
           sendFrom: props.sendFrom,
           nodeVisits,
+          triggerMessageId: props.triggerMessageId,
+          triggerMessageCreatedAt: props.triggerMessageCreatedAt,
+          startedByContactMessage: props.startedByContactMessage,
           commentAnchor: remainingAnchor,
+          // The continuation keeps the parent's key: a retried parent enqueues a
+          // second continuation with another job id, and the conversion step
+          // derives its event-mode occurrence from this key.
+          flowExecutionKey: isDurableFlowExecutionKey(props.flowExecutionKey)
+            ? props.flowExecutionKey
+            : undefined,
           origin: webhookChannelOrigin(),
         },
       })
@@ -511,12 +588,17 @@ export async function runStepsAndQuickReplies(
   // following it would fire a node the button no longer targets on top of the
   // action it actually has.
   //
+  // An `openMiniApp` button is the exception: it keeps its action when an
+  // edge is drawn from it, and only reaches this point once the contact has
+  // submitted the Mini App, so its edge is where the flow continues.
+  //
   // `targetType === "step"` keeps never following an edge, as before.
   const followsEdgeToNextNode =
     targetType === "node" ||
     ((targetType === "button" || targetType === "quickReply") &&
       (details.beforeStep == null ||
-        details.beforeStep.stepType === stepTypes.enum.startAnotherNode))
+        details.beforeStep.stepType === stepTypes.enum.startAnotherNode ||
+        details.beforeStep.stepType === stepTypes.enum.openMiniApp))
 
   let relatedEdge: EdgeSchema | null | undefined = null
   if (followsEdgeToNextNode) {
@@ -546,6 +628,9 @@ export async function runStepsAndQuickReplies(
         trackingContext: props.trackingContext,
         sendFrom: props.sendFrom,
         nodeVisits,
+        triggerMessageId: props.triggerMessageId,
+        triggerMessageCreatedAt: props.triggerMessageCreatedAt,
+        startedByContactMessage: props.startedByContactMessage,
         commentAnchor: remainingAnchor,
         origin: webhookChannelOrigin(),
       },
@@ -656,7 +741,7 @@ async function* executeMultipleStepsGenerator(
           targetState.id,
         )
         if (connectedNodeId) {
-          await integrationQueue.add(IntegrationJobAction.sendFlow, {
+          const job = {
             type: IntegrationJobAction.sendFlow,
             data: {
               conversationId: props.conversation.id,
@@ -672,10 +757,32 @@ async function* executeMultipleStepsGenerator(
               trackingContext: props.trackingContext,
               sendFrom: props.sendFrom,
               nodeVisits: props.nodeVisits,
+              triggerMessageId: props.triggerMessageId,
+              triggerMessageCreatedAt: props.triggerMessageCreatedAt,
+              startedByContactMessage: props.startedByContactMessage,
               commentAnchor: anchorAvailable,
+              flowExecutionKey: isDurableFlowExecutionKey(
+                props.flowExecutionKey,
+              )
+                ? props.flowExecutionKey
+                : undefined,
               origin: webhookChannelOrigin(),
             },
+          }
+          const jobId = getStateContinuationJobId({
+            flowExecutionKey: props.flowExecutionKey,
+            nodeVisits: props.nodeVisits,
+            sourceStepId: stepWithNodeId.id,
+            stateId: targetState.id,
+            targetNodeId: connectedNodeId,
           })
+          if (jobId) {
+            await integrationQueue.add(IntegrationJobAction.sendFlow, job, {
+              jobId,
+            })
+          } else {
+            await integrationQueue.add(IntegrationJobAction.sendFlow, job)
+          }
           branched = true
         }
       }
@@ -817,6 +924,11 @@ async function runFlowAction(
       conversationId: data.conversationId,
       contactInboxId: data.contactInboxId,
     })
+  // Every tap ends a pending quick reply retry, whatever it then resolves to.
+  await clearQuickReplyChallengeOnTap({
+    workspaceId: conversation.workspaceId,
+    conversation,
+  })
   const flowExecutionKey = resolveFlowExecutionKey(options, {
     ...createFlowActionWarningContext(data),
     handler: handler.name,
@@ -972,6 +1084,7 @@ async function runFlowAction(
         contactInbox,
         step: whatsappFlowStep,
         flowResponse: waFlowResponse,
+        messageId: data.messageId,
       })
     }
   }
@@ -1012,6 +1125,9 @@ async function runFlowAction(
       ctx: {
         variables: initVariables(),
       },
+      // A tap is the contact's message; a delivery-status webhook is not.
+      startedByContactMessage:
+        data.webhookType !== IntegrationJobAction.messageStatus,
       flowExecutionKey,
     })
     if (data.messageId) {
@@ -1019,6 +1135,8 @@ async function runFlowAction(
         eventType: "message:bot_received",
         workspaceId: conversation.workspaceId,
         conversationId: conversation.id,
+        channel: contactInbox.channel,
+        inboxId: contactInbox.inboxId,
         messageId: data.messageId,
         occurredAt: new Date(),
         hasResponse: true,
@@ -1043,6 +1161,8 @@ async function runFlowAction(
         eventType: "message:bot_received",
         workspaceId: conversation.workspaceId,
         conversationId: conversation.id,
+        channel: contactInbox.channel,
+        inboxId: contactInbox.inboxId,
         messageId: data.messageId,
         occurredAt: new Date(),
         hasResponse: false,

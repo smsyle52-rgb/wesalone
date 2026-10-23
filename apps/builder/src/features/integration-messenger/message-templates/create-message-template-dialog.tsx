@@ -28,6 +28,7 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks"
 import {
+  AppWindowIcon,
   ChevronDownIcon,
   ExternalLinkIcon,
   ImageIcon,
@@ -43,6 +44,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 import { MediaLibraryTrigger } from "@/features/media-library/components/media-library-trigger"
+import { MiniAppSelect } from "@/features/mini-apps/components/mini-app-select"
 import { createMessengerMessageTemplateAction } from "./actions/create-message-template"
 import { messengerTemplateLanguageOptions } from "./components/language-options"
 import { TextWithVariablesField } from "./components/text-with-variables-field"
@@ -74,12 +76,14 @@ const buttonTypes: { type: ButtonType; labelKey: string }[] = [
   { type: "POSTBACK", labelKey: "postback" },
   { type: "PHONE_NUMBER", labelKey: "callPhoneNumber" },
   { type: "URL", labelKey: "visitWebsite" },
+  { type: "MINI_APP", labelKey: "openMiniApp" },
 ]
 
 const buttonTypeIcons = {
   POSTBACK: MessageSquareIcon,
   PHONE_NUMBER: PhoneIcon,
   URL: ExternalLinkIcon,
+  MINI_APP: AppWindowIcon,
 } as const
 
 const defaultValues: CreateMessengerMessageTemplateRequest = {
@@ -95,7 +99,7 @@ const defaultValues: CreateMessengerMessageTemplateRequest = {
 }
 
 function extractVariableKeys(text: string): string[] {
-  return [...new Set(text.match(/{{\d}}/g) ?? [])].sort((a, b) => {
+  return [...new Set(text.match(/{{\d+}}/g) ?? [])].sort((a, b) => {
     const left = Number(a.replace(/\D/g, ""))
     const right = Number(b.replace(/\D/g, ""))
     return left - right
@@ -105,9 +109,11 @@ function extractVariableKeys(text: string): string[] {
 function TemplateButtonFields({
   index,
   onRemove,
+  workspaceId,
 }: {
   index: number
   onRemove: () => void
+  workspaceId: string
 }) {
   const t = useTranslations()
   const form = useFormContext<CreateMessengerMessageTemplateRequest>()
@@ -195,6 +201,13 @@ function TemplateButtonFields({
           label={t("fields.phoneNumber.label")}
           name={`buttons.${index}.phoneNumber`}
           required
+        />
+      )}
+
+      {type === "MINI_APP" && (
+        <MiniAppSelect
+          name={`buttons.${index}.miniAppId`}
+          workspaceId={workspaceId}
         />
       )}
 
@@ -432,7 +445,7 @@ export function CreateMessageTemplateDialog({
 
             <TextWithVariablesField
               label={t("messenger.messageTemplate.create.body")}
-              maxVariables={9}
+              maxVariables={15}
               name="body"
               variablesLayout="stack"
               variablesName="bodyVariables"
@@ -465,6 +478,15 @@ export function CreateMessageTemplateDialog({
                                 title: "",
                                 url: "",
                                 variables: [],
+                              })
+                              return
+                            }
+
+                            if (buttonType.type === "MINI_APP") {
+                              appendButton({
+                                type: "MINI_APP",
+                                title: "",
+                                miniAppId: "",
                               })
                               return
                             }
@@ -503,6 +525,7 @@ export function CreateMessageTemplateDialog({
                   index={index}
                   key={button.id}
                   onRemove={() => removeButton(index)}
+                  workspaceId={workspaceId}
                 />
               ))}
             </div>

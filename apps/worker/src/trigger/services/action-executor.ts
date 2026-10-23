@@ -2,8 +2,10 @@ import {
   adsConversionService,
   botFieldService,
   contactCustomFieldService,
+  contactInboxService,
   conversationService,
   flowService,
+  googleAdsConversionService,
   metaConversionsService,
   tagService,
   tagSyncService,
@@ -16,6 +18,7 @@ import {
   errorStateDefaultFn,
   FieldOperationType,
   FieldReferenceKind,
+  googleAdsConversionFieldsSchema,
   metaCapiEventFieldsSchema,
   parseFieldReference,
   type SpreadsheetClearRowSchema,
@@ -30,16 +33,30 @@ import {
   spreadsheetStepVersions,
   stepTypes,
   successStateDefaultFn,
+  withGoogleAdsConversionRefinements,
   withMetaCapiEventRefinements,
 } from "@chatbotx.io/flow-config"
+import { sanitizeGoogleAdsError } from "@chatbotx.io/integration-google-ads"
 import baseLogger from "@chatbotx.io/logger"
 import { createId } from "@chatbotx.io/utils"
+import {
+  googleAdsConversionErrorCodes,
+  hasGoogleClick,
+} from "@chatbotx.io/utils/google-click"
 import { resolveContactVariablesDeep } from "@chatbotx.io/variables"
 import {
   IntegrationJobAction,
   integrationQueue,
 } from "@chatbotx.io/worker-config"
 import type { ExecuteStepProps } from "../../integration/handlers/flow"
+import {
+  configRefusalCodes,
+  describeGoogleAdsConsentFailure,
+  describeGoogleAdsInputFailure,
+  isConfigRefusal,
+  reportGoogleAdsInputFailure,
+} from "../../integration/handlers/google-ads/google-ads-input-error"
+import { resolveGoogleAdsConversionInputs } from "../../integration/handlers/google-ads/resolve-conversion-inputs"
 import {
   describeCapiInputValidationError,
   enqueueCapiEvent,
@@ -52,7 +69,7 @@ import {
   sendSpreadsheetData,
   updateSpreadsheetRow,
 } from "../../integration/handlers/spreadsheet-handler"
-import type { ActionExecutionContext } from "../types"
+import type { ActionExecutionContext, ActionExecutionOutcome } from "../types"
 import { resolveActionContactInbox } from "./resolve-action-contact-inbox"
 
 // The trigger action's stored shape is validated with the same field-set
@@ -66,9 +83,24 @@ const metaCapiTriggerActionSchema = withMetaCapiEventRefinements(
   metaCapiEventFieldsSchema,
 )
 
+// Same idea for `sendGoogleAdsConversion`: the stored action is validated
+// with the flow step's field set and cross-field rule before `record` runs.
+const googleAdsTriggerActionSchema = withGoogleAdsConversionRefinements(
+  googleAdsConversionFieldsSchema,
+)
+
+const succeeded: ActionExecutionOutcome = { status: "succeeded" }
+
+const skipped = (reason: string): ActionExecutionOutcome => ({
+  status: "skipped",
+  reason,
+})
+
 export class ActionExecutor {
-  async execute(context: ActionExecutionContext): Promise<void> {
-    const { action, contactId, triggerId, workspaceId } = context
+  async execute(
+    context: ActionExecutionContext,
+  ): Promise<ActionExecutionOutcome> {
+    const { action, contactId, source, workspaceId } = context
     const actionType = action.type
 
     const conversation = await conversationService.findLatestCreatedByContact({
@@ -78,10 +110,10 @@ export class ActionExecutor {
 
     if (!conversation) {
       baseLogger.warn(`No conversation found for contact ${contactId}`)
-      return
+      return skipped("noConversation")
     }
 
-    // Lazy + memoized: only the 3 inbox-consuming branches below need a
+    // Lazy + memoized: only the 4 inbox-consuming branches below need a
     // ContactInbox at all (§3.3) — resolving it eagerly for every action
     // wastes a query on the other 11 (tag/custom-field/conversation-state
     // actions), which only need `conversation`. Memoized so a switch branch
@@ -218,10 +250,17 @@ export class ActionExecutor {
           baseLogger.warn(
             `No contact inbox found for contact ${contactId}, skipping startAnotherFlow action`,
           )
-          break
+          return skipped("noContactInbox")
         }
 
         const flowId = action.flowId as string
+        if (context.decisionFlowOrigin?.flowId === flowId) {
+          baseLogger.info(
+            { flowId, source },
+            "Skipping Decision-origin Flow self-loop",
+          )
+          break
+        }
         const flow = await flowService.findActiveById({
           workspaceId,
           id: flowId,
@@ -231,10 +270,10 @@ export class ActionExecutor {
           baseLogger.warn(
             `Flow ${flowId} not found or not active, skipping startAnotherFlow action`,
           )
-          break
+          return skipped("flowInactive")
         }
 
-        await integrationQueue.add(IntegrationJobAction.sendFlow, {
+        const sendFlowJob = {
           type: IntegrationJobAction.sendFlow,
           data: {
             conversationId: conversation,
@@ -242,7 +281,21 @@ export class ActionExecutor {
             flowId,
             origin: webhookChannelOrigin(),
           },
-        })
+        }
+        // An inbound-webhook action may run again after a retry that lost its
+        // checkpoint; a deterministic job id keeps the flow from being sent
+        // twice. Trigger runs keep their existing, unkeyed behaviour.
+        if (source.kind === "inboundWebhook" && context.occurrenceKey) {
+          await integrationQueue.add(
+            IntegrationJobAction.sendFlow,
+            sendFlowJob,
+            {
+              jobId: `send-flow-${context.occurrenceKey.replaceAll(":", "-")}`,
+            },
+          )
+        } else {
+          await integrationQueue.add(IntegrationJobAction.sendFlow, sendFlowJob)
+        }
         break
       }
 
@@ -343,12 +396,17 @@ export class ActionExecutor {
         break
 
       case triggerActions.enum.sendMetaCapiEvent: {
+        // Its dedup source key is scoped to a trigger.
+        if (source.kind !== "trigger") {
+          return skipped("unsupportedSource")
+        }
+        const { triggerId } = source
         const contactInbox = await getContactInbox()
         if (!contactInbox) {
           baseLogger.warn(
             `No contact inbox found for contact ${contactId}, skipping sendMetaCapiEvent action`,
           )
-          break
+          return skipped("noContactInbox")
         }
 
         const capiChannel = metaCapiEventChannelSchema.safeParse(
@@ -358,7 +416,7 @@ export class ActionExecutor {
           baseLogger.warn(
             `Unsupported Meta CAPI trigger channel: ${contactInbox.channel}`,
           )
-          break
+          return skipped("unsupportedChannel")
         }
 
         const parsedAction = metaCapiTriggerActionSchema.safeParse(action)
@@ -373,7 +431,7 @@ export class ActionExecutor {
             sourceId: contactInbox.sourceId,
             message: `Invalid Meta CAPI trigger action (trigger ${triggerId}):\n${detail}`,
           })
-          break
+          return skipped("invalidAction")
         }
 
         // Trigger executor passes `contactInbox.id` (a string), not the full
@@ -422,13 +480,147 @@ export class ActionExecutor {
         break
       }
 
+      case triggerActions.enum.sendGoogleAdsConversion: {
+        // Its dedup scope is a trigger.
+        if (source.kind !== "trigger") {
+          return skipped("unsupportedSource")
+        }
+        const { triggerId } = source
+        // Prefer the threaded/most-recent inbox when it carries a Google
+        // click; otherwise fall back to the contact's latest clicked inbox
+        // (the attributable inbox is not necessarily the most recently active
+        // one, e.g. the click came in on WhatsApp, the trigger on Messenger).
+        const resolvedInbox = await getContactInbox()
+        const resolvedClick = resolvedInbox
+          ? await contactInboxService.findGoogleClickAttribution({
+              workspaceId,
+              contactInboxId: resolvedInbox.id,
+            })
+          : null
+        const clickInbox = hasGoogleClick(resolvedClick?.referral)
+          ? resolvedClick
+          : await contactInboxService.findLatestGoogleClickInboxByContact({
+              workspaceId,
+              contactId,
+            })
+        if (!clickInbox) {
+          baseLogger.warn(
+            `No contact inbox with a Google click for contact ${contactId}, skipping sendGoogleAdsConversion action`,
+          )
+          return skipped("noGoogleClick")
+        }
+
+        const parsedAction = googleAdsTriggerActionSchema.safeParse(action)
+        if (!parsedAction.success) {
+          const detail = describeGoogleAdsInputFailure(
+            googleAdsConversionErrorCodes.invalidInput,
+            {},
+            parsedAction.error,
+          )
+          baseLogger.warn(
+            `Invalid Google Ads trigger action for trigger ${triggerId}: ${detail}`,
+          )
+          await reportGoogleAdsInputFailure({
+            workspaceId,
+            contactId,
+            sourceId: clickInbox.sourceId,
+            message: `${detail}\nTrigger: ${triggerId}`,
+          })
+          return skipped("invalidAction")
+        }
+
+        const resolved = await resolveGoogleAdsConversionInputs({
+          workspaceId,
+          contactId,
+          fields: {
+            value: parsedAction.data.value,
+            currency: parsedAction.data.currency,
+            dedupMode: parsedAction.data.dedupMode,
+            dedupId: parsedAction.data.dedupId,
+            conversionTime: parsedAction.data.conversionTime,
+            customerType: parsedAction.data.customerType,
+            customerValueBucket: parsedAction.data.customerValueBucket,
+          },
+          source: { contactInbox: clickInbox.id, conversation },
+        })
+        if (!resolved.ok) {
+          const detail = describeGoogleAdsConsentFailure(
+            resolved.code,
+            resolved.setting,
+          )
+          baseLogger.warn(
+            `Google Ads conversion not recorded for trigger ${triggerId}: ${detail}`,
+          )
+          await reportGoogleAdsInputFailure({
+            workspaceId,
+            contactId,
+            sourceId: clickInbox.sourceId,
+            message: `${detail}\nTrigger: ${triggerId}`,
+          })
+          return skipped("configRefused")
+        }
+        const { dedupMode, fields, recordFields } = resolved.inputs
+
+        let outcome: Awaited<
+          ReturnType<typeof googleAdsConversionService.record>
+        >
+        try {
+          outcome = await googleAdsConversionService.record({
+            workspaceId,
+            contactInboxId: clickInbox.id,
+            source: "triggerAction",
+            scopeId: triggerId,
+            conversionActionId: parsedAction.data.conversionActionId,
+            ...recordFields,
+            // Only `event` dedup reads it. The contact (not the click inbox,
+            // which is re-picked on every attempt and can move to a newer
+            // click) keeps the key identical when the same job is replayed.
+            occurrenceKey:
+              dedupMode === "event" && context.occurrenceKey
+                ? `${context.occurrenceKey}:${contactId}`
+                : undefined,
+            matchEmail: parsedAction.data.matchEmail,
+            matchPhone: parsedAction.data.matchPhone,
+          })
+        } catch (error) {
+          // Message only: the raw error may carry bound parameters (click id).
+          baseLogger.error(
+            `Failed to record Google Ads conversion for trigger ${triggerId}: ${sanitizeGoogleAdsError(error).message}`,
+          )
+          return skipped("recordFailed")
+        }
+
+        if (outcome.status === "queued") {
+          return succeeded
+        }
+        baseLogger.warn(
+          `Google Ads conversion not recorded for trigger ${triggerId}: ${outcome.status}`,
+        )
+        if (isConfigRefusal(outcome.status)) {
+          await reportGoogleAdsInputFailure({
+            workspaceId,
+            contactId,
+            sourceId: clickInbox.sourceId,
+            message: `${describeGoogleAdsInputFailure(
+              configRefusalCodes[outcome.status],
+              fields,
+            )}\nTrigger: ${triggerId}`,
+          })
+        }
+        return skipped(outcome.status)
+      }
+
       case triggerActions.enum.runGoogleSheet: {
+        // Spreadsheet runs are a trigger-only action today.
+        if (source.kind !== "trigger") {
+          return skipped("unsupportedSource")
+        }
         const contactInbox = await getContactInbox()
         if (!contactInbox) {
           baseLogger.warn(
             `No contact inbox found for contact ${contactId}, skipping runGoogleSheet action`,
           )
-          break
+          return skipped("noContactInbox")
         }
 
         const spreadsheetAction = action.action as StepType
@@ -515,12 +707,16 @@ export class ActionExecutor {
 
           default:
             baseLogger.warn(`Unknown spreadsheet action: ${spreadsheetAction}`)
+            return skipped("unknownSpreadsheetAction")
         }
         break
       }
 
       default:
         baseLogger.warn(`Unknown action type: ${actionType}`)
+        return skipped("unknownAction")
     }
+
+    return succeeded
   }
 }

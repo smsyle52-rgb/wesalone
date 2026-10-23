@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, type Mock, test, vi } from "vitest"
 
 const integrationQueueAdd = vi.fn(async () => undefined)
 const chatQueueAdd = vi.fn(async () => undefined)
+const stateContinuationJobIdPattern = /^flow-state-[a-f0-9]{64}$/
 const detectConversationAndContactInbox = vi.fn()
 const detectFlowVersion = vi.fn()
 const findSendableBroadcast = vi.fn()
@@ -69,6 +70,20 @@ vi.mock("@chatbotx.io/database/schema", async (importOriginal) => {
     await importOriginal<typeof import("@chatbotx.io/database/schema")>()
   return { ...actual }
 })
+const armQuickReplySettings = vi.fn(async (..._args: unknown[]) => undefined)
+const clearQuickReplyPendingOnFlowEntry = vi.fn(
+  async (..._args: unknown[]) => undefined,
+)
+const clearQuickReplyChallengeOnTap = vi.fn(
+  async (..._args: unknown[]) => undefined,
+)
+vi.mock("../src/integration/handlers/quick-reply-settings", () => ({
+  armQuickReplySettings: (...args: unknown[]) => armQuickReplySettings(...args),
+  clearQuickReplyPendingOnFlowEntry: (...args: unknown[]) =>
+    clearQuickReplyPendingOnFlowEntry(...args),
+  clearQuickReplyChallengeOnTap: (...args: unknown[]) =>
+    clearQuickReplyChallengeOnTap(...args),
+}))
 vi.mock("../src/lib/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }))
@@ -373,6 +388,7 @@ describe("flow action target resolution", () => {
     findRichResponseByButton.mockClear()
     detectConversationAndContactInbox.mockReset()
     detectFlowVersion.mockReset()
+    clearQuickReplyChallengeOnTap.mockClear()
     // WhatsApp, Zalo, Telegram and TikTok all deliver a tapped reply through a
     // single webhook field, so the channel cannot say whether it was a step
     // button or a node quick reply.
@@ -430,6 +446,22 @@ describe("flow action target resolution", () => {
     expect(job.data.isBulkBroadcast).toBeUndefined()
   }
 
+  test("a quick reply tap clears a pending quick reply retry", async () => {
+    mockFlowWithReply({
+      steps: [],
+      quickReplies: [makeQuickReply(REPLY_ID, "Yes")],
+    })
+
+    await runFlowQuickReply({
+      conversationId: "conv-1",
+      contactInboxId: "ci-1",
+      action: replyAction(),
+      ref: null,
+    } as never)
+
+    expect(clearQuickReplyChallengeOnTap).toHaveBeenCalledOnce()
+  })
+
   test("runFlowPostback advances the flow for a node quick reply", async () => {
     mockFlowWithReply({
       steps: [],
@@ -444,6 +476,31 @@ describe("flow action target resolution", () => {
     } as never)
 
     expectAdvancedToNextNode()
+  })
+
+  test.each([
+    ["runFlowPostback", runFlowPostback, undefined, true],
+    ["runFlowQuickReply", runFlowQuickReply, undefined, true],
+    ["runFlowPostback", runFlowPostback, "messageStatus", false],
+  ] as const)("%s marks the run message-driven only for a real tap (webhookType %s -> %s)", async (_name, run, webhookType, expected) => {
+    mockFlowWithReply({
+      steps: [],
+      quickReplies: [makeQuickReply(REPLY_ID, "Yes")],
+    })
+
+    await run({
+      conversationId: "conv-1",
+      contactInboxId: "ci-1",
+      action: replyAction(),
+      ref: null,
+      ...(webhookType ? { webhookType } : {}),
+    } as never)
+
+    const [, job] = integrationQueueAdd.mock.calls[0] as unknown as [
+      string,
+      { data: { startedByContactMessage?: boolean } },
+    ]
+    expect(job.data.startedByContactMessage).toBe(expected)
   })
 
   test("runFlowPostback still advances the flow for a step button", async () => {
@@ -727,6 +784,64 @@ describe("executeMultipleSteps — explicit status routing", () => {
     expect(jobArg.data.nodeId).toBe("success-node")
   })
 
+  test("keeps a durable execution key and deduplicates a retried state branch", async () => {
+    const stateId = "state-ok"
+    const step = makeStep("autoAssignConversation", [
+      { id: stateId, stateType: "success" },
+    ])
+    const flowVersion = makeFlowVersion(
+      [],
+      [
+        {
+          id: "e1",
+          source: "n1",
+          sourceHandle: stateId,
+          target: "success-node",
+          targetHandle: "input",
+        },
+      ],
+    )
+    const { flowStepHandlers } = await import(
+      "../src/integration/handlers/step"
+    )
+    mockSpy(flowStepHandlers, "autoAssignConversation").mockResolvedValue({
+      status: "success",
+      result: null,
+    })
+
+    await executeMultipleSteps({
+      ...makeBaseProps(flowVersion),
+      flowExecutionKey: "parent-job-1:123",
+      nodeVisits: { "node-1": 1 },
+      steps: [step],
+    })
+    await executeMultipleSteps({
+      ...makeBaseProps(flowVersion),
+      flowExecutionKey: "parent-job-1:123",
+      nodeVisits: { "node-1": 1 },
+      steps: [step],
+    })
+
+    const [, job, firstOptions] = integrationQueueAdd.mock
+      .calls[0] as unknown as [
+      string,
+      { data: { flowExecutionKey?: string; nodeId: string } },
+      { jobId?: string },
+    ]
+    const [, , secondOptions] = integrationQueueAdd.mock
+      .calls[1] as unknown as [
+      string,
+      { data: { flowExecutionKey?: string; nodeId: string } },
+      { jobId?: string },
+    ]
+    expect(job.data).toMatchObject({
+      flowExecutionKey: "parent-job-1:123",
+      nodeId: "success-node",
+    })
+    expect(firstOptions.jobId).toMatch(stateContinuationJobIdPattern)
+    expect(secondOptions.jobId).toBe(firstOptions.jobId)
+  })
+
   test("error status routes to error-connected node, not success node", async () => {
     const successStateId = "state-ok"
     const errorStateId = "state-err"
@@ -927,6 +1042,43 @@ describe("runStepsAndQuickReplies — default edge enqueues a new job (Part 1)",
   })
 })
 
+describe("runStepsAndQuickReplies — message-driven flag continuation", () => {
+  beforeEach(() => integrationQueueAdd.mockClear())
+
+  test.each([
+    [true, true],
+    [undefined, undefined],
+  ])("the next-node continuation forwards startedByContactMessage=%s", async (flag, expected) => {
+    const nextNode: FlowNode = {
+      id: "node-2",
+      position: { x: 0, y: 0 },
+      measured: { width: 100, height: 100 },
+      data: { name: "Next", isStartNode: false, details: { steps: [] } },
+    }
+    const edges: EdgeSchema[] = [
+      {
+        id: "e1",
+        source: "node-1",
+        sourceHandle: "node-1",
+        target: "node-2",
+        targetHandle: "input",
+      },
+    ]
+    await runStepsAndQuickReplies({
+      ...makeBaseProps(makeFlowVersion([nextNode], edges)),
+      details: { steps: [] },
+      triggerNextNode: true,
+      ...(flag === undefined ? {} : { startedByContactMessage: flag }),
+    })
+
+    const [, job] = integrationQueueAdd.mock.calls[0] as unknown as [
+      string,
+      { data: { startedByContactMessage?: boolean } },
+    ]
+    expect(job.data.startedByContactMessage).toBe(expected)
+  })
+})
+
 describe("runStepsAndQuickReplies — button action vs. leftover edge", () => {
   beforeEach(() => integrationQueueAdd.mockClear())
 
@@ -1006,6 +1158,29 @@ describe("runStepsAndQuickReplies — button action vs. leftover edge", () => {
   })
 
   // --- preserved behavior: these buttons legitimately route by edge ---
+
+  test("an openMiniApp button advances along its edge once the Mini App is submitted", async () => {
+    await runStepsAndQuickReplies(
+      makeButtonProps({
+        id: "btn-1",
+        label: "Open form",
+        buttonType: "openMiniApp",
+        beforeStep: {
+          id: "before-1",
+          stepType: "openMiniApp",
+          miniAppId: "42",
+        },
+        steps: [],
+      } as unknown as ButtonStepProps),
+    )
+
+    expect(integrationQueueAdd).toHaveBeenCalledOnce()
+    const [, job] = integrationQueueAdd.mock.calls[0] as unknown as [
+      string,
+      { data: { nodeId: string } },
+    ]
+    expect(job.data.nodeId).toBe("node-2")
+  })
 
   test("a startAnotherNode button still advances to its connected node", async () => {
     await runStepsAndQuickReplies(
@@ -1103,6 +1278,24 @@ describe("runStepsAndQuickReplies — per-step re-dispatch", () => {
     expect(action).toBe("sendFlow")
     expect(job.data.startFromStepId).toBe("step-2")
     expect(job.data.nodeId).toBe("node-1")
+  })
+
+  test("hands the parent's execution key to the next step so a retried parent cannot fork it", async () => {
+    const step1 = { ...makeStep("sendText"), id: "step-1" }
+    const step2 = { ...makeStep("sendText"), id: "step-2" }
+
+    await runStepsAndQuickReplies({
+      ...makeBaseProps(),
+      details: { steps: [step1, step2] },
+      triggerNextNode: false,
+      flowExecutionKey: "job-parent-1",
+    })
+
+    const [, job] = integrationQueueAdd.mock.calls[0] as unknown as [
+      string,
+      { data: { flowExecutionKey?: string } },
+    ]
+    expect(job.data.flowExecutionKey).toBe("job-parent-1")
   })
 
   test("preserves bulk outbound state for the next step in an initial broadcast flow", async () => {
@@ -2520,5 +2713,78 @@ describe("runFlowNode — stop/resume guard", () => {
     await expect(runFlowNode(initialDispatchJobData)).rejects.toBe(sentinel)
 
     expect(resetContactForResume).not.toHaveBeenCalled()
+  })
+})
+
+describe("runStepsAndQuickReplies — quick reply settings", () => {
+  beforeEach(() => {
+    integrationQueueAdd.mockClear()
+    armQuickReplySettings.mockClear()
+    clearQuickReplyPendingOnFlowEntry.mockClear()
+  })
+
+  const quickReply = makeQuickReply("qr-1", "Yes")
+  const carrierStep = {
+    id: "s-1",
+    stepType: "sendText",
+    text: "Hi",
+    buttons: [],
+  } as unknown as BaseStepSchema
+
+  test("arms after the carrier step on a node entry", async () => {
+    const { flowStepHandlers } = await import(
+      "../src/integration/handlers/step"
+    )
+    const sendSpy = mockSpy(flowStepHandlers, "sendText").mockResolvedValue({
+      status: "success",
+      result: null,
+    })
+    try {
+      const details = { steps: [carrierStep], quickReplies: [quickReply] }
+      await runStepsAndQuickReplies({
+        ...makeBaseProps(),
+        details,
+        targetType: "node",
+        targetId: "node-1",
+        targetNodeId: "node-1",
+        triggerNextNode: false,
+      })
+      expect(clearQuickReplyPendingOnFlowEntry).toHaveBeenCalledOnce()
+      expect(sendSpy).toHaveBeenCalledOnce()
+      expect(armQuickReplySettings).toHaveBeenCalledWith(
+        expect.objectContaining({ nodeId: "node-1", details }),
+      )
+    } finally {
+      sendSpy.mockRestore()
+    }
+  })
+
+  test("does not arm or clear for a tapped quick reply target", async () => {
+    const { flowStepHandlers } = await import(
+      "../src/integration/handlers/step"
+    )
+    const sendSpy = mockSpy(flowStepHandlers, "sendText").mockResolvedValue({
+      status: "success",
+      result: null,
+    })
+    try {
+      await runStepsAndQuickReplies({
+        ...makeBaseProps(),
+        details: {
+          ...makeQuickReply("qr-1", "Yes"),
+          steps: [carrierStep],
+          quickReplies: [quickReply],
+        },
+        targetType: "quickReply",
+        targetId: "qr-1",
+        targetNodeId: "node-1",
+        triggerNextNode: false,
+      })
+      expect(sendSpy).toHaveBeenCalledOnce()
+      expect(armQuickReplySettings).not.toHaveBeenCalled()
+      expect(clearQuickReplyPendingOnFlowEntry).not.toHaveBeenCalled()
+    } finally {
+      sendSpy.mockRestore()
+    }
   })
 })

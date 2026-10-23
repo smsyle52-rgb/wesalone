@@ -39,6 +39,8 @@ Read it before non-trivial changes. This skill is the quick map + the traps.
 | Miss (declined comment) table | `packages/database/src/schema/comment-automation-miss.ts`, `.../partials/comment-automation-miss.ts` |
 | Miss read/write | `packages/analytics/src/repositories/postgres/comment-automation-miss.repository.ts`, `commentAutomationAnalyticsService.recordMisses` |
 | Cross-queue delivery/failure anchor | `apps/worker/src/lib/comment-automation-anchor.ts` |
+| "Process missed comments" (replay one post's last 7 days through one automation) | `apps/builder/src/features/shared/comment-automation/lib/missed-comments/` → `low` queue (`LowJobAction.replayMissedComment`) → `receiveComment` → inline `processCommentAutomation({ onlyAutomationId })`. Every enqueue in these handlers wraps its options in `withReplayPriority` (`replay-priority.ts`) — a new enqueue site that skips it lets a replay of thousands of comments crowd out live sends. See the doc's "Process missed comments" section |
+| Live comments (detection, pacing) | `apps/worker/src/integration/handlers/comment-automation/live-comment.ts`, `received-message.ts` (`reserveLiveCommentDelay`); capabilities in `partials/comment-automation.ts` (`liveCommentCapabilities`) |
 | Tests | `apps/worker/__tests__/comment-automation.test.ts` |
 
 ## Data-flow in one line
@@ -321,8 +323,9 @@ Read it before non-trivial changes. This skill is the quick map + the traps.
     and a decline has neither; every analytics-page query aggregates it directly, so a row
     type none of them want would have to be excluded from each one forever; and misses
     outnumber replies by however many automations the workspace runs
-    (`findActiveAutomations` scopes by workspace + channel, **not** by post, so ONE comment
-    is shown to every active automation on the channel). Three consequences. (a) The whole
+    (`findActiveAutomations` scopes by workspace + channel + account, **not** by post, so
+    ONE comment is shown to every active automation of that account plus the unscoped
+    ones). Three consequences. (a) The whole
     run's declines are flushed in **one** `recordMisses` call after the loop — never one
     insert per automation, or a busy Page fires N statements per comment. (b) `missedCount`
     is driven off the rows `INSERT ... ON CONFLICT DO NOTHING RETURNING` actually returned,
@@ -334,6 +337,29 @@ Read it before non-trivial changes. This skill is the quick map + the traps.
     and `sentCount` counts attempts on one half of the comment only (trap 11). A blocked
     private reply stays a `failed` event — it was attempted. `missedCount` itself is
     channel-agnostic, unlike the delivery counters — a decline has no reply channel.
+
+17. **Live and post automations are disjoint.** `post.type: "live"` answers only
+    live-broadcast comments and `all` skips them (`matchPost(post, postId, isLive)`);
+    only an explicit `postIds` list matches either. A comment's live-ness comes from
+    Instagram's `live_comments` field or Facebook's `live_broadcast_timestamp` +
+    Redis post memory (`resolveLiveComment`). Never infer it from `post_id` shape.
+    What a Live automation may do is `liveCommentCapabilities(type)` — IG Live is
+    private-reply-only and only while broadcasting — enforced in three places that
+    must agree: the form, `withLiveCapabilities` (service) and
+    `withLiveCapabilityLimits` (worker). See the docs' "Live comments" section.
+
+18. **`replyOncePerUserPerPost` is enforced by `claimDedup`, not `findDedup`.** The
+    read is a fast path for the miss reason; the atomic insert decides. Release a
+    claimed row with `deleteDedup` whenever the run ends up dispatching nothing.
+
+19. **An automation's account scope is `inboxId`, and `NULL` means every account.** Comment
+    and story automations carry a nullable `inboxId`; `findActiveAutomations` REQUIRES the
+    incoming comment's inbox and matches `inboxId IS NULL OR inboxId = :inboxId`. Never
+    drop the parameter to "simplify" a caller — that silently brings back one Page's
+    automation answering every other Page (#1325). Writes go through
+    `assertAutomationAccount`, which reads the integration tables because `Inbox.channel`
+    is `instagram` for both Instagram connections. The FK is `cascade`, not `set null`:
+    nulling would widen the scope to every account. See the docs' "Account scope" section.
 
 ## Adding a new filter option (recipe)
 

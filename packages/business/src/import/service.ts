@@ -19,7 +19,11 @@ import {
   importStatuses,
   importTypes,
 } from "@chatbotx.io/database/partials"
-import { fileModel, importModel } from "@chatbotx.io/database/schema"
+import {
+  fileModel,
+  type ImportErrorSample,
+  importModel,
+} from "@chatbotx.io/database/schema"
 import {
   getPaginationWithDefaults,
   likeContains,
@@ -38,7 +42,7 @@ import { platformSubscriptionService } from "../platform-subscription/service"
 const GENERIC_IMPORT_FAILURE =
   "The import failed. Please try again or contact support."
 
-export type ImportErrorSample = { row: number; reason: string }
+export type { ImportErrorSample } from "@chatbotx.io/database/schema"
 export type ImportCounters = {
   processed: number
   success: number
@@ -142,6 +146,7 @@ class ImportService extends BaseService {
       throw new ChatbotXException(
         "An import is already in progress for this workspace. Please wait for it to complete.",
         "contactImportAlreadyRunning",
+        409,
       )
     }
 
@@ -204,7 +209,8 @@ class ImportService extends BaseService {
     workspaceId: string
     userId: string | null
     fileId: string
-    format: Extract<ImportFormat, "csv" | "xlsx">
+    /** Omitted: taken from the uploaded file. */
+    format?: Extract<ImportFormat, "csv" | "xlsx">
     meta: typeof importModel.$inferInsert.meta
   }) {
     const file = await this.findFile(input)
@@ -212,6 +218,7 @@ class ImportService extends BaseService {
       throw new ChatbotXException(
         "Product import file not found",
         "productImportFileNotFound",
+        404,
       )
     }
     const config = getImportEntry("products").config
@@ -220,12 +227,14 @@ class ImportService extends BaseService {
       throw new ChatbotXException(
         "Product import file type is invalid",
         "productImportFileTypeInvalid",
+        422,
       )
     }
-    if (fileFormat !== input.format) {
+    if (input.format && fileFormat !== input.format) {
       throw new ChatbotXException(
         "Product import format does not match the uploaded file",
         "productImportFormatMismatch",
+        422,
       )
     }
     const active = await db.query.importModel.findFirst({
@@ -240,6 +249,7 @@ class ImportService extends BaseService {
       throw new ChatbotXException(
         "A product import is already running",
         "productImportAlreadyRunning",
+        409,
       )
     }
 
@@ -265,7 +275,7 @@ class ImportService extends BaseService {
             userId: input.userId,
             fileId: input.fileId,
             type: "products",
-            format: input.format,
+            format: fileFormat,
             status: importStatuses.enum.pending,
             meta: input.meta,
           })
@@ -280,6 +290,7 @@ class ImportService extends BaseService {
         throw new ChatbotXException(
           "A product import is already running",
           "productImportAlreadyRunning",
+          409,
         )
       }
       throw error

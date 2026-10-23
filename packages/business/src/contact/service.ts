@@ -19,7 +19,10 @@ import {
   type ContactFilterCriteriaInput,
   contactFilterHasPredicate,
 } from "@chatbotx.io/database/queries"
-import { contactRepository } from "@chatbotx.io/database/repositories"
+import {
+  contactInboxRepository,
+  contactRepository,
+} from "@chatbotx.io/database/repositories"
 import {
   contactInboxModel,
   contactModel,
@@ -35,15 +38,18 @@ import { emitContactCreated } from "@chatbotx.io/events"
 import { uploadFileFromUrl } from "@chatbotx.io/filesystem"
 import { invalidateCacheByTags, withCache } from "@chatbotx.io/redis"
 import { createId } from "@chatbotx.io/utils"
+import { enqueueStoredImageOptimizations } from "@chatbotx.io/worker-config"
 import { dispatchAuditRecord } from "../audit/dispatcher"
 import { BaseService } from "../base.service"
 import { getContactInboxSinceTime } from "../contact-inbox/service"
+import { contactInboxPostService } from "../contact-inbox-post/service"
 import { ChatbotXException, notFoundException } from "../errors"
 import { logger } from "../logger"
 import { NO_AVATAR_SENTINEL_KEY } from "../media/no-avatar-sentinel"
 import { messageCleanupService } from "../message-cleanup/service"
 import { quotaEnforcementService } from "../quota-enforcement/service"
 import { userQuotaService } from "../user-quota/service"
+import { resolveWorkingHoursTimezone } from "../working-hours/timezone"
 import { workspaceService } from "../workspace/service"
 import { workspaceUsageService } from "../workspace-usage/service"
 import { emitContactInfoChangeEvents } from "./contact-info-changes"
@@ -74,6 +80,11 @@ import { parseContactIdentifier } from "./utils"
 // One DELETE per chunk keeps each statement's lock scope and cascade work
 // bounded (mirrors CONTACT_CHUNK_SIZE in tag/service.ts).
 const CONTACT_DELETE_CHUNK_SIZE = 50
+
+const digitsOnly = (value: string): string => value.replace(/\D/g, "")
+
+const preservePhoneStyle = (storedPhone: string | null, newPhone: string) =>
+  storedPhone?.trim().startsWith("+") ? `+${digitsOnly(newPhone)}` : newPhone
 
 type ContactWriteData = Partial<
   Pick<
@@ -187,6 +198,7 @@ class ContactService extends BaseService {
           occurredAt,
           source: contactInbox.source,
           channel: contactInbox.channel,
+          inboxId: contactInbox.inboxId,
           sourceId: contactInbox.sourceId,
           metadata: {
             triggerContext: {
@@ -213,21 +225,49 @@ class ContactService extends BaseService {
   }) {
     const contact = await contactService.block(ctx)
 
-    emit("analytics:dashboard", {
-      eventType: "contact:blocked",
-      workspaceId: ctx.workspaceId,
-      contactId: contact.id,
-      occurredAt: contact.blockedAt ?? new Date(),
-      country: contact.country,
-      metadata: {
-        triggerContext: {
-          triggerSource: "api",
-          triggerHandler: "blockContactAction",
-          triggerType: "contact_blocked",
-          origin: "manual",
+    // One event per inbox, like delete, so a channel/inbox filter attributes the
+    // block; a contact without inboxes still records one unattributed event.
+    // The block is already committed: a failed lookup must not fail it, only
+    // leave the event unattributed.
+    const contactInboxes = await contactInboxRepository
+      .listAnalyticsAttributionByContact({
+        workspaceId: ctx.workspaceId,
+        contactId: contact.id,
+      })
+      .catch((err: unknown) => {
+        logger.warn(
+          { err, contactId: contact.id },
+          "Block analytics attribution lookup failed; event stays unattributed",
+        )
+        return []
+      })
+    const occurredAt = contact.blockedAt ?? new Date()
+    const attributions =
+      contactInboxes.length > 0
+        ? contactInboxes
+        : [{ inboxId: null, channel: null, source: null, sourceId: null }]
+
+    for (const attribution of attributions) {
+      emit("analytics:dashboard", {
+        eventType: "contact:blocked",
+        workspaceId: ctx.workspaceId,
+        contactId: contact.id,
+        occurredAt,
+        country: contact.country,
+        channel: attribution.channel,
+        inboxId: attribution.inboxId,
+        source: attribution.source,
+        sourceId: attribution.sourceId,
+        metadata: {
+          triggerContext: {
+            triggerSource: "api",
+            triggerHandler: "blockContactAction",
+            triggerType: "contact_blocked",
+            origin: "manual",
+          },
         },
-      },
-    })
+      })
+    }
   }
 
   async unblockAndRecord(ctx: {
@@ -337,13 +377,46 @@ class ContactService extends BaseService {
       return false
     }
 
-    const where = buildContactWhere({ workspaceId, contactFilter })
+    const where = buildContactWhere({
+      workspaceId,
+      contactFilter: await this.withWorkingHoursTimezone(
+        workspaceId,
+        contactFilter,
+      ),
+    })
     const match = await db.query.contactModel.findFirst({
       columns: { id: true },
       where: { ...where, id: contactId },
     })
 
     return Boolean(match)
+  }
+
+  /**
+   * `isWithinWorkingHours` reads `now()` in the workspace timezone; resolve it
+   * here (cached workspace row, same rule as routing) instead of looking the
+   * zone up in SQL. Only paid when the filter actually uses the field.
+   */
+  private async withWorkingHoursTimezone(
+    workspaceId: string,
+    contactFilter: ContactFilterCriteriaInput,
+  ): Promise<ContactFilterCriteriaInput> {
+    const usesWorkingHours = contactFilter.conditions.some(
+      (condition) =>
+        (condition as { field?: string }).field === "isWithinWorkingHours",
+    )
+    if (!usesWorkingHours) {
+      return contactFilter
+    }
+    const workspace = await workspaceService.find({
+      where: { id: workspaceId },
+    })
+    return {
+      ...contactFilter,
+      workingHoursTimezone: resolveWorkingHoursTimezone(
+        workspace ?? { id: workspaceId },
+      ),
+    }
   }
 
   // ─── Reads (NO cache — write-path only) ─────────────────────────────────
@@ -406,6 +479,13 @@ class ContactService extends BaseService {
       .where(eq(contactModel.id, ctx.id))
       .returning()
     await this.invalidate({ workspaceId: ctx.workspaceId, ids: [ctx.id] })
+    if (data.avatar && data.avatar !== existing.avatar) {
+      await scheduleAvatarOptimization({
+        workspaceId: ctx.workspaceId,
+        contactId: ctx.id,
+        avatar: data.avatar,
+      })
+    }
     if (ownsTransaction) {
       await emitContactInfoChangeEvents(
         ctx.workspaceId,
@@ -466,6 +546,13 @@ class ContactService extends BaseService {
     }
 
     await this.invalidate({ workspaceId: ctx.workspaceId, ids: [ctx.id] })
+    if (data.avatar && data.avatar !== existing.avatar) {
+      await scheduleAvatarOptimization({
+        workspaceId: ctx.workspaceId,
+        contactId: ctx.id,
+        avatar: data.avatar,
+      })
+    }
     if (ownsTransaction) {
       await emitContactInfoChangeEvents(
         ctx.workspaceId,
@@ -475,6 +562,91 @@ class ContactService extends BaseService {
       )
     }
     return updated
+  }
+
+  /**
+   * Adopt a channel-reported phone transition without overwriting a concurrent
+   * operator or message update. Eligibility uses digit equality, while the
+   * write guards the exact stored value observed by this method.
+   */
+  async adoptPhoneNumberIfSafe(props: {
+    workspaceId: string
+    id: string
+    previousPhone?: string
+    newPhone: string
+  }): Promise<ContactModel | undefined> {
+    const adoption = await this.adoptPhoneNumberIfSafeInTransaction(props, db)
+    if (!adoption) {
+      return
+    }
+    await this.finalizePhoneNumberAdoption({
+      workspaceId: props.workspaceId,
+      id: props.id,
+      ...adoption,
+    })
+    return adoption.updated
+  }
+
+  async adoptPhoneNumberIfSafeInTransaction(
+    props: {
+      workspaceId: string
+      id: string
+      previousPhone?: string
+      newPhone: string
+    },
+    tx: DatabaseClient,
+  ): Promise<{ existing: ContactModel; updated: ContactModel } | undefined> {
+    const existing = await this.findByIdOrFail({
+      workspaceId: props.workspaceId,
+      id: props.id,
+      tx,
+    })
+    const storedPhone = existing.phoneNumber
+    const canAdopt =
+      !storedPhone ||
+      (props.previousPhone !== undefined &&
+        digitsOnly(storedPhone) === digitsOnly(props.previousPhone))
+    if (!canAdopt) {
+      return
+    }
+
+    const phoneNumber = preservePhoneStyle(storedPhone, props.newPhone)
+    const exactStoredPhoneGuard =
+      storedPhone === null
+        ? isNull(contactModel.phoneNumber)
+        : eq(contactModel.phoneNumber, storedPhone)
+    const [updated] = await tx
+      .update(contactModel)
+      .set({ phoneNumber })
+      .where(
+        and(
+          eq(contactModel.id, props.id),
+          eq(contactModel.workspaceId, props.workspaceId),
+          exactStoredPhoneGuard,
+        ),
+      )
+      .returning()
+
+    if (!updated) {
+      return
+    }
+
+    return { existing, updated }
+  }
+
+  async finalizePhoneNumberAdoption(props: {
+    workspaceId: string
+    id: string
+    existing: ContactModel
+    updated: ContactModel
+  }): Promise<void> {
+    await this.invalidate({ workspaceId: props.workspaceId, ids: [props.id] })
+    await emitContactInfoChangeEvents(
+      props.workspaceId,
+      props.id,
+      props.existing,
+      props.updated,
+    )
   }
 
   /**
@@ -539,6 +711,26 @@ class ContactService extends BaseService {
       richSystemFieldToContactData(fieldName, value),
       tx,
     )
+  }
+
+  /**
+   * Writes several rich system fields in ONE update. Fields are applied in key
+   * order and later ones win where they overlap (`full_name` after `first_name`
+   * sets both name columns), exactly as sequential `setRichSystemFieldByKey`
+   * calls would — but without a read-modify-write and event round trip each.
+   */
+  async applyRichSystemFields(input: {
+    workspaceId: string
+    contactId: string
+    fields: Partial<Record<RichSystemContactField, string>>
+    tx?: DatabaseClient
+  }): Promise<ContactModel | null> {
+    const { workspaceId, contactId, fields, tx = db } = input
+    const data = mergeRichSystemFields(fields)
+    if (Object.keys(data).length === 0) {
+      return null
+    }
+    return await this.update({ workspaceId, id: contactId }, data, tx)
   }
 
   async unsetRichSystemFieldByKey(input: {
@@ -624,6 +816,11 @@ class ContactService extends BaseService {
       )
 
       await db.transaction(async (tx) => {
+        await contactInboxPostService.deleteForContacts({
+          contactIds: chunk.map((contact) => contact.id),
+          tx,
+          workspaceId,
+        })
         await messageCleanupService.record({ workspaceId, entries, tx })
         await tx.delete(contactModel).where(
           inArray(
@@ -865,6 +1062,7 @@ class ContactService extends BaseService {
       source: contactInbox.source,
       sourceId: contactInbox.sourceId,
       channel: inbox.channel,
+      inboxId: inbox.id,
       metadata: {
         triggerContext: {
           triggerSource: "api",
@@ -890,6 +1088,31 @@ class ContactService extends BaseService {
       `public/space/${workspaceId}/contacts/${contactId}/avatar/${createId()}`,
     )
     return uploaded.originPath
+  }
+
+  /**
+   * Coexist history sync: date each contact from the oldest message the sync
+   * found for them (the first time they chatted with the page) instead of
+   * from the moment the sync created the row. Backdate-only; see
+   * `contactRepository.backdateCreatedAt`.
+   */
+  async backdateCreatedAt(props: {
+    workspaceId: string
+    rows: { contactId: string; createdAt: Date }[]
+  }): Promise<void> {
+    const { workspaceId, rows } = props
+    if (rows.length === 0) {
+      return
+    }
+    // Only contacts the statement really moved get a cache round trip: a
+    // replayed coexist chunk changes nothing and must cost nothing in Redis.
+    const changedIds = await contactRepository.backdateCreatedAt(
+      rows.map((row) => ({ ...row, workspaceId })),
+    )
+    if (changedIds.length === 0) {
+      return
+    }
+    await this.invalidate({ workspaceId, ids: [...new Set(changedIds)] })
   }
 
   async unsubscribeEmail(cid: string) {
@@ -1022,6 +1245,7 @@ class ContactService extends BaseService {
       .returning({ id: contactModel.id })
     if (updated) {
       await this.invalidate({ workspaceId, ids: [contactId] })
+      await scheduleAvatarOptimization({ workspaceId, contactId, avatar })
     }
   }
 
@@ -1050,6 +1274,7 @@ class ContactService extends BaseService {
       .returning({ id: contactModel.id })
     if (updated) {
       await this.invalidate({ workspaceId, ids: [contactId] })
+      await scheduleAvatarOptimization({ workspaceId, contactId, avatar })
     }
   }
 
@@ -1093,6 +1318,18 @@ function richSystemFieldToContactData(
   }
 }
 
+/** The merged column writes of several rich system fields; later ones win. */
+export function mergeRichSystemFields(
+  fields: Partial<Record<RichSystemContactField, string>>,
+): ContactWriteData {
+  return Object.assign(
+    {},
+    ...Object.entries(fields).map(([fieldName, value]) =>
+      richSystemFieldToContactData(fieldName as RichSystemContactField, value),
+    ),
+  )
+}
+
 function withContactAccessScope<TWhere extends Record<string, unknown>>(
   where: TWhere,
   accessScope?: ContactAccessScope,
@@ -1116,5 +1353,23 @@ function withContactAccessScope<TWhere extends Record<string, unknown>>(
     },
   }
 }
+
+/**
+ * A freshly stored avatar is re-encoded in the background (heavy queue, low
+ * priority) and overwritten under the same key, so the stored value never
+ * changes. External URLs and sentinels are filtered out by the enqueue.
+ */
+const scheduleAvatarOptimization = ({
+  workspaceId,
+  contactId,
+  avatar,
+}: {
+  workspaceId: string
+  contactId: string
+  avatar: string
+}) =>
+  enqueueStoredImageOptimizations([
+    { kind: "avatar", workspaceId, contactId, objectKey: avatar },
+  ])
 
 export const contactService = new ContactService()

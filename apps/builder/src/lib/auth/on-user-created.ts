@@ -1,5 +1,5 @@
 import type { AuthCreatedUser } from "@chatbotx.io/auth/server"
-import { userQuotaService } from "@chatbotx.io/business"
+import { platformAdminService, userQuotaService } from "@chatbotx.io/business"
 import { QuotaJobAction, quotaQueue } from "@chatbotx.io/worker-config"
 import { isCloud } from "@/env"
 import { logger } from "@/lib/log"
@@ -23,6 +23,16 @@ export async function onUserCreated(user: AuthCreatedUser): Promise<void> {
   if (user.isAnonymous) {
     return
   }
+
+  try {
+    await platformAdminService.provisionBootstrapAdmin(user)
+  } catch (err) {
+    logger.warn(
+      { err, userId: user.id },
+      "Failed to provision platform bootstrap administrator on sign-up",
+    )
+  }
+
 
   // The bootstrap row is stamped on every edition, not only cloud. Upstream's
   // `!isCloud()` return is correct for a self-hosted install serving its own

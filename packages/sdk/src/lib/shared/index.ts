@@ -1,6 +1,13 @@
 import type { ContextQueue } from "./context"
-import type { EchoOrigin, IncomingContact, IncomingMessage } from "./message"
+import type {
+  EchoOrigin,
+  IncomingCommerceEvent,
+  IncomingContact,
+  IncomingMessage,
+  ThreadControlReceiveInfo,
+} from "./message"
 
+export * from "./audience-event"
 export * from "./context"
 export * from "./message"
 export * from "./meta-messaging"
@@ -44,6 +51,12 @@ export type MessageReferral = {
   videoUrl?: string | null
   productId?: string | null
   flowId?: string | null
+  gclid?: string | null
+  gbraid?: string | null
+  googleCampaignId?: string | null
+  googleAdGroupId?: string | null
+  googleAdId?: string | null
+  googleClickReceivedAt?: string | null
   raw?: Record<string, unknown>
 }
 
@@ -64,6 +77,17 @@ export type ReceivedMessageResult = {
   echoOrigin?: EchoOrigin | null
   /** Sending app id on an echo, for diagnostics; null when not an echo or unknown. */
   echoAppId?: string | null
+  /**
+   * Conversation-routing metadata of this delivery. Set only by channels that
+   * support routing (WhatsApp); absent means "no routing information".
+   */
+  threadControl?: ThreadControlReceiveInfo
+  /**
+   * Catalog interaction the message carries (a shopping cart, a product
+   * question), when the channel can tell. Raw identity only; the worker
+   * resolves it against the workspace catalog.
+   */
+  commerce?: IncomingCommerceEvent | null
 }
 
 /**

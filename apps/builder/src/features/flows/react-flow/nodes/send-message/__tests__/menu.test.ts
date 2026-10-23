@@ -10,7 +10,12 @@ import { integrationMenus } from "../menus/integration-menu"
 const t = ((key: string) => key) as unknown as TranslationFn
 
 const TEMPLATE_LABEL = "flows.actions.sendTemplateMessage"
+const WHATSAPP_FLOW_LABEL = "flows.actions.whatsappFlow"
 const NO_TEMPLATES_LABEL = "flows.actions.noTemplatesAvailable"
+const INBOX_STATUS_CASES = [
+  ["pending", "actions.loading"],
+  ["error", "flows.actions.inboxesUnavailable"],
+] as const
 
 const waInbox = {
   id: "wa-1",
@@ -49,9 +54,11 @@ const messengerTemplate = {
 const buildMenuData = (
   channel: MenuData["beforeStep"]["channel"],
   inboxes = [waInbox, messengerInbox, telegramInbox],
+  inboxesStatus: MenuData["inboxesStatus"] = "success",
 ): MenuData =>
   ({
     inboxes,
+    inboxesStatus,
     templates: {
       waTemplates: [waTemplate],
       messengerTemplates: [messengerTemplate],
@@ -66,6 +73,46 @@ const childLabels = (item?: MenuItem): string[] =>
   (item?.children ?? []).map((child) => child.label)
 
 describe("sendMessageEditorMenus — template message consolidation", () => {
+  it.each(
+    INBOX_STATUS_CASES,
+  )("shows the %s inbox status under available template entries", (status, label) => {
+    for (const channel of [
+      channelTypes.enum.whatsapp,
+      channelTypes.enum.messenger,
+      channelTypes.enum.omnichannel,
+    ]) {
+      const items = sendMessageEditorMenus(
+        t,
+        buildMenuData(channel, [], status),
+      )
+
+      expect(childLabels(findTemplateItem(items))).toEqual([label])
+      if (channel !== channelTypes.enum.messenger) {
+        expect(
+          childLabels(items.find((item) => item.label === WHATSAPP_FLOW_LABEL)),
+        ).toEqual([label])
+      }
+    }
+  })
+
+  it.each([
+    channelTypes.enum.whatsapp,
+    channelTypes.enum.messenger,
+    channelTypes.enum.omnichannel,
+    channelTypes.enum.tiktok,
+  ])("keeps every %s top-level entry in the same order after an inbox error", (channel) => {
+    const successLabels = sendMessageEditorMenus(
+      t,
+      buildMenuData(channel, []),
+    ).map((item) => item.label)
+    const errorLabels = sendMessageEditorMenus(
+      t,
+      buildMenuData(channel, [], "error"),
+    ).map((item) => item.label)
+
+    expect(errorLabels).toEqual(successLabels)
+  })
+
   it("shows exactly ONE Template Message item on omnichannel (no duplicate)", () => {
     const items = sendMessageEditorMenus(
       t,
@@ -131,6 +178,15 @@ describe("sendMessageEditorMenus — template message consolidation", () => {
     expect(labels).toContain(messengerInbox.name)
     expect(labels).not.toContain(waInbox.name)
   })
+
+  it.each([
+    channelTypes.enum.smtp,
+    channelTypes.enum.webchat,
+  ])("does not show template messages for %s", (channel) => {
+    const items = sendMessageEditorMenus(t, buildMenuData(channel))
+
+    expect(findTemplateItem(items)).toBeUndefined()
+  })
 })
 
 describe("integrationMenus", () => {
@@ -169,5 +225,109 @@ describe("integrationMenus", () => {
     expect(menus).toHaveLength(1)
     expect(menus[0]?.label).toBe(NO_TEMPLATES_LABEL)
     expect(menus[0]?.stepType).toBeNull()
+  })
+
+  it("preserves template parent and empty state after successful empty inbox fetch", () => {
+    const items = sendMessageEditorMenus(
+      t,
+      buildMenuData(channelTypes.enum.whatsapp, []),
+    )
+    const templateItem = findTemplateItem(items)
+
+    expect(templateItem).toBeDefined()
+    expect(childLabels(templateItem)).toEqual([NO_TEMPLATES_LABEL])
+  })
+})
+
+describe("sendMessageEditorMenus — Send Products", () => {
+  const SEND_PRODUCTS_LABEL = "flows.actions.sendProducts"
+  const hasSendProducts = (channel: MenuData["beforeStep"]["channel"]) =>
+    sendMessageEditorMenus(t, buildMenuData(channel)).some(
+      (item) => item.label === SEND_PRODUCTS_LABEL,
+    )
+
+  it("is offered only where the channel policy supports it", () => {
+    expect(hasSendProducts(channelTypes.enum.whatsapp)).toBe(true)
+    for (const channel of [
+      channelTypes.enum.omnichannel,
+      channelTypes.enum.messenger,
+      channelTypes.enum.telegram,
+      channelTypes.enum.instagram,
+      channelTypes.enum.tiktok,
+    ]) {
+      expect(hasSendProducts(channel)).toBe(false)
+    }
+  })
+
+  it("adds the step with its own step type", () => {
+    const item = sendMessageEditorMenus(
+      t,
+      buildMenuData(channelTypes.enum.whatsapp),
+    ).find((candidate) => candidate.label === SEND_PRODUCTS_LABEL)
+
+    expect(item?.stepType).toBe(stepTypes.enum.sendProducts)
+  })
+})
+
+describe("sendMessageEditorMenus — WhatsApp-only send steps", () => {
+  const stepTypesFor = (channel: MenuData["beforeStep"]["channel"]) =>
+    sendMessageEditorMenus(t, buildMenuData(channel)).map(
+      (item) => item.stepType,
+    )
+
+  it.each([
+    channelTypes.enum.whatsapp,
+    channelTypes.enum.omnichannel,
+  ])("offers the location step on %s", (channel) => {
+    expect(stepTypesFor(channel)).toContain(stepTypes.enum.whatsappLocation)
+  })
+
+  it.each([
+    channelTypes.enum.messenger,
+    channelTypes.enum.telegram,
+  ])("hides the location step on %s", (channel) => {
+    expect(stepTypesFor(channel)).not.toContain(stepTypes.enum.whatsappLocation)
+  })
+
+  it("keeps the call button off omnichannel", () => {
+    expect(stepTypesFor(channelTypes.enum.omnichannel)).not.toContain(
+      stepTypes.enum.whatsappCallButton,
+    )
+  })
+})
+
+describe("sendMessageEditorMenus — catalog entry", () => {
+  const CATALOG_LABEL = "flows.actions.sendViewCatalog"
+  const labelsFor = (channel: MenuData["beforeStep"]["channel"]) =>
+    sendMessageEditorMenus(t, buildMenuData(channel)).map((item) => item.label)
+
+  it("offers the catalog on a WhatsApp node", () => {
+    expect(labelsFor(channelTypes.enum.whatsapp)).toContain(CATALOG_LABEL)
+  })
+
+  it.each([
+    channelTypes.enum.messenger,
+    channelTypes.enum.instagram,
+    channelTypes.enum.telegram,
+    channelTypes.enum.tiktok,
+    channelTypes.enum.webchat,
+    channelTypes.enum.zalo,
+  ])("hides the catalog on a %s node, which cannot deliver it", (channel) => {
+    expect(labelsFor(channel)).not.toContain(CATALOG_LABEL)
+  })
+
+  it("offers the catalog on an omnichannel node: it reaches the contacts that can receive it", () => {
+    expect(labelsFor(channelTypes.enum.omnichannel)).toContain(CATALOG_LABEL)
+  })
+
+  it.each([
+    channelTypes.enum.whatsapp,
+    channelTypes.enum.omnichannel,
+  ])("lists the catalog right below WhatsApp Flow on a %s node", (channel) => {
+    const labels = labelsFor(channel)
+
+    expect(labels.indexOf(CATALOG_LABEL)).toBe(
+      labels.indexOf("flows.actions.whatsappFlow") + 1,
+    )
   })
 })

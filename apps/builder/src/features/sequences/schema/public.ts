@@ -18,7 +18,7 @@ export const publicListSequenceStepContactsRequest = z.object({
   ),
   stepId: zodBigintAsString().describe("Sequence step id."),
   eventType: sequenceStepEventTypes.describe(
-    "Lifecycle event to filter recipients by (e.g. sent, opened).",
+    "Event to filter recipients by: `message:sent`, `message:delivered`, `message:seen`, `message:failed` or `flow:clicked`. `message:received` and `flow:ref` are accepted but not tracked per recipient, so they return the same list as `message:delivered`.",
   ),
   page: publicListRequest.shape.page,
   perPage: publicListRequest.shape.perPage,
@@ -28,4 +28,26 @@ export const publicListSequenceStepContactsResponse = z.object({
   data: z.array(sequenceStepContactResource),
   total: z.number().int(),
   pageCount: z.number().int(),
+})
+
+export const listSequencesPublicRequest = publicListRequest.extend({
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe("Case-insensitive substring match against the sequence name."),
+  folderId: zodBigintAsString()
+    .optional()
+    .describe('Only sequences in this folder; "0" for sequences in no folder.'),
+  active: z
+    .boolean()
+    .optional()
+    .describe("Only active (true) or inactive (false) sequences."),
+  sort: z
+    .array(z.object({ id: z.string(), desc: z.boolean() }))
+    .optional()
+    .describe(
+      "Sort order as [{ id, desc }] pairs, e.g. `createdAt`, `name`. Defaults to newest first.",
+    ),
 })

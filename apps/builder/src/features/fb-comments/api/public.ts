@@ -1,4 +1,7 @@
 import { commentAutomationService } from "@chatbotx.io/business"
+import { z } from "zod"
+import { bulkUpdateIdsRequest } from "@/features/common/schema"
+import { postsAccountFilterSchema } from "@/features/shared/comment-automation/schema/account"
 import {
   possibleErrorsOnCreatingResource,
   possibleErrorsOnDeletingResource,
@@ -132,10 +135,34 @@ export const fbCommentsPublicRouter = {
         "Use this to list posts to choose from before setting up comment automation. Returns posts from the workspace's connected Facebook pages that `fbComments.create` can target.",
       tags: ["FB Comments"],
     })
+    .input(z.object({ inboxId: postsAccountFilterSchema }).optional())
     .output(listFacebookPostsPublicResponse)
     .errors(possibleErrorsOnListingResource)
     .handler(
-      async ({ context }) =>
-        await listFacebookPostsForAutomation(context.workspace.id),
+      async ({ context, input }) =>
+        await listFacebookPostsForAutomation(
+          context.workspace.id,
+          input?.inboxId,
+        ),
     ),
+
+  deleteMany: workspaceTokenAuthAPI
+    .route({
+      method: "POST",
+      path: "/v1/fb-comments/bulk-delete",
+      summary: "Delete multiple FB comment automations",
+      description:
+        "Permanently deletes several FB comment automations in one call; ids of another channel or workspace are ignored. Use `fbComments.list` to find their ids first.",
+      successStatus: 204,
+      tags: ["FB Comments"],
+    })
+    .input(bulkUpdateIdsRequest)
+    .errors(possibleErrorsOnDeletingResource)
+    .handler(async ({ context, input }) => {
+      await commentAutomationService.deleteMany({
+        workspaceId: context.workspace.id,
+        ids: input.ids,
+        types: ["messenger"],
+      })
+    }),
 }

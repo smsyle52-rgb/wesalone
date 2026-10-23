@@ -1,3 +1,4 @@
+import { PgDialect } from "drizzle-orm/pg-core"
 import { beforeEach, describe, expect, test, vi } from "vitest"
 import { contactInboxRepository } from "../src/repositories/contact-inbox/repository"
 import {
@@ -30,6 +31,182 @@ function createQueryChain(result: unknown[]): Chain {
 
   return chain
 }
+
+describe("contactInboxRepository.updateIdentityGuarded", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  test("returns the updated row from a guarded identity compare-and-swap", async () => {
+    const updated = {
+      id: "ci-1",
+      sourceId: "user.bsuid-new",
+      sourceUserId: "user.bsuid-new",
+      sourceParentUserId: "parent.bsuid-1",
+    }
+    const chain = {
+      update: vi.fn(),
+      set: vi.fn(),
+      where: vi.fn(),
+      returning: vi.fn(),
+    }
+    chain.update.mockReturnValue(chain)
+    chain.set.mockReturnValue(chain)
+    chain.where.mockReturnValue(chain)
+    chain.returning.mockResolvedValue([updated])
+    const changedAt = "2026-09-28T05:00:00.000Z"
+
+    const row = await contactInboxRepository.updateIdentityGuarded(
+      {
+        id: "ci-1",
+        guard: {
+          sourceUserId: "user.bsuid-old",
+          sourceParentUserId: "parent.bsuid-1",
+        },
+        set: {
+          sourceId: "user.bsuid-new",
+          sourceUserId: "user.bsuid-new",
+        },
+        appendIdentityHistory: { changedAt, reason: "userIdChanged" },
+      },
+      { update: chain.update } as never,
+    )
+
+    expect(chain.update).toHaveBeenCalledWith(contactInboxModel)
+    expect(chain.set).toHaveBeenCalledWith({
+      sourceId: "user.bsuid-new",
+      sourceUserId: "user.bsuid-new",
+      sourceIdentityHistory: expect.anything(),
+    })
+    const setArg = chain.set.mock.calls[0]?.[0]
+    const rendered = new PgDialect().sqlToQuery(
+      setArg.sourceIdentityHistory as never,
+    )
+    const normalizedSql = rendered.sql.replace(/\s+/g, " ").trim()
+    expect(normalizedSql).toContain(
+      'COALESCE("ContactInbox"."sourceIdentityHistory", \'[]\'::jsonb)',
+    )
+    expect(normalizedSql).toContain(
+      'jsonb_build_object( \'sourceId\', "ContactInbox"."sourceId"',
+    )
+    expect(normalizedSql).toContain(
+      '\'sourceUserId\', "ContactInbox"."sourceUserId"',
+    )
+    expect(normalizedSql).toContain(
+      '\'sourceParentUserId\', "ContactInbox"."sourceParentUserId"',
+    )
+    expect(normalizedSql).toContain('ORDER BY "ordinality" DESC LIMIT $3')
+    expect(rendered.params).toEqual([changedAt, "userIdChanged", 10])
+    expect(chain.where).toHaveBeenCalledTimes(1)
+    expect(row).toEqual(updated)
+  })
+
+  test("derives each disjoint update history entry from the row at update time", async () => {
+    const sets: Record<string, unknown>[] = []
+    const createUpdateChain = () => {
+      const chain = {
+        set: vi.fn((value: Record<string, unknown>) => {
+          sets.push(value)
+          return chain
+        }),
+        where: vi.fn(() => chain),
+        returning: vi.fn().mockResolvedValue([{ id: "ci-1" }]),
+      }
+      return chain
+    }
+    const tx = {
+      update: vi
+        .fn()
+        .mockImplementationOnce(createUpdateChain)
+        .mockImplementationOnce(createUpdateChain),
+    }
+
+    await contactInboxRepository.updateIdentityGuarded(
+      {
+        id: "ci-1",
+        guard: { sourceUserId: "user.bsuid-old" },
+        set: { sourceUserId: "user.bsuid-new" },
+        appendIdentityHistory: {
+          changedAt: "2026-09-28T05:00:00.000Z",
+          reason: "userIdChanged",
+        },
+      },
+      tx as never,
+    )
+    await contactInboxRepository.updateIdentityGuarded(
+      {
+        id: "ci-1",
+        guard: { sourceId: "84900000001" },
+        set: { sourceId: "84900000002" },
+        appendIdentityHistory: {
+          changedAt: "2026-09-28T05:00:01.000Z",
+          reason: "phoneChanged",
+        },
+      },
+      tx as never,
+    )
+
+    expect(sets).toHaveLength(2)
+    for (const set of sets) {
+      const rendered = new PgDialect().sqlToQuery(
+        set.sourceIdentityHistory as never,
+      )
+      expect(rendered.sql).toContain(
+        'COALESCE("ContactInbox"."sourceIdentityHistory", \'[]\'::jsonb)',
+      )
+      expect(rendered.sql).toContain('"ContactInbox"."sourceId"')
+      expect(rendered.sql).toContain('"ContactInbox"."sourceUserId"')
+      expect(rendered.sql).toContain('"ContactInbox"."sourceParentUserId"')
+    }
+    expect(sets[0]?.sourceIdentityHistory).not.toBe(
+      sets[1]?.sourceIdentityHistory,
+    )
+  })
+
+  test("returns undefined when the stored identity no longer matches the guard", async () => {
+    const chain = {
+      update: vi.fn(),
+      set: vi.fn(),
+      where: vi.fn(),
+      returning: vi.fn(),
+    }
+    chain.update.mockReturnValue(chain)
+    chain.set.mockReturnValue(chain)
+    chain.where.mockReturnValue(chain)
+    chain.returning.mockResolvedValue([])
+
+    await expect(
+      contactInboxRepository.updateIdentityGuarded(
+        {
+          id: "ci-1",
+          guard: {
+            sourceUserId: null,
+            sourceParentUserId: "parent.bsuid-1",
+          },
+          set: { sourceUserId: "user.bsuid-new" },
+        },
+        { update: chain.update } as never,
+      ),
+    ).resolves.toBeUndefined()
+  })
+
+  test("throws without issuing an update when called without an identity guard", async () => {
+    const update = vi.fn()
+
+    await expect(
+      contactInboxRepository.updateIdentityGuarded(
+        {
+          id: "ci-1",
+          guard: {} as never,
+          set: { sourceUserId: "user.bsuid-new" },
+        },
+        { update } as never,
+      ),
+    ).rejects.toThrow("ContactInbox identity update requires a guard")
+
+    expect(update).not.toHaveBeenCalled()
+  })
+})
 
 describe("contactInboxRepository.findByIdForWorkspace", () => {
   beforeEach(() => {
@@ -354,5 +531,99 @@ describe("contactInboxRepository.findByInboxAndSourceIds", () => {
     )
 
     expect(rows.map((row) => row.id)).toEqual(["ci-2"])
+  })
+})
+
+describe("contactInboxRepository analytics attribution", () => {
+  const render = (fragment: unknown) => {
+    const rendered = new PgDialect().sqlToQuery(fragment as never)
+    return {
+      sql: rendered.sql.replace(/\s+/g, " ").trim(),
+      params: rendered.params,
+    }
+  }
+
+  const chainFor = (result: unknown[]) => {
+    const chain = {
+      selectDistinctOn: vi.fn(),
+      select: vi.fn(),
+      from: vi.fn(),
+      innerJoin: vi.fn(),
+      where: vi.fn(),
+      orderBy: vi.fn(),
+    }
+    chain.selectDistinctOn.mockReturnValue(chain)
+    chain.select.mockReturnValue(chain)
+    chain.from.mockReturnValue(chain)
+    chain.innerJoin.mockReturnValue(chain)
+    chain.where.mockReturnValue(chain)
+    chain.orderBy.mockResolvedValue(result)
+    return chain
+  }
+
+  test("latest attribution: one row per contact, most recently active first, scoped to the workspace", async () => {
+    const rows = [{ contactId: "c1", inboxId: "7", channel: "messenger" }]
+    const chain = chainFor(rows)
+
+    const result = await contactInboxRepository.listLatestAnalyticsAttribution(
+      { workspaceId: "ws-1", contactIds: ["c1", "c2"] },
+      chain as never,
+    )
+
+    expect(result).toBe(rows)
+    expect(chain.selectDistinctOn).toHaveBeenCalledWith(
+      [contactInboxModel.contactId],
+      expect.objectContaining({
+        contactId: contactInboxModel.contactId,
+        inboxId: contactInboxModel.inboxId,
+        channel: contactInboxModel.channel,
+      }),
+    )
+    const where = render(chain.where.mock.calls[0]?.[0])
+    expect(where.sql).toContain('"ContactInbox"."contactId" in')
+    expect(where.sql).toContain('"Contact"."workspaceId" =')
+    expect(where.params).toEqual(["c1", "c2", "ws-1"])
+    const order = chain.orderBy.mock.calls[0] ?? []
+    expect(order[0]).toBe(contactInboxModel.contactId)
+    expect(render(order[1]).sql).toBe(
+      '"ContactInbox"."lastMessageAt" DESC NULLS LAST',
+    )
+    expect(render(order[2]).sql).toBe('"ContactInbox"."id" DESC')
+  })
+
+  test("latest attribution with no contacts makes no query", async () => {
+    const chain = chainFor([])
+
+    await expect(
+      contactInboxRepository.listLatestAnalyticsAttribution(
+        { workspaceId: "ws-1", contactIds: [] },
+        chain as never,
+      ),
+    ).resolves.toEqual([])
+    expect(chain.selectDistinctOn).not.toHaveBeenCalled()
+  })
+
+  test("per-contact attribution lists every connection of the contact in the workspace", async () => {
+    const chain = chainFor([])
+    chain.where.mockResolvedValue([
+      {
+        inboxId: "7",
+        channel: "messenger",
+        source: "messenger",
+        sourceId: "s",
+      },
+    ])
+
+    const result =
+      await contactInboxRepository.listAnalyticsAttributionByContact(
+        { workspaceId: "ws-1", contactId: "c1" },
+        chain as never,
+      )
+
+    expect(result).toHaveLength(1)
+    const where = render(chain.where.mock.calls[0]?.[0])
+    expect(where.sql).toContain('"ContactInbox"."contactId" =')
+    expect(where.sql).toContain('"Contact"."workspaceId" =')
+    expect(where.params).toEqual(["c1", "ws-1"])
   })
 })

@@ -26,6 +26,7 @@ vi.mock("@/lib/safe-action", () => ({
 
 vi.mock("../src/features/messages/schema/mutation", () => ({
   createMessageRequest: {},
+  createMessageWithRoutingBypassRequest: {},
 }))
 
 const { createMessageAction: createMessageActionUntyped } = await import(
@@ -112,5 +113,33 @@ describe("createMessageAction", () => {
       user: { id: "user-1" },
     })
     expect(result).toEqual({ id: "msg-1" })
+  })
+
+  test("sends a product message on the inbox the composer showed, with the routing bypass", async () => {
+    const parsedInput = {
+      products: {
+        display: "products",
+        body: "Look",
+        sections: [{ productIds: ["1", "2"] }],
+      },
+      inboxId: "inbox-2",
+      bypassThreadControlLock: true,
+    }
+
+    await createMessageAction({
+      bindArgsParsedInputs: ["ws-1", "conv-1"],
+      parsedInput,
+      ctx: { user: { id: "user-1" } },
+    } as never)
+
+    expect(mockResolveContactInboxForConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ inboxId: "inbox-2" }),
+    )
+    expect(mockCreateOutgoing).toHaveBeenCalledWith({
+      conversation,
+      contactInbox,
+      input: parsedInput,
+      user: { id: "user-1" },
+    })
   })
 })

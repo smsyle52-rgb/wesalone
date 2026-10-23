@@ -1,85 +1,37 @@
 import { whatsappFlowResponseService } from "@chatbotx.io/business"
+import { enqueueLeaderboardAward } from "@chatbotx.io/business/leaderboard"
 import type { ContactInboxModel } from "@chatbotx.io/database/types"
-import {
-  type FlowNode,
-  stepTypes,
-  type WhatsappFlowStepSchema,
-} from "@chatbotx.io/flow-config"
+import type { WhatsappFlowStepSchema } from "@chatbotx.io/flow-config"
+import { createdAtFromId } from "@chatbotx.io/utils"
 import { logger } from "../../lib/logger"
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
-
-const isWhatsappFlowStep = (step: unknown): step is WhatsappFlowStepSchema => {
-  if (!isRecord(step) || step.stepType !== stepTypes.enum.whatsappFlow) {
-    return false
+/**
+ * A submitted WhatsApp Flow form counts as a completed survey for WhatsApp
+ * leaderboards. The stored response message is the source event: its id is
+ * the sourceRef and the time packed into that id the event time, so a retry
+ * or redelivery scores once.
+ */
+export const awardWhatsappFlowSurvey = async (props: {
+  workspaceId: string
+  contactId: string
+  contactInbox: Pick<ContactInboxModel, "channel" | "inboxId">
+  messageId: string | null | undefined
+}): Promise<void> => {
+  if (props.contactInbox.channel !== "whatsapp" || !props.messageId) {
+    return
   }
-
-  if (
-    !(
-      Array.isArray(step.buttons) &&
-      step.buttons.every(
-        (button) => isRecord(button) && typeof button.id === "string",
-      )
-    )
-  ) {
-    return false
+  const eventAt = createdAtFromId(props.messageId)
+  if (!eventAt) {
+    return
   }
-
-  return (
-    isRecord(step.flow) &&
-    typeof step.flow.sourceId === "string" &&
-    Array.isArray(step.flow.fieldMappings)
-  )
-}
-
-const getWhatsappFlowStepByButtonId = (
-  step: unknown,
-  buttonId: string,
-): WhatsappFlowStepSchema | null => {
-  if (!isWhatsappFlowStep(step)) {
-    return null
-  }
-
-  return step.buttons.some((button) => button.id === buttonId) ? step : null
-}
-
-const findWhatsappFlowStepInList = (
-  steps: unknown[],
-  buttonId: string,
-): WhatsappFlowStepSchema | null => {
-  for (const step of steps) {
-    const whatsappFlowStep = getWhatsappFlowStepByButtonId(step, buttonId)
-    if (whatsappFlowStep) {
-      return whatsappFlowStep
-    }
-  }
-  return null
-}
-
-export const findWhatsappFlowStepByButtonId = (
-  nodes: FlowNode[],
-  buttonId: string,
-): WhatsappFlowStepSchema | null => {
-  for (const node of nodes) {
-    const details = node.data.details
-
-    if ("steps" in details && Array.isArray(details.steps)) {
-      const found = findWhatsappFlowStepInList(details.steps, buttonId)
-      if (found) {
-        return found
-      }
-    }
-
-    if ("beforeStep" in details) {
-      const found = getWhatsappFlowStepByButtonId(details.beforeStep, buttonId)
-      if (found) {
-        return found
-      }
-    }
-  }
-
-  return null
+  await enqueueLeaderboardAward({
+    workspaceId: props.workspaceId,
+    contactId: props.contactId,
+    inboxId: props.contactInbox.inboxId,
+    rule: "survey",
+    sourceRef: `waflow:${props.messageId}`,
+    eventAt,
+  })
 }
 
 export const applyWhatsappFlowResponseSideEffects = async (props: {
@@ -88,6 +40,8 @@ export const applyWhatsappFlowResponseSideEffects = async (props: {
   contactInbox: ContactInboxModel
   step: WhatsappFlowStepSchema
   flowResponse: Record<string, unknown>
+  /** The stored flow-response message; scores the WhatsApp "survey" rule. */
+  messageId?: string | null
 }) => {
   const flowSourceId = props.step.flow.sourceId
   if (!flowSourceId) {
@@ -105,5 +59,12 @@ export const applyWhatsappFlowResponseSideEffects = async (props: {
     flowSourceId,
     fieldMappings: props.step.flow.fieldMappings,
     flowResponse: props.flowResponse,
+  })
+
+  await awardWhatsappFlowSurvey({
+    workspaceId: props.workspaceId,
+    contactId: props.contactId,
+    contactInbox: props.contactInbox,
+    messageId: props.messageId,
   })
 }

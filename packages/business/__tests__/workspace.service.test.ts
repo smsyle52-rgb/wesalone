@@ -15,19 +15,27 @@ const update = vi.fn(() => ({ set: setUpdate }))
 
 const findFirstUser = vi.fn(async () => ({ tenantId: "1" }))
 const findFirstWorkspace = vi.fn(async () => ({ name: "Old Name" }))
+const findFirstFlow = vi.fn(async () => ({ id: "11" }))
 const countWorkspaces = vi.fn(async () => 0)
-const db = {
+const transaction = vi.fn(
+  async (fn: (tx: unknown) => unknown): Promise<unknown> => await fn(db),
+)
+const db: Record<string, unknown> = {
   insert,
   update,
+  transaction,
   $count: countWorkspaces,
   query: {
     userModel: { findFirst: findFirstUser },
     workspaceModel: { findFirst: findFirstWorkspace },
+    flowModel: { findFirst: findFirstFlow },
   },
 }
 vi.mock("@chatbotx.io/database/client", () => ({
   db,
+  and: vi.fn(),
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
+  isNull: vi.fn(),
 }))
 vi.mock("@chatbotx.io/database/schema", () => ({
   workspaceModel: {},
@@ -48,7 +56,7 @@ vi.mock("@chatbotx.io/database/partials", async (importOriginal) => {
     await importOriginal<typeof import("@chatbotx.io/database/partials")>()
   return {
     ...actual,
-    workspaceMemberRoles: { enum: { owner: "owner" } },
+    workspaceMemberRoles: { enum: { owner: "owner", agent: "agent" } },
   }
 })
 const invalidateCacheByTags = vi.fn(async () => undefined)
@@ -86,10 +94,17 @@ const workspaceMemberService = {
   create: vi.fn(async () => undefined),
   listUserIdsByWorkspaceId: vi.fn(async () => [] as string[]),
 }
+const workspaceUsageService = {
+  rollbackLiveIncrement: vi.fn(async () => undefined),
+}
+vi.mock("../src/workspace-usage/service", () => ({ workspaceUsageService }))
+
 vi.mock("../src/workspace-member/service", () => ({
   workspaceMemberService,
   workspaceMemberCacheTag: (userId: string) =>
     `users:${userId}:workspace-members`,
+  workspaceRosterCacheTag: (workspaceId: string) =>
+    `workspaces:${workspaceId}:workspace-members`,
 }))
 
 const macRepository = {
@@ -108,6 +123,9 @@ const dispatchAuditRecord = vi.fn()
 vi.mock("../src/audit/dispatcher", () => ({ dispatchAuditRecord }))
 
 const { workspaceService } = await import("../src/workspace/service")
+const { compensateWorkspaceQuotaConsumption } = await import(
+  "../src/workspace/quota-consumption"
+)
 
 function createInput() {
   return {
@@ -138,6 +156,8 @@ beforeEach(() => {
   anchoredPeriod.mockClear()
   logger.error.mockClear()
   dispatchAuditRecord.mockClear()
+  transaction.mockClear()
+  workspaceUsageService.rollbackLiveIncrement.mockClear()
   returningUpdatedWorkspace
     .mockReset()
     .mockResolvedValue([{ id: "ws-1", name: "New Name" }])
@@ -251,6 +271,321 @@ describe("WorkspaceService.create — happy path", () => {
   })
 })
 
+describe("WorkspaceService.create — workspace seat compensation", () => {
+  test("releases the consumed seat when the row insert fails", async () => {
+    const insertError = new Error("insert failed")
+    returningWorkspace.mockRejectedValueOnce(insertError)
+
+    await expect(workspaceService.create(createInput())).rejects.toBe(
+      insertError,
+    )
+
+    expect(quotaEnforcementService.tryConsume).toHaveBeenCalledOnce()
+    expect(quotaEnforcementService.release).toHaveBeenCalledWith({
+      userId: "user-1",
+      metric: "workspaces",
+    })
+  })
+
+  // Codex review (PR #1442): without a caller `tx` the row writes used to be
+  // autocommitted, so a late failure (member insert) released the seat while
+  // the Workspace row stayed behind — an under-count that lets the owner
+  // exceed the plan limit. The writes must run in an owned transaction so the
+  // row is gone before the seat is handed back.
+  test("without a caller tx, a late failure rolls the row back in an owned transaction before releasing the seat", async () => {
+    workspaceMemberService.create.mockRejectedValueOnce(
+      new Error("member insert failed"),
+    )
+
+    await expect(workspaceService.create(createInput())).rejects.toThrow(
+      "member insert failed",
+    )
+
+    expect(transaction).toHaveBeenCalledTimes(1)
+    expect(quotaEnforcementService.release).toHaveBeenCalledWith({
+      userId: "user-1",
+      metric: "workspaces",
+    })
+    expect(dispatchAuditRecord).not.toHaveBeenCalled()
+  })
+
+  const memberIncrementLanded = () =>
+    workspaceMemberService.create.mockImplementationOnce((props: unknown) => {
+      const { teamMemberUsage } = props as {
+        teamMemberUsage?: { liveIncrementedCount: number }
+      }
+      if (teamMemberUsage) {
+        teamMemberUsage.liveIncrementedCount += 1
+      }
+      return Promise.resolve(undefined)
+    })
+
+  test("leaves the live team-member counter alone on rollback when its increment never landed", async () => {
+    // Default member mock: Redis did not take the +1 (or the member insert
+    // never ran). A -1 here would release something never consumed.
+    transaction.mockImplementationOnce(async (fn) => {
+      await fn(db)
+      throw new Error("commit failed")
+    })
+
+    await expect(workspaceService.create(createInput())).rejects.toThrow(
+      "commit failed",
+    )
+
+    expect(quotaEnforcementService.release).toHaveBeenCalledWith({
+      userId: "user-1",
+      metric: "workspaces",
+    })
+    expect(workspaceUsageService.rollbackLiveIncrement).not.toHaveBeenCalled()
+  })
+
+  test("undoes the live team-member counter when the workspace rolls back after its owner member was written", async () => {
+    // The member insert bumped the Redis `teamMembers` counter for ws-1 and
+    // wrote the usage row on the same tx; COMMIT then fails, so only the
+    // Redis half is left to correct.
+    memberIncrementLanded()
+    transaction.mockImplementationOnce(async (fn) => {
+      await fn(db)
+      throw new Error("commit failed")
+    })
+
+    await expect(workspaceService.create(createInput())).rejects.toThrow(
+      "commit failed",
+    )
+
+    expect(workspaceUsageService.rollbackLiveIncrement).toHaveBeenCalledWith(
+      "ws-1",
+      "teamMembers",
+      1,
+    )
+  })
+
+  // A concurrent read between the cache bust and COMMIT would re-cache the
+  // owner's membership list without the new workspace until the TTL.
+  test("busts the owner's membership cache only after the owned transaction commits", async () => {
+    const events: string[] = []
+    transaction.mockImplementationOnce(async (fn) => {
+      const result = await fn(db)
+      events.push("commit")
+      return result
+    })
+    invalidateCacheByTags.mockImplementationOnce(() => {
+      events.push("invalidate")
+      return Promise.resolve()
+    })
+
+    await workspaceService.create(createInput())
+
+    expect(events).toEqual(["commit", "invalidate"])
+  })
+
+  test("leaves the live team-member counter alone when the create succeeds", async () => {
+    await workspaceService.create(createInput())
+
+    expect(workspaceUsageService.rollbackLiveIncrement).not.toHaveBeenCalled()
+  })
+
+  test("with a caller tx, never opens its own transaction", async () => {
+    // No MAC period on the quota row, so the MAC savepoint is skipped too.
+    await workspaceService.create({ ...createInput(), tx: db as never })
+
+    expect(transaction).not.toHaveBeenCalled()
+  })
+
+  // Codex review (PR #1442): `ensureMacRollup` swallows its error on purpose
+  // (MAC pre-provisioning must never block creation), but a failed statement
+  // on the owning transaction leaves Postgres' transaction aborted — COMMIT
+  // then silently becomes ROLLBACK while `create` reports success. Run the
+  // optional write behind a SAVEPOINT so only it rolls back.
+  test("runs the MAC pre-provisioning behind a savepoint so its SQL failure leaves the owning transaction usable", async () => {
+    userQuotaService.getForUser.mockResolvedValue({
+      id: "q-1",
+      userId: "user-1",
+      periodStart: new Date("2026-05-01T00:00:00.000Z"),
+    })
+    macRepository.ensureWorkspaceMac.mockRejectedValueOnce(
+      new Error("mac insert failed"),
+    )
+
+    const result = await workspaceService.create(createInput())
+
+    expect(result).toEqual({ id: "ws-1", organizationId: "org-1" })
+    // Owned transaction + the MAC savepoint.
+    expect(transaction).toHaveBeenCalledTimes(2)
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(quotaEnforcementService.release).not.toHaveBeenCalled()
+    expect(dispatchAuditRecord).toHaveBeenCalledTimes(1)
+  })
+
+  test("marks the caller's tracker consumed only once the row is written", async () => {
+    const quotaConsumption = { consumed: false as const }
+
+    await workspaceService.create({
+      ...createInput(),
+      tx: db as never,
+      quotaConsumption,
+    })
+
+    expect(quotaConsumption).toEqual({
+      consumed: true,
+      userId: "user-1",
+      workspaceId: "ws-1",
+      teamMembersLiveIncrementedCount: 0,
+    })
+  })
+
+  test("marks the caller's tracker before the cache bust, so a cache failure stays compensable", async () => {
+    const quotaConsumption = { consumed: false as const }
+    invalidateCacheByTags.mockRejectedValueOnce(new Error("redis down"))
+
+    await expect(
+      workspaceService.create({
+        ...createInput(),
+        tx: db as never,
+        quotaConsumption,
+      }),
+    ).rejects.toThrow("redis down")
+
+    expect(quotaConsumption).toMatchObject({
+      consumed: true,
+      userId: "user-1",
+      workspaceId: "ws-1",
+    })
+  })
+
+  test("leaves the tracker untouched when create owned the transaction (nothing is left for the caller to undo)", async () => {
+    const quotaConsumption = { consumed: false as const }
+
+    await workspaceService.create({ ...createInput(), quotaConsumption })
+
+    expect(quotaConsumption).toEqual({ consumed: false })
+  })
+
+  test("leaves the caller's tracker untouched when the insert fails (the seat was already released here)", async () => {
+    returningWorkspace.mockRejectedValueOnce(new Error("insert failed"))
+    const quotaConsumption = { consumed: false as const }
+
+    await expect(
+      workspaceService.create({ ...createInput(), quotaConsumption }),
+    ).rejects.toThrow("insert failed")
+
+    expect(quotaConsumption).toEqual({ consumed: false })
+  })
+
+  test("compensateWorkspaceQuotaConsumption releases the seat and the live owner-member counter once, then resets the tracker", async () => {
+    const quotaConsumption = {
+      consumed: true as const,
+      userId: "user-1",
+      workspaceId: "ws-1",
+      teamMembersLiveIncrementedCount: 1,
+    }
+
+    await compensateWorkspaceQuotaConsumption(quotaConsumption)
+    await compensateWorkspaceQuotaConsumption(quotaConsumption)
+
+    expect(quotaEnforcementService.release).toHaveBeenCalledTimes(1)
+    expect(quotaEnforcementService.release).toHaveBeenCalledWith({
+      userId: "user-1",
+      metric: "workspaces",
+    })
+    // Codex review (PR #1442): the owner-member insert bumped the live
+    // `teamMembers` counter inside the caller's transaction; when that
+    // transaction rolls back after `create` returned, only this compensation
+    // can still undo the Redis half (the durable row went with the tx).
+    expect(workspaceUsageService.rollbackLiveIncrement).toHaveBeenCalledTimes(1)
+    expect(workspaceUsageService.rollbackLiveIncrement).toHaveBeenCalledWith(
+      "ws-1",
+      "teamMembers",
+      1,
+    )
+    expect(quotaConsumption).toEqual({ consumed: false })
+  })
+
+  test("compensateWorkspaceQuotaConsumption is a no-op for an unconsumed tracker", async () => {
+    await compensateWorkspaceQuotaConsumption({ consumed: false })
+
+    expect(quotaEnforcementService.release).not.toHaveBeenCalled()
+  })
+})
+
+describe("WorkspaceService.create — additional members", () => {
+  test("inserts an agent-role member for each entry in `members`, alongside the owner", async () => {
+    const permissions = { superAdmin: false, analytics: true } as never
+
+    await workspaceService.create({
+      ...createInput(),
+      members: [
+        { userId: "member-1", permissions },
+        { userId: "member-2", permissions },
+      ],
+    })
+
+    expect(workspaceMemberService.create).toHaveBeenCalledTimes(3)
+    const [, memberOneArg, memberTwoArg] =
+      workspaceMemberService.create.mock.calls.map((call) => call[0])
+    expect(memberOneArg.data).toMatchObject({
+      userId: "member-1",
+      workspaceId: "ws-1",
+      role: "agent",
+      permissions,
+    })
+    expect(memberTwoArg.data).toMatchObject({
+      userId: "member-2",
+      workspaceId: "ws-1",
+      role: "agent",
+      permissions,
+    })
+    expect(invalidateCacheByTags).toHaveBeenCalledWith([
+      "users:user-1:workspace-members",
+      "users:member-1:workspace-members",
+      "users:member-2:workspace-members",
+      "workspaces:ws-1:workspace-members",
+    ])
+  })
+
+  test("rolls back the live team-member counter by the number of inserts that actually landed", async () => {
+    workspaceMemberService.create
+      .mockImplementationOnce((props: unknown) => {
+        const { teamMemberUsage } = props as {
+          teamMemberUsage?: { liveIncrementedCount: number }
+        }
+        if (teamMemberUsage) {
+          teamMemberUsage.liveIncrementedCount += 1
+        }
+        return Promise.resolve(undefined)
+      })
+      .mockImplementationOnce((props: unknown) => {
+        const { teamMemberUsage } = props as {
+          teamMemberUsage?: { liveIncrementedCount: number }
+        }
+        if (teamMemberUsage) {
+          teamMemberUsage.liveIncrementedCount += 1
+        }
+        return Promise.resolve(undefined)
+      })
+    transaction.mockImplementationOnce(async (fn) => {
+      await fn(db)
+      throw new Error("commit failed")
+    })
+
+    await expect(
+      workspaceService.create({
+        ...createInput(),
+        members: [
+          { userId: "member-1", permissions: {} as never },
+          { userId: "member-2", permissions: {} as never },
+        ],
+      }),
+    ).rejects.toThrow("commit failed")
+
+    expect(workspaceUsageService.rollbackLiveIncrement).toHaveBeenCalledWith(
+      "ws-1",
+      "teamMembers",
+      2,
+    )
+  })
+})
+
 describe("WorkspaceService.create — community workspace limit", () => {
   test("creates the first workspace under the distributed lock", async () => {
     isCommunity.mockReturnValue(true)
@@ -299,6 +634,30 @@ describe("WorkspaceService.create — community workspace limit", () => {
   })
 })
 
+describe("WorkspaceService.findActiveByOwner", () => {
+  test("excludes a workspace mid soft-delete and orders deterministically by id", async () => {
+    findFirstWorkspace.mockResolvedValueOnce({ id: "ws-1" })
+
+    const result = await workspaceService.findActiveByOwner({
+      ownerId: "owner-1",
+    })
+
+    expect(result).toEqual({ id: "ws-1" })
+    expect(findFirstWorkspace).toHaveBeenCalledWith({
+      where: { ownerId: "owner-1", scheduledDeletionAt: { isNull: true } },
+      orderBy: { id: "asc" },
+    })
+  })
+
+  test("returns undefined when the owner's only workspace is scheduled for deletion", async () => {
+    findFirstWorkspace.mockResolvedValueOnce(undefined)
+
+    await expect(
+      workspaceService.findActiveByOwner({ ownerId: "owner-1" }),
+    ).resolves.toBeUndefined()
+  })
+})
+
 describe("WorkspaceService.update — member cache invalidation", () => {
   test("invalidates the workspace tag and every member's workspace-members tag", async () => {
     workspaceMemberService.listUserIdsByWorkspaceId.mockResolvedValue([
@@ -329,7 +688,153 @@ describe("WorkspaceService.update — member cache invalidation", () => {
 
     expect(invalidateCacheByTags).toHaveBeenCalledWith(["workspaces:ws-1"])
   })
+
+  test("rejects cancellation after the durable purge fence is set", async () => {
+    returningUpdatedWorkspace.mockResolvedValueOnce([])
+
+    await expect(
+      workspaceService.cancelDeletion({ id: "ws-1" }),
+    ).rejects.toMatchObject({
+      code: "workspaceDeletionStarted",
+    })
+  })
 })
 
 // Token-creation auditing moved with the write: see
 // workspace-api-token.service.test.ts (workspaceApiTokenService.createToken).
+
+describe("workspaceService.updateSettings", () => {
+  test("writes only the five settings columns, whatever else is passed", async () => {
+    setUpdate.mockClear()
+
+    await workspaceService.updateSettings({
+      id: "ws-1",
+      data: {
+        defaultReply: "11",
+        defaultReplyFrequency: "oncePerDay",
+        smartResponseDelaySeconds: 10,
+        capiLimitedDataUse: true,
+        logo: "https://cdn.example.com/l.png",
+        // Not settings: must never reach the UPDATE.
+        status: "suspended",
+        ownerId: "attacker",
+        tenantId: "9",
+      } as never,
+    })
+
+    expect(setUpdate).toHaveBeenCalledWith({
+      defaultReply: "11",
+      defaultReplyFrequency: "oncePerDay",
+      smartResponseDelaySeconds: 10,
+      capiLimitedDataUse: true,
+      logo: "https://cdn.example.com/l.png",
+    })
+  })
+
+  test("a Default Reply flow of another workspace is refused and nothing is written", async () => {
+    setUpdate.mockClear()
+    findFirstFlow.mockResolvedValueOnce(undefined as never)
+
+    await expect(
+      workspaceService.updateSettings({
+        id: "ws-1",
+        data: { defaultReply: "99" },
+      }),
+    ).rejects.toThrow("Flow not found")
+    expect(setUpdate).not.toHaveBeenCalled()
+  })
+
+  test("clearing the Default Reply (null) needs no flow lookup", async () => {
+    setUpdate.mockClear()
+    findFirstFlow.mockClear()
+
+    await workspaceService.updateSettings({
+      id: "ws-1",
+      data: { defaultReply: null },
+    })
+
+    expect(findFirstFlow).not.toHaveBeenCalled()
+    expect(setUpdate).toHaveBeenCalledWith({ defaultReply: null })
+  })
+
+  test("an empty or all-undefined body writes nothing and returns the workspace", async () => {
+    setUpdate.mockClear()
+    findFirstWorkspace.mockResolvedValueOnce({
+      id: "ws-1",
+      name: "Old",
+    } as never)
+
+    const result = await workspaceService.updateSettings({
+      id: "ws-1",
+      data: { logo: undefined },
+    })
+
+    expect(setUpdate).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ id: "ws-1" })
+  })
+
+  test("a field left out is not written (undefined is skipped)", async () => {
+    setUpdate.mockClear()
+
+    await workspaceService.updateSettings({
+      id: "ws-1",
+      data: { capiLimitedDataUse: false },
+    })
+
+    expect(setUpdate).toHaveBeenCalledWith({ capiLimitedDataUse: false })
+  })
+})
+
+describe("WorkspaceService.setLogoIfEmpty", () => {
+  test("stores the logo, invalidates member caches and audits", async () => {
+    returningUpdatedWorkspace.mockResolvedValueOnce([{ id: "ws-1" }] as never)
+    workspaceMemberService.listUserIdsByWorkspaceId.mockResolvedValue([
+      "user-1",
+    ])
+
+    const written = await workspaceService.setLogoIfEmpty({
+      id: "ws-1",
+      logo: "public/space/ws-1/logos/logo.jpg",
+    })
+
+    expect(written).toBe(true)
+    expect(setUpdate).toHaveBeenCalledWith({
+      logo: "public/space/ws-1/logos/logo.jpg",
+    })
+    expect(invalidateCacheByTags).toHaveBeenCalledWith([
+      "workspaces:ws-1",
+      "users:user-1:workspace-members",
+    ])
+    expect(dispatchAuditRecord).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      action: "update",
+      detail: "changed the workspace logo",
+    })
+  })
+
+  test("writes nothing else when the workspace already got a logo", async () => {
+    returningUpdatedWorkspace.mockResolvedValueOnce([])
+
+    const written = await workspaceService.setLogoIfEmpty({
+      id: "ws-1",
+      logo: "public/space/ws-1/logos/logo.jpg",
+    })
+
+    expect(written).toBe(false)
+    expect(invalidateCacheByTags).not.toHaveBeenCalled()
+    expect(dispatchAuditRecord).not.toHaveBeenCalled()
+  })
+
+  test("skips the audit inside a caller-owned transaction", async () => {
+    returningUpdatedWorkspace.mockResolvedValueOnce([{ id: "ws-1" }] as never)
+
+    await workspaceService.setLogoIfEmpty({
+      id: "ws-1",
+      logo: "public/space/ws-1/logos/logo.jpg",
+      tx: db as never,
+    })
+
+    expect(invalidateCacheByTags).toHaveBeenCalled()
+    expect(dispatchAuditRecord).not.toHaveBeenCalled()
+  })
+})

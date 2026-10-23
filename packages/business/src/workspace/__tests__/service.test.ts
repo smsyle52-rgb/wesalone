@@ -6,18 +6,29 @@ const mocks = vi.hoisted(() => ({
   workspaceInsert: vi.fn(),
   workspaceInsertValues: vi.fn(),
   workspaceDelete: vi.fn(),
+  workspaceQuotaRelease: vi.fn(),
   tryConsume: vi.fn(),
   createMember: vi.fn(),
   getForUser: vi.fn(),
   invalidateCacheByTags: vi.fn(),
   dbTransaction: vi.fn(),
   purgeWorkspaceHeavyData: vi.fn(),
+  purgeWorkspacePosts: vi.fn(),
   dispatchAuditRecord: vi.fn(),
 }))
 
 vi.mock("@chatbotx.io/analytics", () => ({
   anchoredPeriod: vi.fn(() => ({ start: new Date(), end: new Date() })),
   macRepository: { ensureWorkspaceMac: vi.fn(async () => undefined) },
+}))
+
+// `workspace/service.ts` now imports the usage service for the rollback of the
+// live team-member counter; mock it so this file's narrow schema mock does not
+// have to carry `workspaceUsageModel`.
+vi.mock("../../workspace-usage/service", () => ({
+  workspaceUsageService: {
+    rollbackLiveIncrement: vi.fn(async () => undefined),
+  },
 }))
 
 vi.mock("@chatbotx.io/database/client", () => ({
@@ -53,6 +64,8 @@ vi.mock("@chatbotx.io/database/client", () => ({
   }),
   eq: vi.fn((column, value) => ({ column, value })),
   inArray: vi.fn(),
+  and: vi.fn(),
+  isNull: vi.fn(),
   sql: vi.fn(),
 }))
 
@@ -103,7 +116,7 @@ vi.mock("../../logger", () => ({
 vi.mock("../../quota-enforcement/service", () => ({
   quotaEnforcementService: {
     tryConsume: mocks.tryConsume,
-    release: vi.fn(async () => undefined),
+    release: mocks.workspaceQuotaRelease,
   },
 }))
 
@@ -118,8 +131,23 @@ vi.mock("../../workspace-lifecycle/service", () => ({
   workspaceLifecycleService: {
     freezeWorkspaceRuntime: vi.fn(async () => undefined),
     disconnectWorkspaceIntegrations: vi.fn(async () => undefined),
-    disconnectWorkspaceChannels: vi.fn(async () => undefined),
+    disconnectWorkspaceChannels: vi.fn(async () => ({
+      disconnected: 0,
+      pendingReleases: [],
+    })),
     purgeWorkspaceHeavyData: mocks.purgeWorkspaceHeavyData,
+  },
+}))
+
+vi.mock("../../connection/state-service", () => ({
+  connectionStateService: {
+    releasePendingQuota: vi.fn(async () => undefined),
+  },
+}))
+
+vi.mock("../../contact-inbox-post/service", () => ({
+  contactInboxPostService: {
+    purgeWorkspace: mocks.purgeWorkspacePosts,
   },
 }))
 
@@ -133,6 +161,9 @@ vi.mock("../../workspace-member/service", () => ({
     create: mocks.createMember,
     listUserIdsByWorkspaceId: vi.fn(async () => []),
   },
+  workspaceRosterCacheTag: vi.fn(
+    (workspaceId: string) => `workspace-members:${workspaceId}`,
+  ),
 }))
 
 const { workspaceService } = await import("../service")
@@ -142,6 +173,8 @@ beforeEach(() => {
   mocks.workspaceInsert.mockReset()
   mocks.workspaceInsertValues.mockReset()
   mocks.workspaceDelete.mockReset()
+  mocks.workspaceQuotaRelease.mockReset()
+  mocks.workspaceQuotaRelease.mockResolvedValue(undefined)
   mocks.tryConsume.mockReset()
   mocks.createMember.mockReset()
   mocks.createMember.mockResolvedValue(undefined)
@@ -149,8 +182,23 @@ beforeEach(() => {
   mocks.getForUser.mockResolvedValue(undefined)
   mocks.invalidateCacheByTags.mockReset()
   mocks.dbTransaction.mockReset()
+  // `create` without a caller `tx` now owns a transaction around the row
+  // writes; by default run the callback against a client that shares the
+  // insert mock. Tests that need a specific `tx` still override this.
+  mocks.dbTransaction.mockImplementation(
+    (callback: (transaction: unknown) => unknown) => {
+      // Self-referential so a nested `tx.transaction` (the MAC savepoint)
+      // hands back the same client.
+      const client: Record<string, unknown> = { insert: mocks.workspaceInsert }
+      client.transaction = (nested: (transaction: unknown) => unknown) =>
+        nested(client)
+      return callback(client)
+    },
+  )
   mocks.purgeWorkspaceHeavyData.mockReset()
   mocks.purgeWorkspaceHeavyData.mockResolvedValue(0)
+  mocks.purgeWorkspacePosts.mockReset()
+  mocks.purgeWorkspacePosts.mockResolvedValue({ complete: true, deleted: 0 })
   mocks.dispatchAuditRecord.mockReset()
 
   mocks.workspaceInsert.mockReturnValue({
@@ -223,12 +271,13 @@ describe("WorkspaceService.create", () => {
         .fn()
         .mockResolvedValue([{ id: "new-workspace", name: "Acme" }]),
     })
-    const tx = { insert: mocks.workspaceInsert } as never
+    const tx: Record<string, unknown> = { insert: mocks.workspaceInsert }
+    tx.transaction = (nested: (transaction: unknown) => unknown) => nested(tx)
 
     await workspaceService.create({
       data: { name: "Acme", tenantId: "1" } as never,
       createdBy: "owner-1",
-      tx,
+      tx: tx as never,
     })
 
     expect(mocks.dispatchAuditRecord).not.toHaveBeenCalled()
@@ -236,18 +285,39 @@ describe("WorkspaceService.create", () => {
 })
 
 describe("WorkspaceService.purgeDueScheduled", () => {
+  const setupPurgeTransactions = (
+    claimedRows: { id: string; ownerId: string; tenantId: string }[],
+  ) => {
+    const execute = vi.fn().mockResolvedValueOnce({ rows: claimedRows })
+    for (const workspace of claimedRows) {
+      execute.mockResolvedValueOnce({
+        rows: [
+          {
+            ...workspace,
+            purgeStartedAt: null,
+            scheduledDeletionAt: new Date(0),
+          },
+        ],
+      })
+    }
+    const tx = {
+      execute,
+      select: () => ({ from: () => ({ where: () => Promise.resolve([]) }) }),
+      update: () => ({
+        set: () => ({ where: () => Promise.resolve() }),
+      }),
+    }
+    mocks.dbTransaction.mockImplementation(
+      (callback: (transaction: unknown) => unknown) => callback(tx),
+    )
+  }
+
   test("deletes only workspaces that tear down cleanly and never aborts the run on a single failure", async () => {
     const claimedRows = [
       { id: "w1", ownerId: "o1", tenantId: "t1" },
       { id: "w2", ownerId: "o2", tenantId: "t2" },
     ]
-    const tx = {
-      execute: vi.fn().mockResolvedValue({ rows: claimedRows }),
-      select: () => ({ from: () => ({ where: () => Promise.resolve([]) }) }),
-    }
-    mocks.dbTransaction.mockImplementation(
-      (callback: (tx: unknown) => unknown) => callback(tx),
-    )
+    setupPurgeTransactions(claimedRows)
 
     // w1's teardown throws; w2 succeeds.
     mocks.purgeWorkspaceHeavyData.mockImplementation(
@@ -263,19 +333,67 @@ describe("WorkspaceService.purgeDueScheduled", () => {
     expect(mocks.workspaceDelete).toHaveBeenCalledTimes(1)
   })
 
+  test("skips a workspace that was rescheduled before its fence is acquired", async () => {
+    const claimedRows = [{ id: "w1", ownerId: "o1", tenantId: "t1" }]
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: claimedRows })
+      .mockResolvedValueOnce({ rows: [] })
+    const tx = {
+      execute,
+      select: () => ({ from: () => ({ where: () => Promise.resolve([]) }) }),
+      update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
+    }
+    mocks.dbTransaction.mockImplementation(
+      (callback: (transaction: unknown) => unknown) => callback(tx),
+    )
+
+    await expect(
+      workspaceService.purgeDueScheduled({ chunkSize: 1, maxChunks: 1 }),
+    ).resolves.toBe(0)
+
+    expect(mocks.purgeWorkspaceHeavyData).not.toHaveBeenCalled()
+  })
+
+  test("resumes a workspace with an existing purge fence", async () => {
+    const claimedRows = [{ id: "w1", ownerId: "o1", tenantId: "t1" }]
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: claimedRows })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            ...claimedRows[0],
+            purgeStartedAt: new Date("2026-09-30T00:00:00.000Z"),
+          },
+        ],
+      })
+    const tx = {
+      execute,
+      select: () => ({ from: () => ({ where: () => Promise.resolve([]) }) }),
+      update: vi.fn(),
+    }
+    mocks.dbTransaction.mockImplementation(
+      (callback: (transaction: unknown) => unknown) => callback(tx),
+    )
+
+    await expect(
+      workspaceService.purgeDueScheduled({ chunkSize: 1, maxChunks: 1 }),
+    ).resolves.toBe(1)
+
+    expect(mocks.purgeWorkspaceHeavyData).toHaveBeenCalledWith({
+      workspaceId: "w1",
+    })
+    expect(tx.update).not.toHaveBeenCalled()
+  })
+
   test("tears down up to five claimed workspaces concurrently", async () => {
     const claimedRows = Array.from({ length: 6 }, (_, index) => ({
       id: `w${index + 1}`,
       ownerId: `o${index + 1}`,
       tenantId: `t${index + 1}`,
     }))
-    const tx = {
-      execute: vi.fn().mockResolvedValue({ rows: claimedRows }),
-      select: () => ({ from: () => ({ where: () => Promise.resolve([]) }) }),
-    }
-    mocks.dbTransaction.mockImplementation(
-      (callback: (tx: unknown) => unknown) => callback(tx),
-    )
+    setupPurgeTransactions(claimedRows)
 
     let active = 0
     let maxActive = 0
@@ -298,13 +416,7 @@ describe("WorkspaceService.purgeDueScheduled", () => {
 
   test("logs the underlying postgres cause when workspace row delete fails", async () => {
     const claimedRows = [{ id: "w1", ownerId: "o1", tenantId: "t1" }]
-    const tx = {
-      execute: vi.fn().mockResolvedValue({ rows: claimedRows }),
-      select: () => ({ from: () => ({ where: () => Promise.resolve([]) }) }),
-    }
-    mocks.dbTransaction.mockImplementation(
-      (callback: (tx: unknown) => unknown) => callback(tx),
-    )
+    setupPurgeTransactions(claimedRows)
     const pgCause = Object.assign(new Error("statement timeout"), {
       code: "57014",
       detail: "canceling statement due to statement timeout",
@@ -333,5 +445,18 @@ describe("WorkspaceService.purgeDueScheduled", () => {
       }),
       "workspace-purge: teardown failed, deferring to next run",
     )
+  })
+
+  test("defers a fenced workspace when its post drain is incomplete", async () => {
+    const claimedRows = [{ id: "w1", ownerId: "o1", tenantId: "t1" }]
+    setupPurgeTransactions(claimedRows)
+    mocks.purgeWorkspacePosts.mockResolvedValue({ complete: false, deleted: 1 })
+
+    await expect(
+      workspaceService.purgeDueScheduled({ chunkSize: 1, maxChunks: 1 }),
+    ).resolves.toBe(0)
+
+    expect(mocks.workspaceDelete).not.toHaveBeenCalled()
+    expect(mocks.workspaceQuotaRelease).not.toHaveBeenCalled()
   })
 })

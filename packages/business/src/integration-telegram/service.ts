@@ -1,22 +1,25 @@
 import type { DatabaseClient } from "@chatbotx.io/database/client"
-import {
-  and,
-  db,
-  eq,
-  findOrFail,
-  isDatabaseError,
-} from "@chatbotx.io/database/client"
+import { and, db, eq, findOrFail } from "@chatbotx.io/database/client"
 import { integrationTypes } from "@chatbotx.io/database/partials"
+import { connectionRepository } from "@chatbotx.io/database/repositories"
 import { integrationTelegramModel } from "@chatbotx.io/database/schema"
 import type { IntegrationTelegramModel } from "@chatbotx.io/database/types"
-import { createId } from "@chatbotx.io/utils"
 import { BaseService } from "../base.service"
-import { ChatbotXException } from "../errors"
-import { connectChannelIntegration } from "../inbox/connect-channel"
+import {
+  CONNECTION_STORE_BINDINGS,
+  type ConnectionQuotaConsumption,
+  upsertConnectionRow,
+  withQuotaCompensation,
+} from "../connection"
+import { connectionStateService } from "../connection/state-service"
 import { inboxService } from "../inbox/service"
-import { workspaceService } from "../workspace"
+import { type WorkspaceQuotaConsumption, workspaceService } from "../workspace"
 
-const UNIQUE_VIOLATION_CODE = "23505"
+/** 64 hex chars from Web Crypto (no `node:crypto`: this module is in the Edge-safe barrel). */
+const generateWebhookSecretToken = (): string =>
+  Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("")
 
 class TelegramIntegrationService extends BaseService {
   findByInboxIdForWorkspace(props: { inboxId: string; workspaceId: string }) {
@@ -60,82 +63,130 @@ class TelegramIntegrationService extends BaseService {
     botId: string
     botUsername: string
     botToken: string
-    onConnected: (ctx: { integrationId: string }) => Promise<void>
+    onConnected: (ctx: {
+      integrationId: string
+      /** Pass as `secret_token` to setWebhook; the webhook checks it. */
+      webhookSecretToken: string
+    }) => Promise<void>
   }): Promise<{
     workspaceId: string
     createdWorkspace: boolean
     wasCreated: boolean
     integrationId: string
   }> {
-    const { ownerId, createdBy, botId, botUsername, botToken, onConnected } =
-      input
+    const { createdBy, botId, botUsername, botToken, onConnected } = input
     let { workspaceId } = input
 
-    try {
-      return await db.transaction(async (tx) => {
-        const auth = {
-          authType: "secretText" as const,
-          secretText: botToken,
-        }
-        let createdWorkspace = false
-        let effectiveOwnerId = ownerId
+    // Known synchronously (no new workspace is ever created for an
+    // already-targeted `workspaceId`), so this stays outside the
+    // transaction `withQuotaCompensation` wraps — the owner whose quota the
+    // `connect.completed` edge below consumes against must match the
+    // `ownerId` `withQuotaCompensation` reads back if that edge needs
+    // compensating.
+    const createdWorkspace = !workspaceId
+    const effectiveOwnerId = createdWorkspace ? createdBy : input.ownerId
 
-        if (!workspaceId) {
-          const workspace = await workspaceService.create({
-            tx,
-            createdBy,
-            data: {
-              name: botUsername,
-              timezone: "UTC",
-              ownerId: createdBy,
-            },
-          })
-          workspaceId = workspace.id
-          effectiveOwnerId = createdBy
-          createdWorkspace = true
-        }
-
-        const integrationId = createId()
-        const { wasCreated } = await connectChannelIntegration({
-          tx,
-          ownerId: effectiveOwnerId,
-          inboxData: {
-            id: createId(),
-            workspaceId,
-            name: botUsername,
-            channel: integrationTypes.enum.telegram,
-            sourceId: botId,
-          },
-          insertIntegration: async (inboxId) => {
-            await tx.insert(integrationTelegramModel).values({
-              id: integrationId,
-              inboxId,
-              workspaceId: workspaceId as string,
-              botId,
-              name: botUsername,
-              auth,
-            })
-          },
-        })
-
-        await onConnected({ integrationId })
-
-        return {
-          workspaceId,
-          createdWorkspace,
-          wasCreated,
-          integrationId,
-        }
-      })
-    } catch (error) {
-      if (
-        isDatabaseError(error) &&
-        error.cause.code === UNIQUE_VIOLATION_CODE
-      ) {
-        throw new ChatbotXException("Bot already connected")
-      }
-      throw error
+    // Telegram echoes this in `X-Telegram-Bot-Api-Secret-Token` on every
+    // update, so the webhook can reject forged updates (group activity
+    // awards leaderboard points). Rotated on every (re)connect.
+    const webhookSecretToken = generateWebhookSecretToken()
+    const auth = {
+      authType: "secretText" as const,
+      secretText: botToken,
+      metadata: { botId, webhookSecretToken },
     }
+    const quotaConsumption: ConnectionQuotaConsumption = {
+      consumed: false,
+      workspaceUsageIncremented: false,
+    }
+
+    const workspaceQuotaConsumption: WorkspaceQuotaConsumption = {
+      consumed: false,
+    }
+    const result = await withQuotaCompensation(
+      {
+        ownerId: effectiveOwnerId,
+        quotaConsumption,
+        workspaceQuotaConsumption,
+        context: { provider: "telegram" },
+      },
+      () =>
+        db.transaction(async (tx) => {
+          if (!workspaceId) {
+            const workspace = await workspaceService.create({
+              tx,
+              createdBy,
+              data: {
+                name: botUsername,
+                timezone: "UTC",
+                ownerId: createdBy,
+              },
+              quotaConsumption: workspaceQuotaConsumption,
+            })
+            workspaceId = workspace.id
+          }
+
+          // The revive-or-insert lookup key `saveOrInsertSatellite` needs —
+          // present means a `Connection` row for this (workspace, botId)
+          // already exists (even disconnected), so this is a revive rather
+          // than a genuine first-ever connect (`wasCreated` below).
+          const existing = await connectionRepository.findByProviderSourceId(
+            { workspaceId, provider: "telegram", sourceId: botId },
+            tx,
+          )
+
+          const { inbox } = await inboxService.create({
+            tx,
+            ownerId: effectiveOwnerId,
+            data: {
+              workspaceId,
+              name: botUsername,
+              channel: integrationTypes.enum.telegram,
+              sourceId: botId,
+            },
+            skipQuota: true,
+          })
+
+          await upsertConnectionRow({
+            tx,
+            workspaceId,
+            provider: "telegram",
+            kind: "channel",
+            descriptor: { sourceId: botId, displayName: botUsername },
+            auth,
+            extraConfig: {},
+            existing,
+            store: CONNECTION_STORE_BINDINGS.telegram as NonNullable<
+              (typeof CONNECTION_STORE_BINDINGS)["telegram"]
+            >,
+            ownerId: effectiveOwnerId,
+            quotaConsumption,
+            inboxId: inbox.id,
+          })
+
+          const integration = await tx.query.integrationTelegramModel.findFirst(
+            { where: { inboxId: inbox.id } },
+          )
+          if (!integration) {
+            throw new Error(
+              `telegramIntegrationService.connect: IntegrationTelegram row missing for inbox ${inbox.id}`,
+            )
+          }
+
+          await onConnected({
+            integrationId: integration.id,
+            webhookSecretToken,
+          })
+
+          return {
+            workspaceId,
+            wasCreated: !existing,
+            integrationId: integration.id,
+          }
+        }),
+    )
+
+    return { ...result, createdWorkspace }
   }
 
   async disconnect(input: {
@@ -156,11 +207,10 @@ class TelegramIntegrationService extends BaseService {
             eq(integrationTelegramModel.workspaceId, workspaceId),
           ),
         )
-      await inboxService.disconnect({
+      await connectionStateService.disconnectInbox({
         inboxId,
-        ownerId,
         workspaceId,
-        reason: "manual",
+        ownerId,
         tx: client,
       })
     }

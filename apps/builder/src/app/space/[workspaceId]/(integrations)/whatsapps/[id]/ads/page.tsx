@@ -1,14 +1,12 @@
 import {
   integrationWhatsappService,
-  metaConversionsService,
   platformCredentialService,
-  resolveCapiScopeStateForChannel,
   workspaceService,
 } from "@chatbotx.io/business"
 import { notFound } from "next/navigation"
 import { WhatsappCapiTab } from "@/features/integration-whatsapp/components/whatsapp-capi-tab"
-import { hasWhatsappCapiScope } from "@/features/integration-whatsapp/libs/capi-scope"
 import { WHATSAPP_OAUTH_CALLBACK_PATH } from "@/features/integration-whatsapp/libs/embedded-signup"
+import { resolveIntegrationCapiConnection } from "@/features/meta-conversions/lib/resolve-integration-capi-connection"
 import { withWorkspaceIdAndIdSchema } from "@/features/workspaces/schema/resource"
 import { resolveOwnerForWorkspace } from "@/lib/platform-credential-owner"
 import { resolveProviderOriginForCredential } from "@/lib/provider-origin"
@@ -30,59 +28,33 @@ export default async function WhatsappAdsPage(props: {
     return notFound()
   }
 
+  // The popup opens the platform's dedicated Conversions API configuration, so
+  // the tab needs the app's public settings and the callback registered for it.
   const whatsappCredential = await platformCredentialService.resolveForOwner({
     ownerId: await resolveOwnerForWorkspace(workspace),
     type: "whatsapp",
   })
+  const originUrl = await resolveProviderOriginForCredential(whatsappCredential)
 
-  // A manual access token + dataset is ready without the OAuth scope, and a
-  // user-disconnected integration must stay disconnected — both skip the scope
-  // refresh (which can throw CapiScopeRefreshError on an expired OAuth token).
-  const usesManualToken = Boolean(
-    integrationWhatsapp.capiAccessToken && integrationWhatsapp.datasetId,
-  )
-  const capiDisconnected = Boolean(integrationWhatsapp.capiDisconnectedAt)
-  const refreshed =
-    whatsappCredential && !(usesManualToken || capiDisconnected)
-      ? await metaConversionsService
-          .refreshCapiScopeCache({
-            channel: "whatsapp",
-            integration: integrationWhatsapp,
-            checkScope: ({ accessToken, resourceId }) =>
-              hasWhatsappCapiScope({
-                accessToken,
-                appAccessToken: `${whatsappCredential.config.clientId}|${whatsappCredential.config.clientSecret}`,
-                wabaId: resourceId,
-              }),
-          })
-          .catch(() => integrationWhatsapp)
-      : integrationWhatsapp
-
-  const resolved = refreshed ?? integrationWhatsapp
-  const scopeState = await resolveCapiScopeStateForChannel("whatsapp", resolved)
-  const oauthCallbackOrigin =
-    await resolveProviderOriginForCredential(whatsappCredential)
-
+  // The connection comes from what the integration stores — never from asking
+  // Meta — and only plain fields reach the client: the encrypted token stays here.
   return (
     <WhatsappCapiTab
-      capiDisconnected={capiDisconnected}
-      credentialAvailable={Boolean(whatsappCredential)}
-      hasManualCapiAccessToken={Boolean(resolved.capiAccessToken)}
+      connection={resolveIntegrationCapiConnection(
+        "whatsapp",
+        integrationWhatsapp,
+      )}
       integrationWhatsapp={{
-        id: resolved.id,
-        name: resolved.name,
-        displayPhoneNumber: resolved.displayPhoneNumber,
-        wabaId: resolved.wabaId,
-        hasCapiScope: scopeState.hasCapiScope,
-        isCoexist: resolved.isCoexist,
-        datasetId: resolved.datasetId,
-        capiTestEventCode: resolved.capiTestEventCode,
+        id: integrationWhatsapp.id,
+        datasetId: integrationWhatsapp.datasetId,
+        capiTestEventCode: integrationWhatsapp.capiTestEventCode,
+        isCoexist: integrationWhatsapp.isCoexist,
       }}
       oauthCallbackUrl={new URL(
         WHATSAPP_OAUTH_CALLBACK_PATH,
-        oauthCallbackOrigin,
+        originUrl,
       ).toString()}
-      whatsappCredentialPublic={whatsappCredential?.publicConfig ?? null}
+      settings={whatsappCredential?.publicConfig ?? null}
     />
   )
 }

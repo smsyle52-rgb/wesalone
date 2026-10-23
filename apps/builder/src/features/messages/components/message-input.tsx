@@ -6,9 +6,18 @@ import { Form } from "@chatbotx.io/ui/components/ui/form"
 import { Textarea } from "@chatbotx.io/ui/components/ui/textarea"
 import { useIsMobile } from "@chatbotx.io/ui/hooks/use-mobile"
 import { createId } from "@chatbotx.io/utils"
+import { channelTypes } from "@chatbotx.io/utils/channel"
+import {
+  checkInboxImages,
+  getInboxImageLimit,
+  type InboxImageCheckResult,
+  isImageMimeType,
+  resolveInboxReplyKind,
+} from "@chatbotx.io/utils/inbox-image-support"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useHookFormAction } from "@next-safe-action/adapter-react-hook-form/hooks"
 import {
+  HandIcon,
   ImageIcon,
   LockIcon,
   PaperclipIcon,
@@ -29,6 +38,7 @@ import {
 import { Controller, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 import { disableBotAction } from "@/features/conversations/actions/disable-bot.action"
+import { useThreadControl } from "@/features/conversations/hooks/use-thread-control"
 import {
   BOT_DISABLE_DURATION_MS,
   isConversationActive,
@@ -37,14 +47,16 @@ import { InboxIcon } from "@/features/inboxes/components/inbox-icon"
 import { MediaLibraryTrigger } from "@/features/media-library/components/media-library-trigger"
 import type { ListFilesResponse } from "@/features/media-library/schema"
 import { QuickRepliesPopover } from "@/features/saved-replies/quick-replies-popover"
+import type { SavedReplyResource } from "@/features/saved-replies/schema/resource"
 import { authClient } from "@/lib/auth/auth-client"
 import { useChatStore } from "../../chat/store/chat-store-provider"
 import { createMessageAction } from "../actions/create-message.action"
-import { createMessageRequest } from "../schema/mutation"
+import { createMessageWithRoutingBypassRequest } from "../schema/mutation"
 import type { MessageResource } from "../schema/resource"
 import { FileUploadPreview } from "./file-upload"
 import { InputMenu } from "./input-menu"
 import { MediaFilePreview } from "./media-file-preview"
+import { ThreadControlLockedComposer } from "./thread-control-locked-composer"
 
 const CHANNEL_WINDOW_SECONDS: Record<ChannelType, number> = {
   api: 0,
@@ -115,6 +127,54 @@ export const MessageInput = () => {
     [conversations, activeConversationId],
   )
 
+  const channel = conversation?.contactInboxes[0]?.channel
+  const threadControl = useThreadControl(conversation, channel)
+
+  // A send with a reply target (picked, or the last contact comment that
+  // `sendMessage` falls back to) goes out as a comment reply, which carries
+  // fewer images than a message thread on most channels. A private reply is
+  // a DM to the commenter instead, so it gets the DM-like limit.
+  const replyKind = resolveInboxReplyKind({
+    hasReplyTarget: Boolean(replyToMessage ?? lastContactComment),
+    isPrivateReply: Boolean(replyToMessage && isPrivateReply),
+  })
+  // A plain string (not the safeParse result object), so callbacks depending
+  // on it keep their identity across keystrokes.
+  const channelType = useMemo(() => {
+    const parsed = channelTypes.safeParse(channel)
+    return parsed.success ? parsed.data : undefined
+  }, [channel])
+  const imageLimit = channelType
+    ? getInboxImageLimit({ channel: channelType, kind: replyKind })
+    : undefined
+  const channelLabel = channelType
+    ? t(`fields.${channelType}.label`)
+    : (channel ?? "")
+
+  const imageLimitMessage = useCallback(
+    (result: Exclude<InboxImageCheckResult, { ok: true }>) =>
+      result.reason === "imagesNotSupported"
+        ? t("messages.imagesNotSupportedOnChannel", { channel: channelLabel })
+        : t("messages.tooManyImagesOnChannel", {
+            channel: channelLabel,
+            max: result.max,
+          }),
+    [channelLabel, t],
+  )
+
+  // The agent dismissed the standby lock (stored routing state may be stale):
+  // the next send bypasses the worker's thread-control gate.
+  const [routingLockDismissed, setRoutingLockDismissed] = useState(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on conversation switch
+  useEffect(() => {
+    setRoutingLockDismissed(false)
+  }, [activeConversationId])
+  const isThreadLocked = Boolean(threadControl?.isLocked)
+  // BizAI (Meta AI) standby on an inline-reply channel (Messenger): once the
+  // agent reveals the composer, a reply goes out tagged HUMAN_AGENT (no
+  // handover take). Drives the highlighted notice + the send-gate bypass.
+  const takeOverOnSend = Boolean(threadControl?.inlineReplyTakesOver)
+
   const { execute: disableBot } = useAction(
     disableBotAction.bind(null, conversation?.workspaceId ?? ""),
     {
@@ -141,7 +201,7 @@ export const MessageInput = () => {
         conversation?.workspaceId ?? "",
         conversation?.id ?? "",
       ),
-      zodResolver(createMessageRequest),
+      zodResolver(createMessageWithRoutingBypassRequest),
       {
         actionProps: {
           onExecute: ({ input }: { input: unknown }) => {
@@ -254,6 +314,62 @@ export const MessageInput = () => {
     [form],
   )
 
+  // Fills the composer with a saved reply: its text replaces the draft and
+  // its images replace any picked attachment. Images the conversation can't
+  // send are dropped up front, with a toast saying why.
+  const applySavedReply = useCallback(
+    (savedReply: SavedReplyResource) => {
+      setContent(savedReply.text)
+      if (savedReply.images.length === 0) {
+        return
+      }
+
+      const keptImages = savedReply.images.slice(
+        0,
+        imageLimit ?? savedReply.images.length,
+      )
+      if (keptImages.length < savedReply.images.length && channelType) {
+        const result = checkInboxImages({
+          channel: channelType,
+          kind: replyKind,
+          imageCount: savedReply.images.length,
+        })
+        if (!result.ok) {
+          toast.error(imageLimitMessage(result), {
+            description: t("messages.savedReplyImagesRemoved"),
+          })
+        }
+      }
+      if (keptImages.length === 0) {
+        return
+      }
+
+      form.setValue("files", [])
+      setSelectedMediaFiles(
+        keptImages.map((image) => ({
+          id: image.mediaLibraryFileId,
+          url: image.url,
+          mimeType: image.mimeType,
+          name: image.name,
+        })),
+      )
+      form.setValue(
+        "mediaFileIds",
+        keptImages.map((image) => image.mediaLibraryFileId),
+        { shouldValidate: true },
+      )
+    },
+    [
+      channelType,
+      form,
+      imageLimit,
+      imageLimitMessage,
+      replyKind,
+      setContent,
+      t,
+    ],
+  )
+
   // Memoize attachment click handler
   const onClickAttachment = useCallback(() => {
     if (fileUploadRef.current) {
@@ -262,7 +378,37 @@ export const MessageInput = () => {
     }
   }, [])
 
+  // BizAI (Meta AI) is NOT a Handover Protocol owner, so there is no
+  // `take_thread_control` to call (it would fail with "routing not enabled").
+  // The human agent just replies with the HUMAN_AGENT tag: bypass our local
+  // send gate, and the channel tags the send from this same metadata flag.
+  const bypassThreadControlLock =
+    takeOverOnSend || (routingLockDismissed && isThreadLocked)
+      ? true
+      : undefined
+
   const sendMessage = useCallback(() => {
+    // Same check as the server, done here so the agent sees which channel
+    // refuses the images before anything is sent.
+    if (channelType) {
+      const attachedFiles = form.getValues("files")
+      const imageCount =
+        selectedMediaFiles.filter((file) => isImageMimeType(file.mimeType))
+          .length +
+        (Array.isArray(attachedFiles)
+          ? attachedFiles.filter((file) => isImageMimeType(file.type)).length
+          : 0)
+      const result = checkInboxImages({
+        channel: channelType,
+        kind: replyKind,
+        imageCount,
+      })
+      if (!result.ok) {
+        toast.error(imageLimitMessage(result))
+        return
+      }
+    }
+
     if (!replyToMessage && lastContactComment) {
       form.setValue("replyToMessageId", lastContactComment.id)
       form.setValue(
@@ -270,8 +416,19 @@ export const MessageInput = () => {
         lastContactComment.createdAt ?? undefined,
       )
     }
+    form.setValue("bypassThreadControlLock", bypassThreadControlLock)
     handleSubmitWithAction()
-  }, [replyToMessage, lastContactComment, form, handleSubmitWithAction])
+  }, [
+    replyToMessage,
+    lastContactComment,
+    form,
+    handleSubmitWithAction,
+    bypassThreadControlLock,
+    channelType,
+    selectedMediaFiles,
+    replyKind,
+    imageLimitMessage,
+  ])
 
   // Memoize keyboard handler
   const onKeyDown = useCallback(
@@ -293,8 +450,6 @@ export const MessageInput = () => {
   const isInstagramPostComment =
     conversation?.contactInboxes[0]?.channel === "instagram" &&
     conversation?.sourceId != null
-
-  const channel = conversation?.contactInboxes[0]?.channel
 
   // Meta DM = messenger or instagram that is NOT a post comment.
   // sourceId != null on the conversation means it's a post comment for both channels.
@@ -390,6 +545,26 @@ export const MessageInput = () => {
     return null
   }
 
+  // Another responder owns the WhatsApp thread: replies are paused until an
+  // explicit take-over. Placed before the window-closed branches and after
+  // every hook, so the form (and its draft) survives the lock.
+  if (conversation && threadControl?.isLocked && !routingLockDismissed) {
+    return (
+      <ThreadControlLockedComposer
+        channel={threadControl.channel}
+        contactInboxId={threadControl.contactInboxId}
+        conversationId={conversation.id}
+        // Keyed per conversation so a take-over spinner or inline refusal
+        // never carries over when the agent switches conversations.
+        key={conversation.id}
+        onDismiss={() => setRoutingLockDismissed(true)}
+        // BizAI: "Take over" reveals the composer; the real take is on send.
+        revealOnTakeOver={takeOverOnSend}
+        workspaceId={conversation.workspaceId}
+      />
+    )
+  }
+
   if (isMessengerHumanAgentWindowExpired) {
     return (
       <div className="m-3 shrink-0 rounded-xl border pt-2">
@@ -425,6 +600,12 @@ export const MessageInput = () => {
             sendMessage()
           }}
         >
+          {takeOverOnSend && (
+            <p className="mx-2.5 mb-1 flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 font-semibold text-primary text-sm">
+              <HandIcon aria-hidden className="size-4 shrink-0" />
+              {t("conversationRouting.composer.aiStandbyHint")}
+            </p>
+          )}
           {replyToMessage && (
             <div className="mx-2.5 mb-1 flex items-start gap-2 rounded-lg border-primary bg-muted px-3 py-2 text-sm">
               {isPrivateReply ? (
@@ -458,8 +639,9 @@ export const MessageInput = () => {
               name="text"
               render={({ field }) => (
                 <QuickRepliesPopover
+                  imageLimit={imageLimit}
                   inputValue={field.value ?? ""}
-                  onSelect={setContent}
+                  onSelect={applySavedReply}
                 >
                   <Textarea
                     aria-label={t("actions.typeMessage")}
@@ -522,7 +704,14 @@ export const MessageInput = () => {
             </div>
 
             <div className="message-toolbar flex shrink-0 items-center gap-2">
-              {!hasFiles && <InputMenu setContent={setContent} />}
+              {!hasFiles && (
+                <InputMenu
+                  bypassThreadControlLock={bypassThreadControlLock}
+                  contactInbox={conversation?.contactInboxes[0]}
+                  onSelectSavedReply={applySavedReply}
+                  setContent={setContent}
+                />
+              )}
               {!isInstagramPostComment && (
                 <>
                   <Button

@@ -22,8 +22,11 @@ const workerState = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
   processor: undefined as DefaultWorkerProcessor | undefined,
   resolveWorkspaceId: vi.fn(),
+  retryRealtimeMemberRevoke: vi.fn(),
   sendAppointmentReminder: vi.fn(),
   submitMetaCatalogSync: vi.fn(),
+  syncWelcomeMessageFlows: vi.fn(),
+  deleteWelcomeMessageFlows: vi.fn(),
   workerClose: vi.fn(async () => undefined),
   workerOn: vi.fn(),
 }))
@@ -71,12 +74,16 @@ vi.mock("@chatbotx.io/worker-config", async (importOriginal) => {
       syncChannelLabels: "syncChannelLabels",
       syncTag: "syncTag",
       submitMetaCatalogSync: "submitMetaCatalogSync",
+      syncWelcomeMessageFlows: "syncWelcomeMessageFlows",
+      deleteWelcomeMessageFlows: "deleteWelcomeMessageFlows",
+      retryRealtimeMemberRevoke: "retryRealtimeMemberRevoke",
     },
     defaultQueue: {
       add: (...args: unknown[]) => workerState.defaultQueueAdd(...args),
     },
     defaultWorkerOptions: {},
     getRedisConnection: () => ({}),
+    getQueueConnection: () => ({}),
     queueNames: {
       enum: {
         default: "default",
@@ -151,6 +158,14 @@ vi.mock("../src/default/handlers/sync-tag", () => ({
   handleSyncTag: vi.fn(),
 }))
 
+vi.mock("../src/default/handlers/retry-realtime-member-revoke", () => ({
+  retryRealtimeMemberRevoke: workerState.retryRealtimeMemberRevoke,
+}))
+vi.mock("../src/default/handlers/welcome-message-flows", () => ({
+  syncWelcomeMessageFlows: workerState.syncWelcomeMessageFlows,
+  deleteWelcomeMessageFlows: workerState.deleteWelcomeMessageFlows,
+}))
+
 await import("../src/default/worker")
 
 const buildBulkTagContactsJob = (): DefaultJobData => ({
@@ -191,6 +206,7 @@ const triggerFailed = async (
 const processDefaultJob = async (
   data: DefaultJobData,
   attemptsMade = 0,
+  attempts = 8,
 ): Promise<void> => {
   if (!workerState.processor) {
     throw new Error("Default worker processor was not captured")
@@ -201,6 +217,7 @@ const processDefaultJob = async (
     data,
     id: "job-1",
     name: data.type,
+    opts: { attempts },
   })
 }
 
@@ -214,8 +231,11 @@ beforeEach(() => {
   workerState.loggerInfo.mockReset()
   workerState.loggerWarn.mockReset()
   workerState.resolveWorkspaceId.mockReset()
+  workerState.retryRealtimeMemberRevoke.mockReset()
   workerState.sendAppointmentReminder.mockReset()
   workerState.submitMetaCatalogSync.mockReset()
+  workerState.syncWelcomeMessageFlows.mockReset()
+  workerState.deleteWelcomeMessageFlows.mockReset()
   workerState.resolveWorkspaceId.mockResolvedValue("workspace-1")
   workerState.isBlockedWorkspace.mockResolvedValue(false)
 })
@@ -290,6 +310,63 @@ describe("default worker", () => {
     )
   })
 
+  test("retries failed realtime member revocations through the default worker", async () => {
+    const jobData: DefaultJobData = {
+      type: "retryRealtimeMemberRevoke",
+      data: {
+        reason: "deleted",
+        revokedAtMs: 1000,
+        userId: "user-1",
+        workspaceId: "workspace-1",
+      },
+    }
+
+    await processDefaultJob(jobData)
+
+    expect(workerState.retryRealtimeMemberRevoke).toHaveBeenCalledWith(
+      jobData.data,
+    )
+  })
+
+  test("skips member revocations for blocked workspaces", async () => {
+    workerState.isBlockedWorkspace.mockResolvedValue(true)
+    const jobData: DefaultJobData = {
+      type: "retryRealtimeMemberRevoke",
+      data: {
+        reason: "deleted",
+        revokedAtMs: 1000,
+        userId: "user-1",
+        workspaceId: "workspace-1",
+      },
+    }
+
+    await processDefaultJob(jobData)
+
+    expect(workerState.isBlockedWorkspace).toHaveBeenCalledWith("workspace-1")
+    expect(workerState.retryRealtimeMemberRevoke).not.toHaveBeenCalled()
+  })
+
+  test("logs a durable signal when the final revoke retry fails", async () => {
+    const error = new Error("Redis unavailable")
+    workerState.retryRealtimeMemberRevoke.mockRejectedValueOnce(error)
+    const jobData: DefaultJobData = {
+      type: "retryRealtimeMemberRevoke",
+      data: {
+        reason: "deleted",
+        revokedAtMs: 1000,
+        userId: "user-1",
+        workspaceId: "workspace-1",
+      },
+    }
+
+    await expect(processDefaultJob(jobData, 7)).rejects.toThrow(error)
+
+    expect(workerState.loggerError).toHaveBeenCalledWith(
+      { err: error, userId: "user-1", workspaceId: "workspace-1" },
+      "Realtime member connection revoke retry exhausted",
+    )
+  })
+
   test("populates the audit actor with the resolved workspace and job source", async () => {
     let capturedActor: ReturnType<typeof getAuditActor>
     workerState.handleBulkTagContacts.mockImplementationOnce(() => {
@@ -320,5 +397,38 @@ describe("default worker", () => {
     // The error-log write now rides its own event bus, so the catch-all must
     // not enqueue anything at all on the default queue.
     expect(workerState.defaultQueueAdd).not.toHaveBeenCalled()
+  })
+})
+
+describe("default worker — welcome message flows", () => {
+  const syncJob: DefaultJobData = {
+    type: "syncWelcomeMessageFlows",
+    data: { workspaceId: "workspace-1", flowId: "flow-1", reason: "publish" },
+  }
+  const deleteJob: DefaultJobData = {
+    type: "deleteWelcomeMessageFlows",
+    data: { workspaceId: "workspace-1", flowIds: ["flow-1"] },
+  }
+
+  test("dispatches sync and delete jobs for active workspaces", async () => {
+    await processDefaultJob(syncJob)
+    await processDefaultJob(deleteJob)
+
+    expect(workerState.syncWelcomeMessageFlows).toHaveBeenCalledWith(
+      syncJob.data,
+    )
+    expect(workerState.deleteWelcomeMessageFlows).toHaveBeenCalledWith(
+      deleteJob.data,
+    )
+  })
+
+  test("skips both jobs for blocked workspaces", async () => {
+    workerState.isBlockedWorkspace.mockResolvedValue(true)
+
+    await processDefaultJob(syncJob)
+    await processDefaultJob(deleteJob)
+
+    expect(workerState.syncWelcomeMessageFlows).not.toHaveBeenCalled()
+    expect(workerState.deleteWelcomeMessageFlows).not.toHaveBeenCalled()
   })
 })

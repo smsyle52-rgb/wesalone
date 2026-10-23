@@ -2,24 +2,60 @@ import { normalizeMetaAdReferral } from "@chatbotx.io/business/referral"
 import {
   type Context,
   contentTypes,
+  echoOrigins,
   type IncomingAttachment,
   type IncomingContact,
   type IncomingMessage,
+  isDeferrableAttachmentType,
   type MessageHandlers,
   type MessageReferral,
   messageTypes,
   type ReceivedMessageResult,
+  type ThreadControlReceiveInfo,
+  threadControlRoles,
+  toPendingIncomingAttachment,
 } from "@chatbotx.io/sdk"
+import { consumeGoogleClickRef } from "@chatbotx.io/utils/google-click"
+import { isLiveMediaDeferrableUrl } from "@chatbotx.io/utils/live-media"
+import {
+  metaReferralTypes,
+  PAID_AD_REFERRAL_SOURCE,
+} from "@chatbotx.io/utils/referral"
+import { z } from "zod"
 import { getMessageAttachmentEntity } from "../../apis/attachment"
 import { MessengerException } from "../../exception"
+import { messengerTimestampToOccurredAt } from "../../lib/conversation-routing"
 import { type MessengerEcho, parseEcho } from "../../lib/echo"
 import { logger } from "../../lib/logger"
+import { readBusinessAiAppId } from "../../lib/thread-control-config"
 import {
   type MessengerAuthValue,
   type MessengerMessage,
   type MessengerMessagingEvent,
+  type MessengerReferral,
+  messengerStandbyEventSchema,
   messengerWebhookEventSchema,
 } from "../../schema"
+
+// A lazy channel keeps the provider's CDN URL and stores the bytes on first
+// use; anything else (a sticker/GIF host, a share, a template) is downloaded
+// now, exactly as before.
+const toIncomingAttachment = (
+  ctx: Context<MessengerAuthValue>,
+  attachment: Parameters<typeof getMessageAttachmentEntity>[0]["attachment"],
+): Promise<IncomingAttachment | undefined> => {
+  const url = attachment.payload.url
+  const pending =
+    url &&
+    isDeferrableAttachmentType(attachment.type) &&
+    isLiveMediaDeferrableUrl("messenger", url)
+      ? toPendingIncomingAttachment({ url, type: attachment.type })
+      : null
+  if (pending) {
+    return Promise.resolve(pending)
+  }
+  return getMessageAttachmentEntity({ ctx, attachment })
+}
 
 const getMessageAttachments = async (
   ctx: Context<MessengerAuthValue>,
@@ -44,7 +80,7 @@ const getMessageAttachments = async (
     })
 
     const attachmentPromises = uniqueAttachments.map((attachment) =>
-      getMessageAttachmentEntity({ ctx, attachment }).catch((error) => {
+      toIncomingAttachment(ctx, attachment).catch((error) => {
         logger.error("Error processing attachment", error)
         return null
       }),
@@ -88,8 +124,41 @@ type MessageTextResolver = (
  * Where a stored message's text comes from, in priority order. Add a resolver
  * here to derive text from another payload shape.
  */
+const isAdOpenThreadReferral = (referral?: MessengerReferral) =>
+  referral?.source === PAID_AD_REFERRAL_SOURCE.meta &&
+  referral.type === metaReferralTypes.enum.OPEN_THREAD
+
+/**
+ * Messages whose ad `referral.text` must NOT become the message text.
+ * Add a rule here to exclude another message shape.
+ */
+const adReferralTextExclusions: ((message: MessengerMessage) => boolean)[] = [
+  // Page-sent echo, never the user's tap.
+  (message) => Boolean(message.is_echo),
+  // An image/sticker keeps its own content instead of being rewritten as text.
+  (message) => Boolean(message.attachments?.length),
+  // Ads with a `ref` start their ref flow (`runRef`); the tapped question must
+  // not also trigger keyword automation for them.
+  (message) => Boolean(message.referral?.ref),
+]
+
+/**
+ * Click-to-Messenger ads may carry the user's tapped question only in
+ * `referral.text` (not documented by Meta, observed on real ad payloads).
+ */
+const resolveAdReferralText: MessageTextResolver = (message) => {
+  const isExcluded = adReferralTextExclusions.some((exclude) =>
+    exclude(message),
+  )
+  if (isExcluded || !isAdOpenThreadReferral(message.referral)) {
+    return
+  }
+  return message.referral?.text
+}
+
 const messageTextResolvers: MessageTextResolver[] = [
   (message) => message.text,
+  resolveAdReferralText,
   (_message, echo) => echo.templateTitle,
 ]
 
@@ -106,6 +175,70 @@ const resolveMessageText = (
   return
 }
 
+const standbyEntrySchema = z.object({
+  standby: z.array(z.unknown()).optional(),
+})
+
+/**
+ * The `standby[0]` item of a standby delivery (the Conversation Routing
+ * rewrap `{object, entry:[{id, time, standby:[item]}]}`), as a messaging event.
+ * Meta strips a standby postback's `payload`/`title`; they default to empty
+ * here and the postback is dropped when it has no `mid` to key a message on.
+ * `null` when the payload is not a standby delivery.
+ */
+const readStandbyEvent = (
+  entry: unknown,
+): { event: MessengerMessagingEvent; occurredAt: Date } | null => {
+  const item = standbyEntrySchema.safeParse(entry)
+  const first = item.success ? item.data.standby?.[0] : undefined
+  if (first === undefined) {
+    return null
+  }
+  const parsed = messengerStandbyEventSchema.parse(first)
+  const { postback, ...rest } = parsed
+  const postbackWithMid = postback?.mid
+    ? {
+        postback: {
+          mid: postback.mid,
+          title: postback.title ?? "",
+          payload: postback.payload ?? "",
+        },
+      }
+    : {}
+  return {
+    event: { ...rest, ...postbackWithMid },
+    occurredAt: messengerTimestampToOccurredAt(parsed.timestamp),
+  }
+}
+
+const hopContextSchema = z.object({
+  hop_context: z.object({ is_ai_thread_owner: z.unknown() }).optional(),
+})
+
+/**
+ * Whether a standby delivery shows the Business-AI app owns the thread, from
+ * any of the signals Meta sends:
+ * - `entry[0].hop_context.is_ai_thread_owner` (v1-observed), or
+ * - the `message_echoes` item's `ai_generated: true` flag (documented), or
+ * - that item's `app_id` matching the Business-AI app id (documented).
+ * Returns the Business-AI app id when owned by it, else `null` (never guessed).
+ */
+const readStandbyOwnerAppId = (
+  entry: unknown,
+  message: MessengerMessage | undefined,
+): string | null => {
+  const businessAiAppId = readBusinessAiAppId()
+  const parsed = hopContextSchema.safeParse(entry)
+  const isHopAiOwner =
+    parsed.success && parsed.data.hop_context?.is_ai_thread_owner === true
+  const isAiGenerated = message?.ai_generated === true
+  const isBusinessAiEcho =
+    message?.app_id != null && String(message.app_id) === businessAiAppId
+  return isHopAiOwner || isAiGenerated || isBusinessAiEcho
+    ? businessAiAppId
+    : null
+}
+
 export const receiveMessage: MessageHandlers<MessengerAuthValue>["receiveMessage"] =
   async (props) => {
     const { ctx, data } = props
@@ -114,7 +247,20 @@ export const receiveMessage: MessageHandlers<MessengerAuthValue>["receiveMessage
     const entry = validatedData.entry[0]
 
     if (!entry.messaging?.[0]) {
-      throw new MessengerException("No messaging found")
+      const rawEntry = (data.payload as { entry?: unknown[] } | null)
+        ?.entry?.[0]
+      const standby = readStandbyEvent(rawEntry)
+      if (!standby) {
+        throw new MessengerException("No messaging found")
+      }
+      const ownerAppId = readStandbyOwnerAppId(rawEntry, standby.event.message)
+      return await getMessageEntity(ctx, standby.event, {
+        delivery: "standby",
+        occurredAt: standby.occurredAt,
+        ...(ownerAppId
+          ? { ownerAppId, ownerRole: threadControlRoles.enum.ai_agent }
+          : {}),
+      })
     }
 
     const messaging = entry.messaging[0]
@@ -122,13 +268,29 @@ export const receiveMessage: MessageHandlers<MessengerAuthValue>["receiveMessage
       throw new MessengerException("No message found")
     }
 
-    return await getMessageEntity(ctx, messaging)
+    // Only a customer's message is an owner delivery: our own echo is an
+    // outgoing message, not proof that we hold the thread.
+    const isCustomerItem =
+      messaging.message?.is_echo !== true &&
+      messaging.sender.id !== ctx.auth.metadata.pageId
+    return await getMessageEntity(
+      ctx,
+      messaging,
+      isCustomerItem
+        ? {
+            delivery: "owner",
+            occurredAt: messengerTimestampToOccurredAt(messaging.timestamp),
+          }
+        : undefined,
+    )
   }
 
 const getMessageEntity = async (
   ctx: Context<MessengerAuthValue>,
   messaging: MessengerMessagingEvent,
+  threadControl?: ThreadControlReceiveInfo,
 ): Promise<ReceivedMessageResult> => {
+  const isStandby = threadControl?.delivery === "standby"
   let message: IncomingMessage | null = null
   let postbackAction: string | null = null
   let quickReplyAction: string | null = null
@@ -163,6 +325,19 @@ const getMessageEntity = async (
     }
     quickReplyAction = messaging.message.quick_reply?.payload ?? null
     buttonTitle = messaging.message.quick_reply?.title ?? null
+    // A standby echo is the partner's own outgoing message: kept as a
+    // third-party echo (like the other channels), never as a customer message.
+    if (isStandby && messaging.message.is_echo) {
+      message.contentAttributes = {
+        ...message.contentAttributes,
+        threadControlEcho: true,
+        // Persist Meta's AI-generation flag so the inbox can tell a Business-AI
+        // reply apart from another partner's (Business AI Integration Guide §5.3).
+        ...(messaging.message.ai_generated === true
+          ? { aiGenerated: true }
+          : {}),
+      }
+    }
   }
 
   if (messaging.postback) {
@@ -199,19 +374,45 @@ const getMessageEntity = async (
   if (rawReferral) {
     ref = rawReferral.ref ?? null
     referralSource = rawReferral.source
-    referral = normalizeMetaAdReferral(rawReferral)
+    // `text` only feeds the inbound message text (see resolveAdReferralText);
+    // keep it out of the stored referral so persisted tracking is unchanged.
+    const { text: _referralText, ...storedReferral } = rawReferral
+    referral = normalizeMetaAdReferral(storedReferral)
+
+    // A Google Click-to-Message ref (`gclid:<id>,...`) is attribution, not a
+    // ChatbotX reflink: consume it so the ref router never looks it up.
+    const captured = consumeGoogleClickRef(
+      rawReferral.ref,
+      messengerTimestampToOccurredAt(messaging.timestamp),
+    )
+    if (captured.googleReferral) {
+      ref = captured.ref
+      // `raw` would keep the click id verbatim in `ref`; drop it.
+      const { ref: _googleRef, ...rawWithoutRef } = storedReferral
+      referral = {
+        ...referral,
+        ref: null,
+        raw: rawWithoutRef,
+        ...captured.googleReferral,
+      }
+    }
   }
 
   return {
     message,
-    postbackAction,
-    quickReplyAction,
+    // A standby delivery is listen-only: it never routes a flow action.
+    postbackAction: isStandby ? null : postbackAction,
+    quickReplyAction: isStandby ? null : quickReplyAction,
     ref,
     referralSource,
     referral,
     buttonTitle,
     contact,
-    echoOrigin: echo.origin,
+    echoOrigin:
+      isStandby && messaging.message?.is_echo
+        ? echoOrigins.enum.thirdParty
+        : echo.origin,
     echoAppId: echo.appId,
+    ...(threadControl ? { threadControl } : {}),
   }
 }

@@ -30,6 +30,33 @@ const buildWhere = (input: FlowListInput) => ({
 })
 
 export const flowRepository = {
+  /** Whether a flow with this id exists in the workspace (id-only read). */
+  async existsInWorkspace(
+    input: { workspaceId: string; id: string },
+    tx: DatabaseClient = db,
+  ): Promise<boolean> {
+    const row = await tx.query.flowModel.findFirst({
+      where: { id: input.id, workspaceId: input.workspaceId },
+      columns: { id: true },
+    })
+    return Boolean(row)
+  },
+
+  /** Minimal published, active flow projection for action target pickers. */
+  async listPublishedOptions(
+    input: { workspaceId: string },
+    tx: DatabaseClient = db,
+  ): Promise<Array<{ id: string; name: string }>> {
+    return await tx.query.flowModel.findMany({
+      where: {
+        workspaceId: input.workspaceId,
+        active: true,
+        currentVersionId: { isNotNull: true },
+      },
+      columns: { id: true, name: true },
+    })
+  },
+
   /**
    * Paginated flow list with each row's draft + latest version attached.
    * The `with` literal stays inline so Drizzle's relational-query type

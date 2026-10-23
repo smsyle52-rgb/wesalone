@@ -18,6 +18,7 @@ import { defaultFn as addTagsAction } from "./components/actions/schema/add-tags
 import { defaultFn as clearCustomFieldAction } from "./components/actions/schema/clear-custom-field"
 import { defaultFn as removeTagsAction } from "./components/actions/schema/remove-tags"
 import { defaultFn as runGoogleSheetAction } from "./components/actions/schema/run-google-sheet"
+import { defaultFn as sendGoogleAdsConversionAction } from "./components/actions/schema/send-google-ads-conversion"
 import { defaultFn as sendMetaCapiEventAction } from "./components/actions/schema/send-meta-capi-event"
 import { defaultFn as setCustomFieldAction } from "./components/actions/schema/set-custom-field"
 import { defaultFn as startFlowAction } from "./components/actions/schema/start-flow"
@@ -34,13 +35,17 @@ type ActionOption = {
     | typeof startFlowAction
     | typeof transferConversationToHumanAction
     | typeof sendMetaCapiEventAction
+    | typeof sendGoogleAdsConversionAction
     | typeof runGoogleSheetAction
 }
 
 export function AddAction({
   onAdd,
+  allowedTypes,
 }: {
   onAdd: (option: ActionOption) => void
+  /** Limits the menu to these actions; every action is offered when omitted. */
+  allowedTypes?: readonly TriggerAction[]
 }) {
   const t = useTranslations()
   const options = useMemo(
@@ -81,12 +86,25 @@ export function AddAction({
         defaultFn: sendMetaCapiEventAction,
       },
       {
+        label: t("trigger.actions.sendGoogleAdsConversion"),
+        value: triggerActions.enum.sendGoogleAdsConversion,
+        defaultFn: sendGoogleAdsConversionAction,
+      },
+      {
         label: "Google Sheets",
         value: triggerActions.enum.runGoogleSheet,
         defaultFn: runGoogleSheetAction,
       },
     ],
     [t],
+  )
+
+  const visibleOptions = useMemo(
+    () =>
+      allowedTypes
+        ? options.filter((option) => allowedTypes.includes(option.value))
+        : options,
+    [options, allowedTypes],
   )
 
   return (
@@ -100,7 +118,7 @@ export function AddAction({
         }
       />
       <DropdownMenuContent>
-        {options.map((option) => (
+        {visibleOptions.map((option) => (
           <DropdownMenuItem
             key={option.value}
             onClick={() => {

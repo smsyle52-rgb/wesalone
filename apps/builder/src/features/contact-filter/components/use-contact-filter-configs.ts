@@ -1,5 +1,6 @@
 "use client"
 
+import { channelTypes } from "@chatbotx.io/database/partials"
 import { useTranslations } from "next-intl"
 import { useMemo } from "react"
 import { useCouponTopicOptions } from "@/features/coupons/provider/use-coupon-topic-options"
@@ -9,18 +10,24 @@ import {
 } from "@/features/custom-fields/provider/custom-field-hook"
 import { useFlowSelectOptions } from "@/features/flows/provider/flow-hook"
 import { useInboxOptionsByChannel } from "@/features/inboxes/provider/inbox-hook"
+import { useLeaderboardOptions } from "@/features/leaderboards/lib/use-leaderboard-options"
 import { useSequenceOptions } from "@/features/sequences/provider/sequence-hook"
 import { useTagSelectOptions } from "@/features/tags/provider/tag-hook"
 import { useContactAssigneeOptions } from "@/features/users/provider/user-hook"
+import { useWorkingHoursOptions } from "@/features/working-hours/provider/working-hours-hook"
 import { useWorkspaceId } from "@/hooks/routing"
+import type { FilterValueCondition } from "../lib/filter-value-labels"
+import type { ContactFilterSurface } from "../schema"
 import {
   type ConditionOption,
   type FieldConfig,
   getConditionOptions,
   getFieldConfigs,
 } from "./contact-filter-config"
+import { useFilterValueLabels } from "./use-filter-value-labels"
 import {
   useBroadcastSelectOptions,
+  useChannelPostSelectOptions,
   useReflinkSelectOptions,
 } from "./use-workspace-option-sources"
 
@@ -29,6 +36,23 @@ type UseContactFilterConfigsResult = {
   conditionOptions: ConditionOption[]
   operatorLabelByValue: Map<string, string>
 }
+
+const getCommentedOnPostIds = (
+  conditions: readonly FilterValueCondition[],
+): string[] =>
+  Array.from(
+    new Set(
+      conditions.flatMap((condition) =>
+        condition.field === "commentedOnPost" &&
+        "value" in condition &&
+        Array.isArray(condition.value)
+          ? condition.value.filter(
+              (value): value is string => typeof value === "string",
+            )
+          : [],
+      ),
+    ),
+  )
 
 /**
  * Centralizes all option/config wiring needed by one contact-filter surface.
@@ -42,6 +66,10 @@ type UseContactFilterConfigsResult = {
 export const useContactFilterConfigs = (
   inboxChannel?: string,
   includeBotFields = false,
+  /** The filter being shown, so id-backed values can be labelled by lookup. */
+  conditions: readonly FilterValueCondition[] = [],
+  /** Fields limited to another surface are left out of the picker. */
+  surface: ContactFilterSurface = "contacts",
 ): UseContactFilterConfigsResult => {
   const t = useTranslations()
 
@@ -52,7 +80,21 @@ export const useContactFilterConfigs = (
   const botFields =
     useBotFields(workspaceId, { enabled: includeBotFields }).data ?? []
   const flowVersionOptions = useFlowSelectOptions()
-  const broadcastOptions = useBroadcastSelectOptions()
+  // `omnichannel` here means "all inboxes", not the broadcast channel, so it
+  // falls back to the hook's default like an unknown channel does.
+  const parsedChannel = channelTypes.safeParse(inboxChannel)
+  const broadcastChannel =
+    parsedChannel.success &&
+    parsedChannel.data !== channelTypes.enum.omnichannel
+      ? parsedChannel.data
+      : undefined
+  const broadcastOptions = useBroadcastSelectOptions(broadcastChannel)
+  const channelPostIds = useMemo(
+    () => getCommentedOnPostIds(conditions),
+    [conditions],
+  )
+  const { options: channelPostOptions } =
+    useChannelPostSelectOptions(channelPostIds)
   const sequences = useSequenceOptions()
   const sequenceOptions = useMemo(
     () =>
@@ -66,7 +108,12 @@ export const useContactFilterConfigs = (
   const assigneeOptions = useContactAssigneeOptions({
     includeUnassigned: true,
   })
+  const workingHourOptions = useWorkingHoursOptions({
+    enabled: surface === "flowCondition",
+  })
   const { options: couponTopicOptions } = useCouponTopicOptions()
+  const { options: leaderboardOptions } = useLeaderboardOptions()
+  const filterValueLabels = useFilterValueLabels(conditions)
 
   const configs = useMemo(
     () =>
@@ -79,10 +126,15 @@ export const useContactFilterConfigs = (
         broadcastOptions,
         sequenceOptions,
         reflinkOptions,
+        channelPostOptions,
         assigneeOptions,
         couponTopicOptions,
+        leaderboardOptions,
         botFields,
         includeBotFields,
+        surface,
+        workingHourOptions,
+        filterValueLabels,
       }),
     [
       t,
@@ -93,10 +145,15 @@ export const useContactFilterConfigs = (
       broadcastOptions,
       sequenceOptions,
       reflinkOptions,
+      channelPostOptions,
       assigneeOptions,
       couponTopicOptions,
+      leaderboardOptions,
       botFields,
       includeBotFields,
+      surface,
+      workingHourOptions,
+      filterValueLabels,
     ],
   )
 

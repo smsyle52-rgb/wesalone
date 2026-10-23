@@ -239,11 +239,13 @@ export const videoStatusPublicRequest = z.object({
 
 export const listMessengerPagesPublicRequest = z.object({
   channel: messagingAdChannelSchema.describe(
-    "Channel the integration belongs to.",
+    "Channel the integration belongs to. Only `whatsapp` is supported.",
   ),
-  integrationId: zodBigintAsString().describe(
-    "Channel integration id (numeric string).",
-  ),
+  integrationId: zodBigintAsString()
+    .optional()
+    .describe(
+      "Not used: the Pages listed are every Messenger Page connected to this workspace. Still accepted for older callers.",
+    ),
 })
 
 export const checkPrerequisitesPublicRequest = z.object({
@@ -291,4 +293,37 @@ export const disconnectConnectionPublicRequestParams = z.object({
   integrationId: zodBigintAsString().describe(
     "Channel integration id (numeric string).",
   ),
+})
+
+export const createAdImageUploadPublicRequest = z.object({
+  fileName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .describe("File name with its extension, e.g. `banner.png`."),
+  mimeType: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .describe("`image/jpeg`, `image/png`, `image/gif` or `image/webp`."),
+  fileSize: z
+    .number()
+    .int()
+    .positive()
+    .describe("File size in bytes; at most 10 MB."),
+})
+
+export const createAdImageUploadPublicResponse = z.object({
+  fileId: z
+    .string()
+    .describe("`creative.media.fileId` for `ads.createCampaign`."),
+  imageKey: z
+    .string()
+    .describe("`creative.media.imageKey` for `ads.createCampaign`."),
+  presignedPostUrl: z
+    .string()
+    .describe("Upload the image bytes here with an HTTP PUT."),
+  publicUrl: z.string().describe("Public location of the image after upload."),
 })

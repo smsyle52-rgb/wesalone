@@ -25,10 +25,14 @@ import type {
   WhatsappSignupSessionModel,
 } from "@chatbotx.io/database/types"
 import { encryptedDataSchema, encryptUtils } from "@chatbotx.io/encryption"
-import type { ChannelError } from "@chatbotx.io/sdk"
+import type { AuthValue, ChannelError } from "@chatbotx.io/sdk"
 import { z } from "zod"
 import { BaseService } from "../base.service"
-import { inboxService } from "../inbox/service"
+import { recordRefreshedAuth } from "../connection/record-refreshed-auth"
+import { connectionStateService } from "../connection/state-service"
+import { notFoundException } from "../errors"
+import { flowService } from "../flow/service"
+import { logger } from "../logger"
 import { createDatasetWithFallback } from "../meta-conversions/dataset-fallback"
 import {
   metaConversionsService,
@@ -37,6 +41,7 @@ import {
 import { platformCredentialService } from "../platform-credential/service"
 import { whatsappBusinessAccountService } from "../whatsapp-business-account/service"
 import { workspaceService } from "../workspace/service"
+import type { WhatsappAuthValue } from "./auth-schema"
 import { whatsappAuthForCapiScopeSchema } from "./auth-schema"
 import {
   type SetCoexistInput,
@@ -113,6 +118,7 @@ type ReplaceAuthInput = FindWorkspaceIntegrationInput & {
   auth: unknown
   hasCapiScope: boolean
   capiScopeCheckedAt?: Date
+  tx?: DatabaseClient
 }
 
 type EnsureDatasetIdInput = FindWorkspaceIntegrationInput & {
@@ -348,6 +354,22 @@ class IntegrationWhatsappService extends BaseService {
     return integrationWhatsappRepository.findByIdForWorkspace(input)
   }
 
+  findByInboxIdForWorkspaceOrNull(input: {
+    inboxId: string
+    workspaceId: string
+  }): Promise<IntegrationWhatsappModel | null> {
+    return integrationWhatsappRepository.findByInboxIdForWorkspace(input)
+  }
+
+  async findAuthByInboxIdForWorkspace(props: {
+    inboxId: string
+    workspaceId: string
+  }): Promise<WhatsappAuthValue | null> {
+    const integration =
+      await integrationWhatsappRepository.findAuthByInboxIdForWorkspace(props)
+    return (integration?.auth as WhatsappAuthValue | undefined) ?? null
+  }
+
   /**
    * Resolves the WhatsApp integration owning an inbox, for the explicit
    * "Send Meta CAPI Event" action (Meta Conversions API). Mirrors the
@@ -373,6 +395,10 @@ class IntegrationWhatsappService extends BaseService {
     return integrationWhatsappRepository.findAllForTokenRefresh()
   }
 
+  findAllConnectedForWebhookSubscription() {
+    return integrationWhatsappRepository.findAllConnectedForWebhookSubscription()
+  }
+
   findForTokenRefreshByWorkspaceIds(workspaceIds: string[]) {
     return integrationWhatsappRepository.findForTokenRefreshByWorkspaceIds(
       workspaceIds,
@@ -383,25 +409,87 @@ class IntegrationWhatsappService extends BaseService {
    * Replace the stored OAuth credentials after a token refresh. Scoped by
    * workspace so a forged integration id can never touch another tenant's row.
    */
-  updateAuth(
+  async updateAuth(
     input: FindWorkspaceIntegrationInput & { auth: Record<string, unknown> },
   ): Promise<void> {
-    return integrationWhatsappRepository.updateAuth(input)
+    const row = await integrationWhatsappRepository.updateAuth(input)
+    if (!row) {
+      logger.warn(
+        { integrationId: input.id, workspaceId: input.workspaceId },
+        "Unable to update WhatsApp auth: integration not found",
+      )
+      return
+    }
+    await recordRefreshedAuth({
+      workspaceId: input.workspaceId,
+      provider: "whatsapp",
+      sourceId: row.phoneNumberId,
+      auth: input.auth as AuthValue,
+    })
   }
 
-  markTokenRefreshError(id: string, error: string): Promise<void> {
-    return integrationWhatsappRepository.markTokenRefreshError(id, error)
+  async markTokenRefreshError(props: {
+    id: string
+    workspaceId: string
+    error: string
+    isRevoked: boolean
+  }): Promise<void> {
+    const row = await integrationWhatsappRepository.markTokenRefreshError({
+      id: props.id,
+      workspaceId: props.workspaceId,
+      error: props.error,
+    })
+
+    if (!row) {
+      logger.warn(
+        { integrationId: props.id, workspaceId: props.workspaceId },
+        "Unable to mark WhatsApp token refresh error: integration not found",
+      )
+      return
+    }
+
+    if (props.isRevoked) {
+      await connectionStateService.markUnhealthyByIdentifier({
+        provider: "whatsapp",
+        identifier: row.phoneNumberId,
+        workspaceId: props.workspaceId,
+        reason: "token_revoked",
+      })
+      return
+    }
+
+    await connectionStateService.markDegradedByIdentifier({
+      provider: "whatsapp",
+      identifier: row.phoneNumberId,
+      workspaceId: props.workspaceId,
+      reason: "refresh_failed",
+    })
+  }
+
+  /**
+   * No workspace scope — for the inbound manual-webhook handler, which only
+   * knows the integration id from the URL.
+   */
+  findByIdUnscoped(id: string): Promise<IntegrationWhatsappModel | null> {
+    return integrationWhatsappRepository.findByIdUnscoped(id)
   }
 
   /**
    * No workspace scope — for the inbound webhook-verification handler, which
    * has not yet resolved a workspace when it stamps `webhookVerifiedAt`.
+   * `auth` is the row's current value; its other keys are kept as-is.
    */
   markWebhookVerified(
     id: string,
-    auth: Record<string, unknown>,
+    auth: { metadata?: Record<string, unknown> } & Record<string, unknown>,
   ): Promise<void> {
-    return integrationWhatsappRepository.updateAuthUnscoped(id, auth)
+    return integrationWhatsappRepository.updateAuthUnscoped(id, {
+      ...auth,
+      metadata: {
+        ...auth.metadata,
+        webhookVerifiedAt: new Date().toISOString(),
+      },
+    })
   }
 
   async refreshCapiScopeCache(
@@ -442,16 +530,26 @@ class IntegrationWhatsappService extends BaseService {
       )
     }
 
-    const updated = await integrationWhatsappRepository.replaceAuth({
-      id: input.id,
-      workspaceId: input.workspaceId,
-      auth: input.auth,
-      hasCapiScope: input.hasCapiScope,
-      capiScopeCheckedAt: input.capiScopeCheckedAt ?? new Date(),
-    })
+    const updated = await integrationWhatsappRepository.replaceAuth(
+      {
+        id: input.id,
+        workspaceId: input.workspaceId,
+        auth: input.auth,
+        hasCapiScope: input.hasCapiScope,
+        capiScopeCheckedAt: input.capiScopeCheckedAt ?? new Date(),
+      },
+      input.tx,
+    )
     if (!updated) {
       throw new Error("WhatsApp integration not found")
     }
+    await recordRefreshedAuth({
+      workspaceId: input.workspaceId,
+      provider: "whatsapp",
+      sourceId: updated.phoneNumberId,
+      auth: input.auth as AuthValue,
+      tx: input.tx,
+    })
 
     await this.audit("update", "re-authorized the WhatsApp Business Account")
 
@@ -702,11 +800,10 @@ class IntegrationWhatsappService extends BaseService {
       tx,
     })
 
-    await inboxService.disconnect({
+    await connectionStateService.disconnectInbox({
       inboxId: integrationWhatsapp.inboxId,
-      ownerId,
       workspaceId,
-      reason: "manual",
+      ownerId,
       tx,
     })
   }
@@ -740,6 +837,38 @@ class IntegrationWhatsappService extends BaseService {
     })
     if (enablesTranscriptionAlone && !row) {
       throw new WhatsappCallTranscriptionRequiresRecordingError()
+    }
+  }
+
+  /**
+   * Sets (or clears) the flow that runs when Meta hands a conversation to this
+   * app. A non-null flow must be an active flow of the same workspace, so
+   * a flow id from another workspace can never be stored. Like
+   * `updateCallSettings` there is no cache to invalidate: the worker reads the
+   * integration row uncached.
+   */
+  async updateHandoverResumeFlow(input: {
+    id: string
+    workspaceId: string
+    handoverResumeFlowId: string | null
+  }): Promise<void> {
+    const { id, workspaceId, handoverResumeFlowId } = input
+    if (handoverResumeFlowId) {
+      const flow = await flowService.findActiveById({
+        id: handoverResumeFlowId,
+        workspaceId,
+      })
+      if (!flow) {
+        throw notFoundException("Handover flow not found")
+      }
+    }
+    const row = await integrationWhatsappRepository.updateHandoverResumeFlow({
+      id,
+      workspaceId,
+      handoverResumeFlowId,
+    })
+    if (!row) {
+      throw notFoundException("WhatsApp integration not found")
     }
   }
 }

@@ -14,13 +14,18 @@ import {
   type CommentHideComments,
   type CommentIncludeKeywords,
   type CommentReply,
+  canProcessMissedComments,
   commentAutomationChannelSupportsHideGif,
   commentAutomationTypes,
   type IgCommentAutomationType,
   igCommentAutomationTypes,
+  isLiveCommentAutomation,
+  liveCommentCapabilities,
   normalizeReplyTexts,
 } from "@chatbotx.io/database/partials"
 import {
+  commentAutomationEventModel,
+  commentAutomationMissModel,
   commentAutomationModel,
   commentAutomationReplyModel,
   contactInboxModel,
@@ -31,12 +36,15 @@ import {
   likeContains,
   parseOrderByAsObject,
 } from "@chatbotx.io/database/utils"
+import { distributedStore } from "@chatbotx.io/redis"
 import { createId } from "@chatbotx.io/utils"
 import { formatInTimeZone } from "date-fns-tz"
 import { BaseService } from "../base.service"
-import { notFoundException } from "../errors"
+import { notFoundException, validationException } from "../errors"
+import { flowService } from "../flow/service"
 import { resolveFolderIdFilter } from "../lib/folder-filter"
 import { assertDeletable } from "../template/installed-resource.service"
+import { assertAutomationAccount } from "./account-scope"
 
 type ListFbCommentsInput = {
   workspaceId: string
@@ -47,6 +55,8 @@ type ListFbCommentsInput = {
   includeAllFolders?: boolean
   name?: string | null
   isActive?: boolean | null
+  /** Only automations scoped to this account (not the "every account" ones). */
+  inboxId?: string | null
 }
 
 type ListFbCommentsResult = {
@@ -68,7 +78,32 @@ type ListChannelCommentsInput = {
   sort?: { id: string; desc: boolean }[] | null
   name?: string | null
   isActive?: boolean | null
+  /** Only automations scoped to this account (not the "every account" ones). */
+  inboxId?: string | null
   tx?: DatabaseClient
+}
+
+export type MissedCommentsIneligibleReason =
+  | "notSinglePost"
+  | "inactive"
+  | "outsideSchedule"
+
+const MISSED_COMMENTS_LOCK_SECONDS = 30 * 60
+
+/**
+ * How long "still processing" outlives the last scheduled replay. Only matters
+ * when replays never finish (a dead worker): the status then clears itself
+ * instead of blocking the automation for good.
+ */
+const MISSED_COMMENTS_REMAINING_GRACE_SECONDS = 30 * 60
+
+function missedCommentsLockKey(automationId: string): string {
+  return `comment-automation:missed-comments:${automationId}`
+}
+
+/** Replays of the automation's last run still queued or running. */
+function missedCommentsRemainingKey(automationId: string): string {
+  return `comment-automation:missed-comments:remaining:${automationId}`
 }
 
 function resolveIsActiveFilter(isActive?: boolean | null): boolean | undefined {
@@ -127,6 +162,7 @@ type CreateThreadsCommentAutomationInput = {
   hideComments?: ThreadsCommentAutomationHideComments
   replyAfter: ThreadsCommentAutomationReplyAfter
   isActive?: boolean
+  inboxId?: string | null
 }
 
 type UpdateThreadsCommentAutomationInput = Partial<
@@ -208,6 +244,7 @@ type CreateTiktokCommentAutomationInput = {
   hideComments?: TiktokCommentAutomationHideComments
   replyAfter: ThreadsCommentAutomationReplyAfter
   isActive?: boolean
+  inboxId?: string | null
 }
 
 type UpdateTiktokCommentAutomationInput = Partial<
@@ -216,6 +253,8 @@ type UpdateTiktokCommentAutomationInput = Partial<
   options?: TiktokCommentAutomationOptions
   isActive?: boolean
 }
+
+type FlowReplyLike = { type: string; value: string | null } | null | undefined
 
 class CommentAutomationService extends BaseService {
   private readonly threadsType = commentAutomationTypes.enum.threads
@@ -379,17 +418,332 @@ class CommentAutomationService extends BaseService {
     }
   }
 
+  /**
+   * The scope currently stored on a Threads/TikTok row, for
+   * `assertAutomationAccount`'s "unchanged scope" pass. Those two update
+   * methods do not load the row first, so it is read here — and only when the
+   * update actually carries an `inboxId`.
+   */
+  private async findStoredInboxId(props: {
+    workspaceId: string
+    id: string
+    type: CommentAutomationType
+    inboxId: string | null | undefined
+    tx: DatabaseClient
+  }): Promise<string | null | undefined> {
+    if (props.inboxId === null || props.inboxId === undefined) {
+      return
+    }
+    const row = await props.tx.query.commentAutomationModel.findFirst({
+      where: { id: props.id, workspaceId: props.workspaceId, type: props.type },
+      columns: { inboxId: true },
+    })
+    return row?.inboxId
+  }
+
+  /**
+   * The automations that may answer a comment arriving on `inboxId`: the ones
+   * scoped to that account plus the unscoped ones (`inboxId IS NULL`, "every
+   * account of this channel"). `inboxId` is required so no caller can fall
+   * back to evaluating another Page's automations by forgetting it.
+   */
   findActiveAutomations(props: {
     workspaceId: string
     channelType: CommentAutomationType
+    inboxId: string
   }) {
     return db.query.commentAutomationModel.findMany({
       where: {
         workspaceId: props.workspaceId,
         isActive: true,
         type: props.channelType,
+        OR: [{ inboxId: { isNull: true } }, { inboxId: props.inboxId }],
       },
     })
+  }
+
+  /**
+   * Whether any automation on this channel already sent this comment its one
+   * comment-anchored DM. Meta and TikTok accept a single private reply per
+   * comment, so a replayed comment must not try again. Filtered through the
+   * workspace's automations so `CommentAutomationEvent_dedup_idx`
+   * (automationId, commentId, replyChannel) serves the lookup.
+   */
+  async hasSentPrivateReply(props: {
+    workspaceId: string
+    channelType: CommentAutomationType
+    commentId: string
+  }): Promise<boolean> {
+    const [row] = await db
+      .select({ id: commentAutomationEventModel.id })
+      .from(commentAutomationEventModel)
+      .where(
+        and(
+          inArray(
+            commentAutomationEventModel.automationId,
+            db
+              .select({ id: commentAutomationModel.id })
+              .from(commentAutomationModel)
+              .where(
+                and(
+                  eq(commentAutomationModel.workspaceId, props.workspaceId),
+                  eq(commentAutomationModel.type, props.channelType),
+                ),
+              ),
+          ),
+          eq(commentAutomationEventModel.commentId, props.commentId),
+          eq(commentAutomationEventModel.replyChannel, "private"),
+          eq(commentAutomationEventModel.status, "sent"),
+        ),
+      )
+      .limit(1)
+    return row !== undefined
+  }
+
+  /**
+   * Loads an automation for "process missed comments" and says why it cannot
+   * run, if it cannot. A run outside the automation's schedule is refused up
+   * front: every replayed comment would be declined as `outsideSchedule`, and
+   * that miss row would then mark the comment as handled for good.
+   */
+  async resolveMissedCommentsTarget(props: {
+    workspaceId: string
+    id: string
+  }): Promise<
+    | {
+        eligible: true
+        automation: CommentAutomationModel
+        channelType: CommentAutomationType
+        postId: string
+      }
+    | { eligible: false; reason: MissedCommentsIneligibleReason }
+  > {
+    const automation = await db.query.commentAutomationModel.findFirst({
+      where: { id: props.id, workspaceId: props.workspaceId },
+    })
+    if (!automation) {
+      throw notFoundException("Comment automation not found")
+    }
+
+    const [postId] = automation.post.value
+    if (!(canProcessMissedComments(automation.post) && postId)) {
+      return { eligible: false, reason: "notSinglePost" }
+    }
+    if (!automation.isActive) {
+      return { eligible: false, reason: "inactive" }
+    }
+
+    const workspace = await db.query.workspaceModel.findFirst({
+      where: { id: props.workspaceId },
+      columns: { timezone: true },
+    })
+    if (!workspace) {
+      throw notFoundException("Workspace not found")
+    }
+    if (!this.isWithinSchedule(automation, workspace.timezone)) {
+      return { eligible: false, reason: "outsideSchedule" }
+    }
+
+    return {
+      eligible: true,
+      automation,
+      channelType: commentAutomationTypes.parse(automation.type),
+      postId,
+    }
+  }
+
+  /**
+   * The comment ids this automation has already handled — replied to (an
+   * event row) or looked at and declined (a miss row). Both tables are unique
+   * on `(automationId, commentId, …)`, so their dedup indexes serve the lookup.
+   */
+  async findProcessedCommentIds(props: {
+    automationId: string
+    commentIds: string[]
+  }): Promise<Set<string>> {
+    if (props.commentIds.length === 0) {
+      return new Set()
+    }
+
+    const [events, misses] = await Promise.all([
+      db
+        .select({ commentId: commentAutomationEventModel.commentId })
+        .from(commentAutomationEventModel)
+        .where(
+          and(
+            eq(commentAutomationEventModel.automationId, props.automationId),
+            inArray(commentAutomationEventModel.commentId, props.commentIds),
+          ),
+        ),
+      db
+        .select({ commentId: commentAutomationMissModel.commentId })
+        .from(commentAutomationMissModel)
+        .where(
+          and(
+            eq(commentAutomationMissModel.automationId, props.automationId),
+            inArray(commentAutomationMissModel.commentId, props.commentIds),
+          ),
+        ),
+    ])
+
+    return new Set([...events, ...misses].map((row) => row.commentId))
+  }
+
+  /**
+   * One missed-comments run per automation at a time, from the scan until its
+   * last replay has run: two overlapping runs would read the same "not yet
+   * handled" set and reply twice, and the builder disables the action for the
+   * same span. Returns false while a run is scanning (the lock) or still has
+   * replays queued (the remaining counter). The TTL frees a lock whose holder
+   * died.
+   */
+  async claimMissedCommentsRun(automationId: string): Promise<boolean> {
+    if (
+      await distributedStore.exists(missedCommentsRemainingKey(automationId))
+    ) {
+      return false
+    }
+    return distributedStore.setNumberIfNotExists(
+      missedCommentsLockKey(automationId),
+      1,
+      MISSED_COMMENTS_LOCK_SECONDS,
+    )
+  }
+
+  /**
+   * Starts counting a run's replays. Called BEFORE they are enqueued: the first
+   * one can run immediately, and its `finishMissedCommentReplay` must find the
+   * counter or it would be lost.
+   */
+  startMissedCommentsReplay(
+    automationId: string,
+    count: number,
+  ): Promise<void> {
+    return distributedStore.setNumber(
+      missedCommentsRemainingKey(automationId),
+      count,
+      MISSED_COMMENTS_LOCK_SECONDS,
+    )
+  }
+
+  /**
+   * Settles the counter once the run's replays are enqueued: takes back the
+   * ones that failed to enqueue (they will never finish) and stretches its TTL
+   * past the last scheduled replay.
+   */
+  async settleMissedCommentsEnqueue(
+    automationId: string,
+    props: { failed: number; lastDelayMs: number },
+  ): Promise<void> {
+    const key = missedCommentsRemainingKey(automationId)
+    if (props.failed > 0) {
+      const remaining = await distributedStore.incrementCounter(
+        key,
+        -props.failed,
+      )
+      if (remaining !== null && remaining <= 0) {
+        await distributedStore.delete(key)
+        return
+      }
+    }
+    await distributedStore.expire(
+      key,
+      Math.ceil(props.lastDelayMs / 1000) +
+        MISSED_COMMENTS_REMAINING_GRACE_SECONDS,
+    )
+  }
+
+  /**
+   * One replay of the automation's run has finished — sent, declined, skipped
+   * or failed alike. The last one clears the "processing" status.
+   */
+  async finishMissedCommentReplay(automationId: string): Promise<void> {
+    const key = missedCommentsRemainingKey(automationId)
+    const remaining = await distributedStore.incrementCounter(key, -1)
+    if (remaining !== null && remaining <= 0) {
+      await distributedStore.delete(key)
+    }
+  }
+
+  /**
+   * The given automations of this workspace that are processing missed
+   * comments: scanning, or with replays still queued. Ids from another
+   * workspace are dropped before Redis is read.
+   */
+  async findMissedCommentsInProgress(props: {
+    workspaceId: string
+    automationIds: string[]
+  }): Promise<string[]> {
+    if (props.automationIds.length === 0) {
+      return []
+    }
+    const owned = await db
+      .select({ id: commentAutomationModel.id })
+      .from(commentAutomationModel)
+      .where(
+        and(
+          eq(commentAutomationModel.workspaceId, props.workspaceId),
+          inArray(commentAutomationModel.id, props.automationIds),
+        ),
+      )
+    if (owned.length === 0) {
+      return []
+    }
+
+    const keys = owned.flatMap(({ id }) => [
+      missedCommentsLockKey(id),
+      missedCommentsRemainingKey(id),
+    ])
+    const values = await distributedStore.getAll<number>(keys)
+    return owned
+      .map(({ id }) => id)
+      .filter(
+        (id) =>
+          values[missedCommentsLockKey(id)] != null ||
+          values[missedCommentsRemainingKey(id)] != null,
+      )
+  }
+
+  releaseMissedCommentsRun(automationId: string): Promise<void> {
+    return distributedStore.delete(missedCommentsLockKey(automationId))
+  }
+
+  /**
+   * Books `spanMs` of replay time on one channel account (a Page, an IG or
+   * TikTok account) and returns when that booking starts, epoch ms. Runs of
+   * different automations on the same account queue up behind one another
+   * instead of each firing at its own pace, so the account's replay rate stays
+   * at one comment per spacing however many runs are started together.
+   */
+  reserveMissedCommentsReplayWindow(props: {
+    channelType: CommentAutomationType
+    integrationIdentifier: string
+    spanMs: number
+  }): Promise<number> {
+    return distributedStore.reserveTimeWindow(
+      `comment-automation:missed-comments:pace:${props.channelType}:${props.integrationIdentifier}`,
+      props.spanMs,
+    )
+  }
+
+  /**
+   * Paces one account's live-broadcast comments through the automation: each
+   * call reserves `spanMs` on the account's timeline and returns when its slot
+   * starts (epoch ms). A live broadcast can drop thousands of comments in
+   * minutes, and every one of them would otherwise reach the shared
+   * integration and chat workers at once — starving every other workspace's
+   * replies and tripping the Page's Graph limits. Delaying the job (rather
+   * than sleeping in it) holds no worker while it waits.
+   */
+  reserveLiveCommentWindow(props: {
+    channelType: CommentAutomationType
+    integrationIdentifier: string
+    spanMs: number
+  }): Promise<number> {
+    return distributedStore.reserveTimeWindow(
+      `comment-automation:live-comments:pace:${props.channelType}:${props.integrationIdentifier}`,
+      props.spanMs,
+    )
   }
 
   isWithinSchedule(
@@ -441,6 +795,30 @@ class CommentAutomationService extends BaseService {
       .insert(commentAutomationReplyModel)
       .values({ id: createId(), ...props })
       .onConflictDoNothing()
+  }
+
+  /**
+   * Atomically takes the "one reply per user per post" slot: `true` only for
+   * the one caller whose row was actually inserted.
+   *
+   * `findDedup` followed by a later `insertDedup` is a check-then-act race —
+   * two comments from the same person a few milliseconds apart (routine on a
+   * busy live broadcast, where viewers repeat themselves) both read "not yet
+   * replied" and both get a reply. The unique `CommentAutomationReply_dedup_idx`
+   * makes this insert the arbiter instead.
+   */
+  async claimDedup(props: {
+    automationId: string
+    contactId: string
+    postId: string
+    workspaceId: string
+  }): Promise<boolean> {
+    const inserted = await db
+      .insert(commentAutomationReplyModel)
+      .values({ id: createId(), ...props })
+      .onConflictDoNothing()
+      .returning({ id: commentAutomationReplyModel.id })
+    return inserted.length > 0
   }
 
   /**
@@ -530,6 +908,7 @@ class CommentAutomationService extends BaseService {
       folderId: resolveFolderIdFilter(input.folderId, input.includeAllFolders),
       name: input.name ? { ilike: likeContains(input.name) } : undefined,
       isActive: resolveIsActiveFilter(input.isActive),
+      inboxId: input.inboxId ?? undefined,
     }
 
     const pagination = getPaginationWithDefaults(input)
@@ -550,6 +929,26 @@ class CommentAutomationService extends BaseService {
     const pageCount = Math.ceil(total / pagination.limit)
 
     return { data, pageCount }
+  }
+
+  /**
+   * Any channel's automation, scoped to the workspace. For reads that serve
+   * every channel at once (the stats drill-down), where the caller holds an id
+   * but not its `type`.
+   */
+  async findOrFail(input: {
+    workspaceId: string
+    id: string
+  }): Promise<CommentAutomationModel> {
+    const record = await db.query.commentAutomationModel.findFirst({
+      where: { id: input.id, workspaceId: input.workspaceId },
+    })
+
+    if (!record) {
+      throw notFoundException("Comment Automation not found")
+    }
+
+    return record
   }
 
   async findMessengerOrFail(input: {
@@ -590,10 +989,38 @@ class CommentAutomationService extends BaseService {
     return { ...data, publicReply: normalizeReplyTexts(data.publicReply) }
   }
 
+  /**
+   * `AutomatedResponse` (Keywords) validates a `flowId` against
+   * `flowService.exists` before saving it; mirrors that here so a stale
+   * flowId fails at write time instead of silently at delivery.
+   */
+  private async assertReplyFlowsExist(
+    workspaceId: string,
+    replies: { privateReply?: FlowReplyLike; publicReply?: FlowReplyLike },
+    tx?: DatabaseClient,
+  ): Promise<void> {
+    for (const field of ["privateReply", "publicReply"] as const) {
+      const reply = replies[field]
+      if (reply?.type !== "flow" || !reply.value) {
+        continue
+      }
+      const exists = await flowService.exists(workspaceId, reply.value, tx)
+      if (!exists) {
+        throw validationException(field, "Flow not found")
+      }
+    }
+  }
+
   async createMessenger(input: {
     workspaceId: string
     data: FbCommentAutomationWriteData
   }): Promise<CommentAutomationModel> {
+    await this.assertReplyFlowsExist(input.workspaceId, input.data)
+    await assertAutomationAccount({
+      workspaceId: input.workspaceId,
+      type: commentAutomationTypes.enum.messenger,
+      inboxId: input.data.inboxId,
+    })
     const [created] = await db
       .insert(commentAutomationModel)
       .values({
@@ -610,7 +1037,14 @@ class CommentAutomationService extends BaseService {
     ctx: { workspaceId: string; id: string },
     data: Partial<FbCommentAutomationWriteData>,
   ): Promise<CommentAutomationModel> {
-    await this.findMessengerOrFail(ctx)
+    const existing = await this.findMessengerOrFail(ctx)
+    await this.assertReplyFlowsExist(ctx.workspaceId, data)
+    await assertAutomationAccount({
+      workspaceId: ctx.workspaceId,
+      type: commentAutomationTypes.enum.messenger,
+      inboxId: data.inboxId,
+      currentInboxId: existing.inboxId,
+    })
 
     const [updated] = await db
       .update(commentAutomationModel)
@@ -651,6 +1085,7 @@ class CommentAutomationService extends BaseService {
       folderId: resolveFolderIdFilter(input.folderId, input.includeAllFolders),
       name: input.name ? { ilike: likeContains(input.name) } : undefined,
       isActive: resolveIsActiveFilter(input.isActive),
+      inboxId: input.inboxId ?? undefined,
     }
 
     const pagination = getPaginationWithDefaults(input)
@@ -708,20 +1143,81 @@ class CommentAutomationService extends BaseService {
     return { ...data, hideComments: { ...data.hideComments, hasGif: false } }
   }
 
+  /**
+   * Pins off what a Live automation's channel cannot do on a live comment —
+   * Instagram Live is private-reply-only and must reply immediately (see
+   * `liveCommentCapabilities`). The builder hides those controls; this keeps a
+   * public-API, MCP or template write from storing a reply that Meta rejects.
+   *
+   * On an update the post and options may be absent from `data`, so the
+   * existing row fills them in — otherwise switching a row to `live` through a
+   * partial PATCH would keep its old public reply.
+   */
+  private withLiveCapabilities<T extends Partial<FbCommentAutomationWriteData>>(
+    type: CommentAutomationType,
+    data: T,
+    existing?: CommentAutomationModel,
+  ): T {
+    const post = data.post ?? existing?.post
+    if (!(post && isLiveCommentAutomation(post))) {
+      return data
+    }
+    const capabilities = liveCommentCapabilities(type)
+    const next: T = { ...data }
+    if (!capabilities.publicReply) {
+      next.publicReply = { type: "none", value: null }
+    }
+    const options = data.options ?? existing?.options
+    if (!capabilities.likeComment && options) {
+      next.options = { ...options, likeUserComment: false }
+    }
+    if (!capabilities.commentReplies && next.options) {
+      next.options = { ...next.options, ignoreCommentReplies: false }
+    }
+    const hideComments = data.hideComments ?? existing?.hideComments
+    if (!capabilities.hideComments && hideComments) {
+      next.hideComments = {
+        ...hideComments,
+        all: false,
+        hasPhoneNumber: false,
+        hasImage: false,
+        hasVideo: false,
+        hasLink: false,
+        hasKeywords: false,
+        hasGif: false,
+        hasEmoji: false,
+        showCommentsAfter: "none",
+      }
+    }
+    if (!capabilities.replyDelay) {
+      next.replyAfter = { type: "immediately", value: 0 }
+    }
+    return next
+  }
+
   async createInstagram(input: {
     workspaceId: string
     type: IgCommentAutomationType
     data: FbCommentAutomationWriteData
   }): Promise<CommentAutomationModel> {
+    await this.assertReplyFlowsExist(input.workspaceId, input.data)
+    await assertAutomationAccount({
+      workspaceId: input.workspaceId,
+      type: input.type,
+      inboxId: input.data.inboxId,
+    })
     const [created] = await db
       .insert(commentAutomationModel)
       .values({
         id: createId(),
         workspaceId: input.workspaceId,
         type: input.type,
-        ...this.withSupportedHideComments(
+        ...this.withLiveCapabilities(
           input.type,
-          this.withNormalizedReplies(input.data),
+          this.withSupportedHideComments(
+            input.type,
+            this.withNormalizedReplies(input.data),
+          ),
         ),
       })
       .returning()
@@ -733,14 +1229,25 @@ class CommentAutomationService extends BaseService {
     data: Partial<FbCommentAutomationWriteData>,
   ): Promise<CommentAutomationModel> {
     const existing = await this.findInstagramOrFail(ctx)
+    await this.assertReplyFlowsExist(ctx.workspaceId, data)
+    await assertAutomationAccount({
+      workspaceId: ctx.workspaceId,
+      type: existing.type as IgCommentAutomationType,
+      inboxId: data.inboxId,
+      currentInboxId: existing.inboxId,
+    })
 
     const [updated] = await db
       .update(commentAutomationModel)
       .set(
-        this.withSupportedHideComments(
-          // `findInstagramOrFail` only matches `igCommentAutomationTypes`.
+        this.withLiveCapabilities(
           existing.type as IgCommentAutomationType,
-          this.withNormalizedReplies(data),
+          this.withSupportedHideComments(
+            // `findInstagramOrFail` only matches `igCommentAutomationTypes`.
+            existing.type as IgCommentAutomationType,
+            this.withNormalizedReplies(data),
+          ),
+          existing,
         ),
       )
       .where(
@@ -769,41 +1276,26 @@ class CommentAutomationService extends BaseService {
     })
   }
 
-  async listThreadsAutomations(props: {
-    workspaceId: string
-    name?: string
-    isActive?: boolean
-    limit: number
-    offset: number
-    orderBy?: Record<string, unknown>
-    tx?: DatabaseClient
-  }) {
-    const {
-      workspaceId,
-      name,
-      isActive,
-      limit,
-      offset,
-      orderBy = { createdAt: "desc" },
-      tx = db,
-    } = props
+  async listThreadsAutomations(
+    input: ListChannelCommentsInput,
+  ): Promise<ListFbCommentsResult> {
+    const { tx = db } = input
     const where = {
-      workspaceId,
+      workspaceId: input.workspaceId,
       type: this.threadsType,
-      isActive,
-      name: name
-        ? {
-            ilike: `%${name}%`,
-          }
-        : undefined,
+      isActive: resolveIsActiveFilter(input.isActive),
+      name: input.name ? { ilike: likeContains(input.name) } : undefined,
+      inboxId: input.inboxId ?? undefined,
     }
+
+    const pagination = getPaginationWithDefaults(input)
+    const orderBy = parseOrderByAsObject(commentAutomationModel, input)
 
     const [data, total] = await Promise.all([
       tx.query.commentAutomationModel.findMany({
         where,
         orderBy,
-        limit,
-        offset,
+        ...pagination,
       }),
       tx.$count(
         commentAutomationModel,
@@ -811,10 +1303,7 @@ class CommentAutomationService extends BaseService {
       ),
     ])
 
-    return {
-      data,
-      total,
-    }
+    return { data, pageCount: Math.ceil(total / pagination.limit) }
   }
 
   getThreadsAutomation(props: {
@@ -832,18 +1321,41 @@ class CommentAutomationService extends BaseService {
     })
   }
 
+  async findThreadsOrFail(props: {
+    workspaceId: string
+    id: string
+  }): Promise<CommentAutomationModel> {
+    const record = await this.getThreadsAutomation(props)
+    if (!record) {
+      throw notFoundException("Threads Comment Automation not found")
+    }
+    return record
+  }
+
   async createThreadsAutomation(props: {
     workspaceId: string
     data: CreateThreadsCommentAutomationInput
     tx?: DatabaseClient
   }) {
     const { workspaceId, data, tx = db } = props
+    await this.assertReplyFlowsExist(
+      workspaceId,
+      { publicReply: data.publicReply },
+      tx,
+    )
+    await assertAutomationAccount({
+      workspaceId,
+      type: this.threadsType,
+      inboxId: data.inboxId,
+      tx,
+    })
     const [record] = await tx
       .insert(commentAutomationModel)
       .values({
         id: createId(),
         workspaceId,
         type: this.threadsType,
+        inboxId: data.inboxId ?? null,
         isActive: data.isActive ?? true,
         name: data.name,
         post: data.post,
@@ -868,6 +1380,24 @@ class CommentAutomationService extends BaseService {
     tx?: DatabaseClient
   }) {
     const { workspaceId, id, data, tx = db } = props
+    await this.assertReplyFlowsExist(
+      workspaceId,
+      { publicReply: data.publicReply },
+      tx,
+    )
+    await assertAutomationAccount({
+      workspaceId,
+      type: this.threadsType,
+      inboxId: data.inboxId,
+      currentInboxId: await this.findStoredInboxId({
+        workspaceId,
+        id,
+        type: this.threadsType,
+        inboxId: data.inboxId,
+        tx,
+      }),
+      tx,
+    })
     const values: Record<string, unknown> = {}
 
     if (data.name !== undefined) {
@@ -875,6 +1405,9 @@ class CommentAutomationService extends BaseService {
     }
     if (data.isActive !== undefined) {
       values.isActive = data.isActive
+    }
+    if (data.inboxId !== undefined) {
+      values.inboxId = data.inboxId
     }
     if (data.post !== undefined) {
       values.post = data.post
@@ -945,6 +1478,7 @@ class CommentAutomationService extends BaseService {
       type: this.tiktokType,
       isActive: resolveIsActiveFilter(input.isActive),
       name: input.name ? { ilike: likeContains(input.name) } : undefined,
+      inboxId: input.inboxId ?? undefined,
     }
 
     const pagination = getPaginationWithDefaults(input)
@@ -980,18 +1514,41 @@ class CommentAutomationService extends BaseService {
     })
   }
 
+  async findTiktokOrFail(props: {
+    workspaceId: string
+    id: string
+  }): Promise<CommentAutomationModel> {
+    const record = await this.getTiktokAutomation(props)
+    if (!record) {
+      throw notFoundException("TikTok Comment Automation not found")
+    }
+    return record
+  }
+
   async createTiktokAutomation(props: {
     workspaceId: string
     data: CreateTiktokCommentAutomationInput
     tx?: DatabaseClient
   }) {
     const { workspaceId, data, tx = db } = props
+    await this.assertReplyFlowsExist(
+      workspaceId,
+      { publicReply: data.publicReply },
+      tx,
+    )
+    await assertAutomationAccount({
+      workspaceId,
+      type: this.tiktokType,
+      inboxId: data.inboxId,
+      tx,
+    })
     const [record] = await tx
       .insert(commentAutomationModel)
       .values({
         id: createId(),
         workspaceId,
         type: this.tiktokType,
+        inboxId: data.inboxId ?? null,
         isActive: data.isActive ?? true,
         name: data.name,
         post: data.post,
@@ -1016,6 +1573,24 @@ class CommentAutomationService extends BaseService {
     tx?: DatabaseClient
   }) {
     const { workspaceId, id, data, tx = db } = props
+    await this.assertReplyFlowsExist(
+      workspaceId,
+      { publicReply: data.publicReply },
+      tx,
+    )
+    await assertAutomationAccount({
+      workspaceId,
+      type: this.tiktokType,
+      inboxId: data.inboxId,
+      currentInboxId: await this.findStoredInboxId({
+        workspaceId,
+        id,
+        type: this.tiktokType,
+        inboxId: data.inboxId,
+        tx,
+      }),
+      tx,
+    })
     const values: Record<string, unknown> = {}
 
     if (data.name !== undefined) {
@@ -1023,6 +1598,9 @@ class CommentAutomationService extends BaseService {
     }
     if (data.isActive !== undefined) {
       values.isActive = data.isActive
+    }
+    if (data.inboxId !== undefined) {
+      values.inboxId = data.inboxId
     }
     if (data.post !== undefined) {
       values.post = data.post

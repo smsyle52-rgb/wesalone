@@ -6,6 +6,7 @@ import { InputNumberField } from "@chatbotx.io/ui/components/form/input-number-f
 import { RadioGroupField } from "@chatbotx.io/ui/components/form/radio-group-field"
 import { SelectField } from "@chatbotx.io/ui/components/form/select-field"
 import { SwitchField } from "@chatbotx.io/ui/components/form/switch-field"
+import { Button } from "@chatbotx.io/ui/components/ui/button"
 import {
   Card,
   CardContent,
@@ -22,17 +23,23 @@ import {
 } from "@chatbotx.io/ui/components/ui/form"
 import { TagsInputField } from "@chatbotx.io/ui/components/ui/muhammada86/tags-input-field"
 import { useTranslations } from "next-intl"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { toast } from "sonner"
 import { useAIAgentSelectOptions } from "@/features/ai-agents/hooks/use-ai-agents"
 import { useFlowSelectOptions } from "@/features/flows/provider/flow-hook"
+import {
+  AutomationAccountField,
+  useAccountChoiceMissing,
+} from "@/features/shared/comment-automation/automation-account-field"
 import { ExcludeKeywordsField } from "@/features/shared/comment-automation/exclude-keywords-field"
 import { ReplyTextsField } from "@/features/shared/comment-automation/reply-texts-field"
 import { ReplyToField } from "@/features/shared/comment-automation/reply-to-field"
 import { useWorkspaceId } from "@/hooks/routing"
+import { useThreadsPosts } from "../hooks/use-threads-posts"
 import type { CreateThreadsCommentRequest } from "../schema/action"
+import { SelectThreadsPostsDialog } from "./select-threads-posts-dialog"
 
 type Props = {
   form: UseFormReturn<CreateThreadsCommentRequest>
@@ -58,6 +65,17 @@ export function ThreadsCommentForm({
     name: "publicReply.type",
   })
   const postType = useWatch({ control: form.control, name: "post.type" })
+  const postValue =
+    useWatch({ control: form.control, name: "post.value" }) ?? []
+  const inboxId = useWatch({ control: form.control, name: "inboxId" })
+  const accountChoiceMissing = useAccountChoiceMissing("threads")
+  // Reads the picker's cached posts only; never fetches on its own.
+  const { data: threadsPosts } = useThreadsPosts(useWorkspaceId(), {
+    enabled: false,
+  })
+  const findPostOwner = (id: string) =>
+    threadsPosts?.posts.find((post) => post.id === id)?.inboxId
+  const [selectPostsOpen, setSelectPostsOpen] = useState(false)
   const includeKeywordsType = useWatch({
     control: form.control,
     name: "includeKeywords.type",
@@ -153,6 +171,12 @@ export function ThreadsCommentForm({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <AutomationAccountField
+            findTargetOwner={findPostOwner}
+            targetField="post"
+            type="threads"
+          />
+
           <RadioGroupField
             label={t("threadsCommentAutomation.trackCommentsOn")}
             name="post.type"
@@ -176,18 +200,30 @@ export function ThreadsCommentForm({
               name="post.value"
               render={() => (
                 <FormItem>
-                  <FormLabel>
-                    {t("threadsCommentAutomation.specificPostIds")}
-                  </FormLabel>
                   <FormControl>
-                    <TagsInputField
-                      name="post.value"
-                      placeholder={t(
-                        "threadsCommentAutomation.postIdPlaceholder",
-                      )}
-                    />
+                    <Button
+                      className="w-full"
+                      onClick={() => setSelectPostsOpen(true)}
+                      type="button"
+                      variant="outline"
+                    >
+                      {t("threadsCommentAutomation.chooseSpecificPosts")}
+                      {postValue.length > 0 && ` (${postValue.length})`}
+                    </Button>
                   </FormControl>
                   <FormMessage />
+                  <SelectThreadsPostsDialog
+                    inboxId={inboxId}
+                    onChange={(ids) =>
+                      form.setValue("post.value", ids, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                    onOpenChange={setSelectPostsOpen}
+                    open={selectPostsOpen}
+                    value={postValue}
+                  />
                 </FormItem>
               )}
             />
@@ -482,7 +518,7 @@ export function ThreadsCommentForm({
         </button>
         <button
           className="rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm"
-          disabled={isSubmitting}
+          disabled={isSubmitting || accountChoiceMissing}
           type="submit"
         >
           {submitLabel}

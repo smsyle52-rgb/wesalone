@@ -1,8 +1,12 @@
 import { broadcastService } from "@chatbotx.io/business"
 import { notFoundException } from "@chatbotx.io/business/errors"
-import { broadcastStatuses } from "@chatbotx.io/database/partials"
+import {
+  broadcastStatuses,
+  resolveBroadcastAudienceRange,
+} from "@chatbotx.io/database/partials"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import z from "zod"
+import { resolveContactAvatars } from "@/features/contacts/queries/resolve-contact-avatars"
 import { mcpSpec } from "@/lib/orpc/mcp-annotations"
 import {
   possibleErrorsOnActivatingBroadcast,
@@ -11,17 +15,23 @@ import {
   possibleErrorsOnFindingResource,
   possibleErrorsOnListingResource,
   possibleErrorsOnMutatingResource,
+  possibleErrorsOnReadingWithBody,
 } from "@/lib/orpc/orpc-error-helper"
-import { publicListRequest } from "@/lib/public-api/list"
+import { BROADCAST_STOP_TOKEN_PATH } from "@/lib/workspace/authorize-workspace-access"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
+import { BROADCAST_AUDIENCE_PREVIEW_TOKEN_PATH } from "../lib/api-paths"
+import { resolvePublicBroadcastTemplateParams } from "../lib/resolve-public-template-params"
 import {
-  createBroadcastRequest,
   resolveScheduleTime,
   resumeBroadcastSchema,
   scheduleBroadcastSchema,
   updateBroadcastSchema,
 } from "../schema/action"
 import {
+  createBroadcastPublicRequest,
+  listBroadcastsPublicRequest,
+  previewBroadcastAudiencePublicRequest,
+  previewBroadcastAudiencePublicResponse,
   publicListBroadcastContactsRequest,
   publicListBroadcastContactsResponse,
 } from "../schema/public"
@@ -30,6 +40,7 @@ import {
   publicListBroadcastsResponse,
 } from "../schema/query"
 import { publicBroadcastResource } from "../schema/resource"
+import { broadcastsRecurrencePublicRouter } from "./public-recurrence"
 
 const workspaceTokenAuthAPI = workspaceTokenAuthAPIForScope("broadcasts")
 
@@ -53,17 +64,19 @@ const workspaceTokenAuthAPI = workspaceTokenAuthAPIForScope("broadcasts")
 const TOKEN_CALLER_CAN_VIEW_EMAIL_AND_PHONE = true
 
 export const broadcastsPublicRouter = {
+  ...broadcastsRecurrencePublicRouter,
+
   list: workspaceTokenAuthAPI
     .route({
       method: "GET",
       path: "/v1/broadcasts",
       summary: "List broadcasts",
       description:
-        "Use this to find broadcasts by status before inspecting one with `broadcasts.get` or stopping one with `broadcasts.stop`. Returns newest broadcasts across every status.",
+        "Use this to find broadcasts before inspecting one with `broadcasts.get` or stopping one with `broadcasts.stop`. Filter by `status`, `name`, `channel` or a `scheduledFrom`/`scheduledTo` window; newest first unless `sort` is given. Each broadcast includes its channel, subaction, template, audience filter and per-page targets.",
       tags: ["Broadcasts"],
       spec: mcpSpec({ visibility: "default" }),
     })
-    .input(publicListRequest)
+    .input(listBroadcastsPublicRequest)
     .output(publicListBroadcastsResponse)
     .errors(possibleErrorsOnListingResource)
     .handler(
@@ -71,8 +84,8 @@ export const broadcastsPublicRouter = {
         await broadcastService.list({
           workspaceId: context.workspace.id,
           ...input,
-          sort: [{ id: "createdAt", desc: true }],
-          name: null,
+          sort: input.sort ?? [{ id: "createdAt", desc: true }],
+          name: input.name ?? null,
         }),
     ),
 
@@ -147,6 +160,51 @@ export const broadcastsPublicRouter = {
         }),
     ),
 
+  previewAudience: workspaceTokenAuthAPI
+    .route({
+      method: "POST",
+      path: BROADCAST_AUDIENCE_PREVIEW_TOKEN_PATH,
+      summary: "Preview broadcast audience before send",
+      description:
+        "Counts and lists the contact inboxes a broadcast would be sent to, without creating anything. `total` is the size of the whole audience (the `audienceRangeStart`/`audienceRangeEnd` window already applied, one contact on several channels counts once per channel); `data` is one page of it in send order (ascending contact inbox id), `page` from 1 and `perPage` up to 50. Select the audience like `broadcasts.create`: `subaction`, `contactFilter`, the window, and the inboxes with `inboxIds`, or `channels` (`omnichannel` = every channel), or an integration id; none given means an empty audience (`total` 0). `fullName`, `avatar` and `occurredAt` come from the contact. Use `perPage: 1` when you only need `total`. A page past the window is empty. Use `broadcasts.getAudience` for a broadcast that already exists.",
+      tags: ["Broadcasts"],
+    })
+    .input(previewBroadcastAudiencePublicRequest)
+    .output(previewBroadcastAudiencePublicResponse)
+    .errors(possibleErrorsOnReadingWithBody)
+    .handler(async ({ context, input }) => {
+      const audience = {
+        workspaceId: context.workspace.id,
+        channels: input.channels,
+        inboxIds: input.inboxIds,
+        integrationWhatsappId: input.integrationWhatsappId,
+        integrationMessengerId: input.integrationMessengerId,
+        contactFilter: input.contactFilter,
+        subaction: input.subaction,
+        audienceRange: resolveBroadcastAudienceRange(input),
+      }
+      const [total, rows] = await Promise.all([
+        broadcastService.countAudience(audience),
+        broadcastService.listAudiencePreview({
+          ...audience,
+          page: input.page ?? 1,
+          perPage: input.perPage ?? 20,
+        }),
+      ])
+      const withAvatars = await resolveContactAvatars(
+        rows.map((row) => ({ ...row, id: row.contactId })),
+        context.workspace.id,
+        { publicUrls: true },
+      )
+      return {
+        total,
+        data: withAvatars.map(({ id: _id, createdAt, ...row }) => ({
+          ...row,
+          occurredAt: createdAt.toISOString(),
+        })),
+      }
+    }),
+
   // Delivery stats already have a public route under the `analytics` scope
   // (`GET /v1/analytics/broadcasts/{broadcastId}/stats`, cached) — not
   // duplicated here.
@@ -157,7 +215,7 @@ export const broadcastsPublicRouter = {
       path: "/v1/broadcasts/{id}/contacts",
       summary: "List broadcast recipients by event type",
       description:
-        "Returns contacts that reached one delivery event (e.g. sent, delivered, read, failed) for a broadcast.",
+        "Returns contacts that reached one event for a broadcast (`message:sent`, `message:delivered`, `message:seen`, `message:failed` or `flow:clicked`; `message:received` and `flow:ref` behave like `message:delivered`).",
       tags: ["Broadcasts"],
     })
     .input(publicListBroadcastContactsRequest)
@@ -165,17 +223,13 @@ export const broadcastsPublicRouter = {
     .errors(possibleErrorsOnFindingResource)
     .handler(async ({ context, input }) => {
       const { id, eventType, page, perPage } = input
-      const { data, pageCount } = await broadcastService.listContactsPage({
+      return await broadcastService.listContactsPage({
         workspaceId: context.workspace.id,
         broadcastId: id,
         eventType,
         page,
         perPage,
       })
-
-      // `conversationId` is a superset the public response schema doesn't
-      // declare — zod strips it silently, so returning it here is harmless.
-      return { data, pageCount }
     }),
 
   create: workspaceTokenAuthAPI
@@ -184,20 +238,22 @@ export const broadcastsPublicRouter = {
       path: "/v1/broadcasts",
       summary: "Create broadcast",
       description:
-        "Starts a broadcast as a draft or scheduled send for the supplied audience. Use `broadcasts.list` to avoid duplicates, then use `broadcasts.schedule` to control its send time.",
+        "Starts a broadcast as a draft or scheduled send for the supplied audience. Set `schedulesType: recurring` with a `recurrence` rule to repeat it daily, weekly or monthly; check the rule first with `broadcasts.previewRecurrence`. For a template broadcast, fill the template with `templateParams` (keys from the template's `parameters`) instead of building `templateData`. Use `broadcasts.list` to avoid duplicates, then use `broadcasts.schedule` to control its send time.",
       successStatus: 201,
       tags: ["Broadcasts"],
     })
-    .input(createBroadcastRequest)
+    .input(createBroadcastPublicRequest)
     .output(publicBroadcastResource)
     .errors(possibleErrorsOnCreatingBroadcast)
-    .handler(
-      async ({ context, input }) =>
-        await broadcastService.create({
-          ...input,
+    .handler(async ({ context, input }) =>
+      broadcastService.create({
+        ...(await resolvePublicBroadcastTemplateParams({
           workspaceId: context.workspace.id,
-          canViewEmailAndPhone: TOKEN_CALLER_CAN_VIEW_EMAIL_AND_PHONE,
-        }),
+          request: input,
+        })),
+        workspaceId: context.workspace.id,
+        canViewEmailAndPhone: TOKEN_CALLER_CAN_VIEW_EMAIL_AND_PHONE,
+      }),
     ),
 
   update: workspaceTokenAuthAPI
@@ -242,7 +298,7 @@ export const broadcastsPublicRouter = {
       tags: ["Broadcasts"],
     })
     .input(
-      createBroadcastRequest.and(
+      createBroadcastPublicRequest.and(
         z.object({
           id: zodBigintAsString().describe(
             "Broadcast id. Get it from `broadcasts.list`.",
@@ -257,12 +313,15 @@ export const broadcastsPublicRouter = {
     .output(z.object({ id: z.string(), status: broadcastStatuses }))
     .errors(possibleErrorsOnActivatingBroadcast)
     .handler(async ({ context, input }) => {
-      const { id, ...data } = input
+      const { id, ...request } = input
       return await broadcastService.updateDraft({
         workspaceId: context.workspace.id,
         broadcastId: id,
         canViewEmailAndPhone: TOKEN_CALLER_CAN_VIEW_EMAIL_AND_PHONE,
-        data,
+        data: await resolvePublicBroadcastTemplateParams({
+          workspaceId: context.workspace.id,
+          request,
+        }),
       })
     }),
 
@@ -272,7 +331,7 @@ export const broadcastsPublicRouter = {
       path: "/v1/broadcasts/{id}/schedule",
       summary: "Schedule draft broadcast",
       description:
-        "Moves a draft broadcast to its scheduled state using the provided schedule. Call `broadcasts.get` to inspect it first, or use `broadcasts.updateDraft` to change its payload.",
+        "Moves a draft broadcast to its scheduled state using the provided schedule; for `schedulesType: recurring` it starts the repeating schedule (send `recurrence` to replace the saved rule, or omit it to keep it). Call `broadcasts.get` to inspect it first, or use `broadcasts.updateDraft` to change its payload.",
       tags: ["Broadcasts"],
     })
     .input(
@@ -294,6 +353,7 @@ export const broadcastsPublicRouter = {
         schedulesType: data.schedulesType,
         schedulesAt: resolveScheduleTime(data),
         sendRatePerMinute: data.sendRatePerMinute,
+        recurrence: data.recurrence,
       })
     }),
 
@@ -303,7 +363,7 @@ export const broadcastsPublicRouter = {
       path: "/v1/broadcasts/{id}/move-to-draft",
       summary: "Move scheduled broadcast back to draft",
       description:
-        "Reverses a broadcast's `scheduled` state so its payload can be edited again. Only matches a broadcast whose status is `scheduled`; 404 otherwise. Use `broadcasts.updateDraft` afterward, or `broadcasts.schedule` to re-schedule.",
+        "Reverses a broadcast's `scheduled` state so its payload can be edited again. For a repeating broadcast it stops the schedule, running or paused, so the rule can be edited; slots that pass while it is a draft are skipped. Only matches a broadcast whose status is `scheduled`, or a repeating one that is `recurring` or paused (`cancelled`); 404 otherwise. Use `broadcasts.updateDraft` afterward, or `broadcasts.schedule` to re-schedule.",
       tags: ["Broadcasts"],
     })
     .input(
@@ -326,10 +386,10 @@ export const broadcastsPublicRouter = {
   stop: workspaceTokenAuthAPI
     .route({
       method: "POST",
-      path: "/v1/broadcasts/{id}/stop",
+      path: BROADCAST_STOP_TOKEN_PATH,
       summary: "Stop broadcast",
       description:
-        "Stops a broadcast only while it is sending and returns its id. Call `broadcasts.get` to confirm its state first, or use `broadcasts.moveToDraft` for scheduled broadcasts.",
+        "Stops a broadcast while it is sending and returns its id. On a repeating broadcast (status `recurring`) it pauses the schedule: no new runs start, a run already sending carries on. Allowed even when the workspace trial has expired, like the builder. Call `broadcasts.get` to confirm its state first, or use `broadcasts.moveToDraft` for scheduled broadcasts.",
       tags: ["Broadcasts"],
       spec: mcpSpec({ visibility: "default" }),
     })
@@ -356,7 +416,7 @@ export const broadcastsPublicRouter = {
       path: "/v1/broadcasts/{id}/resume",
       summary: "Resume stopped broadcast",
       description:
-        "Resumes sending a stopped broadcast where it left off. Only matches a broadcast whose status is `cancelled`; 404 otherwise. Use `broadcasts.stop` to pause a sending broadcast.",
+        "Resumes sending a stopped broadcast where it left off. On a paused repeating broadcast it restarts the schedule and returns `nextRunAt`; slots that passed while it was paused are not sent. Only matches a broadcast whose status is `cancelled`; 404 otherwise. Use `broadcasts.stop` to pause a sending broadcast.",
       tags: ["Broadcasts"],
     })
     .input(
@@ -368,7 +428,15 @@ export const broadcastsPublicRouter = {
         }),
       ),
     )
-    .output(z.object({ id: z.string() }))
+    .output(
+      z.object({
+        id: z.string(),
+        nextRunAt: z
+          .date()
+          .optional()
+          .describe("A repeating broadcast only: when its next run is due."),
+      }),
+    )
     .errors(possibleErrorsOnActivatingBroadcast)
     .handler(
       async ({ context, input }) =>

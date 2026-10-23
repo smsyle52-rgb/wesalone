@@ -1,37 +1,13 @@
 import type { EncryptedData } from "@chatbotx.io/encryption"
-import {
-  and,
-  type DatabaseClient,
-  db,
-  eq,
-  inArray,
-  isNull,
-  sql,
-} from "../../client"
-import { integrationMessengerModel } from "../../schema"
+import { and, type DatabaseClient, db, eq, gt, isNull, sql } from "../../client"
+import { inboxStatuses } from "../../partials"
+import { inboxModel, integrationMessengerModel } from "../../schema"
 import type { IntegrationMessengerModel } from "../../types"
 
 type WorkspaceIntegrationRef = {
   id: string
   workspaceId: string
 }
-
-type InsertMessengerIntegrationInput = Pick<
-  typeof integrationMessengerModel.$inferInsert,
-  | "id"
-  | "workspaceId"
-  | "inboxId"
-  | "pageId"
-  | "auth"
-  | "name"
-  | "persistentMenus"
-> &
-  Partial<
-    Pick<
-      typeof integrationMessengerModel.$inferInsert,
-      "conversationStarters" | "personas"
-    >
-  >
 
 type UpdateMessengerCapiScopeCacheInput = WorkspaceIntegrationRef & {
   hasCapiScope: boolean
@@ -71,55 +47,6 @@ const capiScopeCasFilter = (
   )
 
 export const integrationMessengerRepository = {
-  /**
-   * Inserts a new Messenger integration row. Callers pass the already-
-   * resolved `inboxId` from `connectChannelIntegration`'s
-   * `insertIntegration` callback.
-   */
-  async insert(
-    input: InsertMessengerIntegrationInput,
-    tx: DatabaseClient = db,
-  ): Promise<IntegrationMessengerModel> {
-    // `conversationStarters`/`persistentMenus`/`personas` are NOT NULL columns
-    // with no database default (drizzle-kit drops a jsonb `sql` default when it
-    // serializes the snapshot, so the schema-level `.default(sql`[]`)` was never
-    // migrated) while `$inferInsert` still marks them optional. Every one of
-    // them must therefore be written explicitly or the insert fails — pinned by
-    // `__tests__/integration/insert-required-columns.test.ts`.
-    const [row] = await tx
-      .insert(integrationMessengerModel)
-      .values({
-        ...input,
-        conversationStarters: input.conversationStarters ?? [],
-        persistentMenus: input.persistentMenus ?? [],
-        personas: input.personas ?? [],
-      })
-      .returning()
-
-    return row
-  },
-
-  /**
-   * Page ids from the given list that already have a Messenger integration.
-   * `IntegrationMessenger.pageId` is unique platform-wide, so a match means
-   * the page cannot be connected again anywhere.
-   */
-  async findConnectedPageIds(
-    pageIds: string[],
-    tx: DatabaseClient = db,
-  ): Promise<Set<string>> {
-    if (pageIds.length === 0) {
-      return new Set()
-    }
-
-    const rows = await tx
-      .select({ pageId: integrationMessengerModel.pageId })
-      .from(integrationMessengerModel)
-      .where(inArray(integrationMessengerModel.pageId, pageIds))
-
-    return new Set(rows.map((row) => row.pageId))
-  },
-
   /**
    * Lists the workspace's connected Messenger Pages — used by the messaging-
    * ads wizard's WhatsApp step to let the user pick which Page supplies
@@ -396,5 +323,53 @@ export const integrationMessengerRepository = {
     return await tx.query.integrationMessengerModel.findMany({
       where: { workspaceId: input.workspaceId },
     })
+  },
+
+  /** Sets (or clears) the flow started when a partner hands a conversation back. */
+  async updateHandoverResumeFlow(
+    input: WorkspaceIntegrationRef & { handoverResumeFlowId: string | null },
+    tx: DatabaseClient = db,
+  ): Promise<IntegrationMessengerModel | null> {
+    const [row] = await tx
+      .update(integrationMessengerModel)
+      .set({ handoverResumeFlowId: input.handoverResumeFlowId })
+      .where(workspaceIntegrationFilter(input))
+      .returning()
+
+    return row ?? null
+  },
+
+  /**
+   * One keyset page (ascending id) of Messenger integrations whose inbox is
+   * still connected: the rows a webhook re-subscription may act on (a
+   * disconnected inbox had its subscription removed on purpose). Bounded by
+   * `limit`; pass the last row's id as `afterId` for the next page.
+   */
+  listConnectedForWebhookSubscription(
+    input: { afterId?: string; limit: number },
+    tx: DatabaseClient = db,
+  ) {
+    return tx
+      .select({
+        id: integrationMessengerModel.id,
+        workspaceId: integrationMessengerModel.workspaceId,
+        pageId: integrationMessengerModel.pageId,
+        auth: integrationMessengerModel.auth,
+      })
+      .from(integrationMessengerModel)
+      .innerJoin(
+        inboxModel,
+        eq(inboxModel.id, integrationMessengerModel.inboxId),
+      )
+      .where(
+        and(
+          eq(inboxModel.status, inboxStatuses.enum.connected),
+          input.afterId
+            ? gt(integrationMessengerModel.id, input.afterId)
+            : undefined,
+        ),
+      )
+      .orderBy(integrationMessengerModel.id)
+      .limit(input.limit)
   },
 }

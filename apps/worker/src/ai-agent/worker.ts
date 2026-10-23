@@ -1,13 +1,15 @@
+import { flushAllPendingWorkspaceRealtimeEvents } from "@chatbotx.io/business"
 import { runWithWebhookExecutionContext } from "@chatbotx.io/events/context"
 import {
   AIJobAction,
   type AIJobData,
   type AIJobProcessAutomatedResponse,
+  type AIJobProcessHandoffReentry,
   aiJobDataSchema,
   closeHeavyQueueEvents,
   defaultWorkerOptions,
   getHeavyJobOptions,
-  getRedisConnection,
+  getQueueConnection,
   HeavyJobAction,
   heavyQueue,
   queueNames,
@@ -16,9 +18,13 @@ import { type Job, Worker } from "bullmq"
 import { normalizeError } from "universal-error-normalizer"
 import { z } from "zod"
 import { env } from "../env"
+import { processHandoffReentry } from "../integration/handlers/ai-agent-actions/handoff-reentry"
 import { processAutomatedResponse } from "../integration/handlers/automated-response"
 import { processCommentAIReply } from "../integration/handlers/comment-automation/ai-reply"
-import { processStoryReplyAutomation } from "../integration/handlers/story-reply-automation"
+import {
+  processStoryMentionAutomation,
+  processStoryReplyAutomation,
+} from "../integration/handlers/story-reply-automation"
 import { runWithOrphanedIntegrationCleanup } from "../integration/job-context"
 import { closeChatQueueEvents } from "../integration/utils/message"
 import { ensureBootstrapped } from "../lib/bootstrap"
@@ -37,6 +43,14 @@ async function processAutomatedResponseWithWebhookContext(
 ): Promise<void> {
   await runWithWebhookExecutionContext({ source: "webhook" }, () =>
     runWithOrphanedIntegrationCleanup(() => processAutomatedResponse(data)),
+  )
+}
+
+async function processHandoffReentryWithWebhookContext(
+  data: AIJobProcessHandoffReentry["data"],
+): Promise<void> {
+  await runWithWebhookExecutionContext({ source: "webhook" }, () =>
+    runWithOrphanedIntegrationCleanup(() => processHandoffReentry(data)),
   )
 }
 
@@ -101,6 +115,9 @@ async function startAIAgentWorker() {
             case AIJobAction.processAutomatedResponse:
               await processAutomatedResponseWithWebhookContext(jobData.data)
               return
+            case AIJobAction.processHandoffReentry:
+              await processHandoffReentryWithWebhookContext(jobData.data)
+              return
             case AIJobAction.commentAIReply:
               await runWithOrphanedIntegrationCleanup(() =>
                 processCommentAIReply(jobData.data, !isFinalAttempt(job)),
@@ -108,6 +125,9 @@ async function startAIAgentWorker() {
               return
             case AIJobAction.processStoryReplyAutomation:
               await processStoryReplyAutomation(jobData.data)
+              return
+            case AIJobAction.processStoryMentionAutomation:
+              await processStoryMentionAutomation(jobData.data)
               return
             default: {
               const _exhaustive: never = jobData
@@ -122,7 +142,7 @@ async function startAIAgentWorker() {
       )
     },
     {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.aiAgent),
       ...defaultWorkerOptions,
       concurrency: env.AI_AGENT_WORKER_CONCURRENCY,
     },
@@ -186,6 +206,7 @@ async function startAIAgentWorker() {
     isShuttingDown = true
     try {
       await worker.close()
+      await flushAllPendingWorkspaceRealtimeEvents()
       await Promise.all([closeChatQueueEvents(), closeHeavyQueueEvents()])
       process.exit(0)
     } catch (err) {

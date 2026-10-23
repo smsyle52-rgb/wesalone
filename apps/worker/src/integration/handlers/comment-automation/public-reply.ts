@@ -1,9 +1,12 @@
-import { publishToWorkspaceParty } from "@chatbotx.io/business"
+import {
+  conversationService,
+  messageService,
+  queueMessageCreatedEvent,
+} from "@chatbotx.io/business"
 import {
   type CommentReply,
   resolveReplyTexts,
 } from "@chatbotx.io/database/partials"
-import { createMessageRepository } from "@chatbotx.io/database/repositories"
 import type {
   ContactInboxModel,
   ConversationModel,
@@ -11,7 +14,6 @@ import type {
 import { webhookChannelOrigin } from "@chatbotx.io/events/context"
 import { COMMENT_AUTOMATION_PAYLOAD_TYPE } from "@chatbotx.io/flow-config"
 import type { MessengerAuthValue } from "@chatbotx.io/integration-messenger"
-import { RealtimeEventType } from "@chatbotx.io/partysocket-config"
 import { applySpintax } from "@chatbotx.io/utils/spintax"
 import { contactVariableService } from "@chatbotx.io/variables"
 import {
@@ -25,6 +27,7 @@ import {
 import { logger } from "../../../lib/logger"
 import type { CommentAutomationChannelType } from "./channel-type"
 import type { CommentAutomationDedup } from "./dedup"
+import { withReplayPriority } from "./replay-priority"
 import { type CommentReplyOutcome, describeFlowReply } from "./reply-outcome"
 
 /**
@@ -80,8 +83,7 @@ export async function postPublicCommentReply(props: {
   parentMessageCreatedAt?: Date | null
   delay?: number
 }): Promise<void> {
-  const repo = await createMessageRepository()
-  const messageInput = {
+  const message = await messageService.create({
     conversationId: props.conversationId,
     contactInboxId: props.contactInboxId,
     workspaceId: props.workspaceId,
@@ -99,17 +101,17 @@ export async function postPublicCommentReply(props: {
     },
     parentId: props.parentMessageId ?? null,
     createdAt: new Date(),
-  }
-  const message = await repo.create(messageInput)
-  publishToWorkspaceParty(props.workspaceId, {
-    eventType: RealtimeEventType.messageCreated,
-    data: message,
   })
+  const conversation = await conversationService.findBy({
+    where: { id: props.conversationId, workspaceId: props.workspaceId },
+  })
+  queueMessageCreatedEvent(props.workspaceId, message, conversation)
   const retryPolicy = commentReplyRetryPolicy(props.contactInbox)
-  const queueOptions =
+  const queueOptions = withReplayPriority(
     props.delay === undefined
       ? retryPolicy
-      : { delay: props.delay, ...retryPolicy }
+      : { delay: props.delay, ...retryPolicy },
+  )
   await chatQueue.add(
     ChatJobAction.sendChannelMessage,
     {
@@ -276,7 +278,10 @@ export async function executePublicReply(
               },
             },
           },
-          { delay: ctx.delay, ...commentReplyRetryPolicy(ctx.contactInbox) },
+          withReplayPriority({
+            delay: ctx.delay,
+            ...commentReplyRetryPolicy(ctx.contactInbox),
+          }),
         )
       },
     }
@@ -313,11 +318,11 @@ export async function executePublicReply(
               commentDedup: ctx.dedup,
             },
           },
-          {
+          withReplayPriority({
             delay: ctx.delay,
             jobId: `comment-ai-reply-${ctx.automationId}-${ctx.commentId}-public`,
             ...commentReplyRetryPolicy(ctx.contactInbox),
-          },
+          }),
         )
       },
     }

@@ -56,6 +56,12 @@ export const listMediaLibraryFilesPublicRequest = publicListRequest.extend({
     .describe(
       "`all` and `recent` span every folder (differing only in sort); `favourite` spans every folder and ignores `folderId`. Omit both `filter` and `folderId` to list root-level files only.",
     ),
+  fileType: z
+    .enum(["image"])
+    .optional()
+    .describe(
+      "Only return files of this kind. `image` keeps files whose MIME type starts with `image/` — use it to find ids for `savedReplies.create` `imageFileIds`.",
+    ),
 })
 
 export const listMediaLibraryFilesPublicResponse = publicListResponse(
@@ -83,7 +89,11 @@ export const createMediaLibraryFilePublicRequest = z.object({
   folderId: zodBigintAsString()
     .nullish()
     .describe("Folder to register the file in, or null for root-level."),
-  name: z.string().describe("File name."),
+  name: z
+    .string()
+    .describe(
+      "Display name of the file including its extension, e.g. `menu.pdf`.",
+    ),
   path: z
     .string()
     .describe("Storage path from `mediaLibrary.createUploadUrl`."),

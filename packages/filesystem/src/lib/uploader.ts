@@ -115,6 +115,7 @@ export class Uploader {
     path: string,
     body: string | Uint8Array | Buffer | Readable,
     options?: Partial<PutObjectCommandInput>,
+    abortSignal?: AbortSignal,
   ) {
     if (this.#azure) {
       const blob = this.#azure.getBlockBlobClient(path)
@@ -163,7 +164,10 @@ export class Uploader {
       ...options,
     })
 
-    return await this.#client.send(command)
+    return await this.#client.send(
+      command,
+      abortSignal ? { abortSignal } : undefined,
+    )
   }
 
   async #putRawGcsObject(

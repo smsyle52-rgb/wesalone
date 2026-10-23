@@ -22,7 +22,12 @@ const FACEBOOK_OAUTH_BASE = "https://www.facebook.com"
 // and offers the manual CAPI token instead. Put it back in this list once the
 // app has Advanced Access for it and the tab lights up on the next reconnect,
 // with no other change.
-const INSTAGRAM_SCOPES = [
+/**
+ * Scopes of the channel login. Single source: the connect dialog and the
+ * integration definition both read it. The Conversions API permission is not
+ * here — the Ads tab connects it separately (`INSTAGRAM_CAPI_SCOPES`).
+ */
+export const INSTAGRAM_SCOPES = [
   "instagram_basic",
   "instagram_manage_messages",
   "pages_manage_metadata",
@@ -33,6 +38,18 @@ const INSTAGRAM_SCOPES = [
 ]
 
 export const INSTAGRAM_MANAGE_EVENTS_SCOPE = "instagram_manage_events"
+
+/**
+ * Scopes requested by the Conversions API connect on the Ads tab: the events
+ * permission, `instagram_basic` to resolve the Instagram account, and
+ * `pages_show_list` to read the linked page's access token. Kept apart from
+ * `INSTAGRAM_SCOPES` so the channel login does not carry the CAPI permission.
+ */
+export const INSTAGRAM_CAPI_SCOPES = [
+  INSTAGRAM_MANAGE_EVENTS_SCOPE,
+  "instagram_basic",
+  "pages_show_list",
+]
 
 export type InstagramAccount = {
   id: string
@@ -72,6 +89,34 @@ export function generateAuthUrl({
     client_id: clientId,
     redirect_uri: redirectUrl,
     scope: INSTAGRAM_SCOPES.join(","),
+    response_type: "code",
+    state: btoa(JSON.stringify(stateParams ?? {})),
+  })
+  return `${FACEBOOK_OAUTH_BASE}/${version}/dialog/oauth?${params.toString()}`
+}
+
+/**
+ * OAuth dialog URL for the dedicated Conversions API connect: requests only
+ * `INSTAGRAM_CAPI_SCOPES` and re-asks a previously declined permission, so a
+ * partial grant cannot silently pass. Callers pass `flow: "metaCapi"` in
+ * `stateParams` so the callback stores a separate CAPI token.
+ */
+export function generateCapiAuthUrl({
+  clientId,
+  version = DEFAULT_API_VERSION,
+  redirectUrl,
+  stateParams,
+}: {
+  clientId: string
+  version?: string
+  redirectUrl: string
+  stateParams?: Record<string, unknown>
+}): string {
+  const params = new URLSearchParams({
+    auth_type: "rerequest",
+    client_id: clientId,
+    redirect_uri: redirectUrl,
+    scope: INSTAGRAM_CAPI_SCOPES.join(","),
     response_type: "code",
     state: btoa(JSON.stringify(stateParams ?? {})),
   })
@@ -176,6 +221,35 @@ export function getFacebookUser(
       avatarUrl: res.picture?.data?.url,
     }
   })
+}
+
+/**
+ * The page access token and linked Instagram account of one page, read straight
+ * from the page node: no `/me/accounts` paging and no per-account profile calls.
+ * `null` when the user has no role on the page (Graph then omits
+ * `access_token`) or the page has no linked Instagram account.
+ */
+export async function getPageInstagramAccess(input: {
+  pageId: string
+  userAccessToken: string
+  version?: string
+}): Promise<{ igId: string; pageAccessToken: string } | null> {
+  const endpoint = `${input.version ?? DEFAULT_API_VERSION}/${input.pageId}`
+  const page = await rescue(endpoint, () =>
+    instagramGraphClient.get<{
+      access_token?: string
+      instagram_business_account?: { id?: string }
+    }>(endpoint, {
+      searchParams: {
+        fields: "access_token,instagram_business_account",
+        access_token: input.userAccessToken,
+      },
+    }),
+  )
+  const igId = page.instagram_business_account?.id
+  return page.access_token && igId
+    ? { igId, pageAccessToken: page.access_token }
+    : null
 }
 
 export async function getUserInstagramAccounts(

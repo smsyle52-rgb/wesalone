@@ -104,6 +104,80 @@ describe("distributedStoreFactory.incrWithWindow", () => {
   })
 })
 
+describe("distributedStoreFactory live counter scripts", () => {
+  function makeFakeRedisWithLiveCounterScripts() {
+    const admitWithinLimit = vi.fn()
+    const decrementFloor = vi.fn()
+    const client = {
+      admitWithinLimit,
+      decrementFloor,
+      defineCommand: vi.fn(),
+    } as unknown as Redis
+
+    return { admitWithinLimit, client, decrementFloor }
+  }
+
+  test("registers every live counter command once per client", async () => {
+    const { admitWithinLimit, client, decrementFloor } =
+      makeFakeRedisWithLiveCounterScripts()
+    admitWithinLimit.mockResolvedValue([1, 1])
+    decrementFloor.mockResolvedValue(0)
+    const store = distributedStoreFactory(async () => client)
+
+    await store.admitWithinLimit("quota:user-1", "mac", 10)
+    await store.decrementFloor("quota:user-1", "mac", 1)
+    await store.admitWithinLimit("quota:user-2", "mac", 10)
+
+    expect(client.defineCommand).toHaveBeenCalledTimes(2)
+    expect(client.defineCommand).toHaveBeenCalledWith(
+      "admitWithinLimit",
+      expect.objectContaining({ numberOfKeys: 1 }),
+    )
+    expect(client.defineCommand).toHaveBeenCalledWith(
+      "decrementFloor",
+      expect.objectContaining({ numberOfKeys: 1 }),
+    )
+  })
+
+  test("maps arguments to strings and null limit to unlimited", async () => {
+    const { admitWithinLimit, client, decrementFloor } =
+      makeFakeRedisWithLiveCounterScripts()
+    admitWithinLimit.mockResolvedValue([1, 4])
+    decrementFloor.mockResolvedValue(2)
+    const store = distributedStoreFactory(async () => client)
+
+    await store.admitWithinLimit("quota:user-1", "mac", null)
+    await store.decrementFloor("quota:user-1", "mac", 2)
+
+    expect(admitWithinLimit).toHaveBeenCalledWith("quota:user-1", "mac", "-1")
+    expect(decrementFloor).toHaveBeenCalledWith("quota:user-1", "mac", "2")
+  })
+
+  test.each([
+    { code: 1, status: "admitted" },
+    { code: 0, status: "refused" },
+    { code: -1, status: "missing" },
+  ] as const)("maps result code $code to $status", async ({ code, status }) => {
+    const { admitWithinLimit, client } = makeFakeRedisWithLiveCounterScripts()
+    admitWithinLimit.mockResolvedValue([code, 7])
+    const store = distributedStoreFactory(async () => client)
+
+    await expect(
+      store.admitWithinLimit("quota:user-1", "mac", 10),
+    ).resolves.toEqual({ status, value: 7 })
+  })
+
+  test("maps a missing decrement result to null", async () => {
+    const { client, decrementFloor } = makeFakeRedisWithLiveCounterScripts()
+    decrementFloor.mockResolvedValue(-1)
+    const store = distributedStoreFactory(async () => client)
+
+    await expect(
+      store.decrementFloor("quota:user-1", "mac", 1),
+    ).resolves.toBeNull()
+  })
+})
+
 describe("distributedStoreFactory.setNumber", () => {
   test("always writes via plain SET key val EX ttl (no NX)", async () => {
     const set = vi.fn(async () => "OK")
@@ -126,5 +200,56 @@ describe("distributedStoreFactory.setNumber", () => {
     await store.setNumber("throttle:key", 1, 300)
 
     expect(set).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("distributedStoreFactory.reserveTimeWindow", () => {
+  /**
+   * Reproduces `RESERVE_TIME_WINDOW_LUA` in JS (vitest cannot run Lua): the
+   * window starts at max(now, reservedUntil) and moves reservedUntil to its end.
+   */
+  function makeFakeRedisWithTimeline() {
+    const timelines = new Map<string, number>()
+    const client = {
+      defineCommand: vi.fn(),
+      reserveTimeWindow: vi.fn((key: string, now: string, span: string) => {
+        const start = Math.max(Number(now), timelines.get(key) ?? 0)
+        timelines.set(key, start + Number(span))
+        return Promise.resolve(String(start))
+      }),
+    } as unknown as Redis
+    return { client }
+  }
+
+  test("a free timeline starts now; the next caller starts where it ends", async () => {
+    vi.useFakeTimers({ now: 1_000_000 })
+    const { client } = makeFakeRedisWithTimeline()
+    const store = distributedStoreFactory(async () => client)
+
+    await expect(store.reserveTimeWindow("pace:page-1", 3000)).resolves.toBe(
+      1_000_000,
+    )
+    await expect(store.reserveTimeWindow("pace:page-1", 2000)).resolves.toBe(
+      1_003_000,
+    )
+    // Another key has its own timeline.
+    await expect(store.reserveTimeWindow("pace:page-2", 2000)).resolves.toBe(
+      1_000_000,
+    )
+    vi.useRealTimers()
+  })
+
+  test("registers the Lua command only once per client", async () => {
+    const { client } = makeFakeRedisWithTimeline()
+    const store = distributedStoreFactory(async () => client)
+
+    await store.reserveTimeWindow("pace:page-1", 1000)
+    await store.reserveTimeWindow("pace:page-1", 1000)
+
+    expect(client.defineCommand).toHaveBeenCalledTimes(1)
+    expect(client.defineCommand).toHaveBeenCalledWith(
+      "reserveTimeWindow",
+      expect.objectContaining({ numberOfKeys: 1 }),
+    )
   })
 })

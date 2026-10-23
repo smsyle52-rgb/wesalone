@@ -1,10 +1,13 @@
-import { flushAllPendingWorkspaceBroadcasts } from "@chatbotx.io/business"
-import { extractContactInboxId } from "@chatbotx.io/events"
+import { flushAllPendingWorkspaceRealtimeEvents } from "@chatbotx.io/business"
+import {
+  decisionFlowOriginSchema,
+  extractContactInboxId,
+} from "@chatbotx.io/events"
 import { runWithWebhookExecutionContext } from "@chatbotx.io/events/context"
 import { SdkException } from "@chatbotx.io/sdk"
 import {
   defaultWorkerOptions,
-  getRedisConnection,
+  getQueueConnection,
   queueNames,
   TriggerJobAction,
   type TriggerJobData,
@@ -64,6 +67,9 @@ async function startTriggerWorker() {
               )
 
               const contactInboxId = extractContactInboxId(eventData.eventData)
+              const decisionFlowOrigin = decisionFlowOriginSchema.safeParse(
+                eventData.eventData?.decisionFlowOrigin,
+              )
 
               await runWithWebhookExecutionContext(
                 eventData.channelOriginated ? { source: "webhook" } : {},
@@ -73,6 +79,12 @@ async function startTriggerWorker() {
                       triggerExecutor.execute(trigger, {
                         contactId: eventData.contactId,
                         contactInboxId,
+                        decisionFlowOrigin: decisionFlowOrigin.success
+                          ? decisionFlowOrigin.data
+                          : undefined,
+                        occurrenceId: job.id
+                          ? `${job.id}:${job.timestamp}`
+                          : undefined,
                       }),
                     ),
                   ),
@@ -87,7 +99,7 @@ async function startTriggerWorker() {
       )
     },
     {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.trigger),
       ...defaultWorkerOptions,
       concurrency: 100,
     },
@@ -111,16 +123,21 @@ async function startTriggerWorker() {
       return
     }
     isShuttingDown = true
+    let shutdownFailed = false
     try {
       await worker.close()
-      // After close(): drains events published by jobs that finished during
-      // the close drain, whose coalesce timers would never fire past exit.
-      await flushAllPendingWorkspaceBroadcasts()
-      process.exit(0)
     } catch (err) {
-      logger.error(err, "[TriggerWorker] Error during shutdown")
-      process.exit(1)
+      shutdownFailed = true
+      logger.error(err, "[TriggerWorker] Error closing worker during shutdown")
+    } finally {
+      try {
+        await flushAllPendingWorkspaceRealtimeEvents()
+      } catch (err) {
+        shutdownFailed = true
+        logger.error(err, "[TriggerWorker] Error flushing realtime events")
+      }
     }
+    process.exit(shutdownFailed ? 1 : 0)
   }
   process.once("SIGINT", shutdown)
   process.once("SIGTERM", shutdown)

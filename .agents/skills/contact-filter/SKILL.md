@@ -128,6 +128,17 @@ follow-up, not a pattern to extend.
   window keys off `broadcast.subaction` in the worker (see below), never a filter
   param.
 
+## Surface-limited fields — `surfaces`
+
+A definition may set `surfaces: ["flowCondition"]` to make a field runtime-only
+(e.g. `isWithinWorkingHours`, which reads `now()`). `contactFilterCriteriaSchema`
+(contacts, conversations, broadcasts and their public APIs) is built from the
+`contacts` surface and rejects such a field; `flowConditionFilterCriteriaSchema`
+(flow Condition editor) accepts it. The pickers take a `surface` prop
+(`ContactFilter` → `useContactFilterConfigs` → `getFieldConfigs`) and the
+discovery endpoint a `surface` input. This is enforcement, not just hiding —
+use `excludeFields` only for UI hiding.
+
 ## Hiding fields per context — `excludeFields`
 
 `ContactFilter` / `ContactFilterDialog` / `ContactListFilterPanel` accept
@@ -174,6 +185,7 @@ source for `lastIncomingMessageAt >= NOW() - INTERVAL '24 hours'`, used by:
 - [ ] Operator rules updated in **both** `STATIC_OPERATOR_RULES` and `staticFieldRules`
 - [ ] `buildConditionWhere` case implemented (with NULL/negation handling)
 - [ ] Option source + group wired (if `optionSource !== "none"`)
+- [ ] If the option source's values are workspace entity ids, register it in `FILTER_VALUE_LABEL_SOURCES` (`lib/filter-value-labels.ts`) and the id lookup (`resolveContactFilterValueLabels`) so read-only labels show names / "Unknown" instead of raw ids
 - [ ] Tests: `apps/builder/__tests__/contact-filter-*.test.ts` and
       `packages/database/__tests__/contact-filter.test.ts`
 - [ ] `pnpm lint` + `check-types` for `builder` and `@chatbotx.io/database`

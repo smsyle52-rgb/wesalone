@@ -12,9 +12,15 @@ import {
 } from "@/lib/orpc/orpc-error-helper"
 import { publicListRequest } from "@/lib/public-api/list"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
-import { createAIAgentRequest, updateAIAgentRequest } from "../schema/action"
-import { listAIAgentsResponse } from "../schema/query"
-import { aiAgentResourceSchema } from "../schema/resource"
+import {
+  createPublicAIAgentRequest,
+  updatePublicAIAgentRequest,
+} from "../schema/public-action"
+import { publicListAIAgentsResponse } from "../schema/query"
+import {
+  publicAIAgentResourceSchema,
+  toPublicAIAgentResource,
+} from "../schema/resource"
 
 const workspaceTokenAuthAPI = workspaceTokenAuthAPIForScope("automation")
 
@@ -25,21 +31,21 @@ export const aiAgentsPublicRouter = {
       path: "/v1/ai-agents",
       summary: "List AI agents",
       description:
-        "Use this to resolve an AI agent before referencing it in `flows.publish` or changing it with `aiAgents.update`. Returns the configured agents in the workspace.",
+        "Use this to resolve an AI agent before referencing it in `flows.publish` or changing it with `aiAgents.update`. Returns the configured agents in the workspace. The bot reply delay shown in the agent list is not per agent: it is the workspace setting `smartResponseDelaySeconds`, shared by every agent (read it with `workspaceSettings.get`, change it with `workspaceSettings.update`).",
       tags: ["AI Agents"],
       spec: mcpSpec({ visibility: "default" }),
     })
     .input(publicListRequest)
-    .output(listAIAgentsResponse)
+    .output(publicListAIAgentsResponse)
     .errors(possibleErrorsOnListingResource)
-    .handler(
-      async ({ context, input }) =>
-        await aiAgentService.listAIAgents({
-          workspaceId: context.workspace.id,
-          ...input,
-          sort: [{ id: "createdAt", desc: true }],
-        }),
-    ),
+    .handler(async ({ context, input }) => {
+      const result = await aiAgentService.listAIAgents({
+        workspaceId: context.workspace.id,
+        ...input,
+        sort: [{ id: "createdAt", desc: true }],
+      })
+      return { ...result, data: result.data.map(toPublicAIAgentResource) }
+    }),
 
   get: workspaceTokenAuthAPI
     .route({
@@ -57,7 +63,7 @@ export const aiAgentsPublicRouter = {
         ),
       }),
     )
-    .output(aiAgentResourceSchema)
+    .output(publicAIAgentResourceSchema)
     .errors(possibleErrorsOnFindingResource)
     .handler(async ({ context, input }) => {
       const aiAgent = await aiAgentService.findBy({
@@ -66,7 +72,7 @@ export const aiAgentsPublicRouter = {
       if (!aiAgent) {
         throw notFoundException("AI agent not found")
       }
-      return aiAgent
+      return toPublicAIAgentResource(aiAgent)
     }),
 
   create: workspaceTokenAuthAPI
@@ -80,12 +86,13 @@ export const aiAgentsPublicRouter = {
       tags: ["AI Agents"],
       spec: mcpSpec({ visibility: "default" }),
     })
-    .input(createAIAgentRequest)
-    .output(aiAgentResourceSchema)
+    .input(createPublicAIAgentRequest)
+    .output(publicAIAgentResourceSchema)
     .errors(possibleErrorsOnCreatingResource)
-    .handler(
-      async ({ context, input }) =>
+    .handler(async ({ context, input }) =>
+      toPublicAIAgentResource(
         await aiAgentService.createAndReturn(context.workspace.id, input),
+      ),
     ),
 
   update: workspaceTokenAuthAPI
@@ -94,12 +101,12 @@ export const aiAgentsPublicRouter = {
       path: "/v1/ai-agents/{id}",
       summary: "Update AI agent",
       description:
-        "Changes settings on an existing AI agent without replacing unrelated fields. Call `aiAgents.list` to resolve its id, and use `aiAgents.get` to inspect the saved result.",
+        "Changes settings on an existing AI agent without replacing unrelated fields. Call `aiAgents.list` to resolve its id, and use `aiAgents.get` to inspect the saved result. It does not change the bot reply delay: that is the workspace setting `smartResponseDelaySeconds` (`workspaceSettings.update`).",
       tags: ["AI Agents"],
       spec: mcpSpec({ visibility: "default" }),
     })
     .input(
-      updateAIAgentRequest.and(
+      updatePublicAIAgentRequest.and(
         z.object({
           id: zodBigintAsString().describe(
             "AI agent id. Get it from `aiAgents.list`.",
@@ -107,13 +114,15 @@ export const aiAgentsPublicRouter = {
         }),
       ),
     )
-    .output(aiAgentResourceSchema)
+    .output(publicAIAgentResourceSchema)
     .errors(possibleErrorsOnMutatingResource)
     .handler(async ({ context, input }) => {
       const { id, ...data } = input
-      return await aiAgentService.updateAIAgent(
-        { workspaceId: context.workspace.id, id },
-        data,
+      return toPublicAIAgentResource(
+        await aiAgentService.updateAIAgent(
+          { workspaceId: context.workspace.id, id },
+          data,
+        ),
       )
     }),
 

@@ -50,6 +50,7 @@ Key files:
 | AI reply generation + delivery | [`apps/worker/src/integration/handlers/comment-automation/ai-reply.ts`](../apps/worker/src/integration/handlers/comment-automation/ai-reply.ts) |
 | DB queries (match/dedup/schedule) | [`packages/business/src/comment-automation/service.ts`](../packages/business/src/comment-automation/service.ts) |
 | Builder form + actions | [`apps/builder/src/features/fb-comments/`](../apps/builder/src/features/fb-comments/) (Facebook), [`apps/builder/src/features/ig-comments/`](../apps/builder/src/features/ig-comments/) (Instagram) |
+| Public API (CLI/MCP) | `api/public.ts` in each of `fb-comments`, `ig-comments`, `threads-comments`, `tiktok-comments` (scope `automation`); range stats (`analytics.commentAutomation{ReplyStats,UserComments,BotReplies,Errors}`) in [`apps/builder/src/features/analytics/api/public.ts`](../apps/builder/src/features/analytics/api/public.ts) and the per-counter contacts drill-down in [`public-comment-automation.ts`](../apps/builder/src/features/analytics/api/public-comment-automation.ts) next to it (scope `analytics`); missed-comment runs in [`apps/builder/src/features/shared/comment-automation/api/public.ts`](../apps/builder/src/features/shared/comment-automation/api/public.ts) |
 | Job types | [`packages/worker-config/src/queues/integration/index.ts`](../packages/worker-config/src/queues/integration/index.ts) |
 
 ## Facebook ID formats (critical)
@@ -86,6 +87,13 @@ Only the trailing story id agrees in both. A photo post therefore breaks any
   `{pageId}_{postId}`; **reels** store a bare video id; **manual entry** is whatever the
   user pastes. `matchPost` normalizes both sides on the trailing story id
   (`normalizePostId`) so all three match the webhook `post_id`.
+- **Threads ids are numeric media ids, never the permalink shortcode.** The `replies`
+  webhook carries `root_post.id` (e.g. `17841400000000001`), which becomes `postId`. A
+  shortcode pasted from a post link (`threads.com/@user/post/DdZNxZvEqpU`) never matches
+  and the automation stays silent. The `threads-comments` picker
+  (`select-threads-posts-dialog.tsx`, backed by `listThreadsPosts` → `GET /me/threads`)
+  stores the numeric ids and drops `REPOST_FACADE` items, whose comments land on the
+  original post. It lists one page (100 posts); older posts go through its Post ID tab.
 - **Instagram ids are not composite.** Its `comments` webhook carries a bare comment `id`
   and a bare `media.id` (used as `postId`), and the `ig-comments` picker stores those same
   bare media ids — `normalizePostId` is a no-op there.
@@ -112,13 +120,14 @@ Each filter that fails calls `logAutomationSkipped(..., reason)` (logged at `inf
 |---|---|---|
 | `isActive` | Automation on/off | `findActiveAutomations` filters `isActive: true`. |
 | `type` | `messenger` \| `instagram` \| `instagramFacebook` \| `threads` \| `tiktok` | `findActiveAutomations` filters `type === channelType`, which is the incoming `integrationType`. The builder writes it: `fb-comments` → `messenger`, `ig-comments` → the selected Instagram variant. |
+| `inboxId` | The one connected account (Page, Instagram account, Threads profile, TikTok account) the automation answers on; `NULL` = every account of `type` | `findActiveAutomations` takes the comment's `integrationRow.inboxId` and matches `inboxId IS NULL OR inboxId = :inboxId`, so another account's automation neither answers nor records a miss. See [Account scope](#account-scope). |
 | `startTime`/`endTime` | Daily active window (workspace tz) | `isWithinSchedule` — lexicographic `"HH:mm"` compare, handles overnight windows; null → always within. |
-| `post` (`all` / `postIds`) | Which posts | `matchPost` — `all` always true; `postIds` matches via normalized trailing id. |
+| `post` (`all` / `postIds` / `live`) | Which posts | `matchPost(post, postId, isLive)` — `live` matches only live-broadcast comments; `all` matches only NON-live comments (Live and post automations never answer the same comment); `postIds` matches via normalized trailing id, live or not. See [Live comments](#live-comments). |
 | `options.ignoreCommentReplies` (default **true**) | Skip replies-to-comments | Skips only when `isCommentReply(parentId, postId, commentId)` is true. |
 | `includeKeywords` (`all`/`equal`/`contain`/`mentions`) | "Reply to" | `matchKeywords` — both sides lowercased and accent-folded (`normalizeForMatch`). `equal` = whole comment equals a keyword; `contain` = substring. `mentions` ignores keywords: the comment must tag **at least** `includeKeywords.mentionCount` (1–5) accounts — `matchMentionCount`, miss reason `mentionCountNotMatched`. The mention list is the same one tag tracking uses (see [Tag tracking](#tag-tracking)). |
 | `excludeKeywords` + `excludeKeywordsType` (`equal`/`contain`, default `contain`) | Text must not match | `matchKeywords` — `contain` = substring, `equal` = the whole trimmed comment equals a keyword; lowercased and accent-folded both sides. |
 | `options.replyToNewContactsOnly` | Only first-time contacts | `getPriorContactInboxCount(contactId) > 1` → skip. Counts `ContactInbox` rows. |
-| `options.replyOncePerUserPerPost` | Once per user per post | `findDedup(automationId, contactId, postId)` exists → skip. |
+| `options.replyOncePerUserPerPost` | Once per user per post | `findDedup(automationId, contactId, postId)` exists → skip (fast path, keeps the miss reason). Then `claimDedup` — an `INSERT … ON CONFLICT DO NOTHING RETURNING` on `CommentAutomationReply_dedup_idx` — is the actual guard: two comments from one person milliseconds apart both pass the read, only one wins the row. A claimed row is released (`deleteDedup`) when nothing was dispatched. |
 | `options.replyToUsersWhoCommentedOnOtherPosts` (default **true**) | If off, only engage each user on their first post | When `false`, `hasRepliedOnOtherPost` (a dedup row with a different `postId`) → skip. |
 | `options.likeUserComment` | Auto-like the comment | Runs only if the incoming comment's DB message was found (`findBySourceId`). |
 | `options.trackUserTags` | Count who the commenter tagged | Not a filter — never skips. Adds the comment's counts to `Contact.totalTagged`/`totalNewTagged`, which back `{{total_tagged}}`/`{{total_new_tagged}}`. Once per comment, ahead of the reply filters. See [Tag tracking](#tag-tracking). |
@@ -131,6 +140,58 @@ Each filter that fails calls `logAutomationSkipped(..., reason)` (logged at `inf
 `(automationId, contactId, postId)` row (used by both `replyOncePerUserPerPost` and
 `replyToUsersWhoCommentedOnOtherPosts`) and `incrementRepliesCount` bumps the counter when
 `willSendReply` is true.
+
+## Account scope
+
+A workspace can connect several accounts of one channel (two Pages, two Instagram
+accounts). `CommentAutomation.inboxId` and `IgStoryAutomation.inboxId` say which one an
+automation answers on:
+
+- **`NULL` — every account of the channel.** The behavior every automation had before the
+  column existed, so legacy rows kept it with no data migration. Template installs also
+  land here: `collect` never exports `inboxId`, because the source workspace's inbox does
+  not exist in the target one.
+- **An inbox id — that account only.** The worker passes the incoming comment's
+  `integrationRow.inboxId` (story replies: `contactInbox.inboxId`) into
+  `findActiveAutomations`, which matches `inboxId IS NULL OR inboxId = :inboxId`. The
+  parameter is required, so no caller can fall back to the old workspace-wide scan.
+
+Rules that keep it honest:
+
+- **Validated on every write.** `assertAutomationAccount`
+  (`packages/business/src/comment-automation/account-scope.ts`) rejects an inbox that is
+  not an account of the automation's `type` in its workspace. It reads the integration
+  tables, not `Inbox.channel`: both Instagram connections store `Inbox.channel =
+  "instagram"`, and only `IntegrationInstagram.type` (`instagram` / `facebook`) tells them
+  apart.
+- **`onDelete: cascade`, never `set null`.** Nulling the column would silently widen an
+  automation meant for one Page into one that answers on every Page. Disconnecting a
+  channel only stamps `Inbox.disconnectedAt`, so in practice the scoped automation simply
+  stops receiving comments.
+- **On update, omitted keeps, `null` clears.** A PATCH without `inboxId` leaves the scope
+  alone; `null` widens it back to every account.
+- **An unchanged scope is never re-validated.** Disconnecting a channel deletes its
+  integration row but keeps the `Inbox`, so the account disappears from
+  `listAutomationAccounts`. Every edit form sends the whole row back, so re-checking the
+  stored `inboxId` would block renaming or switching off that automation —
+  `assertAutomationAccount` skips when `inboxId === currentInboxId`. The builder shows such
+  a scope as "Disconnected account" in the form and the list instead of an empty choice.
+- **Post pickers follow the scope.** Every post/story list item carries its account's
+  `inboxId`, the pickers show only the selected account's posts, and moving the form to a
+  specific account keeps only the selected posts KNOWN to belong to it (an unknown one —
+  typed by hand, or not loaded — is dropped with a toast rather than risk a silent
+  automation). The public `listPosts`/`listMedia`/`listStories` take an optional `inboxId`
+  filter.
+- **Known gap: post ids are not checked against the account on the server.** A post id
+  carries no reliable account marker (reels and manual ids are bare), so an API caller
+  that pairs `inboxId` with another account's posts saves an automation that never fires.
+  The `inboxId` field description tells agents to list posts with the same `inboxId`.
+- **Missed-comments replay** scans only the scoped account (`ScanCommentsProps.inboxId`).
+- **Builder:** with two or more accounts of the channel connected, a new automation cannot
+  be saved until an account — or "All accounts" — is chosen on purpose, and saving also
+  waits while the accounts are loading (`isAccountChoiceMissing`). This is a builder
+  guard only: an API create that omits `inboxId` is a deliberate "every account".
+  Agents list accounts with `commentAutomations.listAccounts`.
 
 ## Reply types
 
@@ -209,7 +270,7 @@ shape keeps working — **read both through `resolveReplyTexts`**, never directl
 `value` and need no migration; `publicReply` is `jsonb`.
 
 Sends are **staggered by 3s** (`PUBLIC_REPLY_SPACING_MS`). Not cosmetic: the chat queue runs
-`concurrency: 5` with no limiter, so N jobs sharing one delay are picked up in parallel and the
+`CHAT_WORKER_CONCURRENCY` jobs at once (default 5) with no limiter, so N jobs sharing one delay are picked up in parallel and the
 replies land under the comment in whatever order Facebook accepts them.
 
 **The set is ONE reply, not N.** Exactly the rule a `flow` reply already follows, and it is what
@@ -380,8 +441,9 @@ compare two different populations. When `repliesCount` is 0 the rate would be a 
 "100%" that says nothing true (a Messenger automation replying publicly only counts no
 replies by design), so the cell shows the count alone.
 
-> **Write volume.** `findActiveAutomations` scopes by workspace + channel, **not** by post,
-> so one comment is shown to every active automation on that channel and can produce up to
+> **Write volume.** `findActiveAutomations` scopes by workspace + channel + account, **not**
+> by post, so one comment is shown to every active automation of that account (plus the
+> unscoped ones) and can produce up to
 > `N-1` miss rows. A workspace running 50 automations over 2,000 comments/day writes
 > ~100k rows/day. `processCommentAutomation` flushes them in **one** insert per comment to
 > keep that to a single statement, and the rows are **never purged** — an explicit product
@@ -495,6 +557,135 @@ which Meta only allows on **top-level** replies. The worker therefore skips hidi
 Threads reply (`supportsHideForComment` in `hide-comments.ts`, logged as
 `hide nested reply unsupported`) instead of enqueuing a state change that would mark it
 hidden in the inbox and then fail at the channel.
+
+## Process missed comments
+
+A comment written before its automation existed (or whose webhook was lost) is never
+answered. The **Process missed comments** row action replays the last 7 days of
+comments on the automation's post through **that automation only**. It is offered only
+when the automation targets exactly one specific post (`canProcessMissedComments` in
+`@chatbotx.io/database/partials`), on all four comment tables.
+
+Flow: `processMissedCommentsAction` (`features/shared/comment-automation/actions/`) →
+`processMissedComments` (`lib/missed-comments/process-missed-comments.ts`):
+
+1. `commentAutomationService.resolveMissedCommentsTarget` refuses an automation that is
+   off, not single-post, or **outside its schedule** — `isWithinSchedule` reads the
+   current time, so every replay would otherwise become an `outsideSchedule` miss and
+   that miss would mark the comment handled for good.
+2. The workspace must be active now (`workspaceService.isActiveNow`) — `receiveComment`
+   silently drops a comment for an inactive workspace, so a run would send nothing.
+3. `claimMissedCommentsRun` takes a 30-minute Redis lock per automation; two
+   overlapping runs would read the same "not handled" set and reply twice.
+4. `scanPostComments` lists **every** page back to the 7-day window, like AhaChat's
+   replay (`MISSED_COMMENTS_MAX_PAGES` = 200 is only a backstop), per channel
+   (`listPostComments` Graph
+   `/{post}/comments?filter=stream&order=reverse_chronological`; `listMediaComments`
+   `/{media}/comments` with nested `replies`; Threads `listPostConversation`
+   `/{post}/conversation`; TikTok `listTiktokComments` with `include_replies`) and
+   shapes each one **exactly like that channel's webhook** — same
+   `integrationIdentifier`, `fromId`, `parentId` rules. Facebook always uses the
+   composite `{pageId}_{storyId}` post id, because the comment conversation is keyed by
+   the webhook's `post_id` and a bare id would open a second one.
+5. "Already handled" means this automation has a `CommentAutomationEvent` **or** a
+   `CommentAutomationMiss` row for the comment id
+   (`findProcessedCommentIds`, served by both tables' dedup indexes). It is decided per
+   comment, not per contact; `replyOncePerUserPerPost` still guards a repeat commenter.
+6. The rest are enqueued oldest first on the **`low` queue** as
+   `LowJobAction.replayMissedComment` jobs carrying `replay: { automationId }` (job id
+   `missed-comment-{automationId}-{commentId}`, one attempt — a failed replay has no
+   event row, so the next run picks it up), with `addBulk` in chunks of 500.
+7. **Pacing is booked per channel account**, not per run:
+   `reserveMissedCommentsReplayWindow` (`distributedStore.reserveTimeWindow`, one Lua
+   step) books `count × 1s` on the account's timeline and returns where the booking
+   starts, so runs of several automations on one Page queue up behind each other and
+   the Page never replays faster than one comment per second. AhaChat gets the same
+   one-at-a-time pace by posting each comment synchronously to its `comment-delay`
+   service; here the action returns in seconds while a 3,000-comment post replays over
+   ~50 minutes.
+
+**"Processing" status.** A run counts its replays in Redis
+(`comment-automation:missed-comments:remaining:{automationId}`):
+`startMissedCommentsReplay` sets it **before** the replays are enqueued (the first one
+can run at once), `settleMissedCommentsEnqueue` takes back the ones that failed to
+enqueue and stretches its TTL 30 minutes past the last scheduled replay, and the `low`
+worker calls `finishMissedCommentReplay` in a `finally` around the owner guard — so a
+replay that sent, declined, was skipped by the guard or failed all count down, and the
+last one deletes the key. `findMissedCommentsInProgress` reports an automation that is
+scanning (the lock) or still has replays (the counter); the comment tables poll it every
+5 s through `useMissedCommentsInProgress` only while one is in progress, show
+"Processing missed comments" under the name, disable the row action, and
+`router.refresh()` once when a run finishes. `claimMissedCommentsRun` refuses while the
+counter exists, so the server enforces the same span the UI disables.
+
+In the worker, the `low` job calls `receiveComment`, where `replay` changes three things:
+the message is saved with the comment's own `createdAt` (so the 24h source-id dedup
+lookback finds the webhook's row and no duplicate lands in the inbox);
+`processCommentAutomation` runs **inline** with `onlyAutomationId` — never on the
+`integration` queue — and filters the automation list **before** the loop (other
+automations neither reply nor record a miss); and `privateReplyClaimed` is seeded from
+`hasSentPrivateReply` — a DM another automation already sent for that comment used the
+channel's one comment-anchored DM, so the replay records a blocked private reply instead
+of calling the API.
+
+The inline run is wrapped in `runAsMissedCommentReplay` (an `AsyncLocalStorage` marker,
+`comment-automation/replay-priority.ts`). Every enqueue site in the comment-automation
+handlers passes its options through `withReplayPriority`, which adds
+`MISSED_COMMENT_REPLAY_PRIORITY` inside a replay — BullMQ runs every unprioritized job
+first, so a replay's replies, hides, flows and AI replies always yield to live traffic on
+the shared `chat`, `integration` and `aiAgent` queues. **A new enqueue site added to these
+handlers must do the same.** Jobs those jobs enqueue later (a flow's later steps, the AI
+reply's own send) run outside the marker at normal priority.
+
+## Live comments
+
+A Live automation is an ordinary `CommentAutomation` row with `post.type: "live"`
+(jsonb — no migration). It lives in the same Facebook / Instagram Comment
+Automation pages; "Create Automation" opens a "Select post type" step (FB:
+Live Stream / Page Posts; IG: after the connection type, Instagram Live /
+Posts & Reels) that passes `?postType=live` to the create page.
+
+**How a comment is known to be live**
+
+| Channel | Signal | Where |
+|---|---|---|
+| Instagram (both variants) | Its own webhook field, `live_comments` (same value shape as `comments`) | `integrations/instagram{,-facebook}/src/handlers/webhook.ts` → `commentData.isLive` |
+| Facebook | None on `feed` — a live comment is an ordinary `item: "comment"`. The comment's `live_broadcast_timestamp` is read on the attachment lookup `receiveComment` already makes (no extra Graph call), and the post is remembered live in Redis for 7 days so a failed lookup mid-burst, or a replay comment with no timestamp, still resolves | `getCommentAttachment` (`integrations/messenger/src/apis/comment.ts`), `resolveLiveComment` (`apps/worker/.../comment-automation/live-comment.ts`) |
+
+The flag rides `processCommentAutomation.data.isLive` and is stamped on the
+comment message as `contentAttributes.isLiveComment`.
+
+**Subscriptions.** Instagram Login sends `live_comments` only if it is in the
+account's `subscribed_fields` (`INSTAGRAM_SUBSCRIBE_FIELDS`); accounts connected
+before Live existed are re-subscribed when an Instagram Live automation is
+created (`ensureLiveCommentsSubscriptionForAutomation`, every create path).
+Instagram via Facebook Login needs the `live_comments` field enabled once on the
+App Dashboard's `instagram` webhook object — it is not per-account. Both need
+`instagram_manage_comments` / `instagram_business_manage_comments` at Advanced
+Access, like `comments`.
+
+**Capabilities** — `liveCommentCapabilities(type)` in
+`packages/database/src/partials/comment-automation.ts` is the single source; the
+form hides, the service pins (`withLiveCapabilities`) and the worker strips
+(`withLiveCapabilityLimits`) the same fields:
+
+| | FB Live | IG Live |
+|---|---|---|
+| Private reply | ✅ 7 days | ✅ only while broadcasting (window capped at 4 h; Meta rejects after the end → `failed` event) |
+| Public reply | ✅ | ❌ "You cannot reply to comments on a live video" |
+| Like | ✅ | ❌ |
+| Hide | ✅ | ❌ |
+| Reply delay | ✅ | ❌ (forced `immediately`) |
+
+**Pacing.** A live comment's `processCommentAutomation` job is delayed onto the
+account's own timeline (`reserveLiveCommentWindow`, 5/s Facebook, 20/s
+Instagram) so one busy broadcast cannot starve every other workspace's replies
+on the shared integration/chat workers. Delayed jobs hold no worker. If Redis
+fails the comment is processed immediately.
+
+**Redelivery.** `processCommentAutomation` jobs are kept for 24 h
+(`removeOnComplete: { age }`), not the queue-wide last-1,000, so the
+`comment-auto-{commentId}` jobId still rejects a redelivered webhook after a burst.
 
 ## Known gaps & pitfalls
 

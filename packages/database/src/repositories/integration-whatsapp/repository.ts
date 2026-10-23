@@ -10,35 +10,13 @@ import {
   or,
   sql,
 } from "../../client"
-import type { WhatsappCallHoursSnapshot } from "../../partials"
+import { inboxStatuses, type WhatsappCallHoursSnapshot } from "../../partials"
 import {
   type IntegrationWhatsappRegistrationError,
+  inboxModel,
   integrationWhatsappModel,
 } from "../../schema"
 import type { IntegrationWhatsappModel } from "../../types"
-
-// `isCoexist`/`platformType` have column defaults (both `$inferInsert`
-// makes optional), but a connect must always state them explicitly — the
-// only caller (`connectPhoneNumber`) always passes both, and `Required`
-// keeps that invariant enforced by the type instead of just convention.
-type UpsertWhatsappIntegrationInput = Pick<
-  typeof integrationWhatsappModel.$inferInsert,
-  | "id"
-  | "workspaceId"
-  | "inboxId"
-  | "auth"
-  | "phoneNumberId"
-  | "wabaId"
-  | "businessId"
-  | "name"
-  | "displayPhoneNumber"
-> &
-  Required<
-    Pick<
-      typeof integrationWhatsappModel.$inferInsert,
-      "isCoexist" | "platformType"
-    >
-  >
 
 type WorkspaceIntegrationRef = {
   id: string
@@ -178,6 +156,27 @@ class IntegrationWhatsappRepository {
       .from(integrationWhatsappModel)
   }
 
+  /**
+   * Integrations whose inbox is still connected — the rows a webhook
+   * re-subscription may act on (a disconnected inbox has had its subscription
+   * removed on purpose).
+   */
+  findAllConnectedForWebhookSubscription(tx: DatabaseClient = db) {
+    return tx
+      .select({
+        id: integrationWhatsappModel.id,
+        workspaceId: integrationWhatsappModel.workspaceId,
+        wabaId: integrationWhatsappModel.wabaId,
+        auth: integrationWhatsappModel.auth,
+      })
+      .from(integrationWhatsappModel)
+      .innerJoin(
+        inboxModel,
+        eq(inboxModel.id, integrationWhatsappModel.inboxId),
+      )
+      .where(eq(inboxModel.status, inboxStatuses.enum.connected))
+  }
+
   findForTokenRefreshByWorkspaceIds(
     workspaceIds: string[],
     tx: DatabaseClient = db,
@@ -209,28 +208,50 @@ class IntegrationWhatsappRepository {
   }
 
   /**
+   * No workspace scope — for inbound webhook handlers that only know the
+   * integration id from the URL.
+   */
+  async findByIdUnscoped(
+    id: string,
+    tx: DatabaseClient = db,
+  ): Promise<IntegrationWhatsappModel | null> {
+    const [row] = await tx
+      .select()
+      .from(integrationWhatsappModel)
+      .where(eq(integrationWhatsappModel.id, id))
+      .limit(1)
+
+    return row ?? null
+  }
+
+  /**
    * Replace the stored OAuth credentials after a token refresh. Scoped by
    * workspace so a forged integration id can never touch another tenant's row.
    */
   async updateAuth(
     input: WorkspaceIntegrationRef & { auth: Record<string, unknown> },
     tx: DatabaseClient = db,
-  ): Promise<void> {
-    await tx
+  ): Promise<{ phoneNumberId: string } | undefined> {
+    const [row] = await tx
       .update(integrationWhatsappModel)
       .set({ auth: input.auth, tokenRefreshError: null })
       .where(workspaceIntegrationFilter(input))
+      .returning({ phoneNumberId: integrationWhatsappModel.phoneNumberId })
+
+    return row
   }
 
   async markTokenRefreshError(
-    id: string,
-    error: string,
+    input: WorkspaceIntegrationRef & { error: string },
     tx: DatabaseClient = db,
-  ): Promise<void> {
-    await tx
+  ): Promise<{ phoneNumberId: string } | undefined> {
+    const [row] = await tx
       .update(integrationWhatsappModel)
-      .set({ tokenRefreshError: error })
-      .where(eq(integrationWhatsappModel.id, id))
+      .set({ tokenRefreshError: input.error })
+      .where(workspaceIntegrationFilter(input))
+      .returning({ phoneNumberId: integrationWhatsappModel.phoneNumberId })
+
+    return row
   }
 
   /**
@@ -263,6 +284,24 @@ class IntegrationWhatsappRepository {
         id: integrationWhatsappModel.id,
         wabaId: integrationWhatsappModel.wabaId,
       })
+      .from(integrationWhatsappModel)
+      .where(
+        and(
+          eq(integrationWhatsappModel.inboxId, input.inboxId),
+          eq(integrationWhatsappModel.workspaceId, input.workspaceId),
+        ),
+      )
+      .limit(1)
+
+    return row ?? null
+  }
+
+  async findAuthByInboxIdForWorkspace(
+    input: { workspaceId: string; inboxId: string },
+    tx: DatabaseClient = db,
+  ): Promise<Pick<IntegrationWhatsappModel, "auth"> | null> {
+    const [row] = await tx
+      .select({ auth: integrationWhatsappModel.auth })
       .from(integrationWhatsappModel)
       .where(
         and(
@@ -333,6 +372,34 @@ class IntegrationWhatsappRepository {
       .limit(1)
 
     return row ?? null
+  }
+
+  /**
+   * The WhatsApp numbers whose display phone, ignoring punctuation, equals
+   * `digits`. `displayPhoneNumber` is free-form and not unique, so this can
+   * return several rows (at most two are fetched: enough to tell "ambiguous").
+   * Empty `digits` never match — legacy rows default the column to `""`.
+   */
+  async listByDisplayPhoneDigits(
+    input: { workspaceId: string; digits: string },
+    tx: DatabaseClient = db,
+  ): Promise<{ id: string; inboxId: string }[]> {
+    if (input.digits.length === 0) {
+      return []
+    }
+    return await tx
+      .select({
+        id: integrationWhatsappModel.id,
+        inboxId: integrationWhatsappModel.inboxId,
+      })
+      .from(integrationWhatsappModel)
+      .where(
+        and(
+          eq(integrationWhatsappModel.workspaceId, input.workspaceId),
+          sql`regexp_replace(${integrationWhatsappModel.displayPhoneNumber}, '\\D', '', 'g') = ${input.digits}`,
+        ),
+      )
+      .limit(2)
   }
 
   listByWorkspaceId(
@@ -650,36 +717,6 @@ class IntegrationWhatsappRepository {
       )
   }
 
-  /**
-   * Upserts a WhatsApp integration keyed by `inboxId` (today's
-   * `onConflictDoUpdate`, moved verbatim): a retry after a lost response
-   * re-writes the same row instead of colliding on `IntegrationWhatsapp_
-   * inboxId_key`.
-   */
-  async upsertByInbox(
-    input: UpsertWhatsappIntegrationInput,
-    tx: DatabaseClient = db,
-  ): Promise<IntegrationWhatsappModel> {
-    const [row] = await tx
-      .insert(integrationWhatsappModel)
-      .values({
-        ...input,
-        registrationStatus: "pending_verification",
-      })
-      .onConflictDoUpdate({
-        target: [integrationWhatsappModel.inboxId],
-        set: {
-          name: input.name,
-          displayPhoneNumber: input.displayPhoneNumber,
-          isCoexist: input.isCoexist,
-          platformType: input.platformType,
-          updatedAt: new Date(),
-        },
-      })
-      .returning()
-
-    return row
-  }
   /** Whether the number backing this inbox auto-records in-app calls. */
   async isCallRecordingEnabledForInbox(
     input: { workspaceId: string; inboxId: string },
@@ -725,6 +762,20 @@ class IntegrationWhatsappRepository {
             )
           : workspaceIntegrationFilter(input),
       )
+      .returning()
+
+    return row ?? null
+  }
+
+  /** Sets (or clears) the flow started when Meta hands a conversation to this app. */
+  async updateHandoverResumeFlow(
+    input: WorkspaceIntegrationRef & { handoverResumeFlowId: string | null },
+    tx: DatabaseClient = db,
+  ): Promise<IntegrationWhatsappModel | null> {
+    const [row] = await tx
+      .update(integrationWhatsappModel)
+      .set({ handoverResumeFlowId: input.handoverResumeFlowId })
+      .where(workspaceIntegrationFilter(input))
       .returning()
 
     return row ?? null

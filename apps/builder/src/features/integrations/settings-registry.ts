@@ -1,5 +1,5 @@
-import { SiFacebook, SiMake } from "@icons-pack/react-simple-icons"
-import { CodeIcon, MailIcon, TableIcon } from "lucide-react"
+import { SiFacebook, SiGoogleads, SiMake } from "@icons-pack/react-simple-icons"
+import { BotIcon, CodeIcon, MailIcon, TableIcon } from "lucide-react"
 import type { ComponentType } from "react"
 
 /**
@@ -38,8 +38,14 @@ export const INTEGRATION_SETTINGS_REGISTRY: readonly IntegrationSettingsEntry[] 
     // they should not pay. The layout comment above this registry already
     // described this as the intended behaviour; the rows simply outlived it.
     // Their route directories are left in place so re-enabling is one commit.
+    {
+      slug: "decision-connections",
+      titleKey: "decision.title",
+      icon: BotIcon,
+    },
     { slug: "google-sheets", titleKey: "googleSheets.title", icon: TableIcon },
     { slug: "facebook-ads", titleKey: "facebookAds.title", icon: SiFacebook },
+    { slug: "google-ads", titleKey: "googleAds.title", icon: SiGoogleads },
     { slug: "make", titleKey: "make.title", icon: SiMake },
     {
       slug: "active-campaign",

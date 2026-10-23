@@ -21,7 +21,12 @@ const lastMessage: {
     text?: string | null
     contentType: ContentType
     contentAttributes?: Record<string, unknown> | null
-    attachments: { fileType: FileType; originPath: string }[]
+    attachments: {
+      id?: string
+      messageCreatedAt?: Date
+      fileType: FileType
+      originPath: string
+    }[]
   } | null
 } = { current: null }
 const repositoryError: { current: Error | null } = { current: null }
@@ -32,9 +37,29 @@ const conversationUpdateChallenge = vi.fn(async () => undefined)
 const conversationConsumeChallenge = vi.fn(async () => true)
 const conversationRestoreChallengeIfAbsent = vi.fn(async () => true)
 const workspaceFindById = vi.fn(async () => ({ language: "en" }))
+const contactFindById = vi.fn(
+  async (): Promise<{ phoneNumber: string | null; email: string | null }> => ({
+    phoneNumber: null,
+    email: null,
+  }),
+)
+// Pass-through by default: a stored key is returned as-is, like the real helper.
+const ensureAttachmentStored = vi.fn(
+  async (input: {
+    originPath?: string
+  }): Promise<{ originPath: string } | null> =>
+    input.originPath === undefined ? null : { originPath: input.originPath },
+)
 const resolveTenantSettings = vi.fn(async () => ({
   storageUrl: "https://cdn.example.com/",
   appUrl: "https://app.example.com",
+}))
+
+class MediaNotReadyErrorStub extends Error {}
+
+vi.mock("@chatbotx.io/channel-registry/media-hydration", () => ({
+  ensureAttachmentStored,
+  MediaNotReadyError: MediaNotReadyErrorStub,
 }))
 
 vi.mock("@chatbotx.io/business", () => ({
@@ -42,6 +67,7 @@ vi.mock("@chatbotx.io/business", () => ({
     setValueByKey: contactCustomFieldSetValueByKey,
   },
   contactInboxService: { updateTracking: contactInboxUpdateTracking },
+  contactService: { findById: contactFindById },
   conversationService: {
     updateChallenge: conversationUpdateChallenge,
     consumeChallenge: conversationConsumeChallenge,
@@ -94,6 +120,7 @@ vi.mock("@chatbotx.io/events", () => ({
 
 const chatQueueAdd = vi.fn(async () => ({ id: "job-1" }))
 vi.mock("@chatbotx.io/worker-config", () => ({
+  BROADCAST_SEND_PRIORITY: 5,
   ChatJobAction: {
     sendChatMessage: "sendChatMessage",
     sendFlowMessage: "sendFlowMessage",
@@ -375,6 +402,79 @@ describe("getUserData — validation logic", () => {
     })
   })
 
+  describe("lazily-ingested attachments", () => {
+    const pendingImage = {
+      id: "att-1",
+      messageCreatedAt: new Date("2026-10-14T01:00:00.000Z"),
+      fileType: "image" as const,
+      originPath: "https://cdn.fbsbx.example/photo.jpg?sig=abc",
+    }
+
+    test("saves the stored object's URL, never the pending provider URL", async () => {
+      ensureAttachmentStored.mockResolvedValue({
+        originPath: "workspace/messenger/ws-1/int-1/2026/10/14/abc.jpg",
+      })
+      lastMessage.current = makeIncomingMessage({
+        text: null,
+        attachments: [pendingImage],
+      })
+
+      const result = await getUserData(makeProps(ReplyFormat.image))
+
+      expect(result.status).toBe("success")
+      expect(ensureAttachmentStored).toHaveBeenCalledWith({
+        attachmentId: "att-1",
+        workspaceId: expect.any(String),
+        messageCreatedAt: pendingImage.messageCreatedAt,
+        originPath: pendingImage.originPath,
+      })
+      expectCustomFieldWrite(
+        "https://cdn.example.com/workspace/messenger/ws-1/int-1/2026/10/14/abc.jpg",
+      )
+      expect(result.result).toBe(
+        "workspace/messenger/ws-1/int-1/2026/10/14/abc.jpg",
+      )
+    })
+
+    test("re-prompts when the attachment is permanently unavailable", async () => {
+      ensureAttachmentStored.mockResolvedValue(null)
+      lastMessage.current = makeIncomingMessage({
+        text: null,
+        attachments: [pendingImage],
+      })
+
+      const result = await getUserData(makeProps(ReplyFormat.image))
+
+      expect(result.status).toBe("retry")
+      expect(contactCustomFieldSetValueByKey).not.toHaveBeenCalled()
+    })
+
+    test("lets the job retry when the attachment is not stored in time", async () => {
+      ensureAttachmentStored.mockRejectedValue(
+        new MediaNotReadyErrorStub("not ready"),
+      )
+      lastMessage.current = makeIncomingMessage({
+        text: null,
+        attachments: [pendingImage],
+      })
+
+      await expect(getUserData(makeProps(ReplyFormat.image))).rejects.toThrow(
+        "not ready",
+      )
+      expect(contactCustomFieldSetValueByKey).not.toHaveBeenCalled()
+      // The challenge survives so the retried job can still accept the answer.
+      expect(conversationConsumeChallenge).not.toHaveBeenCalled()
+    })
+
+    test("does not touch storage for text answers", async () => {
+      lastMessage.current = makeIncomingMessage({ text: "hello" })
+
+      await getUserData(makeProps(ReplyFormat.text))
+
+      expect(ensureAttachmentStored).not.toHaveBeenCalled()
+    })
+  })
+
   describe("attachment formats", () => {
     test("image attachment with image format → returns success", async () => {
       lastMessage.current = makeIncomingMessage({
@@ -544,40 +644,48 @@ describe("getUserData — attempt counter (Bug B fix)", () => {
       ),
     )
 
-    expect(chatQueueAdd).toHaveBeenCalledWith("sendFlowMessage", {
-      type: "sendFlowMessage",
-      data: expect.objectContaining({
-        conversationId: "conv-1",
-        contactInboxId: "ci-1",
-        flowId: "flow-1",
-        flowVersionId: "fv-1",
-        metadata: {
-          type: "broadcast",
-          broadcastId: "bc-1",
+    expect(chatQueueAdd).toHaveBeenCalledWith(
+      "sendFlowMessage",
+      {
+        type: "sendFlowMessage",
+        data: expect.objectContaining({
+          conversationId: "conv-1",
           contactInboxId: "ci-1",
-        },
-        step: expect.objectContaining({
-          id: "step-1",
-          nodeId: "node-1",
-          stepType: "sendText",
-          text: "Please re-enter your email",
-          buttons: [],
+          flowId: "flow-1",
+          flowVersionId: "fv-1",
+          metadata: {
+            type: "broadcast",
+            broadcastId: "bc-1",
+            contactInboxId: "ci-1",
+          },
+          step: expect.objectContaining({
+            id: "step-1",
+            nodeId: "node-1",
+            stepType: "sendText",
+            text: "Please re-enter your email",
+            buttons: [],
+          }),
         }),
-      }),
-    })
+      },
+      { priority: 5 },
+    )
   })
 
   test("keeps the long-standing blank retry behavior for non-webview formats (sends the blank retry text unchanged)", async () => {
     await getUserData(makeProps(ReplyFormat.email, { retryMessage: "" }, 1))
 
-    expect(chatQueueAdd).toHaveBeenCalledWith("sendFlowMessage", {
-      type: "sendFlowMessage",
-      data: expect.objectContaining({
-        step: expect.objectContaining({
-          text: "",
+    expect(chatQueueAdd).toHaveBeenCalledWith(
+      "sendFlowMessage",
+      {
+        type: "sendFlowMessage",
+        data: expect.objectContaining({
+          step: expect.objectContaining({
+            text: "",
+          }),
         }),
-      }),
-    })
+      },
+      { priority: 5 },
+    )
   })
 
   test("falls back to the step message on date retry so the picker prompt is re-sent with its button", async () => {
@@ -735,27 +843,31 @@ describe("getUserData — first send (no challenge state)", () => {
     props.ctx = { variables: { conversation: {} } }
     const result = await getUserData(props)
     expect(result.status).toBe("wait")
-    expect(chatQueueAdd).toHaveBeenCalledWith("sendFlowMessage", {
-      type: "sendFlowMessage",
-      data: {
-        conversationId: "conv-1",
-        contactInboxId: "ci-1",
-        flowId: "flow-1",
-        flowVersionId: "fv-1",
-        step: {
-          id: "step-1",
-          nodeId: "node-1",
-          stepType: "sendText",
-          text: "Please enter your email, {{contact.name}}",
-          buttons: [],
-        },
-        metadata: {
-          type: "broadcast",
-          broadcastId: "bc-1",
+    expect(chatQueueAdd).toHaveBeenCalledWith(
+      "sendFlowMessage",
+      {
+        type: "sendFlowMessage",
+        data: {
+          conversationId: "conv-1",
           contactInboxId: "ci-1",
+          flowId: "flow-1",
+          flowVersionId: "fv-1",
+          step: {
+            id: "step-1",
+            nodeId: "node-1",
+            stepType: "sendText",
+            text: "Please enter your email, {{contact.name}}",
+            buttons: [],
+          },
+          metadata: {
+            type: "broadcast",
+            broadcastId: "bc-1",
+            contactInboxId: "ci-1",
+          },
         },
       },
-    })
+      { priority: 5 },
+    )
     expect(challengeClearCalls()).toHaveLength(0)
   })
 
@@ -1411,6 +1523,7 @@ describe("getUserData — date/datetime webview channel gating (Fix 3)", () => {
     expect(chatQueueAdd).toHaveBeenCalledWith(
       "sendFlowMessage",
       expect.objectContaining({ type: "sendFlowMessage" }),
+      { priority: 5 },
     )
     expect(chatQueueAdd).not.toHaveBeenCalledWith(
       "sendChatMessage",
@@ -1445,6 +1558,7 @@ describe("getUserData — non-date replyFormats keep the text prompt path (regre
     expect(chatQueueAdd).toHaveBeenCalledWith(
       "sendFlowMessage",
       expect.objectContaining({ type: "sendFlowMessage" }),
+      { priority: 5 },
     )
     expect(chatQueueAdd).not.toHaveBeenCalledWith(
       "sendChatMessage",
@@ -1513,10 +1627,219 @@ describe("getUserData — WhatsApp native location request (RF08)", () => {
     expect(chatQueueAdd).toHaveBeenCalledWith(
       "sendFlowMessage",
       expect.objectContaining({ type: "sendFlowMessage" }),
+      { priority: 5 },
     )
     expect(chatQueueAdd).not.toHaveBeenCalledWith(
       "sendChatMessage",
       expect.anything(),
     )
+  })
+})
+
+describe("getUserData — Show Hint contact quick reply (phone/email)", () => {
+  beforeEach(() => {
+    chatQueueAdd.mockClear()
+    waitForChatJobCompletion.mockClear()
+    contactFindById.mockReset()
+    contactFindById.mockResolvedValue({ phoneNumber: null, email: null })
+  })
+
+  function makeFirstSendProps(
+    replyFormat: ReplyFormat,
+    channel: string,
+    overrides: StepOverride = { showHint: true },
+  ) {
+    const props = makeProps(replyFormat, overrides)
+    props.ctx = { variables: { conversation: {} } }
+    props.contactInbox = { ...props.contactInbox, channel }
+    return props
+  }
+
+  function expectTextPromptPath() {
+    expect(chatQueueAdd).toHaveBeenCalledWith(
+      "sendFlowMessage",
+      expect.objectContaining({ type: "sendFlowMessage" }),
+      { priority: 5 },
+    )
+    expect(chatQueueAdd).not.toHaveBeenCalledWith(
+      "sendChatMessage",
+      expect.anything(),
+    )
+  }
+
+  test("messenger offers the stored contact phone with the full value in the payload", async () => {
+    contactFindById.mockResolvedValueOnce({
+      phoneNumber: "0708122593",
+      email: null,
+    })
+
+    const result = await getUserData(
+      makeFirstSendProps(ReplyFormat.phone, "messenger"),
+    )
+
+    expect(result.status).toBe("wait")
+    expect(contactFindById).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      id: "contact-1",
+    })
+    const job = findChatJobCall("sendChatMessage")
+    expect(job.data.quickReplies).toEqual([
+      {
+        id: "test-id",
+        label: "0708122593",
+        buttonType: "postback",
+        postback: "GET_USER_DATA_CONTACT_HINT|0708122593",
+      },
+    ])
+    expect(waitForChatJobCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "job-1" }),
+      { conversationId: "conv-1", stepId: "step-1" },
+    )
+  })
+
+  test("a value longer than 20 characters gets a shortened title and the full payload", async () => {
+    contactFindById.mockResolvedValueOnce({
+      phoneNumber: null,
+      email: "taubancam171995.1@gmail.com",
+    })
+
+    await getUserData(makeFirstSendProps(ReplyFormat.email, "messenger"))
+
+    const job = findChatJobCall("sendChatMessage")
+    expect(job.data.quickReplies?.[0]).toMatchObject({
+      label: "taubancam171995.1@g…",
+      postback: "GET_USER_DATA_CONTACT_HINT|taubancam171995.1@gmail.com",
+    })
+    expect(job.data.quickReplies?.[0]?.label).toHaveLength(20)
+  })
+
+  test("messenger without a stored phone falls back to the native user_phone_number quick reply", async () => {
+    await getUserData(makeFirstSendProps(ReplyFormat.phone, "messenger"))
+
+    const job = findChatJobCall("sendChatMessage")
+    expect(job.data.quickReplies).toEqual([
+      {
+        id: "messenger:native-quick-reply:user_phone_number",
+        label: "Phone",
+        buttonType: "postback",
+        postback: "messenger:native-quick-reply:user_phone_number",
+      },
+    ])
+  })
+
+  test("messenger without a stored email falls back to the native user_email quick reply", async () => {
+    await getUserData(makeFirstSendProps(ReplyFormat.email, "messenger"))
+
+    const job = findChatJobCall("sendChatMessage")
+    expect(job.data.quickReplies?.[0]?.postback).toBe(
+      "messenger:native-quick-reply:user_email",
+    )
+  })
+
+  test("instagram offers the stored contact value", async () => {
+    contactFindById.mockResolvedValueOnce({
+      phoneNumber: null,
+      email: "an@example.com",
+    })
+
+    await getUserData(makeFirstSendProps(ReplyFormat.email, "instagram"))
+
+    const job = findChatJobCall("sendChatMessage")
+    expect(job.data.quickReplies?.[0]).toMatchObject({
+      label: "an@example.com",
+      postback: "GET_USER_DATA_CONTACT_HINT|an@example.com",
+    })
+  })
+
+  test("messenger with an invalid stored phone falls back to the native quick reply", async () => {
+    contactFindById.mockResolvedValueOnce({
+      phoneNumber: "call me maybe",
+      email: null,
+    })
+
+    await getUserData(makeFirstSendProps(ReplyFormat.phone, "messenger"))
+
+    const job = findChatJobCall("sendChatMessage")
+    expect(job.data.quickReplies?.[0]?.postback).toBe(
+      "messenger:native-quick-reply:user_phone_number",
+    )
+  })
+
+  test("instagram with an invalid stored email keeps the text prompt path", async () => {
+    contactFindById.mockResolvedValueOnce({
+      phoneNumber: null,
+      email: "not-an-email",
+    })
+
+    await getUserData(makeFirstSendProps(ReplyFormat.email, "instagram"))
+
+    expectTextPromptPath()
+  })
+
+  test("trims the stored value before offering it", async () => {
+    contactFindById.mockResolvedValueOnce({
+      phoneNumber: "  0708122593  ",
+      email: null,
+    })
+
+    await getUserData(makeFirstSendProps(ReplyFormat.phone, "instagram"))
+
+    const job = findChatJobCall("sendChatMessage")
+    expect(job.data.quickReplies?.[0]).toMatchObject({
+      label: "0708122593",
+      postback: "GET_USER_DATA_CONTACT_HINT|0708122593",
+    })
+  })
+
+  test("a comment-triggered run keeps the text prompt path", async () => {
+    contactFindById.mockResolvedValueOnce({
+      phoneNumber: "0708122593",
+      email: null,
+    })
+    const props = makeFirstSendProps(ReplyFormat.phone, "messenger")
+    props.commentAnchor = {
+      commentId: "comment-1",
+      replyChannel: "private",
+    }
+
+    await getUserData(props)
+
+    expect(contactFindById).not.toHaveBeenCalled()
+    expect(chatQueueAdd).not.toHaveBeenCalledWith(
+      "sendChatMessage",
+      expect.anything(),
+    )
+  })
+
+  test("instagram without a stored value keeps the text prompt path", async () => {
+    await getUserData(makeFirstSendProps(ReplyFormat.phone, "instagram"))
+
+    expectTextPromptPath()
+  })
+
+  test.each([
+    "whatsapp",
+    "zalo",
+    "telegram",
+    "tiktok",
+    "webchat",
+  ])("%s keeps the text prompt path", async (channel) => {
+    await getUserData(makeFirstSendProps(ReplyFormat.phone, channel))
+
+    expectTextPromptPath()
+  })
+
+  test("showHint off keeps the text prompt path", async () => {
+    await getUserData(
+      makeFirstSendProps(ReplyFormat.phone, "messenger", { showHint: false }),
+    )
+
+    expectTextPromptPath()
+  })
+
+  test("showHint is ignored for non phone/email formats", async () => {
+    await getUserData(makeFirstSendProps(ReplyFormat.text, "messenger"))
+
+    expectTextPromptPath()
   })
 })

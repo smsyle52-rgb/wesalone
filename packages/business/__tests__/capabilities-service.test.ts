@@ -58,6 +58,61 @@ describe("getCapabilities", () => {
     expect(result.flowSpec).toBeDefined()
   })
 
+  test.each([
+    ["tiktok", ["sendCard"], ["sendImage"], 3],
+    ["messenger", [], ["sendAudio", "sendFile"], 3],
+    ["omnichannel", [], [], 3],
+  ])("projects the %s channel policy", async (channel, unsupportedSteps, noButtonSteps, buttonCount) => {
+    const result = await getCapabilities({
+      channel,
+      include: ["flowSpec"],
+      workspaceId: "ws-1",
+    })
+
+    expect(result.flowSpec?.selectedChannelPolicy).toMatchObject({
+      policyVersion: 2,
+      limits: { buttonCount },
+    })
+    expect(result.flowSpec?.selectedChannelPolicy?.unsupportedSteps).toEqual(
+      expect.arrayContaining(unsupportedSteps),
+    )
+    expect(result.flowSpec?.selectedChannelPolicy?.noButtonSteps).toEqual(
+      expect.arrayContaining(noButtonSteps),
+    )
+  })
+
+  test("exposes the product-message rules only for a channel that declares them", async () => {
+    const whatsapp = await getCapabilities({
+      channel: "whatsapp",
+      include: ["flowSpec"],
+      workspaceId: "ws-1",
+    })
+    const policy = whatsapp.flowSpec?.selectedChannelPolicy
+    expect(policy?.unsupportedSteps).not.toContain("sendProducts")
+    expect(Object.keys(policy?.productMessages?.displays ?? {}).sort()).toEqual(
+      ["carousel", "products"],
+    )
+    // The documented response shape must carry the rules through, not strip them.
+    expect(
+      capabilitiesResponseSchema.parse(whatsapp).flowSpec?.selectedChannelPolicy
+        ?.productMessages?.displays.carousel,
+    ).toMatchObject({ minProducts: 2, maxProducts: 10 })
+
+    for (const channel of ["omnichannel", "messenger", "telegram"] as const) {
+      const other = await getCapabilities({
+        channel,
+        include: ["flowSpec"],
+        workspaceId: "ws-1",
+      })
+      expect(other.flowSpec?.selectedChannelPolicy?.unsupportedSteps).toContain(
+        "sendProducts",
+      )
+      expect(
+        other.flowSpec?.selectedChannelPolicy?.productMessages,
+      ).toBeUndefined()
+    }
+  })
+
   test("`include` dispatches only the requested loaders", async () => {
     const result = await getCapabilities({
       workspaceId: "ws-1",

@@ -133,7 +133,8 @@ const variableResolvers = [
 
 type GetAllProps = {
   contactId: string
-  contactInbox: ContactInboxModel | string
+  /** `null` when the contact has no inbox: inbox-based variables then resolve empty. */
+  contactInbox: ContactInboxModel | string | null
   conversation?: ConversationModel | null
   appointmentId?: string
   workspace?: WorkspaceModel
@@ -153,9 +154,9 @@ const loadContact = async (contactId: string): Promise<ContactModel> => {
 }
 
 const loadInbox = async (
-  contactInbox: ContactInboxModel | string,
+  contactInbox: ContactInboxModel | string | null,
 ): Promise<ContactInboxModel | null> => {
-  if (typeof contactInbox !== "string") {
+  if (contactInbox === null || typeof contactInbox !== "string") {
     return contactInbox
   }
 
@@ -261,8 +262,10 @@ export const contactVariableService = {
   replaceAll: async (props: {
     text: string
     variables: ReplaceVariableProps
+    /** Escapes each resolved value before it is put into `text`. */
+    escapeValue?: (value: string) => string
   }): Promise<string> => {
-    const { variables: context, text } = props
+    const { variables: context, text, escapeValue } = props
     // Temporal custom fields render in the contact's timezone, falling back to
     // the workspace timezone (then UTC) — an outgoing message should read in the
     // recipient's local time when we know it. See getContactTimezone.
@@ -276,11 +279,12 @@ export const contactVariableService = {
           candidate.matches(variable, context),
         )
         if (resolver) {
-          mapping[variable] = await resolver.resolve(
+          const value = await resolver.resolve(
             variable,
             context,
             renderTimezone,
           )
+          mapping[variable] = escapeValue ? escapeValue(value) : value
         }
       }
 

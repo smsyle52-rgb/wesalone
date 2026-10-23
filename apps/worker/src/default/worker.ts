@@ -1,8 +1,9 @@
+import { flushAllPendingWorkspaceRealtimeEvents } from "@chatbotx.io/business"
 import {
   DefaultJobAction,
   type DefaultJobData,
   defaultWorkerOptions,
-  getRedisConnection,
+  getQueueConnection,
   queueNames,
 } from "@chatbotx.io/worker-config"
 import { type Job, Worker } from "bullmq"
@@ -14,16 +15,26 @@ import { runJobWithAuditContext } from "../lib/run-job-with-audit-context"
 import { handleBulkTagContacts } from "./handlers/bulk-tag-contacts"
 import { loopableExportContacts } from "./handlers/export-contacts"
 import { exportCoupons } from "./handlers/export-coupons"
+import { exportLeaderboardParticipants } from "./handlers/export-leaderboard-participants"
 import { installTemplate } from "./handlers/install-template"
 import { checkMetaCatalogSync } from "./handlers/meta-catalog/check"
 import { importMetaCatalogProducts } from "./handlers/meta-catalog/import-products"
 import { submitMetaCatalogSync } from "./handlers/meta-catalog/submit"
+import {
+  processInboundWebhookRequest,
+  skipBlockedInboundWebhookRequest,
+} from "./handlers/process-inbound-webhook-request"
+import { retryRealtimeMemberRevoke } from "./handlers/retry-realtime-member-revoke"
 import { runImport } from "./handlers/run-import"
 import { sendAppointmentReminder } from "./handlers/send-appointment-reminder"
 import { sendAuditLog } from "./handlers/send-audit-log"
 import { handleSyncChannelLabels } from "./handlers/sync-channel-labels"
 import { syncExternalCalendarEvent } from "./handlers/sync-external-calendar-event"
 import { handleSyncTag } from "./handlers/sync-tag"
+import {
+  deleteWelcomeMessageFlows,
+  syncWelcomeMessageFlows,
+} from "./handlers/welcome-message-flows"
 
 async function runGuardedDefaultJob<T>(
   data: unknown,
@@ -34,9 +45,13 @@ async function runGuardedDefaultJob<T>(
     userAgent?: string
   },
   handler: () => Promise<T>,
+  // For jobs backed by a durable row that must leave its pending set when the
+  // owner is blocked, or a re-dispatch scan keeps re-finding it.
+  onBlocked?: () => Promise<void>,
 ): Promise<T | undefined> {
   const workspaceId = await resolveWorkspaceId(data)
   if (await isBlockedWorkspace(workspaceId)) {
+    await onBlocked?.()
     return
   }
   return runJobWithAuditContext({ workspaceId, ...auditParams }, handler)
@@ -71,6 +86,13 @@ async function startDefaultWorker() {
           const { type, data } = job.data
           await runGuardedDefaultJob(data, { source: `default:${type}` }, () =>
             exportCoupons(data),
+          )
+          return
+        }
+        case DefaultJobAction.exportLeaderboardParticipants: {
+          const { type, data } = job.data
+          await runGuardedDefaultJob(data, { source: `default:${type}` }, () =>
+            exportLeaderboardParticipants(data),
           )
           return
         }
@@ -156,13 +178,58 @@ async function startDefaultWorker() {
           )
           return
         }
+        case DefaultJobAction.processInboundWebhookRequest: {
+          const { type, data } = job.data
+          await runGuardedDefaultJob(
+            data,
+            { source: `default:${type}` },
+            () => processInboundWebhookRequest(data, job),
+            () => skipBlockedInboundWebhookRequest(data),
+          )
+          return
+        }
+        case DefaultJobAction.syncWelcomeMessageFlows: {
+          const { type, data } = job.data
+          await runGuardedDefaultJob(data, { source: `default:${type}` }, () =>
+            syncWelcomeMessageFlows(data),
+          )
+          return
+        }
+        case DefaultJobAction.deleteWelcomeMessageFlows: {
+          const { type, data } = job.data
+          await runGuardedDefaultJob(data, { source: `default:${type}` }, () =>
+            deleteWelcomeMessageFlows(data),
+          )
+          return
+        }
+        case DefaultJobAction.retryRealtimeMemberRevoke: {
+          const { type, data } = job.data
+          await runGuardedDefaultJob(
+            data,
+            { source: `default:${type}` },
+            async () => {
+              try {
+                await retryRealtimeMemberRevoke(data)
+              } catch (err) {
+                if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1)) {
+                  logger.error(
+                    { err, userId: data.userId, workspaceId: data.workspaceId },
+                    "Realtime member connection revoke retry exhausted",
+                  )
+                }
+                throw err
+              }
+            },
+          )
+          return
+        }
         default:
           logger.warn(`Unknown job name: ${job.name}`)
           return
       }
     },
     {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.default),
       ...defaultWorkerOptions,
     },
   )
@@ -186,13 +253,21 @@ async function startDefaultWorker() {
       return
     }
     isShuttingDown = true
+    let shutdownFailed = false
     try {
       await worker.close()
-      process.exit(0)
     } catch (err) {
-      logger.error(err, "[DefaultWorker] Error during shutdown")
-      process.exit(1)
+      shutdownFailed = true
+      logger.error(err, "[DefaultWorker] Error closing worker during shutdown")
+    } finally {
+      try {
+        await flushAllPendingWorkspaceRealtimeEvents()
+      } catch (err) {
+        shutdownFailed = true
+        logger.error(err, "[DefaultWorker] Error flushing realtime events")
+      }
     }
+    process.exit(shutdownFailed ? 1 : 0)
   }
   process.once("SIGINT", shutdown)
   process.once("SIGTERM", shutdown)

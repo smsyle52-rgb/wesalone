@@ -1,4 +1,5 @@
 import { igStoryAutomationService } from "@chatbotx.io/business"
+import { bulkUpdateIdsRequest } from "@/features/common/schema"
 import {
   possibleErrorsOnCreatingResource,
   possibleErrorsOnDeletingResource,
@@ -32,7 +33,7 @@ export const igStoriesPublicRouter = {
       path: "/v1/ig-stories",
       summary: "List Instagram Story Automations",
       description:
-        "Use this to find automation ids before inspecting one with `igStories.get` or changing one with `igStories.update`. Returns automations in this workspace.",
+        "Use this to find automation ids before inspecting one with `igStories.get` or changing one with `igStories.update`. Returns story reply and story mention automations in this workspace; filter with `trigger`.",
       tags: ["IG Stories"],
     })
     .input(listIgStoriesPublicRequest)
@@ -73,7 +74,7 @@ export const igStoriesPublicRouter = {
       path: "/v1/ig-stories",
       summary: "Create Instagram Story Automation",
       description:
-        "Adds an automation that replies to story mentions/replies on Instagram. Use `igStories.listStories` to find eligible stories first.",
+        "Adds an automation that sends a private reply when a contact replies to one of your Instagram stories (`trigger: storyReply`, the default) or tags your account in their own story (`trigger: storyMention`). For `storyReply` you can narrow it to stories from `igStories.listStories`; `storyMention` has no story or keyword filter.",
       successStatus: 201,
       tags: ["IG Stories"],
     })
@@ -81,10 +82,11 @@ export const igStoriesPublicRouter = {
     .output(igStoryPublicResource)
     .errors(possibleErrorsOnCreatingResource)
     .handler(async ({ context, input }) => {
-      const { type, ...data } = input
+      const { type, trigger, ...data } = input
       return await igStoryAutomationService.create({
         workspaceId: context.workspace.id,
         type,
+        trigger,
         data,
       })
     }),
@@ -95,7 +97,7 @@ export const igStoriesPublicRouter = {
       path: "/v1/ig-stories/{id}",
       summary: "Update Instagram Story Automation",
       description:
-        "Changes an existing automation's trigger or reply settings. Call `igStories.get` to inspect current values first.",
+        "Changes an existing automation's filters, reply or schedule. Its `trigger` is fixed at creation. Call `igStories.get` to inspect current values first.",
       tags: ["IG Stories"],
     })
     .input(updateIgStoryPublicRequest)
@@ -142,7 +144,29 @@ export const igStoriesPublicRouter = {
     .errors(possibleErrorsOnListingResource)
     .handler(async ({ context, input }) =>
       input.variant === "instagram"
-        ? await listInstagramLoginStories(context.workspace.id)
-        : await listInstagramFacebookStories(context.workspace.id),
+        ? await listInstagramLoginStories(context.workspace.id, input.inboxId)
+        : await listInstagramFacebookStories(
+            context.workspace.id,
+            input.inboxId,
+          ),
     ),
+
+  deleteMany: workspaceTokenAuthAPI
+    .route({
+      method: "POST",
+      path: "/v1/ig-stories/bulk-delete",
+      summary: "Delete multiple Instagram story automations",
+      description:
+        "Permanently deletes several Instagram story automations in one call; ids of another channel or workspace are ignored. Use `igStories.list` to find their ids first.",
+      successStatus: 204,
+      tags: ["IG Stories"],
+    })
+    .input(bulkUpdateIdsRequest)
+    .errors(possibleErrorsOnDeletingResource)
+    .handler(async ({ context, input }) => {
+      await igStoryAutomationService.deleteMany({
+        workspaceId: context.workspace.id,
+        ids: input.ids,
+      })
+    }),
 }

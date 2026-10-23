@@ -2,37 +2,22 @@
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
-const { emitSpy, returningSpy, setSpy } = vi.hoisted(() => {
-  const returningSpy = vi.fn().mockResolvedValue([{ id: "conv-1" }])
-  const whereSpy = vi.fn(() => ({ returning: returningSpy }))
-  const setSpy = vi.fn(() => ({ where: whereSpy }))
-
-  return {
+const { cancelSpy, emitSpy, handOffSpy, transferredSpy, warnSpy } = vi.hoisted(
+  () => ({
+    transferredSpy: vi.fn().mockResolvedValue(undefined),
+    warnSpy: vi.fn(),
+    cancelSpy: vi.fn().mockResolvedValue(undefined),
     emitSpy: vi.fn(),
-    returningSpy,
-    setSpy,
-    whereSpy,
-  }
-})
+    handOffSpy: vi.fn().mockResolvedValue(true),
+  }),
+)
 
 vi.mock("@chatbotx.io/business", () => ({
-  BOT_DISABLE_DURATION_MS: 24 * 60 * 60 * 1000,
+  conversationService: { handOffIfBotEnabled: handOffSpy },
 }))
 
-vi.mock("@chatbotx.io/database/client", () => ({
-  and: (...args: unknown[]) => ({ __and: args }),
-  db: {
-    update: vi.fn(() => ({ set: setSpy })),
-  },
-  eq: (column: unknown, value: unknown) => ({ __eq: [column, value] }),
-}))
-
-vi.mock("@chatbotx.io/database/schema", () => ({
-  conversationModel: {
-    botEnabled: { __column: "botEnabled" },
-    botResumeAt: { __column: "botResumeAt" },
-    id: { __column: "id" },
-  },
+vi.mock("@chatbotx.io/business/smart-delay", () => ({
+  smartDelayService: { cancelQuickReplyFollowUps: cancelSpy },
 }))
 
 vi.mock("@chatbotx.io/event-bus", () => ({
@@ -40,12 +25,13 @@ vi.mock("@chatbotx.io/event-bus", () => ({
 }))
 
 vi.mock("@chatbotx.io/events", () => ({
-  emitConversationTransferredToHuman: vi.fn().mockResolvedValue(undefined),
+  emitConversationTransferredToHuman: transferredSpy,
 }))
 
 vi.mock("@chatbotx.io/logger", () => ({
   default: {
     error: vi.fn(),
+    warn: warnSpy,
   },
 }))
 
@@ -54,14 +40,14 @@ describe("HandoffExecutorService", () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"))
     vi.clearAllMocks()
-    returningSpy.mockResolvedValue([{ id: "conv-1" }])
+    handOffSpy.mockResolvedValue(true)
   })
 
   afterEach(() => {
     vi.useRealTimers()
   })
 
-  test("sets a bot resume expiry when transferring the conversation to human", async () => {
+  test("hands off through the workspace-scoped service, not a direct db write", async () => {
     const { HandoffExecutorService } = await import(
       "../src/trigger/services/handoff-executor.service"
     )
@@ -74,9 +60,13 @@ describe("HandoffExecutorService", () => {
       workspaceId: "ws-1",
     })
 
-    expect(setSpy).toHaveBeenCalledWith({
-      botEnabled: false,
-      botResumeAt: new Date("2026-01-02T00:00:00.000Z"),
+    expect(handOffSpy).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      conversationId: "conv-1",
+    })
+    expect(cancelSpy).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      conversationIds: ["conv-1"],
     })
     expect(emitSpy).toHaveBeenCalledWith(
       "analytics:dashboard",
@@ -85,6 +75,122 @@ describe("HandoffExecutorService", () => {
         eventType: "conversation:transferred_to_human",
         workspaceId: "ws-1",
       }),
+    )
+  })
+
+  test("a failed follow-up cancel does not skip the transfer events", async () => {
+    cancelSpy.mockRejectedValueOnce(new Error("redis down"))
+    const { HandoffExecutorService } = await import(
+      "../src/trigger/services/handoff-executor.service"
+    )
+
+    await expect(
+      new HandoffExecutorService().execute({
+        contactId: "contact-1",
+        conversationId: "conv-1",
+        reason: "needs_human",
+        source: "ai_system_tool",
+        workspaceId: "ws-1",
+      }),
+    ).resolves.toEqual({ status: "handedOff" })
+
+    expect(transferredSpy).toHaveBeenCalledWith("ws-1", "contact-1", "conv-1")
+    expect(emitSpy).toHaveBeenCalledWith(
+      "analytics:dashboard",
+      expect.objectContaining({ conversationId: "conv-1" }),
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: "conv-1" }),
+      expect.stringContaining("cancel quick reply"),
+    )
+  })
+
+  test("attributes the event to the channel and inbox the caller knows", async () => {
+    const { HandoffExecutorService } = await import(
+      "../src/trigger/services/handoff-executor.service"
+    )
+
+    await new HandoffExecutorService().execute({
+      channel: "whatsapp",
+      contactId: "contact-1",
+      conversationId: "conv-1",
+      inboxId: "inbox-7",
+      reason: "needs_human",
+      source: "ai_system_tool",
+      workspaceId: "ws-1",
+    })
+
+    expect(emitSpy).toHaveBeenCalledWith(
+      "analytics:dashboard",
+      expect.objectContaining({ channel: "whatsapp", inboxId: "inbox-7" }),
+    )
+  })
+
+  test("never invents a channel when the caller does not know one", async () => {
+    const { HandoffExecutorService } = await import(
+      "../src/trigger/services/handoff-executor.service"
+    )
+
+    await new HandoffExecutorService().execute({
+      contactId: "contact-1",
+      conversationId: "conv-1",
+      reason: "needs_human",
+      source: "ai_system_tool",
+      workspaceId: "ws-1",
+    })
+
+    const [, payload] =
+      emitSpy.mock.calls.find(([type]) => type === "analytics:dashboard") ?? []
+    expect(payload.channel).toBeUndefined()
+    expect(payload.inboxId).toBeUndefined()
+  })
+
+  test("an already handed-off conversation emits nothing", async () => {
+    handOffSpy.mockResolvedValueOnce(false)
+    const { HandoffExecutorService } = await import(
+      "../src/trigger/services/handoff-executor.service"
+    )
+
+    await expect(
+      new HandoffExecutorService().execute({
+        contactId: "contact-1",
+        conversationId: "conv-1",
+        reason: "needs_human",
+        source: "ai_system_tool",
+        workspaceId: "ws-1",
+      }),
+    ).resolves.toEqual({ status: "alreadyHandedOff" })
+
+    expect(cancelSpy).not.toHaveBeenCalled()
+    expect(transferredSpy).not.toHaveBeenCalled()
+    expect(emitSpy).not.toHaveBeenCalled()
+  })
+
+  test("forwards the reopen opt-in only when the caller sets it", async () => {
+    const { HandoffExecutorService } = await import(
+      "../src/trigger/services/handoff-executor.service"
+    )
+    const base = {
+      contactId: "contact-1",
+      conversationId: "conv-1",
+      reason: "needs_human",
+      source: "ai_system_tool" as const,
+      workspaceId: "ws-1",
+    }
+
+    await new HandoffExecutorService().execute({
+      ...base,
+      reopenUnansweredHumanReplyWindow: true,
+    })
+    await new HandoffExecutorService().execute(base)
+
+    expect(handOffSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ reopenUnansweredHumanReplyWindow: true }),
+    )
+    expect(handOffSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ reopenUnansweredHumanReplyWindow: undefined }),
     )
   })
 })

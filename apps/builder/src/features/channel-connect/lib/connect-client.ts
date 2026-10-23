@@ -3,11 +3,15 @@ import type { ConnectActionResultWire } from "../schema"
 import type { ConnectTarget } from "./picker-items"
 import type { ConnectRoute } from "./registry"
 
-/** Statuses that mean the app session itself is gone, not that this one row failed. */
-const UNAUTHENTICATED_STATUSES: readonly number[] = [401, 403]
+/** Status meaning the app session itself is gone, not that this one row failed. */
+const UNAUTHENTICATED_STATUS = 401
 
-/** The oRPC error codes that mean the same thing, whatever status they carry. */
-const UNAUTHENTICATED_CODES: readonly string[] = ["UNAUTHORIZED", "FORBIDDEN"]
+/** The oRPC error code that means the same thing, whatever status it carries. */
+const UNAUTHENTICATED_CODE = "UNAUTHORIZED"
+
+/** Signed in, but not allowed right now (e.g. password change required, workspace deletion scheduled). */
+const FORBIDDEN_STATUS = 403
+const FORBIDDEN_CODE = "FORBIDDEN"
 
 /**
  * Whether a thrown call failed because the caller is no longer authenticated —
@@ -23,8 +27,21 @@ const UNAUTHENTICATED_CODES: readonly string[] = ["UNAUTHORIZED", "FORBIDDEN"]
 export function isSessionExpiredError(error: unknown): boolean {
   return (
     error instanceof ORPCError &&
-    (UNAUTHENTICATED_CODES.includes(error.code) ||
-      UNAUTHENTICATED_STATUSES.includes(error.status))
+    (error.code === UNAUTHENTICATED_CODE ||
+      error.status === UNAUTHENTICATED_STATUS)
+  )
+}
+
+/**
+ * Whether a thrown call was denied although the user is signed in. Reconnecting
+ * cannot fix that, so it is reported as its own batch-wide session error
+ * instead of "session expired".
+ */
+export function isForbiddenError(error: unknown): boolean {
+  return (
+    error instanceof ORPCError &&
+    !isSessionExpiredError(error) &&
+    (error.code === FORBIDDEN_CODE || error.status === FORBIDDEN_STATUS)
   )
 }
 
@@ -53,7 +70,7 @@ function transportFailureOutcome(item: ConnectTarget): ConnectActionResultWire {
 export type ConnectViaApiParams<TBody, TResult> = {
   /** `CONNECT_CHANNEL_REGISTRY[channel].connectRoute`, or `INSTAGRAM_DIRECT_CONNECT_ROUTE` — never a procedure named at the call site. */
   route: ConnectRoute<TBody>
-  /** Ids only, and only the ones this route accepts. The workspace and the provider token stay server-side (pending-auth cookie / signup session). */
+  /** Ids only, and only the ones this route accepts. The workspace and the provider token stay server-side (`ConnectSession` row / WhatsApp signup session). */
   body: TBody
   /** Validates the procedure's answer — a channel whose result carries more than the shared outcome shape passes its own schema. */
   parse: (data: unknown) => TResult
@@ -97,6 +114,9 @@ export async function connectViaApi<TBody, TResult>({
     // N retryable rows that would each fail the same way.
     if (isSessionExpiredError(error)) {
       return { kind: "sessionError", code: "sessionExpired" }
+    }
+    if (isForbiddenError(error)) {
+      return { kind: "sessionError", code: "notAllowed" }
     }
 
     // Intentionally silent otherwise: there is no client-safe logger in this

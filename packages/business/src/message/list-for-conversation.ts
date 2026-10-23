@@ -10,28 +10,33 @@ import { contactInboxService } from "../contact-inbox/service"
 import { conversationService } from "../conversation/service"
 import { notFoundException } from "../errors"
 import { logger } from "../logger"
-import { resolveMediaUrl } from "../media"
+import { resolveAttachmentFallbackUrl, resolveMediaUrl } from "../media"
 import { HTTP_URL_RE } from "../utils"
+
+type PresignedAttachmentUrls = {
+  url: string | null
+  // Proxy URL to try when `url` fails to load; null when there is no recovery
+  // path for this attachment.
+  fallbackUrl: string | null
+}
 
 async function presignAttachments<T extends { id: string; originPath: string }>(
   attachments: T[],
   context: { channel: string; workspaceId: string; messageCreatedAt: Date },
-): Promise<Array<T & { url: string | null }>> {
+): Promise<Array<T & PresignedAttachmentUrls>> {
   return await Promise.all(
     attachments.map(async (attachment) => {
+      const ref = {
+        workspaceId: context.workspaceId,
+        attachmentId: attachment.id,
+        originPath: attachment.originPath,
+        channel: context.channel,
+        messageCreatedAt: context.messageCreatedAt,
+      }
       let url: string | null = null
       try {
-        url = await resolveMediaUrl(
-          {
-            kind: "attachment",
-            workspaceId: context.workspaceId,
-            attachmentId: attachment.id,
-            originPath: attachment.originPath,
-            channel: context.channel,
-            messageCreatedAt: context.messageCreatedAt,
-          },
-          (key) =>
-            HTTP_URL_RE.test(key) ? key : uploader.getPresignedDownload(key),
+        url = await resolveMediaUrl({ kind: "attachment", ...ref }, (key) =>
+          HTTP_URL_RE.test(key) ? key : uploader.getPresignedDownload(key),
         )
       } catch (err) {
         // One unresolvable attachment (bad key, signer/host failure) must not
@@ -45,9 +50,43 @@ async function presignAttachments<T extends { id: string; originPath: string }>(
           "Failed to resolve attachment media URL; omitting",
         )
       }
-      return { ...attachment, url }
+      let fallbackUrl: string | null = null
+      try {
+        fallbackUrl = await resolveAttachmentFallbackUrl(ref)
+      } catch (err) {
+        // The fallback is best-effort: losing it only costs the client its
+        // recovery path, never the primary URL.
+        logger.warn(
+          {
+            err,
+            attachmentId: attachment.id,
+            workspaceId: context.workspaceId,
+          },
+          "Failed to resolve attachment fallback URL; omitting",
+        )
+      }
+      return { ...attachment, url, fallbackUrl }
     }),
   )
+}
+
+/**
+ * Resolves a message's attachment URLs from data the caller already holds
+ * (no DB read, no download): a stored object gets a presigned URL, a pending
+ * (lazily-ingested) one the signed media proxy URL. Used wherever a message
+ * is handed to a client directly, e.g. the realtime push of a new message.
+ */
+export async function withResolvedAttachmentUrls(
+  message: MessageWithAttachments,
+  context: { channel: string; workspaceId: string },
+): Promise<MessageWithPresignedAttachments> {
+  return {
+    ...message,
+    attachments: await presignAttachments(message.attachments, {
+      ...context,
+      messageCreatedAt: message.createdAt,
+    }),
+  }
 }
 
 const loadContactInboxChannels = async (
@@ -85,7 +124,7 @@ export type MessageWithPresignedAttachments = Omit<
   "attachments"
 > & {
   attachments: Array<
-    MessageWithAttachments["attachments"][number] & { url: string | null }
+    MessageWithAttachments["attachments"][number] & PresignedAttachmentUrls
   >
 }
 
@@ -146,14 +185,12 @@ export async function listForConversation(
     input.workspaceId,
   )
   const data = await Promise.all(
-    result.data.map(async (message) => ({
-      ...message,
-      attachments: await presignAttachments(message.attachments, {
+    result.data.map((message) =>
+      withResolvedAttachmentUrls(message, {
         workspaceId: input.workspaceId,
         channel: channelByContactInboxId.get(message.contactInboxId) ?? "",
-        messageCreatedAt: message.createdAt,
       }),
-    })),
+    ),
   )
 
   return { data, nextCursor: result.nextCursor }
@@ -189,14 +226,10 @@ export async function findForContact(input: {
     workspaceId,
   )
 
-  return {
-    ...message,
-    attachments: await presignAttachments(message.attachments, {
-      workspaceId,
-      channel: channelByContactInboxId.get(message.contactInboxId) ?? "",
-      messageCreatedAt: message.createdAt,
-    }),
-  }
+  return await withResolvedAttachmentUrls(message, {
+    workspaceId,
+    channel: channelByContactInboxId.get(message.contactInboxId) ?? "",
+  })
 }
 
 export async function findByIdWithUrls(input: {
@@ -219,12 +252,8 @@ export async function findByIdWithUrls(input: {
     input.workspaceId,
   )
 
-  return {
-    ...message,
-    attachments: await presignAttachments(message.attachments, {
-      workspaceId: input.workspaceId,
-      channel: channelByContactInboxId.get(message.contactInboxId) ?? "",
-      messageCreatedAt: message.createdAt,
-    }),
-  }
+  return await withResolvedAttachmentUrls(message, {
+    workspaceId: input.workspaceId,
+    channel: channelByContactInboxId.get(message.contactInboxId) ?? "",
+  })
 }

@@ -1,6 +1,7 @@
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { z } from "zod"
 import { PUBLIC_LIST_MAX_PER_PAGE } from "@/lib/public-api/list"
+import { sendWhatsappTemplateRequest } from "./send-template"
 
 // `workspaceId` comes from `context.workspace.id` on every public route —
 // never accepted in the body, per `public-spec-operations.test.ts`'s
@@ -78,3 +79,41 @@ export const changeMessageAttributesPublicResponse = z.object({
   success: z.boolean(),
   messageId: z.string(),
 })
+
+export const sendWhatsappTemplatePublicRequest = z
+  .object({
+    templateId: sendWhatsappTemplateRequest.shape.templateId.describe(
+      "Id of an APPROVED WhatsApp template. Get it from `whatsappTemplates.list`.",
+    ),
+    templateParams: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe(
+        'Template values by key, e.g. `{"body.1": "Ada", "header": "https://example.com/a.png"}`. The keys are the `parameters` of `whatsappTemplates.get`. Omit for a template without parameters; a missing, unknown or invalid key is a 422 that lists the keys.',
+      ),
+    templateData: sendWhatsappTemplateRequest.shape.templateData.describe(
+      'Meta-shaped runtime parameters, e.g. `{"body":[{"type":"text","text":"Ada"}]}`, for callers that build them; prefer `templateParams`. Send one or the other.',
+    ),
+    inboxId: sendWhatsappTemplateRequest.shape.inboxId.describe(
+      "WhatsApp inbox to send from; omit to use the contact's most recent one.",
+    ),
+  })
+  .refine((data) => !(data.templateParams && data.templateData), {
+    message: "Send templateParams or templateData, not both",
+    path: ["templateParams"],
+  })
+  .and(conversationIdPathParam)
+
+export const requestCallPermissionPublicRequest = z
+  .object({
+    text: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1024)
+      .describe("Text shown with the permission request."),
+    inboxId: zodBigintAsString()
+      .optional()
+      .describe("WhatsApp inbox to send from; omit to use the contact's."),
+  })
+  .and(conversationIdPathParam)

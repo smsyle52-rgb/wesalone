@@ -59,6 +59,10 @@ export const geminiAnalyzeImageModelOptions: {
     value: geminiModels.enum["gemini-3.6-flash"],
   },
   {
+    label: "Gemini 3.5 Flash Lite",
+    value: geminiModels.enum["gemini-3.5-flash-lite"],
+  },
+  {
     label: "Gemini 3.5 Flash",
     value: geminiModels.enum["gemini-3.5-flash"],
   },
@@ -103,13 +107,25 @@ export const geminiModelOptions: { label: string; value: GeminiModel }[] = [
   },
 ]
 
-export const geminiImageModels = z.enum(["gemini-3.1-flash-image"])
+export const geminiImageModels = z.enum([
+  "gemini-3.1-flash-lite-image",
+  "gemini-3-pro-image",
+  "gemini-3.1-flash-image",
+])
 export type GeminiImageModel = z.infer<typeof geminiImageModels>
 
 export const geminiImageModelOptions: {
   label: string
   value: GeminiImageModel
 }[] = [
+  {
+    label: "Gemini 3.1 Flash Lite Image",
+    value: geminiImageModels.enum["gemini-3.1-flash-lite-image"],
+  },
+  {
+    label: "Gemini 3 Pro Image",
+    value: geminiImageModels.enum["gemini-3-pro-image"],
+  },
   {
     label: "Gemini 3.1 Flash Image",
     value: geminiImageModels.enum["gemini-3.1-flash-image"],

@@ -17,6 +17,7 @@ type RouteConfig = {
 
 type CapturedProcedure = {
   route: RouteConfig
+  inputSchema?: { safeParse: (value: unknown) => { success: boolean } }
   handler?: (...args: unknown[]) => unknown
 }
 
@@ -28,7 +29,10 @@ const { workspaceTokenAuthAPIForScope, capturedProcedures } = vi.hoisted(() => {
     capturedProcedures.push(record)
 
     const chain = {
-      input: vi.fn(() => chain),
+      input: vi.fn((schema: CapturedProcedure["inputSchema"]) => {
+        record.inputSchema = schema
+        return chain
+      }),
       output: vi.fn(() => chain),
       errors: vi.fn(() => chain),
       handler: vi.fn((fn: (...args: unknown[]) => unknown) => {
@@ -54,6 +58,7 @@ const { workspaceTokenAuthAPIForScope, capturedProcedures } = vi.hoisted(() => {
 vi.mock("@/orpc", () => ({ workspaceTokenAuthAPIForScope }))
 
 const sequenceService = {
+  list: vi.fn(),
   findWithSteps: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
@@ -88,6 +93,38 @@ beforeEach(() => {
 
 test("registers the sequences public router under the broadcasts scope", () => {
   expect(scopeArgAtImport).toBe("broadcasts")
+})
+
+describe("GET /v1/sequences", () => {
+  const procedure = findProcedure("GET", "/v1/sequences")
+
+  test("forwards filters and keeps newest-first as the default sort", async () => {
+    sequenceService.list.mockResolvedValue({ data: [], pageCount: 0 })
+
+    await procedure.handler?.({
+      context: { workspace: { id: "ws-1" } },
+      input: { page: 1, perPage: 10, name: "wel", folderId: "5", active: true },
+    })
+    await procedure.handler?.({
+      context: { workspace: { id: "ws-1" } },
+      input: { page: 1, perPage: 10, sort: [{ id: "name", desc: false }] },
+    })
+
+    expect(sequenceService.list).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        workspaceId: "ws-1",
+        name: "wel",
+        folderId: "5",
+        active: true,
+        sort: [{ id: "createdAt", desc: true }],
+      }),
+    )
+    expect(sequenceService.list).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ sort: [{ id: "name", desc: false }] }),
+    )
+  })
 })
 
 describe("POST /v1/sequences", () => {
@@ -214,5 +251,20 @@ describe("DELETE /v1/sequences/{id}/steps/{stepId}", () => {
       sequenceId: "seq-1",
       stepId: "step-1",
     })
+  })
+})
+
+describe("GET /v1/sequences/{id} input", () => {
+  const schema = () =>
+    capturedProcedures.find(
+      (p) => p.route.method === "GET" && p.route.path === "/v1/sequences/{id}",
+    )?.inputSchema
+
+  test("accepts a numeric id", () => {
+    expect(schema()?.safeParse({ id: "11714399357876729" }).success).toBe(true)
+  })
+
+  test("rejects a non-numeric id before the service is called", () => {
+    expect(schema()?.safeParse({ id: "abc" }).success).toBe(false)
   })
 })

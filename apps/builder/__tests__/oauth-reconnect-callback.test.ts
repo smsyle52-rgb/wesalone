@@ -14,6 +14,7 @@ const {
   mockHasWorkspaceAccess,
   mockFindWorkspaceById,
   mockUpsertFacebookAds,
+  mockFindFacebookAdsByWorkspaceId,
   mockExchangeMessengerCode,
   mockGetUserPages,
   mockGetMessengerFacebookUser,
@@ -37,13 +38,15 @@ const {
   mockCreateGoogleFromOAuthCallback,
   mockResolveOwnerForWorkspace,
   mockGetCurrentUser,
-  mockEncryptAuth,
-  mockCookieSet,
   mockNotFound,
   mockRedirect,
   mockAuditRecord,
   mockWithAuditContext,
   mockAssertSuperAdmin,
+  mockFindConnectionByProviderSourceId,
+  mockConnectionInsert,
+  mockConnectionUpdate,
+  mockConnectionTransition,
 } = vi.hoisted(() => ({
   mockFindMessengerIntegration: vi.fn(),
   mockUpdateMessengerIntegrationAuth: vi.fn(),
@@ -55,6 +58,7 @@ const {
   mockHasWorkspaceAccess: vi.fn(),
   mockFindWorkspaceById: vi.fn(),
   mockUpsertFacebookAds: vi.fn(),
+  mockFindFacebookAdsByWorkspaceId: vi.fn(),
   mockExchangeMessengerCode: vi.fn(),
   mockGetUserPages: vi.fn(),
   mockGetMessengerFacebookUser: vi.fn(),
@@ -78,8 +82,6 @@ const {
   mockCreateGoogleFromOAuthCallback: vi.fn(),
   mockResolveOwnerForWorkspace: vi.fn(async () => "platform-owner-1"),
   mockGetCurrentUser: vi.fn(),
-  mockEncryptAuth: vi.fn(async () => "encrypted-token"),
-  mockCookieSet: vi.fn(),
   mockNotFound: vi.fn(() => {
     throw new Error("not found")
   }),
@@ -89,6 +91,10 @@ const {
     async (_ctx: unknown, fn: () => Promise<unknown>) => await fn(),
   ),
   mockAssertSuperAdmin: vi.fn(async () => undefined),
+  mockFindConnectionByProviderSourceId: vi.fn(),
+  mockConnectionInsert: vi.fn(),
+  mockConnectionUpdate: vi.fn(),
+  mockConnectionTransition: vi.fn(),
 }))
 
 vi.mock("@chatbotx.io/business/audit", () => ({
@@ -123,7 +129,11 @@ vi.mock("@chatbotx.io/business", () => ({
   appointmentExternalCalendarService: {
     createGoogleFromOAuthCallback: mockCreateGoogleFromOAuthCallback,
   },
-  integrationFacebookAdsService: { upsert: mockUpsertFacebookAds },
+  integrationFacebookAdsService: {
+    upsert: mockUpsertFacebookAds,
+    findByWorkspaceId: mockFindFacebookAdsByWorkspaceId,
+  },
+  connectionStateService: { transition: mockConnectionTransition },
   platformCredentialService: { resolveForOwner: mockResolveForOwner },
   hasWorkspaceAccess: mockHasWorkspaceAccess,
   workspaceService: {
@@ -132,8 +142,94 @@ vi.mock("@chatbotx.io/business", () => ({
   },
 }))
 
+vi.mock("@chatbotx.io/business/connection", () => ({
+  authExpiresAtOf: vi.fn(() => null),
+}))
+
 vi.mock("@chatbotx.io/database/client", () => ({
-  db: { transaction: vi.fn() },
+  db: { transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})) },
+}))
+
+vi.mock("@chatbotx.io/database/repositories", () => ({
+  connectionRepository: {
+    findByProviderSourceId: mockFindConnectionByProviderSourceId,
+    insert: mockConnectionInsert,
+    update: mockConnectionUpdate,
+  },
+}))
+
+vi.mock("@chatbotx.io/business/connect-session", () => ({
+  connectSessionService: {
+    findByNonce: vi.fn(),
+    fail: vi.fn(),
+  },
+}))
+
+vi.mock("@chatbotx.io/connections", () => ({
+  connectionService: {
+    completeAuthorization: vi.fn(),
+    connectTargets: vi.fn(),
+    attachIntegrationConnectionRow: vi.fn(
+      async (input: {
+        workspaceId: string
+        provider: string
+        sourceId: string
+        displayName: string
+        integrationId: string
+        ownerId: string | undefined
+        actorUserId: string
+      }) => {
+        const existing = await mockFindConnectionByProviderSourceId(
+          {
+            workspaceId: input.workspaceId,
+            provider: input.provider,
+            sourceId: input.sourceId,
+          },
+          {},
+        )
+        if (existing) {
+          await mockConnectionUpdate({
+            id: existing.id,
+            workspaceId: existing.workspaceId,
+            values: {
+              integrationId: input.integrationId,
+              displayName: input.displayName,
+              lastError: null,
+            },
+          })
+          await mockConnectionTransition({
+            connectionId: existing.id,
+            event: "connect.completed",
+            ownerId: input.ownerId,
+          })
+          return
+        }
+        const created = await mockConnectionInsert(
+          {
+            workspaceId: input.workspaceId,
+            provider: input.provider,
+            kind: "integration",
+            channel: null,
+            sourceId: input.sourceId,
+            displayName: input.displayName,
+            inboxId: null,
+            integrationId: input.integrationId,
+            status: "disconnected",
+            statusReason: "manual",
+            disconnectedAt: new Date(),
+            createdBy: input.actorUserId,
+          },
+          {},
+        )
+        await mockConnectionTransition({
+          connectionId: created.id,
+          event: "connect.completed",
+          ownerId: input.ownerId,
+        })
+      },
+    ),
+  },
+  CONNECTION_REGISTRY: {},
 }))
 
 vi.mock("@chatbotx.io/database/schema", () => ({
@@ -191,10 +287,6 @@ vi.mock("@chatbotx.io/utils", async (importOriginal) => {
   }
 })
 
-vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => ({ set: mockCookieSet })),
-}))
-
 vi.mock("next/navigation", () => ({
   notFound: mockNotFound,
   redirect: mockRedirect,
@@ -250,24 +342,6 @@ vi.mock("@/lib/log", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
-vi.mock("@/lib/facebook-pending-auth", async (importOriginal) => {
-  // The real `pendingAuthCookieOptions` — these tests assert the set site
-  // passes the helper's own value through, not a copy that could drift from
-  // it (the cookie's `path` is what makes the connect routes reachable).
-  const actual =
-    await importOriginal<typeof import("@/lib/facebook-pending-auth")>()
-
-  return {
-    encryptAuth: mockEncryptAuth,
-    FB_INSTAGRAM_FACEBOOK_PENDING_AUTH_COOKIE: "igfb-pending-auth",
-    FB_INSTAGRAM_PENDING_AUTH_COOKIE: "ig-pending-auth",
-    FB_MESSENGER_PENDING_AUTH_COOKIE: "messenger-pending-auth",
-    FB_PENDING_AUTH_MAX_AGE: 600,
-    // The real writer: these tests assert what actually reaches the cookie
-    // store, including the expiry of the picker-scoped predecessor.
-    writePendingAuth: actual.writePendingAuth,
-  }
-})
 vi.mock("@/lib/oauth-broker", () => ({
   buildBrokerCallbackUrl: (path: string) => `https://broker.example.com${path}`,
   getBrokerOrigin: () => "https://broker.example.com",
@@ -325,6 +399,17 @@ describe("handleCallback OAuth reconnect", () => {
         version: "v23.0",
       },
     })
+    mockFindFacebookAdsByWorkspaceId.mockResolvedValue({
+      id: "fb-ads-row-1",
+      integrationId: "fb-ads-integration-1",
+      workspaceId: "1",
+    })
+    mockFindConnectionByProviderSourceId.mockResolvedValue(undefined)
+    mockConnectionInsert.mockResolvedValue({ id: "conn-new-1" })
+    mockConnectionTransition.mockResolvedValue({
+      id: "conn-new-1",
+      status: "connected",
+    })
   })
 
   test("messenger reconnect skips the page-select flow and redirects with the result", async () => {
@@ -351,41 +436,13 @@ describe("handleCallback OAuth reconnect", () => {
       callbackUrl: "https://broker.example.com/integrations/messenger/callback",
     })
     expect(mockExchangeMessengerCode).not.toHaveBeenCalled()
-    expect(mockCookieSet).not.toHaveBeenCalled()
 
     const redirectTarget = new URL(mockRedirect.mock.calls[0][0])
     expect(redirectTarget.searchParams.get("reconnect")).toBe("success")
     expect(redirectTarget.searchParams.get("channel")).toBe("messenger")
   })
 
-  test("first-channel workspace creation hitting the plan limit redirects to /channels/create?error=… instead of throwing", async () => {
-    const { workspaceLimitReachedException } = await import(
-      "@chatbotx.io/business/errors"
-    )
-    const { workspaceService } = await import("@chatbotx.io/business")
-    vi.mocked(workspaceService.create).mockRejectedValueOnce(
-      workspaceLimitReachedException(),
-    )
-    // Next's real `redirect` throws; mirror that here so the handler stops
-    // where production would, then restore the shared no-op for later tests.
-    mockRedirect.mockImplementation((path: string) => {
-      throw new Error(`redirect:${path}`)
-    })
-    try {
-      await expect(
-        handleCallback(
-          "messenger",
-          buildCallbackRequest("messenger", { referer: REFERER }),
-        ),
-      ).rejects.toThrow("redirect:/channels/create?error=workspaceLimitReached")
-    } finally {
-      mockRedirect.mockImplementation(() => undefined)
-    }
-
-    expect(mockExchangeMessengerCode).not.toHaveBeenCalled()
-    expect(mockCookieSet).not.toHaveBeenCalled()
-  })
-
+  // Plain legacy connect callbacks are superseded by the ConnectSession flow.
   test("messenger reconnect failure redirects with the error reason", async () => {
     mockReconnectMessengerHandler.mockResolvedValue({
       status: "error",
@@ -473,10 +530,7 @@ describe("handleCallback OAuth reconnect", () => {
     expect(mockRedirect).not.toHaveBeenCalled()
   })
 
-  test("connect flow without reconnect state still runs the page-select flow", async () => {
-    mockExchangeMessengerCode.mockResolvedValue("short-token")
-    mockExchangeMessengerLongLivedToken.mockResolvedValue("long-token")
-
+  test("messenger legacy callback with no flow/reconnectIntegrationId redirects to channel creation with an error instead of 404ing", async () => {
     await handleCallback(
       "messenger",
       buildCallbackRequest("messenger", {
@@ -486,23 +540,43 @@ describe("handleCallback OAuth reconnect", () => {
     )
 
     expect(mockReconnectMessengerHandler).not.toHaveBeenCalled()
-    expect(mockEncryptAuth).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userToken: "long-token",
-        userId: "fb-user-1",
-        userName: "FB User",
-        userAvatarUrl: "https://fb.example/avatar.jpg",
+    // Keeps the workspace so a retry connects there, not into a new one.
+    expect(mockRedirect).toHaveBeenCalledWith(
+      "/channels/create?workspaceId=1&error=sessionExpired",
+    )
+  })
+
+  test("instagram legacy callback with no reconnectIntegrationId redirects with an error and never exchanges the single-use code", async () => {
+    await handleCallback(
+      "instagram",
+      buildCallbackRequest("instagram", {
+        workspaceId: "1",
+        referer: REFERER,
       }),
     )
-    expect(mockCookieSet).toHaveBeenCalledWith(
-      "messenger-pending-auth",
-      "encrypted-token",
-      // Scoped for the connect route, not the picker page — see
-      // `pendingAuthCookieOptions`.
-      expect.objectContaining({ path: "/", httpOnly: true, sameSite: "lax" }),
-    )
+
+    expect(mockExchangeInstagramCode).not.toHaveBeenCalled()
+    expect(mockReconnectInstagramHandler).not.toHaveBeenCalled()
+    // Keeps the workspace so a retry connects there, not into a new one.
     expect(mockRedirect).toHaveBeenCalledWith(
-      new URL("/channels/messenger/select", REFERER).toString(),
+      "/channels/create?workspaceId=1&error=sessionExpired",
+    )
+  })
+
+  test("instagramFacebook legacy callback with no reconnectIntegrationId redirects with an error and never exchanges the single-use code", async () => {
+    await handleCallback(
+      "instagramFacebook",
+      buildCallbackRequest("instagramFacebook", {
+        workspaceId: "1",
+        referer: REFERER,
+      }),
+    )
+
+    expect(mockExchangeInstagramFacebookCode).not.toHaveBeenCalled()
+    expect(mockReconnectInstagramFacebookHandler).not.toHaveBeenCalled()
+    // Keeps the workspace so a retry connects there, not into a new one.
+    expect(mockRedirect).toHaveBeenCalledWith(
+      "/channels/create?workspaceId=1&error=sessionExpired",
     )
   })
 
@@ -548,6 +622,55 @@ describe("handleCallback OAuth reconnect", () => {
       providerCalendarId: "primary",
       email: "owner@example.com",
     })
+
+    const redirectTarget = new URL(mockRedirect.mock.calls[0][0])
+    expect(redirectTarget.searchParams.get("externalCalendarConnect")).toBe(
+      "success",
+    )
+  })
+
+  test("google calendar callback also creates a Connection row for the new calendar integration", async () => {
+    mockExchangeAndVerifyGoogleCalendar.mockResolvedValue({
+      auth: { type: "oauth2", tokens: { accessToken: "google-token" } },
+      providerCalendarId: "primary",
+      email: "owner@example.com",
+    })
+    mockCreateGoogleFromOAuthCallback.mockResolvedValue(
+      "google-calendar-integration-1",
+    )
+
+    await handleCallback(
+      "googleCalendar",
+      buildCallbackRequest("google-calendar", {
+        workspaceId: "1",
+        referer:
+          "https://app.example.com/space/1/appointment-calendars/external-calendars",
+      }),
+    )
+
+    expect(mockFindConnectionByProviderSourceId).toHaveBeenCalledWith(
+      { workspaceId: "1", provider: "googleCalendar", sourceId: "primary" },
+      expect.anything(),
+    )
+    expect(mockConnectionInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: "1",
+        provider: "googleCalendar",
+        kind: "integration",
+        sourceId: "primary",
+        displayName: "owner@example.com",
+        integrationId: "google-calendar-integration-1",
+        status: "disconnected",
+      }),
+      expect.anything(),
+    )
+    expect(mockConnectionTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionId: "conn-new-1",
+        event: "connect.completed",
+        ownerId: "owner-1",
+      }),
+    )
 
     const redirectTarget = new URL(mockRedirect.mock.calls[0][0])
     expect(redirectTarget.searchParams.get("externalCalendarConnect")).toBe(
@@ -619,6 +742,48 @@ describe("handleCallback OAuth reconnect", () => {
         userAgent: undefined,
       },
       expect.any(Function),
+    )
+    expect(mockRedirect).toHaveBeenCalledWith(REFERER)
+  })
+
+  test("standalone facebook ads callback also creates a Connection row for the workspace integration", async () => {
+    mockExchangeFacebookAdsCode.mockResolvedValue("short-token")
+    mockExchangeFacebookAdsLongLivedToken.mockResolvedValue({
+      accessToken: "ads-token",
+      expiresIn: 3600,
+    })
+
+    await handleCallback(
+      "facebookAds",
+      buildCallbackRequest("facebook-ads", {
+        workspaceId: "1",
+        referer: REFERER,
+      }),
+    )
+
+    expect(mockFindFacebookAdsByWorkspaceId).toHaveBeenCalledWith("1")
+    expect(mockFindConnectionByProviderSourceId).toHaveBeenCalledWith(
+      { workspaceId: "1", provider: "facebookAds", sourceId: "workspace" },
+      expect.anything(),
+    )
+    expect(mockConnectionInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: "1",
+        provider: "facebookAds",
+        kind: "integration",
+        sourceId: "workspace",
+        displayName: "Facebook Ads",
+        integrationId: "fb-ads-integration-1",
+        status: "disconnected",
+      }),
+      expect.anything(),
+    )
+    expect(mockConnectionTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionId: "conn-new-1",
+        event: "connect.completed",
+        ownerId: "owner-1",
+      }),
     )
     expect(mockRedirect).toHaveBeenCalledWith(REFERER)
   })
@@ -818,7 +983,6 @@ describe("handleCallback OAuth reconnect", () => {
       integrationId: "7",
       userToken: "ig-user-token",
     })
-    expect(mockCookieSet).not.toHaveBeenCalled()
 
     const redirectTarget = new URL(mockRedirect.mock.calls[0][0])
     expect(redirectTarget.searchParams.get("reconnect")).toBe("success")

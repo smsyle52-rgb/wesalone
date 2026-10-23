@@ -7,6 +7,7 @@ import {
   type ContactFilterField,
   type ContactInfoFilterValue,
   type ContactInfoType,
+  contactFilterFields,
   contactInfoFilterValues,
   contactInfoTypes,
   contactSources,
@@ -22,15 +23,19 @@ import {
   allContinentOptions,
   allCountryOptions,
 } from "@/features/workspaces/schema/types"
+import { buildFilterValueLabels } from "../lib/filter-value-labels"
 import {
   CONTACT_FILTER_FIELD_DEFINITIONS,
   type ContactFilterFieldDefinition,
   type ContactFilterOptionSource,
   type ContactFilterSchemaKind,
+  type ContactFilterSurface,
   type CtwaRetargetCondition,
   type CtwaRetargetSegment,
   convertCustomFieldTypeToConditionType,
+  isFieldOnSurface,
 } from "../schema"
+import type { ResolveFilterValueLabelsResponse } from "../schema/value-labels"
 
 export type ConditionOption = {
   value: OperatorType
@@ -53,11 +58,21 @@ export type FieldConfig = {
   botFieldId?: string
   /** Set for dynamic coupon-topic configs; identifies the workspace coupon topic. */
   topicId?: string
+  /** Set for dynamic "Gamification scores" configs; identifies the leaderboard. */
+  leaderboardId?: string
   /** Display label override (custom field / coupon topic name); static fields fall back to i18n. */
   label?: string
   formField: FormFieldType
   group: ContactFilterFieldGroup
   options?: SelectOption[]
+  /**
+   * Display-only labels for the ids the current filter references, looked up
+   * by id (see `use-filter-value-labels.ts`). Set once loaded, for fields whose
+   * values are entity ids; a value missing from it no longer exists. Pickers
+   * keep using `options`.
+   */
+  valueLabels?: SelectOption[]
+  optionSource?: ContactFilterOptionSource
   /** Retired field: still rendered/validated, but omitted from the picker. */
   hidden?: boolean
 }
@@ -82,6 +97,7 @@ export type ContactFilterFieldGroup =
   | "ecommerce"
   | "systemFields"
   | "topicCoupon"
+  | "leaderboard"
   | "customFields"
   | "botFields"
   | "ctwaAds"
@@ -143,6 +159,13 @@ const getContactSourceOptions = (t: (key: string) => string): SelectOption[] =>
     label: t(`condition.sources.${source}`),
     value: source,
   }))
+
+export const getBooleanOptions = (
+  t: (key: string) => string,
+): SelectOption[] => [
+  { label: t("fields.boolean.true"), value: "true" },
+  { label: t("fields.boolean.false"), value: "false" },
+]
 
 const CONTACT_INFO_TYPE_LABEL_KEYS = {
   phone: "fields.phone.label",
@@ -207,6 +230,8 @@ const resolveContactFilterOptions = (
     sequenceOptions: SelectOption[]
     reflinkOptions: SelectOption[]
     assigneeOptions: SelectOption[]
+    channelPostOptions: SelectOption[]
+    workingHourOptions: SelectOption[]
   },
 ): SelectOption[] | undefined => {
   switch (optionSource) {
@@ -251,6 +276,10 @@ const resolveContactFilterOptions = (
       return ctx.reflinkOptions
     case "assignees":
       return ctx.assigneeOptions
+    case "channelPosts":
+      return ctx.channelPostOptions
+    case "workingHours":
+      return ctx.workingHourOptions
     case "ctwaConversionTypes":
       return [
         {
@@ -284,7 +313,6 @@ const CONTACT_FILTER_GROUP_FIELDS = {
     "followerCountOnInstagram",
   ],
   analytics: [
-    "tags",
     "lastSent",
     "lastDelivered",
     "lastSeen",
@@ -294,6 +322,7 @@ const CONTACT_FILTER_GROUP_FIELDS = {
     "unreplied",
     "unread",
     "appliedJobs",
+    "tags",
     "completedWhatsAppFlows",
     "messengerList",
     "subscribedToDripCampaign",
@@ -333,7 +362,7 @@ const CONTACT_FILTER_GROUP_FIELDS = {
     "emailOpened",
     "emailClicked",
   ],
-  ctwaAds: ["fromCtwaAd", "ctwaConversion"],
+  ctwaAds: ["fromCtwaAd", "fromGoogleAd", "ctwaConversion"],
   systemTime: [
     "isWithinWorkingHours",
     "currentDate",
@@ -357,6 +386,9 @@ const CONTACT_FILTER_GROUP_FIELDS = {
   // Populated dynamically — each coupon topic gets its own FieldConfig with
   // group "topicCoupon" set directly (see couponTopicConfigs below).
   topicCoupon: [],
+  // Populated dynamically — each leaderboard gets its own FieldConfig with
+  // group "leaderboard" set directly (see leaderboardConfigs below).
+  leaderboard: [],
   customFields: ["customFields"],
   // Populated dynamically (opt-in only — see `getFieldConfigs`'s
   // `includeBotFields`) — each workspace bot field gets its own FieldConfig
@@ -397,9 +429,14 @@ export const getFieldConfigs = ({
   sequenceOptions = [],
   reflinkOptions = [],
   assigneeOptions = [],
+  channelPostOptions = [],
+  workingHourOptions = [],
   couponTopicOptions = [],
+  leaderboardOptions = [],
   botFields = [],
   includeBotFields = false,
+  surface = "contacts",
+  filterValueLabels,
 }: {
   t: (key: string) => string
   tagOptions: SelectOption[]
@@ -410,7 +447,12 @@ export const getFieldConfigs = ({
   sequenceOptions?: SelectOption[]
   reflinkOptions?: SelectOption[]
   assigneeOptions?: SelectOption[]
+  channelPostOptions?: SelectOption[]
+  /** Schedules (+ the assigned-agent choice) for the flow-only working-hours field. */
+  workingHourOptions?: SelectOption[]
   couponTopicOptions?: SelectOption[]
+  /** Workspace leaderboards, each offered as a "Gamification scores" field. */
+  leaderboardOptions?: SelectOption[]
   /** Workspace bot (account) fields — only read when `includeBotFields` is true. */
   botFields?: CustomFieldFilterOption[]
   /**
@@ -422,16 +464,35 @@ export const getFieldConfigs = ({
    * fields alongside per-contact ones.
    */
   includeBotFields?: boolean
+  /** Which surface the configs are for; fields limited to another surface are left out. */
+  surface?: ContactFilterSurface
+  /** Names for the ids the current filter references; `undefined` until loaded. */
+  filterValueLabels?: ResolveFilterValueLabelsResponse
 }): FieldConfig[] => {
   const channelOptions = getChannelMultiSelectOptions(t)
+  const booleanOptions = getBooleanOptions(t)
+  // Boolean fields have no option source of their own; attach the shared
+  // True/False labels so read-only rows render them translated.
+  const booleanOptionsFor = (formField: FormFieldType) =>
+    formField === formFieldTypes.enum.boolean ? booleanOptions : undefined
+  // Custom and bot fields share the same value-typing; only their id key,
+  // name prefix and group differ.
+  const toWorkspaceFieldProps = (field: CustomFieldFilterOption) => {
+    const formField = convertCustomFieldTypeToConditionType(field.type)
+    return {
+      customFieldType: field.type,
+      label: field.name,
+      formField,
+      options: booleanOptionsFor(formField),
+    }
+  }
 
-  const staticConfigs: FieldConfig[] = CONTACT_FILTER_FIELD_DEFINITIONS.map(
-    (def: ContactFilterFieldDefinition) => ({
-      name: def.field,
-      formField: schemaKindToFormField(def.schemaKind),
-      group: getContactFilterFieldGroup(def.field),
-      hidden: def.hidden,
-      options: resolveContactFilterOptions(def.optionSource, {
+  const staticConfigs: FieldConfig[] = CONTACT_FILTER_FIELD_DEFINITIONS.filter(
+    (def) => isFieldOnSurface(def, surface),
+  ).map((def: ContactFilterFieldDefinition) => {
+    const formField = schemaKindToFormField(def.schemaKind)
+    const options =
+      resolveContactFilterOptions(def.optionSource, {
         t,
         channelOptions,
         inboxOptions,
@@ -441,19 +502,29 @@ export const getFieldConfigs = ({
         sequenceOptions,
         reflinkOptions,
         assigneeOptions,
-      }),
-    }),
-  )
+        channelPostOptions,
+        workingHourOptions,
+      }) ?? booleanOptionsFor(formField)
+    return {
+      name: def.field,
+      formField,
+      group: getContactFilterFieldGroup(def.field),
+      hidden: def.hidden,
+      optionSource: def.optionSource,
+      options,
+      valueLabels: filterValueLabels
+        ? buildFilterValueLabels(def.optionSource, filterValueLabels, options)
+        : undefined,
+    }
+  })
 
   // Each workspace custom field becomes its own filter field, value-typed by the
   // custom field's type. Encoded as `customField:<id>` so the form/row can map
   // back to a `{ field: "customField", customFieldId }` condition.
   const customFieldConfigs: FieldConfig[] = customFields.map((field) => ({
+    ...toWorkspaceFieldProps(field),
     name: `customField:${field.id}`,
     customFieldId: field.id,
-    customFieldType: field.type,
-    label: field.name,
-    formField: convertCustomFieldTypeToConditionType(field.type),
     group: "customFields",
   }))
 
@@ -469,17 +540,28 @@ export const getFieldConfigs = ({
     group: "topicCoupon",
   }))
 
+  // Each leaderboard becomes its own "Gamification scores" field, encoded as
+  // `leaderboardScore:<id>` so the form/row can map back to a
+  // `{ field: "leaderboardScore", leaderboardId }` condition.
+  const leaderboardConfigs: FieldConfig[] = leaderboardOptions.map(
+    (leaderboard) => ({
+      name: `leaderboardScore:${leaderboard.value}`,
+      leaderboardId: leaderboard.value,
+      label: leaderboard.label,
+      formField: formFieldTypes.enum.number,
+      group: "leaderboard",
+    }),
+  )
+
   // Each workspace bot field becomes its own filter field, same shape as a
   // custom-field config (`customFieldType` carries the raw type either way —
   // see the `FieldConfig` doc comment) so the row/dialog UI can reuse the
   // custom-field condition logic unchanged. Opt-in only (`includeBotFields`).
   const botFieldConfigs: FieldConfig[] = includeBotFields
     ? botFields.map((field) => ({
+        ...toWorkspaceFieldProps(field),
         name: `botField:${field.id}`,
         botFieldId: field.id,
-        customFieldType: field.type,
-        label: field.name,
-        formField: convertCustomFieldTypeToConditionType(field.type),
         group: "botFields",
       }))
     : []
@@ -489,7 +571,26 @@ export const getFieldConfigs = ({
     ...customFieldConfigs,
     ...botFieldConfigs,
     ...couponTopicConfigs,
+    ...leaderboardConfigs,
   ]
+}
+
+/** Field preselected when the add-condition dialog opens. */
+const DEFAULT_FILTER_FIELD = contactFilterFields.enum.currentChannel
+
+/**
+ * The config the add-condition dialog opens on: the current channel when it is
+ * offered, otherwise the first pickable field. Retired (hidden) fields are never
+ * a default, and neither is a field that merely sits first in the definitions.
+ */
+export const getDefaultFilterConfig = (
+  configs: FieldConfig[],
+): FieldConfig | undefined => {
+  const pickableConfigs = configs.filter((config) => !config.hidden)
+  return (
+    pickableConfigs.find((config) => config.name === DEFAULT_FILTER_FIELD) ??
+    pickableConfigs[0]
+  )
 }
 
 export const getFieldOptions = (
@@ -601,23 +702,62 @@ export const formatCtwaRetargetChipLabel = (
   )
 }
 
+// Depth-first so grouped sources (e.g. assignee agents/teams under `children`)
+// resolve the same as flat ones.
+const findOptionLabel = (
+  options: SelectOption[],
+  value: string,
+): string | undefined => {
+  for (const option of options) {
+    if (option.value === value) {
+      return option.label
+    }
+    const childLabel =
+      option.children && findOptionLabel(option.children, value)
+    if (childLabel) {
+      return childLabel
+    }
+  }
+}
+
 export const formatConditionValueDisplay = (
   value: string | string[] | undefined,
   options?: SelectOption[],
+  unknownLabel?: string,
 ): string => {
   if (value === undefined) {
     return ""
   }
-  if (!options?.length) {
+  // With an `unknownLabel` an empty list is a loaded one (everything was
+  // deleted), so values still map; otherwise there is nothing to resolve.
+  if (!options || (options.length === 0 && unknownLabel === undefined)) {
     return Array.isArray(value) ? value.join(", ") : value
   }
 
-  const getLabel = (val: string) =>
-    options.find((opt) => opt.value === val)?.label ?? val
+  const getLabel = (optionValue: string) =>
+    findOptionLabel(options, optionValue) ?? unknownLabel ?? optionValue
 
   if (Array.isArray(value)) {
     return value.map(getLabel).join(", ")
   }
 
-  return getLabel(value as string)
+  return getLabel(value)
 }
+
+/**
+ * Value text for a condition row. Uses the looked-up `valueLabels` when the
+ * field has them (a value missing there reads "Unknown"); until they load, or
+ * for fields that are not id-backed, falls back to the picker `options`.
+ */
+export const formatFilterConditionValue = (
+  value: string | string[] | undefined,
+  fieldConfig: FieldConfig | undefined,
+  t: (key: string) => string,
+): string =>
+  fieldConfig?.valueLabels
+    ? formatConditionValueDisplay(
+        value,
+        fieldConfig.valueLabels,
+        t("condition.unknownValue"),
+      )
+    : formatConditionValueDisplay(value, fieldConfig?.options)

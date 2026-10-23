@@ -57,9 +57,12 @@ vi.mock("../src/keys", () => ({
   keys: () => ({ NEXT_PUBLIC_BUILDER_URL: "https://app.example.com" }),
 }))
 
-const { findByIdWithUrls, findForContact, listForConversation } = await import(
-  "../src/message/list-for-conversation"
-)
+const {
+  findByIdWithUrls,
+  findForContact,
+  listForConversation,
+  withResolvedAttachmentUrls,
+} = await import("../src/message/list-for-conversation")
 
 describe("message list-for-conversation", () => {
   beforeEach(() => {
@@ -192,6 +195,66 @@ describe("message list-for-conversation", () => {
       expect(call.pagination.cursor.createdAt.getMinutes()).toBe(59)
     })
 
+    test("a contactInboxId narrows the repository query and is looked up within the conversation's contact", async () => {
+      mocks.conversationService.findBy.mockResolvedValue({
+        id: "conv-1",
+        workspaceId: "ws-1",
+        contactId: "contact-1",
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+      })
+      mocks.contactInboxService.findByUncached.mockResolvedValue({
+        lastMessageAt: new Date("2026-06-10T15:42:00Z"),
+      })
+      mocks.repo.listByConversation.mockResolvedValue({
+        data: [],
+        nextCursor: null,
+      })
+
+      await listForConversation({
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        contactInboxId: "ci-2",
+        limit: 20,
+      })
+
+      expect(mocks.contactInboxService.findByUncached).toHaveBeenCalledWith({
+        where: { contactId: "contact-1", id: "ci-2" },
+      })
+      expect(mocks.repo.listByConversation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: "ws-1",
+          conversationId: "conv-1",
+          contactInboxId: "ci-2",
+        }),
+      )
+    })
+
+    test("a contactInboxId of another contact still filters the query (empty result)", async () => {
+      mocks.conversationService.findBy.mockResolvedValue({
+        id: "conv-1",
+        workspaceId: "ws-1",
+        contactId: "contact-1",
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+      })
+      mocks.contactInboxService.findByUncached.mockResolvedValue(null)
+      mocks.repo.listByConversation.mockResolvedValue({
+        data: [],
+        nextCursor: null,
+      })
+
+      const result = await listForConversation({
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        contactInboxId: "ci-foreign",
+        limit: 20,
+      })
+
+      expect(mocks.repo.listByConversation).toHaveBeenCalledWith(
+        expect.objectContaining({ contactInboxId: "ci-foreign" }),
+      )
+      expect(result).toEqual({ data: [], nextCursor: null })
+    })
+
     test.each([
       "messenger",
       "instagram",
@@ -224,6 +287,33 @@ describe("message list-for-conversation", () => {
       expect(mocks.uploader.getPresignedDownload).not.toHaveBeenCalled()
     })
 
+    test("resolves a freshly saved message's pending attachment to the proxy URL without any DB read", async () => {
+      const message = {
+        id: "msg-1",
+        contactInboxId: "ci-1",
+        createdAt: new Date("2026-10-14T01:00:00.000Z"),
+        attachments: [
+          { id: "att-1", originPath: "https://graph.example/a.png" },
+          { id: "att-2", originPath: "workspace/messenger/ws-1/x/y.jpg" },
+        ],
+      }
+      mocks.uploader.getPresignedDownload.mockResolvedValue(
+        "https://signed.example/y.jpg",
+      )
+
+      const result = await withResolvedAttachmentUrls(message as never, {
+        channel: "messenger",
+        workspaceId: "ws-1",
+      })
+
+      expect(result.attachments.map((attachment) => attachment.url)).toEqual([
+        "https://app.example.com/media/attachment/signed-media-token",
+        "https://signed.example/y.jpg",
+      ])
+      expect(mocks.createMessageRepository).not.toHaveBeenCalled()
+      expect(mocks.contactInboxService.findManyByIds).not.toHaveBeenCalled()
+    })
+
     test("returns null for a permanently failed attachment", async () => {
       mocks.contactInboxService.findManyByIds.mockResolvedValue([
         { id: "ci-1", channel: "messenger" },
@@ -246,7 +336,75 @@ describe("message list-for-conversation", () => {
       })
 
       expect(result.data[0].attachments[0].url).toBeNull()
+      expect(result.data[0].attachments[0].fallbackUrl).toBeNull()
       expect(mocks.uploader.getPresignedDownload).not.toHaveBeenCalled()
+    })
+
+    test("attaches a proxy fallback URL to a stored hydration-channel attachment", async () => {
+      mocks.uploader.getPresignedDownload.mockResolvedValue(
+        "https://signed.example.com/file",
+      )
+      mocks.contactInboxService.findManyByIds.mockResolvedValue([
+        { id: "ci-1", channel: "messenger" },
+      ])
+      mocks.repo.listByConversation.mockResolvedValue({
+        data: [
+          {
+            id: "msg-1",
+            contactInboxId: "ci-1",
+            attachments: [
+              { id: "att-1", originPath: "workspace/ws-1/files/a.png" },
+            ],
+          },
+        ],
+        nextCursor: null,
+      })
+
+      const result = await listForConversation({
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        limit: 20,
+      })
+
+      expect(result.data[0].attachments[0].url).toBe(
+        "https://signed.example.com/file",
+      )
+      expect(result.data[0].attachments[0].fallbackUrl).toBe(
+        "https://app.example.com/media/attachment/signed-media-token",
+      )
+    })
+
+    test("keeps the primary URL when signing the fallback URL fails", async () => {
+      mocks.uploader.getPresignedDownload.mockResolvedValue(
+        "https://signed.example.com/file",
+      )
+      mocks.signMediaToken.mockRejectedValueOnce(new Error("signer down"))
+      mocks.contactInboxService.findManyByIds.mockResolvedValue([
+        { id: "ci-1", channel: "messenger" },
+      ])
+      mocks.repo.listByConversation.mockResolvedValue({
+        data: [
+          {
+            id: "msg-1",
+            contactInboxId: "ci-1",
+            attachments: [
+              { id: "att-1", originPath: "workspace/ws-1/files/a.png" },
+            ],
+          },
+        ],
+        nextCursor: null,
+      })
+
+      const result = await listForConversation({
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        limit: 20,
+      })
+
+      expect(result.data[0].attachments[0].url).toBe(
+        "https://signed.example.com/file",
+      )
+      expect(result.data[0].attachments[0].fallbackUrl).toBeNull()
     })
 
     test.each([

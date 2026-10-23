@@ -25,6 +25,8 @@ import {
 } from "../contact-inbox/map-stats-contact-row"
 import { contactInboxService } from "../contact-inbox/service"
 import { notFoundException, validationException } from "../errors"
+import { folderService } from "../folder/service"
+import { type IdLabel, selectLabelsByIds } from "../select-labels-by-ids"
 import {
   handleStepCreationImpact,
   handleStepUpdateImpact,
@@ -82,12 +84,28 @@ class SequenceService extends BaseService {
     return { data, pageCount: Math.ceil(total / pagination.limit) }
   }
 
+  /** A folder id must be a sequence folder of this workspace (null/absent = root). */
+  private async assertSequenceFolder(
+    workspaceId: string,
+    folderId: string | null | undefined,
+  ): Promise<void> {
+    if (!folderId) {
+      return
+    }
+    await folderService.ensureExists({
+      id: folderId,
+      workspaceId,
+      folderType: "sequence",
+    })
+  }
+
   async create(input: {
     workspaceId: string
     name: string
     folderId?: string | null
   }): Promise<{ sequenceId: string }> {
     const sequenceId = createId()
+    await this.assertSequenceFolder(input.workspaceId, input.folderId)
 
     try {
       await db.insert(sequenceModel).values({
@@ -126,6 +144,10 @@ class SequenceService extends BaseService {
       },
       message: "Sequence not found",
     })
+
+    if (data.folderId !== undefined && data.folderId !== sequence.folderId) {
+      await this.assertSequenceFolder(ctx.workspaceId, data.folderId)
+    }
 
     const changedEntries = Object.entries(data).filter(
       ([key, value]) => sequence[key as keyof typeof data] !== value,
@@ -309,11 +331,36 @@ class SequenceService extends BaseService {
     }
   }
 
+  /**
+   * A step stores a bare `flowId`; the worker only resolves it inside the
+   * step's workspace, so a flow of another workspace (or a deleted one) would
+   * be accepted here and only fail when the step is due. Reject it on write.
+   */
+  private async assertStepFlowInWorkspace(input: {
+    workspaceId: string
+    flowId: string | null | undefined
+  }): Promise<void> {
+    if (!input.flowId) {
+      return
+    }
+    const flow = await db.query.flowModel.findFirst({
+      where: { id: input.flowId, workspaceId: input.workspaceId },
+      columns: { id: true },
+    })
+    if (!flow) {
+      throw notFoundException("Flow not found")
+    }
+  }
+
   async createStep(input: {
     workspaceId: string
     sequenceId: string
     data: SequenceStepPayloadInput
   }): Promise<SequenceStepModel> {
+    await this.assertStepFlowInWorkspace({
+      workspaceId: input.workspaceId,
+      flowId: input.data.flowId,
+    })
     const createData = buildCreateData(input.data, input.sequenceId, createId())
     const [created] = await db
       .insert(sequenceStepModel)
@@ -351,6 +398,11 @@ class SequenceService extends BaseService {
       throw notFoundException("Step not found")
     }
 
+    await this.assertStepFlowInWorkspace({
+      workspaceId: input.workspaceId,
+      flowId: input.data.flowId,
+    })
+
     const updateData = buildUpdateData(input.data)
 
     const [updated] = await db
@@ -370,9 +422,8 @@ class SequenceService extends BaseService {
      * parent (`DELETE /v1/sequences/{id}/steps/{stepId}`) must pass it, or
      * the `{id}` segment is decorative: the step resolves by `stepId` alone,
      * so a step belonging to a *different* sequence in the same workspace
-     * would be deleted while the URL claims otherwise. Omitted by callers
-     * that legitimately address a step without naming its parent (the
-     * builder's `deleteSequenceStepAction`).
+     * would be deleted while the URL claims otherwise. Omit it only when the
+     * caller does not know the parent sequence.
      */
     sequenceId?: string
   }): Promise<void> {
@@ -450,6 +501,14 @@ class SequenceService extends BaseService {
     )
 
     return { stepId: step.id }
+  }
+
+  /** Existing rows only — `id`s absent from the result no longer exist. */
+  async listLabelsByIds(input: {
+    workspaceId: string
+    ids: string[]
+  }): Promise<IdLabel[]> {
+    return await selectLabelsByIds(sequenceModel, input)
   }
 }
 

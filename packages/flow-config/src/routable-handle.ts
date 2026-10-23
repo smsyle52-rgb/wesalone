@@ -1,6 +1,7 @@
 import type { FlowNode } from "./nodes/index"
 import { type ButtonStepProps, buttonTypes } from "./steps/button"
 import { type PageElementSchema, pageElementTypes } from "./steps/email"
+import type { QuickReplySettings } from "./steps/quick-reply-settings"
 import { startAnotherNodeStepDefaultFn } from "./steps/start-another-node"
 
 export const routableHandleKinds = {
@@ -8,6 +9,7 @@ export const routableHandleKinds = {
   cardButtons: "cardButtons",
   listOptions: "listOptions",
   pageElements: "pageElements",
+  quickReplySettings: "quickReplySettings",
 } as const
 
 export type RoutableHandleKind =
@@ -107,21 +109,34 @@ const createRouteFields = (route: FlowRoute) =>
         beforeStep: null,
       }
 
+/**
+ * An Open Mini App button keeps its action when its edge is drawn or dropped:
+ * the edge only says where the flow continues after the Mini App is submitted.
+ */
+const keepsActionOnRouteChange = (button: { buttonType: string | null }) =>
+  button.buttonType === buttonTypes.enum.openMiniApp
+
 const updateButtonRoute = (
   button: ButtonStepProps,
   route: FlowRoute,
-): ButtonStepProps => ({
-  ...button,
-  ...createRouteFields(route),
-})
+): ButtonStepProps =>
+  keepsActionOnRouteChange(button)
+    ? button
+    : {
+        ...button,
+        ...createRouteFields(route),
+      }
 
 const updatePageButtonRoute = (
   button: PageButtonElement,
   route: FlowRoute,
-): PageButtonElement => ({
-  ...button,
-  ...createRouteFields(route),
-})
+): PageButtonElement =>
+  keepsActionOnRouteChange(button)
+    ? button
+    : {
+        ...button,
+        ...createRouteFields(route),
+      }
 
 /**
  * Rewrites the first step that `updateStep` claims and rebuilds the node around
@@ -322,11 +337,67 @@ const pageElementsAccessor: RoutableHandleAccessor = {
     }),
 }
 
+/**
+ * The two node-level handles under the quick replies. Their id belongs to the
+ * section, not the target, so clearing a route keeps the handle drawable.
+ * `stepIndex` is past every real step so a colliding step handle still wins,
+ * matching {@link findButtonInNodes}'s earliest-step rule.
+ */
+const quickReplySettingsAccessor: RoutableHandleAccessor = {
+  kind: routableHandleKinds.quickReplySettings,
+  findButton: () => null,
+  applyRoute: (node, handleId, route) => {
+    const details = node.data.details as {
+      quickReplySettings?: QuickReplySettings | null
+    }
+    const settings = details.quickReplySettings
+    if (!settings) {
+      return null
+    }
+
+    for (const key of ["followUp", "retry"] as const) {
+      if (settings[key]?.id !== handleId) {
+        continue
+      }
+
+      const target = route
+        ? {
+            buttonType: buttonTypes.enum.startAnotherNode,
+            beforeStep: startAnotherNodeStepDefaultFn({
+              nodeId: route.targetNodeId,
+              viewOnly: true,
+            }),
+          }
+        : null
+
+      return {
+        node: {
+          ...node,
+          data: {
+            ...node.data,
+            details: {
+              ...node.data.details,
+              quickReplySettings: {
+                ...settings,
+                [key]: { ...settings[key], target },
+              },
+            },
+          },
+        } as FlowNode,
+        stepIndex: Number.MAX_SAFE_INTEGER,
+      }
+    }
+
+    return null
+  },
+}
+
 const routableHandleAccessors: readonly RoutableHandleAccessor[] = [
   stepButtonsAccessor,
   cardButtonsAccessor,
   listOptionsAccessor,
   pageElementsAccessor,
+  quickReplySettingsAccessor,
 ]
 
 export const findButtonInNodes = (

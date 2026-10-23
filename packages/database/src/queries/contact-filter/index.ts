@@ -17,6 +17,7 @@ import {
 } from "../../schema"
 import { escapeLikePattern, likeContains } from "../../utils"
 import { buildBotFieldWhere } from "./bot-field-predicates"
+import { buildCommentedOnPostWhere } from "./commented-on-post"
 import { buildContinentWhere } from "./continent"
 import { parseConversationAssigneeValues } from "./conversation-assignee"
 import {
@@ -27,10 +28,12 @@ import {
 } from "./ctwa-retarget"
 import { buildCustomFieldWhere } from "./custom-field-predicates"
 import { contactInboxExists, existsWhere, joinTableExists } from "./exists"
+import { buildLeaderboardScoreWhere } from "./leaderboard-score"
 import {
   buildBooleanColumn,
   buildBooleanFromTimestamp,
   buildColumnWhere,
+  buildContactInboxTriStateBooleanWhere,
   buildDateColumnWhere,
   buildExistingContactWhere,
   buildExistsBooleanWhere,
@@ -51,6 +54,7 @@ import type {
   ContactFilterCriteriaInput as FilterCriteriaInput,
   ContactWhereInput as FilterWhereInput,
 } from "./types"
+import { buildIsWithinWorkingHoursWhere } from "./working-hours-predicates"
 
 export {
   parseConversationAssigneeValues,
@@ -69,7 +73,11 @@ export {
   pruneContactFilterFields,
   pruneEmailPhoneFilterConditions,
 } from "./permission"
-export { contactInboxInteractedWithin24hSQL } from "./predicates"
+export {
+  buildContactInboxScopeWhere,
+  type ContactInboxScope,
+  contactInboxInteractedWithin24hSQL,
+} from "./predicates"
 export {
   DEFAULT_FILTER_TIMEZONE,
   filterValueToUtcDayEndIso,
@@ -90,6 +98,7 @@ export {
 } from "./value-format"
 
 import { anyChannelAdConversationPredicate } from "../ad-referral"
+import { googleClickPredicate } from "../google-click"
 
 const hasWhereParts = (where: ContactWhere): boolean =>
   Object.keys(where).length > 0
@@ -119,6 +128,7 @@ export const contactFilterHasPredicate = (
 
 type ContactFilterContext = {
   timezone: string
+  workingHoursTimezone: string
   /** Optional workspace scope, read only by the `ctwaRetarget` case. */
   workspaceId?: string
 }
@@ -393,6 +403,7 @@ export function applyContactFilter(
 
   const context: ContactFilterContext = {
     timezone: resolveFilterTimezone(criteria.timezone),
+    workingHoursTimezone: resolveFilterTimezone(criteria.workingHoursTimezone),
     workspaceId,
   }
   const conditionWheres = conditions
@@ -506,6 +517,37 @@ function buildConditionWhere(
         value,
       )
 
+    case "followsBusinessOnInstagram":
+      return buildContactInboxTriStateBooleanWhere(
+        contactInboxModel.followsBusiness,
+        operator,
+        value,
+      )
+
+    case "businessFollowsUserOnInstagram":
+      return buildContactInboxTriStateBooleanWhere(
+        contactInboxModel.businessFollowsContact,
+        operator,
+        value,
+      )
+
+    case "verifiedAccountOnInstagram":
+      return buildContactInboxTriStateBooleanWhere(
+        contactInboxModel.accountVerified,
+        operator,
+        value,
+      )
+
+    case "followerCountOnInstagram":
+      return buildLatestContactInboxNumberWhere(
+        contactInboxModel.followerCount,
+        operator,
+        value,
+      )
+
+    case "commentedOnPost":
+      return buildCommentedOnPostWhere(operator, value, context.workspaceId)
+
     case "emailWasVerified":
       return buildBooleanColumn("emailVerified", operator, value)
 
@@ -536,6 +578,14 @@ function buildConditionWhere(
       return buildExistsBooleanWhere(
         contactInboxExists,
         anyChannelAdConversationPredicate(),
+        operator,
+        value,
+      )
+
+    case "fromGoogleAd":
+      return buildExistsBooleanWhere(
+        contactInboxExists,
+        googleClickPredicate(),
         operator,
         value,
       )
@@ -618,11 +668,26 @@ function buildConditionWhere(
     case "couponTopic":
       return buildCouponTopicWhere(condition.topicId, operator, value)
 
+    case "leaderboardScore":
+      return buildLeaderboardScoreWhere(
+        condition.leaderboardId,
+        operator,
+        value,
+      )
+
     case "conversationAssigned":
       return buildConversationAssignedWhere(operator, value)
 
     case "customField":
       return buildCustomFieldWhere({ ...condition, timezone })
+
+    case "isWithinWorkingHours":
+      return buildIsWithinWorkingHoursWhere({
+        operator,
+        value,
+        workspaceId: context.workspaceId,
+        timezone: context.workingHoursTimezone,
+      })
 
     case "botField":
       return buildBotFieldWhere({

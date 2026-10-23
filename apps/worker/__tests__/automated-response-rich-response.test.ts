@@ -98,6 +98,7 @@ vi.mock("@chatbotx.io/ai", () => ({
 
 vi.mock("@chatbotx.io/ai/server", () => ({
   aiContextService: { appendHistory: appendHistoryMock },
+  appendAIAgentActionToolProtocol: (p: string) => p,
   appendFabricationGuard: (p: string) => p,
   appendHandoffPolicy: (p: string) => p,
   appendKnowledgeBaseGuard: (p: string) => p,
@@ -530,6 +531,8 @@ describe("replyByAI — rich mode routing", () => {
         messageId: baseProps.triggerMessageId,
         result: "success",
         routeType: "agent",
+        channel: "webchat",
+        inboxId: "channel-inbox-1",
       }),
     )
   })

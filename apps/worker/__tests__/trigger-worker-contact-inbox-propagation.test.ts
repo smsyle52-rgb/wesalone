@@ -39,6 +39,7 @@ const state = vi.hoisted(() => ({
   runWithWebhookExecutionContext: vi.fn(
     async (_ctx: unknown, fn: () => unknown) => await fn(),
   ),
+  flushAllPendingWorkspaceRealtimeEvents: vi.fn(async () => undefined),
   loggerInfo: vi.fn(),
   loggerError: vi.fn(),
 }))
@@ -64,8 +65,14 @@ vi.mock("@chatbotx.io/worker-config", async (importOriginal) => ({
   ...(await importOriginal()),
   defaultWorkerOptions: {},
   getRedisConnection: () => ({}),
+  getQueueConnection: () => ({}),
   queueNames: { enum: { trigger: "trigger" } },
   TriggerJobAction: { evaluateTriggers: "evaluateTriggers" },
+}))
+
+vi.mock("@chatbotx.io/business", () => ({
+  flushAllPendingWorkspaceRealtimeEvents:
+    state.flushAllPendingWorkspaceRealtimeEvents,
 }))
 
 vi.mock("@chatbotx.io/sdk", async (importOriginal) => ({
@@ -86,6 +93,9 @@ vi.mock("@chatbotx.io/events/context", () => ({
 // needs the exact same key contract to prove the worker wires it correctly.
 const CONTACT_INBOX_METADATA_KEY = "contactInboxId"
 vi.mock("@chatbotx.io/events", () => ({
+  decisionFlowOriginSchema: {
+    safeParse: () => ({ success: false }),
+  },
   extractContactInboxId: (eventData: Record<string, unknown> | undefined) => {
     const value = eventData?.[CONTACT_INBOX_METADATA_KEY]
     return typeof value === "string" && value.length > 0 ? value : undefined
@@ -166,7 +176,12 @@ describe("trigger worker — queue-to-executor contactInboxId propagation", () =
     expect(state.triggerExecute).toHaveBeenCalledTimes(1)
     expect(state.triggerExecute).toHaveBeenCalledWith(
       { id: "trigger-1", workspaceId: "ws-1", actions: [] },
-      { contactId: "contact-1", contactInboxId: "11669088263749632" },
+      expect.objectContaining({
+        contactId: "contact-1",
+        contactInboxId: "11669088263749632",
+        decisionFlowOrigin: undefined,
+        occurrenceId: undefined,
+      }),
     )
   })
 
@@ -175,7 +190,12 @@ describe("trigger worker — queue-to-executor contactInboxId propagation", () =
 
     expect(state.triggerExecute).toHaveBeenCalledWith(
       { id: "trigger-1", workspaceId: "ws-1", actions: [] },
-      { contactId: "contact-1", contactInboxId: undefined },
+      expect.objectContaining({
+        contactId: "contact-1",
+        contactInboxId: undefined,
+        decisionFlowOrigin: undefined,
+        occurrenceId: undefined,
+      }),
     )
   })
 
@@ -184,7 +204,32 @@ describe("trigger worker — queue-to-executor contactInboxId propagation", () =
 
     expect(state.triggerExecute).toHaveBeenCalledWith(
       { id: "trigger-1", workspaceId: "ws-1", actions: [] },
-      { contactId: "contact-1", contactInboxId: undefined },
+      expect.objectContaining({
+        contactId: "contact-1",
+        contactInboxId: undefined,
+        decisionFlowOrigin: undefined,
+        occurrenceId: undefined,
+      }),
     )
+  })
+
+  test("drains realtime events after a failed worker close", async () => {
+    const exit = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never)
+    const closeFailure = new Error("close failed")
+    state.workerClose.mockRejectedValueOnce(closeFailure)
+
+    process.emit("SIGTERM")
+
+    await vi.waitFor(() => {
+      expect(exit).toHaveBeenCalledWith(1)
+    })
+    expect(state.flushAllPendingWorkspaceRealtimeEvents).toHaveBeenCalledOnce()
+    expect(state.workerClose.mock.invocationCallOrder[0]).toBeLessThan(
+      state.flushAllPendingWorkspaceRealtimeEvents.mock
+        .invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    )
+    exit.mockRestore()
   })
 })

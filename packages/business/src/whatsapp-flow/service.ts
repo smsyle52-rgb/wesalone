@@ -1,11 +1,15 @@
 import {
+  and,
   type DatabaseClient,
   db,
   eq,
   findOrFail,
   inArray,
 } from "@chatbotx.io/database/client"
-import { whatsappFlowModel } from "@chatbotx.io/database/schema"
+import {
+  integrationWhatsappModel,
+  whatsappFlowModel,
+} from "@chatbotx.io/database/schema"
 import { createId } from "@chatbotx.io/utils"
 import { BaseService } from "../base.service"
 
@@ -52,6 +56,53 @@ class WhatsappFlowService extends BaseService {
       where: { id },
       message: "Whatsapp flow not found",
     })
+  }
+
+  /** Meta's id for a workspace Flow, or undefined when the Flow is gone. */
+  async findSourceId(props: {
+    id: string
+    workspaceId: string
+  }): Promise<string | undefined> {
+    const row = await db.query.whatsappFlowModel.findFirst({
+      where: {
+        id: props.id,
+        integrationWhatsapp: { workspaceId: props.workspaceId },
+      },
+      columns: { sourceId: true },
+    })
+    return row?.sourceId || undefined
+  }
+
+  /** Inserts or refreshes a single Flow, e.g. right after publishing a Mini App. */
+  async upsertFromMeta(props: {
+    integrationWhatsappId: string
+    flow: MetaWhatsappFlow
+  }): Promise<{ id: string }> {
+    const values = {
+      name: props.flow.name,
+      status: props.flow.status,
+      categories: props.flow.categories ?? [],
+      validationErrors: props.flow.validation_errors ?? [],
+    }
+    const [row] = await db
+      .insert(whatsappFlowModel)
+      .values({
+        id: createId(),
+        integrationWhatsappId: props.integrationWhatsappId,
+        sourceId: props.flow.id,
+        completedCount: "0",
+        screens: [],
+        ...values,
+      })
+      .onConflictDoUpdate({
+        target: [
+          whatsappFlowModel.integrationWhatsappId,
+          whatsappFlowModel.sourceId,
+        ],
+        set: values,
+      })
+      .returning({ id: whatsappFlowModel.id })
+    return row as { id: string }
   }
 
   async syncFromMeta(props: {
@@ -116,6 +167,38 @@ class WhatsappFlowService extends BaseService {
         }
       }
     })
+  }
+
+  /**
+   * Mirrors a Flow just deleted or deprecated on Meta into every number of
+   * the workspace that synced it (Flows belong to the WABA, so several
+   * numbers can hold a copy). A deprecated Flow keeps its row: customers can
+   * still answer it from their phones and those answers count into
+   * `completedCount`. Pickers only list PUBLISHED Flows, so it disappears
+   * from them either way.
+   */
+  async markRemovedOnMeta(props: {
+    workspaceId: string
+    sourceId: string
+    /** Meta's status afterwards; null when the Flow no longer exists. */
+    status: string | null
+  }): Promise<void> {
+    const workspaceNumbers = db
+      .select({ id: integrationWhatsappModel.id })
+      .from(integrationWhatsappModel)
+      .where(eq(integrationWhatsappModel.workspaceId, props.workspaceId))
+    const where = and(
+      eq(whatsappFlowModel.sourceId, props.sourceId),
+      inArray(whatsappFlowModel.integrationWhatsappId, workspaceNumbers),
+    )
+    if (props.status === null) {
+      await db.delete(whatsappFlowModel).where(where)
+      return
+    }
+    await db
+      .update(whatsappFlowModel)
+      .set({ status: props.status })
+      .where(where)
   }
 }
 

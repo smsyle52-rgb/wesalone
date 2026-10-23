@@ -84,7 +84,11 @@ export type MessengerActions<
   getCommentAttachment: (props: {
     ctx: Context<IAuth>
     input: { commentId: string }
-  }) => Promise<{ type: string | null; attachment?: IncomingAttachment }>
+  }) => Promise<{
+    type: string | null
+    attachment?: IncomingAttachment
+    isLive: boolean
+  }>
   getCommentMessageTags: (props: {
     ctx: Context<IAuth>
     input: { commentId: string }
@@ -174,6 +178,11 @@ export const messengerReferralSchema = z.object({
   source: z.string(),
   type: z.string(),
   ad_id: z.string().optional(),
+  // Undocumented, but observed on CTM ads: the ice-breaker/prefilled question
+  // the user tapped. It can be the ONLY text of the message (no `message.text`).
+  // `.catch` so a malformed value drops only this field, never the referral
+  // (and, for `messaging.referral`/`postback.referral`, never the webhook).
+  text: z.string().optional().catch(undefined),
   // The URI of the site the message was sent from — the field Meta's
   // `messaging_referrals` reference documents (there is no `source_url` on
   // Messenger/Instagram; `source_url`/`source_platform` are kept only as
@@ -201,6 +210,9 @@ export const messengerMessageSchema = z.object({
   // Sending app on an echo. Meta documents it as a string but ships a number;
   // any other shape degrades to "unknown" rather than failing the batch.
   app_id: z.union([z.string(), z.number()]).optional().catch(undefined),
+  // Meta stamps this on a `message_echoes` event sent by the Business AI agent
+  // (the documented signal that an outbound message is AI-generated).
+  ai_generated: z.boolean().optional().catch(undefined),
   // Set (with no other message fields besides `mid`) when the sender unsends
   // a previously-sent DM.
   is_deleted: z.boolean().optional(),
@@ -306,6 +318,10 @@ export const messengerFeedCommentValueSchema = z.object({
   from: z.object({ id: z.string(), name: z.string().optional() }),
   message: z.string().optional(),
   message_tags: z.array(messengerMessageTagSchema).optional(),
+  // URL of a video attached to the comment. Facebook sends a sibling `photo`
+  // for image comments too, but those are re-hosted from the Graph attachment
+  // (`getCommentAttachment`), which does not download videos.
+  video: z.string().optional(),
   created_time: z.number(),
 })
 export type MessengerFeedCommentValue = z.infer<
@@ -346,16 +362,55 @@ export const messengerWebhookEventSchema = z.object({
 })
 export type MessengerWebhookEvent = z.infer<typeof messengerWebhookEventSchema>
 
+// Standby delivery: the same envelope as a `messaging[]` item, but Meta strips
+// the postback `payload`/`title` (and `mid` may be absent), so every postback
+// field is optional.
+export const messengerStandbyEventSchema = z.object({
+  sender: idSchema,
+  recipient: idSchema,
+  timestamp: z.number(),
+  message: messengerMessageSchema.optional(),
+  delivery: messengerDeliverySchema.optional(),
+  read: messengerReadSchema.optional(),
+  postback: z
+    .object({
+      mid: z.string().optional(),
+      title: z.string().optional(),
+      payload: z.string().optional(),
+    })
+    .optional(),
+})
+export type MessengerStandbyEvent = z.infer<typeof messengerStandbyEventSchema>
+
+// Page receiver configuration (`messaging[].app_roles`): app id -> roles. It
+// names no contact, so it has no `sender`.
+export const messengerAppRolesEventSchema = z.object({
+  recipient: idSchema,
+  timestamp: z.number(),
+  app_roles: z.record(z.string(), z.array(z.string())),
+})
+export type MessengerAppRolesEvent = z.infer<
+  typeof messengerAppRolesEventSchema
+>
+
+// `messaging` and `standby` items are validated one by one in the handler, so a
+// single malformed event cannot drop the rest of the batch.
 export const incomingWebhookEntrySchema = messengerPageEntrySchema.extend({
   changes: z
     .array(z.object({ field: z.string(), value: z.unknown() }))
     .optional(),
+  messaging: z.array(z.unknown()).optional(),
+  standby: z.array(z.unknown()).optional(),
+  // Entry-level Business-AI ownership signal on standby deliveries; any shape
+  // is tolerated here and read defensively by the consumer.
+  hop_context: z.unknown().optional(),
 })
 export type IncomingWebhookEntry = z.infer<typeof incomingWebhookEntrySchema>
 
+// Entries are validated one by one too (`incomingWebhookEntrySchema`).
 export const incomingWebhookEventSchema = z.object({
   object: z.literal("page"),
-  entry: z.array(incomingWebhookEntrySchema),
+  entry: z.array(z.unknown()),
 })
 export type IncomingWebhookEvent = z.infer<typeof incomingWebhookEventSchema>
 
@@ -538,6 +593,17 @@ export const facebookUserProfileSchema = z.object({
   gender: z.string().optional(),
 })
 export type FacebookUserProfile = z.infer<typeof facebookUserProfileSchema>
+
+// Public profile readable with a page token for anyone who interacted with the
+// page (e.g. a commenter), unlike `profile_pic`, which exists only for users
+// who have messaged the page.
+export type FacebookPublicUserProfile = {
+  id: string
+  name?: string
+  first_name?: string
+  last_name?: string
+  picture?: { data?: { url?: string; is_silhouette?: boolean } }
+}
 
 // Facebook Page schema
 export const facebookPageSchema = z.object({

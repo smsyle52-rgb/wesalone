@@ -1,17 +1,14 @@
-import {
-  broadcastToWorkspaceParty,
-  flushAllPendingWorkspaceBroadcasts,
-} from "@chatbotx.io/business"
-import type { RealtimeEventData } from "@chatbotx.io/partysocket-config"
+import { flushAllPendingWorkspaceRealtimeEvents } from "@chatbotx.io/business"
 import { SdkException } from "@chatbotx.io/sdk"
 import {
   ChatJobAction,
   type ChatJobData,
   defaultWorkerOptions,
-  getRedisConnection,
+  getQueueConnection,
   queueNames,
 } from "@chatbotx.io/worker-config"
 import { type Job, Worker } from "bullmq"
+import { env } from "../env"
 import { ensureBootstrapped } from "../lib/bootstrap"
 import { isBlockedWorkspace } from "../lib/is-blocked-workspace"
 import { isBotMessageQuotaReached } from "../lib/is-bot-message-quota-reached"
@@ -29,16 +26,30 @@ import {
   sendTypingToChannel,
 } from "./handlers/send-message"
 import { sendMessengerTemplateMessage } from "./handlers/send-messenger-template"
-import { sendWhatsappTemplateMessage } from "./handlers/send-whatsapp-template"
+import {
+  sendWhatsappTemplateMessage,
+  sendWhatsappTemplateToConversation,
+} from "./handlers/send-whatsapp-template"
 
 const botSendActions = new Set<ChatJobData["type"]>([
   ChatJobAction.sendFlowMessage,
   ChatJobAction.sendChatMessage,
   ChatJobAction.sendWhatsappTemplateMessage,
+  ChatJobAction.sendWhatsappTemplateToConversation,
   ChatJobAction.sendMessengerTemplateMessage,
 ])
 
 function isBotSendJob(data: ChatJobData): boolean {
+  // A template a workspace member sends from the inbox is recorded as a human
+  // message, so it neither counts toward nor is blocked by the bot quota.
+  if (
+    data.type === ChatJobAction.sendWhatsappTemplateToConversation &&
+    data.data.initiatedBy === "user" &&
+    data.data.adminId
+  ) {
+    return false
+  }
+
   if (botSendActions.has(data.type)) {
     return true
   }
@@ -100,6 +111,12 @@ async function startChatWorker() {
                 !isFinalAttempt(job),
               )
               return
+            case ChatJobAction.sendWhatsappTemplateToConversation:
+              await sendWhatsappTemplateToConversation(
+                job.data.data,
+                !isFinalAttempt(job),
+              )
+              return
             case ChatJobAction.sendMessengerTemplateMessage:
               await sendMessengerTemplateMessage(
                 job.data.data,
@@ -124,15 +141,14 @@ async function startChatWorker() {
                 "notifyExportResult job received but no handler is implemented",
               )
               return
-            // TODO: Remove after the rolling-deploy queue drain completes.
-            case ChatJobAction.broadcastEvent:
-              await broadcastToWorkspaceParty(
-                job.data.data.workspaceId,
-                job.data.data.event as RealtimeEventData,
-              )
-              return
             case ChatJobAction.checkOutboundAutomatedResponse:
               await checkOutboundAutomatedResponse(job.data.data)
+              return
+            case "broadcastEvent" as never:
+              logger.info(
+                { jobId: job.id },
+                "Ignoring legacy broadcastEvent job during realtime v2 rollout",
+              )
               return
             default:
               throw new SdkException("ChatJobAction action is not defined")
@@ -141,8 +157,9 @@ async function startChatWorker() {
       )
     },
     {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.chat),
       ...defaultWorkerOptions,
+      concurrency: env.CHAT_WORKER_CONCURRENCY,
     },
   )
 
@@ -158,16 +175,23 @@ async function startChatWorker() {
       return
     }
     isShuttingDown = true
+    let shutdownFailed = false
     try {
       await worker.close()
-      // After close(): drains events published by jobs that finished during
-      // the close drain, whose coalesce timers would never fire past exit.
-      await flushAllPendingWorkspaceBroadcasts()
-      process.exit(0)
     } catch (err) {
-      logger.error(err, "[ChatWorker] Error during shutdown")
-      process.exit(1)
+      shutdownFailed = true
+      logger.error(err, "[ChatWorker] Error closing worker during shutdown")
+    } finally {
+      try {
+        // After close(): drains events published by jobs that finished during
+        // the close drain, whose coalesce timers would never fire past exit.
+        await flushAllPendingWorkspaceRealtimeEvents()
+      } catch (err) {
+        shutdownFailed = true
+        logger.error(err, "[ChatWorker] Error flushing realtime events")
+      }
     }
+    process.exit(shutdownFailed ? 1 : 0)
   }
   process.once("SIGINT", shutdown)
   process.once("SIGTERM", shutdown)

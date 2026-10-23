@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => ({
   heavyQueueAdd: vi.fn(),
   isBlockedWorkspace: vi.fn(),
   processAutomatedResponse: vi.fn(),
+  processHandoffReentry: vi.fn(),
   processCommentAIReply: vi.fn(),
   processJob: undefined as undefined | ((job: unknown) => Promise<void>),
   processStoryReplyAutomation: vi.fn(),
+  processStoryMentionAutomation: vi.fn(),
   resolveWorkspaceId: vi.fn(),
   runWithWebhookExecutionContext: vi.fn(
     async (_context: unknown, callback: () => Promise<unknown>) => callback(),
@@ -28,6 +30,7 @@ vi.mock("@chatbotx.io/worker-config", async (importOriginal) => {
     defaultWorkerOptions: {},
     getHeavyJobOptions: () => ({}),
     getRedisConnection: vi.fn(),
+    getQueueConnection: vi.fn(),
     HeavyJobAction: { processAIFile: "processAIFile" },
     heavyQueue: { add: mocks.heavyQueueAdd },
     queueNames: { enum: { aiAgent: "aiAgent" } },
@@ -82,11 +85,15 @@ vi.mock("../src/lib/resolve-workspace-id", () => ({
 vi.mock("../src/integration/handlers/automated-response", () => ({
   processAutomatedResponse: mocks.processAutomatedResponse,
 }))
+vi.mock("../src/integration/handlers/ai-agent-actions/handoff-reentry", () => ({
+  processHandoffReentry: mocks.processHandoffReentry,
+}))
 vi.mock("../src/integration/handlers/comment-automation/ai-reply", () => ({
   processCommentAIReply: mocks.processCommentAIReply,
 }))
 vi.mock("../src/integration/handlers/story-reply-automation", () => ({
   processStoryReplyAutomation: mocks.processStoryReplyAutomation,
+  processStoryMentionAutomation: mocks.processStoryMentionAutomation,
 }))
 vi.mock("../src/integration/utils/message", () => ({
   closeChatQueueEvents: mocks.closeChatQueueEvents,
@@ -127,6 +134,26 @@ beforeEach(() => {
 })
 
 describe("ai-agent worker audit context", () => {
+  test("dispatches a handoff re-entry job through the webhook context", async () => {
+    await mocks.processJob?.({
+      id: "job-handoff-reentry",
+      data: {
+        type: "processHandoffReentry",
+        data: {
+          conversationId: "conversation-1",
+          contactInboxId: "contact-inbox-1",
+          messageId: "message-1",
+        },
+      },
+    })
+
+    expect(mocks.processHandoffReentry).toHaveBeenCalledWith({
+      conversationId: "conversation-1",
+      contactInboxId: "contact-inbox-1",
+      messageId: "message-1",
+    })
+  })
+
   test("forwards legacy AI file jobs to heavy within the audit context", async () => {
     let capturedActor: ReturnType<typeof getAuditActor>
     mocks.heavyQueueAdd.mockImplementationOnce(() => {
@@ -206,6 +233,16 @@ describe("ai-agent worker audit context", () => {
           channelType: "instagram",
         },
       },
+      {
+        type: "processStoryMentionAutomation",
+        data: {
+          workspaceId: "workspace-1",
+          conversationId: "conversation-1",
+          contactInboxId: "contact-inbox-1",
+          messageId: "message-2",
+          channelType: "instagram",
+        },
+      },
     ]
 
     for (const [index, data] of jobs.entries()) {
@@ -227,6 +264,9 @@ describe("ai-agent worker audit context", () => {
     )
     expect(mocks.processStoryReplyAutomation).toHaveBeenCalledWith(
       jobs[2]?.data,
+    )
+    expect(mocks.processStoryMentionAutomation).toHaveBeenCalledWith(
+      jobs[3]?.data,
     )
     expect(mocks.runWithWebhookExecutionContext).toHaveBeenCalledTimes(1)
     expect(mocks.runWithWebhookExecutionContext).toHaveBeenCalledWith(

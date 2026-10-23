@@ -56,6 +56,20 @@ again equals the published content.
 - The revert action is destructive from the user's perspective because it discards
   local draft work, so the builder shows a confirmation dialog before executing it.
 
+## Channel capability validation
+
+Publishing, importing, and restoring a flow validate every message step against its
+selected channel. Unsupported blocks and channel limits reject the operation before
+the version becomes current; the builder shows a localized validation message, while
+the API returns a structured capability error.
+
+This also applies to existing published versions. Restoring a version that uses a
+block no longer supported by its channel now fails instead of making that version
+current. Update the version to a supported message block before restoring it.
+
+Threads has no direct-message delivery runtime, so every message step is unsupported
+for Threads. Flows can still use non-message steps for Threads.
+
 ## Flow-spec DSL (agent authoring)
 
 Public API callers (typically an MCP agent) can author a flow as a compact JSON
@@ -77,7 +91,8 @@ shape before publishing or updating the draft, via
 
 - `formatVersion` — always `1`.
 - `channel` — optional; omit for omnichannel. `sendTemplate` steps always send over
-  WhatsApp regardless of this value.
+  WhatsApp regardless of this value. A `sendViewCatalog` step in an omnichannel flow is
+  only sent to WhatsApp contacts (others skip it); set `channel` to check it at publish.
 - `steps` — ordered, executed from the flow's start node. At least one required.
 
 Validated by [`flowSpecSchema`](../packages/flow-config/src/authoring/spec-schema.ts).
@@ -91,6 +106,8 @@ here, so it cannot drift from the schema.
 |---|---|---|
 | `send` | No | Text, image, or file, with optional quick-reply `buttons`. Each button's `then` is a nested step list. |
 | `sendTemplate` | No | Sends an existing WhatsApp template by `templateName`. The template must resolve (by name) to a workspace template with status `APPROVED`. |
+| `sendProducts` | No | Sends catalog products (`display`: `products` or `carousel`) by ChatbotX product id; get ids from `products.listSendable`. Needs a `channel` that supports product messages (WhatsApp); omnichannel flows reject it. Limits per channel come from `capabilities.get`. See `docs/product-messages.md`. |
+| `sendViewCatalog` | No | Shares the product catalog: a message (`text`, optional `footer`) with a button that opens it. Optional `thumbnailProductId` is a catalog item's `retailerId` from `products.searchMetaCatalogItems`. Publish rejects it on channels that cannot deliver it (WhatsApp is the only one today; see `capabilities.get`'s `unsupportedSteps`). In an omnichannel flow (`channel` omitted) it is accepted but only sent to WhatsApp contacts; other contacts skip it. Set `channel: "whatsapp"` to get the publish-time check. |
 | `wait` | No | Pauses for a duration before continuing. |
 | `branch` | **Yes** | Contact-filter-style `cases` (`when`/`match`/`then`) plus an `otherwise`. Terminal within its own step list — nothing may follow a `branch` at the same level; continue inside `cases[].then` / `otherwise` instead. |
 | `action` | No | A workspace side-effect: `addTags`, `removeTags`, `setCustomField`, `assignConversation`, `archiveConversation`. |

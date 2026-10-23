@@ -3,13 +3,19 @@ import enMessages from "../messages/en.json"
 
 const mocks = vi.hoisted(() => ({
   mockWorkspaceCreate: vi.fn(),
+  mockFindActiveByOwner: vi.fn(
+    async (): Promise<{ id: string } | undefined> => undefined,
+  ),
   mockRedirect: vi.fn((path: string) => {
     throw new Error(`redirect:${path}`)
   }),
 }))
 
 vi.mock("@chatbotx.io/business", () => ({
-  workspaceService: { create: mocks.mockWorkspaceCreate },
+  workspaceService: {
+    create: mocks.mockWorkspaceCreate,
+    findActiveByOwner: mocks.mockFindActiveByOwner,
+  },
 }))
 vi.mock("next/navigation", () => ({ redirect: mocks.mockRedirect }))
 
@@ -46,20 +52,33 @@ describe("create-first-workspace", () => {
 
   test("recognises only the listed codes, never prototype members", () => {
     expect(isCreateChannelErrorCode("workspaceLimitReached")).toBe(true)
+    expect(isCreateChannelErrorCode("sessionExpired")).toBe(true)
     expect(isCreateChannelErrorCode("toString")).toBe(false)
     expect(isCreateChannelErrorCode(undefined)).toBe(false)
   })
 
-  test("returns the created workspace on success", async () => {
+  test("returns the created workspace on success when the user owns none yet", async () => {
     mocks.mockWorkspaceCreate.mockResolvedValue({ id: "ws-new" })
 
     await expect(createFirstWorkspace("user-1")).resolves.toEqual({
       id: "ws-new",
     })
+    expect(mocks.mockFindActiveByOwner).toHaveBeenCalledWith({
+      ownerId: "user-1",
+    })
     expect(mocks.mockWorkspaceCreate).toHaveBeenCalledWith({
       data: { name: "New Workspace", ownerId: "user-1" },
       createdBy: "user-1",
     })
+  })
+
+  test("reuses the user's existing workspace instead of minting a second one (regression I7: a GET-route retry/back-button/replay must not create an orphan workspace every time)", async () => {
+    mocks.mockFindActiveByOwner.mockResolvedValueOnce({ id: "ws-existing" })
+
+    await expect(createFirstWorkspace("user-1")).resolves.toEqual({
+      id: "ws-existing",
+    })
+    expect(mocks.mockWorkspaceCreate).not.toHaveBeenCalled()
   })
 
   test("redirects to /channels/create?error=… on a plan-limit failure", async () => {

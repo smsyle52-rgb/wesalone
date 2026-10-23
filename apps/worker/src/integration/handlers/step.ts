@@ -12,7 +12,6 @@ import {
   stepTypes,
   type WaitStepSchema,
 } from "@chatbotx.io/flow-config"
-import { createId } from "@chatbotx.io/utils"
 import {
   type ChatJobSendFlowStep,
   HeavyJobAction,
@@ -20,6 +19,7 @@ import {
   integrationQueue,
 } from "@chatbotx.io/worker-config"
 import { logger } from "../../lib/logger"
+import { mintRandomFlowExecutionKey } from "../flow-execution-key"
 import { syncActiveCampaignContact } from "./active-campaign-handler"
 import { handleAIAnalyzeImage } from "./analyze-image"
 import { appointmentScheduling } from "./appointment-scheduling"
@@ -28,6 +28,7 @@ import {
   addContactNotes,
   addContactSequence,
   addContactTag,
+  changeGamificationScore,
   clearContactCustomField,
   deleteContact,
   markEmailVerified,
@@ -42,6 +43,7 @@ import {
 import { markCouponUsed, setUpCoupon } from "./coupon"
 import { handleAIDeleteMessageHistory } from "./delete-message-history"
 import { subscribeDripSubscriber } from "./drip-handler"
+import { evaluateDecision } from "./evaluate-decision"
 import { handleAIExtractData } from "./extract-data/index"
 import { handleFacebookCustomAudience } from "./facebook-custom-audience-handler"
 import {
@@ -55,6 +57,7 @@ import { handleAIGenerateText } from "./generate-text"
 import { handleAIGenerateTextAgent } from "./generate-text-agent"
 import { addGetResponseContact } from "./get-response-handler"
 import { getUserData } from "./get-user-data"
+import { handleSendGoogleAdsConversionStep } from "./google-ads/send-google-ads-conversion-step-handler"
 import { runViaHeavyWorker } from "./heavy-step-runner"
 import { syncKlaviyoProfile } from "./klaviyo-handler"
 import { addMailchimpMember } from "./mailchimp-handler"
@@ -93,6 +96,7 @@ import {
   stepMarkConversationAsRead,
   stepMarkConversationAsUnread,
   stepSendTyping,
+  stepThreadControl,
   stepUnarchiveConversation,
   stepUnassignConversation,
   stepUnfollowConversation,
@@ -153,6 +157,9 @@ async function splitTraffic({
   nodeVisits,
   commentAnchor,
   appointmentId,
+  triggerMessageId,
+  triggerMessageCreatedAt,
+  startedByContactMessage,
 }: ExecuteStepProps<SplitTrafficStepSchema>) {
   if (!(targetId && step.cases.length)) {
     return
@@ -191,6 +198,9 @@ async function splitTraffic({
         isBulkBroadcast,
         sendFrom,
         nodeVisits,
+        triggerMessageId,
+        triggerMessageCreatedAt,
+        startedByContactMessage,
         commentAnchor,
         appointmentId,
         origin: webhookChannelOrigin(),
@@ -310,6 +320,9 @@ async function startAnotherNode(
       appointmentId: props.appointmentId,
       sendFrom: props.sendFrom,
       nodeVisits: props.nodeVisits,
+      triggerMessageId: props.triggerMessageId,
+      triggerMessageCreatedAt: props.triggerMessageCreatedAt,
+      startedByContactMessage: props.startedByContactMessage,
       commentAnchor: props.commentAnchor,
       origin: webhookChannelOrigin(),
     },
@@ -326,6 +339,9 @@ async function startExternalFlow({
   nodeVisits,
   commentAnchor,
   appointmentId,
+  triggerMessageId,
+  triggerMessageCreatedAt,
+  startedByContactMessage,
 }: ExecuteStepProps<StartExternalFlowStepSchema>) {
   await integrationQueue.add(IntegrationJobAction.sendFlow, {
     type: IntegrationJobAction.sendFlow,
@@ -338,6 +354,9 @@ async function startExternalFlow({
       appointmentId,
       sendFrom,
       nodeVisits,
+      triggerMessageId,
+      triggerMessageCreatedAt,
+      startedByContactMessage,
       commentAnchor,
       origin: webhookChannelOrigin(),
     },
@@ -354,6 +373,9 @@ async function startExternalNode({
   nodeVisits,
   commentAnchor,
   appointmentId,
+  triggerMessageId,
+  triggerMessageCreatedAt,
+  startedByContactMessage,
 }: ExecuteStepProps<StartExternalNodeStepSchema>) {
   await integrationQueue.add(IntegrationJobAction.sendFlow, {
     type: IntegrationJobAction.sendFlow,
@@ -367,6 +389,9 @@ async function startExternalNode({
       appointmentId,
       sendFrom,
       nodeVisits,
+      triggerMessageId,
+      triggerMessageCreatedAt,
+      startedByContactMessage,
       commentAnchor,
       origin: webhookChannelOrigin(),
     },
@@ -398,7 +423,7 @@ function toHeavyStepProps<T extends { id: string }>(
     return { ...props, flowExecutionKey: props.flowExecutionKey }
   }
 
-  const flowExecutionKey = `flow-inline-${createId()}`
+  const flowExecutionKey = mintRandomFlowExecutionKey("flow-inline-")
   logger.warn(
     {
       flowExecutionKey,
@@ -425,6 +450,7 @@ export const flowStepHandlers: Record<
   [stepTypes.enum.archiveConversation]: stepArchiveConversation,
   [stepTypes.enum.assignConversation]: stepAssignConversation,
   [stepTypes.enum.autoAssignConversation]: stepAutoAssignConversation,
+  [stepTypes.enum.threadControl]: stepThreadControl,
   [stepTypes.enum.blockContact]: stepBlockContact,
   [stepTypes.enum.callApi]: externalRequest,
   [stepTypes.enum.make]: handleMakeStep,
@@ -445,6 +471,7 @@ export const flowStepHandlers: Record<
   [stepTypes.enum.activeCampaignSyncContact]: syncActiveCampaignContact,
   [stepTypes.enum.facebookCustomAudience]: handleFacebookCustomAudience,
   [stepTypes.enum.sendMetaCapiEvent]: handleSendMetaCapiEventStep,
+  [stepTypes.enum.sendGoogleAdsConversion]: handleSendGoogleAdsConversionStep,
   [stepTypes.enum.getResponseAddContact]: addGetResponseContact,
   [stepTypes.enum.dripSubscribeSubscriber]: subscribeDripSubscriber,
   [stepTypes.enum.mailchimpAddMember]: addMailchimpMember,
@@ -454,6 +481,7 @@ export const flowStepHandlers: Record<
   [stepTypes.enum.sendGridAddContact]: addSendGridContact,
   [stepTypes.enum.notifyAgent]: undefined,
   [stepTypes.enum.openWebsite]: undefined,
+  [stepTypes.enum.openMiniApp]: undefined,
   [stepTypes.enum.aiAnalyzeImage]: handleAIAnalyzeImage,
   [stepTypes.enum.aiDeleteMessageHistory]: handleAIDeleteMessageHistory,
   [stepTypes.enum.aiEditImage]: (props) =>
@@ -498,6 +526,7 @@ export const flowStepHandlers: Record<
   [stepTypes.enum.setUpCoupon]: setUpCoupon,
   [stepTypes.enum.markCouponUsed]: markCouponUsed,
   [stepTypes.enum.condition]: handleCondition,
+  [stepTypes.enum.evaluateDecision]: evaluateDecision,
   [stepTypes.enum.subscribeBroadcast]: subscribeBroadcast,
   [stepTypes.enum.unsubscribeBroadcast]: unsubscribeBroadcast,
   [stepTypes.enum.splitTraffic]: splitTraffic,
@@ -511,6 +540,7 @@ export const flowStepHandlers: Record<
   [stepTypes.enum.spreadsheetUpdateRow]: updateSpreadsheetRow,
   [stepTypes.enum.waitUserReply]: undefined,
   [stepTypes.enum.subscribeSequence]: addContactSequence,
+  [stepTypes.enum.changeGamificationScore]: changeGamificationScore,
   [stepTypes.enum.unsubscribeSequence]: removeContactSequence,
   [stepTypes.enum.sendQuickReply]: sendFlowMessage,
   [stepTypes.enum.email]: sendEmail,
@@ -519,7 +549,10 @@ export const flowStepHandlers: Record<
   [stepTypes.enum.sendMessengerTemplateMessage]: sendFlowMessage,
   [stepTypes.enum.whatsappOptionList]: sendFlowMessage,
   [stepTypes.enum.whatsappCallButton]: sendFlowMessage,
+  [stepTypes.enum.sendViewCatalog]: sendFlowMessage,
   [stepTypes.enum.whatsappFlow]: sendFlowMessage,
+  [stepTypes.enum.sendProducts]: sendFlowMessage,
+  [stepTypes.enum.whatsappLocation]: sendFlowMessage,
   [stepTypes.enum.setMessengerUserPersistentMenu]:
     setMessengerUserPersistentMenu,
   [stepTypes.enum.enableMessengerComposer]: enableMessengerComposer,

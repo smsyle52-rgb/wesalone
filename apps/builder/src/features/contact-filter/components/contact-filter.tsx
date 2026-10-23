@@ -5,10 +5,10 @@ import { RadioGroupField } from "@chatbotx.io/ui/components/form/radio-group-fie
 import { Label } from "@chatbotx.io/ui/components/ui/label"
 import { useTranslations } from "next-intl"
 import { useEffect, useMemo, useState } from "react"
-import { useFieldArray, useFormContext } from "react-hook-form"
+import { useFieldArray, useFormContext, useWatch } from "react-hook-form"
 import { pruneExcludedConditions } from "../lib/prune-conditions"
 import { getBrowserTimezone } from "../lib/timezone"
-import type { ContactFilterCondition } from "../schema"
+import type { ContactFilterCondition, ContactFilterSurface } from "../schema"
 import { ContactFilterConditionEditDialog } from "./contact-filter-condition-dialog"
 import { ContactFilterConditionForm } from "./contact-filter-condition-form"
 import { ContactFilterConditionRow } from "./contact-filter-condition-row"
@@ -24,6 +24,8 @@ type ContactFilterProps = {
    * v1 surface only — see `useContactFilterConfigs`. Defaults to false.
    */
   includeBotFields?: boolean
+  /** Which surface this filter edits; defaults to the list/audience surfaces. */
+  surface?: ContactFilterSurface
 }
 
 const EMPTY_EXCLUDE_FIELDS: ContactFilterField[] = []
@@ -34,6 +36,7 @@ export const ContactFilter = ({
   inboxChannel,
   enableVariables = false,
   includeBotFields = false,
+  surface = "contacts",
 }: ContactFilterProps) => {
   const t = useTranslations()
   const { control, getValues, setValue } = useFormContext()
@@ -53,9 +56,16 @@ export const ContactFilter = ({
     }
   }, [parentName, getValues, setValue])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const watchedConditions: ContactFilterCondition[] =
+    useWatch({ control, name: `${parentName}.conditions` }) ?? []
 
   const { configs, conditionOptions, operatorLabelByValue } =
-    useContactFilterConfigs(inboxChannel, includeBotFields)
+    useContactFilterConfigs(
+      inboxChannel,
+      includeBotFields,
+      watchedConditions,
+      surface,
+    )
   const filteredConfigs = useMemo(
     () =>
       configs.filter(

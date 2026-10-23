@@ -16,6 +16,11 @@ describe("isPublicRoute", () => {
     expect(isPublicRoute("/api/contacts")).toBe(true)
   })
 
+  test("inbound webhook deliveries (/api/hooks/<token>) need no session", () => {
+    // The sender is an external system; the token in the path is the credential.
+    expect(isPublicRoute("/api/hooks/iwh_abc")).toBe(true)
+  })
+
   test("/go is public so a contact can tap a flow button without a session", () => {
     expect(isPublicRoute("/go/ws-1")).toBe(true)
     expect(isPublicRoute("/goals")).toBe(false)
@@ -25,6 +30,23 @@ describe("isPublicRoute", () => {
     expect(isPublicRoute("/media/attachment/signed-token")).toBe(true)
     expect(isPublicRoute("/media/avatar/signed-token")).toBe(true)
     expect(isPublicRoute("/mediator")).toBe(false)
+  })
+
+  test("/bs is public so a bot simulator link opens without a session", () => {
+    expect(isPublicRoute("/bs/ws-1/webchat-1")).toBe(true)
+    expect(isPublicRoute("/bsx")).toBe(false)
+  })
+
+  test("/mini-apps is public so a Mini App link opens without a session", () => {
+    expect(isPublicRoute("/mini-apps")).toBe(true)
+    expect(isPublicRoute("/mini-appsx")).toBe(false)
+    // The builder pages live under /space and stay private.
+    expect(isPublicRoute("/space/1/mini-apps")).toBe(false)
+  })
+
+  test("/invitations is public because its code is the enrollment capability", () => {
+    expect(isPublicRoute("/invitations/invite-code")).toBe(true)
+    expect(isPublicRoute("/invitationsx/invite-code")).toBe(false)
   })
 
   test("an authenticated app path is not public", () => {
@@ -41,5 +63,10 @@ describe("isPublicRoute", () => {
     expect(isPublicRoute("/rpcadmin")).toBe(false)
     expect(isPublicRoute("/apikeys")).toBe(false)
     expect(isPublicRoute("/authorized-apps")).toBe(false)
+  })
+
+  test("/connect is public so an unauthenticated ConnectSession completion works (T8)", () => {
+    expect(isPublicRoute("/connect")).toBe(true)
+    expect(isPublicRoute("/connect/sess-abc123")).toBe(true)
   })
 })

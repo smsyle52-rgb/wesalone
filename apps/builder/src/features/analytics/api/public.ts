@@ -1,7 +1,8 @@
 import {
+  agentResponseAnalyticsService,
   botMessageAnalyticsService,
   broadcastAnalyticsService,
-  type ContactsByDimension,
+  commentAutomationAnalyticsService,
   contactAnalyticsService,
   conversationAnalyticsService,
   flowAnalyticsService,
@@ -11,8 +12,17 @@ import {
   refLinkAnalyticsService,
   sequenceAnalyticsService,
 } from "@chatbotx.io/analytics"
+import { analyticsTimeRangeCacheKey } from "@chatbotx.io/analytics/schemas"
+import {
+  flowService,
+  inboxService,
+  smartDelayService,
+} from "@chatbotx.io/business"
+import { notFoundException } from "@chatbotx.io/business/errors"
+import type { FlowNode } from "@chatbotx.io/flow-config"
 import { invalidateCacheByTags, withCache } from "@chatbotx.io/redis"
 import type { z } from "zod"
+import { buildSmartDelayNodeStats } from "@/features/flows/analytics/smart-delay-node-stats"
 import { mcpSpec } from "@/lib/orpc/mcp-annotations"
 import {
   possibleErrorsOnDeletingResource,
@@ -21,10 +31,16 @@ import {
 } from "@/lib/orpc/orpc-error-helper"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
 import {
+  agentResponseSeriesPublicResponse,
   botMessagesAIProvidersPublicResponse,
   botMessagesPublicResponse,
   broadcastStatsPublicRequest,
   broadcastStatsPublicResponse,
+  commentAutomationErrorsPublicResponse,
+  commentAutomationListPublicRequest,
+  commentAutomationReplyStatsPublicRequest,
+  commentAutomationReplyStatsPublicResponse,
+  commentAutomationTextTotalsPublicResponse,
   contactCountsPublicResponse,
   contactsByDimensionPublicRequest,
   contactsByDimensionPublicResponse,
@@ -34,6 +50,8 @@ import {
   conversationAssignedPublicResponse,
   conversationFollowUpsPublicResponse,
   conversationHandoffsPublicResponse,
+  filterOptionsPublicResponse,
+  flowSmartDelayStatsPublicResponse,
   flowStatsPublicRequest,
   flowStatsPublicResponse,
   humanAgentStatsPublicResponse,
@@ -52,21 +70,9 @@ import {
   timeRangeWithGranularityMHDPublicRequest,
   uniqueConversationsByAdminPublicResponse,
 } from "../schema/public"
+import { commentAutomationAnalyticsPublicRouter } from "./public-comment-automation"
 
 const workspaceTokenAuthAPI = workspaceTokenAuthAPIForScope("analytics")
-
-// Mirrors the internal `timeRangeKey` helper in
-// `packages/analytics-nextjs/src/routes/contact.ts` (not exported from that
-// package) so the public and internal surfaces share the same cache entries
-// for identical inputs.
-const timeRangeKey = (
-  route: string,
-  workspaceId: string,
-  from: Date,
-  to: Date,
-  timezone: string,
-) =>
-  `analytics:${route}:${workspaceId}:${from.toISOString()}:${to.toISOString()}:${timezone}`
 
 const flowStatsCacheTag = (flowId: string) => `flow-stats:${flowId}`
 const flowStatsCacheKey = (workspaceId: string, flowId: string) =>
@@ -86,13 +92,31 @@ const toLinkContact = (
 })
 
 export const analyticsPublicRouter = {
+  filterOptions: workspaceTokenAuthAPI
+    .route({
+      method: "GET",
+      path: "/v1/analytics/filter-options",
+      summary: "List analytics filter options",
+      description:
+        "Lists the workspace's connected inboxes with their channel. Use the returned `id` values as `inboxIds` and the `channel` values as `channels` on any `analytics.*` call to narrow it; omit both for all channels and inboxes. Disconnected inboxes are not listed; their events still count when `inboxIds` is omitted. Events recorded before inbox tracking existed carry no inbox, and older bot-message and conversation events carry no channel either, so those are only counted without the matching filter. Omitting both filters always counts everything.",
+      tags: ["Analytics"],
+    })
+    .output(filterOptionsPublicResponse)
+    .errors(possibleErrorsOnListingResource)
+    .handler(async ({ context }) => {
+      const data = await inboxService.listAnalyticsFilterOptions(
+        context.workspace.id,
+      )
+      return { data }
+    }),
+
   contactCountsPerDay: workspaceTokenAuthAPI
     .route({
       method: "GET",
       path: "/v1/analytics/contact-counts-per-day",
       summary: "Get contact counts per day",
       description:
-        "Use this to chart total contacts over a requested time range. Compare it with `analytics.newContactCountsPerDay` to isolate acquisition from the running total.",
+        "Charts the running total of contacts (created minus deleted, counted from the start of the workspace) at each day in the range. When `to` is more than 60 full days after `from`, the series uses monthly buckets (first day of the month) instead of daily ones. Compare it with `analytics.newContactCountsPerDay` to isolate acquisition from the running total.",
       tags: ["Analytics"],
     })
     .input(timeRangePublicRequest)
@@ -112,7 +136,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/new-contact-counts-per-day",
       summary: "Get new contact counts per day",
       description:
-        "Use this to chart newly created contacts over a requested time range. Compare it with `analytics.blockedContactsPerDay` to separate acquisition trends from blocked contacts.",
+        "Charts newly created contacts per day in the range. When `to` is more than 60 full days after `from`, the series uses monthly buckets (first day of the month) instead of daily ones. Compare it with `analytics.blockedContactsPerDay` to separate acquisition trends from blocked contacts.",
       tags: ["Analytics"],
       spec: mcpSpec({ visibility: "default" }),
     })
@@ -133,7 +157,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/blocked-contacts-per-day",
       summary: "Get blocked contacts per day",
       description:
-        "Use this to chart contacts blocked during a requested time range. Compare it with `analytics.newContactCountsPerDay` to distinguish blocking trends from new contacts.",
+        "Charts contacts blocked per day in the range. When `to` is more than 60 full days after `from`, the series uses monthly buckets (first day of the month) instead of daily ones. Compare it with `analytics.newContactCountsPerDay` to distinguish blocking trends from new contacts.",
       tags: ["Analytics"],
       spec: mcpSpec({ visibility: "default" }),
     })
@@ -163,13 +187,10 @@ export const analyticsPublicRouter = {
     .handler(({ context, input }) => {
       const workspaceId = context.workspace.id
       return withCache(
-        timeRangeKey(
-          "blocked-contacts-count",
+        analyticsTimeRangeCacheKey("blocked-contacts-count", {
+          ...input,
           workspaceId,
-          input.from,
-          input.to,
-          input.timezone,
-        ),
+        }),
         async () => {
           const count = await contactAnalyticsService.getBlockedContactsCount({
             ...input,
@@ -196,13 +217,10 @@ export const analyticsPublicRouter = {
     .handler(({ context, input }) => {
       const workspaceId = context.workspace.id
       return withCache(
-        timeRangeKey(
-          "new-contacts-count",
+        analyticsTimeRangeCacheKey("new-contacts-count", {
+          ...input,
           workspaceId,
-          input.from,
-          input.to,
-          input.timezone,
-        ),
+        }),
         async () => {
           const count = await contactAnalyticsService.getNewContactsCount({
             ...input,
@@ -220,7 +238,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/contacts-count",
       summary: "Get contacts count",
       description:
-        "Use this for total contacts over a time range. Counts all contacts that existed at any point within the given `from`/`to` time range.",
+        "Returns the current total number of contacts across the workspace's inboxes. `from`, `to` and `timezone` are accepted for consistency with the other analytics routes but do not narrow this count; use `analytics.contactCountsPerDay` or `analytics.newContactsCount` for counts over a range.",
       tags: ["Analytics"],
     })
     .input(timeRangePublicRequest)
@@ -229,13 +247,7 @@ export const analyticsPublicRouter = {
     .handler(({ context, input }) => {
       const workspaceId = context.workspace.id
       return withCache(
-        timeRangeKey(
-          "contacts-count",
-          workspaceId,
-          input.from,
-          input.to,
-          input.timezone,
-        ),
+        analyticsTimeRangeCacheKey("contacts-count", { ...input, workspaceId }),
         async () => {
           const count = await contactAnalyticsService.getContactsCount({
             ...input,
@@ -262,13 +274,10 @@ export const analyticsPublicRouter = {
     .handler(({ context, input }) => {
       const workspaceId = context.workspace.id
       return withCache(
-        timeRangeKey(
-          "active-contacts-count",
+        analyticsTimeRangeCacheKey("active-contacts-count", {
+          ...input,
           workspaceId,
-          input.from,
-          input.to,
-          input.timezone,
-        ),
+        }),
         async () => {
           const count =
             await macAnalyticsService.getActiveContactsByWorkspaceForRange({
@@ -287,7 +296,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/contacts-by-dimension",
       summary: "Get contacts by dimension",
       description:
-        "Use this for a breakdown of contacts by channel, country, or source. Groups contact counts by country, channel, or source over a time range. Set `dimension` to choose the grouping.",
+        "Use this for a breakdown of contacts by channel, source, language, or country. Set `dimension` to choose the grouping. `language` groups by the contact language recorded when the contact was created (contacts without one are omitted). With `metric` `new` (default) it counts contacts created between `from` and `to`. With `metric` `total` it counts the contacts that exist as of `to` (`from` is ignored; only `channel` and `source`). Narrow every analytics call with `channels` and `inboxIds`; the ids come from `analytics.filterOptions`.",
       tags: ["Analytics"],
     })
     .input(contactsByDimensionPublicRequest)
@@ -295,21 +304,7 @@ export const analyticsPublicRouter = {
     .errors(possibleErrorsOnListingResource)
     .handler(async ({ context, input }) => {
       const request = { ...input, workspaceId: context.workspace.id }
-      let data: ContactsByDimension[] = []
-
-      switch (input.dimension) {
-        case "country":
-          data = await contactAnalyticsService.getContactsByCountry(request)
-          break
-        case "channel":
-          data = await contactAnalyticsService.getContactsByChannel(request)
-          break
-        case "source":
-          data = await contactAnalyticsService.getContactsBySource(request)
-          break
-        default:
-          data = []
-      }
+      const data = await contactAnalyticsService.getContactsByDimension(request)
 
       return { data }
     }),
@@ -340,7 +335,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/human-agent-stats",
       summary: "Get human agent statistics",
       description:
-        "Returns response-time and volume statistics for human agents over a requested time range.",
+        "Returns statistics per current workspace member (agents who left the workspace are omitted) over a requested time range: messages sent, unique contacts messaged, conversations assigned, and response times. Response-time fields are in SECONDS, rounded to whole seconds: `avgResponseSeconds` (every human reply to a customer message), `avgFirstResponseSeconds` (only the first human reply in a conversation, i.e. the first reply after the customer's message when no human had yet replied), and `avgWorkingResponseSeconds` / `avgWorkingFirstResponseSeconds`, which count only the time that falls within the replying agent's working-hours schedule (outside-hours waiting is excluded; null when the agent has no schedule). An average is `null` (not 0) when the agent has no matching replies in the range; `responseCount` and `firstResponseCount` give the number of replies behind the all-replies and first-response averages (0 when none). `responseSlaEligibleCount` / `responseSlaMetCount` / `responseSlaMetPercent` (and the `firstResponse…` trio) report the response SLA (`responseSla.get`): eligible = replies whose waiting window had an SLA, percent = met / eligible, `null` when none was eligible (replies without an SLA are never counted as misses). For per-day trends use `analytics.agentResponseSeries`.",
       tags: ["Analytics"],
     })
     .input(timeRangePublicRequest)
@@ -354,13 +349,33 @@ export const analyticsPublicRouter = {
       return { data }
     }),
 
+  agentResponseSeries: workspaceTokenAuthAPI
+    .route({
+      method: "GET",
+      path: "/v1/analytics/agent-response-series",
+      summary: "Get agent response time series",
+      description:
+        "Returns human-agent response times per agent per day over a requested time range, for charting trends. One row per (agent, day) that has at least one reply; days are `YYYY-MM-DD` bucketed in the request `timezone` (IANA). `adminId` is the user id of a current workspace member: get ids, names and emails from the same agents listed by `analytics.humanAgentStats` (`adminId`); agents who left the workspace are omitted. Averages are in SECONDS, rounded to whole seconds: `avgResponseSeconds` (all replies), `avgFirstResponseSeconds` (first human reply in a conversation only), and `avgWorkingResponseSeconds` / `avgWorkingFirstResponseSeconds`, which count only time within the replying agent's working-hours schedule (null when the agent has no schedule). An average is `null` (not 0) when no matching replies exist for that agent and day; `responseCount` and `firstResponseCount` are the replies behind them. The response-SLA fields (`responseSlaMetPercent` etc., null when nothing was eligible) follow the same per-day bucketing.",
+      tags: ["Analytics"],
+    })
+    .input(timeRangePublicRequest)
+    .output(agentResponseSeriesPublicResponse)
+    .errors(possibleErrorsOnListingResource)
+    .handler(async ({ context, input }) => {
+      const data = await agentResponseAnalyticsService.getAgentResponseSeries({
+        ...input,
+        workspaceId: context.workspace.id,
+      })
+      return { data }
+    }),
+
   conversationHandoffs: workspaceTokenAuthAPI
     .route({
       method: "GET",
       path: "/v1/analytics/conversation-handoffs",
       summary: "Get conversation handoffs",
       description:
-        "Counts conversations handed off from the bot to a human agent, by day, over a requested time range.",
+        "Counts conversation transfers by day over a requested time range, in both directions: bot to human agent and human agent back to bot. Each row carries its `direction` (`to_human` or `to_bot`).",
       tags: ["Analytics"],
     })
     .input(timeRangePublicRequest)
@@ -440,7 +455,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/conversation-assigned-by-admin",
       summary: "Get assigned conversations by admin",
       description:
-        "Counts conversations assigned, broken down by the admin who assigned them, over a requested time range.",
+        "Counts conversation assignments over a requested time range, broken down by the member the conversation was assigned to (`toAssignee`, with that member's name and email).",
       tags: ["Analytics"],
     })
     .input(timeRangePublicRequest)
@@ -460,7 +475,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/unique-conversations-by-admin",
       summary: "Get unique conversations by admin",
       description:
-        "Counts distinct conversations each admin handled, over a requested time range. Use `analytics.conversationAssignedByAdmin` for assignment counts instead.",
+        "Counts the distinct conversations assigned to each member over a requested time range (a conversation assigned to the same member twice counts once). Use `analytics.conversationAssignedByAdmin` for the number of assignment events.",
       tags: ["Analytics"],
     })
     .input(timeRangePublicRequest)
@@ -481,7 +496,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/bot-messages-by-result",
       summary: "Get bot messages by result",
       description:
-        "Counts bot messages grouped by their outcome (e.g. answered, fallback), over a requested time range with `granularity` bucketing.",
+        "Counts bot messages grouped by their outcome, `success` or `fallback`, over a requested time range with `granularity` bucketing.",
       tags: ["Analytics"],
     })
     .input(timeRangeWithGranularityMHDPublicRequest)
@@ -501,7 +516,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/bot-messages-with-response",
       summary: "Get bot messages with response",
       description:
-        "Counts bot messages that received a follow-up reply, over a requested time range with `granularity` bucketing.",
+        "Counts bot-received message events flagged as answered, i.e. the bot started an automated response, flow or AI agent for the inbound message, over a requested time range with `granularity` bucketing. It counts events, and does not measure whether the contact replied afterwards.",
       tags: ["Analytics"],
     })
     .input(timeRangeWithGranularityMHDPublicRequest)
@@ -521,7 +536,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/bot-messages-no-response",
       summary: "Get bot messages with no response",
       description:
-        "Counts bot messages that did not receive a follow-up reply, over a requested time range with `granularity` bucketing.",
+        "Counts bot-received message events for which the bot started no automated response, flow or AI agent, over a requested time range with `granularity` bucketing.",
       tags: ["Analytics"],
     })
     .input(timeRangeWithGranularityMHDPublicRequest)
@@ -541,7 +556,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/bot-messages-ai-providers",
       summary: "Get bot messages AI providers",
       description:
-        "Counts bot messages grouped by the AI provider that generated them, over a requested time range.",
+        "Counts AI-agent replies grouped by the AI provider that generated them, with each provider's share (`percentage`), over a requested time range. Replies that did not come from an AI agent are not counted.",
       tags: ["Analytics"],
     })
     .input(timeRangePublicRequest)
@@ -561,7 +576,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/messages-by-sender",
       summary: "Get messages by sender",
       description:
-        "Counts messages grouped by sender (bot vs human agent), over a requested time range with `granularity` bucketing.",
+        "Counts messages grouped by sender type (bot vs human agent) and channel, over a requested time range. `granularity` sets the bucket size, but when `to` is more than 60 full days after `from` monthly buckets are always used. Messages without a channel or sender type are not counted.",
       tags: ["Analytics"],
     })
     .input(timeRangeWithGranularityDMPublicRequest)
@@ -581,7 +596,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/broadcasts/{broadcastId}/stats",
       summary: "Get broadcast stats",
       description:
-        "Use this after resolving a broadcast with `broadcasts.get` to inspect sent, delivered, read, and failed counts. Compare results with `analytics.flowStats` for automation performance.",
+        "Use this after resolving a broadcast with `broadcasts.get` to inspect sent, delivered, seen, and failed counts. Compare results with `analytics.flowStats` for automation performance.",
       tags: ["Analytics"],
       spec: mcpSpec({ visibility: "default" }),
     })
@@ -653,7 +668,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/flows/{flowId}/stats",
       summary: "Get flow analytics",
       description:
-        "Use this after resolving a flow with `flows.get` to inspect its session and completion counts. Call `analytics.newContactCountsPerDay` instead for workspace contact trends.",
+        "Returns per-node statistics for a flow, keyed by send-message node id: `message:sent`, `message:delivered`, `message:seen`, `message:failed`, `flow:clicked` (`clicked`, and `totalUsers`, which is the delivered count) and per-button clicks, for the current analytics session (`analytics.resetFlowStats` starts a new one). Resolve the flow with `flows.get` first. Call `analytics.newContactCountsPerDay` instead for workspace contact trends.",
       tags: ["Analytics"],
       spec: mcpSpec({ visibility: "default" }),
     })
@@ -673,13 +688,132 @@ export const analyticsPublicRouter = {
       )
     }),
 
+  flowSmartDelayStats: workspaceTokenAuthAPI
+    .route({
+      method: "GET",
+      path: "/v1/analytics/flows/{flowId}/smart-delay-stats",
+      summary: "Get flow wait and follow-up counts",
+      description:
+        "Per wait or follow-up node of the flow's draft version (keyed by node id): contacts still `waiting` and contacts that were `sent` onward. These are not part of `analytics.flowStats`. Find node ids with `flows.get`.",
+      tags: ["Analytics"],
+    })
+    .input(flowStatsPublicRequest)
+    .output(flowSmartDelayStatsPublicResponse)
+    .errors(possibleErrorsOnFindingResource)
+    .handler(async ({ context, input }) => {
+      const workspaceId = context.workspace.id
+      const flow = await flowService.findById({ id: input.flowId, workspaceId })
+      const draft = flow.flowVersions?.find((version) => version.isDraft)
+      if (!draft) {
+        throw notFoundException("Flow has no draft version")
+      }
+      const rows = await smartDelayService.countByFlowStep({
+        workspaceId,
+        flowId: input.flowId,
+      })
+      return buildSmartDelayNodeStats(
+        draft.nodes as unknown as FlowNode[],
+        rows,
+      )
+    }),
+
+  commentAutomationReplyStats: workspaceTokenAuthAPI
+    .route({
+      method: "GET",
+      path: "/v1/analytics/comment-automation/replies",
+      summary: "Get comment automation reply counts",
+      description:
+        "Replies the comment automation sent per day in a range. When `to` is more than 60 full days after `from`, the series uses monthly buckets (first day of the month) instead of daily ones. Use `analytics.commentAutomationUserComments` and `analytics.commentAutomationBotReplies` for the texts behind the counts.",
+      tags: ["Analytics"],
+    })
+    .input(commentAutomationReplyStatsPublicRequest)
+    .output(commentAutomationReplyStatsPublicResponse)
+    .errors(possibleErrorsOnListingResource)
+    .handler(async ({ context, input }) => {
+      const { from, to, ...rest } = input
+      return {
+        data: await commentAutomationAnalyticsService.getReplyStatsByDateRange({
+          ...rest,
+          startDate: from,
+          endDate: to,
+          workspaceId: context.workspace.id,
+        }),
+      }
+    }),
+
+  commentAutomationUserComments: workspaceTokenAuthAPI
+    .route({
+      method: "GET",
+      path: "/v1/analytics/comment-automation/user-comments",
+      summary: "List comment automation customer comments",
+      description:
+        "Distinct customer comments the automation matched in a range, with how often each occurred, paged with `page`/`perPage` and filterable by `keyword`. The texts are customer-written and returned verbatim.",
+      tags: ["Analytics"],
+    })
+    .input(commentAutomationListPublicRequest)
+    .output(commentAutomationTextTotalsPublicResponse)
+    .errors(possibleErrorsOnListingResource)
+    .handler(async ({ context, input }) => {
+      const { from, to, ...rest } = input
+      return await commentAutomationAnalyticsService.listUserComments({
+        ...rest,
+        startDate: from,
+        endDate: to,
+        workspaceId: context.workspace.id,
+      })
+    }),
+
+  commentAutomationBotReplies: workspaceTokenAuthAPI
+    .route({
+      method: "GET",
+      path: "/v1/analytics/comment-automation/bot-replies",
+      summary: "List comment automation bot replies",
+      description:
+        "Distinct replies the automation posted in a range, with how often each was sent, paged with `page`/`perPage` and filterable by `keyword`.",
+      tags: ["Analytics"],
+    })
+    .input(commentAutomationListPublicRequest)
+    .output(commentAutomationTextTotalsPublicResponse)
+    .errors(possibleErrorsOnListingResource)
+    .handler(async ({ context, input }) => {
+      const { from, to, ...rest } = input
+      return await commentAutomationAnalyticsService.listBotReplies({
+        ...rest,
+        startDate: from,
+        endDate: to,
+        workspaceId: context.workspace.id,
+      })
+    }),
+
+  commentAutomationErrors: workspaceTokenAuthAPI
+    .route({
+      method: "GET",
+      path: "/v1/analytics/comment-automation/errors",
+      summary: "List comment automation errors",
+      description:
+        "Failed comment replies in a range with the reason and the contact's name and avatar. Failed rows are kept for 30 days only.",
+      tags: ["Analytics"],
+    })
+    .input(commentAutomationListPublicRequest)
+    .output(commentAutomationErrorsPublicResponse)
+    .errors(possibleErrorsOnListingResource)
+    .handler(async ({ context, input }) => {
+      const { from, to, ...rest } = input
+      return await commentAutomationAnalyticsService.listErrors({
+        ...rest,
+        startDate: from,
+        endDate: to,
+        workspaceId: context.workspace.id,
+      })
+    }),
+
   magicLinkStats: workspaceTokenAuthAPI
     .route({
       method: "GET",
       path: "/v1/analytics/magic-links/stats",
       summary: "Get magic link stats",
       description:
-        "Returns click/conversion counts for one magic link over a time range. Use `analytics.magicLinkContacts` to list the contacts behind those counts.",
+        "Returns the number of recorded openings of one magic link per day over a time range (`dateReport`, `count`); repeat opens from the same contact inbox within the same second count once. There is no conversion metric. Use `analytics.magicLinkContacts` to list the contacts behind those counts.",
       tags: ["Analytics"],
     })
     .input(linkStatsPublicRequest)
@@ -727,7 +861,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/ref-links/stats",
       summary: "Get ref link stats",
       description:
-        "Returns click/conversion counts for one ref link over a time range. Use `analytics.refLinkContacts` to list the contacts behind those counts.",
+        "Returns the number of processed referral events of one ref link per day over a time range (`dateReport`, `count`). There is no conversion metric. Use `analytics.refLinkContacts` to list the contacts behind those counts.",
       tags: ["Analytics"],
     })
     .input(linkStatsPublicRequest)
@@ -773,7 +907,7 @@ export const analyticsPublicRouter = {
       path: "/v1/analytics/flows/{flowId}/stats",
       summary: "Reset flow analytics",
       description:
-        "Clears the flow's recorded analytics sessions and counters and opens a new session; it does not delete or otherwise touch the flow itself. This cannot be undone. Unavailable to read_only tokens (DELETE is blocked for read_only permission).",
+        "Clears the flow's recorded analytics sessions and counters and opens a new session; it does not delete or otherwise touch the flow itself. This cannot be undone. A flow id that is not in this workspace is a no-op (still 204). Unavailable to read_only tokens (DELETE is blocked for read_only permission).",
       successStatus: 204,
       tags: ["Analytics"],
     })
@@ -787,4 +921,6 @@ export const analyticsPublicRouter = {
       })
       await invalidateCacheByTags([flowStatsCacheTag(input.flowId)])
     }),
+
+  ...commentAutomationAnalyticsPublicRouter,
 }

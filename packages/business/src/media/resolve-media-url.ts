@@ -71,13 +71,32 @@ export const isPendingOriginPath = (originPath: string): boolean =>
 export const isFailedOriginPath = (originPath: string): boolean =>
   originPath.startsWith(FAILED_PREFIX)
 
-const buildProxyUrl = async (props: {
-  kind: "attachment" | "avatar"
-  refId: string
-  workspaceId: string
-  messageCreatedAt?: number
-}): Promise<string> => {
-  const token = await signMediaToken(props)
+/**
+ * True for a key that names an object in our storage. A pending reference (a
+ * provider URL or `wa-media:` id) or a failed marker names nothing there, so
+ * deleting it would only issue a request that cannot succeed.
+ */
+export const isStoredObjectPath = (originPath: string): boolean =>
+  !(isPendingOriginPath(originPath) || isFailedOriginPath(originPath))
+
+// A fallback URL is only used after its attachment's presigned storage URL
+// (1 hour) fails, so it must outlive it — otherwise an inbox left open past the
+// hour has an expired fallback exactly when it needs one.
+const FALLBACK_TOKEN_TTL_MS = 24 * 60 * 60 * 1000
+
+const buildProxyUrl = async (
+  props: {
+    kind: "attachment" | "avatar"
+    refId: string
+    workspaceId: string
+    messageCreatedAt?: number
+  },
+  ttlMs?: number,
+): Promise<string> => {
+  const token =
+    ttlMs === undefined
+      ? await signMediaToken(props)
+      : await signMediaToken(props, ttlMs)
   // White-label: proxied media must resolve on the workspace's own (custom)
   // domain, not the platform default, so the branded origin is preserved for
   // tenants on a custom domain. resolveWorkspaceAppUrl is withCache-backed, so
@@ -128,6 +147,34 @@ const resolveAttachmentUrl = async (
     })
   }
   return await finalize(ref.originPath)
+}
+
+/**
+ * Proxy URL the client falls back to when an attachment's first URL fails to
+ * load: an expired presign or an object evicted from storage for a mirrored
+ * row, an expired provider URL for a pending one. The proxy serves the stored
+ * copy when there is one and, on `?retry=1`, re-derives the media from the
+ * channel. Only hydration channels have that path, so every other attachment
+ * gets no fallback.
+ */
+export const resolveAttachmentFallbackUrl = async (
+  ref: Omit<AttachmentMediaRef, "kind">,
+): Promise<string | null> => {
+  if (
+    !HYDRATION_CHANNELS.has(ref.channel) ||
+    isFailedOriginPath(ref.originPath)
+  ) {
+    return null
+  }
+  return await buildProxyUrl(
+    {
+      kind: "attachment",
+      refId: ref.attachmentId,
+      workspaceId: ref.workspaceId,
+      messageCreatedAt: ref.messageCreatedAt?.getTime(),
+    },
+    FALLBACK_TOKEN_TTL_MS,
+  )
 }
 
 const resolveAvatarUrl = async (

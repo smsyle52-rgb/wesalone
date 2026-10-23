@@ -1,25 +1,27 @@
+// @vitest-environment node
+
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
 // ---------------------------------------------------------------------------
-// The four LLM provider connect actions (Claude, DeepSeek, Gemini, OpenAI) —
-// thin wrappers that verify the API key, then delegate to the provider's
-// business-layer connect() and invalidate the AI cache. No db/schema
-// imports remain in these actions.
+// The five LLM provider connect actions (Claude, DeepSeek, Gemini, OpenAI,
+// OpenRouter) — thin wrappers that verify the API key via the shared
+// tri-state `verifyAiProviderApiKey`, then delegate to the Connection
+// domain's `connectionService.connectFromCredentials` (the same engine path
+// `integrations/api/public/ai.ts`'s deprecated `PUT` route uses) and
+// invalidate the AI cache. A second write path to the same rows the
+// Connection engine also writes (each provider's own legacy
+// `integrationClaudeService.connect`-style service, called directly) would
+// cause 409 conflicts, so these actions delegate to the engine instead.
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
-  connectClaude: vi.fn(),
-  connectDeepSeek: vi.fn(),
-  connectGemini: vi.fn(),
-  connectOpenAI: vi.fn(),
+  connectFromCredentials: vi.fn(),
   invalidateCache: vi.fn(),
   returnValidationErrors: vi.fn(
     (_schema: unknown, errors: Record<string, unknown>) => ({
       validationErrors: errors,
     }),
   ),
-  verifyClaudeApiKey: vi.fn(),
-  verifyDeepSeekApiKey: vi.fn(),
   verifyAiProviderApiKey: vi.fn(),
 }))
 
@@ -35,11 +37,8 @@ vi.mock("@/features/common/schema", () => ({
   workspaceIdrequestParams: [],
 }))
 
-vi.mock("@chatbotx.io/business", () => ({
-  integrationClaudeService: { connect: mocks.connectClaude },
-  integrationDeepSeekService: { connect: mocks.connectDeepSeek },
-  integrationGeminiService: { connect: mocks.connectGemini },
-  integrationOpenAIService: { connect: mocks.connectOpenAI },
+vi.mock("@chatbotx.io/connections", () => ({
+  connectionService: { connectFromCredentials: mocks.connectFromCredentials },
 }))
 
 vi.mock("@chatbotx.io/ai", async (importOriginal) => {
@@ -52,6 +51,7 @@ vi.mock("@chatbotx.io/ai", async (importOriginal) => {
         deepseek: "deepseek",
         gemini: "gemini",
         openai: "openai",
+        openrouter: "openrouter",
       },
     },
   }
@@ -69,16 +69,13 @@ vi.mock("next-safe-action", () => ({
   returnValidationErrors: mocks.returnValidationErrors,
 }))
 
-vi.mock("../src/features/integration-claude/lib", () => ({
-  verifyClaudeApiKey: mocks.verifyClaudeApiKey,
-}))
-vi.mock("../src/features/integration-deepseek/lib", () => ({
-  verifyDeepSeekApiKey: mocks.verifyDeepSeekApiKey,
-}))
-vi.mock("../src/features/integration-ai/lib/verify-api-key", () => ({
+vi.mock("@chatbotx.io/business/integration-ai-provider/verify", () => ({
   verifyAiProviderApiKey: mocks.verifyAiProviderApiKey,
 }))
-
+// Dynamic imports are required here (not a static-import violation): the
+// action modules must load *after* the vi.mock registrations above are in
+// place, so each action's `verifyAiProviderApiKey`/`connectionService`
+// imports resolve to the test doubles instead of the real implementations.
 const { connectClaudeAction } = await import(
   "@/features/integration-claude/actions/connect.action"
 )
@@ -90,6 +87,9 @@ const { connectGeminiAction } = await import(
 )
 const { connectOpenAIAction } = await import(
   "@/features/integration-openai/actions/connect.action"
+)
+const { connectOpenRouterAction } = await import(
+  "@/features/integration-openrouter/actions/connect.action"
 )
 
 type ActionHandler<TParsedInput, TBindArgs extends unknown[]> = (props: {
@@ -113,40 +113,32 @@ beforeEach(() => {
 describe.each([
   {
     action: () => connectClaudeAction,
-    connect: mocks.connectClaude,
     expectedProviderArg: "claude",
     label: "Claude",
-    verify: mocks.verifyClaudeApiKey,
   },
   {
     action: () => connectDeepSeekAction,
-    connect: mocks.connectDeepSeek,
     expectedProviderArg: "deepseek",
     label: "DeepSeek",
-    verify: mocks.verifyDeepSeekApiKey,
   },
   {
     action: () => connectGeminiAction,
-    connect: mocks.connectGemini,
     expectedProviderArg: "gemini",
     label: "Gemini",
-    verify: mocks.verifyAiProviderApiKey,
   },
   {
     action: () => connectOpenAIAction,
-    connect: mocks.connectOpenAI,
     expectedProviderArg: "openai",
     label: "OpenAI",
-    verify: mocks.verifyAiProviderApiKey,
   },
-])("$label connect action", ({
-  action,
-  connect,
-  expectedProviderArg,
-  verify,
-}) => {
-  test("returns a validation error and never calls connect when the key is invalid", async () => {
-    verify.mockResolvedValue(false)
+  {
+    action: () => connectOpenRouterAction,
+    expectedProviderArg: "openrouter",
+    label: "OpenRouter",
+  },
+])("$label connect action", ({ action, expectedProviderArg }) => {
+  test("returns a validation error and never calls connectFromCredentials when the key is invalid", async () => {
+    mocks.verifyAiProviderApiKey.mockResolvedValue("invalid")
 
     const result = await (
       action() as unknown as ActionHandler<typeof baseInput, [string]>
@@ -160,24 +152,53 @@ describe.each([
         apiKey: { _errors: ["validation.invalidApiKey"] },
       },
     })
-    expect(connect).not.toHaveBeenCalled()
+    expect(mocks.connectFromCredentials).not.toHaveBeenCalled()
     expect(mocks.invalidateCache).not.toHaveBeenCalled()
   })
 
-  test("connects then invalidates the AI cache for the right provider when the key is valid", async () => {
-    verify.mockResolvedValue(true)
+  test("connects via connectFromCredentials (allowUpdate: true) then invalidates the AI cache for the right provider when the key is valid", async () => {
+    mocks.verifyAiProviderApiKey.mockResolvedValue("valid")
 
     await (action() as unknown as ActionHandler<typeof baseInput, [string]>)({
       parsedInput: baseInput,
       bindArgsParsedInputs: [workspaceId],
     })
 
-    expect(connect).toHaveBeenCalledWith({
+    expect(mocks.connectFromCredentials).toHaveBeenCalledWith({
       workspaceId,
-      apiKey: baseInput.apiKey,
-      model: baseInput.model,
-      temperature: baseInput.temperature,
-      maxOutputTokens: baseInput.maxOutputTokens,
+      provider: expectedProviderArg,
+      config: {
+        apiKey: baseInput.apiKey,
+        model: baseInput.model,
+        temperature: baseInput.temperature,
+        maxOutputTokens: baseInput.maxOutputTokens,
+      },
+      allowUpdate: true,
+    })
+    expect(mocks.invalidateCache).toHaveBeenCalledWith(
+      workspaceId,
+      expectedProviderArg,
+    )
+  })
+
+  test("connects then invalidates the AI cache for the right provider when the verification is inconclusive", async () => {
+    mocks.verifyAiProviderApiKey.mockResolvedValue("unknown")
+
+    await (action() as unknown as ActionHandler<typeof baseInput, [string]>)({
+      parsedInput: baseInput,
+      bindArgsParsedInputs: [workspaceId],
+    })
+
+    expect(mocks.connectFromCredentials).toHaveBeenCalledWith({
+      workspaceId,
+      provider: expectedProviderArg,
+      config: {
+        apiKey: baseInput.apiKey,
+        model: baseInput.model,
+        temperature: baseInput.temperature,
+        maxOutputTokens: baseInput.maxOutputTokens,
+      },
+      allowUpdate: true,
     })
     expect(mocks.invalidateCache).toHaveBeenCalledWith(
       workspaceId,

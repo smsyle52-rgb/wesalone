@@ -1,5 +1,6 @@
 import type { HTTPMethod } from "@orpc/server"
 import { beforeEach, describe, expect, test, vi } from "vitest"
+import { FILTER_VALUE_LABELS_POST_PATH } from "@/features/contact-filter/lib/api-paths"
 import { CONVERSATIONS_LIST_POST_PATH } from "@/features/conversations/lib/api-paths"
 
 const { getAccessState, isAtLimit, isCloud } = vi.hoisted(() => ({
@@ -175,6 +176,21 @@ describe("isReadOnlyTokenAllowedMethod", () => {
     ).toBe(true)
   })
 
+  test("allows POST to the public filter value-labels read, and not its PUT", () => {
+    expect(
+      isReadOnlyTokenAllowedMethod("POST", "/v1/contacts/filter-value-labels"),
+    ).toBe(true)
+    expect(
+      isReadOnlyTokenAllowedMethod("PUT", "/v1/contacts/filter-value-labels"),
+    ).toBe(false)
+  })
+
+  test("does not let a read_only token run the broadcast audience preview", () => {
+    expect(
+      isReadOnlyTokenAllowedMethod("POST", "/v1/broadcasts/audience/preview"),
+    ).toBe(false)
+  })
+
   test("rejects POST/PUT/PATCH to every other path", () => {
     expect(isReadOnlyTokenAllowedMethod("POST", "/v1/ads/campaigns")).toBe(
       false,
@@ -211,6 +227,38 @@ describe("assertWorkspaceOwnerAccessForMethod", () => {
         path: "/workspaces/{workspaceId}/conversations/list",
       }),
     ).resolves.toBeUndefined()
+  })
+
+  test("allows the filter value labels POST path for a trial-expired workspace", async () => {
+    isCloud.mockReturnValue(true)
+    getAccessState.mockResolvedValue({ blocked: true, reason: "status" })
+
+    await expect(
+      assertWorkspaceOwnerAccessForMethod({
+        method: "POST",
+        ownerId: "owner-1",
+        path: FILTER_VALUE_LABELS_POST_PATH,
+      }),
+    ).resolves.toBeUndefined()
+  })
+
+  test("allows stopping a broadcast on a trial-expired workspace (UI parity)", async () => {
+    isCloud.mockReturnValue(true)
+    getAccessState.mockResolvedValue({ blocked: true, reason: "status" })
+
+    await expect(
+      assertWorkspaceOwnerAccessForMethod({
+        method: "POST",
+        ownerId: "owner-1",
+        path: "/v1/broadcasts/{id}/stop",
+      }),
+    ).resolves.toBeUndefined()
+  })
+
+  test("a read_only token still cannot stop a broadcast", () => {
+    expect(
+      isReadOnlyTokenAllowedMethod("POST", "/v1/broadcasts/{id}/stop"),
+    ).toBe(false)
   })
 
   test("blocks a different POST path for a trial-expired workspace", async () => {

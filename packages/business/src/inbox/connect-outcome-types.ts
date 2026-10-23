@@ -35,13 +35,23 @@ export const CONNECT_FAILURE_REASONS = {
   workspaceLimit: "workspaceLimit",
   // SdkException from Meta.
   providerRejected: "providerRejected",
+  // Transient SdkException (5xx, 408, 429, or flagged retryable): try again.
+  providerUnavailable: "providerUnavailable",
+  // Internal persistence, crypto, or implementation failure.
+  internalError: "internalError",
+  // A concurrent request owns the target's unexpired connect lease.
+  inProgress: "inProgress",
   unknown: "unknown",
 } as const
 export type ConnectFailureReason =
   (typeof CONNECT_FAILURE_REASONS)[keyof typeof CONNECT_FAILURE_REASONS]
 
 /** Follow-up after commit failed; the row exists. */
-export const CONNECT_WARNINGS = { followUpFailed: "followUpFailed" } as const
+export const CONNECT_WARNINGS = {
+  followUpFailed: "followUpFailed",
+  /** Connected, but the provider's webhook subscription failed — the FSM marked the connection `degraded`. */
+  webhookSubscribeFailed: "webhookSubscribeFailed",
+} as const
 export type ConnectWarning =
   (typeof CONNECT_WARNINGS)[keyof typeof CONNECT_WARNINGS]
 
@@ -54,13 +64,16 @@ export type ConnectWarning =
  * (`ConnectActionResult`).
  */
 export const CONNECT_SESSION_ERROR_CODES = {
-  // Pending-auth cookie / signup session missing, expired, or invalid.
+  // ConnectSession row / signup session missing, expired, or invalid.
   sessionExpired: "sessionExpired",
   // Raised by `notWorkspaceMemberException()`, NOT the generic `notFound`.
   notMember: "notMember",
   trialExpired: "trialExpired",
   macLimitReached: "macLimitReached",
   credentialMissing: "credentialMissing",
+  // Signed in but denied (HTTP 403): password change required, workspace
+  // scheduled for deletion. Reconnecting cannot fix it.
+  notAllowed: "notAllowed",
 } as const
 export type ConnectSessionErrorCode =
   (typeof CONNECT_SESSION_ERROR_CODES)[keyof typeof CONNECT_SESSION_ERROR_CODES]

@@ -26,7 +26,7 @@ vi.mock("@/lib/orpc/orpc", () => ({
   },
 }))
 
-const { connectViaApi, isSessionExpiredError } = await import(
+const { connectViaApi, isForbiddenError, isSessionExpiredError } = await import(
   "@/features/channel-connect/lib/connect-client"
 )
 const { CONNECT_CHANNEL_REGISTRY, INSTAGRAM_DIRECT_CONNECT_ROUTE } =
@@ -67,7 +67,7 @@ const unknownFailure = {
 function connectMessenger() {
   return connectViaApi({
     route: messengerRoute,
-    body: { pageId: "page-1" },
+    body: { sessionId: "session-1", pageId: "page-1" },
     parse,
     item,
   })
@@ -80,19 +80,23 @@ function connectMessenger() {
  * Channel-agnostic on purpose — it classifies the transport error alone.
  */
 describe("isSessionExpiredError", () => {
-  test.each([
-    "UNAUTHORIZED",
-    "FORBIDDEN",
-  ] as const)("an ORPCError with code %s is the session case", (code) => {
-    expect(isSessionExpiredError(new ORPCError(code))).toBe(true)
+  test("an ORPCError UNAUTHORIZED is the session case", () => {
+    expect(isSessionExpiredError(new ORPCError("UNAUTHORIZED"))).toBe(true)
   })
 
-  test.each([
-    401, 403,
-  ])("an ORPCError carrying status %s is the session case whatever its code", (status) => {
+  test("an ORPCError carrying status 401 is the session case whatever its code", () => {
     expect(
-      isSessionExpiredError(new ORPCError("BAD_REQUEST", { status })),
+      isSessionExpiredError(new ORPCError("BAD_REQUEST", { status: 401 })),
     ).toBe(true)
+  })
+
+  test("FORBIDDEN is a denial, not an expired session", () => {
+    expect(isSessionExpiredError(new ORPCError("FORBIDDEN"))).toBe(false)
+    expect(isForbiddenError(new ORPCError("FORBIDDEN"))).toBe(true)
+    expect(
+      isForbiddenError(new ORPCError("BAD_REQUEST", { status: 403 })),
+    ).toBe(true)
+    expect(isForbiddenError(new ORPCError("UNAUTHORIZED"))).toBe(false)
   })
 
   test.each([
@@ -129,7 +133,10 @@ describe("connectViaApi", () => {
     await expect(connectMessenger()).resolves.toEqual(connected)
 
     expect(connectMessengerPageAPI).toHaveBeenCalledTimes(1)
-    expect(connectMessengerPageAPI).toHaveBeenCalledWith({ pageId: "page-1" })
+    expect(connectMessengerPageAPI).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      pageId: "page-1",
+    })
     // No client-side timeout option is passed: `useConnectBatch`'s own
     // CONNECT_REQUEST_TIMEOUT_MS is the single timeout authority.
     expect(connectMessengerPageAPI.mock.calls[0]).toHaveLength(1)
@@ -155,14 +162,16 @@ describe("connectViaApi", () => {
   })
 
   test.each([
-    "UNAUTHORIZED",
-    "FORBIDDEN",
-  ] as const)("an ORPCError %s stops the batch as a session error instead of offering N pointless retries", async (code) => {
+    ["UNAUTHORIZED", "sessionExpired"],
+    // e.g. "Password change required" or "Workspace deletion scheduled":
+    // reconnecting cannot fix these, so they must not read as an expiry.
+    ["FORBIDDEN", "notAllowed"],
+  ] as const)("an ORPCError %s stops the batch as session error %s instead of offering N pointless retries", async (code, expected) => {
     connectMessengerPageAPI.mockRejectedValue(new ORPCError(code))
 
     await expect(connectMessenger()).resolves.toEqual({
       kind: "sessionError",
-      code: "sessionExpired",
+      code: expected,
     })
   })
 
@@ -192,10 +201,14 @@ describe("the connect routes call their own channel's procedure", () => {
     connectMessengerPageAPI.mockResolvedValue(connected)
 
     await CONNECT_CHANNEL_REGISTRY.messenger.connectRoute.call({
+      sessionId: "session-1",
       pageId: "page-1",
     })
 
-    expect(connectMessengerPageAPI).toHaveBeenCalledWith({ pageId: "page-1" })
+    expect(connectMessengerPageAPI).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      pageId: "page-1",
+    })
     expect(connectInstagramFacebookAccountAPI).not.toHaveBeenCalled()
   })
 
@@ -203,10 +216,12 @@ describe("the connect routes call their own channel's procedure", () => {
     connectInstagramFacebookAccountAPI.mockResolvedValue(connected)
 
     await CONNECT_CHANNEL_REGISTRY.instagram.connectRoute.call({
+      sessionId: "session-1",
       igId: "ig-1",
     })
 
     expect(connectInstagramFacebookAccountAPI).toHaveBeenCalledWith({
+      sessionId: "session-1",
       igId: "ig-1",
     })
     // The other Instagram login has its own procedure — never this one.
@@ -216,9 +231,15 @@ describe("the connect routes call their own channel's procedure", () => {
   test("Instagram direct login", async () => {
     connectInstagramAccountAPI.mockResolvedValue(connected)
 
-    await INSTAGRAM_DIRECT_CONNECT_ROUTE.call({ igId: "ig-1" })
+    await INSTAGRAM_DIRECT_CONNECT_ROUTE.call({
+      sessionId: "session-1",
+      igId: "ig-1",
+    })
 
-    expect(connectInstagramAccountAPI).toHaveBeenCalledWith({ igId: "ig-1" })
+    expect(connectInstagramAccountAPI).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      igId: "ig-1",
+    })
     expect(connectInstagramFacebookAccountAPI).not.toHaveBeenCalled()
   })
 

@@ -5,9 +5,9 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 // becomes "all comments", and every reply text after the first disappears.
 
 const commentAutomationService = {
-  getThreadsAutomation: vi.fn(),
+  findThreadsOrFail: vi.fn(),
   listThreadsAutomations: vi.fn(),
-  getTiktokAutomation: vi.fn(),
+  findTiktokOrFail: vi.fn(),
   listTiktokAutomations: vi.fn(),
 }
 vi.mock("@chatbotx.io/business", () => ({ commentAutomationService }))
@@ -32,6 +32,7 @@ function buildRow() {
     updatedAt: new Date("2026-09-01T00:00:00Z"),
     name: "automation",
     workspaceId: "1",
+    inboxId: null,
     folderId: null,
     type: "threads",
     isActive: true,
@@ -80,7 +81,7 @@ beforeEach(() => {
 
 describe("Threads comment read adapter", () => {
   test("get keeps the mentions filter and its count", async () => {
-    commentAutomationService.getThreadsAutomation.mockResolvedValue(buildRow())
+    commentAutomationService.findThreadsOrFail.mockResolvedValue(buildRow())
 
     const result = await getThreadsComment("1", "1")
 
@@ -88,7 +89,7 @@ describe("Threads comment read adapter", () => {
   })
 
   test("get keeps every text of a multi-text reply", async () => {
-    commentAutomationService.getThreadsAutomation.mockResolvedValue(buildRow())
+    commentAutomationService.findThreadsOrFail.mockResolvedValue(buildRow())
 
     const result = await getThreadsComment("1", "1")
 
@@ -102,7 +103,7 @@ describe("Threads comment read adapter", () => {
   test("list keeps both, so it cannot disagree with get", async () => {
     commentAutomationService.listThreadsAutomations.mockResolvedValue({
       data: [buildRow()],
-      total: 1,
+      pageCount: 1,
     })
 
     const { data } = await listThreadsComments({
@@ -118,7 +119,7 @@ describe("Threads comment read adapter", () => {
 
 describe("TikTok comment read adapter", () => {
   test("get keeps the mentions filter and every reply text", async () => {
-    commentAutomationService.getTiktokAutomation.mockResolvedValue({
+    commentAutomationService.findTiktokOrFail.mockResolvedValue({
       ...buildRow(),
       type: "tiktok",
     })

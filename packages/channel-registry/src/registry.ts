@@ -20,6 +20,7 @@ import { integration as integrationChatbotx } from "@chatbotx.io/integration-cha
 import { integration as integrationDrip } from "@chatbotx.io/integration-drip"
 import { integration as integrationFacebookAds } from "@chatbotx.io/integration-facebook-ads"
 import { integration as integrationGetResponse } from "@chatbotx.io/integration-get-response"
+import { integration as integrationGoogleAds } from "@chatbotx.io/integration-google-ads"
 import { integration as integrationGoogleCalendar } from "@chatbotx.io/integration-google-calendar"
 import { integration as integrationGoogleSheets } from "@chatbotx.io/integration-google-sheets"
 import { integration as integrationInstagram } from "@chatbotx.io/integration-instagram"
@@ -57,6 +58,7 @@ export const integrations = {
   drip: integrationDrip,
   facebookAds: integrationFacebookAds,
   getResponse: integrationGetResponse,
+  googleAds: integrationGoogleAds,
   googleCalendar: integrationGoogleCalendar,
   googleSheets: integrationGoogleSheets,
   instagram: integrationInstagram,
@@ -227,7 +229,7 @@ export const integrationService = {
   },
 
   getIntegrationFromContactInbox: async (
-    contactInbox: ContactInboxModel,
+    contactInbox: ContactInboxRoute,
   ): Promise<IntegrationRow> => {
     if (contactInbox.channel === "threads") {
       const integrationRow = await integrationThreadsService.findByInboxId(
@@ -285,6 +287,9 @@ export const integrationService = {
   },
 }
 
+/** What locates a contact's integration: its channel and inbox, nothing else. */
+export type ContactInboxRoute = Pick<ContactInboxModel, "channel" | "inboxId">
+
 export type ResolvedIntegrationContext = {
   integration: ResolvedIntegration
   ctx: IntegrationContext
@@ -295,7 +300,7 @@ export type ResolvedIntegrationContext = {
 
 export async function resolveIntegrationContextFromContactInbox(args: {
   workspaceId: string
-  contactInbox: ContactInboxModel
+  contactInbox: ContactInboxRoute
 }): Promise<ResolvedIntegrationContext> {
   let integration = getRegisteredIntegration(args.contactInbox.channel)
   if (!integration) {

@@ -61,6 +61,7 @@ import { ContactCustomFieldManage } from "../custom-fields/contact-custom-field-
 import { formatCustomFieldDisplayValue } from "../custom-fields/lib/format-custom-field-display-value"
 import { customFieldIconsMap } from "../custom-fields/provider/custom-field-hook"
 import { EditContactField } from "./edit-contact-field"
+import { resolveSourceIdentity } from "./lib/channel-identity"
 import { ResetContactCustomFieldsDialog } from "./reset-contact-custom-fields-dialog"
 import type { GetContactResponse } from "./schema/query"
 import type { ContactEditableField } from "./schema/resource"
@@ -170,7 +171,7 @@ const scopedIdentityRowsByChannel: Partial<
     {
       key: "sourceUserId",
       icon: FingerprintIcon,
-      labelKey: "fields.waUserId.label",
+      labelKey: "fields.channelIdentity.bsuid",
     },
     {
       key: "sourceUsername",
@@ -178,6 +179,26 @@ const scopedIdentityRowsByChannel: Partial<
       labelKey: "fields.waUserName.label",
     },
   ],
+}
+
+const buildSourceIdField = (
+  contactInbox: ContactInboxResource | undefined,
+  t: (key: string) => string,
+): ContactEditableField[] => {
+  const identity = resolveSourceIdentity(contactInbox)
+  if (!identity) {
+    return []
+  }
+  return [
+    {
+      key: "sourceId",
+      icon: FingerprintIcon,
+      label: t(identity.labelKey),
+      value: identity.value,
+      type: "shortText",
+      readOnly: true,
+    },
+  ]
 }
 
 const buildScopedIdentityFields = (
@@ -191,9 +212,7 @@ const buildScopedIdentityFields = (
   const rows = scopedIdentityRowsByChannel[parsedChannel.data] ?? []
   return rows.flatMap((row): ContactEditableField[] => {
     const value = contactInbox[row.key]
-    // Skip absent values, and a value that IS the Contact ID shown above
-    // (a scoped-id-keyed contact) — no duplicate row.
-    if (!value || value === contactInbox.sourceId) {
+    if (!value) {
       return []
     }
     return [
@@ -395,6 +414,14 @@ export const ContactDetail = ({
     activeConversationForCall?.contactInboxes.filter((contactInbox) =>
       CALL_CAPABLE_CHANNELS.some((channel) => channel === contactInbox.channel),
     ) ?? []
+  // Instagram handle shown under the avatar; absent when the contact has no
+  // Instagram inbox or the handle was never captured.
+  const instagramUsername =
+    activeConversationForCall?.contactInboxes.find(
+      (contactInbox) =>
+        contactInbox.channel === channelTypes.enum.instagram &&
+        contactInbox.sourceUsername,
+    )?.sourceUsername ?? null
   // Destructured behind the length check above so a single-number conversation
   // can never dial an empty-string contactInboxId.
   const [soleCallableContactInbox] =
@@ -538,10 +565,10 @@ export const ContactDetail = ({
 
       if (conversation?.contact) {
         const activeContactInbox = conversation.contactInboxes[0]
-        const channelContactId = activeContactInbox?.sourceId
         // The ad the contact clicked from (any ad-attributed inbox), shown as
-        // a link right under Contact ID. Guarded to http(s) so a non-navigable
-        // / `javascript:` referral value never becomes an anchor href.
+        // a link under the channel identity rows. Guarded to http(s) so a
+        // non-navigable / `javascript:` referral value never becomes an anchor
+        // href.
         const rawAdSourceUrl = conversation.contactInboxes.find(
           (contactInbox) => contactInbox.adReferral?.sourceUrl,
         )?.adReferral?.sourceUrl
@@ -551,13 +578,15 @@ export const ContactDetail = ({
             : null
         const tmpContactFields: ContactEditableField[] = [
           {
-            key: "channelContactId",
+            key: "contactId",
             icon: IdCardIcon,
             label: t("fields.contactId.label"),
-            value: channelContactId,
+            value: conversation.contact.id,
             type: "shortText",
             readOnly: true,
           },
+          ...buildSourceIdField(activeContactInbox, t),
+          ...buildScopedIdentityFields(activeContactInbox, t),
           ...(adSourceUrl
             ? [
                 {
@@ -571,7 +600,6 @@ export const ContactDetail = ({
                 },
               ]
             : []),
-          ...buildScopedIdentityFields(activeContactInbox, t),
           {
             key: "language",
             icon: LanguagesIcon,
@@ -681,7 +709,7 @@ export const ContactDetail = ({
 
   return contact ? (
     <div className="flex flex-col">
-      <div className="my-5 flex justify-center">
+      <div className="my-5 flex flex-col items-center gap-2">
         <Avatar className="size-24">
           <AvatarImage
             alt={contact.firstName ?? ""}
@@ -690,6 +718,16 @@ export const ContactDetail = ({
           />
           <AvatarFallback>NA</AvatarFallback>
         </Avatar>
+        {instagramUsername && (
+          <a
+            className="mt-1 text-muted-foreground text-sm hover:text-foreground hover:underline"
+            href={`https://www.instagram.com/${encodeURIComponent(instagramUsername)}`}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            @{instagramUsername}
+          </a>
+        )}
       </div>
       {activeConversationForCall && soleCallableContactInbox && (
         <div className="mb-3 flex justify-center">

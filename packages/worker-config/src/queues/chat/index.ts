@@ -16,19 +16,22 @@ import type {
   SendImageStepSchema,
   SendMessengerTemplateMessageStepSchema,
   SendMultipleImagesStepSchema,
+  SendProductsStepSchema,
   SendQuickReplyStepSchema,
   SendTextStepSchema,
   SendVideoStepSchema,
+  SendViewCatalogStepSchema,
   SendWaTemplateMessageStepSchema,
   WaTemplateParams,
   WhatsappCallButtonStepSchema,
+  WhatsappLocationStepSchema,
 } from "@chatbotx.io/flow-config"
 import type { CommentAnchor, MessageButtonTemplate } from "@chatbotx.io/sdk"
 import { Queue } from "bullmq"
 import {
   defaultJobOptions,
   fakeQueue,
-  getRedisConnection,
+  getQueueConnection,
   isNoRedisEnv,
 } from "../../lib/connection"
 import { queueNames } from "../../lib/types"
@@ -41,10 +44,10 @@ export const ChatJobAction = {
   sendFlowMessage: "sendFlowMessage",
   sendChatMessage: "sendChatMessage",
   sendWhatsappTemplateMessage: "sendWhatsappTemplateMessage",
+  sendWhatsappTemplateToConversation: "sendWhatsappTemplateToConversation",
   sendMessengerTemplateMessage: "sendMessengerTemplateMessage",
   sendTyping: "sendTyping",
   notifyExportResult: "notifyExportResult",
-  broadcastEvent: "broadcastEvent",
   deleteChannelMessage: "deleteChannelMessage",
   editChannelMessage: "editChannelMessage",
   changeChannelMessageState: "changeChannelMessageState",
@@ -89,6 +92,9 @@ export type ChatJobSendFlowStep = {
       | SendWaTemplateMessageStepSchema
       | SendMessengerTemplateMessageStepSchema
       | WhatsappCallButtonStepSchema
+      | SendProductsStepSchema
+      | WhatsappLocationStepSchema
+      | SendViewCatalogStepSchema
     trackingContext?: BotResponseTrackingContext
     metadata?: MetadataPayload
     /**
@@ -136,6 +142,33 @@ export type ChatJobSendWhatsappTemplateMessage = {
   }
 }
 
+/**
+ * Sends one approved WhatsApp template to a single open conversation with
+ * runtime params — the agent's "Send template" action from the inbox composer.
+ * Unlike `sendWhatsappTemplateMessage` there is no broadcast, so no broadcast
+ * sendability guard runs; the template send bypasses the 24h/standby gate
+ * (`isTemplateMessage`), which is exactly why an agent reaches for it.
+ */
+export type ChatJobSendWhatsappTemplateToConversation = {
+  type: typeof ChatJobAction.sendWhatsappTemplateToConversation
+  data: {
+    conversation: ConversationModel
+    contactInbox: ContactInboxModel
+    templateId: string
+    templateData?: WaTemplateParams
+    metadata?: MetadataPayload
+    /**
+     * Who triggered the send. Only `user` (a workspace member in the inbox)
+     * counts as a human agent message in analytics. Absent — automations
+     * (flows, broadcasts) and jobs queued before this field — counts as a bot
+     * message, like `api`.
+     */
+    initiatedBy?: "user" | "api"
+    /** The member behind `initiatedBy: "user"`. */
+    adminId?: string
+  }
+}
+
 export type ChatJobSendMessengerTemplateMessage = {
   type: typeof ChatJobAction.sendMessengerTemplateMessage
   data: {
@@ -159,14 +192,6 @@ export type ChatJobSendTyping = {
     typing: boolean
     seconds?: number
     metadata?: MetadataPayload
-  }
-}
-
-export type ChatJobBroadcastEvent = {
-  type: typeof ChatJobAction.broadcastEvent
-  data: {
-    workspaceId: string
-    event: unknown
   }
 }
 
@@ -232,9 +257,9 @@ export type ChatJobData =
   | ChatJobSendFlowStep
   | ChatJobSendChatMessage
   | ChatJobSendWhatsappTemplateMessage
+  | ChatJobSendWhatsappTemplateToConversation
   | ChatJobSendMessengerTemplateMessage
   | ChatJobSendTyping
-  | ChatJobBroadcastEvent
   | ChatJobNotifyExportResult
   | ChatJobDeleteChannelMessage
   | ChatJobEditChannelMessage
@@ -244,6 +269,6 @@ export type ChatJobData =
 export const chatQueue = isNoRedisEnv()
   ? fakeQueue
   : new Queue<ChatJobData>(queueNames.enum.chat, {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.chat),
       defaultJobOptions,
     })

@@ -28,6 +28,11 @@ export const keys = () =>
         .min(5)
         .max(1440)
         .default(30),
+      LICENSE_REFRESH_URL: z
+        .url()
+        .default("https://chatbotx.io/api/licenses/refresh"),
+      LICENSE_REFRESH_ENABLED: z.stringbool().default(true),
+      SUPPORT_ACCESS_REQUIRE_CONSENT: z.stringbool().default(true),
     },
     runtimeEnv: process.env,
   })

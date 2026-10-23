@@ -7,14 +7,18 @@ import {
   whatsappCallRepository,
 } from "@chatbotx.io/database/repositories"
 import type { WhatsappCallModel } from "@chatbotx.io/database/types"
-import { RealtimeEventType } from "@chatbotx.io/partysocket-config"
-import { distributedLock, LockAcquisitionError } from "@chatbotx.io/redis"
+import {
+  RealtimeEventType,
+  routeForConversation,
+} from "@chatbotx.io/realtime-protocol"
+import { distributedLock, isLockAcquisitionError } from "@chatbotx.io/redis"
 import { getWhatsappCallEntity } from "@chatbotx.io/sdk"
 import { contactService } from "../contact/service"
 import { contactInboxService } from "../contact-inbox/service"
+import { conversationService } from "../conversation/service"
 import { notFoundException, summaryAlreadyGeneratingException } from "../errors"
 import { logger } from "../logger"
-import { broadcastToWorkspaceParty } from "../platform/realtime-broadcast"
+import { publishWorkspaceRealtimeEvent } from "../platform/realtime-broadcast"
 import { userService } from "../user/service"
 import { workspaceService } from "../workspace/service"
 
@@ -219,9 +223,11 @@ class WhatsappCallSummaryService {
 
     // Non-blocking lock: a concurrent Regenerate click fails fast instead of
     // queueing behind the in-flight (paid) provider call.
+    const lockKey = `whatsapp-call-summary:${call.id}`
+
     try {
       await distributedLock.runExclusive({
-        key: `whatsapp-call-summary:${call.id}`,
+        key: lockKey,
         timeoutInSeconds: SUMMARY_LOCK_TIMEOUT_SECONDS,
         retryTimeoutInSeconds: SUMMARY_LOCK_RETRY_TIMEOUT_SECONDS,
         fn: async () => {
@@ -243,7 +249,7 @@ class WhatsappCallSummaryService {
         },
       })
     } catch (error) {
-      if (error instanceof LockAcquisitionError) {
+      if (isLockAcquisitionError(error, lockKey)) {
         throw summaryAlreadyGeneratingException()
       }
       throw error
@@ -277,9 +283,13 @@ class WhatsappCallSummaryService {
     }
 
     try {
-      await broadcastToWorkspaceParty(call.workspaceId, {
+      const conversation = await conversationService.findBy({
+        where: { id: call.conversationId, workspaceId: call.workspaceId },
+      })
+      await publishWorkspaceRealtimeEvent(call.workspaceId, {
         eventType: RealtimeEventType.messageContentUpdated,
         data: { messageId: merged.id, contentAttributes: entity },
+        route: routeForConversation(conversation),
       })
     } catch (error) {
       logger.warn(

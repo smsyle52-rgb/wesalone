@@ -71,6 +71,15 @@ const getDefaultSettings = async (): Promise<TenantSettings> => {
 }
 
 /**
+ * Settings for the platform itself (root tenant), with no workspace, owner, or
+ * hostname in context. Platform-administration flows must use this rather than
+ * `resolveTenantSettingsByOwner`: a super admin may also own a reseller
+ * `Tenant`, and a platform email must never pick up that reseller's branding.
+ */
+export const resolvePlatformSettings = async (): Promise<TenantSettings> =>
+  await getDefaultSettings()
+
+/**
  * Re-anchor the URL-derived settings to a white-label custom domain.
  * The env defaults key every URL off `NEXT_PUBLIC_BUILDER_URL`; on a custom
  * domain those must instead point at the tenant's own host so that public
@@ -212,23 +221,13 @@ export const resolveWorkspaceAppUrl = async (args: {
 export const resolveBroadcastSecret = (): string =>
   integrationContextEnv().REALTIME_BROADCAST_SECRET
 
-/** Whether zero-interest relay responses may suppress ephemeral typing events. */
-export const resolveRealtimeDeliveryGate = (): boolean =>
-  integrationContextEnv().REALTIME_DELIVERY_GATE
-
 /**
- * Resolve the HTTP endpoint used by server-side realtime broadcasts.
- * This endpoint is deployment-wide on purpose — never tenant-specific or a
- * custom domain.
+ * Resolve the validated Redis endpoint used by realtime publishers, preferring
+ * the optional dedicated REDIS_REALTIME_URL.
  */
-export const resolveRealtimeBroadcastUrl = (): string => {
-  const env = integrationContextEnv()
-  const url =
-    env.REALTIME_INTERNAL_URL ??
-    deriveUrls(env.NEXT_PUBLIC_BUILDER_URL, undefined, {
-      forceHttps: parseEnvBool(env.FORCE_PUBLIC_HTTPS),
-    }).publicRealtimeUrl
-  return url.endsWith("/") ? url : `${url}/`
+export const resolveRealtimeRedisUrl = (): string => {
+  const environment = integrationContextEnv()
+  return environment.REDIS_REALTIME_URL ?? environment.REDIS_URL
 }
 
 /**

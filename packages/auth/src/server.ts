@@ -1,7 +1,10 @@
 import {
   customDomainService,
+  type PlatformSmtpTransport,
   platformCredentialService,
+  resolvePlatformSmtpTransport,
   resolveTenantSettingsByDomain,
+  toSmtpTransport,
 } from "@chatbotx.io/business"
 import { db } from "@chatbotx.io/database/client"
 import {
@@ -28,13 +31,32 @@ import {
   getLocaleFromRequest,
   getPublicOriginFromRequest,
 } from "@chatbotx.io/utils"
+import {
+  isPlaceholderEmail,
+  mapFacebookProfileToUser,
+} from "@chatbotx.io/utils/placeholder-email"
 import { APIError, betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
+import { createAuthMiddleware } from "better-auth/api"
 import { nextCookies } from "better-auth/next-js"
-import { anonymous, bearer, magicLink, oneTimeToken } from "better-auth/plugins"
+import {
+  anonymous,
+  bearer,
+  genericOAuth,
+  magicLink,
+  oneTimeToken,
+} from "better-auth/plugins"
 import { PHASE_PRODUCTION_BUILD } from "next/constants"
+import { claimUnverifiedAccountBeforeLink } from "./claim-unverified-account"
+import { resolveGenericOAuthConfig } from "./generic-oauth"
 import { env, getBrokerUrl } from "./keys"
 import { logger } from "./logger"
+import { GENERIC_OAUTH_PROVIDER_ID } from "./oauth-constants"
+import {
+  isSignUpAllowed,
+  SIGNUP_DISABLED_CODE,
+  type SignUpGateContext,
+} from "./signup-gate"
 import { getTenantId, resolveTenantOwnerId } from "./tenant-context"
 
 const getTenantSettings = async (request: Request) => {
@@ -46,10 +68,7 @@ type SmtpResolution =
   | { kind: "default" }
   | {
       kind: "transport"
-      transport: SmtpTransportOptions & {
-        fromEmail: string
-        fromName?: string
-      }
+      transport: PlatformSmtpTransport
     }
   | { kind: "blocked" }
 
@@ -57,7 +76,10 @@ const resolveSmtpForTenant = async (): Promise<SmtpResolution> => {
   const tenantId = getTenantId()
   const ownerId = await resolveTenantOwnerId(tenantId)
   if (!ownerId) {
-    return { kind: "default" }
+    const platformTransport = await resolvePlatformSmtpTransport()
+    return platformTransport
+      ? { kind: "transport", transport: platformTransport }
+      : { kind: "default" }
   }
 
   const smtp = await platformCredentialService.findDecryptedForUser({
@@ -74,14 +96,7 @@ const resolveSmtpForTenant = async (): Promise<SmtpResolution> => {
 
   return {
     kind: "transport",
-    transport: {
-      host: smtp.config.host,
-      port: smtp.config.port,
-      username: smtp.config.username,
-      password: smtp.config.password,
-      fromEmail: smtp.config.fromEmail,
-      fromName: smtp.config.fromName,
-    },
+    transport: toSmtpTransport(smtp.config),
   }
 }
 
@@ -247,6 +262,19 @@ export function createTenantScopedAdapter(
   return (options) => wrapAdapter(base(options))
 }
 
+/**
+ * Repo ids are 64-bit snowflakes (`createId`) that passed 2^53 in 2021. Never
+ * use `generateId: "serial"` here: that flag makes better-auth's adapter
+ * factory wrap every id and id reference (`Account.userId`, `Session.userId`)
+ * in `Number()`, which rounds every odd id to its even neighbour — sessions and
+ * linked accounts then land on the wrong user, or fail the FK when the
+ * neighbour does not exist. A function generator keeps ids as the strings
+ * `bigintAsString` already models.
+ */
+export const AUTH_DATABASE_OPTIONS = {
+  generateId: () => createId(),
+} as const
+
 /** A social provider better-auth can sign users in with (white-label per tenant). */
 export const SOCIAL_PROVIDERS = ["google", "facebook"] as const
 export type SocialProvider = (typeof SOCIAL_PROVIDERS)[number]
@@ -349,17 +377,17 @@ function buildSocialProviders(
     return
   }
 
-  const providers: Partial<
-    Record<
-      SocialProvider,
-      {
-        enabled: true
-        redirectURI: string
-        scope?: string[]
-        disableDefaultScope?: boolean
-      } & SocialAuthCredential
-    >
-  > = {}
+  type ProviderOptions = {
+    enabled: true
+    redirectURI: string
+    scope?: string[]
+    disableDefaultScope?: boolean
+  } & SocialAuthCredential
+  const providers: Partial<Record<SocialProvider, ProviderOptions>> & {
+    facebook?: ProviderOptions & {
+      mapProfileToUser?: typeof mapFacebookProfileToUser
+    }
+  } = {}
   const pinnedOrigin = new URL(redirectOrigin ?? getBrokerUrl()).origin
   for (const provider of SOCIAL_PROVIDERS) {
     const credential = socialCredentials[provider]
@@ -386,6 +414,14 @@ function buildSocialProviders(
       }
     }
   }
+  if (providers.facebook) {
+    // A phone-only Facebook account returns no email; without this
+    // better-auth aborts the callback with `email_not_found`.
+    providers.facebook = {
+      ...providers.facebook,
+      mapProfileToUser: mapFacebookProfileToUser,
+    }
+  }
 
   return Object.keys(providers).length > 0 ? providers : undefined
 }
@@ -396,41 +432,54 @@ function buildSocialProviders(
  * fire `config.upgradeOAuthAccount` right before an OAuth account row is
  * persisted (e.g. Facebook short-lived → long-lived token exchange, run on
  * every social sign-in — a returning user hits `update`, not `create`).
- * Returns `undefined` when neither is configured so better-auth keeps its
- * default behavior. Both hooks are best-effort: a throwing hook never blocks
- * sign-up/sign-in, and on failure the original data is persisted unmodified.
+ * `account.create.before` always runs `claimUnverifiedAccountBeforeLink` first
+ * (before the insert, and before better-auth marks the user verified), then the
+ * token upgrade; the claim hook fails closed. The user/token-upgrade hooks are
+ * best-effort: a throwing hook never blocks sign-up/sign-in, and on failure the
+ * original data is persisted unmodified.
  */
 function buildDatabaseHooks({
   onUserCreated,
   upgradeOAuthAccount,
 }: Pick<AuthConfig, "onUserCreated" | "upgradeOAuthAccount">) {
-  if (!(onUserCreated || upgradeOAuthAccount)) {
-    return
-  }
-
-  const userHooks = onUserCreated
-    ? {
-        create: {
-          after: async (user: Record<string, unknown>) => {
-            try {
-              await onUserCreated({
-                id: String(user.id),
-                email: String(user.email),
-                tenantId:
-                  typeof user.tenantId === "string" ? user.tenantId : undefined,
-                isAnonymous:
-                  typeof user.isAnonymous === "boolean"
-                    ? user.isAnonymous
-                    : undefined,
-              })
-            } catch {
-              // Best-effort: provisioning must never block sign-up. The
-              // callback is responsible for logging its own failures.
-            }
-          },
+  const userHooks = {
+    create: {
+      before: async (
+        user: Record<string, unknown>,
+        context: SignUpGateContext | null,
+      ) => {
+        // The anonymous plugin mints throwaway webchat/mobile users. They are
+        // not account sign-ups and must remain available while locked down.
+        if (user.isAnonymous === true) {
+          return
+        }
+        if (!(await isSignUpAllowed(context))) {
+          // better-auth turns this exact message into the OAuth redirect's
+          // `error` parameter.
+          throw new APIError("FORBIDDEN", { message: SIGNUP_DISABLED_CODE })
+        }
+      },
+      ...(onUserCreated && {
+        after: async (user: Record<string, unknown>) => {
+          try {
+            await onUserCreated({
+              id: String(user.id),
+              email: String(user.email),
+              tenantId:
+                typeof user.tenantId === "string" ? user.tenantId : undefined,
+              isAnonymous:
+                typeof user.isAnonymous === "boolean"
+                  ? user.isAnonymous
+                  : undefined,
+            })
+          } catch {
+            // Best-effort: provisioning must never block sign-up. The callback
+            // is responsible for logging its own failures.
+          }
         },
-      }
-    : undefined
+      }),
+    },
+  }
 
   const upgradeAccountBeforeHook = upgradeOAuthAccount
     ? async (account: Record<string, unknown>) => {
@@ -454,15 +503,47 @@ function buildDatabaseHooks({
     : undefined
 
   return {
-    ...(userHooks && { user: userHooks }),
-    ...(upgradeAccountBeforeHook && {
-      account: {
-        create: { before: upgradeAccountBeforeHook },
-        update: { before: upgradeAccountBeforeHook },
+    user: userHooks,
+    account: {
+      create: {
+        before: async (
+          account: Parameters<typeof claimUnverifiedAccountBeforeLink>[0],
+          context: Parameters<typeof claimUnverifiedAccountBeforeLink>[1],
+        ) => {
+          await claimUnverifiedAccountBeforeLink(account, context)
+          return upgradeAccountBeforeHook
+            ? await upgradeAccountBeforeHook(account)
+            : undefined
+        },
       },
-    }),
+      ...(upgradeAccountBeforeHook && {
+        update: { before: upgradeAccountBeforeHook },
+      }),
+    },
   }
 }
+
+/**
+ * Gates `/sign-up/email` on two independent rules, both enforced before
+ * better-auth creates the row:
+ * - the Facebook placeholder domain is reserved for phone-only Facebook users
+ *   (see `placeholder-email.ts`); nobody may register it by hand, or they
+ *   could pre-create the row a Facebook sign-in later resolves to by email.
+ * - signup lockdown (`AUTH_DISABLE_SIGNUP`): rejected unless the request
+ *   carries a live invitation cookie (`isSignUpAllowed`). Existing email
+ *   sign-*in* is untouched — only this one path is matched.
+ */
+const guardEmailSignUp = createAuthMiddleware(async (ctx) => {
+  if (
+    ctx.path === "/sign-up/email" &&
+    isPlaceholderEmail((ctx.body as { email?: unknown } | undefined)?.email)
+  ) {
+    throw new APIError("BAD_REQUEST", { message: "Invalid email" })
+  }
+  if (ctx.path === "/sign-up/email" && !(await isSignUpAllowed(ctx))) {
+    throw new APIError("FORBIDDEN", { message: "Sign-up is disabled" })
+  }
+})
 
 export function createAuth(config: AuthConfig) {
   const socialProviders = buildSocialProviders(
@@ -470,6 +551,7 @@ export function createAuth(config: AuthConfig) {
     config.socialScopes,
     config.socialRedirectOrigin,
   )
+  const genericOAuthProvider = resolveGenericOAuthConfig()
 
   return betterAuth({
     databaseHooks: buildDatabaseHooks({
@@ -527,12 +609,26 @@ export function createAuth(config: AuthConfig) {
         // link, so ANY existing account (password, magic link, or the other
         // social provider) sharing that email hits "account not linked" on
         // every Facebook sign-in. Both providers gate signup on owning the
-        // mailbox, so trusting them here is safe; `requireLocalEmailVerified`
-        // (default true, left untouched below) still requires the *local*
-        // side of the match to be a verified account before linking, which is
-        // what keeps this from being an account-takeover vector via an
-        // unverified placeholder signup.
-        trustedProviders: [...SOCIAL_PROVIDERS],
+        // mailbox, so trusting them here is safe. See `requireLocalEmailVerified`
+        // below for how an unverified local placeholder is handled.
+        trustedProviders: [
+          ...SOCIAL_PROVIDERS,
+          ...(env.AUTH_OAUTH_TRUST_EMAIL ? [GENERIC_OAUTH_PROVIDER_ID] : []),
+        ],
+        // The local side may be an email/password sign-up that never clicked
+        // its verification link, or a Facebook-first user (Facebook never
+        // returns `email_verified`). A trusted provider has proven the mailbox,
+        // so the local flag must not block the link. The placeholder's own
+        // other login methods and sessions are removed by
+        // `claimUnverifiedAccountBeforeLink` (an `account.create.before` hook,
+        // so it runs before the link is written), and only a provider that
+        // attests the email may claim one — Google through the id_token's
+        // `email_verified`, Facebook because the Graph API returns only confirmed
+        // emails. That is what keeps this from being a pre-registration
+        // takeover. Emails must still match: the implicit sign-in path looks the
+        // user up by the provider email, and the explicit link route keeps
+        // `allowDifferentEmails` off.
+        requireLocalEmailVerified: false,
       },
       additionalFields: {
         tenantId: {
@@ -544,10 +640,16 @@ export function createAuth(config: AuthConfig) {
       },
     },
     socialProviders,
+    hooks: {
+      before: guardEmailSignUp,
+    },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
       sendResetPassword: async ({ user, url }, request) => {
+        if (isPlaceholderEmail(user.email)) {
+          return
+        }
         if (!request) {
           throw new APIError(400, {
             message: "Unknown request",
@@ -614,6 +716,9 @@ export function createAuth(config: AuthConfig) {
       // the click happens in the browser that signed up.
       autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }, request) => {
+        if (isPlaceholderEmail(user.email)) {
+          return
+        }
         if (!request) {
           throw new APIError(400, {
             message: "Unknown request",
@@ -671,6 +776,9 @@ export function createAuth(config: AuthConfig) {
     plugins: [
       magicLink({
         sendMagicLink: async ({ email, url }, request) => {
+          if (isPlaceholderEmail(email)) {
+            return
+          }
           if (!request) {
             throw new APIError(400, {
               message: "Unknown request",
@@ -759,6 +867,33 @@ export function createAuth(config: AuthConfig) {
         emailDomainName: "anonymous.example.com",
         generateName: () => `Anonymous ${createId()}`,
       }),
+      ...(genericOAuthProvider
+        ? ([
+            genericOAuth({
+              config: [
+                {
+                  ...genericOAuthProvider,
+                  pkce: true,
+                  // Pin the redirect URI to the broker, then relay the callback
+                  // to the originating branded host as social OAuth already does.
+                  redirectURI: new URL(
+                    `/api/auth/oauth2/callback/${GENERIC_OAUTH_PROVIDER_ID}`,
+                    new URL(getBrokerUrl()).origin,
+                  ).toString(),
+                  mapProfileToUser: (profile) => ({
+                    name:
+                      profile.name ??
+                      profile.preferred_username ??
+                      ([profile.given_name, profile.family_name]
+                        .filter(Boolean)
+                        .join(" ") ||
+                        undefined),
+                  }),
+                },
+              ],
+            }),
+          ] as const)
+        : ([] as const)),
       // Relays better-auth's Set-Cookie into the Next.js response. Required so a
       // server-side `auth.api.changePassword` (with `revokeOtherSessions`) rotates
       // the caller's session cookie instead of silently logging them out. Must be
@@ -773,9 +908,7 @@ export function createAuth(config: AuthConfig) {
       },
     },
     advanced: {
-      database: {
-        generateId: "serial",
-      },
+      database: AUTH_DATABASE_OPTIONS,
     },
     trustedOrigins: async () => {
       // better-auth resolves the function form of `trustedOrigins` once at
@@ -809,3 +942,15 @@ export function createAuth(config: AuthConfig) {
 }
 
 export type Auth = ReturnType<typeof createAuth>
+
+export {
+  isGenericOAuthPath,
+  resolveGenericOAuthConfig,
+  warnIfGenericOAuthUnlicensed,
+} from "./generic-oauth"
+export { isSignUpDisabled } from "./keys"
+export { GENERIC_OAUTH_PROVIDER_ID } from "./oauth-constants"
+export {
+  INVITATION_COOKIE_MAX_AGE_SECONDS,
+  INVITATION_COOKIE_NAME,
+} from "./signup-gate"

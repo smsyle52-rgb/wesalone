@@ -17,6 +17,7 @@ import {
   parseAsString,
 } from "nuqs/server"
 import z from "zod"
+import { automationInboxIdSchema } from "@/features/shared/comment-automation/schema/account"
 import { parseAsBigInt } from "@/lib/nuqs"
 import { basePaginationRequest } from "@/lib/pagination"
 import { fbCommentResource } from "./resource"
@@ -54,11 +55,12 @@ export const createFbCommentRequest = z.object({
     .literal("messenger")
     .default("messenger")
     .describe("Automation channel type."),
+  inboxId: automationInboxIdSchema,
   folderId: zodBigintAsString()
     .nullish()
     .describe("Folder to place the automation in, or null for root-level."),
   post: commentPostSchema.describe(
-    "Facebook post to watch for comments. Get it from `fbComments.listPosts`.",
+    "Which comments to answer: `all` posts, specific `postIds` (get them from `fbComments.listPosts`), or `live` for every Live video. Live and post automations never answer the same comment.",
   ),
   privateReply: commentReplySchema.describe(
     "Private message reply sent to the commenter, if any.",

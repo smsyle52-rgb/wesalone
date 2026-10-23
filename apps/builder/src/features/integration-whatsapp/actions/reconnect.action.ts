@@ -1,6 +1,7 @@
 "use server"
 
 import {
+  connectionStateService,
   integrationWhatsappService,
   platformCredentialService,
   WHATSAPP_CAPI_SCOPE,
@@ -9,13 +10,9 @@ import {
 import { ChatbotXException } from "@chatbotx.io/business/errors"
 import type { WhatsappCredential } from "@chatbotx.io/database/partials"
 import type { WorkspaceModel } from "@chatbotx.io/database/types"
-import {
-  appAccessToken,
-  exchangeAccessToken,
-} from "@chatbotx.io/integration-whatsapp/api/auth"
+import type { WhatsappAuthValue } from "@chatbotx.io/integration-whatsapp"
 import { listPhoneNumbers as whatsappListPhoneNumbers } from "@chatbotx.io/integration-whatsapp/api/phone-number"
 import { findWaba } from "@chatbotx.io/integration-whatsapp/api/waba"
-import { resolveOwningWabaId } from "@chatbotx.io/integration-whatsapp/api/waba-owner"
 import { subscribeWebhook } from "@chatbotx.io/integration-whatsapp/api/webhook"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { getTranslations } from "next-intl/server"
@@ -25,7 +22,7 @@ import { assertWorkspaceSuperAdmin } from "@/lib/auth/assert-workspace-super-adm
 import { logger } from "@/lib/log"
 import { resolveProviderOriginForCredential } from "@/lib/provider-origin"
 import { workspaceActionClient } from "@/lib/safe-action"
-import { WHATSAPP_OAUTH_CALLBACK_PATH } from "../libs/embedded-signup"
+import { exchangeCodeForOwnedWabaToken } from "../libs/exchange-waba-token"
 import { buildAuthValue, buildWebhookConfig } from "./webhook-url"
 
 const reconnectWhatsappSchema = z.object({
@@ -83,35 +80,20 @@ async function exchangeAndValidateWhatsappAccount(input: {
   whatsappSettings: WhatsappCredential
   originUrl: string
 }) {
-  const accessToken = (
-    await exchangeAccessToken(
-      input.whatsappSettings,
-      input.code,
-      new URL(WHATSAPP_OAUTH_CALLBACK_PATH, input.originUrl).toString(),
-    )
-  ).access_token
-  const appToken = appAccessToken(input.whatsappSettings)
-  // The grant can name several targets; hint the resolver with the number this
-  // integration already owns so a coexistence node listed first cannot make a
-  // valid re-authorization look like a WABA mismatch.
-  const wabaId = await resolveOwningWabaId({
+  const {
     accessToken,
     appAccessToken: appToken,
-    version: input.whatsappSettings.version,
-    systemUserToken: input.whatsappSettings.systemUserToken,
-    systemUserId: input.whatsappSettings.systemUserId,
-    phoneNumberIds: [input.existing.phoneNumberId],
+    wabaId,
+  } = await exchangeCodeForOwnedWabaToken({
+    code: input.code,
+    existing: input.existing,
+    whatsappSettings: input.whatsappSettings,
+    originUrl: input.originUrl,
+    messages: {
+      wabaResolveFailed: input.t("whatsapp.connect.errors.wabaResolveFailed"),
+      wabaMismatch: input.t("whatsapp.reconnect.errors.wabaMismatch"),
+    },
   })
-  if (!wabaId) {
-    throw new ChatbotXException(
-      input.t("whatsapp.connect.errors.wabaResolveFailed"),
-    )
-  }
-  if (wabaId !== input.existing.wabaId) {
-    throw new ChatbotXException(
-      input.t("whatsapp.reconnect.errors.wabaMismatch"),
-    )
-  }
 
   const [waba, phoneNumbers] = await Promise.all([
     findWaba({
@@ -182,8 +164,14 @@ async function buildReconnectAuth(input: {
   }
 }
 
-async function persistReconnectAuthAndResubscribe(input: {
-  auth: Awaited<ReturnType<typeof buildAuthValue>>
+/**
+ * Exported (used only by this module otherwise) so the transaction-atomicity
+ * fix — the auth write and `reconnectInbox` sharing one `db.transaction` —
+ * can be unit-tested directly without re-driving the whole OAuth exchange
+ * chain `reconnectWhatsapp` performs first.
+ */
+export async function persistReconnectAuthAndResubscribe(input: {
+  auth: WhatsappAuthValue
   hasCapiScope: boolean
   grantedScopes: string[]
   businessId: string
@@ -192,12 +180,21 @@ async function persistReconnectAuthAndResubscribe(input: {
   wabaId: string
   integrationWhatsappId: string
   workspaceId: string
+  inboxId: string
 }): Promise<boolean> {
-  await integrationWhatsappService.replaceAuth({
-    id: input.integrationWhatsappId,
+  await connectionStateService.commitReconnect({
+    inboxId: input.inboxId,
     workspaceId: input.workspaceId,
     auth: input.auth,
-    hasCapiScope: input.hasCapiScope,
+    writeAuth: async (tx) => {
+      await integrationWhatsappService.replaceAuth({
+        id: input.integrationWhatsappId,
+        workspaceId: input.workspaceId,
+        auth: input.auth,
+        hasCapiScope: input.hasCapiScope,
+        tx,
+      })
+    },
   })
   try {
     await whatsappBusinessAccountService.upsertCurrentCredential({
@@ -288,6 +285,7 @@ async function reconnectWhatsapp(input: {
     apiVersion: whatsappSettings.version,
     wabaId,
     integrationWhatsappId: input.integrationWhatsappId,
+    inboxId: existing.inboxId,
     workspaceId: input.workspaceId,
   })
 

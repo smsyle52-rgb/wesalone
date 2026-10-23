@@ -18,7 +18,7 @@ vi.mock("@/middlewares/auth", () => ({
 
 vi.mock("@chatbotx.io/database/client", () => {
   const proxy: unknown = new Proxy(() => proxy, { get: () => proxy })
-  return { db: proxy }
+  return { db: proxy, sql: proxy }
 })
 
 type McpOperationMeta = {
@@ -64,8 +64,12 @@ function isWorkspaceTokenOperation(operation: McpSpecOperation): boolean {
 // Guard against the default set silently growing back toward 346 — a
 // deliberate cap, not a tuned performance number. Bump only alongside an
 // explicit decision to add a tool to the default set (see the plan's P0.2
-// table), never as a side effect of an unrelated change.
-const MAX_DEFAULT_VISIBLE_OPERATIONS = 45
+// table), never as a side effect of an unrelated change. Bumped 45 -> 48 when
+// `connections.list`/`connections.create`/`connectionProviders.list`/
+// `connectSessions.get`/`connectSessions.connectTargets` joined the default
+// set so an agent can guide a user through connecting a new channel or
+// integration without a `search_tools` round trip.
+const MAX_DEFAULT_VISIBLE_OPERATIONS = 48
 
 const MCP_SERVER_ROOT = join(import.meta.dirname, "..", "..", "mcp-server")
 const MCP_README_PATH = join(MCP_SERVER_ROOT, "README.md")
@@ -155,6 +159,21 @@ describe("default tool set", () => {
   test(`has at most ${MAX_DEFAULT_VISIBLE_OPERATIONS} operations`, () => {
     expect(defaultOperations().length).toBeLessThanOrEqual(
       MAX_DEFAULT_VISIBLE_OPERATIONS,
+    )
+  })
+
+  test("the read-only Google Ads operations are hidden, not default", () => {
+    const googleAds = operations.filter((op) =>
+      op.operationId.startsWith("googleAds."),
+    )
+
+    expect(googleAds.map((op) => op.operationId).sort()).toEqual([
+      "googleAds.getConnection",
+      "googleAds.getStats",
+      "googleAds.listEvents",
+    ])
+    expect(googleAds.map((op) => op["x-mcp"]?.visibility)).not.toContain(
+      "default",
     )
   })
 

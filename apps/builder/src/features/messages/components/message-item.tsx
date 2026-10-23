@@ -6,8 +6,13 @@ import type {
   MessageTemplateEntity,
 } from "@chatbotx.io/sdk"
 import {
+  getInboundOrder,
+  getReferredProduct,
+  getViewCatalogEntity,
   getWhatsappCallEntity,
   getWhatsappCallPermissionReply,
+  getWhatsappFlowResponse,
+  isMessageProductEntity,
 } from "@chatbotx.io/sdk"
 import {
   Avatar,
@@ -39,6 +44,8 @@ import {
   PhoneIcon,
   PhoneOffIcon,
   ReplyIcon,
+  RotateCwIcon,
+  StoreIcon,
   ThumbsUp,
 } from "lucide-react"
 import Image from "next/image"
@@ -46,12 +53,23 @@ import Link from "next/link"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
 import type { AttachmentResource } from "@/features/attachments/schema/resource"
-import { useAttachmentUrl } from "@/features/attachments/utils"
+import { useAttachmentSource } from "@/features/attachments/utils"
+import {
+  getThreadControlActivity,
+  getThreadControlContextCard,
+  isThreadControlEcho,
+} from "../lib/thread-control-content"
 import type { MessageResourceWithRelations } from "../schema/resource"
+import { InboundOrderBubble } from "./inbound-order-bubble"
 import { MessageActions, MessageActionsEditor } from "./message-actions"
 import { MessageBubble } from "./message-bubble"
 import { MessageErrorBadge } from "./message-error-badge"
+import { ProductMessageBubble } from "./product-message-bubble"
+import { ReferredProductContext } from "./referred-product-context"
+import { ThreadControlContextCard } from "./thread-control-context-card"
+import { ThreadControlDivider } from "./thread-control-divider"
 import { WhatsappCallCard } from "./whatsapp-call-card"
+import { WhatsappFlowResponseButton } from "./whatsapp-flow-response-dialog"
 
 type MessageItemProps = {
   message: MessageResourceWithRelations
@@ -103,6 +121,7 @@ export const MessageItem = (props: MessageItemProps) => {
     onEdit,
   } = props
   const t = useTranslations("messages")
+  const tRouting = useTranslations("conversationRouting")
   const [isEditing, setIsEditing] = useState(false)
 
   const variants: Record<"left" | "right" | "full", string> = {
@@ -140,7 +159,25 @@ export const MessageItem = (props: MessageItemProps) => {
   const callPermissionReply = getWhatsappCallPermissionReply(
     message.contentAttributes,
   )
-  const suppressRawText = Boolean(whatsappCall || callPermissionReply)
+  const threadControlActivity = getThreadControlActivity(
+    message.contentAttributes,
+  )
+  const threadControlContext = getThreadControlContextCard(
+    message.contentAttributes,
+  )
+  // A partner's reply seen on the standby feed: outgoing side, but in the
+  // muted bubble and captioned, so it never reads as the agent's own message.
+  const isPartnerEcho = isThreadControlEcho(message.contentAttributes)
+  // An inbound cart renders as its own bubble; the stored text is only its
+  // plain-text summary for keywords and previews.
+  const inboundOrder = getInboundOrder(message.contentAttributes)
+  const suppressRawText = Boolean(
+    inboundOrder ||
+      whatsappCall ||
+      callPermissionReply ||
+      threadControlActivity ||
+      threadControlContext,
+  )
 
   // A call card defaults to the centered `full` variant, but a call still has
   // a direction: business-initiated sits right, customer-initiated sits left
@@ -154,12 +191,10 @@ export const MessageItem = (props: MessageItemProps) => {
     }
   }
 
+  const createdAt = new Date(message.createdAt)
+
   return (
-    <MessageBubble
-      className="group"
-      title={format(new Date(message.createdAt), "yyyy/MM/dd HH:mm:ss")}
-      variant={variant}
-    >
+    <MessageBubble className="group" variant={variant}>
       {variant === "left" && avatarUrl && !whatsappCall && (
         <Avatar className="mt-2 size-7 self-start">
           <AvatarImage alt="" src={avatarUrl} />
@@ -175,6 +210,12 @@ export const MessageItem = (props: MessageItemProps) => {
         )}
       >
         {storyReply && <StoryReplyContext story={storyReply.story} />}
+        {isPartnerEcho && (
+          <span className="flex items-center gap-1 self-end text-muted-foreground text-xs">
+            <BotIcon aria-hidden className="size-3" />
+            {tRouting("echo.partner")}
+          </span>
+        )}
         {isComment ? (
           <div
             className={cn(
@@ -219,7 +260,7 @@ export const MessageItem = (props: MessageItemProps) => {
                 <div
                   className={cn(
                     "text-sm",
-                    variants[variant],
+                    isPartnerEcho ? variants.left : variants[variant],
                     isDeleted && "opacity-50",
                   )}
                 >
@@ -331,6 +372,28 @@ export const MessageItem = (props: MessageItemProps) => {
           />
         )}
       </div>
+      {variant !== "full" && (
+        // Sits beside the bubble (after it for incoming, before it for
+        // outgoing via the reversed row) and appears the moment the bubble
+        // is hovered, or when one of its action buttons has keyboard focus —
+        // an OS `title` tooltip waits about a second.
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <time
+                className="self-center whitespace-nowrap text-muted-foreground text-xs opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+                dateTime={createdAt.toISOString()}
+                suppressHydrationWarning
+              >
+                {format(createdAt, "HH:mm")}
+              </time>
+            }
+          />
+          <TooltipContent side="top">
+            {format(createdAt, "yyyy/MM/dd HH:mm:ss")}
+          </TooltipContent>
+        </Tooltip>
+      )}
     </MessageBubble>
   )
 }
@@ -416,7 +479,7 @@ const RenderAttachments = (props: {
 
 const RenderImageGridItem = (props: { attachment: AttachmentResource }) => {
   const { attachment } = props
-  const attachmentUrl = useAttachmentUrl(attachment)
+  const { url: attachmentUrl, onError } = useAttachmentSource(attachment)
   const attachmentLabel =
     attachment.name || attachment.originPath || "Attachment"
 
@@ -432,12 +495,13 @@ const RenderImageGridItem = (props: { attachment: AttachmentResource }) => {
   }
 
   return (
-    <Link href={attachmentUrl} target="_blank">
+    <Link href={attachmentUrl} prefetch={false} target="_blank">
       <div className="relative aspect-square overflow-hidden rounded-lg">
         <Image
           alt={attachmentLabel}
           className="h-full w-full object-cover"
           height={120}
+          onError={onError}
           src={attachmentUrl}
           unoptimized
           width={120}
@@ -452,20 +516,25 @@ const RenderImageAttachment = (props: {
   attachment: AttachmentResource
   attachmentUrl: string
   attachmentLabel: string
+  onError: () => void
 }) => {
-  const { attachment, attachmentUrl, attachmentLabel } = props
+  const { attachment, attachmentUrl, attachmentLabel, onError } = props
 
   if (!(attachment.width && attachment.height)) {
+    // No stored dimensions (e.g. a media-library send): the bubble sizes to its
+    // content, so the frame needs an explicit width — max-width plus an aspect
+    // ratio alone collapses to 0×0 and the message looks missing.
     return (
-      <Link href={attachmentUrl} target="_blank">
+      <Link href={attachmentUrl} prefetch={false} target="_blank">
         <div
-          className="relative max-w-full overflow-hidden rounded-xl sm:max-w-80"
+          className="relative w-80 max-w-full overflow-hidden rounded-xl"
           style={{ aspectRatio: "4/3" }}
         >
           <Image
             alt={attachmentLabel}
             className="object-contain"
             fill
+            onError={onError}
             src={attachmentUrl}
             unoptimized
           />
@@ -474,11 +543,12 @@ const RenderImageAttachment = (props: {
     )
   }
   return (
-    <Link href={attachmentUrl} target="_blank">
+    <Link href={attachmentUrl} prefetch={false} target="_blank">
       <Image
         alt={attachmentLabel}
         className="max-w-full rounded-xl sm:max-w-80"
         height={attachment.height}
+        onError={onError}
         src={attachmentUrl}
         unoptimized
         width={attachment.width}
@@ -489,7 +559,14 @@ const RenderImageAttachment = (props: {
 
 const RenderAttachmentItem = (props: { attachment: AttachmentResource }) => {
   const { attachment } = props
-  const attachmentUrl = useAttachmentUrl(attachment)
+  const t = useTranslations("messages")
+  const {
+    url: attachmentUrl,
+    onError,
+    isRecovering,
+    fallbackUrl,
+    retryUrl,
+  } = useAttachmentSource(attachment)
   const attachmentLabel =
     attachment.name || attachment.originPath || "Attachment"
 
@@ -509,6 +586,7 @@ const RenderAttachmentItem = (props: { attachment: AttachmentResource }) => {
           attachment={attachment}
           attachmentLabel={attachmentLabel}
           attachmentUrl={attachmentUrl}
+          onError={onError}
         />
       )
     case "gif":
@@ -519,12 +597,18 @@ const RenderAttachmentItem = (props: { attachment: AttachmentResource }) => {
           <video
             autoPlay
             className="max-w-full rounded-xl sm:max-w-80"
+            key={attachmentUrl}
             loop
             muted
+            onError={onError}
             playsInline
           >
             <track default kind="captions" />
-            <source src={attachmentUrl} type={attachment.mimeType} />
+            <source
+              onError={onError}
+              src={attachmentUrl}
+              type={attachment.mimeType}
+            />
           </video>
         )
       }
@@ -533,31 +617,79 @@ const RenderAttachmentItem = (props: { attachment: AttachmentResource }) => {
           attachment={attachment}
           attachmentLabel={attachmentLabel}
           attachmentUrl={attachmentUrl}
+          onError={onError}
         />
       )
     case "video":
       return (
-        <video controls height="240" preload="none" width="320">
+        // Keyed by URL: a media element ignores a swapped <source>, so the
+        // fallback URL only takes effect on a fresh element. With
+        // `preload="none"` a load failure only surfaces after the user pressed
+        // Play, so the recovering element loads and plays on its own rather
+        // than waiting for another click.
+        <video
+          autoPlay={isRecovering}
+          controls
+          height="240"
+          key={attachmentUrl}
+          onError={onError}
+          preload={isRecovering ? "auto" : "none"}
+          width="320"
+        >
           <track default kind="captions" />
-          <source src={attachmentUrl} type={attachment.mimeType} />
+          <source
+            onError={onError}
+            src={attachmentUrl}
+            type={attachment.mimeType}
+          />
         </video>
       )
     case "audio":
       return (
         // `preload="metadata"` (not "none") so the player shows the clip's
         // total duration at rest instead of 0:00 / 0:00.
-        <audio controls preload="metadata">
+        <audio
+          controls
+          key={attachmentUrl}
+          onError={onError}
+          preload="metadata"
+        >
           <track default kind="captions" />
-          <source src={attachmentUrl} type={attachment.mimeType} />
+          <source
+            onError={onError}
+            src={attachmentUrl}
+            type={attachment.mimeType}
+          />
         </audio>
       )
     default:
       return (
+        // A download link fires no load error, so it can't walk the fallback
+        // chain on its own: it always goes through the re-signing fallback,
+        // and the reload action re-fetches a file gone from storage. Links that
+        // can reach the media proxy never prefetch — a prefetch would run it.
         <div className="flex items-center gap-2 overflow-hidden rounded-xl bg-secondary p-3 text-sm">
           <PaperclipIcon className="size-5 flex-none" />
-          <Link className="truncate" href={attachmentUrl}>
+          <Link
+            className="truncate"
+            href={fallbackUrl ?? attachmentUrl}
+            prefetch={false}
+          >
             {attachmentUrl}
           </Link>
+          {retryUrl ? (
+            <Link
+              aria-label={t("reloadAttachment")}
+              className="flex-none text-muted-foreground hover:text-foreground"
+              href={retryUrl}
+              prefetch={false}
+              rel="noopener noreferrer"
+              target="_blank"
+              title={t("reloadAttachment")}
+            >
+              <RotateCwIcon className="size-4" />
+            </Link>
+          ) : null}
         </div>
       )
   }
@@ -625,8 +757,45 @@ const WhatsappCallPermissionReply = ({
   )
 }
 
+/**
+ * What the contact sees under a "view catalog" message: the footer and the
+ * channel's own button. It is only a picture of that button — nothing here opens
+ * a catalog — so it is disabled.
+ */
+const ViewCatalogCard = ({ footer }: { footer?: string }) => {
+  const t = useTranslations("messages")
+
+  return (
+    <div className="mt-1 flex flex-col gap-1">
+      {footer ? (
+        <p
+          className="line-clamp-2 whitespace-pre-line break-words text-muted-foreground text-xs"
+          data-slot="view-catalog-footer"
+        >
+          {footer}
+        </p>
+      ) : null}
+      <Button
+        className="w-full bg-secondary text-secondary-foreground disabled:bg-muted disabled:text-muted-foreground sm:w-auto sm:min-w-60 dark:bg-secondary dark:text-secondary-foreground dark:disabled:bg-muted dark:disabled:text-muted-foreground"
+        data-slot="view-catalog-button"
+        disabled
+        size="sm"
+        variant="outline"
+      >
+        <StoreIcon />
+        {t("viewCatalog")}
+      </Button>
+    </div>
+  )
+}
+
 const RenderContentAttributes = (props: MessageItemProps) => {
   const { message, onPostback } = props
+  const viewCatalog = getViewCatalogEntity(message.contentAttributes)
+  if (viewCatalog) {
+    return <ViewCatalogCard footer={viewCatalog.footer} />
+  }
+
   const whatsappCall = getWhatsappCallEntity(message.contentAttributes)
   if (whatsappCall) {
     return (
@@ -647,6 +816,50 @@ const RenderContentAttributes = (props: MessageItemProps) => {
     return (
       <WhatsappCallPermissionReply response={callPermissionReply.response} />
     )
+  }
+
+  // The guest widget is the customer's own view: the answers are agent-only.
+  // A deleted message shows only its "deleted" note, so no answers either.
+  if (
+    !(props.guestDisplay || message.deletedAt) &&
+    getWhatsappFlowResponse(message.contentAttributes)
+  ) {
+    return (
+      <WhatsappFlowResponseButton
+        conversationId={message.conversationId}
+        createdAt={message.createdAt}
+        messageId={message.id}
+        workspaceId={message.workspaceId}
+      />
+    )
+  }
+
+  const threadControlActivity = getThreadControlActivity(
+    message.contentAttributes,
+  )
+  if (threadControlActivity) {
+    return <ThreadControlDivider activity={threadControlActivity} />
+  }
+
+  const threadControlContext = getThreadControlContextCard(
+    message.contentAttributes,
+  )
+  if (threadControlContext) {
+    return <ThreadControlContextCard data={threadControlContext} />
+  }
+
+  if (isMessageProductEntity(message.contentAttributes)) {
+    return <ProductMessageBubble message={message.contentAttributes.payload} />
+  }
+
+  const inboundOrder = getInboundOrder(message.contentAttributes)
+  if (inboundOrder) {
+    return <InboundOrderBubble order={inboundOrder} />
+  }
+
+  const referredProduct = getReferredProduct(message.contentAttributes)
+  if (referredProduct) {
+    return <ReferredProductContext reference={referredProduct} />
   }
 
   const contentAttributes = message.contentAttributes as

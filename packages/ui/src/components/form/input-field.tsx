@@ -9,6 +9,7 @@ type InputFieldProps<T extends FieldValues> = ComponentProps<"input"> & {
   description?: string
   descriptionType?: "inline" | "tooltip"
   formItemClassName?: string
+  hideMessage?: boolean
   /**
    * Optional leading glyph rendered inside the field. Purely decorative, so it
    * is hidden from assistive tech and does not swallow clicks — the label still
@@ -24,6 +25,7 @@ export function InputField<T extends FieldValues>({
   description,
   descriptionType = "inline",
   formItemClassName,
+  hideMessage,
   icon,
   className,
   ...props
@@ -33,6 +35,7 @@ export function InputField<T extends FieldValues>({
       description={description}
       descriptionType={descriptionType}
       formItemClassName={formItemClassName}
+      hideMessage={hideMessage}
       label={label}
       name={name}
       required={required}

@@ -17,6 +17,7 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm"
+import type { PgColumn } from "drizzle-orm/pg-core"
 import {
   isMessageStorageError,
   MessageShardUnavailableError,
@@ -62,7 +63,10 @@ import type { MessageShardDatabaseClient } from "../client"
 import type { MessageShardConnectionManager } from "../connection-manager"
 import type { MessageShardTimeRangeInfo } from "../registry"
 import { attachmentModel, messageModel } from "../shard-schema"
-import { withPrimaryKeyCollisionRecovery } from "./primary-key-collision"
+import {
+  withCreatedAt,
+  withPrimaryKeyCollisionRecovery,
+} from "./primary-key-collision"
 
 export { getSafeSinceTime } from "../../../repositories"
 
@@ -117,6 +121,13 @@ function compareMessageDesc(
     return b.id.localeCompare(a.id)
   }
 }
+
+// A row stamped by Postgres carries microseconds a JS Date cannot hold, so a
+// row key read back into JS no longer equals the stored value. Match the whole
+// millisecond instead: still a range on the partition column (one chunk), and
+// the id next to it keeps the match unique.
+const matchesCreatedAt = (column: PgColumn, at: Date): SQL | undefined =>
+  and(gte(column, at), lt(column, new Date(at.getTime() + 1)))
 
 export class ShardedMessageRepository implements IMessageRepository {
   private readonly shardManager: MessageShardConnectionManager
@@ -467,7 +478,7 @@ export class ShardedMessageRepository implements IMessageRepository {
         and(
           eq(messageModel.contactInboxId, message.contactInboxId),
           eq(messageModel.sourceId, message.sourceId),
-          eq(messageModel.createdAt, message.createdAt),
+          matchesCreatedAt(messageModel.createdAt, message.createdAt),
         ),
       )
       .limit(1)
@@ -495,7 +506,7 @@ export class ShardedMessageRepository implements IMessageRepository {
       const inserted: { id: string; sourceId: string | null }[] = []
 
       for (let i = 0; i < messages.length; i += CHUNK_SIZE) {
-        const chunk = messages.slice(i, i + CHUNK_SIZE)
+        const chunk = messages.slice(i, i + CHUNK_SIZE).map(withCreatedAt)
         const rows = await shardDb
           .insert(messageModel)
           .values(chunk as (typeof messageModel.$inferInsert)[])
@@ -554,7 +565,7 @@ export class ShardedMessageRepository implements IMessageRepository {
     workspaceId: string,
     newText: string,
     createdAt: Date,
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ conversationId: string; id: string } | null> {
     return this.updateAcrossShards(
       messageId,
       workspaceId,
@@ -568,7 +579,7 @@ export class ShardedMessageRepository implements IMessageRepository {
     sourceId: string,
     workspaceId: string,
     newText: string,
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ conversationId: string; id: string } | null> {
     return await this.patchBySourceId(
       sourceId,
       workspaceId,
@@ -598,7 +609,7 @@ export class ShardedMessageRepository implements IMessageRepository {
     workspaceId: string,
     patch: Partial<typeof messageModel.$inferInsert>,
     caller: string,
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ conversationId: string; id: string } | null> {
     // sourceId-based update: scan shards from the last 90 days (same window
     // used by findBySourceId for parent-comment lookups).
     const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
@@ -618,9 +629,12 @@ export class ShardedMessageRepository implements IMessageRepository {
               eq(messageModel.workspaceId, workspaceId),
             ),
           )
-          .returning({ id: messageModel.id })
+          .returning({
+            conversationId: messageModel.conversationId,
+            id: messageModel.id,
+          })
         if (row) {
-          return row as { id: string }
+          return row
         }
       } catch (error) {
         logger.warn(
@@ -723,7 +737,7 @@ export class ShardedMessageRepository implements IMessageRepository {
     caller: string,
     createdAt: Date,
     extraWhere?: SQL,
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ conversationId: string; id: string } | null> {
     const timeRangeShards = await this.getShardsForRange(createdAt, createdAt)
     const writeShard = await this.shardManager.getWriteShardInfo(workspaceId)
     const shards = this.mergeWriteShard(timeRangeShards, writeShard)
@@ -742,11 +756,14 @@ export class ShardedMessageRepository implements IMessageRepository {
               and(
                 eq(messageModel.id, messageId),
                 eq(messageModel.workspaceId, workspaceId),
-                eq(messageModel.createdAt, createdAt),
+                matchesCreatedAt(messageModel.createdAt, createdAt),
                 extraWhere,
               ),
             )
-            .returning({ id: messageModel.id })
+            .returning({
+              conversationId: messageModel.conversationId,
+              id: messageModel.id,
+            })
         } catch (error) {
           logger.warn(
             { err: error, shardId: shardInfo.shard.id },
@@ -825,7 +842,7 @@ export class ShardedMessageRepository implements IMessageRepository {
     sourceId: string,
     workspaceId: string,
     createdAt: Date,
-  ): Promise<{ id: string }[]> {
+  ): Promise<{ conversationId: string; id: string }[]> {
     const writeShard = await this.shardManager.getWriteShardInfo(workspaceId)
 
     // Step 1: find parent DB id — search in createdAt shard + write shard first.
@@ -943,7 +960,10 @@ export class ShardedMessageRepository implements IMessageRepository {
                 ),
               ),
             )
-            .returning({ id: messageModel.id })
+            .returning({
+              conversationId: messageModel.conversationId,
+              id: messageModel.id,
+            })
         } catch (error) {
           logger.warn(
             { err: error, shardId: shardInfo.shard.id },
@@ -954,13 +974,16 @@ export class ShardedMessageRepository implements IMessageRepository {
       }),
     )
 
-    const ids = new Set<string>()
+    const deletedById = new Map<
+      string,
+      { conversationId: string; id: string }
+    >()
     for (const rows of perShard) {
       for (const row of rows) {
-        ids.add(row.id)
+        deletedById.set(row.id, row)
       }
     }
-    return [...ids].map((id) => ({ id }))
+    return [...deletedById.values()]
   }
 
   async deleteById(
@@ -983,7 +1006,7 @@ export class ShardedMessageRepository implements IMessageRepository {
             and(
               eq(messageModel.workspaceId, workspaceId),
               eq(messageModel.id, id),
-              eq(messageModel.createdAt, createdAt),
+              matchesCreatedAt(messageModel.createdAt, createdAt),
             ),
           )
           .returning({ id: messageModel.id })
@@ -1122,13 +1145,17 @@ export class ShardedMessageRepository implements IMessageRepository {
           gte(messageModel.createdAt, sinceTime),
         ]
 
+        // `messageCreatedAt` holds the message's createdAt as read back into
+        // JS (milliseconds); a database-stamped message keeps microseconds, so
+        // match the whole millisecond (see `matchesCreatedAt`).
         const attachmentMessageExists = sql`EXISTS (
           SELECT 1
           FROM ${messageModel}
           WHERE ${messageModel.workspaceId} = ${workspaceId}
             AND ${messageModel.createdAt} >= ${sinceTime}
             AND ${messageModel.id} = ${attachmentModel.messageId}
-            AND ${messageModel.createdAt} = ${attachmentModel.messageCreatedAt}
+            AND ${messageModel.createdAt} >= ${attachmentModel.messageCreatedAt}
+            AND ${messageModel.createdAt} < ${attachmentModel.messageCreatedAt} + interval '1 millisecond'
             AND ${messageModel.contactInboxId} = ${contactInboxId}
         )`
         const attachmentWhereConditions = [
@@ -1234,6 +1261,10 @@ export class ShardedMessageRepository implements IMessageRepository {
         .values(
           attachments.map((a) => ({
             id: a.id,
+            // Stamped here, never by `defaultNow()`: the database's
+            // microseconds cannot round-trip through a JS Date, and every
+            // later update matches on (id, createdAt).
+            createdAt: a.createdAt ?? new Date(),
             workspaceId: a.workspaceId,
             conversationId: a.conversationId,
             fileType:
@@ -1248,6 +1279,7 @@ export class ShardedMessageRepository implements IMessageRepository {
             thumbnailPath: a.thumbnailPath,
             originPath: a.originPath,
             name: a.name,
+            keepOriginal: a.keepOriginal,
           })),
         )
         .returning({ id: attachmentModel.id })
@@ -1397,6 +1429,8 @@ export class ShardedMessageRepository implements IMessageRepository {
       if (attachments.length > 0) {
         const attachmentValues = attachments.map((attachment) => ({
           ...attachment,
+          // See `withCreatedAt`: never left to `defaultNow()`.
+          createdAt: attachment.createdAt ?? new Date(),
           messageId: newMessage.id,
           messageCreatedAt: newMessage.createdAt,
         }))
@@ -1562,7 +1596,7 @@ export class ShardedMessageRepository implements IMessageRepository {
               .where(
                 and(
                   eq(messageModel.id, id),
-                  eq(messageModel.createdAt, createdAt),
+                  matchesCreatedAt(messageModel.createdAt, createdAt),
                   eq(messageModel.workspaceId, workspaceId),
                   conversationId
                     ? eq(messageModel.conversationId, conversationId)
@@ -2109,7 +2143,9 @@ export class ShardedMessageRepository implements IMessageRepository {
         sourceId: attachmentModel.sourceId,
         originPath: attachmentModel.originPath,
         mimeType: attachmentModel.mimeType,
+        size: attachmentModel.size,
         createdAt: attachmentModel.createdAt,
+        keepOriginal: attachmentModel.keepOriginal,
       })
       .from(attachmentModel)
       .where(
@@ -2224,19 +2260,19 @@ export class ShardedMessageRepository implements IMessageRepository {
     workspaceId,
     createdAt,
     fields,
-  }: UpdateAttachmentParams): Promise<void> {
+  }: UpdateAttachmentParams): Promise<number> {
     const shards = await this.getConversationReadShards(createdAt, workspaceId)
     if (shards.length === 0) {
-      return
+      return 0
     }
 
-    await Promise.all(
+    const updatedPerShard = await Promise.all(
       shards.map((shardInfo) =>
         withShardRetry(async () => {
           const shardClient = await this.shardManager.getShardClient(
             shardInfo.shard,
           )
-          await shardClient
+          const updated = await shardClient
             .update(attachmentModel)
             .set({
               ...fields,
@@ -2246,12 +2282,15 @@ export class ShardedMessageRepository implements IMessageRepository {
               and(
                 eq(attachmentModel.id, id),
                 eq(attachmentModel.workspaceId, workspaceId),
-                eq(attachmentModel.createdAt, createdAt),
+                matchesCreatedAt(attachmentModel.createdAt, createdAt),
               ),
             )
+            .returning({ id: attachmentModel.id })
+          return updated.length
         }),
       ),
     )
+    return updatedPerShard.reduce((total, count) => total + count, 0)
   }
 
   async findLastByConversation(

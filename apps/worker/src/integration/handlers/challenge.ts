@@ -7,6 +7,7 @@ import {
   detectFlowVersion,
 } from "../../lib/db"
 import { runStepsAndQuickReplies } from "./flow"
+import { runQuickReplyChallenge } from "./quick-reply-resume"
 
 export async function runChallenge(data: IntegrationJobRunChallenge["data"]) {
   const {
@@ -17,15 +18,19 @@ export async function runChallenge(data: IntegrationJobRunChallenge["data"]) {
     messageCreatedAt,
   } = data
 
-  if (challenge.type !== "step") {
-    return
-  }
-
   const { conversation, contactInbox } =
     await detectConversationAndContactInbox({
       conversationId,
       contactInboxId,
     })
+
+  if (challenge.type === "quickReply") {
+    await runQuickReplyChallenge({ conversation, contactInbox, challenge })
+    return
+  }
+  if (challenge.type !== "step") {
+    return
+  }
 
   const startTime = Date.now()
   try {
@@ -72,12 +77,14 @@ export async function runChallenge(data: IntegrationJobRunChallenge["data"]) {
       details: targetNode.data.details,
       targetType: "node",
       targetId: targetNode.id,
+      targetNodeId: targetNode.id,
       startFromStepId: challenge.data.stepId,
       ctx: {
         variables,
       },
       triggerMessageId: messageId,
       triggerMessageCreatedAt: messageCreatedAt,
+      startedByContactMessage: true,
       appointmentId: challenge.data.appointmentId,
     })
 
@@ -86,6 +93,8 @@ export async function runChallenge(data: IntegrationJobRunChallenge["data"]) {
         eventType: "message:bot_received",
         workspaceId: conversation.workspaceId,
         conversationId: conversation.id,
+        channel: contactInbox.channel,
+        inboxId: contactInbox.inboxId,
         messageId,
         occurredAt: new Date(),
         hasResponse: true,
@@ -110,6 +119,8 @@ export async function runChallenge(data: IntegrationJobRunChallenge["data"]) {
         eventType: "message:bot_received",
         workspaceId: conversation.workspaceId,
         conversationId: conversation.id,
+        channel: contactInbox.channel,
+        inboxId: contactInbox.inboxId,
         messageId,
         occurredAt: new Date(),
         hasResponse: false,

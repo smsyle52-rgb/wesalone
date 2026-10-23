@@ -132,7 +132,7 @@ const dateRule = {
   intervalInput: "datetimeInterval",
 } as const satisfies StaticFieldRule
 
-const staticFieldRules: Record<string, StaticFieldRule> = {
+export const staticFieldRules: Record<string, StaticFieldRule> = {
   locale: dropdownRule,
   language: relationSetRule,
   country: dropdownRule,
@@ -197,6 +197,7 @@ const staticFieldRules: Record<string, StaticFieldRule> = {
   shoppingCartIsEmpty: booleanRule,
   lastSentMessageFailed: booleanRule,
   fromCtwaAd: booleanRule,
+  fromGoogleAd: booleanRule,
 
   fullName: textFreeRule,
   lastComment: textFreeRule,
@@ -242,7 +243,7 @@ const staticFieldRules: Record<string, StaticFieldRule> = {
     intervalInput: "none",
   },
   isWithinWorkingHours: {
-    enabledOperators: BASE_OPERATORS,
+    enabledOperators: [operatorTypes.enum.in, operatorTypes.enum.notIn],
     singleInput: "field",
   },
   lastUserInputType: {

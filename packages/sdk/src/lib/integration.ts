@@ -1,5 +1,6 @@
 import type { MetadataPayload } from "@chatbotx.io/flow-config"
 import type { AuthValue, Oauth2AuthValue } from "./auth"
+import type { ConnectionProvider } from "./connection"
 import {
   AuthException,
   AuthRefreshException,
@@ -7,8 +8,13 @@ import {
   SdkException,
 } from "./exception"
 import type { SendFlowStepData } from "./flow-step-data"
+import { sdkLogger } from "./logger"
 import type {
   BaseConfig,
+  BulkThreadControlAction,
+  BulkThreadControlLimits,
+  BulkThreadControlResult,
+  ChannelPostDetails,
   CommentAnchor,
   Context,
   HandleRequestProps,
@@ -18,6 +24,12 @@ import type {
   OutgoingContact,
   OutgoingMessage,
   ReceivedMessageResult,
+  ResolvedProductMessage,
+  ThreadControlAction,
+  ThreadControlRole,
+  ThreadControlUpdateResult,
+  ThreadControlWebhookResult,
+  ThreadOwnerResult,
 } from "./shared"
 
 // ---------------------------------------------------------------------------
@@ -66,6 +78,11 @@ export type ChannelSendFlowStepProps<IAuth extends AuthValue> = {
     flowId: string
     flowVersionId?: string
     step: SendFlowStepData
+    /**
+     * The `sendProducts` step's products, resolved for this send. Only present
+     * for that step; the persisted `step` stays as authored.
+     */
+    productMessage?: ResolvedProductMessage
     quickReplies?: MessageButtonTemplate[]
     metadata?: MetadataPayload
     richResponse?: RichResponseContentAttributes
@@ -119,6 +136,8 @@ export type MessageHandlers<
         flowId: string
         flowVersionId?: string
         step: TStep
+        /** See {@link ChannelSendFlowStepProps}. */
+        productMessage?: ResolvedProductMessage
         quickReplies?: MessageButtonTemplate[]
         metadata?: MetadataPayload
         richResponse?: RichResponseContentAttributes
@@ -264,6 +283,78 @@ export type ConversationHandlers<IAuth extends AuthValue> = {
     },
     void
   >
+  /**
+   * Conversation routing: take/release/pass the thread with the channel.
+   * Returns the owner role after the action. Throws a `ChannelError` when the
+   * channel rejects the call.
+   */
+  updateThreadControl?: Handler<
+    {
+      ctx: Context<IAuth>
+      data: {
+        contact: OutgoingContact
+        action: ThreadControlAction
+        targetRole?: ThreadControlRole
+        metadata?: string
+      }
+    },
+    ThreadControlUpdateResult
+  >
+  /**
+   * Conversation routing, many threads at once: hands each contact to the AI
+   * agent, or takes it back with `text`. One call carries a channel-sized batch
+   * (Messenger: at most 50). A per-contact failure never throws: it is reported
+   * in `results`, one entry per input contact. A failure of the whole call
+   * (revoked token) throws a `ChannelError`. When the channel's quota runs low
+   * it stops early: the rest come back `deferred` with `retryAfterMs` set.
+   */
+  bulkUpdateThreadControl?: Handler<
+    {
+      ctx: Context<IAuth>
+      data: {
+        action: BulkThreadControlAction
+        contacts: OutgoingContact[]
+        text?: string
+      }
+    },
+    BulkThreadControlResult
+  >
+  /**
+   * The transport limits of `bulkUpdateThreadControl` (batch size, pacing, the
+   * wait after a refused call). Required for a channel that implements the bulk
+   * handler: the caller sizes and paces its calls from it.
+   */
+  bulkThreadControlLimits?: Handler<
+    { ctx: Context<IAuth> },
+    BulkThreadControlLimits
+  >
+  /**
+   * Conversation routing: asks the channel who owns the thread right now
+   * (a read, separate from take/release/pass). Optional: a channel without an
+   * owner-query API omits it, and callers treat that as "cannot sync".
+   */
+  getThreadOwner?: Handler<
+    {
+      ctx: Context<IAuth>
+      data: { contact: OutgoingContact }
+    },
+    ThreadOwnerResult
+  >
+  /**
+   * Conversation routing: turns a routing webhook job payload into a handover
+   * event or a standby message. `null` = nothing to do (routing off, malformed).
+   */
+  receiveThreadControlEvent?: Handler<
+    {
+      ctx: Context<IAuth>
+      data: {
+        integrationType: string
+        integrationIdentifier: string
+        payload: unknown
+      }
+    },
+    ThreadControlWebhookResult | null
+  >
 }
 
 /** Channel-agnostic label/tag descriptor (e.g. a Facebook Custom Label). */
@@ -305,8 +396,31 @@ export type UserCustomSettings = {
 
 export type ContactHandlers<IAuth extends AuthValue> = {
   getProfile: Handler<
-    { ctx: Context<IAuth>; data: { sourceId: string } },
+    {
+      ctx: Context<IAuth>
+      data: {
+        // Download and store the profile picture (default). A caller that does
+        // not need the picture yet (contact creation on a lazy-avatar channel)
+        // passes false and the picture is fetched the first time it is needed.
+        includeAvatar?: boolean
+        includeProfileSnapshot?: boolean
+        sourceId: string
+      }
+    },
     IncomingContact
+  >
+  getProfileSnapshot?: Handler<
+    { ctx: Context<IAuth>; data: { sourceId: string } },
+    NonNullable<IncomingContact["profileSnapshot"]>
+  >
+  /**
+   * Describes a post the contact commented on (caption, permalink, …). Optional:
+   * only channels that track comments per post implement it
+   * (`postTrackingChannels`).
+   */
+  getPostDetails?: Handler<
+    { ctx: Context<IAuth>; data: { postId: string } },
+    ChannelPostDetails
   >
   getContactProfilePicUrl: Handler<
     { ctx: Context<IAuth>; data: { sourceId: string } },
@@ -365,9 +479,14 @@ export type BotHandlers<IAuth extends AuthValue> = {
     { ctx: Context<IAuth>; data: { pageId: string; name: string } },
     ChannelLabel
   >
-  // List the labels currently assigned to a specific user.
+  // List the labels currently assigned to a specific user. `requestTimeoutMs`
+  // makes the lookup fail fast (no retries) for callers on a latency-sensitive
+  // path; omit it to keep the client's default timeout and retries.
   listLabels?: Handler<
-    { ctx: Context<IAuth>; data: { sourceId: string } },
+    {
+      ctx: Context<IAuth>
+      data: { sourceId: string; requestTimeoutMs?: number }
+    },
     ChannelLabel[]
   >
   deleteLabel?: Handler<
@@ -409,6 +528,9 @@ export type IntegrationDefinition<
   >
   disconnect: Handler<IAuth, void>
   refreshAuth?: Handler<{ auth: IAuth }, IAuth>
+  /** Adapter for connection authorization, identity, health, and webhooks. */
+  // biome-ignore lint/suspicious/noExplicitAny: credential shape varies per provider
+  connection?: ConnectionProvider<IAuth, any>
 }
 
 // ---------------------------------------------------------------------------
@@ -490,6 +612,10 @@ export class Integration<
     return this.props.disconnect
   }
 
+  get connection(): T["connection"] {
+    return this.props.connection
+  }
+
   get handleRequest(): T["handleRequest"] {
     return this.props.handleRequest
   }
@@ -540,18 +666,38 @@ export class Integration<
     name: Name,
     props: ChannelHandlerInput<T, Group, Name>,
   ): Promise<ChannelHandlerResult<T, Group, Name>> {
-    // biome-ignore lint/suspicious/noExplicitAny: heterogeneous handler shapes
-    const channel = this.channels?.channel as Record<string, any> | undefined
-    const handler = channel?.[group as string]?.[name as string]
-    if (typeof handler !== "function") {
+    const handler = this.findChannelHandler(String(group), String(name))
+    if (!handler) {
       throw new IntegrationException(
         `Channel handler "${String(group)}.${String(name)}" not registered for integration "${this.name}".`,
       )
     }
     return (await this.invokeWithRefresh(
-      handler as (input: unknown) => Promise<unknown>,
+      handler,
       props,
     )) as ChannelHandlerResult<T, Group, Name>
+  }
+
+  /**
+   * Whether the channel registers `group.name`, so callers can check support
+   * without catching the `IntegrationException` `runChannelHandler` throws.
+   */
+  hasChannelHandler<
+    Group extends keyof IntegrationHandlerMap<T>,
+    Name extends keyof IntegrationHandlerMap<T>[Group],
+  >(group: Group, name: Name): boolean {
+    return this.findChannelHandler(String(group), String(name)) !== undefined
+  }
+
+  /** The single lookup behind `runChannelHandler` and `hasChannelHandler`. */
+  private findChannelHandler(
+    group: string,
+    name: string,
+  ): ((input: unknown) => Promise<unknown>) | undefined {
+    // biome-ignore lint/suspicious/noExplicitAny: heterogeneous handler shapes
+    const channel = this.channels?.channel as Record<string, any> | undefined
+    const handler = channel?.[group]?.[name]
+    return typeof handler === "function" ? handler : undefined
   }
 
   // -------------------------------------------------------------------------
@@ -581,7 +727,7 @@ export class Integration<
       return await handler({ ...(props as object), ctx })
     } catch (error) {
       if (error instanceof AuthException && this.props.refreshAuth) {
-        ctx = await this.refreshAndPersist(ctx)
+        ctx = await this.refreshAndPersist(ctx, { force: true })
         return await handler({ ...(props as object), ctx })
       }
       throw error
@@ -605,28 +751,32 @@ export class Integration<
 
   private async refreshAndPersist(
     ctx: Context<AuthValue>,
+    opts?: { force?: boolean },
   ): Promise<Context<AuthValue>> {
-    const refreshAuth = this.props.refreshAuth
-    if (!refreshAuth) {
-      throw new SdkException(
-        `Integration "${this.name}" does not implement refreshAuth.`,
-      )
-    }
-
     const run = async (): Promise<Context<AuthValue>> => {
-      // Re-read current auth from the store to avoid clobbering a refresh that
-      // a sibling worker already completed inside the same lock window.
       let baseAuth = ctx.auth
       if (ctx.authStore) {
         try {
           baseAuth = await ctx.authStore.load()
-        } catch {
-          // Fall back to the in-memory auth if reload fails.
+        } catch (error) {
+          sdkLogger.warn(
+            { err: error, integration: this.name },
+            "Failed to reload integration auth; using in-memory auth",
+          )
         }
       }
 
-      if (!this.shouldProactivelyRefresh(baseAuth)) {
+      if (
+        baseAuth.authType !== "oauth2" ||
+        !(opts?.force || this.shouldProactivelyRefresh(baseAuth))
+      ) {
         return { ...ctx, auth: baseAuth }
+      }
+      const refreshAuth = this.props.refreshAuth
+      if (!refreshAuth) {
+        throw new SdkException(
+          `Integration "${this.name}" does not implement refreshAuth.`,
+        )
       }
 
       const newAuth = await this.refreshWithRetry(refreshAuth, baseAuth, ctx)
@@ -639,11 +789,20 @@ export class Integration<
     return ctx.authStore?.withLock ? await ctx.authStore.withLock(run) : run()
   }
 
+  /** Refreshes OAuth2 auth when it is near expiry or when explicitly forced. */
+  async ensureFreshAuth(
+    ctx: Context<AuthValue>,
+    opts?: { force?: boolean },
+  ): Promise<Context<AuthValue>> {
+    return await this.refreshAndPersist(ctx, opts)
+  }
+
   /**
    * Call the per-integration `refreshAuth` with bounded exponential backoff.
-   * On terminal failure (refresh-token revoked, all retries exhausted) the
-   * integration is marked offline via `ctx.authStore.markOffline` and an
-   * {@link AuthRefreshException} is thrown.
+   * A terminal failure (`AuthException` or one recognized by
+   * `connection.isRevokedTokenError`) marks the integration offline. Transient
+   * failures throw after retries but retain the connection for the next
+   * scheduled refresh.
    */
   private async refreshWithRetry(
     refreshAuth: NonNullable<T["refreshAuth"]>,
@@ -651,14 +810,18 @@ export class Integration<
     ctx: Context<AuthValue>,
   ): Promise<AuthValue> {
     let lastError: unknown
+    let attempts = 0
+    let isTerminal = false
     for (let attempt = 1; attempt <= AUTH_REFRESH_MAX_ATTEMPTS; attempt++) {
+      attempts = attempt
       try {
         return await refreshAuth({ auth: baseAuth })
       } catch (err) {
         lastError = err
-        // AuthException signals a non-recoverable refresh failure
-        // (revoked refresh token, invalid_grant, etc.) — stop retrying.
-        if (err instanceof AuthException) {
+        isTerminal =
+          err instanceof AuthException ||
+          this.props.connection?.isRevokedTokenError?.(err) === true
+        if (isTerminal) {
           break
         }
         if (attempt < AUTH_REFRESH_MAX_ATTEMPTS) {
@@ -667,16 +830,19 @@ export class Integration<
       }
     }
 
-    if (ctx.authStore?.markOffline) {
+    if (isTerminal && ctx.authStore?.markOffline) {
       try {
         await ctx.authStore.markOffline(lastError)
-      } catch {
-        // Don't shadow the underlying refresh failure with a markOffline failure.
+      } catch (error) {
+        sdkLogger.error(
+          { err: error, integration: this.name },
+          "Failed to mark integration auth offline",
+        )
       }
     }
 
     throw new AuthRefreshException(
-      `Integration "${this.name}" auth refresh failed after ${AUTH_REFRESH_MAX_ATTEMPTS} attempt(s); marked offline.`,
+      `Integration "${this.name}" auth refresh failed after ${attempts} attempt(s).`,
       lastError,
     )
   }

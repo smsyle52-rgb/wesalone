@@ -3,6 +3,7 @@ import {
   operatorTypes,
 } from "@chatbotx.io/database/partials"
 import { z } from "zod"
+import { isChannelPostId } from "@/features/channel-posts/schema"
 import { sampleStringSchema } from "./shared"
 
 const VALUELESS_OPERATORS = [
@@ -26,6 +27,11 @@ const PRESENCE_SET_OPERATORS = [
   operatorTypes.enum.in,
   operatorTypes.enum.notIn,
   operatorTypes.enum.isEmpty,
+] as const satisfies readonly OperatorType[]
+
+const IN_OPERATORS = [
+  operatorTypes.enum.in,
+  operatorTypes.enum.notIn,
 ] as const satisfies readonly OperatorType[]
 
 const BOOLEAN_OPERATORS = [
@@ -89,10 +95,13 @@ const STATIC_OPERATOR_RULES: Record<string, readonly OperatorType[]> = {
   subscribedToDripCampaign: SET_OPERATORS,
   entryPointsLinks: SET_OPERATORS,
   conversationAssigned: SET_OPERATORS,
+  isWithinWorkingHours: IN_OPERATORS,
   contactCreatedDateMinutesAgo: NUMBER_OPERATORS,
   lastSeenMinutesAgo: NUMBER_OPERATORS,
   lastInteractionMinutesAgo: NUMBER_OPERATORS,
   consecutiveAiFailures: NUMBER_OPERATORS,
+  followerCountOnInstagram: NUMBER_OPERATORS,
+  commentedOnPost: BASE_OPERATORS,
   lastUserInputType: [
     operatorTypes.enum.eq,
     operatorTypes.enum.ne,
@@ -112,6 +121,10 @@ const STATIC_OPERATOR_RULES: Record<string, readonly OperatorType[]> = {
   emailWasVerified: NON_NULLABLE_BOOLEAN_OPERATORS,
   optedInForEmail: NON_NULLABLE_BOOLEAN_OPERATORS,
   fromCtwaAd: BOOLEAN_OPERATORS,
+  fromGoogleAd: BOOLEAN_OPERATORS,
+  followsBusinessOnInstagram: BOOLEAN_OPERATORS,
+  businessFollowsUserOnInstagram: BOOLEAN_OPERATORS,
+  verifiedAccountOnInstagram: BOOLEAN_OPERATORS,
 
   fullName: TEXT_FREE_OPERATORS,
   lastComment: TEXT_FREE_OPERATORS,
@@ -156,15 +169,24 @@ const hasValue = (value: unknown): boolean =>
 export const staticFieldFilter = <T extends string>(field: T) =>
   z
     .object({
-      field: z.literal(field),
-      operator: operatorTypes,
+      field: z
+        .literal(field)
+        .describe(
+          "Contact filter field key. Valid keys and their operators are listed by `contacts.listFilterFields`.",
+        ),
+      operator: operatorTypes.describe(
+        "Comparison operator. Allowed operators depend on the field; see `contacts.listFilterFields` (`isEmpty`/`isNotEmpty` take no value; `isBetween`/`notBetween` take a two-item value).",
+      ),
       value: z
         .union([
           sampleStringSchema,
           z.array(sampleStringSchema),
           z.tuple([sampleStringSchema, sampleStringSchema]),
         ])
-        .optional(),
+        .optional()
+        .describe(
+          "Value to compare: a string, an array of ids/strings for `in`/`notIn`, or a two-item `[from, to]` array for `isBetween`/`notBetween`. Omit for `isEmpty`/`isNotEmpty`.",
+        ),
     })
     .superRefine((condition, ctx) => {
       const enabledOperators =
@@ -179,6 +201,23 @@ export const staticFieldFilter = <T extends string>(field: T) =>
       }
 
       if (isValuelessOperator(condition.operator)) {
+        return
+      }
+
+      if (field === "commentedOnPost") {
+        if (
+          !Array.isArray(condition.value) ||
+          condition.value.length === 0 ||
+          condition.value.length > 100 ||
+          new Set(condition.value).size !== condition.value.length ||
+          !condition.value.every(isChannelPostId)
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Commented posts require one to 100 unique bigint ids",
+            path: ["value"],
+          })
+        }
         return
       }
 

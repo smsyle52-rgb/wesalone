@@ -7,6 +7,11 @@ import type { HTTPMethod } from "@orpc/server"
 import { ORPCError } from "@orpc/server"
 import { isCloud } from "@/env"
 import { ADS_CAMPAIGNS_INSIGHTS_PATH } from "@/features/ads-campaign/lib/api-paths"
+import { BROADCAST_AUDIENCE_PREVIEW_TOKEN_PATH } from "@/features/broadcasts/lib/api-paths"
+import {
+  FILTER_VALUE_LABELS_POST_PATH,
+  FILTER_VALUE_LABELS_TOKEN_PATH,
+} from "@/features/contact-filter/lib/api-paths"
 import { CONVERSATIONS_LIST_POST_PATH } from "@/features/conversations/lib/api-paths"
 
 export type WorkspaceAccessDenialReason = "trialExpired" | "macLimitReached"
@@ -63,10 +68,24 @@ const READ_ONLY_TOKEN_ALLOWED_METHODS = new Set<HTTPMethod>(["GET", "HEAD"])
  *   trial gate only — not yet reviewed for read_only-token exposure, so it
  *   stays out of `READ_ONLY_TOKEN_ALLOWED_POST_PATHS` until that review
  *   happens.
+ * - `FILTER_VALUE_LABELS_POST_PATH`
+ *   (`/workspaces/{workspaceId}/contact-filter/value-labels`): up to 100 ids
+ *   per entity type, too large for a GET query string. Primary-key lookups
+ *   that only read, so the filter's names keep resolving on a trial-expired
+ *   workspace. Trial gate only — not reviewed for read_only-token exposure.
+ * - `BROADCAST_AUDIENCE_PREVIEW_TOKEN_PATH`
+ *   (`/v1/broadcasts/audience/preview`): the audience filter is a JSON
+ *   body, so POST. They only select contact inboxes and never write, so they
+ *   stay open on a trial-expired workspace. They are NOT allow-listed for
+ *   `read_only` tokens: unlike `broadcasts.getAudience` (bounded by broadcasts
+ *   that already exist) they page every contact of the workspace and accept
+ *   an arbitrary `contactFilter`.
  */
 
 const READ_ONLY_TOKEN_ALLOWED_POST_PATHS = new Set<string>([
   ADS_CAMPAIGNS_INSIGHTS_PATH,
+  // Tag-id -> name lookup only: a primary-key read, no writes.
+  FILTER_VALUE_LABELS_TOKEN_PATH,
 ])
 
 /**
@@ -158,7 +177,21 @@ export const workspaceAccessDenialOrpcError = (
  * `READ_ONLY_TOKEN_ALLOWED_POST_PATHS` — see the comments above for why each
  * path opts in independently.
  */
-const READ_ONLY_POST_PATHS = new Set<string>([CONVERSATIONS_LIST_POST_PATH])
+/**
+ * Stopping a sending broadcast must stay possible on a trial-expired or
+ * over-limit workspace, exactly like the builder's `stopBroadcastAction`
+ * (`workspaceActionClientAllowExpired`). It only ever stops work, never starts
+ * any. Gate-only allow-list: a `read_only` token still cannot call it.
+ */
+export const BROADCAST_STOP_TOKEN_PATH = "/v1/broadcasts/{id}/stop"
+
+const READ_ONLY_POST_PATHS = new Set<string>([
+  CONVERSATIONS_LIST_POST_PATH,
+  FILTER_VALUE_LABELS_POST_PATH,
+  FILTER_VALUE_LABELS_TOKEN_PATH,
+  BROADCAST_STOP_TOKEN_PATH,
+  BROADCAST_AUDIENCE_PREVIEW_TOKEN_PATH,
+])
 
 export async function assertWorkspaceOwnerAccessForMethod(props: {
   method: HTTPMethod | undefined

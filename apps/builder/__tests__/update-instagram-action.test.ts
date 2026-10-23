@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
+  assertAllExist: vi.fn().mockResolvedValue(undefined),
   buildContext: vi.fn(),
   findIntegrationInstagram: vi.fn(),
   transaction: vi.fn(
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@chatbotx.io/business", () => ({
   buildContext: mocks.buildContext,
+  flowService: { assertAllExist: mocks.assertAllExist },
   inboxService: {
     updateMarkReadOnOutbound: mocks.updateMarkReadOnOutbound,
   },
@@ -54,6 +56,12 @@ vi.mock("@chatbotx.io/integration-instagram-facebook", () => ({
 
 vi.mock("@/features/integration-webchat/lib", () => ({
   getBrandingUrl: vi.fn(),
+}))
+
+vi.mock("@chatbotx.io/redis", () => ({
+  distributedLock: {
+    runExclusive: ({ fn }: { fn: () => Promise<unknown> }) => fn(),
+  },
 }))
 
 vi.mock("@/lib/log", () => ({
@@ -119,5 +127,22 @@ describe("updateInstagramAction", () => {
     )
 
     expect(mocks.updateMarkReadOnOutbound).not.toHaveBeenCalled()
+  })
+
+  test("rejects a flow of another workspace before saving", async () => {
+    const notFound = new Error("Flow does not exists.")
+    mocks.assertAllExist.mockRejectedValueOnce(notFound)
+    const input = makeInput()
+    input.parsedInput.welcomeFlowId = "flow-foreign" as never
+
+    await expect(
+      (updateInstagramAction as (props: unknown) => Promise<unknown>)(input),
+    ).rejects.toBe(notFound)
+
+    expect(mocks.assertAllExist).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      flowIds: ["flow-foreign"],
+    })
+    expect(mocks.transaction).not.toHaveBeenCalled()
   })
 })

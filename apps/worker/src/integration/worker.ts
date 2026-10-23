@@ -2,14 +2,11 @@ import { createHash } from "node:crypto"
 import { automatedResponseService } from "@chatbotx.io/automated-response"
 import {
   conversationService,
-  flushAllPendingWorkspaceBroadcasts,
-  whatsappCallPermissionService,
+  flushAllPendingWorkspaceRealtimeEvents,
   withBlockedOwnerGuard,
 } from "@chatbotx.io/business"
 import { channelTypes } from "@chatbotx.io/database/partials"
 import { emit } from "@chatbotx.io/event-bus"
-import { getStoryReply, getWhatsappCallPermissionReply } from "@chatbotx.io/sdk"
-import { createId } from "@chatbotx.io/utils"
 import {
   AIJobAction,
   aiAgentQueue,
@@ -18,7 +15,7 @@ import {
   closeIntegrationQueueEvents,
   defaultWorkerOptions,
   getHeavyJobCompletionWaitTimeoutMs,
-  getRedisConnection,
+  getQueueConnection,
   HeavyJobAction,
   IntegrationJobAction,
   type IntegrationJobData,
@@ -37,9 +34,13 @@ import { logger } from "../lib/logger"
 import { resolveWorkspaceId } from "../lib/resolve-workspace-id"
 import { runJobWithAuditContext } from "../lib/run-job-with-audit-context"
 import { integrationService } from "../services/integrations"
+import { mintRandomFlowExecutionKey } from "./flow-execution-key"
 import { handleAdsAutomaticEvent } from "./handlers/ads-automatic-event"
 import { dispatchAdsConversionJob } from "./handlers/ads-conversion/registry"
+import { runAiHandoverBulkToggle } from "./handlers/ai-handover-bulk-toggle"
+import { runAiHandoverTakeBack } from "./handlers/ai-handover-take-back"
 import { runChallenge } from "./handlers/challenge"
+import { processChannelAudienceEvent } from "./handlers/channel-audience-event"
 import { coexistAttachmentDownload } from "./handlers/coexist/attachment-download"
 import { coexistInstagramSync } from "./handlers/coexist/instagram-sync"
 import { coexistMessengerSync } from "./handlers/coexist/messenger-sync"
@@ -56,11 +57,13 @@ import {
   runFlowQuickReply,
 } from "./handlers/flow"
 import { runFollowUpResume } from "./handlers/follow-up"
+import { handleSendGoogleAdsConversion } from "./handlers/google-ads/send-conversion"
 import { resumeHeavyStep } from "./handlers/heavy-step-resume"
 import { handleChannelLabelWebhook } from "./handlers/inbox_labels"
 import { processLeadgen } from "./handlers/lead-ads"
 import { handleMessageStatus } from "./handlers/message-status"
 import { handleSendMetaCapiEvent } from "./handlers/meta-conversions/send-meta-capi-event"
+import { runQuickReplyFollowUpResume } from "./handlers/quick-reply-resume"
 import {
   deleteIncomingComment,
   deleteIncomingMessage,
@@ -72,19 +75,27 @@ import {
 import { runRef } from "./handlers/ref"
 import { handleSendSequenceFlow } from "./handlers/sequence-flow"
 import { captureTemplateFlowResponse } from "./handlers/template-flow-response"
+import {
+  isThreadControlJobReprocess,
+  receiveThreadControlEvent,
+  releaseOwnedThread,
+} from "./handlers/thread-control"
 import { receiveTiktokHighIntentComment } from "./handlers/tiktok-high-intent-comment"
 import { runWaitResume } from "./handlers/wait-resume"
 import { handleWhatsappCallEvent } from "./handlers/whatsapp-call"
 import { handleWhatsappCallNativeRecordingFetch } from "./handlers/whatsapp-call-native-recording"
 import { handleWhatsappCallNativeTranscriptFetch } from "./handlers/whatsapp-call-native-transcript"
+import { recordWhatsappCallPermissionReply } from "./handlers/whatsapp-call-permission-reply"
 import { handleWhatsappCallRecordingReady } from "./handlers/whatsapp-call-recording"
 import { handleWhatsappCallTranscribe } from "./handlers/whatsapp-call-transcribe"
+import { handleWhatsappIdentityChange } from "./handlers/whatsapp-identity-change"
 import {
   finalizeExhaustedHandleConnect,
   handleWhatsappVoipSignalingJob,
 } from "./handlers/whatsapp-voip-signaling"
 import { runIntegrationJobWithWebhookContext } from "./job-context"
 import { resolveIncomingTextRouting } from "./routing"
+import { dispatchStoryAutomation } from "./story-automation-dispatch"
 import { closeChatQueueEvents } from "./utils/message"
 
 const integrationWorkerLockDuration = Math.max(
@@ -108,10 +119,12 @@ function hashLegacyPayload(payload: object): string {
 
 function getFlowExecutionKey(job: Job): string {
   if (job.id) {
-    return job.id
+    // The creation time is fixed for the job's retries but differs when a
+    // job id is reused (a fixed id, or a counter restarted after a Redis loss).
+    return `${job.id}:${job.timestamp}`
   }
 
-  const flowExecutionKey = `integration-job-${createId()}`
+  const flowExecutionKey = mintRandomFlowExecutionKey("integration-job-")
   logger.warn(
     { flowExecutionKey, jobName: job.name },
     "Integration job is missing id; generated flow execution key",
@@ -178,6 +191,9 @@ async function startIntegrationWorker() {
                 quickReplyAction,
                 conversation,
                 channelType,
+                inboxId,
+                inboxChannel,
+                suppressAutomation,
               } = received
 
               if (!message) {
@@ -188,6 +204,24 @@ async function startIntegrationWorker() {
                 postbackAction || quickReplyAction
               )
 
+              // A call-permission answer is account state, recorded for
+              // standby deliveries too; it never reaches automation.
+              if (
+                isNotPostbackOrQuickReply &&
+                (await recordWhatsappCallPermissionReply({
+                  workspaceId: conversation.workspaceId,
+                  message,
+                }))
+              ) {
+                return
+              }
+
+              // Standby deliveries (another responder owns the thread) are
+              // stored only: no story-reply, routing or fallback analytics.
+              if (suppressAutomation) {
+                return
+              }
+
               // An image/file message has contentType "text" — only its
               // `attachments` array distinguishes it; a shared location has
               // contentType "location".
@@ -196,41 +230,14 @@ async function startIntegrationWorker() {
               const hasAttachment = message.attachments.length > 0
               const isLocation = message.contentType === "location"
 
-              const storyReply = getStoryReply(message.contentAttributes)
-
-              const callPermissionReply = getWhatsappCallPermissionReply(
-                message.contentAttributes,
-              )
-              if (isFromContact && callPermissionReply) {
-                await whatsappCallPermissionService.recordReply({
-                  workspaceId: conversation.workspaceId,
-                  contactInboxId: message.contactInboxId,
-                  response: callPermissionReply.response,
-                  isPermanent: callPermissionReply.isPermanent === true,
-                  expirationTimestamp: callPermissionReply.expirationTimestamp,
-                  respondedAt: message.createdAt,
-                })
-                return
-              }
-
-              if (isFromContact && storyReply) {
-                await aiAgentQueue.add(
-                  AIJobAction.processStoryReplyAutomation,
-                  {
-                    type: AIJobAction.processStoryReplyAutomation,
-                    data: {
-                      workspaceId: conversation.workspaceId,
-                      conversationId: conversation.id,
-                      contactInboxId: message.contactInboxId,
-                      messageId: message.id,
-                      storyId: storyReply.id,
-                      storyUrl: storyReply.url,
-                      message: message.text ?? undefined,
-                      channelType,
-                    },
-                  },
-                  { jobId: `story-reply-auto-${message.id}` },
-                )
+              if (
+                isFromContact &&
+                (await dispatchStoryAutomation({
+                  message,
+                  conversation,
+                  channelType,
+                }))
+              ) {
                 return
               }
 
@@ -271,6 +278,13 @@ async function startIntegrationWorker() {
                   messageText: message.text ?? "",
                   workspaceId: routing.conversation.workspaceId,
                 })
+              } else if (routing.type === "handoffReentry") {
+                await automatedResponseService.enqueueHandoffReentry({
+                  conversationId: routing.conversation.id,
+                  contactInboxId: message.contactInboxId,
+                  messageId: message.id,
+                  workspaceId: routing.conversation.workspaceId,
+                })
               } else if (isNotPostbackOrQuickReply) {
                 // Track no response for messages without content or not from contact
                 // (postback/quickReply are tracked in their own handlers)
@@ -278,6 +292,8 @@ async function startIntegrationWorker() {
                   eventType: "message:bot_received",
                   workspaceId: message.workspaceId,
                   conversationId: message.conversationId,
+                  channel: inboxChannel,
+                  inboxId,
                   messageId: message.id,
                   occurredAt: new Date(),
                   hasResponse: false,
@@ -313,6 +329,10 @@ async function startIntegrationWorker() {
             }
             case IntegrationJobAction.messageReaction: {
               await processMessageReaction(job.data.data)
+              return
+            }
+            case IntegrationJobAction.channelAudienceEvent: {
+              await processChannelAudienceEvent(job.data.data)
               return
             }
             case IntegrationJobAction.sendFlow: {
@@ -383,6 +403,10 @@ async function startIntegrationWorker() {
               await runFollowUpResume(job.data.data)
               return
             }
+            case IntegrationJobAction.resumeQuickReplyFollowUp: {
+              await runQuickReplyFollowUpResume(job.data.data)
+              return
+            }
             case IntegrationJobAction.messageStatus: {
               await handleMessageStatus(job.data.data, job)
               return
@@ -419,6 +443,10 @@ async function startIntegrationWorker() {
               await handleWhatsappCallEvent(job.data.data)
               return
             }
+            case IntegrationJobAction.whatsappIdentityChange: {
+              await handleWhatsappIdentityChange(job.data.data)
+              return
+            }
             case IntegrationJobAction.whatsappCallRecordingReady: {
               await handleWhatsappCallRecordingReady(job.data.data)
               return
@@ -440,6 +468,10 @@ async function startIntegrationWorker() {
             }
             case IntegrationJobAction.sendMetaCapiEvent: {
               await handleSendMetaCapiEvent(job.data.data)
+              return
+            }
+            case IntegrationJobAction.sendGoogleAdsConversion: {
+              await handleSendGoogleAdsConversion(job.data.data, job)
               return
             }
             case IntegrationJobAction.updateContactAvatar: {
@@ -509,6 +541,25 @@ async function startIntegrationWorker() {
               await processLeadgen(job.data.data, job)
               return
             }
+            case IntegrationJobAction.threadControlEvent: {
+              await receiveThreadControlEvent(job.data.data, {
+                isRetry: isThreadControlJobReprocess(job),
+                jobId: job.id,
+              })
+              return
+            }
+            case IntegrationJobAction.threadControlAction: {
+              await releaseOwnedThread(job.data.data)
+              return
+            }
+            case IntegrationJobAction.aiHandoverBulkToggle: {
+              await runAiHandoverBulkToggle(job.data.data)
+              return
+            }
+            case IntegrationJobAction.aiHandoverTakeBack: {
+              await runAiHandoverTakeBack(job.data.data)
+              return
+            }
             case IntegrationJobAction.createMessage: {
               // No-op — action type exists in the union but has no enqueuer yet.
               return
@@ -537,7 +588,7 @@ async function startIntegrationWorker() {
     (job: Job<IntegrationJobData>, token) =>
       deferOnLockContention(job, token, () => processIntegrationJob(job)),
     {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.integration),
       ...defaultWorkerOptions,
       // Override the shared default (5). I/O-bound webhook handling tolerates
       // more parallelism; env-tunable via INTEGRATION_WORKER_CONCURRENCY.
@@ -576,7 +627,7 @@ async function startIntegrationWorker() {
       })
     },
     {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.callTranscription),
       concurrency: 1,
       limiter: { max: env.CALL_TRANSCRIBE_PER_MIN, duration: 60_000 },
     },
@@ -609,7 +660,7 @@ async function startIntegrationWorker() {
       })
     },
     {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.whatsappVoipSignaling),
       concurrency: 10,
     },
   )
@@ -669,7 +720,7 @@ async function startIntegrationWorker() {
       ])
       // After every close(): drains events published by jobs that finished
       // during the drain, whose coalesce timers would never fire past exit.
-      await flushAllPendingWorkspaceBroadcasts()
+      await flushAllPendingWorkspaceRealtimeEvents()
       process.exit(0)
     } catch (err) {
       logger.error(err, "[IntegrationWorker] Error during shutdown")

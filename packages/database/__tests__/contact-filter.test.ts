@@ -2345,6 +2345,217 @@ describe("applyContactFilter — contactInbox relation fields", () => {
   })
 })
 
+describe("applyContactFilter — Instagram snapshots and commented posts", () => {
+  test.each([
+    ["followsBusinessOnInstagram", "followsBusiness"],
+    ["businessFollowsUserOnInstagram", "businessFollowsContact"],
+    ["verifiedAccountOnInstagram", "accountVerified"],
+  ])("keeps explicit true, false and empty distinct for %s", (field, column) => {
+    for (const value of ["true", "false"]) {
+      const query = renderContactWhere(
+        applyContactFilter({
+          operator: "and",
+          conditions: [{ field, operator: "eq", value }],
+        }),
+      )
+      expect(query.sql).toContain(`"ContactInbox"."${column}" = ${value}`)
+    }
+    const empty = renderContactWhere(
+      applyContactFilter({
+        operator: "and",
+        conditions: [{ field, operator: "isEmpty" }],
+      }),
+    )
+    expect(empty.sql).toContain('NOT EXISTS (SELECT 1 FROM "ContactInbox"')
+    expect(empty.sql).toContain(`"ContactInbox"."${column}" IS NOT NULL`)
+  })
+
+  test("uses the latest Instagram follower count and keeps NULL semantics", () => {
+    for (const operator of ["eq", "ne", "gt", "gte", "lt", "lte", "isEmpty"]) {
+      const query = renderContactWhere(
+        applyContactFilter({
+          operator: "and",
+          conditions: [
+            {
+              field: "followerCountOnInstagram",
+              operator,
+              ...(operator === "isEmpty" ? {} : { value: "10" }),
+            },
+          ],
+        }),
+      )
+      expect(query.sql).toContain('SELECT MAX("ContactInbox"."followerCount")')
+      if (operator === "ne" || operator === "isEmpty") {
+        expect(query.sql).toContain("IS NULL")
+      }
+    }
+    expect(
+      applyContactFilter({
+        operator: "and",
+        conditions: [{ field: "followerCountOnInstagram", operator: "eq" }],
+      }),
+    ).toEqual({})
+  })
+
+  test("scopes commented posts to a workspace and rejects malformed persisted ids", () => {
+    const criteria = {
+      operator: "and" as const,
+      conditions: [
+        { field: "commentedOnPost", operator: "eq", value: ["4", "4", "9"] },
+      ],
+    }
+    // No workspace means the condition cannot be scoped: it must match nobody
+    // rather than be dropped.
+    expect(renderContactWhere(applyContactFilter(criteria)).sql).toContain(
+      "FALSE",
+    )
+    const query = renderContactWhere(applyContactFilter(criteria, "42"))
+    expect(query.sql).toContain('JOIN "ContactInboxPost" p')
+    expect(query.sql).toContain('p."workspaceId" = $1::bigint')
+    expect(query.params).toEqual(["42", "4", "9"])
+
+    for (const value of [
+      undefined,
+      [],
+      ["0"],
+      ["01"],
+      ["x"],
+      ["9223372036854775808"],
+    ]) {
+      const query = renderContactWhere(
+        applyContactFilter(
+          {
+            operator: "and",
+            conditions: [{ field: "commentedOnPost", operator: "eq", value }],
+          },
+          "42",
+        ),
+      )
+      expect(query.sql).toContain("FALSE")
+      expect(query.sql).not.toContain("ContactInboxPost")
+    }
+    const maximum = renderContactWhere(
+      applyContactFilter(
+        {
+          operator: "and",
+          conditions: [
+            {
+              field: "commentedOnPost",
+              operator: "eq",
+              value: ["9223372036854775807"],
+            },
+          ],
+        },
+        "42",
+      ),
+    )
+    expect(maximum.params).toContain("9223372036854775807")
+    const hundred = Array.from({ length: 100 }, (_, index) => String(index + 1))
+    expect(
+      renderContactWhere(
+        applyContactFilter(
+          {
+            operator: "and",
+            conditions: [
+              { field: "commentedOnPost", operator: "eq", value: hundred },
+            ],
+          },
+          "42",
+        ),
+      ).params,
+    ).toHaveLength(101)
+    expect(
+      renderContactWhere(
+        applyContactFilter(
+          {
+            operator: "and",
+            conditions: [
+              {
+                field: "commentedOnPost",
+                operator: "eq",
+                value: [...hundred, "101"],
+              },
+            ],
+          },
+          "42",
+        ),
+      ).sql,
+    ).toContain("FALSE")
+  })
+
+  test("a malformed commentedOnPost condition never widens a mixed AND audience", () => {
+    const query = renderContactWhere(
+      applyContactFilter(
+        {
+          operator: "and",
+          conditions: [
+            {
+              field: "followsBusinessOnInstagram",
+              operator: "eq",
+              value: "true",
+            },
+            { field: "commentedOnPost", operator: "eq", value: ["not-an-id"] },
+          ],
+        },
+        "42",
+      ),
+    )
+
+    // Both conditions survive: the valid one and a match-nobody guard.
+    expect(query.sql).toContain('"followsBusiness"')
+    expect(query.sql).toContain("FALSE")
+  })
+
+  test("an unsupported commentedOnPost operator fails closed", () => {
+    const query = renderContactWhere(
+      applyContactFilter(
+        {
+          operator: "and",
+          conditions: [
+            { field: "commentedOnPost", operator: "contains", value: ["4"] },
+          ],
+        },
+        "42",
+      ),
+    )
+
+    expect(query.sql).toContain("FALSE")
+  })
+
+  test("renders ne and isEmpty as NOT EXISTS without reading an empty value", () => {
+    const ne = renderContactWhere(
+      applyContactFilter(
+        {
+          operator: "and",
+          conditions: [
+            { field: "commentedOnPost", operator: "ne", value: ["7"] },
+          ],
+        },
+        "42",
+      ),
+    )
+    expect(ne.sql).toContain("NOT EXISTS")
+    const empty = renderContactWhere(
+      applyContactFilter(
+        {
+          operator: "and",
+          conditions: [
+            {
+              field: "commentedOnPost",
+              operator: "isEmpty",
+              value: "junk",
+            },
+          ],
+        },
+        "42",
+      ),
+    )
+    expect(empty.sql).toContain("NOT EXISTS")
+    expect(empty.sql).not.toContain('p."postId"')
+    expect(empty.params).toEqual(["42"])
+  })
+})
+
 describe("applyContactFilter — CTWA fields", () => {
   test("renders fromCtwaAd true/false as EXISTS / NOT EXISTS on ContactInbox.referral", () => {
     const positive = renderContactWhere(
@@ -2399,6 +2610,38 @@ describe("applyContactFilter — CTWA fields", () => {
       }),
     )
     expect(empty.sql).toContain('NOT EXISTS (SELECT 1 FROM "ContactInbox"')
+  })
+
+  test("renders fromGoogleAd as EXISTS / NOT EXISTS on the gclid/gbraid click, not the Meta predicate", () => {
+    const render = (condition: Record<string, unknown>) =>
+      renderContactWhere(
+        applyContactFilter({
+          operator: "and",
+          conditions: [{ field: "fromGoogleAd", ...condition }],
+        } as Parameters<typeof applyContactFilter>[0]),
+      )
+
+    const positive = render({
+      operator: operatorTypes.enum.eq,
+      value: "true",
+    })
+    expect(positive.sql).toContain('EXISTS (SELECT 1 FROM "ContactInbox"')
+    expect(positive.sql).not.toContain("NOT EXISTS")
+    expect(positive.sql).toContain(
+      `"ContactInbox"."referral"->>'gclid' IS NOT NULL`,
+    )
+    expect(positive.sql).toContain(
+      `"ContactInbox"."referral"->>'gbraid' IS NOT NULL`,
+    )
+    expect(positive.sql).not.toContain("ctwaClid")
+    expect(positive.sql).not.toContain("'adId'")
+
+    expect(
+      render({ operator: operatorTypes.enum.eq, value: "false" }).sql,
+    ).toContain('NOT EXISTS (SELECT 1 FROM "ContactInbox"')
+    expect(render({ operator: operatorTypes.enum.isEmpty }).sql).toContain(
+      'NOT EXISTS (SELECT 1 FROM "ContactInbox"',
+    )
   })
 
   test("renders ctwaConversion in/notIn as EXISTS/NOT EXISTS joining AdsConversionEvent through ContactInbox", () => {
@@ -4156,5 +4399,98 @@ describe("applyContactFilter — W1 relation activations", () => {
     expect(query.sql).toContain(
       '"ContactOnBroadcast"."deliveredAt" IS NOT NULL',
     )
+  })
+})
+
+describe("applyContactFilter — leaderboardScore (dynamic per-leaderboard field)", () => {
+  const scoreWhere = (operator: string, value: unknown) =>
+    applyContactFilter({
+      operator: "and",
+      conditions: [
+        { field: "leaderboardScore", leaderboardId: "77", operator, value },
+      ],
+    })
+
+  test.each([
+    [operatorTypes.enum.eq, "="],
+    [operatorTypes.enum.lt, "<"],
+    [operatorTypes.enum.lte, "<="],
+    [operatorTypes.enum.gt, ">"],
+    [operatorTypes.enum.gte, ">="],
+  ])("%s compares the score with %s", (operator, symbol) => {
+    const query = renderFirstRawCondition(scoreWhere(operator, "100"))
+    expect(query.sql).toContain("COALESCE((")
+    expect(query.sql).toContain(`), 0) ${symbol} $`)
+    expect(query.params).toContain("77")
+    expect(query.params).toContain(100)
+  })
+
+  test("a contact without a score counts as 0 and the lookup is workspace-scoped", () => {
+    const query = renderFirstRawCondition(scoreWhere(operatorTypes.enum.lt, 5))
+    expect(query.sql).toContain('"LeaderboardParticipant"."score"')
+    expect(query.sql).toContain(
+      '"LeaderboardParticipant"."workspaceId" = "Contact"."workspaceId"',
+    )
+    expect(query.sql).toContain(", 0)")
+  })
+
+  test("unsupported operators or missing values produce no condition", () => {
+    for (const where of [
+      scoreWhere(operatorTypes.enum.contains, "1"),
+      scoreWhere(operatorTypes.enum.gt, "abc"),
+    ]) {
+      expect((where as { AND?: unknown[] }).AND).toBeUndefined()
+    }
+  })
+})
+
+describe("isWithinWorkingHours predicate", () => {
+  const filterWith = (operator: string, value: unknown) => ({
+    operator: "and" as const,
+    conditions: [{ field: "isWithinWorkingHours", operator, value }],
+  })
+
+  test("no-ops without a workspace scope", () => {
+    expect(applyContactFilter(filterWith("in", ["1"]))).toEqual({})
+  })
+
+  test("no-ops for unsupported operators and unusable selections", () => {
+    expect(applyContactFilter(filterWith("eq", ["1"]), "ws-1")).toEqual({})
+    expect(applyContactFilter(filterWith("in", ["abc"]), "ws-1")).toEqual({})
+    expect(applyContactFilter(filterWith("in", []), "ws-1")).toEqual({})
+  })
+
+  test("parameterises schedule ids and the workspace instead of inlining them", () => {
+    const where = applyContactFilter(filterWith("in", ["42", "43"]), "ws-1")
+    const { sql: text, params } = renderFirstRawCondition(where)
+
+    expect(text).toContain("AT TIME ZONE")
+    expect(text).not.toContain("pg_timezone_names")
+    expect(text).not.toContain("ws-1")
+    expect(params).toEqual(expect.arrayContaining(["ws-1", "42", "43", "UTC"]))
+  })
+
+  test("binds the caller-resolved workspace timezone as a parameter", () => {
+    const where = applyContactFilter(
+      {
+        ...filterWith("in", ["42"]),
+        workingHoursTimezone: "Asia/Ho_Chi_Minh",
+      },
+      "ws-1",
+    )
+    const { params } = renderFirstRawCondition(where)
+
+    expect(params).toContain("Asia/Ho_Chi_Minh")
+  })
+
+  test("notIn negates the whole selection and assignedAgent is correlated to the contact", () => {
+    const where = applyContactFilter(
+      filterWith("notIn", ["assignedAgent"]),
+      "ws-1",
+    )
+    const { sql: text } = renderFirstRawCondition(where)
+
+    expect(text.startsWith("NOT (")).toBe(true)
+    expect(text).toContain('"Conversation"."contactId" = "Contact"."id"')
   })
 })

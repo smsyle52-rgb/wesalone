@@ -1,8 +1,10 @@
 {
   "actions": {
+    "scrollToBottom": "التمرير إلى الأسفل",
     "retry": "إعادة المحاولة",
     "copy": "نسخ",
     "copyUrl": "انسخ عنوان URL",
+    "chatWidget": "أداة الدردشة",
     "actions": "الإجراءات",
     "add": "أضف",
     "addVariable": "إضافة متغير",
@@ -154,6 +156,8 @@
     "moveToDraft": "إرجاع إلى المسودّات",
     "stop": "إيقاف",
     "resume": "استئناف",
+    "viewRuns": "عرض عمليات التشغيل",
+    "editSchedule": "تعديل الجدول",
     "newLineHint": "‏Shift + Enter لسطر جديد",
     "tryAgain": "حاول مرة أخرى"
   },
@@ -217,6 +221,13 @@
     "averageFirstResponseTimeByAdmin": "متوسط وقت الاستجابة الأولى من قبل العناصر البشرية (بالدقائق)",
     "averageFirstResponseTimeByAdminHelp": "متوسط ​​الوقت الذي يستغرقه الوكيل البشري لتقديم الرد الأولي على رسالة العميل.",
     "averageResponseTimeByAdmin": "متوسط وقت الاستجابة من قبل الوكلاء البشريين (بالدقائق)",
+    "withinWorkingHoursHelp": "يحتسب فقط الوقت ضمن ساعات عمل الموظف.",
+    "withinWorkingHoursLabel": "ضمن ساعات العمل",
+    "noResponseData": "لا ردود في هذه الفترة، أو لم يُعيَّن جدول.",
+    "averageFirstResponseTimeWithinWorkingHoursByAdmin": "متوسط وقت الاستجابة الأولى ضمن ساعات العمل حسب الموظفين البشر (بالدقائق)",
+    "averageFirstResponseTimeWithinWorkingHoursByAdminHelp": "متوسط الوقت ضمن ساعات العمل الذي يستغرقه الموظف البشري لتقديم الرد الأول على رسالة العميل.",
+    "averageResponseTimeWithinWorkingHoursByAdmin": "متوسط وقت الاستجابة ضمن ساعات العمل حسب الموظفين البشر (بالدقائق)",
+    "averageResponseTimeWithinWorkingHoursByAdminHelp": "متوسط الوقت ضمن ساعات العمل الذي يستغرقه الموظف البشري للرد على رسالة العميل.",
     "averageDurationOfConversation": "متوسط مدة المحادثة (بالدقائق)",
     "averageDurationOfConversationHelp": "إنه متوسط الوقت الذي يعالج فيه الإنسان المحادثة قبل نقلها إلى الوكيل الذكي.",
     "success": "النجاح",
@@ -248,7 +259,7 @@
     "blockedConversationsHelp": "المحادثات التي حظرها حسابك.",
     "blockedContacts": "جهات الاتصال المحظورة",
     "blockedContactsHelp": "جهات الاتصال لا تريد تلقي رسائل من حسابك",
-    "newContactsByCountry": "اتصالات جديدة حسب البلد",
+    "newContactsByLanguage": "جهات الاتصال الجديدة حسب اللغة",
     "date": "التاريخ",
     "total": "المجموع",
     "messagesSent": "الرسائل المرسلة",
@@ -279,7 +290,19 @@
     "message": "رسالة",
     "searchByDate": "البحث حسب التاريخ...",
     "publicReply": "رد عام",
-    "privateReply": "رد خاص"
+    "privateReply": "رد خاص",
+    "filters": {
+      "allChannels": "كل القنوات",
+      "allInboxes": "جميع صناديق الوارد",
+      "searchPlaceholder": "بحث...",
+      "empty": "لم يتم العثور على نتائج.",
+      "clear": "مسح",
+      "close": "إغلاق",
+      "options": "الخيارات المتاحة",
+      "remove": "إزالة",
+      "filterHint": "لا تحتسب عوامل التصفية إلا الأحداث المسجلة بعد إضافة التصفية: الأحداث الأقدم بلا صندوق وارد، وأحداث البوت والمحادثات الأقدم بلا قناة أيضًا. الكل يحتسب كل شيء دائمًا.",
+      "tooManyInboxes": "اختر {max} صندوق وارد كحد أقصى، أو حدد الكل."
+    }
   },
   "flowAnalytics": {
     "nodes": {
@@ -391,7 +414,10 @@
       "sending": "إرسال",
       "cancelled": "ملغاة",
       "draft": "مسودّة",
-      "failed": "فشلت"
+      "failed": "فشلت",
+      "recurring": "متكرر",
+      "paused": "متوقف مؤقتًا",
+      "ended": "منتهٍ"
     },
     "stats": {
       "sent": "تم الإرسال",
@@ -475,7 +501,9 @@
       "audienceFilter": "مرشح الجمهور",
       "noAudienceFilter": "لا يوجد مرشح الجمهور",
       "template": "القالب",
-      "integration": "التكامل"
+      "integration": "التكامل",
+      "schedule": "جدول التكرار",
+      "runOf": "تشغيل لـ <link>{name}</link>"
     },
     "filters": {
       "all": "الكل"
@@ -524,15 +552,20 @@
     },
     "moveToDraftDialog": {
       "title": "إرجاع إلى المسودّات",
-      "description": "ستُلغى جدولة «{name}» وتعود إلى المسودّات."
+      "description": "ستُلغى جدولة «{name}» وتعود إلى المسودّات.",
+      "templateTitle": "تعديل الجدول",
+      "templateDescription": "سيتم إيقاف \"{name}\" مؤقتًا ونقله إلى المسودات لتتمكن من تغيير جدوله."
     },
     "stopDialog": {
       "title": "إيقاف الرسالة الجماعية",
-      "description": "تتوقف الرسائل المتبقية لـ \"{name}\" خلال دقيقة تقريبًا. قد يصل عدد قليل منها سُلّم للقناة بالفعل. يمكنك الاستئناف لاحقًا — ولن يستلم إلا من لم تُرسل إليه بعد."
+      "description": "تتوقف الرسائل المتبقية لـ \"{name}\" خلال دقيقة تقريبًا. قد يصل عدد قليل منها سُلّم للقناة بالفعل. يمكنك الاستئناف لاحقًا — ولن يستلم إلا من لم تُرسل إليه بعد.",
+      "templateTitle": "إيقاف البث المتكرر مؤقتًا",
+      "templateDescription": "لن ينشئ \"{name}\" عمليات تشغيل جديدة. ستستمر عملية التشغيل الجارية. يمكنك الاستئناف لاحقًا؛ وسيتم تخطي عمليات التشغيل أثناء الإيقاف."
     },
     "resumeDialog": {
       "title": "استئناف الرسالة الجماعية",
-      "description": "ستتابع «{name}» الإرسال إلى من لم تصلهم بعد."
+      "description": "ستتابع «{name}» الإرسال إلى من لم تصلهم بعد.",
+      "templateDescription": "سيعود \"{name}\" إلى التكرار من الموعد المجدول التالي. تم تخطي عمليات التشغيل أثناء الإيقاف."
     },
     "planLimitDialog": {
       "title": "ترقية خطتك",
@@ -550,6 +583,63 @@
       "toLabel": "إلى",
       "allPlaceholder": "الكل",
       "rangeEndBeforeStart": "لا يمكن أن يكون موضع النهاية قبل موضع البداية"
+    },
+    "recurring": {
+      "nextRun": "التشغيل التالي {when}",
+      "paused": "متوقف مؤقتًا",
+      "ended": "انتهى {when} · {count, plural, one {تشغيل #} other {# عمليات تشغيل}}",
+      "runs": "{count, plural, one {تشغيل #} other {# عمليات تشغيل}}",
+      "noUpcomingSends": "لا مزيد من عمليات الإرسال — التواريخ المتبقية متخطاة"
+    },
+    "runs": {
+      "back": "البث المتكرر",
+      "pausedNotice": "متوقف مؤقتًا منذ {when}. يتم تخطي عمليات التشغيل أثناء الإيقاف.",
+      "groupBy": "تجميع عمليات التشغيل حسب",
+      "grouping": {
+        "day": "يوم",
+        "week": "أسبوع",
+        "month": "شهر"
+      },
+      "totals": "{runs, plural, one {تشغيل #} other {# عمليات تشغيل}} من {slots, plural, one {موعد #} other {# مواعيد}}",
+      "error": "تعذر تحميل عمليات التشغيل.",
+      "retry": "حاول مرة أخرى",
+      "empty": "لا توجد عمليات تشغيل بعد. يبدأ أول تشغيل في الموعد المجدول التالي.",
+      "loadMore": "تحميل المزيد",
+      "weekOf": "أسبوع {date}",
+      "groupSummary": "{created, plural, one {تشغيل #} other {# عمليات تشغيل}}{missed, plural, =0 {} other { · # فائتة}}{skipped, plural, =0 {} other { · # متخطاة}}",
+      "deliveredRate": "{rate} تم تسليمها",
+      "notSent": "لم يُرسل — {reason}",
+      "earlierSlots": "{count, plural, one {موعد سابق # فائت} other {# مواعيد سابقة فائتة}}",
+      "stalled": "متعطل",
+      "lateByMinutes": "{count, plural, one {متأخر # دقيقة} other {متأخر # دقائق}}",
+      "lateByHours": "{count, plural, one {متأخر # ساعة} other {متأخر # ساعات}}",
+      "recipients": "{count, plural, one {# مستلم} other {# مستلمين}}",
+      "reasons": {
+        "catchUpSuperseded": "كانت المنصة متوقفة؛ تم إرسال تشغيل لاحق بدلًا منه",
+        "paused": "كان الجدول متوقفًا مؤقتًا",
+        "draft": "كان البث قيد التعديل",
+        "blockedOwner": "الحساب محظور",
+        "planLimit": "تم بلوغ حد الباقة",
+        "noTargets": "لا توجد صفحة للإرسال منها",
+        "undeliverable": "التدفق أو القالب غير متاح",
+        "excludedDate": "تاريخ متخطى"
+      },
+      "outcomes": {
+        "created": "تم الإرسال",
+        "skipped": "تم التخطي",
+        "missed": "فائت"
+      },
+      "upcoming": {
+        "title": "عمليات الإرسال القادمة",
+        "empty": "لا توجد عمليات إرسال قادمة",
+        "skip": "تخطي",
+        "restore": "استعادة",
+        "skippedBadge": "متخطى",
+        "skipped": "تم تخطي {date}",
+        "restored": "تمت استعادة {date}",
+        "undo": "تراجع",
+        "error": "لم يعد بالإمكان تغيير هذا الإرسال"
+      }
     }
   },
   "commentAutomation": {
@@ -598,15 +688,37 @@
     "trackUserTags": {
       "label": "تتبع ما إذا كان المستخدم يشير إلى مستخدمين آخرين",
       "descriptionText": "يحسب الحسابات المشار إليها في كل تعليق ويضيفها إلى إجماليات جهة الاتصال عبر جميع التعليقات. استخدم '{{total_tagged}}' لكل الحسابات المشار إليها و'{{total_new_tagged}}' للحسابات التي لم تراسل صفحتك أو لم تكن جهة اتصال من قبل."
+    },
+    "card": {
+      "reply": "الرد"
+    },
+    "liveBadge": "مباشر",
+    "postTypeDialog": {
+      "title": "اختر نوع المنشور"
+    },
+    "account": {
+      "label": "الحساب",
+      "description": "الحساب المتصل الذي تردّ عليه هذه الأتمتة. اختر “كل الحسابات” للرد على كل الحسابات المتصلة لهذه القناة.",
+      "all": "كل الحسابات",
+      "placeholder": "اختر حسابًا",
+      "required": "هناك عدة حسابات متصلة: اختر حسابًا واحدًا، أو اختر “كل الحسابات” عن قصد.",
+      "targetsCleared": "تم إلغاء تحديد المنشورات لأنها قد تنتمي إلى حساب آخر.",
+      "column": "الحساب",
+      "disconnected": "حساب غير متصل",
+      "disconnectedDescription": "ترتبط هذه الأتمتة بحساب لم يعد متصلاً، لذا لن ترد على أي تعليق. أعد ربط الحساب أو اختر حسابًا آخر."
     }
   },
   "condition": {
+    "unknownValue": "غير معروف",
     "yes": "نعم",
     "no": "لا",
     "valuePlaceholder": "...",
     "datePlaceholder": "YYYY-MM-DD",
     "datetimePlaceholder": "YYYY-MM-DD HH:mm",
     "datetimeInvalid": "أدخل التاريخ بصيغة YYYY-MM-DD HH:mm أو متغيّرًا",
+    "openPost": "فتح {post}",
+    "openPostLink": "فتح",
+    "postWithoutCaption": "منشور بلا وصف",
     "operator": {
       "and": "جميع الشروط",
       "or": "أي شرط"
@@ -668,6 +780,7 @@
       "questionnaireInProgress": "الاستبيان قيد التقدم",
       "questionnaireFinished": "انتهى الاستبيان",
       "couponTopic": "الكوبون",
+      "leaderboardScore": "نقاط التحدي",
       "votedOnPoll": "صوتوا على الاستطلاع",
       "lastComment": "التعليق الأخير",
       "commentedOnPost": "تم التعليق على المنشور",
@@ -710,6 +823,7 @@
       "noAdminReply": "لا رد المشرف",
       "contactCreatedAt": "تم إنشاء جهة الاتصال في",
       "fromCtwaAd": "من الإعلانات",
+      "fromGoogleAd": "من إعلانات Google",
       "ctwaConversion": "تحويل الإعلان",
       "lastUserInputTypes": {
         "text": "نص",
@@ -719,7 +833,8 @@
         "video": "فيديو",
         "audio": "صوت",
         "gif": "GIF",
-        "file": "ملف"
+        "file": "ملف",
+        "storyMention": "إشارة في قصة"
       },
       "ctwaConversionTypes": {
         "lead": "عميل محتمل",
@@ -736,6 +851,7 @@
       "ecommerce": "التجارة الإلكترونية",
       "systemFields": "مجالات النظام",
       "topicCoupon": "موضوع الكوبون",
+      "leaderboard": "نقاط التحدي",
       "customFields": "الحقول المخصصة",
       "botFields": "حقول البوت",
       "email": "البريد الإلكتروني",
@@ -775,7 +891,8 @@
       "api": "واجهة برمجة التطبيقات",
       "webchat": "دردشة عبر الإنترنت",
       "botLink": "رابط البوت",
-      "chatPlugin": "ج- البرنامج المساعد للدردشة"
+      "chatPlugin": "ج- البرنامج المساعد للدردشة",
+      "inboundWebhook": "ويب هوك وارد"
     },
     "ctwaRetarget": {
       "segments": {
@@ -850,15 +967,25 @@
         "channelLimit": "تم بلوغ حد القنوات.",
         "workspaceLimit": "تم بلوغ حد مساحة العمل.",
         "providerRejected": "رفض المزوّد هذا الطلب.",
+        "inProgress": "الاتصال قيد التقدم بالفعل.",
         "unknown": "حدث خطأ ما.",
-        "followUpFailed": "الإعداد غير مكتمل — أكمله من إعدادات القناة."
+        "followUpFailed": "الإعداد غير مكتمل — أكمله من إعدادات القناة.",
+        "webhookSubscribeFailed": "متصل، لكن فشل الاشتراك في webhook — أعد المحاولة من إعدادات الاتصال.",
+        "providerUnavailable": "مزوّد الخدمة غير متاح مؤقتًا. حاول مرة أخرى بعد بضع دقائق."
       },
       "sessionError": {
         "sessionExpired": "انتهت صلاحية جلستك. يرجى إعادة الاتصال.",
         "notMember": "لم تعد عضوًا في مساحة العمل هذه.",
         "trialExpired": "انتهت فترة تجربتك.",
         "macLimitReached": "لقد بلغت حد حسابك.",
-        "credentialMissing": "بيانات الاعتماد مفقودة. يرجى إعادة الاتصال."
+        "credentialMissing": "بيانات الاعتماد مفقودة. يرجى إعادة الاتصال.",
+        "noPages": "لم نعثر على أي صفحة فيسبوك للربط. اربط مرة أخرى وامنح الوصول إلى صفحة واحدة على الأقل تديرها.",
+        "noInstagramAccounts": "لم نعثر على أي حساب إنستغرام للربط. اربط مرة أخرى وامنح الوصول إلى حساب واحد على الأقل.",
+        "exchangeFailed": "تعذّر إكمال تسجيل الدخول. يرجى الربط مرة أخرى.",
+        "providerError": "تعذّر تحميل حساباتك الآن. يرجى المحاولة مرة أخرى بعد بضع دقائق.",
+        "connectFailed": "حدث خطأ أثناء الربط. يرجى المحاولة مرة أخرى.",
+        "tooManyAttempts": "هناك عدد كبير جدًا من محاولات الربط غير المكتملة. انتظر بضع دقائق ثم حاول مرة أخرى.",
+        "notAllowed": "لا يمكنك ربط القنوات هنا الآن. أعد تحميل الصفحة لمعرفة السبب."
       },
       "cancelRemaining": "إلغاء المتبقي",
       "retryFailed": "إعادة المحاولة ({count})",
@@ -905,7 +1032,9 @@
       "bannerDescription": "تمت جدولة مساحة العمل هذه للحذف. التراجع عن الحذف أدناه لمواصلة استخدامه.",
       "pendingBlockedToast": "تمت جدولة مساحة العمل هذه للحذف. اتصل بمسؤول مساحة العمل لاستعادة الوصول.",
       "navDisabledTooltip": "غير متاح أثناء جدولة حذف مساحة العمل",
-      "badge": "الحذف مُجدوَل"
+      "badge": "الحذف مُجدوَل",
+      "purging": "جارٍ حذف مساحة العمل.",
+      "alreadyStarted": "بدأ حذف مساحة العمل بالفعل."
     },
     "supportAccess": {
       "bannerTitle": "جلسة دعم المنصة",
@@ -916,6 +1045,7 @@
       "permissionRequired": "يجب أن تكون مسؤولاً فائقاً لتغيير وصول دعم المنصة.",
       "enabledToast": "تم تفعيل وصول دعم المنصة.",
       "disabledToast": "تم إيقاف وصول دعم المنصة.",
+      "consentDisabled": "Platform support access is available to platform administrators without this setting.",
       "toggleError": "حدث خطأ ما. يرجى المحاولة مرة أخرى."
     }
   },
@@ -1303,6 +1433,19 @@
     "contactId": {
       "label": "معرف جهة الاتصال"
     },
+    "channelIdentity": {
+      "psid": "PSID",
+      "igsid": "IGSID",
+      "whatsappId": "WhatsApp ID",
+      "bsuid": "BSUID",
+      "zaloUserId": "معرّف مستخدم Zalo",
+      "telegramChatId": "معرّف دردشة Telegram",
+      "tiktokUserId": "معرّف مستخدم TikTok",
+      "threadsUsername": "اسم مستخدم Threads",
+      "webchatGuestId": "معرّف زائر Webchat",
+      "externalId": "المعرّف الخارجي",
+      "channelId": "معرّف القناة"
+    },
     "flow": {
       "label": "التدفق"
     },
@@ -1443,7 +1586,8 @@
       "video": "فيديو",
       "audio": "صوت",
       "gif": "GIF",
-      "file": "ملف"
+      "file": "ملف",
+      "storyMention": "إشارة في قصة"
     },
     "lastMonth": {
       "label": "الشهر الماضي"
@@ -1927,7 +2071,8 @@
     "schedule": {
       "label": "الجدول الزمني",
       "now": "الآن",
-      "scheduled": "الجدول الزمني في وقت لاحق"
+      "scheduled": "الجدول الزمني في وقت لاحق",
+      "recurring": "تكرار"
     },
     "inputFieldId": {
       "label": "إدخال الحقل المخصص"
@@ -1986,6 +2131,10 @@
     "autoSkipFailAttempts": {
       "label": "التخطي التلقائي للمحاولات الفاشلة"
     },
+    "showHint": {
+      "label": "عرض تلميح",
+      "description": "اقتراح رقم هاتف جهة الاتصال أو بريدها الإلكتروني كردّ سريع. يعمل على Messenger وInstagram فقط."
+    },
     "autoSkip": {
       "label": "التخطي التلقائي"
     },
@@ -2026,7 +2175,8 @@
       "searchPlaceholder": "كلمة البحث..."
     },
     "templateId": {
-      "label": "قالب WhatsApp"
+      "label": "قالب WhatsApp",
+      "placeholder": "اختر قالبًا"
     },
     "messengerTemplateId": {
       "label": "قالب Messenger"
@@ -2078,7 +2228,10 @@
       "label": "معرف العميل"
     },
     "clientSecret": {
-      "label": "سر العميل"
+      "label": "سر العميل",
+      "keepHint": "اتركه فارغًا للاحتفاظ بسر العميل المخزَّن.",
+      "isSet": "تم تعيين سر العميل.",
+      "isNotSet": "لم يتم تعيين سر العميل."
     },
     "verifyToken": {
       "label": "رمز التحقق من Webhook"
@@ -2123,6 +2276,10 @@
     "fromAddress": {
       "label": "من العنوان",
       "placeholder": "noreply@example.com"
+    },
+    "fromName": {
+      "label": "اسم المرسل",
+      "placeholder": "ChatbotX"
     },
     "messageTemplate": {
       "label": "قالب الرسالة"
@@ -2171,7 +2328,10 @@
         "completedAt": "اكتمل في",
         "recent": "الاستيرادات الأخيرة",
         "errorDetails": "أخطاء الاستيراد",
-        "row": "الصف {row}"
+        "row": "الصف {row}",
+        "unsupportedChannelStep": "قناة {channel} لا تدعم {block}.",
+        "channelStepConstraintExceeded": "يتجاوز {block} حد قناة {channel}: {actual} {unit}، والحد الأقصى {allowed}.",
+        "channelStepConstraintExceededGeneric": "قناة {channel} لا تدعم إعداد {block} الحالي."
       },
       "fileTooLarge": "الملف يتجاوز الحد الأقصى البالغ {size} ميجابايت.",
       "unsupportedFileType": "نوع الملف هذا غير مدعوم.",
@@ -2195,6 +2355,17 @@
     "signInCallbackUrl": {
       "label": "عنوان URL لرد الاتصال بتسجيل الدخول",
       "hint": "أضف هذا إلى عناوين URI المعتمدة لإعادة التوجيه لتطبيق Google لتمكين تسجيل الدخول إلى Google."
+    },
+    "adsDeveloperToken": {
+      "label": "رمز المطوّر لـ Google Ads",
+      "hint": "اختياري: لم تعد Google تتطلب رمز مطوّر. اتركه فارغًا للاحتفاظ بالرمز المحفوظ.",
+      "isSet": "تم تعيين رمز المطوّر.",
+      "isNotSet": "لم يتم تعيين رمز المطوّر.",
+      "clear": "مسح",
+      "cleared": "تم مسح رمز المطوّر."
+    },
+    "googleAdsCallbackUrl": {
+      "hint": "استخدم تطبيق Google OAuth مخصصًا لـ Google Ads ومنفصلًا عن تطبيق Google الخاص بك، مع تفعيل النطاقين adwords وdatamanager. يحتاج هذا التطبيق إلى توثيق OAuth خاص به من Google."
     },
     "webhookUrl": {
       "label": "عنوان URL للويب هوك",
@@ -2392,18 +2563,24 @@
       "broadcasts": "البث",
       "analytics": "التحليلات",
       "ecommerce": "التجارة الإلكترونية",
-      "integrations": "التكاملات",
       "channels": "القنوات",
+      "integrations": "عمليات التكامل",
       "minigames": "الألعاب المصغرة",
       "appointments": "المواعيد",
       "media": "الوسائط",
-      "ads": "الإعلانات"
+      "ads": "الإعلانات",
+      "settings": "الإعدادات",
+      "miniApps": "Mini Apps",
+      "leaderboards": "لوحات المتصدرين"
     },
     "adReferral": {
       "label": "الإعلانات",
       "ctwa": "CTWA",
       "ctm": "CTM",
-      "ctid": "CTID"
+      "ctid": "CTID",
+      "googleAds": "Google Ads",
+      "googleAdsWhatsapp": "GA CCWA",
+      "googleAdsMessenger": "GA CCTM"
     },
     "adSource": {
       "label": "مصدر الإعلان"
@@ -2420,6 +2597,37 @@
     },
     "sendRatePerMinute": {
       "label": "الرسائل في الدقيقة"
+    },
+    "adsUploadMethod": {
+      "label": "طريقة الرفع",
+      "hint": "يُنصح باستخدام Data Manager. تعمل واجهة الرفع القديمة فقط مع مشاريع Google Cloud التي لا تزال Google تسمح بها ولا تستخدم إذن Data Manager. يسري التغيير على الاتصالات الجديدة فقط: أعد ربط مساحات العمل الحالية.",
+      "dataManager": "واجهة Data Manager (موصى بها)",
+      "legacy": "واجهة الرفع القديمة"
+    },
+    "referralName": {
+      "label": "اسم المُحيل"
+    },
+    "capiConfigId": {
+      "label": "معرّف تكوين Conversions API",
+      "description": "معرّف تكوين Embedded Signup المستخدم لطلب إذن whatsapp_business_manage_events عند ربط Conversions API."
+    },
+    "outboundAutomatedResponse": {
+      "label": "كلمة مفتاحية للصفحة"
+    },
+    "fbComment": {
+      "label": "أتمتة تعليقات فيسبوك"
+    },
+    "igComment": {
+      "label": "أتمتة تعليقات إنستغرام"
+    },
+    "igStory": {
+      "label": "أتمتة قصص إنستغرام"
+    },
+    "images": {
+      "label": "الصور"
+    },
+    "miniApp": {
+      "label": "التطبيق المصغر"
     },
     "attribute": {
       "label": "الخاصية"
@@ -2444,6 +2652,28 @@
     "title": "مسارات المحادثة",
     "quickReplies": {
       "limitReached": "تم الوصول إلى حد الرد السريع ({max})."
+    },
+    "quickReplySettings": {
+      "open": "إعدادات الردود السريعة",
+      "title": "تهيئة الردود السريعة",
+      "chooseNextStep": "اختر الخطوة التالية",
+      "followUp": {
+        "label": "المتابعة إذا لم يتفاعل جهة الاتصال",
+        "waitFor": "الانتظار لمدة",
+        "divider": "إذا لم يتفاعل جهة الاتصال، تابع باستخدام",
+        "windowHint": "يسمح Messenger وInstagram بالإرسال فقط خلال 24 ساعة من آخر رسالة لجهة الاتصال؛ ويتم تخطي المتابعات اللاحقة هناك.",
+        "handle": "لا يوجد تفاعل"
+      },
+      "retry": {
+        "label": "إعادة المحاولة إذا لم يكن الرد ردًا سريعًا",
+        "message": "رسالة إعادة المحاولة",
+        "messageDefault": "يُرجى النقر على أحد الخيارات أدناه 👇",
+        "count": "عدد مرات إعادة المحاولة",
+        "countOption": "{count, plural, =0 {بدون إعادة محاولة} one {# مرة} other {# مرات}}",
+        "divider": "عند تجاوز عدد مرات إعادة المحاولة",
+        "handle": "تم تجاوز عدد المحاولات",
+        "getUserDataConflict": "إعادة المحاولة غير متاحة عندما تحتوي هذه الرسالة على خطوة الحصول على بيانات المستخدم."
+      }
     },
     "buttons": {
       "limitReached": "تم الوصول إلى حد الزر ({max})."
@@ -2539,9 +2769,11 @@
       "sendTemplateMessage": "رسالة القالب",
       "whatsappOptionList": "قائمة الخيارات",
       "noTemplatesAvailable": "لا توجد قوالب متاحة",
+      "inboxesUnavailable": "تعذر تحميل القنوات",
       "noFlowsAvailable": "لا توجد تدفقات متاحة",
       "setCustomField": "قم بتعيين الحقل المخصص",
       "startAnotherNode": "ابدأ عقدة أخرى",
+      "openMiniApp": "فتح التطبيق المصغر",
       "startExternalFlow": "ابدأ التدفق الخارجي",
       "startExternalNode": "بدء العقدة الخارجية",
       "startFlow": "بدء التدفق",
@@ -2579,7 +2811,13 @@
       "importStarted": "جارٍ استيراد التدفق. يرجى مراجعة سجل الاستيراد للحصول على النتائج.",
       "importJsonOnly": "ملفات JSON فقط",
       "whatsappCallButton": "الاتصال عبر واتساب",
+      "whatsappLocation": "الموقع",
       "metaConversions": "واجهة تحويلات ميتا",
+      "threadControl": "التحكم في المحادثة",
+      "sendGoogleAdsConversion": "إرسال تحويل Google Ads",
+      "changeGamificationScore": "تغيير نقاط التحدي",
+      "sendViewCatalog": "عرض الكتالوج",
+      "sendProducts": "إرسال المنتجات",
       "aiAgentGroup": "وكيل الذكاء الاصطناعي"
     },
     "splitTraffic": {
@@ -2701,13 +2939,75 @@
       "editButtonTitle": "تعديل الزر",
       "buttonLabel": "تسمية الزر"
     },
+    "changeGamificationScore": {
+      "leaderboard": "لوحة المتصدرين",
+      "operation": "العملية",
+      "add": "إضافة نقاط (+)",
+      "subtract": "خصم نقاط (−)",
+      "points": "النقاط",
+      "targetUser": "نقاط المستخدم",
+      "targetReferrer": "نقاط المُحيل",
+      "targetReferrerHint": "غيّر أيضًا نقاط من قام بإحالة جهة الاتصال هذه.",
+      "summary": "{points} نقطة في {leaderboard}"
+    },
+    "whatsappLocation": {
+      "title": "الموقع",
+      "name": "الاسم",
+      "address": "العنوان",
+      "latitude": "خط العرض",
+      "longitude": "خط الطول",
+      "setLocation": "تعيين الموقع",
+      "errors": {
+        "tooLong": "يجب ألا يتجاوز 1000 حرف.",
+        "invalidLatitude": "أدخل خط عرض بين -90 و90.",
+        "invalidLongitude": "أدخل خط طول بين -180 و180.",
+        "locationRequired": "أدخل إحداثيات الموقع."
+      }
+    },
+    "sendViewCatalog": {
+      "footerLabel": "التذييل",
+      "thumbnailLabel": "منتج الصورة المصغرة"
+    },
+    "sendProducts": {
+      "description": "اختر المنتجات المراد إرسالها وطريقة عرضها.",
+      "display": "طريقة العرض",
+      "displays": {
+        "products": "المنتجات",
+        "carousel": "شريط متحرك"
+      },
+      "products": "المنتجات",
+      "selectProducts": "اختيار المنتجات",
+      "searchProducts": "البحث عن المنتجات",
+      "noProducts": "لم يتم العثور على منتجات.",
+      "loading": "جارٍ التحميل...",
+      "loadError": "تعذّر تحميل المنتجات.",
+      "retry": "إعادة المحاولة",
+      "catalogNotConnected": "اربط كتالوج Meta وزامِنه لإرسال المنتجات.",
+      "openProducts": "فتح المنتجات",
+      "channelUnsupported": "لا يمكن لهذه القناة إرسال المنتجات.",
+      "unavailableProduct": "منتج غير متاح",
+      "removeProduct": "إزالة المنتج",
+      "removeSection": "إزالة القسم",
+      "moreOptions": "المزيد من الخيارات",
+      "fewerOptions": "خيارات أقل",
+      "header": "العنوان",
+      "body": "النص",
+      "footer": "التذييل",
+      "sectionTitle": "عنوان القسم",
+      "addSection": "إضافة قسم",
+      "productCount": "{count} / {max} منتج",
+      "productsSelected": "{count, plural, one {# منتج} other {# منتجات}}",
+      "noneSelected": "لا توجد منتجات بعد",
+      "sendFailed": "تعذّر إرسال المنتجات."
+    },
     "startNode": "البداية"
   },
   "folders": {
-    "heading": {
-      "title": "المجلدات"
-    },
-    "root": "الجذر"
+    "rootOption": "-- الجذر --",
+    "showMore": "+{count}",
+    "showLess": "عرض أقل",
+    "root": "الجذر",
+    "viewingFolder": "عرض المجلد: {name}"
   },
   "gemini": {
     "autoReply": {
@@ -2790,7 +3090,8 @@
     "dashboardNav": {
       "whatsapp": "إعلانات Click-to-WhatsApp",
       "messenger": "إعلانات Click-to-Messenger",
-      "instagram": "إعلانات Click-to-Instagram"
+      "instagram": "إعلانات Click-to-Instagram",
+      "google": "Google Ads"
     },
     "connectAccounts": {
       "connectAdAccount": "ربط حساب إعلاني",
@@ -3269,6 +3570,128 @@
   "integrations": {
     "title": "التكامل"
   },
+  "aiHandover": {
+    "title": "Meta Business AI",
+    "description": "تحكّم فيما يحدث عندما يرد مساعد الذكاء الاصطناعي من Meta على عملاء Messenger لديك.",
+    "info": "عند التفعيل، تُستلم المحادثات هنا بعد أن يعيدها مساعد الذكاء الاصطناعي، وتُطبَّق الإعدادات أدناه.",
+    "enabled": {
+      "label": "تفعيل"
+    },
+    "schedule": {
+      "label": "وقت التشغيل",
+      "description": "يُطبَّق فقط خلال هذه الساعات بالمنطقة الزمنية لمساحة العمل.",
+      "from": "من الساعة",
+      "to": "إلى الساعة",
+      "add": "إضافة نطاق زمني",
+      "remove": "إزالة النطاق الزمني"
+    },
+    "gotoFlow": {
+      "label": "الانتقال إلى مسار",
+      "description": "المسار الذي يبدأ عندما يعيد مساعد الذكاء الاصطناعي المحادثة. له الأولوية على رسالة الإعادة.",
+      "placeholder": "اختر مسارًا",
+      "clear": "مسح المسار"
+    },
+    "returnMessage": {
+      "label": "رسالة العودة",
+      "description": "تُرسل بدلًا منه عندما لا يوجد مسار أو لم يعد المسار نشطًا.",
+      "placeholder": "الرسالة المرسلة عندما يعيد الذكاء الاصطناعي المحادثة"
+    },
+    "pauseBot": {
+      "label": "نقل المحادثة إلى موظف بشري",
+      "description": "يوقف الروبوت لجهة الاتصال هذه بعد الإعادة حتى يتولى أحد أعضاء الفريق أو يُستأنف."
+    },
+    "readOnly": "يمكنك عرض هذه الإعدادات ولكن لا يمكنك تغييرها.",
+    "errors": {
+      "supportSession": "لا يمكن تغيير الإعدادات من جلسة دعم.",
+      "flowNotFound": "لم يتم العثور على المسار المحدد أو أنه غير نشط.",
+      "timeRanges": "أدخل نطاقات زمنية صالحة: ساعات صحيحة من 0 إلى 24، بحيث يختلف البدء عن الانتهاء."
+    },
+    "bulk": {
+      "title": "تطبيق على جميع العملاء",
+      "description": "سلّم كل محادثة Messenger مؤهلة إلى مساعد الذكاء الاصطناعي من Meta، أو استعد المحادثات التي يحتفظ بها حاليًا. يعمل في الخلفية ويمكنك متابعته من هنا.",
+      "started": "بدأ التنفيذ. يمكنك متابعة التقدم هنا.",
+      "progress": "التقدم",
+      "processedOfTotal": "{done} من {total} محادثة",
+      "counters": "اكتملت {processed}، وتم تخطي {skipped}، وفشلت {failed}",
+      "action": {
+        "enable": "تفعيل للجميع",
+        "disable": "إيقاف للجميع"
+      },
+      "status": {
+        "pending": "بانتظار البدء",
+        "running": "قيد التشغيل",
+        "cancelling": "جارٍ الإلغاء",
+        "completed": "اكتمل",
+        "failed": "فشل",
+        "cancelled": "أُلغي"
+      },
+      "enable": {
+        "dialogDescription": "تُسلَّم إلى مساعد الذكاء الاصطناعي من Meta كل محادثة Messenger كتب فيها العميل خلال آخر 30 يومًا ولا يحتفظ بها أي تطبيق آخر. تُستعاد المحادثات وفق الإعدادات أعلاه.",
+        "confirm": "تفعيل للجميع",
+        "blocked": "احفظ الأتمتة أعلاه وشغّلها (ضمن وقت تشغيلها) لتفعيلها لجميع العملاء."
+      },
+      "disable": {
+        "dialogDescription": "تُستعاد فقط المحادثات التي يحتفظ بها مساعد الذكاء الاصطناعي من Meta حاليًا، ولا يمكن الوصول إلا إلى العملاء الذين كتبوا خلال آخر 7 أيام. يتلقى كل منهم الرسالة أدناه، وتُرسل بوسم Human Agent من Meta، لذا اكتبها كأن شخصًا يرد. تحتاج الصفحة إلى إذن Human Agent.",
+        "messageLabel": "رسالة إلى العملاء",
+        "messageDescription": "حتى {max} حرفًا.",
+        "messagePlaceholder": "مرحبًا، أحد أعضاء الفريق يتولى هذه المحادثة الآن.",
+        "confirm": "إيقاف للجميع",
+        "policyWarning": "تتيح Meta وسم Human Agent فقط لشخص يرد على العميل. قد يؤدي استخدامه للعروض الترويجية أو الرسائل الآلية إلى تقييد المراسلة في الصفحة."
+      },
+      "errors": {
+        "automationNotActive": "احفظ الأتمتة وشغّلها (ضمن وقت تشغيلها) قبل تفعيلها لجميع العملاء.",
+        "messageRequired": "أدخل الرسالة التي ستُرسل إلى العملاء.",
+        "messageTooLong": "الرسالة طويلة جدًا.",
+        "pageNotConnected": "هذه الصفحة غير متصلة.",
+        "nothingToRetry": "لا يوجد ما يمكن إعادة المحاولة فيه."
+      },
+      "runErrors": {
+        "automationStopped": "توقف لأن الأتمتة أُوقفت.",
+        "tokenInvalid": "أُلغي وصول الصفحة. أعد ربط الصفحة وحاول مرة أخرى.",
+        "channelUnsupported": "هذه القناة لا تدعم الإجراء الجماعي.",
+        "maxAttempts": "تم التخلي بعد إخفاقات متكررة.",
+        "channelUnavailable": "توقف لأن تعذّر الوصول إلى Meta عدة مرات متتالية.",
+        "batchFailed": "تعذّر تأكيد بعض المحادثات واحتُسبت على أنها فاشلة.",
+        "pageDisconnected": "توقف لأن الصفحة فُصلت.",
+        "pageRefused": "رفضت Meta التسليم لهذه الصفحة: ربما لم تُعدّ لمساعد الذكاء الاصطناعي من Meta، أو تفتقر إلى الإذن.",
+        "integrationUnavailable": "تعذّر تحميل اتصال الصفحة. أعد ربط الصفحة وحاول مرة أخرى."
+      },
+      "pausedUntil": "متوقف مؤقتًا حتى {at} للبقاء ضمن حدود المعدل في Meta لهذه الصفحة. سيُستأنف تلقائيًا.",
+      "preparing": "جارٍ التحضير…",
+      "live": {
+        "enable": "جارٍ التفعيل للعملاء: {done} / {total}",
+        "disable": "جارٍ الإيقاف للعملاء: {done} / {total}",
+        "enableCounting": "جارٍ التفعيل للعملاء: جارٍ العدّ…",
+        "disableCounting": "جارٍ الإيقاف للعملاء: جارٍ العدّ…"
+      },
+      "done": {
+        "enable": "تم التفعيل لـ {processed} من {total} عميل.",
+        "disable": "تم الإيقاف لـ {processed} من {total} عميل."
+      },
+      "stopped": {
+        "enable": "تم إيقاف التفعيل لجميع العملاء.",
+        "disable": "تم إيقاف الإيقاف لجميع العملاء."
+      },
+      "retry": "إعادة المحاولة"
+    },
+    "history": {
+      "link": "السجل",
+      "title": "سجل التشغيلات الجماعية",
+      "empty": "لا توجد تشغيلات بعد.",
+      "columns": {
+        "action": "الإجراء",
+        "requestedAt": "بدأ في",
+        "progress": "المعالَج / الإجمالي",
+        "finishedAt": "انتهى في",
+        "message": "الرسالة",
+        "requestedBy": "طلبه"
+      },
+      "description": "في كل مرة تم فيها تشغيل \"تطبيق على جميع العملاء\" أو إيقافه لهذه الصفحة، الأحدث أولًا.",
+      "error": "تعذّر تحميل السجل.",
+      "previousPage": "الصفحة السابقة",
+      "nextPage": "الصفحة التالية"
+    }
+  },
   "platformSettings": {
     "title": "إعدادات المنصة",
     "errors": {
@@ -3299,6 +3722,15 @@
     "title": "تعديل الملف الشخصي"
   },
   "messages": {
+    "timeAgo": {
+      "now": "الآن",
+      "minutes": "{count} د",
+      "hours": "{count} س",
+      "days": "{count} ي",
+      "months": "{count} ش",
+      "years": "{count} سنة"
+    },
+    "realtimeRevokeWarning": "تعذّر تأكيد إلغاء الوصول فورًا - سيُطبَّق عند إعادة اتصال العضو التالية.",
     "moveFeature": "نقل {feature}",
     "poweredBy": "مدعوم من {name}",
     "noGiphyApiKey": "لم يتم العثور على مفتاح GIPHY API. الرجاء إضافة واحد في إعدادات النظام الأساسي.",
@@ -3310,6 +3742,8 @@
     "failed": "فشل",
     "copiedToClipboard": "تم النسخ إلى الحافظة",
     "messengerAdsJsonDescription": "ستحتاج فقط إلى إنشاء رمز JSON جديد إذا قمت بإجراء تغييرات على خطوة البداية. لن تؤثر التغييرات في الخطوات الأخرى على رمز JSON هذا.",
+    "welcomeMessageFlowIdsTitle": "معرّفات تدفقات رسائل الترحيب",
+    "welcomeMessageFlowIdsDescription": "تتم مزامنتها مع كل صفحة فيسبوك عند النشر. اخترها ضمن تطبيق الشريك في مدير الإعلانات.",
     "messengerAdsNotPublished": "انشر محتوى هذا التدفق وحاول مرة أخرى.",
     "messengerAdsNoStartNode": "لا يحتوي هذا التدفق على خطوة بداية صالحة. افتح سير المهام، وقم بتعيين خطوة إرسال رسالة للبدء، ثم قم بالنشر وحاول مرة أخرى.",
     "messengerAdsError": "حدث خطأ ما أثناء إنشاء ملف JSON. يرجى المحاولة مرة أخرى.",
@@ -3344,6 +3778,7 @@
     "cancelEdit": "إلغاء",
     "replaceAttachment": "استبدال المرفق",
     "addAttachment": "إضافة مرفق",
+    "reloadAttachment": "إعادة تحميل المرفق",
     "failedToCopy": "فشل النسخ",
     "failedToPreviewImage": "فشلت معاينة الصورة",
     "loadingData": "جارٍ تحميل البيانات...",
@@ -3415,8 +3850,13 @@
     "noVersionsFound": "لم يتم العثور على إصدارات منشورة",
     "publishVersionSuccess": "تم نشر إصدار جديد",
     "flowConfigIncomplete": "بعض الإعدادات غير مكتملة",
+    "quickReplyNextStepRequired": "اختر خطوة تالية لكل إعداد رد سريع مفعّل",
+    "quickReplyRetryMessageRequired": "أدخل رسالة إعادة المحاولة",
+    "quickReplyRetryWithGetUserData": "لا يمكن الجمع بين إعادة المحاولة وخطوة الحصول على بيانات المستخدم",
+    "whatsappFlowIncomplete": "افتح الزر واختر WhatsApp Flow وشاشة البدء الخاصة به.",
     "whatsappCarouselButtonsMismatch": "في واتساب، يجب أن يحتوي العرض الدوّار على الأزرار نفسها في كل بطاقة: إما زر رابط واحد في كل بطاقة، أو العدد نفسه من أزرار الرد في كل بطاقة",
     "whatsappCarouselLinkButtonNotAlone": "في واتساب، لا يمكن أن تحتوي بطاقة العرض الدوّار التي تتضمن زر رابط على أي أزرار أخرى. أزل الأزرار الأخرى من تلك البطاقة، أو غيّر زر الرابط إلى إجراء آخر.",
+    "templateButtonOpenMiniAppUnsupported": "لا يمكن لأزرار القالب فتح تطبيق مصغر. اختر إجراءً آخر لهذا الزر.",
     "duplicateNodeError": "تعذّر تكرار الكتلة. يُرجى المحاولة مرة أخرى.",
     "deleteNodeError": "تعذّر حذف الكتلة. يُرجى المحاولة مرة أخرى.",
     "redoHistoryCleared": "تم مسح سجل الإعادة",
@@ -3429,7 +3869,8 @@
     "waTemplateMpmTooManyProducts": "يمكن أن يحتوي زر المنتجات المتعددة على 30 منتجًا كحد أقصى إجمالاً. أزل بعض المنتجات قبل النشر.",
     "waTemplateLtoExpirationRequired": "اختر تاريخ انتهاء العرض المحدود المدة قبل الإرسال.",
     "waTemplateMpmIncompleteProducts": "يحتاج كل قسم إلى منتج واحد محدد على الأقل — احذف الصفوف الفارغة أو اختر منتجًا لها.",
-    "mediaStepUnsupported": "لا يمكن لهذه القناة إرسال هذا النوع من الوسائط. أزِل الخطوة أو وجِّه هذه العقدة إلى قناة تدعمها.",
+    "unsupportedBlock": "هذه القناة لا تدعم هذه الكتلة.",
+    "constraintExceeded": "تم تجاوز حد هذه القناة.",
     "mediaButtonsUnsupported": "لا يمكن لهذه القناة إرسال أزرار مع رسالة وسائط. أزِل الأزرار أو انقلها إلى خطوة نصية بعد هذه الخطوة.",
     "voiceCall": "مكالمة صوتية",
     "voiceCallDuration": "مكالمة صوتية · {duration}",
@@ -3443,7 +3884,44 @@
     "sendHumanAgentTag": "إرسال رسالة واحدة باستخدام وسم HUMAN_AGENT",
     "warning": "تحذير!",
     "humanAgentWarningDescription": "لا يجوز لك الرد على رسالة المستخدم خلال 7 أيام إلا عندما يتعذر حل المشكلة بشكل معقول خلال 24 ساعة. تشمل الأمثلة عطلات نهاية الأسبوع والعطلات الرسمية والحالات التي تتطلب أكثر من يوم لإكمالها. لا تستخدم هذا الخيار لأي سبب آخر، فقد يعرّض صفحة Facebook أو حساب Instagram الخاص بك للخطر. إذا لم تكن متأكدًا، فلا تتابع.",
-    "callFailed": "مشكلة في المكالمة"
+    "callFailed": "مشكلة في المكالمة",
+    "flowResponse": {
+      "viewResponse": "عرض الرد",
+      "title": "رد التدفق",
+      "description": "الإجابات التي أرسلها العميل في تدفق WhatsApp هذا.",
+      "empty": "لا يحتوي هذا الرد على أي إجابات.",
+      "failed": "تعذر تحميل الرد.",
+      "noAnswer": "لا توجد إجابة",
+      "labelsUnavailable": "تعذر تحميل أسئلة التدفق، لذلك تُعرض أسماء الحقول بدلاً منها.",
+      "yes": "نعم",
+      "no": "لا"
+    },
+    "sendViewCatalogBodyTooLong": "نص الرسالة طويل جدًا لرسالة الكتالوج. قم باختصاره.",
+    "sendViewCatalogFooterTooLong": "التذييل طويل جدًا لرسالة الكتالوج. قم باختصاره.",
+    "viewCatalog": "عرض الكتالوج",
+    "sendProductsDisplayUnsupported": "لا يمكن لهذه القناة إرسال هذا النوع من رسائل المنتجات.",
+    "sendProductsFieldRequired": "هذا الحقل مطلوب.",
+    "sendProductsFieldNotAllowed": "لا يمكن استخدام هذا الحقل هنا.",
+    "sendProductsFieldTooLong": "هذا النص طويل جدًا.",
+    "sendProductsProductCountOutOfRange": "اختر عددًا صالحًا من المنتجات.",
+    "sendProductsSectionCountOutOfRange": "عدد الأقسام كبير جدًا.",
+    "sendProductsDuplicateProduct": "لا يمكن أن يظهر المنتج إلا مرة واحدة.",
+    "inboundOrder": {
+      "title": "سلة التسوق",
+      "preview": "سلة التسوق ({count, plural, one {# عنصر} other {# عناصر}})",
+      "note": "ملاحظة",
+      "unresolvedProduct": "غير موجود في الكتالوج"
+    },
+    "referredProduct": {
+      "askedAbout": "سأل عن هذا المنتج"
+    },
+    "savedReplyTextOrImageRequired": "أضف نصًا أو صورة واحدة على الأقل",
+    "imagesNotSupportedOnChannel": "لا يمكن لـ {channel} إرسال الصور في هذه المحادثة",
+    "tooManyImagesOnChannel": "يمكن لـ {channel} إرسال {max} صورة كحد أقصى في هذه المحادثة",
+    "savedReplyImagesRemoved": "تمت إزالة الصور التي لا يمكن إرسالها هنا",
+    "onlyImagesAllowed": "يمكن إضافة الصور فقط",
+    "tooManySavedReplyImages": "يمكن أن يحتوي الرد المحفوظ على {max} صور كحد أقصى",
+    "savedReplyImagesNotSentHere": "لن يتم إرسال الصور هنا"
   },
   "instagram": {
     "description": "يتيح لك هذا التكامل إنشاء روبوتات Instagram.",
@@ -3509,13 +3987,7 @@
     "selectPage": {
       "noPagesTitle": "لم يتم العثور على صفحات Facebook",
       "noPagesDescription": "تتطلب الصفحات الموجودة داخل Business Manager الوصول إلى Business Manager أثناء الاتصال. أعد توصيل Messenger وامنح جميع الأذونات المطلوبة.",
-      "noConnectablePagesTitle": "لا توجد صفحات متاحة للربط",
-      "noConnectablePagesDescription": "أنت لست مسؤولاً عن هذه الصفحة",
-      "bmLookupFailedTitle": "قد تكون صفحات مدير الأعمال مفقودة",
-      "bmLookupFailedDescription": "أعد توصيل Messenger وامنح مدير الأعمال حق الوصول حتى يمكن إدراج الصفحات المُدارة من خلال مدير الأعمال.",
-      "loadFailed": "تعذّر تحميل صفحات فيسبوك الخاصة بك",
       "alreadyConnectedNote": "هذه الصفحة متصلة بالفعل",
-      "notAdminNote": "مطلوب إذن المسؤول الكامل على الصفحة للاتصال",
       "tryAgain": "حاول إعادة الاتصال"
     },
     "title": "فيسبوك ماسنجر",
@@ -3546,6 +4018,7 @@
         "buttonText": "نص الزر",
         "buttonType": "نوع الزر",
         "visitWebsite": "زيارة الموقع",
+        "openMiniApp": "فتح التطبيق المصغر",
         "callPhoneNumber": "اتصل برقم الهاتف",
         "postback": "زر"
       },
@@ -3607,6 +4080,85 @@
       "label": "ديب سيك"
     },
     "title": "ديب سيك"
+  },
+  "decision": {
+    "addConnection": "Add AI Router connection",
+    "advanced": "Advanced",
+    "context": "Context",
+    "discardTypeChangeDescription": "Changing the AI Router type will discard its criteria and threshold.",
+    "discardTypeChangeTitle": "Change AI Router type?",
+    "output": "Output",
+    "outputNoul": "probabilityTrue (0–1)",
+    "statement": "Statement",
+    "thresholdChoice": "Require minimum confidence",
+    "thresholdNoul": "Require minimum TRUE probability",
+    "thresholdScore": "Require score threshold",
+    "thresholds": "Confidence & thresholds",
+    "addProfile": "Add AI Router profile",
+    "globalRouter": "Global Router",
+    "globalRouterRoutesDiscarded": "سيتم أيضًا حذف مسارات الموجّه العام وتعيينات البيانات الوصفية.",
+    "globalRouterDescription": "This profile becomes the workspace Global Router and replaces any previously selected Global Router.",
+    "globalRouterChooseDestination": "Choose destination",
+    "globalRouterDefaultDestination": "Default destination",
+    "globalRouterDestinationRequired": "Choose where unmatched messages should go.",
+    "globalRouterRouteDestinationRequired": "Choose a destination for this result.",
+    "globalRouterRoutes": "Route recognized results",
+    "globalRouterUsesFallback": "Uses default destination",
+    "globalRouterDestinationTypes": {
+      "flow": "Flow",
+      "aiAgent": "AI Agent",
+      "assignConversation": "Assign Conversation to an Admin"
+    },
+    "globalRouterFallbackDescription": "A default destination is required. It applies only when the Global Router is usable but evaluation has no valid result or route; unavailable connections or models use the workspace Default AI/Flow.",
+    "globalRouterFalseMaximum": "FALSE maximum probability",
+    "globalRouterMetadataMappings": "Optional result metadata mappings",
+    "globalRouterNoulDescription": "Values between the FALSE maximum and TRUE minimum use the fallback. The profile threshold does not affect Global Router Noul routing.",
+    "globalRouterRuntimeUnsupported": "This model has not been certified for AI Router runtime. You can save the configuration, but the Global Router remains inactive until certification.",
+    "globalRouterTrueMinimum": "TRUE minimum probability",
+    "flowStepDescription": "Select an active profile and map its typed results to contact custom fields.",
+    "profile": "AI Router profile",
+    "question": "Question",
+    "result": "Result",
+    "resultValues": {
+      "choice": "Choice",
+      "confidence": "Confidence",
+      "noul": "Noul",
+      "probability": "Probability",
+      "score": "Score"
+    },
+    "connection": "AI Router connection",
+    "connectionUnavailable": "AI Router connection unavailable",
+    "charactersRemaining": "{count} characters remaining",
+    "modelUnavailable": "Selected model is no longer available. Choose another model.",
+    "editProfile": "تعديل ملف تعريف موجه الذكاء الاصطناعي",
+    "evaluateDecision": "AI Router",
+    "model": "Model",
+    "profileDescription": "A profile combines an AI Router connection, model and typed question contract.",
+    "profiles": "AI Router profiles",
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "label": "Status"
+    },
+    "connectionDescription": "Configure a provider credential and the AI Router models it may use.",
+    "connections": "AI Router connections",
+    "connectionsDescription": "Connections are available to AI Router profiles in this workspace.",
+    "credentialKeepExisting": "Leave blank to keep the existing credential.",
+    "credentialRequired": "A provider credential is required.",
+    "defaultModel": "Default model",
+    "editConnection": "Edit AI Router connection",
+    "empty": "No AI Router connections yet.",
+    "endpoint": "Compatible endpoint",
+    "endpointDescription": "Use the provider's System One-compatible API endpoint.",
+    "modelCatalog": "Available models",
+    "modelCatalogDescription": "Enter one model ID per line, or separate model IDs with commas.",
+    "provider": "Provider",
+    "testFailed": "AI Router connection test failed.",
+    "testPassed": "AI Router connection test passed.",
+    "toolDescription": "Create reusable profiles for the AI Router flow step.",
+    "title": "AI Router",
+    "contactContext": "سياق جهة الاتصال",
+    "contextProviderWarning": "تُرسل قيم حقول جهة الاتصال المحددة إلى مزود موجه الذكاء الاصطناعي."
   },
   "openrouter": {
     "autoReply": {
@@ -3670,6 +4222,7 @@
     "orContinueWith": "أو تابع باستخدام",
     "continueWithFacebook": "المتابعة بحساب فيسبوك",
     "continueWithGoogle": "المتابعة بحساب جوجل",
+    "continueWithProvider": "المتابعة باستخدام {name}",
     "continueWithEmail": "المتابعة باستخدام البريد الإلكتروني",
     "continueWithMagicLink": "أرسل لي رابط دخول على البريد",
     "dontHaveAnAccount": "ليس لديك حساب؟",
@@ -3700,6 +4253,17 @@
     "changePasswordTitle": "تغيير كلمة المرور",
     "changePasswordDescription": "قم بتعيين كلمة مرور جديدة قبل المتابعة.",
     "passwordChangeSuccess": "تم تغيير كلمة المرور",
+    "signUpDisabledTitle": "تم تعطيل إنشاء الحساب",
+    "signUpDisabledDescription": "لا يمكن إنشاء حسابات جديدة إلا بواسطة مسؤول أو عبر رابط دعوة.",
+    "oauthError": {
+      "accountNotLinked": "يوجد حساب بهذا البريد الإلكتروني بالفعل وتعذر ربطه. سجّل الدخول بالطريقة التي استخدمتها سابقًا، أو تواصل مع الدعم.",
+      "unableToLinkAccount": "تعذر ربط عملية تسجيل الدخول هذه بالحساب الحالي. سجّل الدخول بالطريقة التي استخدمتها سابقًا، أو تواصل مع الدعم.",
+      "sessionExpired": "انتهت صلاحية محاولة تسجيل الدخول. يرجى المحاولة مرة أخرى.",
+      "accessDenied": "تم إلغاء تسجيل الدخول.",
+      "signUpDisabled": "هذا الحساب غير موجود بعد وتم تعطيل إنشاء الحساب. اطلب من المسؤول إنشاءه لك.",
+      "invalidInvitation": "هذه الدعوة غير صالحة أو انتهت صلاحيتها.",
+      "generic": "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى."
+    },
     "signInVisual": {
       "title": "منصة موحّدة لمحادثات عملائك.",
       "subtitle": "أدر واتساب، إنستغرام، ماسنجر، وتيليجرام من لوحة تحكم واحدة.",
@@ -3769,7 +4333,17 @@
     "maxItemsReached": "الحد الأقصى المسموح به لـ {max} {feature} لكل مساحة عمل",
     "maxCharacters": "الحد الأقصى {max} حرفًا.",
     "invalidApiKey": "مفتاح API غير صالح",
-    "maxMustBeGreaterThanMin": "يجب أن يكون {maxField} أكبر من أو يساوي {minField}"
+    "maxMustBeGreaterThanMin": "يجب أن يكون {maxField} أكبر من أو يساوي {minField}",
+    "inboundWebhook": {
+      "inboxRequired": "اختر صندوق وارد.",
+      "inboxNotFound": "لم يتم العثور على صندوق الوارد المحدد.",
+      "inboxDisconnected": "صندوق الوارد المحدد غير متصل.",
+      "unsupportedInboxIdentifier": "لا يمكن تحديد هوية هذه القناة بتلك القيمة.",
+      "identifierRequired": "أضف هوية جهة اتصال واحدة على الأقل.",
+      "unknownFieldTarget": "حقل جهة الاتصال المرتبط لم يعد موجودًا.",
+      "actionReferenceNotFound": "يشير أحد الإجراءات إلى مسار أو وسم أو حقل لم يعد موجودًا.",
+      "fieldMappingRequired": "أضف ربط حقل واحدًا على الأقل."
+    }
   },
   "webchat": {
     "chatUnavailable": "هذه المحادثة غير متاحة حاليًا.",
@@ -4354,6 +4928,9 @@
         "callInformation": "معلومات المكالمة"
       }
     },
+    "credentialSecretsRequired": "أدخل سر التطبيق ورمز مستخدم النظام. لم يتم تخزينهما بعد.",
+    "embeddedSignupCancelled": "تم إلغاء التسجيل — يمكنك إغلاق علامة التبويب هذه.",
+    "embeddedSignupFailed": "لم يكتمل التسجيل — أغلق علامة التبويب هذه وحاول مرة أخرى.",
     "ecommerce": {
       "title": "بِع منتجاتك عبر واتساب",
       "manageProducts": "إدارة منتجاتك"
@@ -4380,7 +4957,8 @@
     "chatbotInvitationDescription1": "انضم إلى {chatbotName}",
     "chatbotInvitationDescription2": "لقد دعاك {userName} للانضمام إلى {chatbotName}.",
     "invalidInvitation": "هذه الدعوة غير صالحة أو منتهية الصلاحية.",
-    "workspaceUnavailable": "مساحة العمل هذه لم تعد متاحة."
+    "workspaceUnavailable": "مساحة العمل هذه لم تعد متاحة.",
+    "signUpToJoin": "أنشئ حسابًا للانضمام"
   },
   "inboxes": {
     "markReadOnOutbound": {
@@ -4401,7 +4979,47 @@
   },
   "reflinks": {
     "title": "روابط نقطة الدخول",
-    "description": "روابط الكلمات الرئيسية التي تبدأ التدفقات وتلتقط حمولات المرجع من القنوات."
+    "description": "روابط الكلمات الرئيسية التي تبدأ التدفقات وتلتقط حمولات المرجع من القنوات.",
+    "chatWidget": {
+      "title": "أداة الدردشة",
+      "description": "اعرض أزرار قنوات الدردشة على موقعك. ينقر الزائر على أحدها لبدء محادثة وتشغيل تدفق رابط الإحالة هذا.",
+      "authorizedDomains": {
+        "label": "النطاقات المصرح بها",
+        "placeholder": "example.com",
+        "description": "يمكن لهذه النطاقات ونطاقاتها الفرعية فقط عرض الأداة. اتركه فارغًا للسماح بأي موقع.",
+        "invalid": "هذه النطاقات غير صالحة: {domains}. أدخل اسم النطاق فقط، مثل example.com."
+      },
+      "channels": {
+        "label": "القنوات",
+        "description": "أوقف قناة لإخفائها من الأداة.",
+        "empty": "لا توجد قناة متصلة تحتوي على رابط دردشة بعد.",
+        "profileLinkOnly": "يفتح صفحة الملف الشخصي — لا يتم تشغيل تدفق الرابط المرجعي."
+      },
+      "preview": "معاينة",
+      "embedCodeDescription": "الصق هذا الرمز قبل وسم body الختامي في موقعك. تُطبَّق التغييرات المحفوظة تلقائيًا دون الحاجة إلى لصقه مجددًا.",
+      "savedSuccess": "تم حفظ إعدادات أداة الدردشة",
+      "poweredBy": "بواسطة",
+      "toggleLabel": "تحدث معنا",
+      "logo": {
+        "description": "الزر الدائري الذي ينقر عليه الزوار لفتح الأداة. اختر صورة مربعة، أو اتركه فارغًا لاستخدام أيقونة الدردشة الافتراضية.",
+        "choose": "اختر من مكتبة الوسائط",
+        "notImage": "يجب أن يكون الشعار صورة."
+      },
+      "brandUrl": {
+        "label": "رابط إعادة التوجيه",
+        "placeholder": "https://example.com",
+        "description": "الصفحة التي يفتحها اسم علامتك التجارية في سطر \"بواسطة\". مطلوب عند تعيين اسم العلامة التجارية.",
+        "requiredWithName": "أدخل رابط إعادة توجيه لاسم العلامة التجارية هذا."
+      },
+      "brandName": {
+        "description": "يظهر في سطر \"بواسطة\" في الأداة. مطلوب عند تعيين رابط إعادة التوجيه. اترك الحقلين فارغين لإخفاء هذا السطر.",
+        "requiredWithUrl": "أدخل اسم علامة تجارية لرابط إعادة التوجيه هذا."
+      },
+      "logoBackgroundColor": {
+        "label": "لون خلفية الأيقونة",
+        "description": "خلفية أيقونة الدردشة الافتراضية. تصبح الأيقونة بيضاء أو سوداء لتبقى واضحة."
+      }
+    }
   },
   "qrCodes": {
     "title": "رموز الاستجابة السريعة",
@@ -4472,6 +5090,216 @@
     "title": "الروابط السحرية",
     "description": "أنشئ روابط عميقة تعيد التوجيه إلى عنوان URL الخاص بك باستخدام معلمات الاستعلام."
   },
+  "inboundWebhooks": {
+    "title": "خطافات الويب الواردة",
+    "feature": "خطاف ويب وارد",
+    "description": "اسمح للأنظمة الخارجية بإرسال البيانات إلى مساحة العمل الخاصة بك: ابحث عن جهة اتصال أو أنشئها، واحفظ القيم في حقولها ونفّذ الإجراءات.",
+    "createDescription": "يبدأ خطاف الويب الجديد غير نشط. اضبطه في المحرر ثم فعّله.",
+    "deleteDescription": "ستتلقى الأنظمة التي ما زالت ترسل إلى عنوان URL هذا خطأً. لا يمكن التراجع عن هذا الإجراء.",
+    "editorDescription": "أرسل طلب POST بصيغة JSON إلى عنوان URL أدناه لتشغيل خطاف الويب هذا.",
+    "configure": "ضبط",
+    "getLink": "الحصول على الرابط",
+    "activeToggle": "تفعيل {name}",
+    "columns": {
+      "active": "نشط",
+      "createdAt": "تاريخ الإنشاء",
+      "requests": "الطلبات"
+    },
+    "link": {
+      "title": "عنوان URL لخطاف الويب",
+      "description": "أرسل JSON عبر POST إلى عنوان URL هذا. يحتوي على رمز سري، لذا تعامل معه كما تتعامل مع كلمة المرور."
+    },
+    "endpoint": {
+      "label": "عنوان URL لخطاف الويب",
+      "show": "إظهار الرابط",
+      "hide": "إخفاء الرابط"
+    },
+    "regenerate": {
+      "button": "إعادة الإنشاء",
+      "title": "إعادة إنشاء عنوان URL لخطاف الويب؟",
+      "description": "سيتوقف عنوان URL الحالي عن العمل فورًا. حدّث كل نظام يرسل إليه.",
+      "cancel": "إلغاء",
+      "confirm": "إعادة الإنشاء",
+      "success": "تمت إعادة إنشاء عنوان URL لخطاف الويب",
+      "failed": "تعذّرت إعادة إنشاء عنوان URL"
+    },
+    "activation": {
+      "incomplete": "املأ صندوق الوارد وحقل جهة اتصال واحدًا على الأقل وربطًا واحدًا على الأقل، ثم احفظ، قبل تفعيل خطاف الويب هذا."
+    },
+    "sample": {
+      "title": "نموذج JSON",
+      "description": "الصق نموذجًا لنص الطلب لاستعراض حقوله ومعاينة القيم.",
+      "load": "تحميل نموذج JSON",
+      "status": {
+        "loaded": "تم تحميل النموذج",
+        "invalid": "هذا ليس JSON صالحًا",
+        "tooLarge": "النموذج أكبر من {max} KB",
+        "unsupported": "يحتوي هذا النموذج على أحرف غير مدعومة أو مستويات متداخلة كثيرة"
+      },
+      "format": "تنسيق JSON"
+    },
+    "contact": {
+      "title": "البحث عن جهة اتصال أو إنشاؤها",
+      "description": "اختر صندوق الوارد الذي تنتمي إليه جهة الاتصال وكيفية العثور عليها. إذا لم تتطابق أي جهة، تُنشأ جهة اتصال جديدة عندما يحتوي الطلب على ما تحتاجه هذه القناة."
+    },
+    "inbox": {
+      "modeLabel": "صندوق الوارد",
+      "mode": {
+        "inbox": "صندوق وارد محدد",
+        "payload": "من payload"
+      },
+      "modeDescription": {
+        "inbox": "يستخدم كل طلب صندوق الوارد الذي تختاره.",
+        "payload": "يحدد كل طلب صندوق الوارد الخاص به، مثل معرّف صفحة Messenger أو معرّف رقم هاتف WhatsApp."
+      },
+      "inboxLabel": "صندوق الوارد",
+      "inboxPlaceholder": "اختر صندوق وارد",
+      "noInboxes": "لم يتم العثور على صندوق وارد متصل.",
+      "savedInboxMissing": "صندوق الوارد المحفوظ لم يعد متصلًا. اختر صندوقًا آخر.",
+      "channelLabel": "القناة",
+      "channelPlaceholder": "اختر قناة",
+      "noPayloadChannels": "اربط أولًا قناة تدعم ذلك.",
+      "identifierKindLabel": "معرّف صندوق الوارد",
+      "identifierKindPlaceholder": "اختر المعرّف المرسل في payload",
+      "identifierPathHint": "مسار JSON لهذه القيمة في الطلب."
+    },
+    "identity": {
+      "hint": "املأ واحدًا على الأقل. يُبحث عن جهة الاتصال بأول قيمة توجد في الطلب، بهذا الترتيب.",
+      "phone": "الهاتف",
+      "email": "البريد الإلكتروني",
+      "channelUserId": "معرّف مستخدم القناة",
+      "fullName": "الاسم الكامل",
+      "creationHint": "بدون {identities} يتم تخطي الطلب الخاص بجهة اتصال غير موجودة. يتم تحديث جهات الاتصال الموجودة فقط."
+    },
+    "inboxIdentifierKinds": {
+      "pageId": "معرّف صفحة Facebook",
+      "igId": "معرّف حساب Instagram",
+      "phoneNumberId": "معرّف رقم هاتف WhatsApp",
+      "displayPhoneNumber": "رقم هاتف WhatsApp (أقل دقة)",
+      "botId": "معرّف بوت Telegram",
+      "oaId": "معرّف Zalo OA",
+      "openId": "open id لحساب TikTok",
+      "threadsUserId": "معرّف مستخدم Threads"
+    },
+    "channelUserIdKinds": {
+      "psid": "Messenger PSID",
+      "igsid": "Instagram IGSID",
+      "telegramChatId": "معرّف دردشة Telegram",
+      "zaloUserId": "معرّف مستخدم Zalo",
+      "tiktokCustomerOpenId": "open id لعميل TikTok",
+      "threadsUsername": "اسم مستخدم Threads",
+      "apiSourceId": "معرّف مصدر جهة الاتصال",
+      "whatsappId": "معرّف WhatsApp (wa_id)"
+    },
+    "mappings": {
+      "title": "حفظ البيانات الواردة",
+      "description": "انسخ القيم من الطلب إلى حقول جهة الاتصال.",
+      "empty": "لم يتم ربط أي حقول بعد.",
+      "add": "إضافة حقل",
+      "remove": "إزالة الحقل",
+      "target": "حقل جهة الاتصال",
+      "targetPlaceholder": "اختر حقلًا",
+      "path": "مسار JSON",
+      "rowTitle": "الربط {number}"
+    },
+    "actions": {
+      "title": "بعد حفظ البيانات",
+      "description": "إجراءات تُنفَّذ لجهة الاتصال بعد حفظ البيانات."
+    },
+    "picker": {
+      "title": "استعراض JSON",
+      "description": "ابحث وانقر على قيمة، أو أدخل JSONPath أدناه",
+      "browse": "استعراض",
+      "noSample": "حمّل نموذج JSON أولًا لاستعراض حقوله.",
+      "pathLabel": "مسار JSON",
+      "use": "استخدام المسار",
+      "cancel": "إلغاء",
+      "result": "النتيجة:",
+      "noValue": "لا توجد قيمة",
+      "searchLabel": "البحث في JSON",
+      "searchPlaceholder": "ابحث عن مفاتيح أو مسارات أو قيم",
+      "noMatches": "لا توجد مفاتيح أو قيم مطابقة.",
+      "moreResults": "يتم عرض أول {count} نتيجة. حسّن بحثك لرؤية البقية.",
+      "pathHint": "يدعم أسماء الخصائص وفهارس المصفوفات، بما في ذلك $[\"customer-data\"][\"email\"]",
+      "invalidPath": "هذا ليس JSONPath مدعومًا."
+    },
+    "requests": {
+      "title": "الطلبات",
+      "description": "أحدث عمليات التسليم التي استقبلها خطاف الويب هذا (تُحفظ 30 يومًا).",
+      "refresh": "تحديث",
+      "empty": "لم يتم استلام أي طلبات بعد.",
+      "previous": "الصفحة السابقة",
+      "next": "الصفحة التالية",
+      "pageOf": "الصفحة {page} من {pageCount}",
+      "contact": "جهة الاتصال #{id}",
+      "showDetails": "عرض التفاصيل",
+      "hideDetails": "إخفاء التفاصيل",
+      "loadingDetails": "جارٍ تحميل التفاصيل…",
+      "detailsFailed": "تعذّر تحميل التفاصيل.",
+      "fieldErrors": "حقول لم تُحفظ",
+      "actionResults": "الإجراءات",
+      "payload": "Payload",
+      "status": {
+        "received": "تم الاستلام",
+        "processing": "قيد المعالجة",
+        "processed": "تمت المعالجة",
+        "completedWithErrors": "اكتمل مع أخطاء",
+        "skipped": "تم التخطي",
+        "failed": "فشل"
+      },
+      "skipReason": {
+        "webhookInactive": "كان خطاف الويب غير نشط.",
+        "missingInboxIdentifier": "لم يتضمن الطلب معرّف صندوق الوارد.",
+        "inboxNotFound": "لا يوجد صندوق وارد يطابق المعرّف في الطلب.",
+        "inboxAmbiguous": "يطابق أكثر من صندوق وارد المعرّف في الطلب.",
+        "inboxDisconnected": "صندوق الوارد غير متصل.",
+        "missingIdentifier": "لم يتضمن الطلب أي هوية لجهة اتصال.",
+        "workspaceBlocked": "مالك مساحة العمل محظور.",
+        "contactNotFound": "لم تتطابق أي جهة اتصال، ولم يحتوِ الطلب على ما يلزم لإنشاء واحدة.",
+        "contactAmbiguous": "أكثر من جهة اتصال بهذا الاسم في صندوق الوارد، لذلك تم تخطي الطلب."
+      },
+      "fieldErrorCode": {
+        "invalidValue": "قيمة غير صالحة",
+        "invalidPhone": "رقم هاتف غير صالح",
+        "unknownField": "الحقل لم يعد موجودًا"
+      },
+      "actionStatus": {
+        "succeeded": "نجح",
+        "skipped": "تم تخطيه",
+        "failed": "فشل"
+      },
+      "errorCode": {
+        "abandoned": "تم التخلي عنه: لم تتم المعالجة خلال 24 ساعة"
+      },
+      "actionSkipReason": {
+        "noConversation": "ليس لجهة الاتصال محادثة",
+        "noContactInbox": "جهة الاتصال غير متصلة بهذا الصندوق",
+        "flowInactive": "لم يتم نشر التدفق",
+        "unsupportedAction": "هذا الإجراء غير مدعوم هنا",
+        "unsupportedChannel": "القناة لا تدعم هذا الإجراء",
+        "invalidAction": "الإجراء غير مهيأ بشكل صحيح",
+        "unknownAction": "إجراء غير معروف",
+        "unsupportedSource": "غير مدعوم لهذا المصدر"
+      }
+    },
+    "save": {
+      "invalid": "بعض الإعدادات غير صالحة. أصلح الحقول المميزة ثم احفظ مرة أخرى."
+    },
+    "viewAnalytics": "عرض التحليلات",
+    "analytics": {
+      "title": "التحليلات",
+      "back": "العودة إلى خطاف الويب",
+      "totalRequests": "إجمالي الطلبات المستلمة",
+      "totalRequestsHint": "كل طلب مقبول منذ إنشاء خطاف الويب. لا تُحتسب الطلبات المكررة. يحتفظ السجل أدناه بآخر 30 يومًا."
+    },
+    "issues": {
+      "inboxRequired": "اختر صندوق وارد.",
+      "identifierRequired": "املأ واحدًا على الأقل من حقول جهة الاتصال الأربعة.",
+      "fieldMappingRequired": "أضف حقلًا واحدًا على الأقل ضمن «حفظ البيانات الواردة».",
+      "required": "هذا الحقل مطلوب.",
+      "unsupportedPath": "مسار JSON غير مدعوم."
+    }
+  },
   "QRCode": {
     "title": "رمز الاستجابة السريعة",
     "description": "شارك هذا الرمز حتى يفتح الأشخاص رابط التتبع الخاص بك."
@@ -4502,7 +5330,7 @@
       "ticketPriorityChanged": "تم تغيير أولوية التذكرة",
       "subscribedToSequence": "اشتركت في التسلسل",
       "unsubscribedFromSequence": "تم إلغاء الاشتراك من التسلسل",
-      "WhatsappShoppingCartSent": "تم إرسال سلة التسوق عبر الواتساب",
+      "shoppingCartSent": "جهة الاتصال أرسلت سلة التسوق",
       "userAskedAboutProduct": "سأل المستخدم عن المنتج",
       "cartAbandoned": "العربة مهجورة",
       "newOrder": "طلب جديد",
@@ -4517,7 +5345,8 @@
       "contactReferredANewContact": "جهة الاتصال تمت إحالتها إلى جهة اتصال جديدة",
       "contactReferredExistingContact": "جهة الاتصال المشار إليها جهة الاتصال الموجودة",
       "callRecorded": "تم تسجيل المكالمة",
-      "callTranscribed": "تم تفريغ المكالمة"
+      "callTranscribed": "تم تفريغ المكالمة",
+      "anyProduct": "أي منتج"
     },
     "actions": {
       "addTag": "إضافة علامة",
@@ -4527,7 +5356,8 @@
       "startAnotherFlow": "ابدأ تدفقًا آخر",
       "notifyAdmins": "إخطار المسؤولين",
       "transferConversationToHuman": "نقل المحادثة إلى الإنسان",
-      "sendMetaCapiEvent": "إرسال حدث Meta CAPI"
+      "sendMetaCapiEvent": "إرسال حدث Meta CAPI",
+      "sendGoogleAdsConversion": "إرسال تحويل Google Ads"
     },
     "triggerGoesOff": "ينطفئ الزناد",
     "before": "قبل",
@@ -4637,7 +5467,8 @@
       "userPlaceholder": "معرف المستخدم",
       "keyword": "الكلمة المفتاحية",
       "keywordPlaceholder": "الإجراء أو التفاصيل",
-      "allAdmins": "كل المسؤولين"
+      "allAdmins": "كل المسؤولين",
+      "allWorkspaces": "جميع مساحات العمل"
     }
   },
   "customFields": {
@@ -4776,7 +5607,26 @@
   },
   "botSimulator": {
     "title": "محاكي الوكيل الذكي",
-    "description": "محاكاة سلوك وكيلك الذكي في بيئة الوقت الحقيقي."
+    "description": "محاكاة سلوك وكيلك الذكي في بيئة الوقت الحقيقي.",
+    "formDescription": "احصل على رابط يعرض موقعًا إلكترونيًا مع الدردشة الخاصة بك، لتعرض البوت على العميل.",
+    "websiteLink": "رابط الموقع",
+    "websiteLinkPlaceholder": "https://example.com",
+    "websiteLinkHint": "الموقع الذي يظهر خلف الدردشة. بعض المواقع لا تسمح بعرضها داخل صفحة أخرى.",
+    "selectWebchat": "اختر دردشة ويب",
+    "webchatRequired": "يرجى اختيار دردشة ويب",
+    "invalidUrl": "أدخل رابطًا كاملًا يبدأ بـ http:// أو https://",
+    "getLink": "احصل على الرابط",
+    "linkCopied": "تم نسخ الرابط إلى الحافظة",
+    "copyFailed": "تعذر نسخ الرابط",
+    "noWebchat": "لا توجد دردشة ويب في مساحة العمل هذه بعد.",
+    "createWebchat": "إنشاء دردشة ويب",
+    "websitePreview": "معاينة الموقع",
+    "webchatDisabled": "هذه الدردشة متوقفة. قم بتشغيلها أو اختر أخرى.",
+    "domainNotAllowed": "هذا الموقع ليس ضمن النطاقات المسموح بها للدردشة.",
+    "disabledWebchatLabel": "{name} (متوقفة)",
+    "allowedDomainsHint": "تعمل فقط مع المواقع على: {domains}",
+    "noEnabledWebchat": "لا توجد دردشة مفعّلة في مساحة العمل هذه.",
+    "enableWebchat": "تشغيل دردشة"
   },
   "pollManager": {
     "title": "مدير الاستطلاع",
@@ -4947,7 +5797,13 @@
     "postIdTab": "معرف المشاركة",
     "postIdPlaceholder": "أدخل معرفات النشر، واحدة في كل سطر...",
     "noPostsFound": "لم يتم العثور على أي مشاركات",
-    "selectPageAll": "جميع الصفحات"
+    "selectPageAll": "جميع الصفحات",
+    "postTypeDialog": {
+      "liveTitle": "البث المباشر",
+      "liveDescription": "أتمتة التعليقات على البث المباشر. يدعم الردود العامة والردود الخاصة وإخفاء التعليقات والإعجاب بها.",
+      "postsTitle": "منشورات الصفحة",
+      "postsDescription": "أتمتة التعليقات على منشورات الصفحة ومقاطع الريلز. يدعم الردود العامة والردود الخاصة وإخفاء التعليقات والإعجاب بها."
+    }
   },
   "facebookLeadAdsAutomation": {
     "title": "أتمتة إعلانات جذب العملاء على فيسبوك",
@@ -4959,7 +5815,6 @@
     "allForms": "كل النماذج",
     "allFormsNote": "ستُلتقط بيانات العملاء من كل نموذج في هذه الصفحة. تُحفظ الحقول القياسية (البريد، الهاتف، الاسم، الجنس) في حقول جهة الاتصال المطابقة تلقائياً.",
     "leadData": "بيانات العميل المحتمل",
-    "whatFlow": "المسار الذي سيُشغَّل",
     "addNewPage": "إضافة جديدة",
     "noEligiblePages": "لا توجد صفحات مؤهلة. استخدم «إضافة جديدة» لمنح صلاحية الوصول للعملاء المحتملين.",
     "duplicateError": "توجد أتمتة بالفعل لهذه الصفحة وهذا النموذج.",
@@ -5087,7 +5942,44 @@
       "openAsSupport": "فتح كدعم",
       "supportEnabledUntil": "مفعّل حتى {time}",
       "supportOff": "متوقف",
-      "searchPlaceholder": "ابحث بالاسم أو بريد المالك الإلكتروني أو المعرف"
+      "searchPlaceholder": "ابحث بالاسم أو بريد المالك الإلكتروني أو المعرف",
+      "descriptionConsentDisabled": "All workspaces can be opened by platform administrators.",
+      "supportAccessible": "Accessible",
+      "createButton": "Create workspace",
+      "createTitle": "Create workspace for an owner",
+      "createDescription": "Creates a workspace for the owner's email, adding any member emails you list. A new email gets a mailed temporary password.",
+      "ownerEmail": "Owner email",
+      "memberEmails": "Member emails",
+      "membersHint": "Every member gets the permissions selected below. New emails get a mailed temporary password.",
+      "createdSummary": "Workspace created for {ownerEmail} — {memberCount} member(s) added, {newAccountCount} new account(s) emailed a temporary password."
+    },
+    "admins": {
+      "title": "Platform administrators",
+      "description": "Manage users who can access the platform administration console.",
+      "addTitle": "Add platform administrator",
+      "addDescription": "Grant platform administration access to a root-tenant user.",
+      "addButton": "Add administrator",
+      "role": "Role",
+      "bootstrap": "Environment bootstrap administrator",
+      "remove": "Remove administrator",
+      "empty": "No platform administrators are configured.",
+      "added": "Platform administrator added.",
+      "removed": "Platform administrator removed.",
+      "addError": "Could not add the platform administrator.",
+      "removeError": "Could not remove the platform administrator."
+    },
+    "auditLogs": {
+      "title": "سجلات تدقيق المنصة",
+      "description": "نشاط التدقيق عبر جميع مساحات العمل على هذه المنصة."
+    },
+    "smtp": {
+      "title": "إعدادات SMTP",
+      "description": "ناقل البريد الإلكتروني للمنصة. اترك هذا فارغًا للاستمرار في استخدام متغيرات البيئة SMTP_SERVER وSMTP_FROM.",
+      "usingEnv": "لم يتم حفظ إعدادات SMTP — يستخدم بريد المنصة متغير البيئة SMTP_SERVER.",
+      "remove": "إزالة إعدادات SMTP",
+      "errors": {
+        "passwordRequired": "أدخل كلمة مرور SMTP."
+      }
     },
     "aiSettings": {
       "title": "إعدادات الذكاء الاصطناعي",
@@ -5170,6 +6062,8 @@
     }
   },
   "manageSidebar": {
+    "communityGroup": "المجتمع",
+    "enterpriseGroup": "المؤسسات",
     "platformGroup": "منصة",
     "toolsGroup": "الأدوات",
     "saasGroup": "ادارة العلاقات مع",
@@ -5190,6 +6084,21 @@
     "invalidDescription": "هذا الرابط غير صالح أو انتهت صلاحيته.",
     "unavailableTitle": "إلغاء الاشتراك غير متاح.",
     "unavailableDescription": "مساحة العمل هذه لم تعد متاحة."
+  },
+  "connectSessionPage": {
+    "metadataTitle": "Connecting…",
+    "processingTitle": "Finishing up…",
+    "processingDescription": "You can close this window. The application that started this connection will finish setting things up shortly.",
+    "completedTitle": "Connected!",
+    "completedDescription": "You can close this window now.",
+    "failedTitle": "Connection failed.",
+    "failedDescription": "Something went wrong while connecting. Please try again from the application that started this.",
+    "cancelledTitle": "Connection cancelled.",
+    "cancelledDescription": "You can close this window.",
+    "expiredTitle": "This link has expired.",
+    "expiredDescription": "Please start the connection again from the application that started this.",
+    "invalidTitle": "This link is no longer valid.",
+    "invalidDescription": "This connection link is invalid or has already been used."
   },
   "templatesPublicPage": {
     "invalidTitle": "هذا الرابط لم يعد متاحًا.",
@@ -5613,7 +6522,14 @@
       "instagramDescription": "اتصال تسجيل الدخول عبر إنستغرام. يدعم الرد العلني، والرد الخاص، وإخفاء التعليقات. الإعجاب بالتعليقات غير مدعوم.",
       "instagramFacebookTitle": "تسجيل الدخول إلى إنستغرام عبر فيسبوك",
       "instagramFacebookDescription": "إنستغرام متصل عبر صفحة فيسبوك. يدعم الرد العلني، والرد الخاص، وإخفاء التعليقات، والإعجاب بالتعليقات."
-    }
+    },
+    "postTypeDialog": {
+      "liveTitle": "Instagram Live",
+      "liveDescription": "أتمتة التعليقات على بث Instagram المباشر. يرسل ردًا خاصًا لكل معلّق أثناء البث.",
+      "postsTitle": "المنشورات والريلز",
+      "postsDescription": "أتمتة التعليقات على المنشورات ومقاطع الريلز. يدعم الردود العامة والردود الخاصة وإخفاء التعليقات."
+    },
+    "liveReplyNote": "يسمح Instagram فقط بالرد الخاص على تعليقات البث المباشر، وأثناء البث فقط. الردود العامة والإخفاء والإعجاب غير متاحة."
   },
   "threadsCommentAutomation": {
     "title": "أتمتة تعليقات ثريدز",
@@ -5635,7 +6551,7 @@
     "replyAfter": "الرد بعد",
     "replyAfterValue": "القيمة",
     "specificPostIds": "معرّفات منشورات محددة",
-    "postIdPlaceholder": "أدخل معرّفات المنشورات ثم اضغط Enter...",
+    "postIdPlaceholder": "أدخل معرّفات المنشورات الرقمية ثم اضغط Enter (وليس الرمز الموجود في الرابط)...",
     "card": {
       "targeting": "الاستهداف والرد",
       "filters": "عوامل التصفية والخيارات",
@@ -5697,7 +6613,14 @@
     },
     "showCommentsAfter": {
       "none": "أبدًا"
-    }
+    },
+    "chooseSpecificPosts": "اختر منشورات...",
+    "selectPosts": "تحديد المنشورات",
+    "selectAccountAll": "جميع الحسابات",
+    "postsTab": "المنشورات",
+    "postIdTab": "معرّف المنشور",
+    "noPostsFound": "لم يتم العثور على منشورات",
+    "loadPostsError": "تعذّر تحميل المنشورات. لا يزال بإمكانك إدخال المعرّفات يدويًا."
   },
   "tiktokCommentAutomation": {
     "title": "أتمتة تعليقات تيك توك",
@@ -5801,13 +6724,35 @@
     "privateReplyHighIntentTitle": "تيك توك يحدد التعليقات التي يمكن مراسلة أصحابها",
     "privateReplyHighIntentNotice": "يجب تفعيل ميزة \"من التعليق إلى رسالة\" على حساب تيك توك المتصل، وأن يكون الحساب حساب أعمال مسجلًا في فيتنام أو إندونيسيا أو تايلاند. يرسل تيك توك الرسالة المباشرة فقط للتعليقات من المستوى الأول التي يصنّفها عالية الاهتمام، خلال 48 ساعة، مرة واحدة لكل تعليق، ولا يرسلها إذا كان صاحب التعليق قد راسلك خلال آخر 24 ساعة."
   },
+  "commentAutomationMissedComments": {
+    "action": "معالجة التعليقات الفائتة",
+    "processing": "جارٍ معالجة التعليقات الفائتة",
+    "title": "معالجة التعليقات الفائتة",
+    "description": "افحص تعليقات هذا المنشور خلال آخر 7 أيام وعالجها عبر أتمتة التعليقات هذه. سيتم تخطي التعليقات التي تمت معالجتها بالفعل. سيؤدي هذا إلى إرسال رسائل وردود حقيقية.",
+    "success": "تم فحص {scanned} تعليقًا: {skipped} تمت معالجتها مسبقًا، و{queued} في قائمة المعالجة، و{failed} فشلت.",
+    "errors": {
+      "notSinglePost": "متاح فقط للأتمتة التي تستهدف منشورًا واحدًا محددًا.",
+      "inactive": "فعّل هذه الأتمتة قبل معالجة التعليقات الفائتة.",
+      "outsideSchedule": "هذه الأتمتة خارج ساعات عملها. حاول مرة أخرى خلال جدولها.",
+      "workspaceInactive": "مساحة العمل هذه متوقفة أو خارج ساعات عملها، لذلك لن تتم معالجة أي تعليق. حاول مرة أخرى عندما تكون مساحة العمل نشطة.",
+      "alreadyRunning": "تتم معالجة التعليقات الفائتة لهذه الأتمتة بالفعل. حاول مرة أخرى بعد بضع دقائق.",
+      "integrationNotFound": "لم يتم العثور على حساب متصل لهذه القناة.",
+      "fetchFailed": "تعذّر تحميل تعليقات المنشور. تحقق من اتصال القناة وحاول مرة أخرى."
+    }
+  },
   "instagramStoryAutomation": {
-    "title": "أتمتة الرد على قصص إنستغرام",
-    "description": "أتمتة الردود على ردود قصص إنستغرام لجهات الاتصال الخاصة بك.",
+    "title": "أتمتة قصص إنستغرام",
+    "description": "أتمتة الردود عندما ترد جهات الاتصال على قصصك في إنستغرام أو تذكرك في قصصها.",
     "create": "إنشاء أتمتة",
     "replies": "الردود",
     "activated": "تم تفعيل الأتمتة",
     "deactivated": "تم إيقاف الأتمتة",
+    "trigger": "المُشغِّل",
+    "triggerDescription": "اختر ما يبدأ هذه الأتمتة. لا يمكن تغييره بعد إنشاء الأتمتة.",
+    "triggerType": {
+      "storyReply": "يرد على قصتك",
+      "storyMention": "يذكرك في قصته"
+    },
     "trackStoryReplyOn": "تتبع الرد على القصة في",
     "trackStoryReplyOnDescription": "طبّق هذه الأتمتة على الردود في جميع قصصك، أو حدّدها بقصص معينة تختارها.",
     "reply": "الرد",
@@ -6363,17 +7308,15 @@
     "status": {
       "title": "واجهة تحويلات ميتا (Conversions API)",
       "ready": "جاهز",
-      "missingPermission": "يحتاج إذنًا",
-      "unverified": "غير موثّق",
       "unsupported": "غير مدعوم",
-      "notConnected": "غير مربوط"
+      "notConnected": "غير مربوط",
+      "reconnect": "إعادة الاتصال مطلوبة"
     },
     "statusDescriptions": {
-      "ready": "هذا التكامل يملك صلاحية ميتا المطلوبة لأحداث واجهة التحويلات.",
-      "missingPermission": "أعِد ربط هذا التكامل وامنح صلاحية ميتا المطلوبة.",
-      "unverified": "إعدادات تطبيق المنصّة غير متاحة، فتعذّر التحقّق من صلاحية واجهة التحويلات.",
+      "ready": "تُرسل أحداث Conversions API من هذا التكامل إلى Meta.",
       "unsupported": "واجهة تحويلات ميتا لإنستغرام تتطلّب حسابًا مربوطًا عبر تسجيل دخول فيسبوك للأعمال.",
-      "notConnected": "واجهة التحويلات أداة من أدوات ميتا للأعمال تتيح لك مشاركة البيانات مع ميتا لتحسين أداء الإعلانات."
+      "notConnected": "واجهة التحويلات أداة من أدوات ميتا للأعمال تتيح لك مشاركة البيانات مع ميتا لتحسين أداء الإعلانات.",
+      "reconnect": "انتهت صلاحية إذن Conversions API لذلك توقف إرسال الأحداث. يتم الاحتفاظ بمجموعة البيانات وإعدادات الاختبار؛ أعد الاتصال لاستئناف الإرسال."
     },
     "errors": {
       "reconnect": "تعذّر بدء إعادة ربط واجهة تحويلات ميتا.",
@@ -6383,12 +7326,14 @@
       "saveFailed": "تعذّر الحفظ. حاول مرّة أخرى.",
       "datasetRequired": "احفظ معرّف مجموعة البيانات قبل إضافة رمز الوصول.",
       "invalidToken": "هذا الرمز لا يستطيع الوصول إلى مجموعة البيانات.",
-      "invalidDatasetId": "أدخل معرّف مجموعة بيانات صالحًا (أرقام فقط).",
       "whatsappNotFound": "تكامل واتساب غير موجود.",
       "testEventCodeRequired": "احفظ رمز حدث اختبار قبل إرسال حدث اختبار.",
       "invalidTestEventCode": "يجب ألا يحتوي رمز حدث الاختبار إلا على أحرف وأرقام وشرطات أو شرطات سفلية (بحد أقصى 64).",
       "invalidMessagingId": "يجوز أن يحتوي معرّف المراسلة على أحرف وأرقام وشرطات وشرطات سفلية فقط (بحد أقصى 512).",
-      "capiDisconnected": "تم قطع اتصال Meta CAPI لهذه القناة. أعد الاتصال قبل إرسال حدث اختبار."
+      "capiDisconnected": "تم قطع اتصال Meta CAPI لهذه القناة. أعد الاتصال قبل إرسال حدث اختبار.",
+      "appNotConfigured": "لم يتم إعداد تطبيق Meta لهذه القناة بعد.",
+      "capiNotConfigured": "لم يتم إعداد اتصال Conversions API. اطلب من المسؤول تعيين معرّف تكوين Conversions API.",
+      "wabaMismatch": "حساب WhatsApp Business المصرّح به ليس الحساب الذي ينتمي إليه هذا الرقم. يرجى الربط بالحساب نفسه."
     },
     "fields": {
       "eventType": {
@@ -6473,32 +7418,13 @@
     "disconnect": "قطع الاتصال",
     "openEventManager": "فتح Event Manager",
     "methods": {
-      "oauth": {
-        "title": "ربط عبر Facebook",
-        "description": "استخدم اتصال صفحتك الحالي، ثم اختر معرف Dataset.",
-        "connect": "إنشاء مجموعة بيانات",
-        "connectedLabel": "عبر Facebook"
-      },
       "custom": {
         "title": "اتصال مخصص",
         "description": "استخدم معرف Dataset ورمز وصول من Meta Events Manager.",
         "start": "إعداد اتصال مخصص",
         "connect": "ربط",
         "connectedLabel": "مخصص"
-      },
-      "whatsapp": {
-        "title": "ربط عبر WhatsApp",
-        "description": "استخدم اتصال WhatsApp الخاص بك، ثم اختر معرف Dataset.",
-        "connect": "إنشاء مجموعة بيانات",
-        "connectedLabel": "عبر WhatsApp"
       }
-    },
-    "finalize": {
-      "title": "اختر معرف Dataset",
-      "description": "أدخل معرف Dataset موجودًا، أو اتركه فارغًا لإنشاء واحد تلقائيًا.",
-      "save": "حفظ",
-      "createDataset": "إنشاء مجموعة بيانات",
-      "caveat": "قد لا يُسند معرف Dataset غير المرتبط بهذه الصفحة أو حساب Instagram الأحداث بشكل صحيح. اترك هذا الحقل فارغًا لإنشاء Dataset مرتبط تلقائيًا."
     },
     "whatsapp": {
       "connect": "ربط"
@@ -6547,6 +7473,465 @@
       "messagingIdHint": "أحرف وأرقام وشرطات وشرطات سفلية فقط (بحد أقصى 512).",
       "cancel": "إلغاء",
       "confirmSend": "إرسال"
+    },
+    "connect": {
+      "button": "ربط Conversions API",
+      "success": "تم ربط Conversions API.",
+      "title": "الربط مع Meta",
+      "description": "سجّل الدخول إلى Meta وامنح الإذن لأحداث التحويل. يؤدي ذلك إلى إنشاء اتصال منفصل لـ Conversions API ولا يغيّر طريقة تسجيل دخول هذه القناة.",
+      "reconnect": "إعادة الاتصال"
+    },
+    "connectResult": {
+      "errors": {
+        "cancelled": "تم إلغاء الربط. لم يتم تغيير أي شيء.",
+        "notFound": "تعذّر العثور على هذه القناة.",
+        "pageNotFound": "حساب Facebook الذي استخدمته لا يدير هذه الصفحة. سجّل الدخول بحساب يديرها.",
+        "accountNotFound": "حساب Facebook الذي استخدمته لا يدير حساب Instagram هذا. سجّل الدخول بحساب يديره.",
+        "datasetFailed": "لم تسمح Meta بإنشاء مجموعة بيانات عبر هذا الاتصال. تأكد من منح جميع الأذونات المطلوبة وحاول مرة أخرى.",
+        "sessionExpired": "استغرق الاتصال وقتًا طويلًا أو بدأ في علامة تبويب أخرى. يرجى المحاولة مرة أخرى.",
+        "failed": "تعذّر ربط Conversions API. يرجى المحاولة مرة أخرى."
+      }
+    }
+  },
+  "googleAds": {
+    "title": "Google Ads",
+    "description": "أرسل التحويلات غير المتصلة إلى Google Ads لجهات الاتصال التي وصلت من نقرة على إعلان Google.",
+    "notAvailable": {
+      "description": "لم يتم إعداد بيانات اعتماد Google Ads الخاصة بالمنصة (معرّف عميل OAuth والسر). اطلب من مسؤول المنصة إضافتها في إعدادات منصة Google Ads."
+    },
+    "connect": {
+      "scopes": "نطلب إذنًا لقراءة حسابات Google Ads وإجراءات التحويل لديك، ولإرسال التحويلات نيابةً عنك.",
+      "button": "ربط Google Ads",
+      "reconnect": "إعادة الربط",
+      "unnamedAccount": "حساب Google Ads",
+      "viaManager": "عبر المدير {manager}",
+      "statusLabel": "حالة الاتصال",
+      "needsReauthDescription": "تم إلغاء وصول Google أو انتهت صلاحيته. أعد الربط لمواصلة إرسال التحويلات.",
+      "pausedDescription": "هذا الاتصال متوقف مؤقتًا، لذا لا يتم إرسال التحويلات.",
+      "degradedDescription": "يستجيب Google Ads بأخطاء. ستتم إعادة محاولة إرسال التحويلات تلقائيًا.",
+      "howItWorks": "كيف يعمل",
+      "steps": {
+        "signIn": "سجّل الدخول بحساب Google الذي يدير إعلاناتك.",
+        "chooseAccount": "اختر حساب Google Ads.",
+        "pickAction": "اختر إجراء التحويل في مساراتك."
+      },
+      "uploadMethod": "طريقة الرفع: {method}"
+    },
+    "status": {
+      "connected": "متصل",
+      "degraded": "متأثر",
+      "needsReauth": "يحتاج إلى إعادة الربط",
+      "paused": "متوقف مؤقتًا",
+      "disconnected": "غير متصل"
+    },
+    "picker": {
+      "title": "اختر حساب Google Ads",
+      "legend": "حسابات Google Ads",
+      "loading": "جارٍ تحميل اتصال Google Ads",
+      "loadError": "تعذّر تحميل محاولة الاتصال بـ Google Ads.",
+      "waiting": "في انتظار تأكيد Google لتسجيل الدخول…",
+      "noTargets": "لم يتم العثور على حسابات Google Ads لحساب Google هذا.",
+      "alreadyThisWorkspace": "متصل بالفعل بمساحة العمل هذه",
+      "alreadyOtherWorkspace": "متصل بالفعل بمساحة عمل أخرى",
+      "notSelectable": "لا يمكن اختيار هذا الحساب",
+      "connectSelected": "ربط الحساب",
+      "sessionExpired": "انتهت صلاحية محاولة الاتصال. اربط مرة أخرى للمتابعة.",
+      "sessionCancelled": "تم إلغاء محاولة الاتصال.",
+      "stalled": "لم يكتمل تسجيل الدخول. استخدم «ربط Google Ads» للمحاولة مرة أخرى.",
+      "dismiss": "تجاهل",
+      "cancelFailed": "تعذر إلغاء محاولة الربط. حاول مرة أخرى.",
+      "connectErrorTitle": "تعذّر ربط Google Ads",
+      "errors": {
+        "stateMismatch": "تعذّر التحقق من تسجيل الدخول. اربط مرة أخرى للمتابعة.",
+        "expired": "انتهت صلاحية محاولة الاتصال. اربط مرة أخرى للمتابعة.",
+        "providerDenied": "لم يتم منح الوصول إلى Google. اربط مرة أخرى واسمح بالأذونات المطلوبة.",
+        "exchangeFailed": "تعذّر إكمال تسجيل الدخول إلى Google. اربط مرة أخرى للمتابعة.",
+        "providerError": "أرجعت Google خطأً. حاول الربط مرة أخرى بعد قليل.",
+        "noCandidates": "لم يتم العثور على حساب Google Ads نشط لمستخدم Google هذا. لا يمكن استخدام الحسابات الملغاة أو المعلّقة أو غير المكتملة الإعداد. سجّل الدخول بحساب Google يدير حساب Google Ads نشطًا.",
+        "alreadyConnected": "حساب Google Ads هذا متصل بالفعل.",
+        "quotaExceeded": "تم بلوغ حد الاتصالات في خطتك.",
+        "trialExpired": "انتهت فترتك التجريبية، لذا لا يمكن إضافة اتصالات جديدة.",
+        "internalError": "حدث خطأ ما أثناء الربط. حاول مرة أخرى.",
+        "providerUnavailable": "خدمة Google Ads غير متاحة مؤقتًا، لذا تعذّر إكمال الربط. حاول مرة أخرى بعد قليل.",
+        "developerTokenMissing": "لم يكتمل إعداد Google Ads: بيانات اعتماد Google الخاصة بالمنصة غير مكتملة. اطلب من المسؤول مراجعة بيانات اعتماد Google Ads.",
+        "developerTokenNotApproved": "رفضت Google رمز المطوّر المخزّن في بيانات اعتماد Google Ads. الرمز اختياري: اطلب من المسؤول حذفه أو استبداله برمز صالح.",
+        "projectNotApproved": "لم تتم الموافقة بعد على مشروع Google Cloud الخاص بك لحسابات Google Ads الفعلية. قدّم طلب الحصول على وصول Explorer أو Basic للمشروع في Google Cloud Console (Google Ads API ← Overview)، ثم اتصل مرة أخرى.",
+        "permissionDenied": "لا يملك مستخدم Google هذا إذن الوصول إلى حسابات Google Ads. سجّل الدخول بمستخدم Google لديه حق الوصول إلى حساب Google Ads.",
+        "apiNotEnabled": "واجهة Google Ads API غير مفعّلة لمشروع Google Cloud. اطلب من المسؤول تفعيلها ثم حاول مرة أخرى.",
+        "credentialsInvalid": "رفضت Google بيانات تسجيل الدخول. أعد الربط للمتابعة.",
+        "scopeMissing": "لم يتم منح جميع الأذونات. يحتاج Google Ads إلى الوصول إلى حسابك في Google Ads وإلى إذن لإرسال التحويلات. اتصل مرة أخرى وحدد كل الأذونات.",
+        "legacyUploadNotAllowed": "لا تسمح Google بواجهة الرفع القديمة لهذا الحساب. بدّل بيانات الاعتماد إلى Data Manager وأعد ربط مساحة العمل هذه."
+      }
+    },
+    "setup": {
+      "conversionCustomer": "حساب التحويلات",
+      "notResolved": "لم يتم تحديده بعد",
+      "retry": "إعادة محاولة الإعداد",
+      "dataTermsWarning": "لم يتم قبول شروط بيانات العملاء لهذا الحساب. اقبلها في Google Ads ثم أعد محاولة الإعداد.",
+      "errors": {
+        "conversionCustomerInaccessible": "لا يمكن الوصول إلى حساب التحويلات بتسجيل الدخول هذا إلى Google. تحقق من صلاحياتك في Google Ads ثم أعد المحاولة.",
+        "customerDataTermsNotAccepted": "لم يتم قبول شروط بيانات العملاء لهذا الحساب. اقبلها في Google Ads ثم أعد محاولة الإعداد.",
+        "syncFailed": "تعذّرت قراءة إجراءات التحويل من Google Ads. أعد محاولة الإعداد بعد قليل.",
+        "developerTokenMissing": "لم يتم إعداد بيانات اعتماد Google Ads الخاصة بالمنصة (معرّف عميل OAuth والسر)."
+      }
+    },
+    "conversionActions": {
+      "title": "إجراءات التحويل",
+      "description": "يمكن فقط للإجراءات المفعّلة التي تستورد التحويلات من النقرات تلقي التحويلات.",
+      "helpLink": "مساعدة Google Ads",
+      "sync": "مزامنة إجراءات التحويل",
+      "syncedAt": "آخر مزامنة {date}",
+      "neverSynced": "لم تتم المزامنة بعد",
+      "empty": "لم يتم العثور على إجراءات تحويل. أنشئ إجراء تحويل لاستيراد التحويلات غير المتصلة في Google Ads ثم زامن.",
+      "name": "الاسم",
+      "category": "الفئة",
+      "counting": "طريقة العد",
+      "status": "الحالة",
+      "onePerClickNote": "لا يمكن إرسال نقرات iOS (gbraid) إلى هذا الإجراء. استخدم العدّ \"كل مرة\" لاستلامها.",
+      "externalNote": "غير مدعوم: يستخدم هذا الإجراء إسنادًا خارجيًا لا يمكن إرساله عبر Google Data Manager.",
+      "count": "{count, plural, one {# إجراء تحويل} other {# إجراءات تحويل}}"
+    },
+    "events": {
+      "title": "سجل التحويلات",
+      "description": "أحدث التحويلات المرسلة إلى Google Ads. معرّفات النقرات مخفية جزئيًا.",
+      "empty": "تظهر التحويلات هنا بمجرد أن يرسل مسار أو مشغّل تحويلاً.",
+      "emptyFiltered": "لا توجد تحويلات تطابق هذه الحالة.",
+      "loadError": "تعذّر تحميل سجل التحويلات.",
+      "page": "الصفحة {page} من {pages}",
+      "filter": {
+        "label": "الحالة",
+        "all": "كل الحالات"
+      },
+      "columns": {
+        "status": "الحالة",
+        "action": "إجراء التحويل",
+        "channel": "القناة",
+        "clickId": "معرّف النقرة (Click ID)",
+        "occurredAt": "وقت الحدوث",
+        "actions": "الإجراءات",
+        "dedup": "منع التكرار",
+        "consent": "لقطة الموافقة",
+        "matching": "المطابقة",
+        "properties": "الخصائص"
+      },
+      "status": {
+        "pending": "قيد الانتظار",
+        "sending": "جارٍ الإرسال",
+        "sent": "تم الإرسال",
+        "processed": "تمت المعالجة",
+        "failed": "فشل",
+        "skippedNoAccount": "تم التخطي: لا يوجد حساب",
+        "skippedExpired": "تم التخطي: منتهي الصلاحية"
+      },
+      "processing": {
+        "processing": "Google قيد المعالجة",
+        "success": "مقبول",
+        "partialSuccess": "مقبول جزئيًا",
+        "failed": "مرفوض",
+        "unknown": "النتيجة غير معروفة",
+        "timedOut": "انتهت المهلة"
+      },
+      "stage": {
+        "delivery": "فشل التسليم",
+        "processing": "فشلت المعالجة",
+        "timeout": "انتهت المهلة"
+      },
+      "consent": {
+        "adUserDataFull": "بيانات مستخدم الإعلانات: {status}",
+        "adPersonalizationFull": "تخصيص الإعلانات: {status}",
+        "status": {
+          "granted": "تمت الموافقة",
+          "denied": "مرفوض",
+          "notProvided": "غير مقدَّم",
+          "notSupported": "غير مدعوم (رفع قديم)"
+        },
+        "adUserDataShort": "البيانات: {status}",
+        "adPersonalizationShort": "التخصيص: {status}",
+        "delivery": {
+          "toSend": "للإرسال",
+          "notSent": "لم يُرسَل",
+          "unknown": "غير مؤكد"
+        }
+      },
+      "dedup": {
+        "click": "لكل نقرة",
+        "id": "المعرّف: {id}",
+        "event": "كل تشغيل"
+      },
+      "matching": {
+        "enabled": "مضبوط: {fields}",
+        "withheldConsent": "محجوب (بدون موافقة): {fields}",
+        "unsupportedTransport": "لم يُرسل (قديم): {fields}"
+      },
+      "timeProvided": "وقت محدد",
+      "timeProvidedTooltip": "جاء وقت التحويل هذا من الخطوة، وليس من وقت تشغيلها."
+    },
+    "validate": {
+      "open": "التحقق من الطلب",
+      "title": "التحقق من الطلب",
+      "description": "فحص للإعدادات: تتحقق Google من الطلب دون تسجيل أي تحويل.",
+      "conversionAction": "إجراء التحويل",
+      "clickIdType": "نوع معرّف النقرة",
+      "clickIdTypes": {
+        "gclid": "GCLID",
+        "gbraid": "GBRAID"
+      },
+      "clickId": "معرّف النقرة (Click ID)",
+      "submit": "تشغيل الفحص",
+      "ok": "قبلت Google هذا الإعداد. لم يتم تسجيل أي شيء.",
+      "reasons": {
+        "accountNotReady": "حساب Google Ads غير جاهز بعد. أكمل الربط والإعداد ثم حاول مرة أخرى.",
+        "needsReauth": "يلزم إعادة ربط اتصال Google Ads.",
+        "rejected": "رفضت Google هذا الطلب",
+        "legacyUploadNotAllowed": "لا تسمح Google بواجهة الرفع القديمة لهذا الحساب. بدّل بيانات الاعتماد إلى Data Manager وأعد ربط مساحة العمل هذه."
+      },
+      "invalid": "اختر إجراء تحويل وأدخل معرّف نقرة صالحًا.",
+      "consentIncluded": "تتضمن الموافقة: {values}.",
+      "consentNone": "لا تتضمن هذه التجربة أي موافقة.",
+      "consentVariableSkipped": "لا يمكن اختبار الموافقة المأخوذة من حقل جهة الاتصال، لذا تم استبعادها.",
+      "consentNotSentLegacy": "لا يتم إرسال تخصيص الإعلانات ({status}) مع طريقة الرفع القديمة."
+    },
+    "conversionFields": {
+      "conversionAction": "إجراء التحويل",
+      "unavailableOption": "{id} (غير متاح)",
+      "unavailableWarning": "إجراء التحويل المحدد لم يعد متاحًا أو غير مفعّل. اختر إجراءً آخر قبل النشر.",
+      "externalOption": "{name} (إسناد خارجي، غير مدعوم)",
+      "loading": "جارٍ تحميل إجراءات التحويل",
+      "loadError": "تعذّر تحميل إجراءات التحويل في Google Ads.",
+      "notConnected": "اربط Google Ads لإرسال التحويلات.",
+      "noActions": "لم يتم العثور على إجراءات تحويل مفعّلة. قم بمزامنتها من إعدادات Google Ads.",
+      "openSettings": "فتح إعدادات Google Ads",
+      "needsReauth": "يلزم إعادة ربط اتصال Google Ads.",
+      "dedupModeClick": "مرة واحدة لكل نقرة على الإعلان",
+      "dedupModeClickHelp": "يحتسب إجراء التحويل هذا مرة واحدة لكل نقرة على الإعلان.",
+      "dedupModeIdHelp": "يُحتسب مرة واحدة لكل معرّف مختلف.",
+      "dedupModeId": "مرة واحدة لكل معرّف طلب أو حدث",
+      "dedupModeEvent": "في كل مرة يعمل",
+      "dedupModeEventHelp": "يسجّل تحويلًا جديدًا في كل مرة يعمل فيها، حتى لنقرة الإعلان نفسها. لا تُحتسب إعادة المحاولة للتشغيل نفسه مرتين.",
+      "dedupId": "معرّف الطلب أو الحدث",
+      "dedupIdPlaceholder": "مثال: '{{order_number}}'",
+      "dedupIdHelp": "أعد استخدام المعرّف نفسه عند إعادة المحاولة والاستيراد. استخدم معرّفًا مختلفًا لكل عملية شراء أو حدث.",
+      "dedupIdExample": "لا يوجد معرّف طلب في مبيعات الدردشة؟ اجمع جهة الاتصال مع حقل تعيّنه لكل عملية بيع، مثل {example}. لا تستخدم الوقت الحالي: فهو يتغير في كل تشغيل.",
+      "dedupIdInfoLabel": "حول معرّف الطلب أو الحدث",
+      "dedupLeadIdNote": "كل معرّف مختلف يُحتسب عميلًا محتملًا جديدًا من النقرة نفسها.",
+      "dedupClickNote": "لن تُحتسب عمليات الشراء المتكررة من النقرة نفسها.",
+      "dedupLegacyNote": "الرفع القديم: تتلقى Google معرّفًا مشوّشًا.",
+      "additionalOptions": "خيارات إضافية",
+      "additionalOptionsCount": "تم تعيين {count}",
+      "customerMatching": "مطابقة العملاء",
+      "customerMatchingCount": "{count} مفعّل",
+      "customerMatchingLegacy": "غير مدعوم في طريقة الرفع القديمة. حوّل الاتصال إلى Data Manager API لاستخدامه.",
+      "customerMatchingTermsNotAccepted": "لن يتم الإرسال حتى تقبل شروط بيانات العملاء في إعدادات التحويل في Google Ads.",
+      "learnMore": "اعرف المزيد",
+      "matchEmailLabel": "البريد الإلكتروني",
+      "matchPhoneLabel": "رقم الهاتف",
+      "matchEmailPlaceholder": "'{{email}}'",
+      "matchPhonePlaceholder": "'{{phone}}'",
+      "customerTypeLabel": "نوع العميل",
+      "customerValueBucketLabel": "قيمة العميل",
+      "customerPropertiesLegacy": "غير مدعوم في طريقة الرفع القديمة. حوّل الاتصال إلى Data Manager API لاستخدامه.",
+      "conversionTime": "وقت التحويل",
+      "conversionTimePlaceholder": "اتركه فارغًا لاستخدام وقت تشغيل هذه الخطوة",
+      "valuePlaceholder": "اختياري، مثل 250",
+      "currencyPlaceholder": "اختياري، USD",
+      "validation": {
+        "dedupIdRequired": "أدخل معرّفًا، أو اختر مرة واحدة لكل نقرة.",
+        "dedupIdTooLong": "استخدم 64 حرفًا أو أقل.",
+        "matchTemplateInvalid": "استخدم متغيرًا واحدًا فقط، مثل '{{email}}'. القيمة الثابتة غير مسموحة.",
+        "customerTypeInvalid": "استخدم NEW أو RETURNING، أو متغيّرًا مثل '{{customer_type}}'.",
+        "customerValueBucketInvalid": "استخدم LOW أو MEDIUM أو HIGH، أو متغيّرًا مثل '{{customer_value}}'.",
+        "timeFormat": "استخدم تاريخًا مع المنطقة الزمنية، مثل 2026-10-08T14:30:00+07:00.",
+        "timeInvalidDate": "هذا التاريخ غير موجود.",
+        "currencyRequired": "أضف عملة عند تعيين قيمة.",
+        "valueRequired": "أضف قيمة عند تعيين عملة.",
+        "conversionActionRequired": "اختر إجراء التحويل.",
+        "valueInvalid": "استخدم رقمًا عاديًا، مثل 19.99.",
+        "valueTooLarge": "هذه القيمة كبيرة جدًا.",
+        "currencyInvalid": "استخدم رمز عملة من 3 أحرف، مثل USD."
+      },
+      "consentInvalid": "تتعذر قراءة إعدادات الموافقة، لذلك ستفشل هذه الخطوة.",
+      "consentFixLink": "أصلحها في الإعدادات",
+      "dedupModeLabel": "تجنب التحويلات المكررة"
+    },
+    "summary": {
+      "conversionAction": "إجراء التحويل {id}",
+      "notConfigured": "اختر إجراء تحويل",
+      "dedupClick": "مرة واحدة لكل نقرة على الإعلان",
+      "dedupId": "المعرّف: {id}",
+      "dedupEvent": "في كل مرة يعمل"
+    },
+    "consent": {
+      "title": "الموافقة على بيانات التحويل",
+      "description": "هل وافق العملاء على مشاركة بياناتهم للإعلانات. ينطبق على كل تحويل ترسله مساحة العمل هذه.",
+      "learnMore": "اعرف المزيد",
+      "notConnected": "تنطبق على التحويلات بعد ربط حساب Google Ads.",
+      "adUserData": {
+        "label": "بيانات مستخدم الإعلانات"
+      },
+      "adPersonalization": {
+        "label": "تخصيص الإعلانات"
+      },
+      "source": {
+        "notProvided": "غير مقدَّمة",
+        "granted": "ممنوحة دائمًا",
+        "denied": "مرفوضة دائمًا",
+        "variable": "من حقل في جهة الاتصال"
+      },
+      "help": {
+        "notProvided": "غير مُرسل. تستخدم Google الموافقة الافتراضية لحسابك.",
+        "granted": "كل تحويل يفيد بأن العميل وافق.",
+        "denied": "كل تحويل يفيد بأن العميل رفض.",
+        "variable": "استخدم \"{granted}\" أو \"{denied}\". تُتجاهل القيمة الفارغة؛ وأي قيمة أخرى تُفشل الخطوة."
+      },
+      "templatePlaceholder": "مثال: '{{gdpr_consent}}'",
+      "templateLabel": "حقل جهة الاتصال لـ {setting}",
+      "validation": {
+        "templateRequired": "أدرج حقلًا من جهة الاتصال، مثال: '{{gdpr_consent}}'.",
+        "templateTooLong": "استخدم 200 حرف أو أقل."
+      },
+      "legacy": {
+        "title": "لا يُرسل مع الرفع القديم",
+        "body": "الرفع القديم يقبل فقط موافقة بيانات مستخدم الإعلانات. أعد الاتصال عبر Data Manager لإرسالها."
+      },
+      "save": "حفظ",
+      "saved": "تم حفظ إعدادات الموافقة",
+      "invalidStored": "تعذّرت قراءة إعدادات الموافقة المحفوظة. ستفشل الخطوات التي ترسل التحويلات حتى تحفظ إعدادات جديدة."
+    },
+    "errors": {
+      "supportSession": "لا يمكن لجلسات دعم المنصة تغيير اتصال Google Ads أو إرسال التحويلات.",
+      "developerTokenMissing": "Google Ads غير متاح بعد: لم يتم إعداد بيانات اعتماد Google Ads الخاصة بالمنصة (معرّف عميل OAuth والسر).",
+      "notConnected": "Google Ads غير متصل بمساحة العمل هذه.",
+      "sessionNotFound": "لم يتم العثور على محاولة اتصال Google Ads هذه أو انتهت صلاحيتها. ابدأ من جديد.",
+      "pickFailed": "تعذّر ربط حساب Google Ads هذا. ربما هو متصل بالفعل في مكان آخر أو انتهت صلاحية المحاولة.",
+      "notRetryable": "لا يمكن إعادة محاولة هذا التحويل: يمكن إعادة محاولة التحويلات الفاشلة فقط.",
+      "authorizationUnavailable": "تعذّر بدء تسجيل الدخول إلى Google. حاول مرة أخرى بعد قليل.",
+      "credentialSecretsRequired": "أدخل سر العميل. لم يتم حفظه بعد."
+    },
+    "enums": {
+      "category": {
+        "default": "افتراضي",
+        "purchase": "شراء",
+        "addToCart": "إضافة إلى السلة",
+        "beginCheckout": "بدء الدفع",
+        "subscribePaid": "اشتراك مدفوع",
+        "phoneCallLead": "عميل محتمل عبر مكالمة هاتفية",
+        "importedLead": "عميل محتمل مستورد",
+        "submitLeadForm": "إرسال نموذج عميل محتمل",
+        "bookAppointment": "حجز موعد",
+        "signup": "تسجيل",
+        "requestQuote": "طلب عرض سعر",
+        "getDirections": "الحصول على الاتجاهات",
+        "outboundClick": "نقرة خارجية",
+        "contact": "اتصال",
+        "engagement": "تفاعل",
+        "storeVisit": "زيارة متجر",
+        "storeSale": "بيع في المتجر",
+        "qualifiedLead": "عميل محتمل مؤهل",
+        "convertedLead": "عميل محتمل محوَّل",
+        "pageView": "مشاهدة صفحة",
+        "download": "تنزيل",
+        "lead": "عميل محتمل"
+      },
+      "countingType": {
+        "onePerClick": "مرة واحدة لكل نقرة",
+        "manyPerClick": "مرات متعددة لكل نقرة"
+      },
+      "actionStatus": {
+        "enabled": "مفعّل",
+        "removed": "محذوف",
+        "hidden": "مخفي"
+      },
+      "unknown": "أخرى ({value})"
+    },
+    "uploadMethods": {
+      "dataManager": "Data Manager",
+      "legacy": "الرفع القديم"
+    },
+    "stepErrors": {
+      "google_ads_unsupported_channel": "لا يمكن لقناة جهة الاتصال هذه إرسال تحويلات Google Ads.",
+      "google_ads_no_click": "لم تصل جهة الاتصال من نقرة على إعلان Google.",
+      "google_ads_no_account": "لا يوجد حساب Google Ads جاهز متصل.",
+      "google_ads_unknown_conversion_action": "إجراء التحويل لم يعد موجودًا. زامِن واختر إجراءً آخر.",
+      "google_ads_action_disabled": "إجراء التحويل غير مفعّل في Google Ads.",
+      "google_ads_incompatible_action": "يحتسب هذا الإجراء تحويلًا واحدًا لكل نقرة، وهو ما لا تسمح به Google لنقرة iOS هذه.",
+      "google_ads_unsupported_action": "يستخدم هذا الإجراء إسنادًا خارجيًا ولا يمكنه استقبال هذه التحويلات.",
+      "google_ads_invalid_value": "القيمة أو العملة غير صالحة.",
+      "google_ads_invalid_input": "إعدادات الخطوة غير صالحة.",
+      "google_ads_record_failed": "تعذّر حفظ التحويل.",
+      "google_ads_missing_dedup_id": "كان معرّف الطلب أو الحدث فارغًا.",
+      "google_ads_invalid_dedup_id": "كان معرّف الطلب أو الحدث أطول من 64 حرفًا.",
+      "google_ads_missing_occurrence_key": "لم يكن لهذا التشغيل معرّف ثابت، لذلك لم يتم تسجيل التحويل.",
+      "google_ads_invalid_customer_property": "نوع العميل أو قيمته ليست قيمة مسموحًا بها.",
+      "google_ads_invalid_consent_config": "تعذّرت قراءة إعدادات الموافقة المحفوظة.",
+      "google_ads_invalid_consent_value": "احتوى حقل موافقة على قيمة غير \"granted\" أو \"denied\".",
+      "google_ads_invalid_conversion_time": "وقت التحويل ليس تاريخًا صالحًا مع منطقة زمنية، أو يقع في المستقبل."
+    },
+    "stats": {
+      "filters": {
+        "allChannels": "كل القنوات",
+        "allActions": "كل الإجراءات",
+        "channelLabel": "القناة",
+        "actionLabel": "إجراء التحويل"
+      },
+      "tiles": {
+        "confirmed": "مؤكدة",
+        "awaitingGoogle": "بانتظار Google",
+        "queued": "في قائمة الانتظار",
+        "failed": "فاشلة",
+        "skipped": "متخطاة",
+        "deliveryRate": "معدل التسليم",
+        "confirmedHelp": "أكدت Google تسجيل هذه التحويلات.",
+        "awaitingGoogleHelp": "أُرسلت إلى Google وبانتظار انتهائها من المعالجة.",
+        "queuedHelp": "بانتظار الإرسال.",
+        "failedHelp": "لم تقبلها Google أو لم تعالجها.",
+        "skippedHelp": "لم تُرسل: لا يوجد حساب جاهز، أو أنها أقدم مما تقبله Google.",
+        "deliveryRateHelp": "المؤكدة ÷ (المؤكدة + الفاشلة). لا تُحتسب التحويلات في قائمة الانتظار أو بانتظار Google أو المتخطاة."
+      },
+      "confirmedValue": "القيمة المؤكدة",
+      "confirmedValueItem": "{value} ({count, plural, one {# تحويل} other {# تحويلات}})",
+      "moreCurrencies": "+{count} أخرى",
+      "chart": {
+        "title": "التحويلات في كل يوم",
+        "viewAsTable": "عرض كجدول",
+        "tableCaption": "التحويلات في كل يوم",
+        "dateColumn": "التاريخ"
+      },
+      "byAction": {
+        "title": "حسب إجراء التحويل",
+        "truncated": "عرض أكثر 50 إجراءً من حيث عدد التحويلات."
+      },
+      "byChannel": {
+        "title": "حسب القناة",
+        "confirmedCount": "{count, plural, one {# مؤكدة} other {# مؤكدة}}"
+      },
+      "failures": {
+        "title": "حالات الفشل حسب المرحلة",
+        "unknown": "غير معروف"
+      },
+      "empty": {
+        "title": "لا توجد تحويلات في هذه الفترة",
+        "description": "تظهر التحويلات هنا عندما ترسل خطوة في تدفق أو مشغّل تحويلًا."
+      },
+      "error": {
+        "title": "تعذّر تحميل الإحصائيات",
+        "retry": "حاول مرة أخرى"
+      },
+      "viewStatistics": "عرض الإحصائيات",
+      "deliveryRateNone": "—",
+      "deliveryRateNoneHelp": "لا توجد تحويلات مؤكدة أو فاشلة في هذه الفترة.",
+      "actionFallback": "الإجراء {id}",
+      "openSettings": "فتح إعدادات Google Ads",
+      "outcome": {
+        "title": "توزيع النتائج"
+      },
+      "googleReport": {
+        "title": "Reported by Google Ads",
+        "description": "Conversions Google Ads itself recorded for these days, next to what ChatbotX sent and Google confirmed.",
+        "sent": "Confirmed by ChatbotX",
+        "reported": "Reported by Google",
+        "note": "Google can take hours to update its reports, and counts follow the action's own settings, so small gaps are normal.",
+        "unavailable": "Google Ads reporting is not available right now."
+      }
     }
   },
   "minigames": {
@@ -6908,6 +8293,48 @@
   "accountFields": {
     "title": "حقول البوت"
   },
+  "aiAgentActions": {
+    "title": "AI Actions",
+    "description": "Let the AI automatically take actions while talking to customers.",
+    "when": "When",
+    "whenPlaceholder": "Describe when the AI should do this...",
+    "whatShouldAIDo": "What should the AI do?",
+    "action": "Action {number}",
+    "actionType": "Action type",
+    "addRule": "Add action rule",
+    "addAction": "Add action",
+    "duplicateRule": "Duplicate rule",
+    "removeRule": "Remove rule",
+    "removeAction": "Remove action",
+    "moveUp": "Move action up",
+    "moveDown": "Move action down",
+    "flow": "Flow",
+    "admin": "Admin",
+    "tag": "Tag",
+    "customField": "Custom field",
+    "actionPrompt": {
+      "label": "Action prompt",
+      "description": "Private instructions used only when the AI evaluates action rules.",
+      "placeholder": "Add optional instructions for matching action rules...",
+      "open": "Configure action prompt",
+      "reset": "Reset"
+    },
+    "actionTypes": {
+      "sendFlow": "إرسال المسار",
+      "assignConversation": "إسناد المحادثة",
+      "removeAssignment": "إلغاء تعيين المحادثة",
+      "transferToHuman": "نقل إلى موظف",
+      "addTag": "إضافة وسم",
+      "removeTag": "إزالة الوسم",
+      "setCustomField": "تعيين الحقل المخصص",
+      "clearCustomField": "مسح الحقل المخصص",
+      "markFollowUp": "متابعة",
+      "removeFollowUp": "إزالة المتابعة",
+      "transferToBot": "نقل المحادثة إلى البوت",
+      "archive": "أرشفة",
+      "blockContact": "حظر جهة الاتصال"
+    }
+  },
   "openLink": {
     "title": "فتح الرابط",
     "invalidTitle": "رابط غير صالح.",
@@ -6915,6 +8342,979 @@
     "openZaloGroup": "فتح مجموعة Zalo",
     "openZalo": "فتح Zalo",
     "openMessenger": "فتح Messenger"
+  },
+  "conversationRouting": {
+    "owner": {
+      "metaAi": "Meta AI",
+      "partner": "شريك",
+      "partnerWithRole": "شريك · {role}",
+      "self": "أنت"
+    },
+    "roles": {
+      "ai_agent": "Meta AI",
+      "ctwa": "إعلانات Click-to-WhatsApp",
+      "customer_service": "خدمة العملاء",
+      "escalation": "التصعيد",
+      "marketing": "التسويق",
+      "utility": "الخدمات"
+    },
+    "pill": {
+      "standby": "وضع الاستماع ({owner})",
+      "owned": "نشط",
+      "tooltip": "يتولاها {owner}"
+    },
+    "release": {
+      "label": "تحرير",
+      "tooltip": "حرّر هذه المحادثة ليتمكن التطبيقات الأخرى من الرد",
+      "success": "تم تحرير المحادثة"
+    },
+    "pass": {
+      "menuItem": "تمرير إلى التصعيد",
+      "title": "التمرير إلى شريك التصعيد؟",
+      "description": "هل تريد تسليم هذه المحادثة إلى شريك التصعيد؟ ستتوقف ردودك مؤقتًا حتى تعود المحادثة.",
+      "confirm": "تمرير",
+      "success": "تم تمرير المحادثة إلى شريك التصعيد"
+    },
+    "aiHandover": {
+      "label": "BizAI",
+      "tooltip": "أعد هذه المحادثة إلى مساعد الذكاء الاصطناعي",
+      "title": "هل تريد إعادتها إلى مساعد الذكاء الاصطناعي؟",
+      "description": "سيعود مساعد الذكاء الاصطناعي للرد على هذا العميل. ستتوقف ردودك مؤقتًا حتى تعود المحادثة إليك. لا تضمن Meta أن يرد المساعد على كل رسالة.",
+      "confirm": "إعادة",
+      "success": "تمت إعادة المحادثة إلى مساعد الذكاء الاصطناعي"
+    },
+    "composer": {
+      "aiStandbyHint": "Replying takes over this conversation from the AI assistant.",
+      "title": "أنت في وضع الاستماع فقط",
+      "description": "شريك خارجي يتولى هذه المحادثة. تم قفل مربع الرسائل لتجنب الردود المكررة.",
+      "takeOver": "استلام",
+      "takeOverSuccess": "أنت الآن تتولى هذه المحادثة",
+      "notEscalation": "يمكن لشريك التصعيد فقط الاستلام. يتم ضبط التوجيه في Meta Business Suite.",
+      "notPrimaryReceiver": "يجب أن يكون هذا التطبيق المستلم الأساسي للصفحة ليتمكن من الاستلام. اضبط ذلك في إعدادات بروتوكول التسليم للصفحة.",
+      "learnMore": "اعرف المزيد",
+      "dismiss": "إرسال على أي حال"
+    },
+    "divider": {
+      "ownerHandling": "{owner} يتولى هذه المحادثة الآن",
+      "handedOver": "{previousOwner} أعاد هذه المحادثة إليك",
+      "selfHandling": "أنت تتولى هذه المحادثة الآن",
+      "takenOver": "لقد توليت هذه المحادثة",
+      "released": "تم تحرير المحادثة",
+      "passed": "تم تمرير المحادثة إلى شريك التصعيد",
+      "serviceRejected": "لم يتم إرسال الرسالة: {owner} يتولى هذه المحادثة"
+    },
+    "context": {
+      "title": "سياق المحادثة",
+      "summaryBadge": "ملخص الذكاء الاصطناعي",
+      "historyBadge": "السجل",
+      "customer": "العميل",
+      "business": "النشاط التجاري",
+      "handoverNote": "ملاحظة التسليم: {note}",
+      "showAll": "عرض الكل ({count})",
+      "showLess": "عرض أقل"
+    },
+    "echo": {
+      "partner": "شريك"
+    },
+    "panel": {
+      "title": "توجيه المحادثة",
+      "threadState": "حالة المحادثة",
+      "threadStateOwned": "قيد المعالجة",
+      "threadStateStandby": "وضع الاستعداد",
+      "threadStateIdle": "في وضع الخمول",
+      "currentOwner": "المالك الحالي",
+      "noOwner": "لا يوجد مالك",
+      "roleLabel": "دورك",
+      "selfOwned": "يتولى المحادثة",
+      "selfStandby": "وضع الاستعداد — استماع فقط",
+      "selfIdle": "في انتظار رسالة العميل التالية",
+      "hintOwned": "حرّر المحادثة عند الانتهاء ليتمكن التطبيقات الأخرى من الرد.",
+      "hintStandby": "بينما يتولى شريك هذه المحادثة، يتم تعليق رسائلك حتى لا يتلقى العميل ردودًا مكررة. تولَّ المحادثة من مربع الرسائل للرد.",
+      "hintIdle": "رسالة العميل التالية تحدد من يجيب.",
+      "syncOwner": "مزامنة المالك",
+      "syncOwnerSuccess": "تمت مزامنة المالك"
+    },
+    "settings": {
+      "title": "مسار الاستئناف بعد التسليم",
+      "description": "الأتمتة التي تعمل عندما يعيد شريك المحادثة إليك.",
+      "resumeFlowLabel": "اختر تدفقًا",
+      "resumeFlowPlaceholder": "اختر تدفقًا",
+      "info": "يبدأ هذا التدفق تلقائيًا عند إعادة التحكم إليك. ثم يتم عرض ملخص المحادثة وسجل الدردشة لوكلائك في الدردشة المباشرة.",
+      "save": "حفظ التغييرات",
+      "clearFlow": "مسح التدفق",
+      "adminOnly": "يمكن لمسؤولي مساحة العمل فقط تغيير التوجيه",
+      "flowNotFound": "لم يتم العثور على التدفق المحدد أو أنه غير نشط",
+      "integrationNotFound": "لم يتم العثور على رقم WhatsApp",
+      "messengerIntegrationNotFound": "لم يتم العثور على صفحة Messenger"
+    },
+    "errors": {
+      "unsupported": "توجيه المحادثات غير متاح على هذه القناة",
+      "notFound": "هذه المحادثة ليست على تلك القناة",
+      "actionFailed": "تعذر تحديث توجيه المحادثة. يرجى المحاولة مرة أخرى."
+    },
+    "step": {
+      "action": "إجراء",
+      "release": "تحرير المحادثة",
+      "pass": "التمرير إلى شريك التصعيد",
+      "helper": "واتساب فقط. على القنوات الأخرى، أو عندما لا تكون المحادثة مملوكة هنا، تتبع الخطوة مسار الخطأ."
+    },
+    "template": {
+      "sent": "تم إرسال القالب"
+    }
+  },
+  "miniApps": {
+    "title": "Mini Apps",
+    "description": "أنشئ نماذج WhatsApp Flow وشاركها كرابط على أي قناة.",
+    "feature": "Mini App",
+    "deleteWhatsappChoice": "«حذف» يُبقي التدفقات المنشورة على WhatsApp. «حذف مع إزالة WhatsApp Flow» يزيلها أيضًا من Meta: تُحذف التدفقات المسودة، وتُوقف التدفقات المنشورة لأن Meta لا تسمح بحذفها.",
+    "deleteWhatsappFailed": "تم حذف التطبيق المصغّر، لكن تعذّرت إزالة {count} من تدفقات WhatsApp من Meta. أزلها يدويًا من WhatsApp Manager.",
+    "deleteWithWhatsapp": "حذف مع إزالة WhatsApp Flow",
+    "publicUrl": {
+      "label": "الرابط العام",
+      "hint": "انسخ الرابط والصقه في التدفق أو البث أو التسلسل. عند إرساله بهذه الطريقة، تُربط كل إجابة بجهة الاتصال التي فتحته."
+    },
+    "table": {
+      "whatsapp": "WhatsApp",
+      "notPublished": "غير منشور",
+      "submissions": "الإجابات",
+      "copyJson": "نسخ JSON"
+    },
+    "submissions": {
+      "title": "الإجابات",
+      "submittedAt": "تاريخ الإرسال",
+      "contact": "جهة الاتصال",
+      "anonymous": "مجهول",
+      "yes": "نعم",
+      "no": "لا",
+      "unknownContact": "جهة اتصال غير معروفة",
+      "conversationNotFound": "لا توجد محادثة لجهة الاتصال هذه بعد.",
+      "openConversationFailed": "تعذّر فتح المحادثة."
+    },
+    "editor": {
+      "namePlaceholder": "اسم Mini App",
+      "undo": "تراجع",
+      "redo": "إعادة",
+      "preview": "معاينة",
+      "viewJson": "عرض JSON",
+      "saveFailed": "تعذر حفظ Mini App",
+      "noIssues": "لا توجد مشكلات",
+      "issuesCount": "{count, plural, one {# مشكلة} other {# مشكلات}}",
+      "addScreen": "إضافة شاشة",
+      "newScreenTitle": "شاشة جديدة",
+      "searchComponents": "البحث عن المكونات",
+      "paletteHint": "انقر للإضافة، أو اسحب إلى الشاشة",
+      "dropHere": "أفلت المكونات هنا",
+      "emptyScreen": "اسحب المكونات من اليسار، أو انقر على أحدها لإضافته",
+      "slotThen": "عندها",
+      "slotElse": "وإلا",
+      "slotCase": "الحالة: {value}",
+      "noCondition": "لا يوجد شرط بعد",
+      "drag": "اسحب للنقل",
+      "duplicate": "تكرار",
+      "remove": "إزالة",
+      "cannotDropHere": "لا يمكن وضع هذا المكون هنا",
+      "previewSubmitted": "تم إرسال المعاينة: {answers}"
+    },
+    "screen": {
+      "title": "شاشة",
+      "screenTitle": "العنوان",
+      "screenId": "معرّف الشاشة",
+      "screenIdHint": "أحرف وشرطات سفلية فقط. يُستخدم في التنقل وفي Flow JSON.",
+      "remove": "حذف الشاشة"
+    },
+    "inspector": {
+      "default": "افتراضي",
+      "commaSeparated": "افصل القيم بفواصل.",
+      "uploadImage": "اختر صورة",
+      "imageTooLarge": "الصورة كبيرة جدًا حتى بعد الضغط. جرّب صورة أصغر.",
+      "moveUp": "نقل لأعلى",
+      "moveDown": "نقل لأسفل",
+      "removeItem": "إزالة",
+      "optionTitle": "العنوان",
+      "optionId": "المعرّف",
+      "addOption": "إضافة خيار",
+      "addImage": "إضافة صورة",
+      "noAction": "بلا إجراء",
+      "chooseAction": "اختر إجراءً",
+      "noOtherScreen": "أضف شاشة أخرى للانتقال إليها.",
+      "completeHint": "ينهي التدفق ويرسل كل الإجابات.",
+      "endText": "النص الأيمن",
+      "badge": "شارة",
+      "conditionHint": "يعرض “عندها” عند تحقق الشرط، وإلا يعرض “وإلا”. مثال: {example}",
+      "switchValueHint": "يعرض الحالة التي يساوي اسمها هذه القيمة.",
+      "cases": "الحالات",
+      "addCase": "إضافة حالة",
+      "casesHint": "تتم مطابقة اسم كل حالة مع القيمة أعلاه.",
+      "nameHint": "مفتاح الحقل في الإجابات. أحرف وأرقام وشرطات سفلية.",
+      "markdownHint": "يدعم عناوين # و**الخط العريض** و*المائل* و~~الشطب~~ والقوائم و[الروابط](https://…).",
+      "patternHint": "تعبير نمطي اختياري يجب أن تطابقه الإجابة.",
+      "saveToCustomField": "الحفظ في حقل مخصص",
+      "chooseCustomField": "اختر حقلاً مخصصاً",
+      "customFieldHint": "عندما ترسل جهة الاتصال رابط Mini App، تُحفظ الإجابة في هذا الحقل.",
+      "imageLoadFailed": "تعذّر تحميل هذه الصورة. اختر صورة JPEG أو PNG أو WebP أو GIF.",
+      "answerReference": "مرجع الإجابة",
+      "answerReferenceHint": "الصقه في نص أو شرط لاستخدام هذه الإجابة.",
+      "copyReference": "نسخ",
+      "variablesHint": "اكتب {open} أو انقر {button} لإدراج حقل مخصص. تظهر القيم فقط في رابط الويب لجهة اتصال معروفة."
+    },
+    "json": {
+      "title": "Flow JSON",
+      "description": "Flow JSON الخاص بـ WhatsApp (الإصدار 7.3). الصقه في WhatsApp Manager أو Flows Playground.",
+      "copy": "نسخ JSON",
+      "contactVariablesWarning": "لا يزال هذا JSON يحتوي على حقول مخصّصة مثل '{{first_name}}'. يعرضها WhatsApp كما هي مكتوبة، لذا احذفها قبل لصقه في WhatsApp."
+    },
+    "publish": {
+      "open": "النشر على WhatsApp",
+      "title": "النشر على WhatsApp",
+      "description": "ينشئ هذا الـ Mini App أو يحدّثه كـ WhatsApp Flow وينشره. يمكنك بعدها إرساله بخطوة “إرسال WhatsApp Flow”.",
+      "number": "رقم WhatsApp",
+      "noNumbers": "اربط رقم WhatsApp أولًا.",
+      "unsavedChanges": "لديك تغييرات غير محفوظة. احفظ أولًا ليحصل WhatsApp على أحدث نسخة.",
+      "submit": "نشر",
+      "success": "تم النشر على WhatsApp",
+      "draftOnly": "أبقت Meta الـ Flow كمسودة بسبب وجود أخطاء",
+      "failed": "تعذر النشر على WhatsApp",
+      "contactVariables": "يعرض هذا التطبيق المصغّر حقولًا مخصّصة في نصوصه. وهي تعمل حاليًا على رابط الويب فقط — أزلها قبل النشر على واتساب.",
+      "notOnNumber": "التطبيق المصغّر غير موجود على رقم واتساب هذا.",
+      "onlyDraftDeletable": "التدفق منشور على Meta، لذا لا يمكن حذفه. يمكن حذف المسودة فقط.",
+      "flowIsLive": "التطبيق المصغّر يعمل على رقم واتساب هذا. حفظ مسودة سيوقفه — انشره بدلًا من ذلك لتحديثه.",
+      "saveDraft": "حفظ كمسودة",
+      "draftSaved": "تم الحفظ في واتساب كمسودة",
+      "preview": "معاينة",
+      "previewUnavailable": "لم تُرجع Meta رابط معاينة",
+      "deleteDraft": "حذف المسودة من واتساب",
+      "draftDeleted": "تم حذف المسودة من واتساب"
+    },
+    "status": {
+      "draft": "مسودة",
+      "published": "منشور"
+    },
+    "runner": {
+      "back": "رجوع",
+      "doneTitle": "شكرًا لك!",
+      "doneDescription": "تم إرسال إجاباتك.",
+      "errors": {
+        "required": "هذا الحقل مطلوب",
+        "invalidEmail": "أدخل عنوان بريد إلكتروني صالحًا",
+        "invalidFormat": "الصيغة غير صالحة",
+        "tooShort": "الإجابة قصيرة جدًا",
+        "selectMore": "اختر خيارات أكثر",
+        "selectFewer": "اختر خيارات أقل",
+        "uploadMore": "أضف المزيد من الملفات"
+      }
+    },
+    "public": {
+      "notFoundTitle": "Mini App غير متاح",
+      "notFoundDescription": "هذا الرابط غير صالح أو تم إيقاف Mini App.",
+      "rateLimited": "عدد كبير جدًا من الإرسالات. يرجى الانتظار قليلًا ثم المحاولة مرة أخرى.",
+      "submitFailed": "تعذر إرسال إجاباتك. يرجى المحاولة مرة أخرى."
+    },
+    "view": {
+      "selectPlaceholder": "اختر",
+      "calendarSingle": "التقويم",
+      "calendarRange": "نطاق التواريخ",
+      "readMore": "قراءة المزيد",
+      "takePhoto": "التقاط صورة أو اختيارها",
+      "uploadDocument": "رفع مستند",
+      "previousImage": "الصورة السابقة",
+      "nextImage": "الصورة التالية"
+    },
+    "categories": {
+      "text": "نص",
+      "input": "إدخال",
+      "selection": "اختيار",
+      "media": "وسائط",
+      "navigation": "تنقل",
+      "container": "حاويات"
+    },
+    "components": {
+      "TextHeading": "عنوان",
+      "TextSubheading": "عنوان فرعي",
+      "TextBody": "نص أساسي",
+      "TextCaption": "تعليق",
+      "RichText": "نص منسق",
+      "TextInput": "إدخال نصي",
+      "TextArea": "منطقة نص",
+      "Dropdown": "قائمة منسدلة",
+      "RadioButtonsGroup": "اختيار واحد",
+      "CheckboxGroup": "اختيار متعدد",
+      "ChipsSelector": "شرائح",
+      "DatePicker": "منتقي التاريخ",
+      "CalendarPicker": "التقويم",
+      "OptIn": "موافقة",
+      "PhotoPicker": "رفع صور",
+      "DocumentPicker": "رفع مستندات",
+      "Image": "صورة",
+      "ImageCarousel": "شريط صور",
+      "EmbeddedLink": "رابط",
+      "NavigationList": "قائمة تنقل",
+      "Footer": "زر التذييل",
+      "Form": "نموذج",
+      "If": "إذا / وإلا",
+      "Switch": "تبديل"
+    },
+    "actions": {
+      "navigate": "الانتقال إلى شاشة",
+      "complete": "إكمال التدفق",
+      "open_url": "فتح رابط"
+    },
+    "defaults": {
+      "heading": "عنوان",
+      "subheading": "عنوان فرعي",
+      "body": "نص أساسي",
+      "caption": "تعليق",
+      "richText": "## العنوان\n\nبعض النص **المنسق**.",
+      "textInputLabel": "إجابتك",
+      "textAreaLabel": "التفاصيل",
+      "dropdownLabel": "اختر واحدًا",
+      "radioLabel": "اختر واحدًا",
+      "checkboxLabel": "اختر ما تشاء",
+      "chipsLabel": "اختر ما تشاء",
+      "dateLabel": "التاريخ",
+      "calendarLabel": "التاريخ",
+      "optInLabel": "أوافق على الشروط",
+      "photoLabel": "ارفع الصور",
+      "documentLabel": "ارفع المستندات",
+      "linkText": "اعرف المزيد",
+      "footerLabel": "متابعة",
+      "option": "خيار",
+      "navigationItem": "عنصر",
+      "imageAlt": "صورة"
+    },
+    "properties": {
+      "text": "النص",
+      "label": "التسمية",
+      "name": "مفتاح الحقل",
+      "description": "الوصف",
+      "title": "العنوان",
+      "required": "مطلوب",
+      "helperText": "نص مساعد",
+      "errorMessage": "رسالة الخطأ",
+      "initValue": "القيمة الأولية",
+      "inputType": "نوع الإدخال",
+      "labelVariant": "تسمية كبيرة",
+      "pattern": "النمط",
+      "minChars": "الحد الأدنى للأحرف",
+      "maxChars": "الحد الأقصى للأحرف",
+      "maxLength": "الحد الأقصى للطول",
+      "fontWeight": "نمط الخط",
+      "strikethrough": "يتوسطه خط",
+      "markdown": "Markdown",
+      "dataSource": "الخيارات",
+      "mediaSize": "حجم الصورة",
+      "minSelectedItems": "الحد الأدنى للمحدد",
+      "maxSelectedItems": "الحد الأقصى للمحدد",
+      "minDate": "أبكر تاريخ",
+      "maxDate": "أحدث تاريخ",
+      "unavailableDates": "التواريخ غير المتاحة",
+      "mode": "الوضع",
+      "minDays": "الحد الأدنى للأيام",
+      "maxDays": "الحد الأقصى للأيام",
+      "includeDays": "أيام الأسبوع المتاحة",
+      "photoSource": "مصدر الصورة",
+      "minUploadedPhotos": "الحد الأدنى للصور",
+      "maxUploadedPhotos": "الحد الأقصى للصور",
+      "minUploadedDocuments": "الحد الأدنى للمستندات",
+      "maxUploadedDocuments": "الحد الأقصى للمستندات",
+      "maxFileSizeKb": "الحد الأقصى لحجم الملف (KB)",
+      "allowedMimeTypes": "أنواع الملفات المسموحة",
+      "src": "الصورة",
+      "width": "العرض",
+      "height": "الارتفاع",
+      "scaleType": "التحجيم",
+      "aspectRatio": "نسبة العرض إلى الارتفاع",
+      "altText": "النص البديل",
+      "images": "الصور",
+      "listItems": "العناصر",
+      "leftCaption": "التعليق الأيسر",
+      "centerCaption": "التعليق الأوسط",
+      "rightCaption": "التعليق الأيمن",
+      "enabled": "مفعّل",
+      "condition": "الشرط",
+      "value": "القيمة",
+      "action": "عند النقر",
+      "screenId": "معرّف الشاشة"
+    },
+    "options": {
+      "inputType": {
+        "text": "نص",
+        "number": "رقم",
+        "email": "بريد إلكتروني",
+        "password": "كلمة مرور",
+        "passcode": "رمز مرور",
+        "phone": "هاتف",
+        "date": "التاريخ",
+        "datetime": "التاريخ والوقت"
+      },
+      "fontWeight": {
+        "normal": "عادي",
+        "bold": "عريض",
+        "italic": "مائل",
+        "bold_italic": "عريض مائل"
+      },
+      "scaleType": {
+        "cover": "ملء",
+        "contain": "احتواء"
+      },
+      "mediaSize": {
+        "regular": "عادي",
+        "large": "كبير"
+      },
+      "mode": {
+        "single": "تاريخ واحد",
+        "range": "نطاق تواريخ"
+      },
+      "photoSource": {
+        "camera_gallery": "الكاميرا والمعرض",
+        "camera": "الكاميرا فقط",
+        "gallery": "المعرض فقط"
+      },
+      "weekday": {
+        "Mon": "الاثنين",
+        "Tue": "الثلاثاء",
+        "Wed": "الأربعاء",
+        "Thu": "الخميس",
+        "Fri": "الجمعة",
+        "Sat": "السبت",
+        "Sun": "الأحد"
+      }
+    },
+    "issues": {
+      "definition_invalid": "بيانات Mini App غير صالحة.",
+      "screen_id_invalid": "يمكن أن يحتوي معرّف الشاشة على أحرف وشرطات سفلية فقط.",
+      "screen_id_reserved": "“SUCCESS” محجوز من WhatsApp. اختر معرّف شاشة آخر.",
+      "screen_id_duplicate": "شاشة أخرى تستخدم هذا المعرّف بالفعل.",
+      "no_terminal_screen": "أضف تذييلاً يُنهي التدفق إلى الشاشة الأخيرة.",
+      "screen_without_exit": "لا توجد طريقة للمتابعة من هذه الشاشة. أضف Footer أو رابطًا ينتقل إلى شاشة أخرى.",
+      "screen_unreachable": "لا توجد شاشة تنتقل إلى هذه الشاشة.",
+      "too_many_components": "يمكن أن تحتوي الشاشة على {max} مكونًا كحد أقصى.",
+      "component_limit": "يمكن أن تحتوي الشاشة على {max} × {type} كحد أقصى.",
+      "picker_conflict": "لا يمكن أن تحتوي الشاشة على رفع صور ورفع مستندات معًا.",
+      "picker_multiple_in_complete": "اضبط {property} على 1: يرسل WhatsApp ملفًا واحدًا فقط عند إكمال التدفق.",
+      "footer_not_last": "يجب أن يكون Footer آخر مكون في الشاشة.",
+      "footer_in_nested_branch": "يمكن وضع Footer فقط مباشرةً في فرع If من المستوى الأول.",
+      "footer_missing_in_branch": "إذا كان لأحد الفرعين Footer، فيجب أن يكون للفرع الآخر واحد أيضًا.",
+      "navigation_list_with_footer": "لا يمكن أن تشترك قائمة التنقل مع Footer في شاشة واحدة.",
+      "navigation_list_on_terminal": "لا يمكن أن تكون قائمة التنقل في الشاشة الأخيرة.",
+      "if_too_deep": "يمكن تداخل كتل If حتى {max} مستويات كحد أقصى.",
+      "if_then_empty": "يحتاج فرع “عندها” إلى مكون واحد على الأقل.",
+      "switch_no_cases": "أضف حالة واحدة على الأقل.",
+      "child_not_allowed": "لا يمكن وضع هذا المكون داخل {parent}.",
+      "name_invalid": "استخدم أحرفًا وأرقامًا وشرطات سفلية لمفتاح الحقل.",
+      "name_duplicate": "مفتاح الحقل “{name}” مستخدم بالفعل.",
+      "property_required": "{property} مطلوب.",
+      "property_too_long": "يمكن أن يصل {property} إلى {max} حرفًا كحد أقصى.",
+      "property_too_short": "يحتاج {property} إلى {min} عناصر على الأقل.",
+      "property_invalid": "{property} غير صالح.",
+      "option_duplicate_id": "يحتاج كل خيار إلى معرّف فريد.",
+      "min_greater_than_max": "لا يمكن أن يكون {property} أكبر من الحد الأقصى.",
+      "action_required": "اختر ما سيحدث عند النقر.",
+      "action_not_allowed": "هذا الإجراء غير مسموح هنا.",
+      "navigate_target_missing": "الشاشة الهدف لم تعد موجودة.",
+      "navigate_self": "لا يمكن لشاشة أن تنتقل إلى نفسها.",
+      "expression_invalid": "تعذرت قراءة التعبير. تحقق من علامات الاقتباس والأقواس.",
+      "reference_invalid": "{reference} ليس مرجعًا صالحًا.",
+      "reference_unknown": "{reference} لا يطابق أي حقل.",
+      "data_reference_unsupported": "{reference}: بيانات الشاشة غير مدعومة. استخدم حقول النموذج بدلًا منها.",
+      "property_unknown": "لا يقبل WhatsApp الخاصية “{name}” في هذا المكوّن.",
+      "footer_captions_invalid": "استخدم تعليقًا في الوسط فقط، أو تعليقين أيمن وأيسر معًا.",
+      "options_with_images_limit": "مع الصور، يمكن أن تحتوي القائمة المنسدلة على {max} خيارًا كحد أقصى.",
+      "navigation_badge_multiple": "يمكن لعنصر واحد فقط في قائمة التنقل أن يحمل شارة.",
+      "contact_variable_whatsapp": "تظهر الحقول المخصصة في رابط الويب فقط ولا يدعمها WhatsApp بعد. أزلها قبل النشر على WhatsApp."
+    },
+    "upload": {
+      "choosePhotos": "اختر صورًا أو التقطها",
+      "chooseDocuments": "اختر ملفات",
+      "remove": "إزالة",
+      "count": "{count}/{max}",
+      "errors": {
+        "empty": "الملف فارغ.",
+        "too_large": "الملف كبير جدًا.",
+        "type_not_allowed": "نوع الملف هذا غير مسموح.",
+        "rate_limited": "عمليات رفع كثيرة. انتظر قليلًا ثم حاول مجددًا.",
+        "upload_failed": "تعذّر رفع الملف. حاول مرة أخرى."
+      }
+    }
+  },
+  "leaderboards": {
+    "title": "لوحات المتصدرين",
+    "public": {
+      "points": "{points} نقطة",
+      "endsIn": "ينتهي خلال {days}ي {hours}س {minutes}د {seconds}ث",
+      "finished": "انتهى",
+      "empty": "لا يوجد لاعبون بعد — كن الأول!",
+      "myRank": "ترتيبك: #{rank}",
+      "unranked": "غير مصنف بعد",
+      "shareToEarn": "شارك لتربح نقاطًا",
+      "linkCopied": "تم نسخ الرابط",
+      "unavailableTitle": "لوحة المتصدرين هذه لم تعد متاحة",
+      "unavailableDescription": "ربما انتهت أو تمت إزالتها. اطلب أحدث رابط من الصفحة التي تتابعها."
+    },
+    "description": "أطلق حملات ترتيب قائمة على النقاط يتنافس فيها العملاء على المراكز الأولى والمكافآت.",
+    "feature": "لوحة المتصدرين",
+    "create": "إنشاء لوحة متصدرين",
+    "kpi": {
+      "total": "إجمالي الحملات",
+      "active": "قيد التشغيل"
+    },
+    "tabs": {
+      "all": "الكل",
+      "active": "نشطة",
+      "paused": "متوقفة مؤقتًا",
+      "finished": "منتهية"
+    },
+    "status": {
+      "draft": "مسودة",
+      "active": "نشطة",
+      "paused": "متوقفة مؤقتًا",
+      "finished": "منتهية"
+    },
+    "platforms": {
+      "messenger": "Messenger",
+      "instagram": "Instagram",
+      "whatsapp": "WhatsApp",
+      "zalo": "Zalo OA",
+      "telegram": "Telegram",
+      "tiktok": "TikTok",
+      "threads": "Threads",
+      "email": "Email SMTP",
+      "gamification": "Gamification"
+    },
+    "list": {
+      "campaign": "الحملة",
+      "searchPlaceholder": "ابحث في لوحات المتصدرين...",
+      "platformFilter": "المنصة",
+      "participants": "المشاركون",
+      "totalPoints": "إجمالي النقاط",
+      "newToday": "+{count} اليوم",
+      "average": "المتوسط {value} / لاعب",
+      "daysLeft": "{days, plural, one {متبقٍ # يوم} other {متبقٍ # يوم}}",
+      "ended": "انتهت"
+    },
+    "scope": {
+      "allPosts": "كل المنشورات",
+      "specificPosts": "منشورات محددة",
+      "specificPostsCount": "{count, plural, one {# منشور} other {# منشور}}",
+      "telegramChatsCount": "{count, plural, one {# مجموعة} other {# مجموعة}}"
+    },
+    "menu": {
+      "start": "بدء",
+      "pause": "إيقاف مؤقت",
+      "finish": "إنهاء",
+      "resetPoints": "إعادة تعيين النقاط",
+      "triggerRewards": "إرسال المكافآت",
+      "viewParticipants": "عرض المشاركين",
+      "copyLink": "نسخ الرابط العام"
+    },
+    "confirm": {
+      "publishTitle": "نشر لوحة المتصدرين هذه؟",
+      "publishDescription": "يبدأ احتساب النقاط فورًا ويمكن للاعبين رؤية الصفحة العامة.",
+      "pauseTitle": "إيقاف لوحة المتصدرين هذه مؤقتًا؟",
+      "pauseDescription": "يتوقف احتساب النقاط التلقائي وعبر الـ flow. ما زال بإمكانك تعديل النقاط يدويًا.",
+      "startTitle": "استئناف لوحة المتصدرين هذه؟",
+      "startDescription": "يبدأ احتساب النقاط مجددًا لجميع القواعد.",
+      "finishTitle": "إنهاء لوحة المتصدرين هذه؟",
+      "finishDescription": "سيتم تجميد جميع النتائج ولن يمكن تغييرها بعد ذلك. تُرسل المكافآت التلقائية إذا كانت مفعّلة.",
+      "resetPointsTitle": "إعادة تعيين كل النقاط؟",
+      "resetPointsDescription": "سيعود جميع المشاركين في \"{name}\" إلى 0 نقطة. يتم تسجيل هذا الإجراء ولا يمكن التراجع عنه."
+    },
+    "toast": {
+      "published": "تم نشر لوحة المتصدرين",
+      "paused": "تم إيقاف لوحة المتصدرين مؤقتًا",
+      "started": "تم استئناف لوحة المتصدرين",
+      "finished": "تم إنهاء لوحة المتصدرين",
+      "pointsReset": "تمت إعادة تعيين كل النقاط"
+    },
+    "export": {
+      "title": "تصدير المشاركين",
+      "description": "نزّل جميع المشاركين مع ترتيبهم ونتائجهم كملف CSV.",
+      "preparing": "جارٍ تجهيز ملفك...",
+      "ready": "ملفك جاهز ({count} صفوف).",
+      "failed": "فشل التصدير. يرجى المحاولة مرة أخرى."
+    },
+    "rewards": {
+      "title": "إرسال المكافآت",
+      "description": "أرسل flow المكافأة إلى أفضل اللاعبين. يمكن إرسال المكافآت مرة واحدة فقط.",
+      "flow": "Flow المكافأة",
+      "topN": "عدد الفائزين (أفضل N)",
+      "noFlow": "لم يتم اختيار flow للمكافأة — حدده في إعدادات لوحة المتصدرين.",
+      "alreadySent": "تم إرسال المكافآت بالفعل لهذه اللوحة.",
+      "confirm": "إرسال المكافآت",
+      "result": "تم الإرسال إلى {sent} فائزين، وتم تخطي {skipped} (لا توجد محادثة على هذه القناة)."
+    },
+    "wizard": {
+      "steps": {
+        "info": "المعلومات",
+        "config": "القناة والقواعد",
+        "review": "المراجعة والنشر"
+      },
+      "namePlaceholder": "مثال: أفضل المعجبين لشهر أكتوبر",
+      "coverImage": "صورة الغلاف",
+      "coverImageHint": "JPG أو PNG بحجم يصل إلى 5 ميغابايت. الحجم الموصى به 1200×630.",
+      "coverImageRejected": "اختر صورة JPG أو PNG بحجم لا يتجاوز 5 ميغابايت.",
+      "description": "القواعد والمكافآت",
+      "descriptionPlaceholder": "اشرح كيف يكسب اللاعبون النقاط وماذا يربح أفضل اللاعبين.",
+      "startsAt": "يبدأ في",
+      "endsAt": "ينتهي في",
+      "startLocked": "لا يمكن تغيير وقت البدء بعد النشر.",
+      "channelTitle": "المنصة والقناة",
+      "platform": "المنصة",
+      "hostChannel": "القناة",
+      "hostLocked": "لا يمكن تغيير المنصة والقناة بعد النشر.",
+      "noChannel": "لا توجد قناة {platform} متصلة. اربط واحدة أولًا من الإعدادات ← القنوات.",
+      "openMinigameSettings": "فتح إعدادات اللعبة",
+      "postScope": "المنشورات التي تمنح نقاطًا",
+      "choosePosts": "اختيار المنشورات",
+      "telegramChats": "المجموعات والقنوات",
+      "telegramChatsHint": "أضف البوت الخاص بك إلى المجموعة أو القناة كمشرف ليتمكن من رؤية الأعضاء والرسائل.",
+      "telegramChatsEmpty": "لم يتم العثور على مجموعات — أضف البوت كمشرف أولًا",
+      "rulesTitle": "قواعد احتساب النقاط",
+      "rulesHint": "فعّل الإجراءات التي تمنح نقاطًا وحدد عددها.",
+      "allPlatforms": "كل المنصات",
+      "points": "النقاط",
+      "maxPerDay": "الحد الأقصى يوميًا",
+      "maxPerDayHint": "اتركه فارغًا لعدم وضع حد.",
+      "minChars": "الحد الأدنى للأحرف",
+      "bonusPoints": "نقاط مكافأة الساعة الذهبية",
+      "bonusPointsHint": "نقاط إضافية للتعليقات التي تُكتب بعد نشر المنشور مباشرة.",
+      "bonusMinutes": "مدة الساعة الذهبية (بالدقائق)",
+      "emailTopicNote": "يتم تتبع الفتح والنقرات فقط للرسائل المرسلة عبر Email Topic.",
+      "generalTitle": "الإعدادات العامة",
+      "followersOnly": "المتابعون فقط",
+      "followersOnlyHint": "يكسب النقاط فقط من يتابعون حسابك.",
+      "tagFilter": "تصفية الوسوم",
+      "tagFilterHint": "تكسب النقاط فقط جهات الاتصال التي لديها واحد على الأقل من هذه الوسوم.",
+      "everyone": "الجميع",
+      "resetTime": "وقت إعادة التعيين اليومي (UTC)",
+      "resetTimeHint": "تُعاد الحدود اليومية في هذا الوقت. = {time} بتوقيت فيتنام (UTC+7).",
+      "cooldown": "فترة الانتظار لمنع الرسائل المزعجة (بالثواني)",
+      "cooldownHint": "الحد الأدنى من الثواني بين منحتين تلقائيتين لنفس الشخص. القيمة 0 تعطّلها.",
+      "referralFlow": "Flow الترحيب بالإحالة",
+      "referralFlowAuto": "إنشاء تلقائي",
+      "referralFlowHint": "يُرسل إلى الصديق الذي ينضم عبر رابط الإحالة. يمكنه استخدام '{{referral_name}}' ورابط لوحة المتصدرين العامة. اتركه فارغًا لإنشاء رسالة ترحيب تلقائيًا يمكنك تعديلها في Flow Builder.",
+      "publicLink": "الرابط العام",
+      "publicLinkHint": "أرسل هذا الرابط من خلال flow ليرى كل لاعب ترتيبه الخاص.",
+      "publicLinkAfterSave": "يتوفر الرابط العام بعد الحفظ.",
+      "rewardsTitle": "المكافآت",
+      "autoOnFinish": "الإرسال تلقائيًا عند الانتهاء",
+      "autoOnFinishHint": "يشغّل flow المكافأة لأفضل N فور انتهاء لوحة المتصدرين.",
+      "backToStep2": "العودة إلى الخطوة 2",
+      "notEditable": "لا يمكن تعديل لوحات المتصدرين المنتهية."
+    },
+    "review": {
+      "infoCard": "المعلومات",
+      "yes": "نعم",
+      "no": "لا",
+      "off": "متوقف",
+      "seconds": "{seconds} ثانية",
+      "resetTimeValue": "{utc} UTC (= {local} بتوقيت فيتنام)",
+      "noRules": "لم يتم تفعيل أي قاعدة بعد.",
+      "rulePoints": "{points} نقطة",
+      "maxPerDay": "بحد أقصى {count}/يوم",
+      "unlimited": "غير محدود"
+    },
+    "preview": {
+      "sampleName": "اللاعب {rank}",
+      "placeholderName": "اسم لوحة المتصدرين",
+      "pinnedBar": "#{rank} · {points} نقطة"
+    },
+    "validation": {
+      "nameRequired": "أدخل اسمًا",
+      "dateRequired": "اختر التاريخ والوقت",
+      "endsAfterStart": "يجب أن يكون وقت الانتهاء بعد وقت البدء",
+      "channelRequired": "اختر قناة",
+      "minigameRequired": "اختر لعبة مصغرة",
+      "pointsRequired": "أدخل النقاط التي تمنحها هذه القاعدة",
+      "bonusMinutesRequired": "حدد عدد دقائق الساعة الذهبية",
+      "postsRequired": "اختر منشورًا واحدًا على الأقل",
+      "telegramChatsRequired": "اختر مجموعة أو قناة واحدة على الأقل",
+      "enableOneRule": "فعّل قاعدة احتساب واحدة على الأقل قبل النشر",
+      "fixErrors": "يرجى تصحيح الحقول المميزة"
+    },
+    "rules": {
+      "comments": {
+        "label": "التعليقات",
+        "description": "نقاط عن كل تعليق على منشوراتك."
+      },
+      "liveComments": {
+        "label": "تعليقات البث المباشر",
+        "description": "نقاط عن كل تعليق أثناء البث المباشر."
+      },
+      "keywords": {
+        "label": "Keywords",
+        "description": "نقاط عندما تطابق الرسالة أي كلمة مفتاحية في أداة Keywords لهذه القناة."
+      },
+      "storyMention": {
+        "label": "الإشارة في القصة",
+        "description": "نقاط عندما يشير أحدهم إلى حسابك في قصته."
+      },
+      "storyReaction": {
+        "label": "التفاعل مع القصة",
+        "description": "نقاط عندما يتفاعل أحدهم مع قصتك."
+      },
+      "ctwaReactions": {
+        "label": "نقرات CTWA والتفاعلات",
+        "description": "نقاط عن النقر على إعلان Click-to-WhatsApp أو التفاعل مع رسالة."
+      },
+      "survey": {
+        "label": "الاستبيان والاختبار",
+        "description": "نقاط عن إكمال Questionnaire أو إرسال نموذج WhatsApp Flow."
+      },
+      "follow": {
+        "label": "متابعة OA ورمز QR",
+        "description": "نقاط عن متابعة Official Account الخاص بك أو مسح رمز QR الخاص به. إلغاء المتابعة يسترجع النقاط."
+      },
+      "message": {
+        "label": "رسالة Zalo",
+        "description": "نقاط عن كل رسالة تُرسل إلى Official Account الخاص بك."
+      },
+      "joinGroup": {
+        "label": "الانضمام إلى القناة والمجموعة",
+        "description": "نقاط عن الانضمام إلى مجموعتك أو قناتك. المغادرة تسترجع النقاط."
+      },
+      "groupDiscussion": {
+        "label": "نقاش المجموعة",
+        "description": "نقاط عن كل رسالة في مجموعتك."
+      },
+      "emailOpen": {
+        "label": "فتح البريد",
+        "description": "نقاط عند فتح رسالة بريد إلكتروني."
+      },
+      "emailClick": {
+        "label": "النقر في البريد",
+        "description": "نقاط عند النقر على رابط داخل رسالة بريد إلكتروني."
+      },
+      "minigameWin": {
+        "label": "الفوز في اللعبة المصغرة",
+        "description": "نقاط عن كل جائزة يتم ربحها في اللعبة المصغرة."
+      },
+      "inGameShare": {
+        "label": "المشاركة داخل اللعبة",
+        "description": "نقاط عن مشاركة اللعبة للحصول على محاولات إضافية."
+      },
+      "referral": {
+        "label": "الإحالة",
+        "description": "نقاط للمُحيل عندما ينضم صديق جديد عبر رابطه."
+      }
+    },
+    "breakdown": {
+      "comments": "{count} تعليقات",
+      "liveComments": "{count} تعليقات مباشرة",
+      "keywords": "{count} كلمات مفتاحية",
+      "storyMention": "{count} إشارات في القصص",
+      "storyReaction": "{count} تفاعلات مع القصص",
+      "ctwaReactions": "{count} CTWA",
+      "survey": "{count} استبيانات",
+      "follow": "{count} متابعات",
+      "message": "{count} رسائل",
+      "joinGroup": "{count} انضمامات",
+      "groupDiscussion": "{count} رسائل مجموعة",
+      "emailOpen": "{count} مرات فتح",
+      "emailClick": "{count} نقرات",
+      "minigameWin": "{count} مرات فوز",
+      "inGameShare": "{count} مشاركات",
+      "referral": "{count} إحالات",
+      "flow": "{count} flow",
+      "manual": "{count} يدويًا"
+    },
+    "participants": {
+      "title": "المشاركون",
+      "switcher": "تبديل لوحة المتصدرين",
+      "count": "{count, plural, one {# لاعب} other {# لاعب}}",
+      "searchPlaceholder": "ابحث بالاسم أو معرّف المستخدم أو الهاتف...",
+      "filters": {
+        "all": "الكل",
+        "top10": "أفضل 10",
+        "top50": "أفضل 50",
+        "banned": "المحظورون"
+      },
+      "columns": {
+        "rank": "الترتيب",
+        "participant": "المشارك",
+        "score": "إجمالي النقاط",
+        "breakdown": "التفاصيل",
+        "lastActivity": "آخر نشاط"
+      },
+      "unknown": "غير معروف",
+      "contactId": "المعرّف {id}",
+      "lockedFinished": "انتهت لوحة المتصدرين هذه — النتائج مقفلة.",
+      "lockedDraft": "انشر لوحة المتصدرين قبل تعديل النتائج.",
+      "actions": {
+        "adjust": "تعديل النقاط",
+        "ban": "حظر",
+        "unban": "إلغاء الحظر",
+        "reset": "إعادة التعيين إلى 0",
+        "history": "عرض السجل"
+      },
+      "adjust": {
+        "title": "تعديل النقاط",
+        "description": "أضف نقاطًا أو اخصمها لـ {name}. يتم حفظ التغيير في سجل التدقيق.",
+        "delta": "النقاط (+/-)",
+        "deltaPlaceholder": "مثال: 50 أو -20",
+        "reason": "السبب",
+        "reasonPlaceholder": "لماذا تغيّر هذه النتيجة؟",
+        "success": "تم تعديل النقاط"
+      },
+      "banConfirm": "سيتم إزالة {name} من الترتيب ولن يكسب نقاطًا بعد الآن.",
+      "unbanConfirm": "سيعود {name} إلى الترتيب بنتيجته الحالية.",
+      "resetConfirm": "ستعود نتيجة {name} إلى 0. يتم تسجيل هذا الإجراء.",
+      "banned": "تم حظر المشارك",
+      "unbanned": "تم إلغاء حظر المشارك",
+      "resetDone": "تمت إعادة النتيجة إلى 0",
+      "history": {
+        "title": "سجل النتائج — {name}",
+        "empty": "لا توجد تغييرات في النتيجة بعد.",
+        "sources": {
+          "rule": "قاعدة",
+          "flow": "Flow",
+          "referral": "إحالة",
+          "manual": "تعديل يدوي",
+          "reset": "إعادة تعيين"
+        }
+      },
+      "conversationNotFound": "لم يتم العثور على محادثة لجهة الاتصال هذه",
+      "popupBlocked": "يُرجى السماح بالنوافذ المنبثقة لهذا الموقع ثم المحاولة مرة أخرى."
+    },
+    "auditLog": {
+      "title": "سجل التدقيق",
+      "admin": "المسؤول",
+      "change": "التغيير",
+      "time": "الوقت",
+      "reason": "السبب",
+      "api": "API",
+      "empty": "لا توجد تغييرات يدوية بعد.",
+      "actions": {
+        "adjust": "تعديل",
+        "resetOne": "إعادة تعيين لاعب",
+        "resetAll": "إعادة تعيين الكل",
+        "ban": "حظر",
+        "unban": "إلغاء الحظر"
+      }
+    }
+  },
+  "recurrence": {
+    "title": "تكرار",
+    "every": "كرر كل",
+    "unit": "{count, plural, one {{frequency, select, daily {يوم} weekly {أسبوع} monthly {شهر} other {}}} other {{frequency, select, daily {أيام} weekly {أسابيع} monthly {أشهر} other {}}}}",
+    "weekdays": "كرر في",
+    "time": "الوقت",
+    "timezone": "المنطقة الزمنية",
+    "noTimezone": "لم يتم العثور على منطقة زمنية",
+    "searchTimezone": "ابحث عن منطقة زمنية…",
+    "startsOn": "يبدأ في",
+    "end": {
+      "label": "ينتهي",
+      "never": "أبدًا",
+      "onDate": "في",
+      "after": "بعد",
+      "pickDate": "اختر تاريخًا",
+      "occurrences": "{count, plural, one {مرة} other {مرات}}"
+    },
+    "monthDay": {
+      "label": "يوم الشهر",
+      "day": "اليوم {day}",
+      "last": "اليوم الأخير",
+      "hint": "في الأشهر الأقصر يتم الإرسال في اليوم الأخير."
+    },
+    "summary": {
+      "sentence": "{interval, plural, one {كل {frequency, select, daily {يوم} weekly {أسبوع} monthly {شهر} other {}}} other {كل # {frequency, select, daily {أيام} weekly {أسابيع} monthly {أشهر} other {}}}}{frequency, select, weekly { في {weekdays}} monthly { في {monthDay, select, last {اليوم الأخير} other {اليوم {monthDay}}}} other {}} في الساعة {time} ({timezone})، بدءًا من {startsOn}{endKind, select, onDate {، وينتهي في {endDate}} afterOccurrences {، وينتهي بعد {endCount, plural, one {# مرة} other {# مرات}}} other {}}"
+    },
+    "firstRunLater": "أول إرسال هو {when} لأن وقت اليوم قد مضى.",
+    "nextRuns": "عمليات الإرسال القادمة",
+    "noUpcomingRuns": "لا توجد عمليات إرسال قادمة.",
+    "skipping": "تخطي {dates}{more, plural, =0 {} one { (+# إضافي)} other { (+# إضافية)}}",
+    "excludeDates": {
+      "label": "تخطي تواريخ",
+      "hint": "لن تُرسل في هذه التواريخ. يستمر البث المتكرر.",
+      "add": "إضافة تواريخ",
+      "remove": "إزالة {date}",
+      "showAll": "عرض {count} أخرى",
+      "showLess": "عرض أقل",
+      "clearAll": "مسح الكل"
+    }
+  },
+  "workingHours": {
+    "title": "ساعات العمل",
+    "label": "ساعات العمل",
+    "description": "تُحتسب أوقات الرد ضمن هذه الساعات فقط.",
+    "employees": "الموظفون",
+    "empty": "لا توجد جداول بعد.",
+    "deleteDescription": "حذف \"{name}\"؟ سيعود موظفوه إلى الوقت الفعلي.",
+    "create": {
+      "title": "إضافة ساعات عمل",
+      "description": "أعطِ الجدول اسمًا. ستحدد الأيام والساعات في الخطوة التالية."
+    },
+    "employeesDialog": {
+      "title": "تطبيق ساعات العمل على الموظفين",
+      "description": "اختر الموظفين الذين يتبعون هذا الجدول.",
+      "moveHelp": "لكل موظف جدول واحد؛ الإضافة تنقله إلى هنا.",
+      "placeholder": "اختر الموظفين",
+      "search": "ابحث عن الموظفين...",
+      "searchAria": "البحث في الموظفين",
+      "empty": "لم يتم العثور على موظفين.",
+      "close": "إغلاق",
+      "selectAll": "(تحديد الكل)",
+      "clearAllAria": "{count, plural, one {مسح الموظف المحدد} other {مسح جميع الموظفين المحددين ({count})}}",
+      "removeAria": "إزالة {name} من التحديد"
+    },
+    "editor": {
+      "timezoneNote": "تستخدم الأوقات المنطقة الزمنية لمساحة العمل: {timezone}.",
+      "notWorking": "غير متاح للعمل",
+      "dayToggle": "العمل يوم {day}",
+      "startTime": "وقت البدء",
+      "endTime": "وقت الانتهاء",
+      "removeRange": "إزالة النطاق الزمني",
+      "errorOverlap": "هذه النطاقات الزمنية متداخلة. عدّلها للحفظ.",
+      "errorOrder": "يجب أن يكون وقت الانتهاء بعد وقت البدء.",
+      "routingNote": "يُستخدم أيضًا في التعيين التلقائي والموجّه العام والشرط."
+    },
+    "condition": {
+      "assignedAgent": "وردية الموظف المعيّن"
+    },
+    "holidays": {
+      "label": "العطلات",
+      "title": "العطلات",
+      "description": "يستبدل ساعات الأسبوع لكل الجداول في ذلك التاريخ.",
+      "add": "إضافة عطلة",
+      "empty": "لا توجد عطلات بعد.",
+      "deleteDescription": "حذف العطلة بتاريخ {date}؟"
+    },
+    "dateOverrides": {
+      "title": "استثناءات التواريخ",
+      "description": "يستبدل ساعات هذا الجدول في ذلك التاريخ؛ ويتقدم على العطلات.",
+      "add": "إضافة استثناء",
+      "empty": "لا توجد استثناءات."
+    },
+    "dateDialog": {
+      "addTitle": "إضافة تاريخ",
+      "editTitle": "تعديل التاريخ",
+      "date": "التاريخ",
+      "name": "الاسم (اختياري)",
+      "closedAllDay": "مغلق طوال اليوم",
+      "duplicate": "هذا التاريخ موجود في القائمة بالفعل.",
+      "hours": "الساعات",
+      "closed": "مغلق"
+    }
+  },
+  "responseSla": {
+    "label": "اتفاقية مستوى الخدمة للرد",
+    "title": "اتفاقية مستوى الخدمة للرد",
+    "description": "أقصى مدة تنتظر فيها رسالة العميل ردًّا بشريًّا.",
+    "firstTarget": "هدف الرد الأول (بالدقائق)",
+    "nextTarget": "هدف الردود اللاحقة (بالدقائق)",
+    "nextPlaceholder": "لا اتفاقية على الردود اللاحقة",
+    "threshold": "حد الاقتراب من الإخلال (% من الهدف المتبقي)",
+    "thresholdHelp": "يُوسَم بقرب الإخلال عندما يتبقى هذا % من الهدف.",
+    "workingTimeNote": "تُحتسب ضمن ساعات عمل الموظف المعيّن؛ وإلا بالوقت الفعلي.",
+    "overdue": "متأخر",
+    "due": "الموعد {time}",
+    "breaching": "على وشك الإخلال",
+    "breached": "تم الإخلال",
+    "firstMetColumn": "التزام الرد الأول",
+    "metColumn": "الالتزام",
+    "metHelp": "نسبة الردود الملتزمة بين الردود التي لها اتفاقية.",
+    "eligibleCount": "{count} ردًّا لها اتفاقية",
+    "enable": "تفعيل اتفاقية مستوى الخدمة للرد"
   },
   "platformAiSettings": {
     "title": "إعدادات الذكاء الاصطناعي",
@@ -7300,7 +9700,9 @@
       "sections": [
         {
           "title": "المحادثات والفريق",
-          "body": ["صندوق وارد موحد مع توزيع المحادثات والصلاحيات."]
+          "body": [
+            "صندوق وارد موحد مع توزيع المحادثات والصلاحيات."
+          ]
         },
         {
           "title": "الوكلاء والتجارة",
@@ -7317,11 +9719,15 @@
       "sections": [
         {
           "title": "قنوات Meta",
-          "body": ["واتساب وإنستغرام وماسنجر في صندوق وارد موحد."]
+          "body": [
+            "واتساب وإنستغرام وماسنجر في صندوق وارد موحد."
+          ]
         },
         {
           "title": "تيليجرام والويب",
-          "body": ["تيليجرام وWebchat والتكاملات الأخرى من لوحة واحدة."]
+          "body": [
+            "تيليجرام وWebchat والتكاملات الأخرى من لوحة واحدة."
+          ]
         }
       ]
     },
@@ -7332,7 +9738,9 @@
       "sections": [
         {
           "title": "رسالتنا",
-          "body": ["منح صاحب النشاط نظامًا واضحًا لخدمة العملاء والمبيعات."]
+          "body": [
+            "منح صاحب النشاط نظامًا واضحًا لخدمة العملاء والمبيعات."
+          ]
         },
         {
           "title": "التزامنا",
@@ -7349,11 +9757,15 @@
       "sections": [
         {
           "title": "البريد",
-          "body": ["support@wesal.one"]
+          "body": [
+            "support@wesal.one"
+          ]
         },
         {
           "title": "واتساب",
-          "body": ["+967 775 324 950"]
+          "body": [
+            "+967 775 324 950"
+          ]
         }
       ]
     },
@@ -7445,7 +9857,9 @@
         },
         {
           "title": "النسخ الاحتياطية",
-          "body": ["قد تبقى نسخ مؤقتة حتى انتهاء دورة النسخ الاحتياطي."]
+          "body": [
+            "قد تبقى نسخ مؤقتة حتى انتهاء دورة النسخ الاحتياطي."
+          ]
         },
         {
           "title": "بعد الحذف",

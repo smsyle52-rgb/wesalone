@@ -7,7 +7,10 @@ type JsonSchemaNode = {
   properties?: Record<string, JsonSchemaNode>
   items?: JsonSchemaNode
   anyOf?: JsonSchemaNode[]
+  allOf?: JsonSchemaNode[]
+  oneOf?: JsonSchemaNode[]
   $defs?: Record<string, JsonSchemaNode>
+  maxLength?: unknown
 }
 
 const isJsonSchemaNode = (value: unknown): value is JsonSchemaNode =>
@@ -100,7 +103,74 @@ const visitJsonSchema = (schema: JsonSchemaNode): void => {
   for (const definition of Object.values(schema.$defs ?? {})) {
     visitJsonSchema(definition)
   }
+  for (const option of schema.allOf ?? []) {
+    visitJsonSchema(option)
+  }
+  for (const option of schema.oneOf ?? []) {
+    visitJsonSchema(option)
+  }
 }
+
+const findJsonSchemaNode = (
+  schema: JsonSchemaNode,
+  description: string,
+): JsonSchemaNode | undefined => {
+  if (schema.description === description) {
+    return schema
+  }
+
+  for (const property of Object.values(schema.properties ?? {})) {
+    const found = findJsonSchemaNode(property, description)
+    if (found) {
+      return found
+    }
+  }
+  if (schema.items) {
+    const found = findJsonSchemaNode(schema.items, description)
+    if (found) {
+      return found
+    }
+  }
+  for (const option of schema.anyOf ?? []) {
+    const found = findJsonSchemaNode(option, description)
+    if (found) {
+      return found
+    }
+  }
+  for (const definition of Object.values(schema.$defs ?? {})) {
+    const found = findJsonSchemaNode(definition, description)
+    if (found) {
+      return found
+    }
+  }
+  for (const option of schema.allOf ?? []) {
+    const found = findJsonSchemaNode(option, description)
+    if (found) {
+      return found
+    }
+  }
+  for (const option of schema.oneOf ?? []) {
+    const found = findJsonSchemaNode(option, description)
+    if (found) {
+      return found
+    }
+  }
+}
+
+const hasJsonSchemaMaxLength = (
+  schema: JsonSchemaNode | undefined,
+  maxLength: number,
+): boolean =>
+  schema?.maxLength === maxLength ||
+  (schema?.allOf ?? []).some((option) =>
+    hasJsonSchemaMaxLength(option, maxLength),
+  ) ||
+  (schema?.anyOf ?? []).some((option) =>
+    hasJsonSchemaMaxLength(option, maxLength),
+  ) ||
+  (schema?.oneOf ?? []).some((option) =>
+    hasJsonSchemaMaxLength(option, maxLength),
+  )
 
 describe("flowSpecSchema", () => {
   test("emits JSON Schema descriptions for every property, including recursive steps", () => {
@@ -118,6 +188,45 @@ describe("flowSpecSchema", () => {
     }
     expect(jsonSchema.description.trim()).not.toHaveLength(0)
     visitJsonSchema(jsonSchema)
+  })
+
+  test("publishes text and label maximum lengths in JSON Schema", () => {
+    const jsonSchema = z.toJSONSchema(flowSpecSchema)
+    expect(isJsonSchemaNode(jsonSchema)).toBe(true)
+    if (!isJsonSchemaNode(jsonSchema)) {
+      throw new Error("Expected flowSpecSchema to serialize to JSON Schema")
+    }
+
+    const labelSchema = findJsonSchemaNode(
+      jsonSchema,
+      "Button label shown to the contact (max 20 characters).",
+    )
+    const textSchema = findJsonSchemaNode(
+      jsonSchema,
+      "Text message body (max 1000 characters). Exactly one of text/imageUrl/fileUrl is required.",
+    )
+
+    expect(hasJsonSchemaMaxLength(labelSchema, 20)).toBe(true)
+    expect(hasJsonSchemaMaxLength(textSchema, 1000)).toBe(true)
+  })
+
+  test("publishes the sendViewCatalog length limits to agents", () => {
+    const jsonSchema = z.toJSONSchema(flowSpecSchema)
+    if (!isJsonSchemaNode(jsonSchema)) {
+      throw new Error("Expected flowSpecSchema to serialize to JSON Schema")
+    }
+
+    const textSchema = findJsonSchemaNode(
+      jsonSchema,
+      "Message text shown above the catalog button (max 1024 characters, counted in UTF-16 units so an emoji may count as 2). May include `{{variable}}` placeholders.",
+    )
+    const footerSchema = findJsonSchemaNode(
+      jsonSchema,
+      "Optional small text under the message (max 60 characters, UTF-16 units; use an empty string for none). May include `{{variable}}` placeholders.",
+    )
+
+    expect(hasJsonSchemaMaxLength(textSchema, 1024)).toBe(true)
+    expect(hasJsonSchemaMaxLength(footerSchema, 60)).toBe(true)
   })
 
   test("requires exactly one send content kind", () => {
@@ -253,7 +362,9 @@ describe("flowSpecStepTypes", () => {
         "branch",
         "goto",
         "send",
+        "sendProducts",
         "sendTemplate",
+        "sendViewCatalog",
         "startFlow",
         "wait",
       ].sort(),

@@ -4,6 +4,7 @@ import {
   type SendImageStepSchema,
   type SendMultipleImagesStepSchema,
   type SendTextStepSchema,
+  type StepType,
   stepTypes,
 } from "@chatbotx.io/flow-config"
 import type {
@@ -26,6 +27,14 @@ import {
   convertFlowStepMultipleImages,
 } from "./send-image"
 import { convertFlowStepText } from "./send-text"
+
+export const handledFlowStepTypes = [
+  stepTypes.enum.sendText,
+  stepTypes.enum.sendImage,
+  stepTypes.enum.sendGif,
+  stepTypes.enum.sendMultipleImages,
+  stepTypes.enum.sendFile,
+] as const satisfies readonly StepType[]
 
 export const sendMessage: MessageHandlers<ZaloAuthValue>["sendMessage"] =
   async (props) => {
@@ -65,49 +74,65 @@ export async function* convertMessageToZaloMessage(
   auth: ZaloAuthValue,
   message: OutgoingMessage,
 ): AsyncGenerator<MessageTemplate> {
+  const attachments = message.attachments ?? []
+  if (!message.text && attachments.length === 0) {
+    throw new Error("Unsupported message type or missing content")
+  }
+
+  // Every attachment is uploaded before anything is sent: a bad file then
+  // fails the whole send up front, so a retry never re-sends the text.
+  const attachmentMessages: MessageTemplate[] = []
+  for (const attachment of attachments) {
+    attachmentMessages.push(await uploadZaloAttachment(auth, attachment))
+  }
+
+  // Zalo carries text and media in separate messages, so a reply with both
+  // goes out as the text first, then one message per attachment.
   if (message.text) {
     yield {
       text: message.text,
     }
-  } else if (message.attachments) {
-    for (const attachment of message.attachments) {
-      if (attachment.fileType === "image") {
-        const {
-          data: { attachment_id },
-        } = await uploadAttachment(auth, "image", attachment.url as string)
-        yield {
-          attachment: {
-            type: "template",
-            payload: {
-              template_type: "media",
-              elements: [
-                {
-                  media_type: "image",
-                  attachment_id,
-                },
-              ],
-            },
-          },
-        }
-      } else if (attachment.fileType === "file") {
-        const {
-          data: { token },
-        } = await uploadAttachment(auth, "file", attachment.url as string)
-        yield {
-          attachment: {
-            type: "file",
-            payload: {
-              token: token as string,
-            },
-          },
-        }
-      } else {
-        throw new Error(`Unsupported attachment type: ${attachment.fileType}`)
-      }
-    }
-  } else {
-    throw new Error("Unsupported message type or missing content")
   }
+  yield* attachmentMessages
+}
+
+const uploadZaloAttachment = async (
+  auth: ZaloAuthValue,
+  attachment: NonNullable<OutgoingMessage["attachments"]>[number],
+): Promise<MessageTemplate> => {
+  if (attachment.fileType === "image") {
+    const {
+      data: { attachment_id },
+    } = await uploadAttachment(auth, "image", attachment.url as string)
+    return {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "media",
+          elements: [
+            {
+              media_type: "image",
+              attachment_id,
+            },
+          ],
+        },
+      },
+    }
+  }
+  if (attachment.fileType === "file") {
+    const {
+      data: { token },
+    } = await uploadAttachment(auth, "file", attachment.url as string)
+    return {
+      attachment: {
+        type: "file",
+        payload: {
+          token: token as string,
+        },
+      },
+    }
+  }
+  throw new Error(`Unsupported attachment type: ${attachment.fileType}`)
 }
 
 const buildMessagePayload = (
@@ -158,7 +183,7 @@ export async function* convertFlowStepToZaloMessage(
       )
       break
     default:
-      break
+      throw new Error(`Unsupported Zalo flow step: ${step.stepType}`)
   }
 }
 

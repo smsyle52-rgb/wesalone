@@ -1,6 +1,8 @@
+import { flushAllPendingWorkspaceRealtimeEvents } from "@chatbotx.io/business"
+
 import {
   defaultWorkerOptions,
-  getRedisConnection,
+  getQueueConnection,
   queueNames,
   WebhookJobAction,
   type WebhookJobData,
@@ -47,7 +49,7 @@ async function startWebhookWorker() {
       )
     },
     {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.webhook),
       ...defaultWorkerOptions,
       concurrency: env.WEBHOOK_WORKER_CONCURRENCY,
     },
@@ -67,6 +69,7 @@ async function startWebhookWorker() {
     isShuttingDown = true
     try {
       await worker.close()
+      await flushAllPendingWorkspaceRealtimeEvents()
       process.exit(0)
     } catch (err) {
       logger.error(err, "[WebhookWorker] Error during shutdown")

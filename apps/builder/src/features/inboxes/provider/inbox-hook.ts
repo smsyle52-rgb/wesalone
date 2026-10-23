@@ -1,9 +1,19 @@
+import type { ListInboxesResponse } from "@chatbotx.io/business"
 import { channelTypes } from "@chatbotx.io/database/partials"
 import type { SelectOption } from "@chatbotx.io/ui/components/form/select-field"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  type QueryStatus,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import { useCallback, useMemo } from "react"
 import { useWorkspaceId } from "@/hooks/routing"
 import { orpc } from "@/lib/orpc/query"
+
+export type InboxListState = {
+  inboxes: ListInboxesResponse["data"]
+  status: QueryStatus
+}
 
 export const allInboxConfigs = {
   omnichannel: {
@@ -65,11 +75,25 @@ export const useInvalidateInboxes = () => {
   )
 }
 
-export const useInboxList = (options?: { enabled?: boolean }) => {
+// Shared fallback while the query is pending or has failed. A fresh `[]` on
+// every render would change the identity of the result each time, and any
+// effect keyed on it that sets state (e.g. `NodeEditorMenu`) loops forever.
+const EMPTY_INBOXES: ListInboxesResponse["data"] = []
+
+export const useInboxListState = (options?: {
+  enabled?: boolean
+}): InboxListState => {
   const workspaceId = useWorkspaceId()
-  const { data } = useInboxes(workspaceId, options)
-  return data ?? []
+  const { data, status } = useInboxes(workspaceId, options)
+  // A failed background refetch keeps the cached list but flips `status` to
+  // "error"; report success so consumers keep showing the inboxes they have.
+  return data
+    ? { inboxes: data, status: "success" }
+    : { inboxes: EMPTY_INBOXES, status }
 }
+
+export const useInboxList = (options?: { enabled?: boolean }) =>
+  useInboxListState(options).inboxes
 
 export const useConfiguredInboxTypeOptions = (options?: {
   enabled?: boolean

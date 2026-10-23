@@ -21,6 +21,10 @@ export const conversationStatuses = z.enum([
   "followUp",
   "archived",
   "blocked",
+  /** Open response-SLA window within its breaching threshold, not yet overdue. */
+  "slaBreaching",
+  /** Open response-SLA window past its deadline. */
+  "slaBreached",
 ])
 export type ConversationStatus = z.infer<typeof conversationStatuses>
 
@@ -28,28 +32,46 @@ export const assignerFilterTypes = z.enum(["all", "unassigned"])
 export type AssignerFilterType =
   (typeof assignerFilterTypes)[keyof typeof assignerFilterTypes]
 
-export const inboxDisconnectReasons = z.enum([
-  "manual",
-  "workspace_purge",
-  "trial_expired",
-  "tenant_suspended",
-  "token_revoked",
-])
-export type InboxDisconnectReason = z.infer<typeof inboxDisconnectReasons>
+/**
+ * `InboxDisconnectReason` is defined in `@chatbotx.io/utils/connection`
+ * alongside `CONNECTION_TO_INBOX_DISCONNECT_REASON`, which maps onto it —
+ * same rationale as `inboxStatuses` above. Re-exported here as the
+ * conventional database-layer import site.
+ */
+export {
+  type InboxDisconnectReason,
+  inboxDisconnectReasons,
+} from "@chatbotx.io/utils/connection"
+
+export type ConversationStepChallenge = {
+  type: "step"
+  data: {
+    flowId: string
+    flowVersionId?: string
+    nodeId: string
+    stepId: string
+    attempts: number
+    lastAttemptAt: Date
+    appointmentId?: string
+    challengeId?: string
+  }
+}
+
+/** Pending "retry if reply isn't a quick reply" for a Send Message node. */
+export type ConversationQuickReplyChallenge = {
+  type: "quickReply"
+  data: {
+    flowId: string
+    flowVersionId?: string
+    nodeId: string
+    attempts: number
+    // Informational only: the node's current config is authoritative for retries.
+    maxRetries: number
+    sentAt: Date
+  }
+}
 
 export type ConversationAttributes = {
   phoneNumber?: string
-  challenge?: {
-    type: "step"
-    data: {
-      flowId: string
-      flowVersionId?: string
-      nodeId: string
-      stepId: string
-      attempts: number
-      lastAttemptAt: Date
-      appointmentId?: string
-      challengeId?: string
-    }
-  }
+  challenge?: ConversationStepChallenge | ConversationQuickReplyChallenge
 }

@@ -1,6 +1,6 @@
 import { keys as database } from "@chatbotx.io/database/keys"
 import { keys as mail } from "@chatbotx.io/mail/keys"
-import { keys as partysocket } from "@chatbotx.io/partysocket-config/keys"
+import { keys as realtime } from "@chatbotx.io/realtime-protocol/keys"
 import { createEnv } from "@t3-oss/env-nextjs"
 import { z } from "zod"
 import { clientEnv } from "./lib/client-env"
@@ -10,9 +10,8 @@ const editionRule = z
   .default("community")
 
 export const env = createEnv({
-  extends: [partysocket(), database(), mail()],
+  extends: [realtime(), database(), mail()],
   server: {
-    PLATFORM_ADMIN_EMAIL: z.email().optional(),
     BETTER_AUTH_SECRET: z
       .string()
       .min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
@@ -52,6 +51,8 @@ export const env = createEnv({
       .default("http://localhost:9000/chatbotx/"),
     NEXT_PUBLIC_STORAGE_URL: z.url().optional(),
     NEXT_PUBLIC_PANCAKE_CHAT_PAGE_ID: z.string().optional(),
+    NEXT_PUBLIC_AUTH_OAUTH_DISPLAY_NAME: z.string().optional(),
+    NEXT_PUBLIC_AUTH_OAUTH_LOGO_URL: z.url().optional(),
     NEXT_PUBLIC_ALLOWED_DEV_ORIGINS: z
       .string()
       .optional()
@@ -73,6 +74,12 @@ export const env = createEnv({
     NEXT_PUBLIC_STORAGE_URL: clientEnv("NEXT_PUBLIC_STORAGE_URL"),
     NEXT_PUBLIC_PANCAKE_CHAT_PAGE_ID: clientEnv(
       "NEXT_PUBLIC_PANCAKE_CHAT_PAGE_ID",
+    ),
+    NEXT_PUBLIC_AUTH_OAUTH_DISPLAY_NAME: clientEnv(
+      "NEXT_PUBLIC_AUTH_OAUTH_DISPLAY_NAME",
+    ),
+    NEXT_PUBLIC_AUTH_OAUTH_LOGO_URL: clientEnv(
+      "NEXT_PUBLIC_AUTH_OAUTH_LOGO_URL",
     ),
     NEXT_PUBLIC_ALLOWED_DEV_ORIGINS: clientEnv(
       "NEXT_PUBLIC_ALLOWED_DEV_ORIGINS",

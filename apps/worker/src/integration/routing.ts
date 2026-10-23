@@ -9,6 +9,27 @@ type IncomingRoutingDecision =
       challenge: NonNullable<ConversationAttributes["challenge"]>
     }
   | { type: "automatedResponse"; conversation: ConversationModel }
+  | { type: "handoffReentry"; conversation: ConversationModel }
+
+function getPendingChallenge(conversation: ConversationModel) {
+  return (
+    conversation.additionalAttributes as ConversationAttributes | undefined
+  )?.challenge
+}
+
+// A story mention is answered by its own automations only when nothing else
+// owns the reply: a pending challenge (e.g. Get User Data waiting for a photo)
+// must still receive the mention's media, and a paused bot (a human owns the
+// thread) must stay silent. In both cases the mention takes the normal route.
+export async function shouldRunStoryMentionAutomation(props: {
+  conversation: ConversationModel
+  isConversationActive: (conversation: ConversationModel) => Promise<boolean>
+}): Promise<boolean> {
+  if (getPendingChallenge(props.conversation)) {
+    return false
+  }
+  return await props.isConversationActive(props.conversation)
+}
 
 export async function resolveIncomingTextRouting(props: {
   conversation: ConversationModel
@@ -26,12 +47,15 @@ export async function resolveIncomingTextRouting(props: {
 
   const conversation = props.conversation
   if (!(await props.isConversationActive(conversation))) {
-    return { type: "none" }
+    if (getPendingChallenge(conversation)) {
+      return { type: "none" }
+    }
+    return props.hasText
+      ? { type: "handoffReentry", conversation }
+      : { type: "none" }
   }
 
-  const challenge = (
-    conversation.additionalAttributes as ConversationAttributes | undefined
-  )?.challenge
+  const challenge = getPendingChallenge(conversation)
   if (challenge) {
     return { type: "challenge", conversation, challenge }
   }

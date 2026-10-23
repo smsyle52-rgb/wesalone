@@ -10,6 +10,7 @@ import {
 } from "@orpc/openapi"
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4"
 import { beforeAll, describe, expect, test, vi } from "vitest"
+import { IDEMPOTENCY_EXEMPT_READ_PATHS } from "@/lib/idempotency/constants"
 
 // `@/routers/public` transitively imports every feature's `api/public.ts`,
 // which pulls in `@chatbotx.io/database/client` (opens a real `pg.Pool` at
@@ -27,7 +28,7 @@ vi.mock("@/middlewares/auth", () => ({
 
 vi.mock("@chatbotx.io/database/client", () => {
   const proxy: unknown = new Proxy(() => proxy, { get: () => proxy })
-  return { db: proxy }
+  return { db: proxy, sql: proxy }
 })
 
 type JsonSchema = {
@@ -852,7 +853,8 @@ describe("public API spec — error response coverage", () => {
   // guard's filter ran against the real generated spec, which is exactly
   // the "signal" this guard exists to catch: both were silently broken (or
   // silently limited to the default) by the same dropped-DELETE-body bug
-  // this change fixes.
+  // this change fixes. `miniApps.delete` (`deleteWhatsappFlows`, defaulted
+  // to false) opts into also removing the Mini App's Flows on Meta.
   test("DELETE operations with a request body are exactly the reviewed set", () => {
     const deletesWithBody = operations
       .filter((op) => op.method === "DELETE" && op.bodySchema)
@@ -862,10 +864,12 @@ describe("public API spec — error response coverage", () => {
     expect(deletesWithBody).toEqual([
       "contacts.removeTags",
       "contacts.unsubscribeSequences",
+      "decisionProfiles.deleteMany",
       // No inboxTeams.removeMembers: the inbox-teams API lives in the
       // commercially licensed enterprise tree, which Wesal One does not ship.
       "keywords.delete",
       "messages.delete",
+      "miniApps.delete",
     ])
   })
 })
@@ -894,11 +898,21 @@ describe("public API spec — declared codes match what the mapper throws", () =
     "invalidRequestData",
     // Thrown by `validationException` in @chatbotx.io/business.
     "validation",
+    // Default code of a `ChatbotXException` thrown without one.
+    "systemError",
     "tooManyRequests",
     "INTERNAL_SERVER_ERROR",
   ]
 
-  type ProcedureErrorMap = { path: string; method: string; codes: string[] }
+  type ProcedureErrorMap = {
+    path: string
+    routePath: string
+    method: string
+    codes: string[]
+    statuses: Record<string, number | undefined>
+    /** Codes whose declaration carries a `data` schema (so the spec documents it). */
+    structuredCodes: string[]
+  }
 
   function collectErrorMaps(
     node: unknown,
@@ -909,13 +923,27 @@ describe("public API spec — declared codes match what the mapper throws", () =
       return
     }
     const def = (
-      node as Record<string, { errorMap?: object; route?: { method?: string } }>
+      node as Record<
+        string,
+        { errorMap?: object; route?: { method?: string; path?: string } }
+      >
     )["~orpc"]
     if (def?.errorMap) {
       out.push({
         path: path.join("."),
+        routePath: def.route?.path ?? "",
         method: (def.route?.method ?? "POST").toUpperCase(),
         codes: Object.keys(def.errorMap),
+        statuses: Object.fromEntries(
+          Object.entries(
+            def.errorMap as Record<string, { status?: number }>,
+          ).map(([code, entry]) => [code, entry?.status]),
+        ),
+        structuredCodes: Object.entries(
+          def.errorMap as Record<string, { data?: unknown }>,
+        )
+          .filter(([, entry]) => entry?.data !== undefined)
+          .map(([code]) => code),
       })
       return
     }
@@ -954,6 +982,9 @@ describe("public API spec — declared codes match what the mapper throws", () =
     const writeMethods = ["POST", "PUT", "PATCH", "DELETE"]
     const writesMissingCodes = procedures
       .filter((procedure) => writeMethods.includes(procedure.method))
+      .filter(
+        (procedure) => !IDEMPOTENCY_EXEMPT_READ_PATHS.has(procedure.routePath),
+      )
       .map((procedure) => ({
         path: procedure.path,
         absent: idempotencyCodes.filter(
@@ -993,5 +1024,155 @@ describe("public API spec — declared codes match what the mapper throws", () =
       (proc) => new Set(proc.codes).size !== proc.codes.length,
     )
     expect(duplicated).toEqual([])
+  })
+
+  // Each case pins a code the handler (or the service it calls) really throws,
+  // so a refactor that drops it from the route's map is caught here.
+  // Each case pins a code AND the status the handler (or the service it calls)
+  // really throws: oRPC treats a declared code with a different status as
+  // undefined too, so both have to match.
+  test("routes declare the specific codes their services throw, with the thrown status", () => {
+    const creationCodes = {
+      messagingAdPageMissing: 400,
+      messagingAdInstagramActorMissing: 400,
+      messagingAdWhatsappPageRequired: 400,
+      messagingAdWhatsappPhoneMissing: 400,
+      invalidRequest: 400,
+    }
+    const expected: Record<string, Record<string, number>> = {
+      "ads.createCampaign": {
+        notFound: 404,
+        messagingAdsReconnectRequired: 409,
+        ...creationCodes,
+      },
+      "ads.retryCampaign": {
+        notFound: 404,
+        messagingAdNotRetryable: 409,
+        messagingAdsReconnectRequired: 409,
+        ...creationCodes,
+      },
+      "ads.publishCampaign": { notFound: 404, messagingAdNotPublishable: 409 },
+      "ads.pauseCampaign": {
+        notFound: 404,
+        messagingAdsReconnectRequired: 409,
+      },
+      "ads.deleteCampaign": {
+        notFound: 404,
+        messagingAdsReconnectRequired: 409,
+      },
+      "ads.listCampaignAdAccounts": { messagingAdsReconnectRequired: 409 },
+      "ads.uploadCampaignVideo": { messagingAdsReconnectRequired: 409 },
+      "ads.listCampaignMessengerPages": { invalidRequest: 400 },
+      "products.createMetaCatalog": {
+        notFound: 404,
+        metaCatalogReconnectRequired: 400,
+      },
+      "products.selectMetaCatalog": { metaCatalogReconnectRequired: 400 },
+      "products.syncMetaCatalog": { metaCatalogReconnectRequired: 400 },
+      "contacts.create": { notFound: 404, invalidCustomFieldValue: 400 },
+      "contacts.upsert": { notFound: 404, phoneExists: 422 },
+      "contacts.sendMessage": {
+        notFound: 404,
+        productMessageUnresolvable: 422,
+      },
+      "messages.create": { productMessageUnresolvable: 422 },
+      "contacts.update": { invalidCustomFieldValue: 400 },
+      "contacts.setCustomField": { invalidCustomFieldValue: 400 },
+      "contacts.applyCustomFieldOperations": { invalidCustomFieldValue: 400 },
+      "sequences.create": { notFound: 404 },
+      "botFields.create": {
+        notFound: 404,
+        invalidFieldOperation: 400,
+        invalidCustomFieldValue: 400,
+      },
+      "botFields.set": {
+        invalidFieldOperation: 400,
+        invalidCustomFieldValue: 400,
+      },
+      "botFields.setMany": { invalidFieldOperation: 400 },
+      "botFields.delete": { templateAllowDeleteViolation: 400 },
+    }
+    const byPath = new Map(procedures.map((proc) => [proc.path, proc]))
+    const wrong = Object.entries(expected).flatMap(([path, codes]) => {
+      const proc = byPath.get(path)
+      if (!proc) {
+        return [{ path, code: "<operation not found>" }]
+      }
+      return Object.entries(codes)
+        .filter(([code, status]) => proc.statuses[code] !== status)
+        .map(([code, status]) => ({
+          path,
+          code,
+          expected: status,
+          declared: proc.statuses[code],
+        }))
+    })
+
+    expect(wrong).toEqual([])
+  })
+
+  test("sending a message documents why a product message was refused", () => {
+    const byPath = new Map(procedures.map((proc) => [proc.path, proc]))
+    const withoutReason = ["contacts.sendMessage", "messages.create"].filter(
+      (path) =>
+        !byPath
+          .get(path)
+          ?.structuredCodes.includes("productMessageUnresolvable"),
+    )
+
+    expect(withoutReason).toEqual([])
+  })
+
+  test("no-op routes do not promise a 404 they never return", () => {
+    // `analytics.resetFlowStats` keeps `notFound`: the spec guard above requires
+    // it on every DELETE; its description states that an unknown id is a no-op.
+    const noOp = [
+      "analytics.commentAutomationReplyStats",
+      "analytics.commentAutomationUserComments",
+      "analytics.commentAutomationBotReplies",
+      "analytics.commentAutomationErrors",
+    ]
+    const byPath = new Map(procedures.map((proc) => [proc.path, proc]))
+    expect(
+      noOp.filter((path) => byPath.get(path)?.codes.includes("notFound")),
+    ).toEqual([])
+  })
+})
+
+describe("public API spec — catalog and call conditions", () => {
+  // Agents build trigger and webhook conditions from this spec alone, so every
+  // operation that takes conditions must offer the two catalog conditions and
+  // the five call conditions, and say where a product id comes from.
+  const CONDITION_OPERATIONS = [
+    "triggers.update",
+    "webhooks.create",
+    "webhooks.update",
+  ]
+  const CONDITION_TYPES = [
+    "shoppingCartSent",
+    "userAskedAboutProduct",
+    "incomingCall",
+    "missedAudioCall",
+    "callEnded",
+    "callRecorded",
+    "callTranscribed",
+  ]
+
+  test.each(
+    CONDITION_OPERATIONS,
+  )("%s offers every catalog and call condition", (operationId) => {
+    const schema = JSON.stringify(requestSchemasByOperationId[operationId])
+
+    expect(
+      CONDITION_TYPES.filter((type) => !schema.includes(`"${type}"`)),
+    ).toEqual([])
+  })
+
+  test.each(
+    CONDITION_OPERATIONS,
+  )("%s tells an agent where a product id comes from", (operationId) => {
+    const schema = JSON.stringify(requestSchemasByOperationId[operationId])
+
+    expect(schema).toContain("products.list")
   })
 })

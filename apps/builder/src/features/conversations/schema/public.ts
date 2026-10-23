@@ -1,3 +1,8 @@
+import {
+  threadControlActions,
+  threadControlEvents,
+  threadControlStates,
+} from "@chatbotx.io/database/partials"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import z from "zod"
 import { findConversationResponse } from "./resource"
@@ -31,4 +36,38 @@ export const assignConversationPublicRequest = z.object({
     .describe(
       "New assignee: `u_<userId>` for a user or `t_<inboxTeamId>` for an inbox team, or null to unassign.",
     ),
+})
+
+export const threadControlSnapshotResource = z.object({
+  contactInboxId: z.string(),
+  threadControlState: threadControlStates.nullable(),
+  threadOwnerRole: z.string().nullable(),
+  threadOwnerAppId: z.string().nullable(),
+  threadControlUpdatedAt: z.date().nullable(),
+  threadOwnerExpiresAt: z.date().nullable(),
+  threadControlLastEvent: threadControlEvents.nullable(),
+})
+
+export const threadControlPublicRequest = z
+  .object({
+    contactInboxId: zodBigintAsString().describe(
+      "Contact inbox of the conversation's contact to steer. Get it from `conversations.get` (`contactInboxes[].id`).",
+    ),
+    action: z
+      .enum([...threadControlActions.options, "sync"])
+      .describe(
+        "`take` the thread from the partner, `release` it back, `pass` it to the channel's escalation role, or `sync` to only refresh the stored owner from the channel (changes nothing at the channel).",
+      ),
+  })
+  .and(conversationIdPathParam)
+
+export const threadControlPublicResponse = z.object({
+  status: z
+    .enum(["applied", "notEscalation"])
+    .describe(
+      "`applied` (always, for `sync`), or `notEscalation` when the channel refused a `take` because only the escalation partner may take the thread.",
+    ),
+  snapshot: threadControlSnapshotResource
+    .optional()
+    .describe("The routing state after the action; absent when refused."),
 })

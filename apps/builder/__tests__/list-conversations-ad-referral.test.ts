@@ -57,6 +57,7 @@ vi.mock("@chatbotx.io/business/errors", () => ({
 }))
 
 vi.mock("@chatbotx.io/database/repositories", () => ({
+  contactInboxOperationalColumns: { sourceIdentityHistory: false },
   createMessageRepository: mocks.createMessageRepository,
   getSafeSinceTime: mocks.getSafeSinceTime,
 }))
@@ -87,6 +88,15 @@ const adAttributedContactInbox = {
   lastIncomingMessageAt: null,
   contactLastReadAt: null,
   inbox: { name: "WhatsApp Inbox" },
+  sourceIdentityHistory: [
+    {
+      sourceId: "old-source-1",
+      sourceUserId: null,
+      sourceParentUserId: null,
+      changedAt: "2026-09-28T05:00:00.000Z",
+      reason: "userIdChanged",
+    },
+  ],
   referral: {
     ctwaClid: "clid-123",
     adTitle: "Summer Sale",
@@ -142,7 +152,7 @@ describe("listConversations / findConversation adReferral mapping", () => {
     expect(mappedContactInboxes[1]?.adReferral).toBeNull()
   })
 
-  test("listConversations strips the raw referral field from the mapped output", async () => {
+  test("listConversations strips internal jsonb fields from the mapped output", async () => {
     const conversation = {
       id: "conv-1",
       contactId: "contact-1",
@@ -161,6 +171,7 @@ describe("listConversations / findConversation adReferral mapping", () => {
 
     const mappedContactInbox = result.data[0]?.contactInboxes[0]
     expect(mappedContactInbox).not.toHaveProperty("referral")
+    expect(mappedContactInbox).not.toHaveProperty("sourceIdentityHistory")
   })
 
   test("findConversation maps an ad-attributed contactInbox to a non-null adReferral", async () => {
@@ -183,7 +194,7 @@ describe("listConversations / findConversation adReferral mapping", () => {
     expect(mappedContactInboxes[1]?.adReferral).toBeNull()
   })
 
-  test("findConversation strips the raw referral field from the mapped output", async () => {
+  test("findConversation strips internal jsonb fields from the mapped output", async () => {
     const conversation = {
       id: "conv-1",
       workspaceId: "ws-1",
@@ -197,6 +208,7 @@ describe("listConversations / findConversation adReferral mapping", () => {
 
     const mappedContactInbox = result.data.contactInboxes[0]
     expect(mappedContactInbox).not.toHaveProperty("referral")
+    expect(mappedContactInbox).not.toHaveProperty("sourceIdentityHistory")
   })
 
   test("produces the identical contactInbox shape on both the list and find paths", async () => {
@@ -231,5 +243,57 @@ describe("listConversations / findConversation adReferral mapping", () => {
     expect(
       Object.keys(listResult.data[0]?.contactInboxes[0] ?? {}).sort(),
     ).toEqual(Object.keys(findResult.data.contactInboxes[0] ?? {}).sort())
+  })
+})
+
+const googleClickContactInbox = {
+  ...organicContactInbox,
+  id: "ci-google",
+  channel: "whatsapp",
+  referral: {
+    gclid: "SECRET-GCLID-VALUE",
+    googleClickReceivedAt: "2026-10-05T01:00:00.000Z",
+  },
+}
+
+describe("listConversations / findConversation googleAdsClick mapping", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.createMessageRepository.mockResolvedValue(mocks.repo)
+    mocks.repo.findLastByConversation.mockResolvedValue([])
+    mocks.buildConversationWhere.mockReturnValue({})
+  })
+
+  test("maps the click type and time on both paths and never leaks the click id", async () => {
+    const conversation = {
+      id: "conv-1",
+      workspaceId: "ws-1",
+      contactId: "contact-1",
+      lastActivityAt: new Date("2026-01-01T00:00:00Z"),
+      contactInboxes: [googleClickContactInbox, organicContactInbox],
+      contact: null,
+      assignedUser: null,
+      assignedInboxTeam: null,
+    }
+    mocks.findManyQuery.mockResolvedValue([conversation])
+    mocks.findWithFullRelations.mockResolvedValue(conversation)
+
+    const listed = await listConversations(
+      { workspaceId: "ws-1" },
+      { includeEmailAndPhone: true },
+    )
+    const found = await findConversation({ id: "conv-1", workspaceId: "ws-1" })
+
+    for (const inboxes of [
+      listed.data[0]?.contactInboxes ?? [],
+      found.data.contactInboxes,
+    ]) {
+      expect(inboxes[0]?.googleAdsClick).toEqual({
+        clickIdType: "gclid",
+        receivedAt: "2026-10-05T01:00:00.000Z",
+      })
+      expect(inboxes[1]?.googleAdsClick).toBeNull()
+      expect(JSON.stringify(inboxes)).not.toContain("SECRET-GCLID-VALUE")
+    }
   })
 })

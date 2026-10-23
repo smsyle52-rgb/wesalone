@@ -75,6 +75,7 @@ class IntegrationMetaCatalogService extends BaseService {
   async searchProductsForSend(input: {
     workspaceId: string
     keyword?: string
+    retailerId?: string
     limit?: number
   }): Promise<{
     connected: boolean
@@ -89,6 +90,7 @@ class IntegrationMetaCatalogService extends BaseService {
       integrationMetaCatalogId: connection.id,
       catalogId: connection.catalogId,
       keyword: input.keyword,
+      retailerId: input.retailerId,
       limit: input.limit,
     })
 
@@ -515,6 +517,7 @@ class IntegrationMetaCatalogService extends BaseService {
         throw new ChatbotXException(
           "Wait for the active Meta Catalog sync to finish before disconnecting",
           "metaCatalogSyncAlreadyRunning",
+          409,
         )
       }
       await tx

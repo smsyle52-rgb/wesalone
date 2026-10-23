@@ -29,6 +29,7 @@ vi.mock("better-auth/next-js", () => ({
 vi.mock("better-auth/plugins", () => ({
   anonymous: () => ({ id: "anonymous" }),
   bearer: () => ({ id: "bearer" }),
+  genericOAuth: () => ({ id: "generic-oauth" }),
   magicLink: () => ({ id: "magic-link" }),
   oneTimeToken: () => ({ id: "one-time-token" }),
 }))
@@ -51,11 +52,13 @@ vi.mock("@chatbotx.io/business", () => ({
     findPlatform: vi.fn(),
   },
   resolveTenantSettingsByDomain: vi.fn(),
+  invitationService: { findActiveByCode: vi.fn().mockResolvedValue(null) },
 }))
 
 vi.mock("@chatbotx.io/utils", () => ({
   createId: () => "test-id",
   getPublicOriginFromRequest: vi.fn(),
+  parseEnvBool: (value: unknown) => value === true || value === "true",
 }))
 
 vi.mock("@chatbotx.io/mail", () => ({
@@ -136,5 +139,49 @@ describe("buildSocialProviders — socialRedirectOrigin", () => {
     expect(config.socialProviders?.facebook?.redirectURI).toBe(
       "https://chat.acme.com/api/auth/callback/facebook",
     )
+  })
+
+  test("gives only Facebook a placeholder email for phone-only accounts", async () => {
+    const { createAuth } = await import("../src/server")
+    createAuth({
+      socialCredentials: {
+        google: { clientId: "id-1", clientSecret: "secret-1" },
+        facebook: { clientId: "id-2", clientSecret: "secret-2" },
+      },
+    })
+
+    const config = betterAuthMock.mock.calls[0]?.[0] as {
+      socialProviders?: Record<
+        string,
+        { mapProfileToUser?: (profile: { id: string }) => unknown }
+      >
+    }
+    expect(config.socialProviders?.google?.mapProfileToUser).toBeUndefined()
+    expect(
+      config.socialProviders?.facebook?.mapProfileToUser?.({ id: "42" }),
+    ).toEqual({
+      email: "fb-42@facebook.placeholder.invalid",
+      emailVerified: false,
+    })
+  })
+  test("rejects an email/password sign-up using the Facebook placeholder domain", async () => {
+    const { createAuth } = await import("../src/server")
+    createAuth({})
+
+    const config = betterAuthMock.mock.calls[0]?.[0] as {
+      hooks: { before: (ctx: unknown) => Promise<unknown> }
+    }
+    const signUp = (path: string, email: string) =>
+      config.hooks.before({ path, body: { email }, context: {} })
+
+    await expect(
+      signUp("/sign-up/email", "fb-42@facebook.placeholder.invalid"),
+    ).rejects.toThrow("Invalid email")
+    await expect(
+      signUp("/sign-up/email", "a@example.com"),
+    ).resolves.not.toThrow()
+    await expect(
+      signUp("/callback/facebook", "fb-42@facebook.placeholder.invalid"),
+    ).resolves.not.toThrow()
   })
 })

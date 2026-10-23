@@ -1,4 +1,8 @@
 import {
+  threadControlEvents,
+  threadControlStates,
+} from "@chatbotx.io/database/partials"
+import {
   conversationModel,
   createSelectSchema,
 } from "@chatbotx.io/database/schema"
@@ -14,6 +18,9 @@ export const conversationResource = createSelectSchema(conversationModel, {
   id: z.string(),
   contactId: z.string(),
   workspaceId: z.string(),
+}).omit({
+  // Bookkeeping-only column for the human-reply window; not part of the API.
+  awaitingHumanReplyClosedAt: true,
 })
 export type ConversationResource = z.infer<typeof conversationResource>
 
@@ -30,6 +37,14 @@ export const adReferralResource = z.object({
   sourceUrl: z.string().nullish(),
 })
 
+// Google Ads click summary derived server-side from `ContactInbox.referral`
+// (see `resolveGoogleAdsClick`). Carries the click-id TYPE only — never the
+// `gclid`/`gbraid` value, which is a conversion-attribution secret.
+export const googleAdsClickResource = z.object({
+  clickIdType: z.enum(["gclid", "gbraid"]),
+  receivedAt: z.string().nullable(),
+})
+
 // Conversation-only extension of the shared `contactInboxResource` — kept out
 // of the base resource so contact APIs (including public/workspace-token
 // routes that nest `contactInboxResource`) are unaffected. Both conversation
@@ -43,9 +58,22 @@ export const adReferralResource = z.object({
 // (apps/worker/src/integration/handlers/messenger-context.ts) — but that
 // selection has no reason to leak into the public/workspace-token contact
 // APIs that nest the shared `contactInboxResource`.
+//
+// The thread-control (conversation routing) columns ride along for the same
+// reason: the list, header, composer and side panel read them from the store
+// without a second request. Nullish tolerates a store persisted before they
+// existed; `null` everywhere means routing was never observed.
 export const conversationContactInboxResource = contactInboxResource.extend({
   adReferral: adReferralResource.nullable(),
+  // Nullish for the same version-skew reason as `adReferral.sourceUrl`.
+  googleAdsClick: googleAdsClickResource.nullish(),
   lastMessageAt: z.date().nullable(),
+  threadControlState: threadControlStates.nullish(),
+  threadOwnerRole: z.string().nullish(),
+  threadControlUpdatedAt: z.date().nullish(),
+  threadOwnerExpiresAt: z.date().nullish(),
+  threadOwnerAppId: z.string().nullish(),
+  threadControlLastEvent: threadControlEvents.nullish(),
 })
 export type ConversationContactInboxResource = z.infer<
   typeof conversationContactInboxResource

@@ -1,9 +1,11 @@
 import { commentAutomationService } from "@chatbotx.io/business"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import z from "zod"
+import { postAccountInboxIdSchema } from "@/features/shared/comment-automation/schema/account"
 import { withWorkspaceIdSchema } from "@/features/workspaces/schema/resource"
 import { workspaceAuthorizedMidddleware } from "@/middlewares/auth"
 import { authorizedAPI } from "@/orpc"
+import { ensureLiveCommentsSubscriptionForAutomation } from "../lib/ensure-live-comments-subscription"
 import {
   listInstagramFacebookMedia,
   listInstagramLoginMedia,
@@ -44,11 +46,17 @@ export const igCommentsPrivateAPI = {
     .output(igCommentResource)
     .handler(async ({ input }) => {
       const { workspaceId, type, ...data } = input
-      return await commentAutomationService.createInstagram({
+      const created = await commentAutomationService.createInstagram({
         workspaceId,
         type,
         data,
       })
+      await ensureLiveCommentsSubscriptionForAutomation({
+        workspaceId,
+        type,
+        post: data.post,
+      })
+      return created
     }),
 
   updateIgCommentAPI: authorizedAPI
@@ -110,6 +118,7 @@ export const igCommentsPrivateAPI = {
             permalink_url: z.string().optional(),
             media_product_type: z.string().optional(),
             accountId: z.string(),
+            inboxId: postAccountInboxIdSchema,
           }),
         ),
         pages: z.array(z.object({ id: z.string(), name: z.string() })),

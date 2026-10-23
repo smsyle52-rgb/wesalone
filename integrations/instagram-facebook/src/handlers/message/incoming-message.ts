@@ -5,12 +5,15 @@ import {
   type IncomingAttachment,
   type IncomingContact,
   type IncomingMessage,
+  isDeferrableAttachmentType,
   type MessageHandlers,
   type MessageReferral,
   messageTypes,
   type ReceivedMessageResult,
+  toPendingIncomingAttachment,
 } from "@chatbotx.io/sdk"
 
+import { isLiveMediaDeferrableUrl } from "@chatbotx.io/utils/live-media"
 import { getMessageAttachmentEntity } from "../../apis/attachment"
 import { InstagramException } from "../../exception"
 import { logger } from "../../lib/logger"
@@ -20,6 +23,26 @@ import {
   type InstagramMessagingEvent,
   instagramWebhookEventSchema,
 } from "../../schema"
+
+// A lazy channel keeps the provider's CDN URL and stores the bytes on first
+// use; anything else (a sticker/GIF host, a share, a template) is downloaded
+// now, exactly as before.
+const toIncomingAttachment = (
+  ctx: Context<InstagramAuthValue>,
+  attachment: Parameters<typeof getMessageAttachmentEntity>[0]["attachment"],
+): Promise<IncomingAttachment | undefined> => {
+  const url = attachment.payload.url
+  const pending =
+    url &&
+    isDeferrableAttachmentType(attachment.type) &&
+    isLiveMediaDeferrableUrl("instagram", url)
+      ? toPendingIncomingAttachment({ url, type: attachment.type })
+      : null
+  if (pending) {
+    return Promise.resolve(pending)
+  }
+  return getMessageAttachmentEntity({ ctx, attachment })
+}
 
 const getMessageAttachments = async (
   ctx: Context<InstagramAuthValue>,
@@ -33,7 +56,7 @@ const getMessageAttachments = async (
     const attachmentPromises = message.attachments
       .filter((attachment) => attachment.payload.url)
       .map((attachment) =>
-        getMessageAttachmentEntity({ ctx, attachment }).catch((error) => {
+        toIncomingAttachment(ctx, attachment).catch((error) => {
           logger.error("Error processing attachment", error)
           return null
         }),
@@ -70,6 +93,12 @@ export const receiveMessage: MessageHandlers<InstagramAuthValue>["receiveMessage
     return await getMessageEntity(ctx, messaging)
   }
 
+/** A `story_mention` attachment means the contact tagged the account in their story. */
+export const hasStoryMention = (message: InstagramMessage): boolean =>
+  message.attachments?.some(
+    (attachment) => attachment.type === "story_mention",
+  ) ?? false
+
 const getMessageEntity = async (
   ctx: Context<InstagramAuthValue>,
   messaging: InstagramMessagingEvent,
@@ -91,6 +120,12 @@ const getMessageEntity = async (
 
   if (messaging.message) {
     const storyReply = messaging.message.reply_to?.story
+    let contentAttributes: Record<string, unknown> | undefined
+    if (storyReply) {
+      contentAttributes = { type: "story_reply", story: storyReply }
+    } else if (hasStoryMention(messaging.message)) {
+      contentAttributes = { type: "story_mention" }
+    }
     message = {
       sourceId: messaging.message.mid,
       messageType:
@@ -99,9 +134,7 @@ const getMessageEntity = async (
           : messageTypes.enum.incoming,
       text: messaging.message.text,
       contentType: contentTypes.enum.text,
-      contentAttributes: storyReply
-        ? { type: "story_reply", story: storyReply }
-        : undefined,
+      contentAttributes,
       attachments: await getMessageAttachments(ctx, messaging.message),
     }
     quickReplyAction = messaging.message.quick_reply?.payload ?? null

@@ -1,7 +1,10 @@
-import { withBlockedOwnerGuard } from "@chatbotx.io/business"
+import {
+  flushAllPendingWorkspaceRealtimeEvents,
+  withBlockedOwnerGuard,
+} from "@chatbotx.io/business"
 import {
   defaultWorkerOptions,
-  getRedisConnection,
+  getQueueConnection,
   type NotificationJobData,
   queueNames,
 } from "@chatbotx.io/worker-config"
@@ -28,7 +31,7 @@ async function startNotificationWorker() {
       })
     },
     {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.notification),
       ...defaultWorkerOptions,
       concurrency: env.NOTIFICATION_WORKER_CONCURRENCY,
     },
@@ -48,6 +51,7 @@ async function startNotificationWorker() {
     isShuttingDown = true
     try {
       await worker.close()
+      await flushAllPendingWorkspaceRealtimeEvents()
       process.exit(0)
     } catch (err) {
       logger.error(err, "[NotificationWorker] Error during shutdown")

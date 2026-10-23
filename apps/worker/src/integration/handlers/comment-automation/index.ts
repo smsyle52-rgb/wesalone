@@ -34,6 +34,7 @@ import {
   matchPost,
   needsMentionCount,
   willSendReply,
+  withLiveCapabilityLimits,
 } from "./automation-matching"
 import {
   type CommentAutomationChannelType,
@@ -72,6 +73,7 @@ import {
   recordConfiguredBranchFailures,
   recordReplyFailure,
 } from "./record"
+import { withReplayPriority } from "./replay-priority"
 import type { CommentReplyOutcome } from "./reply-outcome"
 
 export { isCommentReply } from "./automation-matching"
@@ -99,9 +101,13 @@ async function loadCommentAutomationContext(props: {
     where: { id: props.contactInboxId },
   })
 
+  // Scoped by the account the comment arrived on: an automation tied to
+  // another Page/account of the same channel must neither answer nor record a
+  // miss for it.
   const automations = await commentAutomationService.findActiveAutomations({
     workspaceId: props.workspaceId,
     channelType: props.channelType,
+    inboxId: integrationRow.inboxId,
   })
 
   const workspace = await workspaceService.findById({ id: props.workspaceId })
@@ -131,6 +137,8 @@ export async function processCommentAutomation(
     message,
     tags,
     createdTime,
+    isLive = false,
+    onlyAutomationId,
   } = data
 
   // When the customer commented, not when this job runs — `replyAfter` can put
@@ -175,7 +183,25 @@ export async function processCommentAutomation(
     throw err
   }
 
-  const { integrationRow, auth, contactInbox, automations, workspace } = context
+  const { integrationRow, auth, contactInbox, workspace } = context
+
+  // A replayed missed comment runs its one automation only. Filtered before the
+  // loop, so every other automation neither replies nor records a miss for it.
+  const automations = (
+    onlyAutomationId
+      ? context.automations.filter(
+          (automation) => automation.id === onlyAutomationId,
+        )
+      : context.automations
+  ).map((automation) => withLiveCapabilityLimits(automation, channelType))
+
+  if (onlyAutomationId && automations.length === 0) {
+    logger.info(
+      { automationId: onlyAutomationId, workspaceId, commentId },
+      "Missed comment replay skipped: automation no longer active",
+    )
+    return
+  }
 
   if (!contactInbox) {
     logger.warn(
@@ -236,6 +262,7 @@ export async function processCommentAutomation(
         commentId,
         parentId,
         message,
+        isLive,
       }),
     )
   ) {
@@ -252,14 +279,22 @@ export async function processCommentAutomation(
 
   // Meta allows a single comment_id-anchored DM per comment, and that budget is
   // shared by every automation matching this one comment — so it is tracked
-  // across the loop, not per automation.
-  let privateReplyClaimed = false
+  // across the loop, not per automation. A replay runs long after the webhook's
+  // own run, so that budget may already be spent by another automation.
+  let privateReplyClaimed = onlyAutomationId
+    ? await commentAutomationService.hasSentPrivateReply({
+        workspaceId,
+        channelType,
+        commentId,
+      })
+    : false
 
   // Every automation that declines this comment, flushed in ONE insert after
-  // the loop. `findActiveAutomations` scopes by workspace + channel, not by
-  // post, so a single comment is shown to every active automation on the
-  // channel — writing a row per decline inside the loop would fire one
-  // statement per automation per comment on a busy Page.
+  // the loop. `findActiveAutomations` scopes by workspace + channel + account,
+  // not by post, so a single comment is shown to every active automation of
+  // that account (plus the unscoped ones) — writing a row per decline inside
+  // the loop would fire one statement per automation per comment on a busy
+  // Page.
   const misses: CommentAutomationMissInsert[] = []
   const collectMiss = (
     automationId: string,
@@ -280,6 +315,10 @@ export async function processCommentAutomation(
   }
 
   for (const automation of automations) {
+    // Set once this run holds the automation's "once per user per post" row,
+    // so a run that ends up sending nothing can hand it back.
+    let dedupClaimed = false
+    let anythingDispatched = false
     try {
       if (
         !commentAutomationService.isWithinSchedule(
@@ -297,7 +336,7 @@ export async function processCommentAutomation(
         collectMiss(automation.id, "outsideSchedule")
         continue
       }
-      if (!matchPost(automation.post, postId)) {
+      if (!matchPost(automation.post, postId, isLive)) {
         logAutomationSkipped({
           automationId: automation.id,
           commentId,
@@ -417,6 +456,31 @@ export async function processCommentAutomation(
         }
       }
 
+      // The read above is only a fast path that keeps the miss reason
+      // accurate; THIS insert is what actually enforces "once per user per
+      // post". Two comments from one person milliseconds apart both pass the
+      // read, and only one of them can win the row.
+      if (automation.options.replyOncePerUserPerPost) {
+        dedupClaimed = await commentAutomationService.claimDedup({
+          automationId: automation.id,
+          contactId: contactInbox.contactId,
+          postId,
+          workspaceId,
+        })
+        if (!dedupClaimed) {
+          logAutomationSkipped({
+            automationId: automation.id,
+            commentId,
+            postId,
+            workspaceId,
+            reason:
+              "already replied to this user on this post (concurrent comment)",
+          })
+          collectMiss(automation.id, "alreadyRepliedOnPost")
+          continue
+        }
+      }
+
       const delay = computeDelayMs(automation.replyAfter)
 
       const dbMessage = await loadCommentMessage()
@@ -435,16 +499,21 @@ export async function processCommentAutomation(
 
         if (automation.options.likeUserComment) {
           if (supportsCommentLike(channelType)) {
+            const likeOptions = withReplayPriority()
             chatQueue
-              .add(ChatJobAction.changeChannelMessageState, {
-                type: ChatJobAction.changeChannelMessageState,
-                data: {
-                  conversation: conversationRef,
-                  contactInbox,
-                  message: messageRef,
-                  liked: true,
+              .add(
+                ChatJobAction.changeChannelMessageState,
+                {
+                  type: ChatJobAction.changeChannelMessageState,
+                  data: {
+                    conversation: conversationRef,
+                    contactInbox,
+                    message: messageRef,
+                    liked: true,
+                  },
                 },
-              })
+                ...(likeOptions ? [likeOptions] : []),
+              )
               .catch((err: unknown) =>
                 logger.error(
                   { err, automationId: automation.id, commentId },
@@ -635,6 +704,7 @@ export async function processCommentAutomation(
           channelType,
           createdTime,
           delay,
+          isLive,
         })
 
         // On a conditional channel (TikTok) the DM is only permitted once the
@@ -714,6 +784,7 @@ export async function processCommentAutomation(
                 delay,
                 message,
                 createdTime,
+                isLive,
                 dedup,
               },
             )
@@ -772,14 +843,31 @@ export async function processCommentAutomation(
       // 4. A deferred DM counts as dispatched: the comment's single private
       //    reply is already claimed, and without the row the contact's next
       //    comment would match again and queue a second deferral.
-      const anythingDispatched =
+      anythingDispatched =
         publicOutcome !== null || privateOutcome !== null || privateDeferred
       const anythingConfigured =
         willSendReply(automation.publicReply) ||
         willSendReply(automation.privateReply)
 
       if (anythingDispatched || !anythingConfigured) {
-        await commentAutomationService.insertDedup(dedup)
+        if (!dedupClaimed) {
+          await commentAutomationService.insertDedup(dedup)
+        }
+      } else if (dedupClaimed) {
+        // Claimed up front but nothing went out: give the slot back, exactly
+        // as the old insert-after-dispatch never wrote one.
+        await commentAutomationService.deleteDedup(dedup)
+      }
+
+      if (privateOutcome?.recordInInbox) {
+        try {
+          await privateOutcome.recordInInbox()
+        } catch (err) {
+          logger.warn(
+            { err, automationId: automation.id, commentId },
+            "Failed to record the private reply in the inbox",
+          )
+        }
       }
 
       // Replies has the same scope as the delivery columns beside it, and that
@@ -808,6 +896,20 @@ export async function processCommentAutomation(
         { err, automationId: automation.id, commentId, workspaceId },
         "Failed to process comment automation",
       )
+      if (dedupClaimed && !anythingDispatched) {
+        await commentAutomationService
+          .deleteDedup({
+            automationId: automation.id,
+            contactId: contactInbox.contactId,
+            postId,
+          })
+          .catch((releaseErr: unknown) =>
+            logger.warn(
+              { err: releaseErr, automationId: automation.id, commentId },
+              "Failed to release the reply-once slot after a failed run",
+            ),
+          )
+      }
       await recordConfiguredBranchFailures({
         workspaceId,
         automationId: automation.id,
@@ -844,6 +946,7 @@ export function resolvePrivateReplyBlockedReason(props: {
   channelType: CommentAutomationChannelType
   createdTime: number
   delay: number
+  isLive?: boolean
 }): { logReason: string; errorDetail: string } | null {
   if (!willSendReply(props.privateReply)) {
     return null
@@ -862,9 +965,10 @@ export function resolvePrivateReplyBlockedReason(props: {
       channelType: props.channelType,
       createdTime: props.createdTime,
       delay: props.delay,
+      isLive: props.isLive,
     })
   ) {
-    const window = privateReplyWindowLabel(props.channelType)
+    const window = privateReplyWindowLabel(props.channelType, props.isLive)
     return {
       logReason: `comment older than ${window}`,
       errorDetail: `Private reply not sent: the comment is outside ${window}`,
@@ -891,13 +995,14 @@ function tracksTagsForComment(
     commentId: string
     parentId: string | undefined
     message: string | undefined
+    isLive: boolean
   },
 ): boolean {
-  const { postId, commentId, parentId, message } = comment
+  const { postId, commentId, parentId, message, isLive } = comment
   return (
     automation.options.trackUserTags &&
     commentAutomationService.isWithinSchedule(automation, timezone) &&
-    matchPost(automation.post, postId) &&
+    matchPost(automation.post, postId, isLive) &&
     !(
       automation.options.ignoreCommentReplies &&
       isCommentReply(parentId, postId, commentId)

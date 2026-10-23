@@ -1,4 +1,8 @@
-import type { CommentReply } from "@chatbotx.io/database/partials"
+import type {
+  CommentReply,
+  ConversationQuickReplyChallenge,
+  ConversationStepChallenge,
+} from "@chatbotx.io/database/partials"
 import type { AdsConversionChannel } from "@chatbotx.io/database/schema"
 import type {
   ContactInboxModel,
@@ -8,17 +12,22 @@ import type {
   FlowActionTargetType,
   MetadataPayload,
 } from "@chatbotx.io/flow-config"
-import type { CommentAnchor, OutgoingMessage } from "@chatbotx.io/sdk"
+import type {
+  ChannelAudienceEventJobData,
+  CommentAnchor,
+  OutgoingMessage,
+} from "@chatbotx.io/sdk"
 import { type JobsOptions, Queue } from "bullmq"
 import {
   defaultJobOptions,
   fakeQueue,
-  getRedisConnection,
+  getQueueConnection,
   isNoRedisEnv,
 } from "../../lib/connection"
 import { queueNames } from "../../lib/types"
 import type { BotResponseTrackingContext } from "../types"
 
+export * from "./ai-handover-bulk-job-ids"
 export * from "./coexist-job-ids"
 export * from "./contact-scan-job-ids"
 
@@ -44,6 +53,7 @@ export const IntegrationJobAction = {
   runChallenge: "runChallenge",
   resumeWait: "resumeWait",
   resumeFollowUp: "resumeFollowUp",
+  resumeQuickReplyFollowUp: "resumeQuickReplyFollowUp",
   blockContact: "blockContact",
   unblockContact: "unblockContact",
   assignConversation: "assignConversation",
@@ -55,6 +65,7 @@ export const IntegrationJobAction = {
   coexistInstagramSync: "coexistInstagramSync",
   coexistAttachmentDownload: "coexistAttachmentDownload",
   adsAutomaticEvent: "adsAutomaticEvent",
+  whatsappIdentityChange: "whatsappIdentityChange",
   whatsappCallEvent: "whatsappCallEvent",
   whatsappCallRecordingReady: "whatsappCallRecordingReady",
   whatsappCallNativeRecordingFetch: "whatsappCallNativeRecordingFetch",
@@ -71,8 +82,17 @@ export const IntegrationJobAction = {
   evaluateConversionTrigger: "evaluateConversionTrigger",
   sendConversionEvent: "sendConversionEvent",
   sendMetaCapiEvent: "sendMetaCapiEvent",
+  sendGoogleAdsConversion: "sendGoogleAdsConversion",
   syncRetargetAudience: "syncRetargetAudience",
   contactScan: "contactScan",
+  // Conversation routing (thread control).
+  threadControlEvent: "threadControlEvent",
+  threadControlAction: "threadControlAction",
+  aiHandoverTakeBack: "aiHandoverTakeBack",
+  aiHandoverBulkToggle: "aiHandoverBulkToggle",
+  // Follow/unfollow, group join/leave, group messages and the bot's own group
+  // membership — audience events that are not 1:1 messages (leaderboard scoring).
+  channelAudienceEvent: "channelAudienceEvent",
 } as const
 
 type IntegrationJobActionValue =
@@ -97,6 +117,25 @@ export type CommentTag = {
   name?: string
 }
 
+/**
+ * BullMQ priority for every send a missed-comment replay makes (replies, DMs,
+ * flows, AI replies, hide/unhide) on the shared `chat`, `integration` and
+ * `aiAgent` queues. Jobs without a priority run before any prioritized job, so
+ * a replay of thousands of comments always yields to live customer traffic.
+ * The replay itself runs on the `low` queue (`LowJobAction.replayMissedComment`).
+ */
+export const MISSED_COMMENT_REPLAY_PRIORITY = 10
+
+/**
+ * BullMQ priority for every send a broadcast makes on the shared `chat` and
+ * `integration` queues — its first job per recipient and each flow step after
+ * it. Unprioritized live traffic (comment replies, inbox messages) runs first,
+ * so a broadcast to thousands of contacts no longer holds a comment reply
+ * behind it. Kept ahead of `MISSED_COMMENT_REPLAY_PRIORITY`: a broadcast is a
+ * scheduled send, a replay is catch-up work.
+ */
+export const BROADCAST_SEND_PRIORITY = 5
+
 export type IntegrationJobReceiveComment = {
   type: typeof IntegrationJobAction.incomingComment
   data: {
@@ -117,10 +156,31 @@ export type IntegrationJobReceiveComment = {
        * own storage before it ever reaches `Contact.avatar`.
        */
       fromAvatarUrl?: string
+      /**
+       * Video attached to the comment, when the channel's webhook pushes its
+       * URL on the payload (Messenger `feed` `value.video`). The Graph
+       * attachment lookup only re-hosts photos and GIFs, so this is the video's
+       * only source — `receiveComment` re-uploads it to the tenant's storage.
+       */
+      videoUrl?: string
       message?: string
       tags?: CommentTag[]
       createdTime: number
+      /**
+       * The channel itself said this is a comment on a live broadcast —
+       * Instagram's `live_comments` webhook field. Facebook has no such
+       * field on `feed`, so its comments arrive without this and
+       * `receiveComment` resolves live-ness from the comment's
+       * `live_broadcast_timestamp`.
+       */
+      isLive?: boolean
     }
+    /**
+     * Set by "process missed comments": the comment is replayed from the
+     * channel's comment list rather than a webhook, and only this automation
+     * runs on it. Absent on every webhook-driven comment.
+     */
+    replay?: { automationId: string }
   }
 }
 
@@ -164,6 +224,11 @@ export type IntegrationJobMessageReaction = {
   }
 }
 
+export type IntegrationJobChannelAudienceEvent = {
+  type: typeof IntegrationJobAction.channelAudienceEvent
+  data: ChannelAudienceEventJobData
+}
+
 export type IntegrationJobMessageStatus = {
   type: typeof IntegrationJobAction.messageStatus
   data: {
@@ -196,6 +261,9 @@ export type IntegrationJobRunFlowNode = {
     startFromStepId?: string
     /** Stable logical execution identity for asynchronous flow continuations. */
     flowExecutionKey?: string
+    /** Immutable inbound source identity, forwarded across every continuation. */
+    triggerMessageId?: string
+    triggerMessageCreatedAt?: Date
     /**
      * Set when this job resumes a button/quickReply's own multi-step chain
      * (one step per job) rather than a node's. Without it, resolving by
@@ -229,6 +297,15 @@ export type IntegrationJobRunFlowNode = {
     isBulkBroadcast?: boolean
     appointmentId?: string
     sendFrom?: "inbox"
+    /**
+     * Positive identification of a flow run that reacts to a contact's inbound
+     * message (keyword / default-reply / AI / router flows, button and quick
+     * reply taps, challenge answers). Lets the Disable Bot step reopen the
+     * waiting-for-human window. Absent means false: broadcast, sequence,
+     * trigger, wait/smart-delay resumes and every unknown origin never set it,
+     * and continuations that stay in the same message-driven run forward it.
+     */
+    startedByContactMessage?: boolean
     origin?: "channel"
     /** See {@link CommentAnchor}. */
     commentAnchor?: CommentAnchor
@@ -319,23 +396,17 @@ export type IntegrationJobRunChallenge = {
     contactInboxId: string | ContactInboxModel
     messageId?: string
     messageCreatedAt?: Date
-    challenge: {
-      type: "step"
-      data: {
-        flowId: string
-        flowVersionId?: string
-        nodeId: string
-        stepId: string
-        attempts: number
-        lastAttemptAt: Date
-        appointmentId?: string
-      }
-    }
+    challenge: ConversationStepChallenge | ConversationQuickReplyChallenge
   }
 }
 
 export type IntegrationJobResumeFollowUp = {
   type: typeof IntegrationJobAction.resumeFollowUp
+  data: { smartDelayId: string }
+}
+
+export type IntegrationJobResumeQuickReplyFollowUp = {
+  type: typeof IntegrationJobAction.resumeQuickReplyFollowUp
   data: { smartDelayId: string }
 }
 
@@ -517,6 +588,39 @@ export type IntegrationJobWhatsappCallEvent = {
   }
 }
 
+export type WhatsappIdentityChange =
+  | {
+      kind: "userIdChanged"
+      previousUserId?: string
+      userId: string
+      previousParentUserId?: string
+      parentUserId?: string
+      previousPhone?: string
+      newPhone?: string
+    }
+  | {
+      kind: "phoneChanged"
+      previousPhone: string
+      newPhone: string
+      userId?: string
+    }
+
+export type WhatsappIdentityChangePayload = {
+  phoneNumberId: string
+  messageId: string
+  timestamp?: string
+  change: WhatsappIdentityChange
+}
+
+export type IntegrationJobWhatsappIdentityChange = {
+  type: typeof IntegrationJobAction.whatsappIdentityChange
+  data: {
+    integrationType: "whatsapp"
+    integrationIdentifier: string
+    payload: WhatsappIdentityChangePayload
+  }
+}
+
 /**
  * A call recording landed in object storage. The handler stamps it onto the
  * WhatsappCall row (by DB callId, never an external id), drops an audio message
@@ -667,6 +771,20 @@ export type AdsConversionJobSendConversionEvent = {
   }
 }
 
+/**
+ * `attempt` is the event's redrive generation (distinct from BullMQ's
+ * `attemptsMade`): a job only claims the event while it is still that
+ * generation, so a stale job can never double-send.
+ */
+export type IntegrationJobSendGoogleAdsConversion = {
+  type: typeof IntegrationJobAction.sendGoogleAdsConversion
+  data: {
+    googleAdsConversionEventId: string
+    workspaceId: string
+    attempt: number
+  }
+}
+
 export type IntegrationJobSendMetaCapiEvent = {
   type: typeof IntegrationJobAction.sendMetaCapiEvent
   data: {
@@ -771,6 +889,16 @@ export type IntegrationJobProcessCommentAutomation = {
     message?: string
     tags?: CommentTag[]
     createdTime: number
+    /**
+     * The comment was made on a live broadcast. Only `post.type: "live"`
+     * automations answer it; an `all` automation skips it (`matchPost`).
+     */
+    isLive?: boolean
+    /**
+     * Run this one automation only — a replayed missed comment must not fire
+     * every other active automation on the channel. Absent on webhook comments.
+     */
+    onlyAutomationId?: string
   }
 }
 
@@ -928,6 +1056,83 @@ export type IntegrationJobContactScan = {
   }
 }
 
+/**
+ * Runs one budgeted chunk of a Meta Business AI bulk (enable / disable for all
+ * customers) run. Only `runId`/`workspaceId` travel: the action, message and
+ * cursor are read off the claimed run row, so a stale or forged job cannot
+ * steer the engine.
+ */
+export type IntegrationJobAiHandoverBulkToggle = {
+  type: typeof IntegrationJobAction.aiHandoverBulkToggle
+  data: {
+    runId: string
+    workspaceId: string
+  }
+}
+
+/**
+ * One conversation-routing webhook item (handover, standby message or echo).
+ * The channel decides what `payload` means; the worker only forwards it.
+ * Same data shape as {@link IntegrationJobReceiveMessage}.
+ */
+export type IntegrationJobThreadControlEvent = {
+  type: typeof IntegrationJobAction.threadControlEvent
+  data: IntegrationJobReceiveMessage["data"]
+}
+
+/**
+ * Releases a thread this app owns (archive auto-release). `jobId` is
+ * `thread-release-<contactInboxId>-<updatedAtMs>`, so a re-archive of the same
+ * thread state collapses onto one job.
+ */
+export type IntegrationJobThreadControlAction = {
+  type: typeof IntegrationJobAction.threadControlAction
+  data: {
+    workspaceId: string
+    contactInboxId: string
+    /** The conversation the divider is written to (the archived one). */
+    conversationId: string
+    action: "release"
+    /**
+     * `threadControlUpdatedAt` (ISO) of the owned thread when the job was
+     * enqueued; the release is skipped when it has advanced since. `null` =
+     * the row carried none; absent = a job queued before this field existed
+     * (released on the owned check alone).
+     */
+    threadControlUpdatedAt?: string | null
+  }
+}
+
+/**
+ * Takes a thread back from the AI agent when a customer message reached the
+ * AI-owned thread while the workspace's AI automation is not running, then
+ * replays that message so the bot answers it. One job per stored message
+ * (`ai-takeback-<messageId>`): redeliveries and retries collapse onto it.
+ */
+export type IntegrationJobAiHandoverTakeBack = {
+  type: typeof IntegrationJobAction.aiHandoverTakeBack
+  data: {
+    workspaceId: string
+    /** The Page whose AI hand-over settings decide whether the take-back applies. */
+    inboxId: string
+    integrationType: string
+    integrationIdentifier: string
+    contactInboxId: string
+    conversationId: string
+    /** The stored standby copy of the customer's message. */
+    messageId: string
+    /** The channel's AI-agent app id, to recognise a thread taken from it. */
+    aiAgentAppId: string
+    /**
+     * `threadControlUpdatedAt` (ISO) of the thread when this was queued; the
+     * take only applies while it is still that version. `null` = it carried none.
+     */
+    threadControlUpdatedAt: string | null
+    /** The same message as a regular (owner) delivery, replayed after the take. */
+    ownerReplayPayload: unknown
+  }
+}
+
 export type IntegrationJobData =
   | IntegrationJobReceiveMessage
   | IntegrationJobReceiveComment
@@ -946,6 +1151,7 @@ export type IntegrationJobData =
   | IntegrationJobRunChallenge
   | IntegrationJobResumeWait
   | IntegrationJobResumeFollowUp
+  | IntegrationJobResumeQuickReplyFollowUp
   | IntegrationJobCreateMessage
   | IntegrationJobProcessAutomatedResponse
   | IntegrationJobSendSequenceFlow
@@ -955,6 +1161,7 @@ export type IntegrationJobData =
   | IntegrationJobCoexistInstagramSync
   | IntegrationJobCoexistAttachmentDownload
   | IntegrationJobAdsAutomaticEvent
+  | IntegrationJobWhatsappIdentityChange
   | IntegrationJobWhatsappCallEvent
   | IntegrationJobWhatsappCallRecordingReady
   | IntegrationJobWhatsappCallNativeRecordingFetch
@@ -970,15 +1177,21 @@ export type IntegrationJobData =
   | IntegrationJobCaptureTemplateFlowResponse
   | AdsConversionJobSendConversionEvent
   | IntegrationJobSendMetaCapiEvent
+  | IntegrationJobSendGoogleAdsConversion
   | AdsConversionJobEvaluateTemplateSent
   | AdsConversionJobEvaluateConversionTrigger
   | AdsConversionJobSyncRetargetAudience
   | IntegrationJobContactScan
+  | IntegrationJobThreadControlEvent
+  | IntegrationJobThreadControlAction
+  | IntegrationJobAiHandoverTakeBack
+  | IntegrationJobAiHandoverBulkToggle
+  | IntegrationJobChannelAudienceEvent
 
 export const integrationQueue = isNoRedisEnv()
   ? fakeQueue
   : new Queue<IntegrationJobData>(queueNames.enum.integration, {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.integration),
       defaultJobOptions,
     })
 
@@ -1022,6 +1235,7 @@ const jobOptionsByAction: Partial<
     priority: CAPI_EVENT_PRIORITY,
   },
   [IntegrationJobAction.sendMetaCapiEvent]: adsConversionRetryOptions,
+  [IntegrationJobAction.sendGoogleAdsConversion]: adsConversionRetryOptions,
   [IntegrationJobAction.syncRetargetAudience]: adsConversionRetryOptions,
   [IntegrationJobAction.whatsappCallNativeRecordingFetch]:
     NATIVE_CALL_CAPTURE_RETRY_OPTIONS,

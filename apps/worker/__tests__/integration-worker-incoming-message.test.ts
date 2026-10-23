@@ -1,25 +1,21 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
-// ---------------------------------------------------------------------------
 // Job-level ordering proof for the `incomingMessage` case in
-// `src/integration/worker.ts` (fix round 1 of Task 2 of
-// .superpowers/sdd/2026-08-31-messenger-ctm-profile-backfill): the
-// receiveMessage-level assertion in received-message.test.ts is a fine
-// proxy, but the brief's actual bullet asks for the refresh's resolution to
-// be proven ordered before the automated-response dispatch AT THE JOB
-// LEVEL, i.e. through the real `worker.ts` processor. Unlike
-// integration-worker-boot.test.ts, this file does NOT mock
-// `./handlers/received-message` — it boots the REAL `receiveMessage`
-// pipeline (mocking only its DB/Redis/channel-registry dependencies, same
-// convention as received-message.test.ts) so the real post-save
-// `refreshExistingContactProfile` call runs, while `resolveIncomingTextRouting`
-// and `automatedResponseService.enqueue` (the dispatch this bullet cares
-// about) stay mocked and observable.
+// `src/integration/worker.ts`: the receiveMessage-level assertion in
+// received-message.test.ts is a fine proxy, but this proves the profile refresh
+// resolves before automated-response dispatch through the real worker
+// processor. Unlike integration-worker-boot.test.ts, this file does not mock
+// `./handlers/received-message`; it boots the real receiveMessage pipeline
+// while mocking only DB, Redis, and channel-registry dependencies.
 // ---------------------------------------------------------------------------
 
 type CapturedWorker = {
   queueName: unknown
-  processor: (job: { data: unknown }) => Promise<unknown>
+  processor: (job: {
+    data: unknown
+    attemptsMade?: number
+    stalledCounter?: number
+  }) => Promise<unknown>
 }
 
 const {
@@ -45,6 +41,11 @@ const {
   mockConversationFindOrCreate,
   mockGetWhatsappCallPermissionReply,
   mockRecordCallPermissionReply,
+  mockRecordInboundDelivery,
+  mockReceiveThreadControlEvent,
+  mockReleaseOwnedThread,
+  mockDistributedLockRunExclusive,
+  mockPublishToWorkspaceParty,
   workerState,
 } = vi.hoisted(() => {
   const mockDbSet = vi.fn()
@@ -97,6 +98,15 @@ const {
     mockConversationFindOrCreate: vi.fn(),
     mockGetWhatsappCallPermissionReply: vi.fn(),
     mockRecordCallPermissionReply: vi.fn().mockResolvedValue(undefined),
+    mockRecordInboundDelivery: vi.fn().mockResolvedValue(null),
+    mockReceiveThreadControlEvent: vi.fn().mockResolvedValue(undefined),
+    mockReleaseOwnedThread: vi.fn().mockResolvedValue(undefined),
+    // Pass-through by default: matches every other test file's
+    // `distributedLock` convention (see e.g. `drip-handler.test.ts`).
+    mockDistributedLockRunExclusive: vi.fn(
+      async ({ fn }: { fn: () => Promise<unknown> }) => await fn(),
+    ),
+    mockPublishToWorkspaceParty: vi.fn(),
     workerState: { capturedWorkers: [] as CapturedWorker[] },
   }
 })
@@ -139,7 +149,8 @@ vi.mock("../src/integration/job-context", () => ({
   ) => callback(),
 }))
 
-vi.mock("../src/integration/routing", () => ({
+vi.mock("../src/integration/routing", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/integration/routing")>()),
   resolveIncomingTextRouting: mockResolveIncomingTextRouting,
 }))
 
@@ -158,6 +169,21 @@ vi.mock("../src/integration/handlers/ads-conversion/registry", () => ({
 }))
 vi.mock("../src/integration/handlers/automated-response", () => ({
   processAutomatedResponse: vi.fn(),
+}))
+// Pulls the variable engine (and with it modules this test's partial worker-config mock cannot serve).
+vi.mock(
+  "../src/integration/handlers/google-ads/resolve-matching-templates",
+  () => ({
+    resolveMatchingTemplates: vi.fn(),
+  }),
+)
+vi.mock("../src/integration/handlers/leaderboard-sources", () => ({
+  awardCommentLeaderboard: vi.fn(),
+  awardInboundMessageLeaderboard: vi.fn(),
+  awardReactionLeaderboard: vi.fn(),
+}))
+vi.mock("../src/integration/handlers/channel-audience-event", () => ({
+  processChannelAudienceEvent: vi.fn(),
 }))
 vi.mock("../src/integration/handlers/challenge", () => ({
   runChallenge: vi.fn(),
@@ -236,6 +262,16 @@ vi.mock("../src/integration/handlers/template-flow-response", () => ({
 vi.mock("../src/integration/handlers/wait-resume", () => ({
   runWaitResume: vi.fn(),
 }))
+vi.mock("../src/integration/handlers/thread-control", () => ({
+  receiveThreadControlEvent: mockReceiveThreadControlEvent,
+  releaseOwnedThread: mockReleaseOwnedThread,
+  // Real logic (pure helper): a thrown-error retry bumps attemptsMade, a
+  // stalled-job recovery bumps stalledCounter.
+  isThreadControlJobReprocess: (job: {
+    attemptsMade?: number
+    stalledCounter?: number
+  }) => (job.attemptsMade ?? 0) > 0 || (job.stalledCounter ?? 0) > 0,
+}))
 
 // ---------------------------------------------------------------------------
 // receiveMessage's own dependencies — deliberately NOT mocking
@@ -256,6 +292,7 @@ vi.mock("@chatbotx.io/automated-response", () => ({
   automatedResponseService: {
     enqueue: mockAutomatedResponseEnqueue,
     enqueueFlowAction: vi.fn().mockResolvedValue(undefined),
+    enqueueHandoffReentry: vi.fn().mockResolvedValue(undefined),
   },
 }))
 
@@ -271,22 +308,27 @@ vi.mock("@chatbotx.io/database/client", () => ({
   isUniqueViolationError: mockIsUniqueViolationError,
 }))
 
-vi.mock("@chatbotx.io/database/schema", () => ({
-  CONTACT_INBOX_SOURCE_ID_KEY: "ContactInbox_inboxId_sourceId_key",
-  CONTACT_INBOX_SOURCE_USER_ID_KEY: "ContactInbox_inboxId_sourceUserId_key",
-  contactInboxModel: {
-    id: "id",
-    lastMessageAt: "lastMessageAt",
-    lastIncomingMessageAt: "lastIncomingMessageAt",
-  },
-  contactModel: { id: "id" },
-  conversationModel: {
-    id: "id",
-    lastActivityAt: "lastActivityAt",
-    sourceId: "sourceId",
-    workspaceId: "workspaceId",
-  },
-}))
+vi.mock("@chatbotx.io/database/schema", () => {
+  const schema = { pick: vi.fn(() => schema) }
+  return {
+    createSelectSchema: vi.fn(() => schema),
+    integrationWebchatModel: {},
+    CONTACT_INBOX_SOURCE_ID_KEY: "ContactInbox_inboxId_sourceId_key",
+    CONTACT_INBOX_SOURCE_USER_ID_KEY: "ContactInbox_inboxId_sourceUserId_key",
+    contactInboxModel: {
+      id: "id",
+      lastMessageAt: "lastMessageAt",
+      lastIncomingMessageAt: "lastIncomingMessageAt",
+    },
+    contactModel: { id: "id" },
+    conversationModel: {
+      id: "id",
+      lastActivityAt: "lastActivityAt",
+      sourceId: "sourceId",
+      workspaceId: "workspaceId",
+    },
+  }
+})
 
 // Mirror of the real capability table
 // (packages/business/src/contact/profile-refresh/rules.ts), matching the
@@ -309,8 +351,34 @@ const CONTACT_PROFILE_NAME_CAPABILITIES: Record<
 
 vi.mock("@chatbotx.io/business", () => ({
   appointmentService: { cancelAppointmentByToken: vi.fn() },
-  broadcastToWorkspaceParty: vi.fn(),
-  publishToWorkspaceParty: vi.fn(),
+  // Pass-through: the real resolver signs proxy URLs for the realtime payload.
+  messageService: {
+    withResolvedAttachmentUrls: vi.fn(async (message: unknown) => message),
+  },
+  publishWorkspaceRealtimeEvent: vi.fn(),
+  queueWorkspaceRealtimeEvent: mockPublishToWorkspaceParty,
+  queueMessageCreatedEvent: (
+    workspaceId: string,
+    data: unknown,
+    conversation: {
+      assignedInboxTeamId?: string | null
+      assignedUserId?: string | null
+      inboxId?: string | null
+    },
+  ) =>
+    mockPublishToWorkspaceParty(workspaceId, {
+      eventType: "messageCreated",
+      data,
+      route: {
+        assignedTeamIds: conversation.assignedInboxTeamId
+          ? [conversation.assignedInboxTeamId]
+          : [],
+        assignedUserIds: conversation.assignedUserId
+          ? [conversation.assignedUserId]
+          : [],
+        ...(conversation.inboxId ? { inboxId: conversation.inboxId } : {}),
+      },
+    }),
   buildContext: mockBuildContext,
   resolveTenantSettings: mockresolveTenantSettings,
   updateContactFromMessage: mockUpdateContactFromMessage,
@@ -325,6 +393,23 @@ vi.mock("@chatbotx.io/business", () => ({
   contactProfileRefreshService: { refresh: mockContactProfileRefresh },
   whatsappCallPermissionService: { recordReply: mockRecordCallPermissionReply },
   recordProfileRefreshFailure: vi.fn().mockResolvedValue(undefined),
+  syncExistingContactIdentity: async (props: {
+    contact: unknown
+    contactInbox: unknown
+    incomingContact: unknown
+    matchedBy: string
+  }) => {
+    const sync = await mockSyncScopedIdentity({
+      contactInbox: props.contactInbox,
+      incomingContact: props.incomingContact,
+      matchedBy: props.matchedBy,
+    })
+    return {
+      contactInbox: sync.contactInbox,
+      contact: props.contact,
+      learnedPrimaryIdentity: sync.learnedPrimaryIdentity,
+    }
+  },
   contactInboxService: {
     updateTracking: vi
       .fn()
@@ -364,7 +449,28 @@ vi.mock("@chatbotx.io/business", () => ({
   messageCleanupService: {
     cancelByInboxSource: vi.fn().mockResolvedValue(undefined),
   },
+  threadControlService: {
+    recordInboundDelivery: mockRecordInboundDelivery,
+    promoteStandbyDelivery: vi.fn().mockResolvedValue(false),
+  },
+  THREAD_CONTROL_DELIVERY_KEY: "threadControlDelivery",
+  THREAD_CONTROL_STANDBY_DELIVERY: "standby",
 }))
+
+const lockAcquisitionError = (key: string) =>
+  Object.assign(new Error("lock acquisition timed out"), {
+    name: "LockAcquisitionError",
+    code: "LOCK_ACQUISITION_FAILED",
+    key,
+  })
+
+vi.mock("@chatbotx.io/redis", async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    distributedLock: { runExclusive: mockDistributedLockRunExclusive },
+  }
+})
 
 vi.mock("@chatbotx.io/event-bus", () => ({
   emit: vi.fn().mockResolvedValue(undefined),
@@ -375,24 +481,33 @@ vi.mock("@chatbotx.io/events", () => ({
   setWebhookExecutionContext: vi.fn(),
 }))
 
-vi.mock("@chatbotx.io/partysocket-config", () => ({
+vi.mock("@chatbotx.io/realtime-protocol", () => ({
   RealtimeEventType: { messageCreated: "messageCreated" },
+  routeForConversation: vi.fn(),
 }))
 
-vi.mock("@chatbotx.io/sdk", () => ({
+vi.mock("@chatbotx.io/sdk", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@chatbotx.io/sdk")>()),
   contentTypes: { enum: { text: "text", location: "location" } },
   echoOrigins: { enum: { firstParty: "firstParty", thirdParty: "thirdParty" } },
-  resolveWithSourceUserIdFallback: async <T>(
+  resolveSourceScopedIdentityMatch: async <T>(
     identity: { sourceId: string; sourceUserId?: string | null },
     lookup: (
       where: { sourceId: string } | { sourceUserId: string },
     ) => Promise<T | undefined>,
-  ): Promise<T | undefined> => {
+  ) => {
     const bySourceId = await lookup({ sourceId: identity.sourceId })
     if (bySourceId || !identity.sourceUserId) {
       return bySourceId
+        ? { row: bySourceId, matchedBy: "sourceId" as const }
+        : undefined
     }
-    return await lookup({ sourceUserId: identity.sourceUserId })
+    const bySourceUserId = await lookup({
+      sourceUserId: identity.sourceUserId,
+    })
+    return bySourceUserId
+      ? { row: bySourceUserId, matchedBy: "sourceUserId" as const }
+      : undefined
   },
   messageTypes: { enum: { incoming: "incoming", outgoing: "outgoing" } },
   SdkException: class SdkException extends Error {},
@@ -430,6 +545,7 @@ vi.mock("@chatbotx.io/worker-config", () => ({
     removeOnFail: { count: 5000 },
   },
   getRedisConnection: () => ({}),
+  getQueueConnection: () => ({}),
   closeHeavyQueueEvents: vi.fn().mockResolvedValue(undefined),
   closeIntegrationQueueEvents: vi.fn().mockResolvedValue(undefined),
   getHeavyJobCompletionWaitTimeoutMs: vi.fn().mockReturnValue(10 * 60 * 1000),
@@ -442,6 +558,8 @@ vi.mock("@chatbotx.io/worker-config", () => ({
     runFlowPostback: "runFlowPostback",
     runFlowQuickReply: "runFlowQuickReply",
     runRef: "runRef",
+    threadControlEvent: "threadControlEvent",
+    threadControlAction: "threadControlAction",
   },
   integrationQueue: {
     add: vi.fn().mockResolvedValue(undefined),
@@ -474,7 +592,7 @@ vi.mock("../src/services/integrations", () => ({
 // ---------------------------------------------------------------------------
 
 await import("../src/integration/worker")
-// The integration worker process now boots three BullMQ workers: the shared
+// The integration worker process boots three BullMQ workers: the shared
 // `integration` queue, the rate-limited `callTranscription` queue, and the
 // dedicated `whatsappVoipSignaling` queue.
 await vi.waitFor(() => {
@@ -560,6 +678,11 @@ describe("integration worker — incomingMessage case: profile refresh vs. autom
     mockConversationFindOrCreate.mockReset()
     mockGetWhatsappCallPermissionReply.mockReset()
     mockRecordCallPermissionReply.mockClear()
+    mockDistributedLockRunExclusive.mockReset()
+    mockDistributedLockRunExclusive.mockImplementation(
+      async ({ fn }: { fn: () => Promise<unknown> }) => await fn(),
+    )
+    mockPublishToWorkspaceParty.mockClear()
 
     vi.mocked(
       integrationService.identifyInboxAndIntegrationAuthFromIdentifier,
@@ -680,6 +803,68 @@ describe("integration worker — incomingMessage case: profile refresh vs. autom
     expect(mockRecordCallPermissionReply).not.toHaveBeenCalled()
   })
 
+  test("a Click-to-Messenger ad tap whose text is only in referral.text is stored as text and dispatched to automations", async () => {
+    const adText = "Register to visit the project"
+    const { integration: messengerIntegration } = await import(
+      "@chatbotx.io/integration-messenger"
+    )
+    // Parse with the REAL Messenger handler so the channel payload shape,
+    // not a hand-built parsed message, is what reaches the worker.
+    mockRunChannelHandler.mockImplementation(
+      (domain: string, action: string, props: { data: unknown }) => {
+        if (action === "getProfile") {
+          return Promise.resolve({ firstName: "Jane", lastName: "Doe" })
+        }
+        return messengerIntegration.runChannelHandler(domain, action, {
+          ...props,
+          ctx: { auth: { metadata: { pageId: "page-1" } } },
+        } as never)
+      },
+    )
+    const integrationWorker = findIntegrationWorker()
+
+    await integrationWorker?.processor({
+      data: {
+        type: "incomingMessage",
+        data: {
+          integrationType: "messenger",
+          integrationIdentifier: "inbox-1",
+          payload: {
+            object: "page",
+            entry: [
+              {
+                id: "page-1",
+                time: 1,
+                messaging: [
+                  {
+                    sender: { id: "psid-123" },
+                    recipient: { id: "page-1" },
+                    timestamp: 1,
+                    message: {
+                      mid: "msg-src-1",
+                      referral: {
+                        ad_id: "ad-1",
+                        source: "ADS",
+                        type: "OPEN_THREAD",
+                        text: adText,
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    })
+
+    expect(mockCreateOrUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ text: adText }),
+    )
+    expect(mockResolveIncomingTextRouting).toHaveBeenCalled()
+    expect(mockAutomatedResponseEnqueue).toHaveBeenCalled()
+  })
+
   test("a contact's call permission reply is recorded and never dispatched to automations", async () => {
     // Keyed on the message content, not the channel — the harness channel is fine.
     mockGetWhatsappCallPermissionReply.mockReturnValue({
@@ -733,5 +918,309 @@ describe("integration worker — incomingMessage case: profile refresh vs. autom
     expect(mockRecordCallPermissionReply).toHaveBeenCalledWith(
       expect.objectContaining({ response: "reject", isPermanent: false }),
     )
+  })
+
+  // ---------------------------------------------------------------------
+  // Step 3a regression: `saveAndBroadcastMessage` serializes its insert →
+  // broadcast critical section per conversation via `distributedLock`, and
+  // degrades to unlocked processing (never drops the message) when the
+  // lock cannot be acquired.
+  // ---------------------------------------------------------------------
+
+  test("wraps message persistence in the per-conversation ingress lock", async () => {
+    const [integrationWorker] = workerState.capturedWorkers
+
+    await integrationWorker?.processor({
+      data: {
+        type: "incomingMessage",
+        data: {
+          integrationType: "messenger",
+          integrationIdentifier: "inbox-1",
+          payload: {},
+        },
+      },
+    })
+
+    expect(mockDistributedLockRunExclusive).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "ingress:conv:conv-1",
+        timeoutInSeconds: 30,
+        retryTimeoutInSeconds: 10,
+        fn: expect.any(Function),
+      }),
+    )
+    // The insert and the realtime broadcast both happen inside the locked
+    // section: the default pass-through mock only calls `mockCreateOrUpdate`
+    // and `mockPublishToWorkspaceParty` via its `fn`, so their having run
+    // at all proves they executed inside `runExclusive`, not around it.
+    expect(mockCreateOrUpdate).toHaveBeenCalledOnce()
+    expect(mockPublishToWorkspaceParty).toHaveBeenCalledOnce()
+    expect(
+      mockDistributedLockRunExclusive.mock.invocationCallOrder[0],
+    ).toBeLessThan(mockCreateOrUpdate.mock.invocationCallOrder[0])
+  })
+
+  test("degrades to unlocked processing and still persists + broadcasts exactly once when the lock cannot be acquired", async () => {
+    mockDistributedLockRunExclusive.mockRejectedValueOnce(
+      lockAcquisitionError("ingress:conv:conv-1"),
+    )
+    const [integrationWorker] = workerState.capturedWorkers
+
+    await integrationWorker?.processor({
+      data: {
+        type: "incomingMessage",
+        data: {
+          integrationType: "messenger",
+          integrationIdentifier: "inbox-1",
+          payload: {},
+        },
+      },
+    })
+
+    expect(mockDistributedLockRunExclusive).toHaveBeenCalledOnce()
+    expect(mockCreateOrUpdate).toHaveBeenCalledOnce()
+    expect(mockPublishToWorkspaceParty).toHaveBeenCalledOnce()
+  })
+
+  test("propagates a persist() failure instead of re-running unlocked, even though it surfaces through the same runExclusive rejection path", async () => {
+    // Regression: the lock-degrade catch must only degrade on an actual
+    // lock-acquisition failure. A failure inside `fn` itself (DB error,
+    // conflict, etc.) after the lock was already held looks identical to a
+    // rejected `runExclusive` from the call site's perspective — without the
+    // isLockAcquisitionError guard, this would silently retry persist()
+    // unlocked and duplicate the insert/broadcast/notification/event side
+    // effects instead of letting BullMQ retry the job.
+    const persistError = new Error("db write failed")
+    mockCreateOrUpdate.mockRejectedValueOnce(persistError)
+    const [integrationWorker] = workerState.capturedWorkers
+
+    await expect(
+      integrationWorker?.processor({
+        data: {
+          type: "incomingMessage",
+          data: {
+            integrationType: "messenger",
+            integrationIdentifier: "inbox-1",
+            payload: {},
+          },
+        },
+      }),
+    ).rejects.toThrow(persistError)
+
+    expect(mockCreateOrUpdate).toHaveBeenCalledOnce()
+    expect(mockPublishToWorkspaceParty).not.toHaveBeenCalled()
+  })
+
+  test("propagates a nested repository lock failure without broadcasting", async () => {
+    const innerLockError = lockAcquisitionError("msg:upsert:conv-1:source-1")
+    mockCreateOrUpdate.mockRejectedValueOnce(innerLockError)
+    const [integrationWorker] = workerState.capturedWorkers
+
+    await expect(
+      integrationWorker?.processor({
+        data: {
+          type: "incomingMessage",
+          data: {
+            integrationType: "messenger",
+            integrationIdentifier: "inbox-1",
+            payload: {},
+          },
+        },
+      }),
+    ).rejects.toBe(innerLockError)
+
+    expect(mockDistributedLockRunExclusive).toHaveBeenCalledOnce()
+    expect(mockCreateOrUpdate).toHaveBeenCalledOnce()
+    expect(mockPublishToWorkspaceParty).not.toHaveBeenCalled()
+  })
+})
+
+describe("integration worker — conversation routing (thread control)", () => {
+  const parsedMessage = (threadControl?: {
+    delivery: "owner" | "standby"
+  }) => ({
+    message: {
+      sourceId: "wamid.1",
+      messageType: "incoming",
+      text: "hello",
+      contentType: "text",
+      contentAttributes: {},
+      attachments: [],
+    },
+    contact: { sourceId: "psid-123" },
+    postbackAction: null,
+    quickReplyAction: null,
+    ref: null,
+    ...(threadControl ? { threadControl } : {}),
+  })
+
+  const runJob = (data: { type: string; data: unknown }, attemptsMade = 0) =>
+    findIntegrationWorker().processor({ data, attemptsMade })
+
+  const incomingJob = {
+    type: "incomingMessage",
+    data: {
+      integrationType: "messenger",
+      integrationIdentifier: "inbox-1",
+      payload: {},
+    },
+  }
+
+  beforeEach(() => {
+    mockRunChannelHandler.mockReset()
+    mockResolveIncomingTextRouting.mockReset()
+    mockAutomatedResponseEnqueue.mockClear()
+    mockRecordInboundDelivery.mockClear()
+    mockReceiveThreadControlEvent.mockClear()
+    mockReleaseOwnedThread.mockClear()
+    mockGetWhatsappCallPermissionReply.mockReset()
+    mockRecordCallPermissionReply.mockClear()
+    mockCreateOrUpdate.mockResolvedValue({
+      message: fakeCreatedMessage,
+      isNew: true,
+    })
+    mockFindContactInbox.mockResolvedValue({
+      ...fakeContactInbox,
+      contact: { ...fakeContact, firstName: "Named" },
+    })
+    mockResolveIncomingTextRouting.mockResolvedValue({
+      type: "automatedResponse",
+      conversation: fakeConversation,
+    })
+  })
+
+  test("T-5: a standby delivery is stored but never reaches routing or keyword automation", async () => {
+    mockRunChannelHandler.mockResolvedValue(
+      parsedMessage({ delivery: "standby" }),
+    )
+
+    await runJob(incomingJob)
+
+    expect(mockCreateOrUpdate).toHaveBeenCalled()
+    expect(mockRecordInboundDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({ delivery: "standby" }),
+    )
+    expect(mockResolveIncomingTextRouting).not.toHaveBeenCalled()
+    expect(mockAutomatedResponseEnqueue).not.toHaveBeenCalled()
+  })
+
+  test("a standby delivery with no persistable message still records ownership", async () => {
+    // e.g. a Messenger standby postback without a message id: message is null,
+    // but the standby still proves another app owns the thread.
+    mockRunChannelHandler.mockResolvedValue({
+      ...parsedMessage({ delivery: "standby" }),
+      message: null,
+    })
+
+    await runJob(incomingJob)
+
+    expect(mockCreateOrUpdate).not.toHaveBeenCalled()
+    expect(mockRecordInboundDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({ delivery: "standby" }),
+    )
+  })
+
+  test("a call-permission answer on a standby delivery is still recorded, and nothing is routed", async () => {
+    mockGetWhatsappCallPermissionReply.mockReturnValue({
+      type: "whatsapp_call_permission_reply",
+      response: "accept",
+      isPermanent: true,
+    })
+    mockRunChannelHandler.mockResolvedValue(
+      parsedMessage({ delivery: "standby" }),
+    )
+
+    await runJob(incomingJob)
+
+    expect(mockRecordCallPermissionReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactInboxId: "ci-1",
+        response: "accept",
+        isPermanent: true,
+      }),
+    )
+    expect(mockResolveIncomingTextRouting).not.toHaveBeenCalled()
+    expect(mockAutomatedResponseEnqueue).not.toHaveBeenCalled()
+  })
+
+  test("T-1: an owner delivery is routed to automation exactly like today", async () => {
+    mockRunChannelHandler.mockResolvedValue(
+      parsedMessage({ delivery: "owner" }),
+    )
+
+    await runJob(incomingJob)
+
+    expect(mockResolveIncomingTextRouting).toHaveBeenCalledTimes(1)
+    expect(mockAutomatedResponseEnqueue).toHaveBeenCalledTimes(1)
+  })
+
+  test("no routing info on the parse result: a delivery never touches thread control", async () => {
+    mockRunChannelHandler.mockResolvedValue(parsedMessage())
+
+    await runJob(incomingJob)
+
+    expect(mockRecordInboundDelivery).not.toHaveBeenCalled()
+    expect(mockAutomatedResponseEnqueue).toHaveBeenCalledTimes(1)
+  })
+
+  test("dispatches the routing webhook job to its handler", async () => {
+    const data = {
+      integrationType: "whatsapp",
+      integrationIdentifier: "phone-1",
+      payload: { kind: "handover", body: {} },
+    }
+
+    await runJob({ type: "threadControlEvent", data })
+
+    expect(mockReceiveThreadControlEvent).toHaveBeenCalledWith(data, {
+      isRetry: false,
+    })
+  })
+
+  test("tells the routing handler when BullMQ is retrying the job", async () => {
+    const data = {
+      integrationType: "whatsapp",
+      integrationIdentifier: "phone-1",
+      payload: { kind: "handover", body: {} },
+    }
+
+    await runJob({ type: "threadControlEvent", data }, 1)
+
+    expect(mockReceiveThreadControlEvent).toHaveBeenCalledWith(data, {
+      isRetry: true,
+    })
+  })
+
+  test("treats a stalled-job recovery (stalledCounter) as a retry", async () => {
+    const data = {
+      integrationType: "whatsapp",
+      integrationIdentifier: "phone-1",
+      payload: { kind: "handover", body: {} },
+    }
+
+    // A worker crash is recovered by BullMQ's stalled checker, which bumps
+    // stalledCounter but NOT attemptsMade — the resume flow must still start.
+    await findIntegrationWorker().processor({
+      data: { type: "threadControlEvent", data },
+      attemptsMade: 0,
+      stalledCounter: 1,
+    })
+
+    expect(mockReceiveThreadControlEvent).toHaveBeenCalledWith(data, {
+      isRetry: true,
+    })
+  })
+
+  test("dispatches the archive-release job to its handler", async () => {
+    const data = {
+      workspaceId: "ws-1",
+      contactInboxId: "ci-1",
+      conversationId: "conv-1",
+      action: "release",
+    }
+
+    await runJob({ type: "threadControlAction", data })
+
+    expect(mockReleaseOwnedThread).toHaveBeenCalledWith(data)
   })
 })

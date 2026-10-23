@@ -42,7 +42,17 @@ plain `text[]`, so adding a scope is an enum change, never a migration.
 The `analytics` scope covers both `/v1/error-logs`
 (`apps/builder/src/features/error-logs/api/public.ts`) and, as of the public
 analytics router, every `/v1/analytics/*` route
-(`apps/builder/src/features/analytics/api/public.ts`).
+(`apps/builder/src/features/analytics/api/public.ts`), including
+`analytics.agentResponseSeries` (`GET /v1/analytics/agent-response-series`,
+per-agent daily reply-time averages) and the response-time fields of
+`analytics.humanAgentStats`.
+
+The `inbox` scope also covers the Working Hours routes
+(`apps/builder/src/features/working-hours/api/public.ts`, router key
+`workingHours`: `GET/POST /v1/working-hours`, `GET/PATCH/DELETE
+/v1/working-hours/{id}`, `PUT /v1/working-hours/{id}/members`), next to
+Inbox Teams. A token without `inbox` gets 403; a `read_only` token is blocked
+on the mutations. See `docs/working-hours.md`.
 
 The `appointments` scope existed in the enum and UI registry for some time
 before any endpoint used it — see "Appointments scope — endpoint-to-scope
@@ -125,6 +135,13 @@ permissions and calls the same `contactService.list` method — see
 contacts or contact-derived data, make the intended scope explicit in the
 API contract and tests.
 
+The `contacts` scope also covers `GET /v1/channel-posts` and
+`GET /v1/channel-posts/options/by-ids`. These endpoints list the workspace's
+tracked-comment post catalog and resolve post labels by id. Their ids are the
+only values accepted by a `contactFilter` condition whose field is
+`commentedOnPost`; callers should discover ids through this catalog instead of
+using a social platform's external post id.
+
 ### PUT vs. PATCH on a resource's own id
 
 House rule, enforced by
@@ -196,12 +213,12 @@ The full endpoint-to-scope mapping is generated, not hand-maintained here —
 see `/api/spec.json` (built from `apps/builder/src/routers/public.ts`) for
 the authoritative, current list, and
 `apps/builder/__tests__/*-public-scope.test.ts` for the tests that enforce
-each feature's scope assignment at compile/test time (e.g.
-`contacts-public-scope.test.ts`, `broadcasts-public-scope.test.ts`,
-`appointments-public-scope.test.ts`, `sequences-public-scope.test.ts`,
-`integrations-public-scope.test.ts`, `analytics-public-scope.test.ts`,
-`conversations-public-scope.test.ts`, `products-public-scope.test.ts`,
-`product-categories-public-scope.test.ts`, `coupons-public-scope.test.ts`).
+each feature's scope assignment at compile/test time. The 18
+`*-public-scope.test.ts` files are: `ads`, `analytics`, `appointments`,
+`automation`, `broadcasts`, `channels-and-integrations`, `channels`,
+`contacts`, `conversations`, `coupons`, `email-topics`, `error-logs`,
+`integrations`, `media`, `minigames`, `product-categories`, `products` and
+`sequences`.
 
 What follows are the scope-assignment decisions and gotchas that aren't
 derivable from the code or those tests — read before adding or reassigning
@@ -229,8 +246,9 @@ an endpoint's scope.
 
 - **Automation** — covers flows, triggers, keywords (automated responses),
   AI agents, AI MCP servers, AI functions, AI files, ref links, Facebook Lead
-  Ads automations, FB/IG comment automations, IG story automations, QR
-  codes, questionnaires (+ submissions), and spreadsheets — a full CRUD
+  Ads automations, FB/IG/Threads/TikTok comment automations, IG story
+  automations, magic links, QR codes, questionnaires (+ submissions), and
+  spreadsheets — a full CRUD
   surface so an agent can build, publish, and inspect automations without
   human help via the builder UI. AI triggers were retired (dropped from the
   schema and this scope) in favor of the AI
@@ -250,11 +268,18 @@ an endpoint's scope.
     was widened. Any future trigger route must keep populating both via
     `triggerRepository.findWithConditions` rather than reintroducing a
     hardcoded `[]`.
-  - *FB/IG comment `type` filter* — `CommentAutomation` serves fb-comments
-    (`messenger`) and ig-comments (`instagram`/`instagramFacebook`) off one
-    table. Every read and write must go through the `*Messenger`/`*Instagram`
-    service methods; a bare `workspaceId` + `id` where-clause lets
-    `/v1/fb-comments/{id}` mutate an IG automation.
+  - *Comment automation `type` filter* — `CommentAutomation` serves
+    fb-comments (`messenger`), ig-comments (`instagram`/`instagramFacebook`),
+    threads-comments (`threads`) and tiktok-comments (`tiktok`) off one
+    table. Every read and write must go through the channel's own service
+    methods (`*Messenger`/`*Instagram`/`*Threads*`/`*Tiktok*`); a bare
+    `workspaceId` + `id` where-clause lets `/v1/fb-comments/{id}` mutate an
+    IG automation. The Threads/TikTok update and delete methods return
+    nothing for a missing id, so their public handlers call
+    `findThreadsOrFail`/`findTiktokOrFail` first to answer 404. The one
+    cross-channel read is the `analytics.commentAutomation*` stats surface
+    (scope `analytics`), which resolves the id with `findOrFail` and never
+    writes.
   - *List endpoints default to all folders* — the builder's list pages scope
     to the root folder when no `folderId` is in the URL. Public list
     handlers pass `includeAllFolders: true`; omit it and `GET /v1/fb-comments`
@@ -272,6 +297,13 @@ an endpoint's scope.
     exported procedure. It iterates `Object.keys(router)`, so a newly added
     procedure is covered without a new test; a router wired to the wrong scope
     fails there.
+  - *Bulk deletes and missed-comment runs* — `POST /v1/<channel>-comments/bulk-delete`
+    passes that channel's `types` to `commentAutomationService.deleteMany`, so
+    an id of another channel is ignored rather than deleted. The cross-channel
+    `commentAutomations.*` router (`features/shared/comment-automation/api/public.ts`)
+    starts a missed-comment run through the same `processMissedComments`
+    function as the row action and reports its status; it never edits an
+    automation.
 
 - **Appointments** — covers appointment calendars, appointments, reminder
   dispatch audit reads, and external (Google/Outlook) calendar connections.
@@ -350,6 +382,19 @@ an endpoint's scope.
     operations accept optional nullable `sendRatePerMinute` (1-1000): omit it
     to keep the stored rate, or send `null` to clear it and use the applicable
     default when activation succeeds.
+  - *Repeating broadcasts use the same scope and the same plan gates* —
+    `create`/`updateDraft`/`schedule` with `schedulesType: "recurring"`
+    activate a series. At activation only an explicit over-cap
+    `sendRatePerMinute` returns `403 broadcastPlanLimit`; the
+    active-broadcast cap is applied per run, so a run that finds no free slot
+    is not an error but a `skipped/planLimit` row in
+    `GET /v1/broadcasts/{idOrName}/occurrences`.
+    The three read/preview operations (`preview-recurrence`, `run-groups`,
+    `occurrences`) are part of the `broadcasts` scope; `occurrences` and
+    `run-groups` return counts and run ids, never contact PII.
+    `skip-occurrence` / `restore-occurrence` skip or restore runs of a
+    repeating broadcast by local `dates` or `occurrenceAts` (also `broadcasts` scope, workspace-scoped
+    lookup, rejected with 422 once the run started).
   - *`GET /v1/broadcasts/{idOrName}/audience` returns full contact PII*
     (email, phone, gender) with no field-level gating, including for a
     `read_only` token — unlike the write paths (`create`/`updateDraft`/
@@ -403,50 +448,175 @@ an endpoint's scope.
     — the same template the builder's edit page shows the user. Never
     publish the bare `backgroundUrl` column value.
 
-- **Channels** — see the dedicated table below.
+- **Channels** — covers channel configuration and operations: Messenger/Zalo
+  tag sync, webchat management, Messenger personas, persistent menus, and
+  SMTP. A token scoped to `["channels"]` is not authorized for workspace
+  integrations.
+  - *Webchat custom CSS is token-writable.* A `channels`-scoped token may set
+    `customCss` without an additional in-handler permission check because
+    minting a workspace token already requires workspace-super-admin access.
+  - *Webchat welcome-flow ownership is always validated.* Public writes pass
+    `welcomeFlowId` through `integrationWebchatService`, which verifies the
+    flow belongs to the workspace before persisting it.
+  - *Channel discovery.* `GET /v1/channel-integrations` (`?channel=` narrows)
+    and `GET /v1/{whatsapp,messenger,instagram,zalo,tiktok}-channels[/{id}]`
+    list connected channels with safe columns only (never credentials); they
+    return the ids other routes need. `PATCH /v1/inboxes/{id}` currently sets
+    `markReadOnOutbound` only and needs the `inbox` scope.
 
-### Channels scope — endpoint-to-scope table
+- **Integrations** — covers workspace integrations, AI provider credentials,
+  external webhooks, event webhooks, and inbound webhooks
+  (`/v1/inbound-webhooks…`, `/v1/inbound-webhook-channels`; see
+  `docs/inbound-webhooks.md`). The endpoint URL an inbound webhook returns
+  embeds a secret, so treat it like a credential (it is omitted for
+  `read_only` tokens), and `getRequest` only returns
+  the stored payload (which may hold personal data) with `includePayload=true`. A token scoped to `["integrations"]`
+  is not authorized for channel configuration or operations.
 
-`channels` shipped in the enum/registry/i18n alongside `ads` but, like `ads`,
-carried no endpoints for a while. It now covers user persistent menus
-(Messenger bot menu) CRUD, webchat CRUD, SMTP integration CRUD,
-Messenger/Zalo tag-sync toggling, and a read-only list of Messenger personas
-across the workspace's connected Pages. As with every other scope, each
-public handler calls the same `packages/business` service method the
-private/action code calls — no business logic was duplicated to publish
-these.
+- **Conversation routing and AI hand-over** — `POST
+  /v1/conversations/{id}/thread-control` (`action` take/release/pass/sync; scope `inbox`)
+  calls the same `channel-registry` functions as the inbox UI, including the check that the contact inbox belongs to the
+  conversation's contact. `bypassThreadControlLock` is not exposed. A refused
+  `take` returns `status: notEscalation` (200), not an error.
+  `PATCH /v1/{whatsapp,messenger}-channels/{id}/handover-resume-flow` (scope
+  `channels`) replaces the UI's super-admin gate. Meta Business AI hand-over
+  lives under `/v1/inboxes/{inboxId}/ai-handover/*` with scope `integrations`:
+  settings (GET also returns the apply-to-all status as `applyToAll`; PUT saves,
+  saving off also stops a running enable), apply-to-all (POST switch, POST
+  retry) and history. Apply-to-all messages and
+  hands over real customers, so the POST is bounded: `dryRun: true` returns
+  `eligibleCount` and changes nothing, and a real change must carry
+  `confirmCount` (the most customers the caller accepts) or it is refused when
+  more are eligible at that moment, or when a previous run is still winding
+  down and the change cannot start immediately. This is a check at request
+  time, not a cap on the run: customers who become eligible while it
+  progresses are still included. Token calls record no requesting user.
 
-| Endpoint | Notes |
-|---|---|
-| `GET/POST /v1/user-persistent-menus`, `GET/PUT/DELETE /v1/user-persistent-menus/{id}` | Full CRUD via `userPersistentMenuService`. |
-| `GET/POST /v1/webchats`, `GET/PATCH/DELETE /v1/webchats/{id}` | Full CRUD via `integrationWebchatService`. `DELETE` cascades to disconnecting the webchat's `Inbox`. |
-| `GET/POST /v1/smtp-integrations`, `GET/PUT/DELETE /v1/smtp-integrations/{id}` | Full CRUD via `integrationSmtpService`. `DELETE` cascades to disconnecting the SMTP `Inbox`. The row's `auth` blob (SMTP password) is never returned — every response is hand-picked to `{id, name, fromAddress}`. |
-| `PATCH /v1/messenger-channels/{id}/tag-sync` | Toggles `syncTagEnabledAt` via `messengerIntegrationService.updateTagSync`. |
-| `PATCH /v1/zalo-channels/{id}/tag-sync` | Toggles `syncTagEnabledAt` via `zaloIntegrationService.updateTagSync`. |
-| `GET /v1/messenger-personas` | Read-only; lists Messenger personas across every Page connected to the workspace, with page access tokens projected away. |
+- **Messenger templates and coexist** — `/v1/messenger/templates` (list, get,
+  clone, delete) and `/v1/messenger-channels/{id}/templates` (create, `/sync`)
+  use scope `broadcasts`, like the WhatsApp templates. Delete removes only the
+  local row (Meta has no delete in our integration; sync restores it). Clone
+  targets only Pages of the token's workspace. Header image URLs (create and
+  clone) must resolve to a public address, and an unauthenticated image
+  download does not follow redirects. `PUT /v1/{whatsapp,messenger,instagram}-channels/{id}/coexist`
+  (scope `channels`) toggles coexist history sync.
 
-Two invariants specific to this scope:
+- **Channel settings and bot simulator** (scope `channels`) —
+  `GET/PUT /v1/{messenger,instagram}-channels/{id}/settings` read and replace
+  the welcome flow, persistent menu, ice breakers (and Messenger personas)
+  through the same writers as the builder form
+  (`features/integration-{messenger,instagram}/lib/update-*-settings.ts`); both
+  call `flowService.assertAllExist` first, so a flow of another workspace is
+  refused before anything is saved or pushed to Meta. `GET/PATCH
+  /v1/tiktok-channels/{id}/comment-to-message` read (live from TikTok) and set
+  Comment-to-Message via `tiktokIntegrationService`; TikTok's eligibility
+  rejection text is returned as-is. `GET /v1/bot-simulator/link` returns the
+  `/bs/...` preview link after the same checks the preview page runs.
 
-- **`customCss` is writable by a `channels`-scoped token with no extra
-  permission check.** The private `updateWebchatAction` gates `customCss`
-  behind `hasWorkspacePermission(..., "superAdmin")` because it renders via
-  `dangerouslySetInnerHTML` in `lib/widget-css.tsx`. The public webchat
-  `create`/`update` handlers accept it with only workspace-token scope. This
-  is **not** a privilege escalation: minting any workspace token already
-  requires the caller to be a workspace superAdmin
-  (`requireWorkspaceTokenSuperAdmin`), the same reasoning the Ads scope's
-  omitted `assertWorkspaceSuperAdmin` guard documents above. Do not add a
-  permission check here — there is no lower-privileged caller to check
-  against.
-- **`welcomeFlowId` normalization and workspace-ownership validation live in
-  `integrationWebchatService`, not in either caller.** Both `create` and
-  `update` call a shared private helper
-  (`resolveWelcomeFlowId`) that normalizes a falsy value to `null` and
-  validates the flow belongs to the same workspace via
-  `flowService.findActiveById`. This was fixed after a review found the
-  public and private paths disagreeing on both points — any future caller
-  of `integrationWebchatService.update`/`.create` gets this for free and
-  must not re-implement it upstream.
+- **Broadcasts** — `broadcasts.list` filters by `status`, `name`, `channel`
+  and a `scheduledFrom`/`scheduledTo` window and accepts `sort`; each broadcast
+  now carries its channel, subaction, template, contact filter and per-page
+  targets. `POST /v1/broadcasts/{id}/stop` stays available on a trial-expired
+  or over-limit workspace (the builder allows it too) but not to `read_only`
+  tokens. `emailTopics.list` accepts `sort`.
+
+- **Contacts and analytics extras** — `contacts.setCustomField` and
+  `contacts.applyCustomFieldOperations` accept `clientTimezone` to anchor a
+  date-only value (default: the contact's, then the workspace's zone).
+  `contactScans.list` accepts `integrationId` and `sort`. Analytics adds
+  `GET /v1/analytics/flows/{flowId}/smart-delay-stats` (wait/follow-up
+  `{waiting, sent}` per node of the draft version; kept apart from `flowStats`
+  so its shape does not change) and four comment-automation routes under
+  `/v1/analytics/comment-automation/*` (replies per day, customer comments, bot
+  replies, errors). The customer comment texts are PII and are returned
+  verbatim to any `analytics`-scoped token, as the dashboard shows them; the
+  errors route also returns each contact's name and avatar.
+  `magicLinkContacts`/`refLinkContacts` deliberately omit name and avatar.
+
+- **Workspace settings (scope `settings`)** — the 13th scope, added for
+  `GET/PATCH /v1/workspace/settings`: the Default Reply flow (id) and its frequency, the bot
+  reply delay (3–180 s or null), Conversions API Limited Data Use and the logo
+  URL. They change what the workspace sends to customers and reports to Meta,
+  so they sit outside the resource-area scopes. The service writes a strict
+  allow-list of those five columns (`workspaceService.updateSettings`), so a
+  token can never touch the name, plan, status, owner or tenant. Only
+  `scopes: null` tokens gain the scope automatically; pick it explicitly for
+  restricted tokens. No migration: scopes are stored as plain text. `logo` is read back as an absolute URL (uploaded logos are stored as storage paths) and written as an http(s) URL; an external URL is loaded by every member's browser, so set only images you trust. An empty PATCH returns the settings unchanged.
+
+- **WhatsApp calls, CAPI and templates** — scope `integrations`:
+  `GET /v1/whatsapp/calls` (cursor-paginated history of every call of the
+  workspace; the recording's storage path is never returned, only
+  `hasRecording`), `.../{id}/recording` (15-minute signed URL),
+  `.../{id}/transcript`, `.../{id}/summary`, `POST .../{id}/summary/generate`
+  (writes an AI summary; `provider` may be omitted when exactly one is
+  connected, otherwise list them with `GET /v1/whatsapp/calls/summary-providers`). These are customer PII and calling
+  is paid, so only `scopes: null` and explicit `integrations` tokens reach
+  them. Scope `channels`: `PUT /v1/{whatsapp,messenger,instagram}-channels/{id}/capi/dataset`,
+  `.../capi/test-event-code` and `POST .../capi/test-event` (the dataset is
+  validated with Meta; while a test event code is set every CAPI event goes to
+  Test Events). The channel list shows `capiConnected` (events are sent right
+  now), `capiTestEventCode` and `capiDisconnected`; `hasCapiScope` is a legacy
+  cached flag. `PUT .../{id}/capi/dataset` without `datasetId` creates a
+  dataset with the channel's stored token (either way it clears a disconnect,
+  but sending resumes only when `capiConnected` reads true afterwards) and
+  `DELETE .../{id}/capi` disconnects and removes a dedicated token. The
+  dedicated Conversions API token is minted by the Connect button on the
+  channel's Ads tab (a browser OAuth step with no token-based equivalent), and
+  custom connect stays private because it takes an access token. Scope `broadcasts`: `GET /v1/whatsapp/templates/{id}`,
+  `POST /v1/whatsapp-channels/{id}/templates/sync`,
+  `GET /v1/whatsapp/templates/catalog-products`, and WhatsApp Flows
+  (`GET /v1/whatsapp/flows`, `.../{flowId}/screens`,
+  `POST /v1/whatsapp-channels/{id}/sync-flows`). Scope `integrations`:
+  calling settings (`GET/PATCH /v1/whatsapp-channels/{id}/calling`, `PUT
+  .../calling/hours`; the Meta-side fields are applied first and the local
+  switches mirrored only after Meta accepted, as in the builder; calling is
+  paid and recording stores customer audio, hence the scope). Scope `inbox`:
+  `POST /v1/conversations/{conversationId}/whatsapp-template` (queues an
+  approved template past the 24-hour window; delivery is asynchronous and the
+  worker refuses a template that is not approved or belongs to another number)
+  and `.../whatsapp-call-permission` (Meta's call-permission request, limited
+  by Meta to 1 per 24 h and 2 per 7 days per customer, checked first).
+
+- **Sequences** — `sequences.list` filters by `name`, `folderId` and `active`
+  and accepts `sort`; `sequences.update` accepts `folderId` (null = no
+  folder). A `folderId` on create or update must be a `sequence` folder of the
+  workspace, and a folder's parent must belong to the same workspace and folder
+  type (`folderService.create` no longer resolves a parent by id alone).
+  Managing sequence folders themselves is not exposed on the public API yet.
+
+- **Meta Catalog and ad images** — scope `ecommerce`:
+  `GET /v1/products/meta-catalog` (connection without its credential, plus the
+  sync history), `GET .../meta-catalog/businesses`, `POST /v1/products/meta-catalog`
+  (create an empty catalog and bind it), `POST .../select` (bind and import,
+  202) and `POST .../sync` (push products, 202); a second run while one is
+  active returns 409. `DELETE /v1/products/meta-catalog` disconnects (409
+  while a sync or import runs, allowed on a trial-expired workspace);
+  connecting stays private (Meta OAuth).
+- **Channel disconnect** — scope `channels`: `DELETE /v1/messenger-channels/{id}`
+  and `DELETE /v1/instagram-channels/{id}` run the builder's disconnect (Meta
+  unsubscribe, running history sync ended, CAPI events removed; contacts and
+  conversations kept). Like every DELETE they stay open on a trial-expired
+  workspace. Connecting stays private (Meta OAuth).
+  Scope `ads`: `POST /v1/ads/campaigns/upload-image` returns `imageKey`,
+  `fileId` and a presigned PUT URL inside the workspace's ads-creative prefix
+  (same type/size checks as the builder; the create-time preflight still proves
+  ownership), and `ads.checkCampaignPrerequisites` now reports
+  `reconnectNeeded`. The 25 MB base64 cap on `upload-video` is unchanged on
+  purpose. A connection without a channel FK is listed with
+  `integrationId: ""` and cannot be disconnected through the API.
+
+- **Imports** — a token can run a whole import without the browser's session
+  upload: `POST /v1/contacts/imports/upload-url` (scope `contacts`) and
+  `POST /v1/products/imports/upload-url` (scope `ecommerce`) validate the file
+  (MIME, extension, format, declared size) against the import registry, record
+  a pending `import` file for the workspace and return a presigned PUT URL.
+  `GET /v1/{contacts,products}/imports/files/{fileId}/headers` reads the header
+  row (only for a file of that import type — another type reads as "not
+  found"), and `GET /v1/{contacts,products}/import-template` returns the
+  CSV text / base64 XLSX template. `contacts.import` and `products.startImport`
+  (`POST /v1/products/imports`, with `columnMap`) return 409 while another import
+  of that type is pending or processing; `GET /v1/products/imports` and
+  `.../{id}` read product import jobs like the contact ones.
 
 - **Minigames** — this scope shipped in the enum/registry/i18n alongside
   `ads` but, like `ads`, carried no endpoints for a while. It now publishes
@@ -477,17 +647,39 @@ Two invariants specific to this scope:
     declared on all three write routes (`POST`, `PUT`, `PATCH`) — not the 500
     the raw Postgres unique violation used to produce.
 
+### Mini Apps scope
+
+`mini-apps` covers `/v1/mini-apps/*` (`apps/builder/src/features/mini-apps/api/public.ts`): list, get, validate, create, update, delete, publish to WhatsApp and list answers. Mini Apps are exchanged as WhatsApp Flow JSON; the stored editor definition never leaves the builder. `POST /v1/mini-apps/validate` writes nothing but is a POST, so a `read_only` token cannot call it. Publishing calls Meta's Flows API on the chosen WhatsApp number and mirrors the Flow into `WhatsappFlow`; it is gated by `mini-apps` only, not `integrations`. Scope wiring is pinned in `apps/builder/__tests__/mini-apps-public-api.test.ts`.
+
 ### Ads scope — endpoint-to-scope table
 
 `ads` shipped in the enum/registry/i18n from day one (alongside `channels`,
-`minigames`, `appointments`, `media`) but carried no endpoints until this
-table's routes were added — a token scoped to `["ads"]` reached nothing
-before. It now covers Ads conversion-rule CRUD, the CTWA/CTM/CTID funnel and
+`integrations`, `minigames`, `appointments`, `media`) but carried no endpoints
+until this table's routes were added — a token scoped to `["ads"]` reached
+nothing before. It now covers Ads conversion-rule CRUD, the CTWA/CTM/CTID funnel and
 CAPI-delivery reads, the conversion export, ad-account reads, and the full
 messaging-ad campaign lifecycle (create/retry/publish/pause/delete + video
 upload). Every handler below calls the same `packages/business` service
 method the corresponding UI action/oRPC procedure calls
 (`.agents/rules/data-access.md`).
+
+The scope also covers three **read-only Google Ads** operations
+(`googleAds.getStats`, `googleAds.listEvents`, `googleAds.getConnection`;
+`apps/builder/src/features/integration-google-ads/api/public.ts`). They are
+GETs, so `read_only` tokens work, and they are hidden MCP tools (reachable
+through `search_tools`/`call_tool`). Writes (recording a conversion, retry,
+connect, consent) stay UI-only. Two call-outs, following the questionnaires and
+minigames precedents:
+
+- *`GET /v1/google-ads/events` returns `identity.id` and Google's error text.*
+  `identity.id` is the order or event ID the flow chose to send and can contain
+  contact data; `error` is Google's sanitized failure text. Click IDs are
+  masked and the row's click, transaction and request IDs are redacted from
+  `error`; no workspace, contact-inbox or claim data is returned. Minting a
+  token already requires a workspace super admin, who sees the same data in the
+  settings history.
+- *`GET /v1/google-ads/connection` never returns credentials*, only status, the
+  conversion consent view and the synced conversion actions.
 
 Two invariants specific to this scope:
 
@@ -545,6 +737,69 @@ hash-only by `channelApiTokenAuthMidddleware` via
 `findIntegrationApiByTokenHash`. Do not add a builder-local re-export of
 these helpers — import from the business package directly.
 
+## API-first parity guard
+
+`apps/builder/__tests__/api-parity-manifest.test.ts` classifies every UI server
+action (`features/<feature>/actions/*.ts`) in `api-parity-manifest.json` as
+`covered:<feature>` (the feature has a public workspace-token router) or
+`private:<reason>` (UI-only on purpose). A new action missing from the manifest
+fails CI, so a UI capability cannot ship without an API decision. `covered:` is
+feature-level; add the public route in the same PR when you add the action.
+Entries marked `private:no public surface yet` are not yet audited, not
+approved as UI-only.
+
+## Contact reads and exports (W6 notes)
+
+- `contacts.list`/`contacts.get` return `avatar` as a resolved URL (same as the
+  builder), never the stored key.
+- `contacts.export` `fields` need a kind prefix: `sys:<column>` (firstName,
+  lastName, fullName, email, phoneNumber, gender, source, lastReadAt,
+  blockedAt, contactId, sourceUserId = WhatsApp BSUID), `cus:<customFieldId>`,
+  `tag:<tagId>`. A key without a prefix is rejected (422).
+- `POST /v1/contacts/filter-value-labels` is a pure read (id lists too large
+  for a query string) that names the tag ids a `contactFilter` references; it is
+  allow-listed for `read_only` tokens and trial-expired workspaces. Only tags:
+  sequence, broadcast, ref-link, inbox, member and team names belong to other
+  scopes and come from their own list routes.
+- Simpler inputs (all additive, the previous shapes still work):
+  `POST /v1/conversations/{conversationId}/whatsapp-template` takes the same
+  flat `templateParams` as broadcasts; the import header routes return
+  `suggestedColumnMap` (the builder's header matching), and
+  `POST /v1/products/imports` recognises columns and the file format itself
+  when `columnMap`/`format` are omitted; `PATCH` on
+  `/v1/messenger-channels/{id}/settings`, `/v1/instagram-channels/{id}/settings`
+  and `/v1/inboxes/{inboxId}/ai-handover/settings` changes only the sent
+  fields, and Messenger personas take `{name, profilePictureUrl}`;
+  `GET /v1/whatsapp-channels/{id}/calling` returns `callHoursInput`, ready to
+  edit and send to `PUT .../calling/hours`; `POST /v1/products/meta-catalog/sync`
+  defaults `catalogId` to the bound catalog.
+- Template broadcasts take flat `templateParams` (`{"body.1": "Ann",
+  "header": "https://.../a.jpg"}`, also per `targets[]` entry) instead of
+  Meta's nested `templateData`; the keys are the `parameters` that
+  `GET /v1/whatsapp/templates/{id}` and `GET /v1/messenger/templates/{id}`
+  now return. The server builds `templateData` with the builder's own template
+  helpers; a missing, unknown or invalid key is a 422 naming the keys, and a
+  multi-product (MPM) button still needs `templateData`. `templateData` keeps
+  working, but not together with `templateParams`.
+- `POST /v1/broadcasts/audience/preview` counts (`total`) and lists the
+  contact inboxes a broadcast *would* reach (same selectors as
+  `broadcasts.create`, the audience window applied) before anything exists. It
+  is a pure read that stays open on trial-expired workspaces, but a
+  `read_only` token cannot call it: it pages every contact of the workspace
+  and takes an arbitrary `contactFilter`.
+- `POST /v1/contacts/bulk/sequences/remove` is the bulk counterpart of
+  `bulk/sequences`. `POST /v1/contacts/bulk/tags/by-stats` queues the same
+  background job as the builder's "tag everyone behind this stat" (sources
+  `broadcast`, `sequenceStep`, `commentAutomation`); it is attributed to the
+  workspace owner because a token has no member. The comment-automation
+  drill-down is `GET /v1/analytics/comment-automation/contacts`.
+- `adsEligible` is false for Instagram accounts connected through native
+  Instagram login; only Facebook-login accounts can run click-to-message ads.
+- `GET /v1/bot-fields` takes `name`, `folderId` (`"0"` = no folder) and `sort`.
+- BSUID and WhatsApp username are on the contact-inbox resource
+  (`sourceUserId`, `sourceUsername`); a BSUID-only contact is keyed by it in
+  `sourceId`.
+
 ## Useful tests
 
 - `apps/builder/__tests__/workspace-token-auth-middleware.test.ts`
@@ -576,6 +831,9 @@ these helpers — import from the business package directly.
   asserts a campaign mutation succeeds with no session user in context (the
   `assertWorkspaceSuperAdmin` regression guard) and that `createdBy` is never
   set from one
+- `apps/builder/__tests__/google-ads-public-api.test.ts` — real-router `ads`
+  scope wiring and the field redaction for the three read-only `googleAds.*`
+  operations in `features/integration-google-ads/api/public.ts`
 - `apps/builder/__tests__/create-workspace-token-action.test.ts`
 - `apps/builder/__tests__/delete-workspace-token-action.test.ts`
 - `apps/builder/__tests__/integration-api-token-hash.test.ts`

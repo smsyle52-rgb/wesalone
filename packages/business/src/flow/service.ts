@@ -11,6 +11,7 @@ import {
 import {
   type FlowListInput,
   flowRepository,
+  integrationWhatsappRepository,
   whatsappMessageTemplateRepository,
 } from "@chatbotx.io/database/repositories"
 import {
@@ -35,10 +36,15 @@ import { BaseService } from "../base.service"
 import { botFieldService } from "../bot-field/service"
 import { customFieldService } from "../custom-field/service"
 import { notFoundException } from "../errors"
-import { flowVersionService } from "../flow-version"
+import { assertFlowGraphPublishable, flowVersionService } from "../flow-version"
 import { folderService } from "../folder/service"
+import { messengerWelcomeMessageFlowService } from "../messenger-welcome-message-flow/service"
 import { assertDeletable } from "../template/installed-resource.service"
-import { filterFlowsByStartStepType, filterFlowsByTemplateIds } from "./filters"
+import {
+  type FlowWithNodeVersions,
+  filterFlowsByStartStepType,
+  filterFlowsByTemplateIds,
+} from "./filters"
 
 type FieldManifestEntry = { name: string; type: CustomFieldType }
 
@@ -100,6 +106,12 @@ const defaultDraftGraph = (): {
 }
 
 class FlowService extends BaseService {
+  async listPublishedOptions(input: {
+    workspaceId: string
+  }): Promise<Array<{ id: string; name: string }>> {
+    return await flowRepository.listPublishedOptions(input)
+  }
+
   async findBy(
     input: { workspaceId: string; id: string },
     tx?: DatabaseClient,
@@ -111,12 +123,12 @@ class FlowService extends BaseService {
   }
 
   /**
-   * Paginated flow list with draft/latest versions attached. When
-   * `startType` is given, the DB-level page is re-filtered in memory by the
-   * first start node's step type (and, for WhatsApp template steps, by
-   * `integrationWhatsappId`'s bound template ids) — mirrors the pre-move
-   * `listFlows` query adapter, including recomputing `total`/`pageCount`
-   * off the filtered set rather than the DB count.
+   * Paginated flow list with draft/latest versions attached. `startType`
+   * filters by the start node's step type (and, for WhatsApp template steps,
+   * by `integrationWhatsappId`'s bound template ids). That filter reads the
+   * version graphs, so it runs in memory over every flow matching the SQL
+   * filters and the page is cut afterwards — `pageCount` then counts the
+   * filtered set. An `integrationWhatsappId` outside the workspace is a 404.
    */
   async list(
     input: FlowListInput & {
@@ -133,34 +145,67 @@ class FlowService extends BaseService {
   }> {
     const pagination = parsePagination(input)
 
-    let [data, total] = await Promise.all([
-      flowRepository.listWithVersions(input),
-      flowRepository.count(input),
-    ])
-
-    if (input.startType) {
-      data = filterFlowsByStartStepType(data, input.startType)
-
-      if (input.startType === stepTypes.enum.sendWaTemplateMessage) {
-        if (input.integrationWhatsappId) {
-          const templateIds =
-            await whatsappMessageTemplateRepository.listIdsByIntegration({
-              integrationWhatsappId: input.integrationWhatsappId,
-            })
-          data = filterFlowsByTemplateIds(data, templateIds)
-        } else {
-          data = []
-        }
-      }
-
-      total = data.length
+    if (!input.startType) {
+      const [data, total] = await Promise.all([
+        flowRepository.listWithVersions(input),
+        flowRepository.count(input),
+      ])
+      const pageCount = pagination?.limit
+        ? Math.ceil(total / pagination.limit)
+        : 1
+      return { data, pageCount, ...pagination }
     }
 
-    const pageCount = pagination?.limit
-      ? Math.ceil(total / pagination.limit)
-      : 1
+    const filtered = await this.filterByStartType({
+      flows: await flowRepository.listWithVersions({
+        ...input,
+        page: null,
+        perPage: null,
+      }),
+      workspaceId: input.workspaceId,
+      startType: input.startType,
+      integrationWhatsappId: input.integrationWhatsappId,
+    })
 
-    return { data, pageCount, ...pagination }
+    if (!pagination?.limit) {
+      return { data: filtered, pageCount: 1 }
+    }
+    return {
+      data: filtered.slice(
+        pagination.offset,
+        pagination.offset + pagination.limit,
+      ),
+      pageCount: Math.ceil(filtered.length / pagination.limit),
+      ...pagination,
+    }
+  }
+
+  private async filterByStartType<T extends FlowWithNodeVersions>(input: {
+    flows: T[]
+    workspaceId: string
+    startType: string
+    integrationWhatsappId?: string | null
+  }): Promise<T[]> {
+    const byStep = filterFlowsByStartStepType(input.flows, input.startType)
+    if (input.startType !== stepTypes.enum.sendWaTemplateMessage) {
+      return byStep
+    }
+    if (!input.integrationWhatsappId) {
+      return []
+    }
+    const integration =
+      await integrationWhatsappRepository.findByIdForWorkspace({
+        id: input.integrationWhatsappId,
+        workspaceId: input.workspaceId,
+      })
+    if (!integration) {
+      throw notFoundException("WhatsApp channel not found")
+    }
+    const templateIds =
+      await whatsappMessageTemplateRepository.listIdsByIntegration({
+        integrationWhatsappId: input.integrationWhatsappId,
+      })
+    return filterFlowsByTemplateIds(byStep, templateIds)
   }
 
   /** Unguarded flow detail with all versions — callers enforce access. */
@@ -391,6 +436,7 @@ class FlowService extends BaseService {
     }
   }): Promise<{ id: string }> {
     const { workspaceId, data, graph } = input
+    assertFlowGraphPublishable(graph)
 
     if (data.folderId) {
       await folderService.ensureExists({
@@ -412,6 +458,11 @@ class FlowService extends BaseService {
     )
 
     await flowVersionService.invalidateList(flowId)
+    await messengerWelcomeMessageFlowService.enqueueSync({
+      workspaceId,
+      flowId,
+      reason: "publish",
+    })
     await this.audit("create", `created a new flow (#${flowId})`)
 
     return { id: flowId }
@@ -446,6 +497,14 @@ class FlowService extends BaseService {
 
     if (updated.length === 0) {
       return
+    }
+
+    if (data.name !== undefined && data.name !== flow.name) {
+      await messengerWelcomeMessageFlowService.enqueueSync({
+        workspaceId: ctx.workspaceId,
+        flowId: flow.id,
+        reason: "rename",
+      })
     }
 
     await this.audit("update", `updated a flow (#${flow.id})`)
@@ -503,7 +562,12 @@ class FlowService extends BaseService {
     edges: EdgeSchema[]
     folderId?: string | null
     tx?: DatabaseClient
+    validatePublishable?: boolean
   }): Promise<string> {
+    if (input.validatePublishable ?? true) {
+      assertFlowGraphPublishable({ nodes: input.nodes, edges: input.edges })
+    }
+
     const run = (tx: DatabaseClient) =>
       this.insertFlowWithDraft(tx, {
         name: input.name,
@@ -632,6 +696,11 @@ class FlowService extends BaseService {
         .update(flowAnalyticsSessionModel)
         .set({ deletedAt: new Date() })
         .where(inArray(flowAnalyticsSessionModel.flowId, flowIds))
+    })
+
+    await messengerWelcomeMessageFlowService.enqueueDelete({
+      workspaceId: input.workspaceId,
+      flowIds,
     })
 
     await this.audit(

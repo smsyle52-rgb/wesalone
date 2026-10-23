@@ -3,7 +3,7 @@ import { z } from "zod"
 import {
   defaultJobOptions,
   fakeQueue,
-  getRedisConnection,
+  getQueueConnection,
   isNoRedisEnv,
 } from "../../lib/connection"
 import { queueNames } from "../../lib/types"
@@ -18,8 +18,10 @@ export const AIJobAction = {
   processConversationSource: "processConversationSource",
   processConversationSourceEmbedding: "processConversationSourceEmbedding",
   processAutomatedResponse: "processAutomatedResponse",
+  processHandoffReentry: "processHandoffReentry",
   commentAIReply: "commentAIReply",
   processStoryReplyAutomation: "processStoryReplyAutomation",
+  processStoryMentionAutomation: "processStoryMentionAutomation",
 } as const
 
 export const aiJobSummarizeConversationDataSchema = z.object({
@@ -53,6 +55,15 @@ const aiJobProcessConversationSourceEmbeddingSchema = z.object({
 
 const aiJobProcessAutomatedResponseSchema = z.object({
   type: z.literal(AIJobAction.processAutomatedResponse),
+  data: z.object({
+    conversationId: z.string().min(1),
+    contactInboxId: z.string().min(1),
+    messageId: z.string().min(1),
+  }),
+})
+
+const aiJobProcessHandoffReentrySchema = z.object({
+  type: z.literal(AIJobAction.processHandoffReentry),
   data: z.object({
     conversationId: z.string().min(1),
     contactInboxId: z.string().min(1),
@@ -111,6 +122,17 @@ const aiJobProcessStoryReplyAutomationSchema = z.object({
   }),
 })
 
+const aiJobProcessStoryMentionAutomationSchema = z.object({
+  type: z.literal(AIJobAction.processStoryMentionAutomation),
+  data: z.object({
+    workspaceId: z.string().min(1),
+    conversationId: z.string().min(1),
+    contactInboxId: z.string().min(1),
+    messageId: z.string().min(1),
+    channelType: z.enum(["instagram", "instagramFacebook"]),
+  }),
+})
+
 export const aiJobDataSchema = z.discriminatedUnion("type", [
   aiJobProcessFileSchema,
   aiJobProcessPendingEmbeddingSchema,
@@ -118,8 +140,10 @@ export const aiJobDataSchema = z.discriminatedUnion("type", [
   aiJobProcessConversationSourceSchema,
   aiJobProcessConversationSourceEmbeddingSchema,
   aiJobProcessAutomatedResponseSchema,
+  aiJobProcessHandoffReentrySchema,
   aiJobCommentAIReplySchema,
   aiJobProcessStoryReplyAutomationSchema,
+  aiJobProcessStoryMentionAutomationSchema,
 ])
 
 export type AIJobData = z.infer<typeof aiJobDataSchema>
@@ -139,14 +163,20 @@ export type AIJobProcessConversationSourceEmbedding = z.infer<
 export type AIJobProcessAutomatedResponse = z.infer<
   typeof aiJobProcessAutomatedResponseSchema
 >
+export type AIJobProcessHandoffReentry = z.infer<
+  typeof aiJobProcessHandoffReentrySchema
+>
 export type AIJobCommentAIReply = z.infer<typeof aiJobCommentAIReplySchema>
 export type AIJobProcessStoryReplyAutomation = z.infer<
   typeof aiJobProcessStoryReplyAutomationSchema
+>
+export type AIJobProcessStoryMentionAutomation = z.infer<
+  typeof aiJobProcessStoryMentionAutomationSchema
 >
 
 export const aiAgentQueue = isNoRedisEnv()
   ? fakeQueue
   : new Queue<AIJobData>(queueNames.enum.aiAgent, {
-      connection: getRedisConnection(),
+      connection: getQueueConnection(queueNames.enum.aiAgent),
       defaultJobOptions,
     })

@@ -1,5 +1,8 @@
 import type { ButtonPayload } from "@chatbotx.io/flow-config"
 import { z } from "zod"
+import type { ChannelError } from "../channel-error"
+import { guessFileTypeFromMimeType } from "../util"
+import { EXTENSION_MIME_TYPES } from "./mime-types"
 
 export type IncomingContact = {
   sourceId: string
@@ -21,6 +24,11 @@ export type IncomingContact = {
    */
   sourceUserId?: string
   /**
+   * Parent channel-scoped user id used only as an identity matching fallback.
+   * Never use this value to address outbound messages.
+   */
+  sourceParentUserId?: string
+  /**
    * Channel handle/username for this contact (e.g. WhatsApp `@username`).
    * Display-only, never used as a matching key.
    */
@@ -35,24 +43,86 @@ export type IncomingContact = {
    * `packages/database/src/partials/channel.ts`.
    */
   channelConversationId?: string
-}
-
-/** The `{ sourceId, sourceUserId }` slice shared by contact-inbox rows and SDK contacts. */
-export type SourceScopedIdentity = {
-  sourceId: string
-  sourceUserId?: string | null
+  /**
+   * Best-effort relationship snapshot. It is intentionally separate
+   * from the contact fields: callers persist it on the channel connection.
+   */
+  profileSnapshot?: ContactProfileSnapshot | null
 }
 
 /**
+ * Channel-neutral description of a post a contact commented on. Each channel
+ * maps its own API response into this shape, so shared code never touches
+ * vendor field names.
+ */
+export type ChannelPostDetails = {
+  caption?: string | null
+  mediaType?: string | null
+  permalink?: string | null
+  publishedAt?: Date | null
+  thumbnailUrl?: string | null
+}
+
+/**
+ * Channel-neutral relationship facts about a contact, stored on ContactInbox
+ * columns of the same names. A channel fills what its API exposes; `null`
+ * means "unknown", never false/0.
+ */
+export type ContactProfileSnapshot = {
+  followsBusiness: boolean | null
+  businessFollowsContact: boolean | null
+  accountVerified: boolean | null
+  followerCount: number | null
+  /** Handle at fetch time; only used to backfill `sourceUsername`. */
+  username?: string | null
+}
+
+/** The channel-scoped identity slice shared by contact-inbox rows and SDK contacts. */
+export type SourceScopedIdentity = {
+  sourceId: string
+  sourceUserId?: string | null
+  sourceParentUserId?: string | null
+}
+
+export type SourceScopedIdentityMatchedBy =
+  | "sourceId"
+  | "sourceUserId"
+  | "sourceParentUserId"
+
+export type SourceScopedIdentityMatch<T> = {
+  row: T
+  matchedBy: SourceScopedIdentityMatchedBy
+}
+
+export type SourceScopedIdentityLookup<T> = (
+  where:
+    | { sourceId: string }
+    | { sourceUserId: string }
+    | { sourceParentUserId: string },
+) => Promise<T | undefined>
+
+/**
  * An identity is "scoped-user-id keyed" when its primary `sourceId` IS its
- * channel-scoped user id (e.g. a WhatsApp BSUID) — set once at contact
- * creation for users whose phone number is hidden, and never rewritten.
- * Such identities must be addressed by the scoped id on outbound sends.
+ * channel-scoped user id (e.g. a WhatsApp BSUID). Such identities must be
+ * addressed by the scoped id on outbound sends; an identity rotation may
+ * atomically advance both fields while preserving this invariant.
  */
 export const isSourceUserIdKeyedIdentity = (
   identity: SourceScopedIdentity,
 ): boolean =>
   Boolean(identity.sourceUserId) && identity.sourceId === identity.sourceUserId
+
+/** Whether a non-empty primary identity differs from every scoped identity. */
+export const isDistinctPrimaryIdentity = (
+  value: string | null | undefined,
+  ...scopedIds: Array<string | null | undefined>
+): boolean => {
+  const primaryIdentity = value?.trim()
+  return (
+    Boolean(primaryIdentity) &&
+    scopedIds.every((scopedId) => scopedId?.trim() !== primaryIdentity)
+  )
+}
 
 /**
  * Whether an outbound send must address this identity by its scoped user id
@@ -69,22 +139,35 @@ export const shouldAddressBySourceUserId = (
 
 /**
  * The ordered contact-inbox identity lookup every consumer shares: probe the
- * primary `sourceId` first, then the scoped user id (e.g. a WhatsApp BSUID)
- * only when the first probe missed and a scoped id exists. Callers supply the
- * actual query, so each site keeps its own relations and extra filters —
- * only the ordering contract lives here and cannot drift between them.
+ * primary `sourceId` first, then the scoped user id, then its parent scoped id.
+ * Callers supply the actual query, so each site keeps its own relations and
+ * extra filters — only the ordering contract lives here and cannot drift.
  */
-export const resolveWithSourceUserIdFallback = async <T>(
+export const resolveSourceScopedIdentityMatch = async <T>(
   identity: SourceScopedIdentity,
-  lookup: (
-    where: { sourceId: string } | { sourceUserId: string },
-  ) => Promise<T | undefined>,
-): Promise<T | undefined> => {
+  lookup: SourceScopedIdentityLookup<T>,
+): Promise<SourceScopedIdentityMatch<T> | undefined> => {
   const bySourceId = await lookup({ sourceId: identity.sourceId })
-  if (bySourceId || !identity.sourceUserId) {
-    return bySourceId
+  if (bySourceId) {
+    return { row: bySourceId, matchedBy: "sourceId" }
   }
-  return await lookup({ sourceUserId: identity.sourceUserId })
+  if (identity.sourceUserId) {
+    const bySourceUserId = await lookup({
+      sourceUserId: identity.sourceUserId,
+    })
+    if (bySourceUserId) {
+      return { row: bySourceUserId, matchedBy: "sourceUserId" }
+    }
+  }
+  if (identity.sourceParentUserId) {
+    const bySourceParentUserId = await lookup({
+      sourceParentUserId: identity.sourceParentUserId,
+    })
+    if (bySourceParentUserId) {
+      return { row: bySourceParentUserId, matchedBy: "sourceParentUserId" }
+    }
+  }
+  return
 }
 
 export type OutgoingContact = {
@@ -130,6 +213,249 @@ export const messageTypes = z.enum(["outgoing", "incoming", "activity"])
  */
 export const echoOrigins = z.enum(["firstParty", "thirdParty"])
 export type EchoOrigin = z.infer<typeof echoOrigins>
+
+/**
+ * Channel-agnostic conversation-routing (thread control) vocabulary shared by
+ * channel integrations. The persisted state model lives in
+ * `@chatbotx.io/database/partials` (`thread-control.ts`); the SDK cannot depend
+ * on the database layer, so the role/action values are mirrored here and
+ * pinned to the database copy by `packages/database/__tests__/thread-control-sdk-parity.test.ts`.
+ */
+export const threadControlRoles = z.enum([
+  "ai_agent",
+  "ctwa",
+  "customer_service",
+  "escalation",
+  "marketing",
+  "utility",
+])
+export type ThreadControlRole = z.infer<typeof threadControlRoles>
+
+export const threadControlActions = z.enum(["take", "release", "pass"])
+export type ThreadControlAction = z.infer<typeof threadControlActions>
+
+/**
+ * Which responder role a delivery reached us in: `owner` = the channel's normal
+ * inbound feed, `standby` = the listen-only standby feed.
+ */
+export const threadControlDeliveries = z.enum(["owner", "standby"])
+export type ThreadControlDelivery = z.infer<typeof threadControlDeliveries>
+
+/** One line of a history-shaped conversation context. */
+export const threadControlHistoryItemSchema = z.object({
+  sender: z.enum(["user", "business"]),
+  text: z.string(),
+  /** Unix epoch seconds as sent by the channel; display only. */
+  timestamp: z.string().optional(),
+})
+export type ThreadControlHistoryItem = z.infer<
+  typeof threadControlHistoryItemSchema
+>
+
+/** Display-only context a previous owner hands over (summary text is opaque). */
+export const threadControlContextSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("summary"), text: z.string() }),
+  z.object({
+    type: z.literal("history"),
+    items: z.array(threadControlHistoryItemSchema),
+  }),
+])
+export type ThreadControlContext = z.infer<typeof threadControlContextSchema>
+
+export type ThreadControlReceiveInfo = {
+  delivery: ThreadControlDelivery
+  context?: ThreadControlContext
+  /**
+   * The channel's own timestamp of the delivered item. Routing transitions are
+   * ordered by it, so a delayed job cannot overwrite a later handover.
+   */
+  occurredAt?: Date
+  /**
+   * Owner app id observed on a `standby` delivery, for channels that name
+   * owners by app id. Absent/null when the channel did not say (roles and the
+   * owner delivery never set it: owning needs no app id).
+   */
+  ownerAppId?: string | null
+  /**
+   * Owner role observed on a `standby` delivery (e.g. `ai_agent` when the
+   * channel flags an AI owner). Absent/null = unstated; ignored for an owner
+   * delivery.
+   */
+  ownerRole?: ThreadControlRole | null
+}
+
+export type ThreadControlWebhookEvent = {
+  contact: IncomingContact
+  event: "controlPassed" | "controlTaken"
+  previousOwnerRole: ThreadControlRole | null
+  newOwnerRole: ThreadControlRole | null
+  handoverNote?: string
+  context?: ThreadControlContext
+  /**
+   * Owner identity for channels that name owners by app id instead of a role
+   * (the role fields above stay `null` for those). Absent when the channel
+   * payload does not carry it (e.g. a take names only the previous owner).
+   */
+  previousOwnerAppId?: string
+  newOwnerAppId?: string
+  /**
+   * The channel's AI-agent app id (e.g. Messenger's Business AI), so shared
+   * code can tell a hand-back FROM the AI agent from any other hand-back
+   * without reading channel config. Absent when the channel has no AI-agent app.
+   */
+  aiAgentAppId?: string
+  /**
+   * A handover the channel inferred from a notice rather than a structured
+   * pass/take (so it may be stale): applied only while the stored thread is
+   * held by this app. On a thread another owner (e.g. us) already holds it is
+   * dropped, so a notice never re-fires the hand-back response.
+   */
+  onlyIfOwnedByAppId?: string
+  /**
+   * Whether this handover starts the resume flow. The CHANNEL decides (it
+   * alone knows which passes mean "handed back to us"); absent = never.
+   */
+  resumeEligible?: boolean
+  occurredAt: Date
+}
+
+/**
+ * A partner asking for the thread (`request_thread_control`). Parsed so the
+ * channel can acknowledge it, but no ownership change follows from it.
+ */
+export type ThreadControlRequestEvent = {
+  contact: IncomingContact
+  requestedOwnerAppId?: string
+  handoverNote?: string
+  occurredAt: Date
+}
+
+/**
+ * Receiver configuration of the account (which app is the primary receiver).
+ * Account-level: carries no contact, so it never touches a thread.
+ */
+export type ThreadControlAppRolesEvent = {
+  /** The account id the roles belong to. */
+  accountId: string
+  /** app id -> roles that app holds. */
+  roles: Record<string, string[]>
+  occurredAt: Date
+}
+
+/**
+ * What a channel's `updateThreadControl` reports back after Meta accepted the
+ * action: the owner of the thread AFTER it (`null` = no owner, e.g. released,
+ * or an owner the channel cannot express as a role). The channel decides —
+ * whether a take makes us the escalation partner or an app id owner is a
+ * channel rule, not a shared one.
+ */
+export type ThreadControlUpdateResult = {
+  ownerRole: ThreadControlRole | null
+  /** Owner app id after the action, for channels that name owners by app id. */
+  ownerAppId?: string | null
+}
+
+/**
+ * Bulk "hand every thread to the AI agent / take the AI-held ones back".
+ * `takeFromAi` is the channel's way of taking a thread over with a human
+ * message (Messenger: a HUMAN_AGENT-tagged send), so it carries `text`.
+ */
+export type BulkThreadControlAction = "handToAi" | "takeFromAi"
+
+/**
+ * The transport facts of a channel's bulk thread-control call, advertised by
+ * its adapter so shared code never assumes one channel's numbers.
+ */
+export type BulkThreadControlLimits = {
+  /** Most threads one bulk call can carry (Messenger: a Graph batch of 50). */
+  maxBatchSize: number
+  /** Pause between two calls, to spread the channel's quota over time. */
+  batchGapMs: number
+  /**
+   * How long to wait when the channel refuses a whole call for its rate limit
+   * without saying when to retry (the caller must stop calling meanwhile).
+   */
+  rateLimitPauseMs: number
+}
+
+/** The thread-control event a succeeded bulk item records on the thread. */
+export type BulkThreadControlRecordedEvent = "passed" | "serviceSent"
+
+/**
+ * Outcome of one thread in a bulk call. `failed` means the channel definitely
+ * did not apply it (safe to retry when the error is retryable); `unknown`
+ * means it may have been applied (a timed-out or 5xx sub-request) and must not
+ * be retried for a send, since a retry could deliver the message twice.
+ */
+export type BulkThreadControlItemResult =
+  | {
+      contactInboxId: string
+      status: "succeeded"
+      /** What happened to the thread: a hand-over is a pass, a tagged send a takeover. */
+      event: BulkThreadControlRecordedEvent
+      ownerRole: ThreadControlRole | null
+      ownerAppId: string | null
+      /** Channel id of the message a `takeFromAi` sent, when there is one. */
+      messageSourceId: string | null
+    }
+  | { contactInboxId: string; status: "failed"; error: ChannelError }
+  | { contactInboxId: string; status: "unknown"; error: ChannelError }
+  /**
+   * Not applied because the channel asked to slow down (a rate limit, or the
+   * quota is nearly used up): nothing happened, so it is safe to retry after
+   * `retryAfterMs`.
+   */
+  | { contactInboxId: string; status: "deferred"; error: ChannelError }
+
+/** What one bulk call reports back. */
+export type BulkThreadControlResult = {
+  /** One entry per input contact, in input order. */
+  results: BulkThreadControlItemResult[]
+  /**
+   * The channel asks the caller to wait this long before its next call (its
+   * quota is exhausted or close to it). `null` = carry on.
+   */
+  retryAfterMs: number | null
+}
+
+/**
+ * What a channel's `getThreadOwner` reports: who holds the thread according to
+ * the channel itself. `ownerAppId: null` = the channel says nobody holds it.
+ * A channel that cannot answer does not implement the handler at all, so a
+ * missing handler means "cannot sync", never "no owner".
+ */
+export type ThreadOwnerResult = {
+  ownerAppId: string | null
+  /** When the channel says the ownership lapses; `null` when it does not. */
+  expiresAt: Date | null
+  /**
+   * The channel's own identities, resolved on the channel side so shared code
+   * can classify `ownerAppId` without reading channel config: OUR app id, and
+   * the automated-assistant app id. Absent/null = the channel does not know.
+   */
+  ownAppId?: string | null
+  aiAgentAppId?: string | null
+}
+
+export type ThreadControlWebhookResult =
+  | { kind: "handover"; event: ThreadControlWebhookEvent }
+  /** A thread request: parsed and ignored (no ownership change). */
+  | { kind: "handoverRequest"; event: ThreadControlRequestEvent }
+  /** Receiver configuration: parsed and logged only. */
+  | { kind: "appRoles"; event: ThreadControlAppRolesEvent }
+  /** Handed unchanged to `receiveMessage`. */
+  | {
+      kind: "standbyMessage"
+      receivePayload: unknown
+      /**
+       * The same message as a regular (owner) delivery, for a channel whose
+       * standby copy can be re-processed once this app holds the thread again
+       * (the channel does not resend it). Absent when it cannot be replayed.
+       */
+      ownerReplayPayload?: unknown
+      /** The channel's AI-agent app id, to recognise a thread this app took from it. */
+      aiAgentAppId?: string
+    }
 export type MessageType = z.infer<typeof messageTypes>
 
 export type IncomingMessage = {
@@ -320,6 +646,22 @@ export const getStoryReply = (
 }
 
 /**
+ * Carried on an inbound Instagram message that is a `story_mention`
+ * attachment — the contact tagged the account in their story. Lets the
+ * leaderboard (and later the inbox) tell it apart from an ordinary image.
+ */
+export type MessageStoryMentionEntity = {
+  type: "story_mention"
+}
+
+export const isStoryMention = (contentAttributes: unknown): boolean =>
+  Boolean(
+    contentAttributes &&
+      typeof contentAttributes === "object" &&
+      (contentAttributes as { type?: unknown }).type === "story_mention",
+  )
+
+/**
  * Centralized so the worker (writer) and inbox renderer (reader) cannot drift
  * on the shape check.
  */
@@ -333,6 +675,34 @@ export const getWhatsappCallEntity = (
   return attrs.type === "whatsapp_call"
     ? (contentAttributes as MessageWhatsappCallEntity)
     : undefined
+}
+
+/**
+ * What the sender stamps on the message a "view catalog" step produces. The
+ * message text alone reads like any other reply, so this is what lets the inbox
+ * show the catalog button the contact sees. Channel-neutral on purpose: only the
+ * step type decides it, never the channel that delivered it.
+ */
+export type MessageViewCatalogEntity = {
+  footer?: string
+}
+
+/**
+ * Centralized so the worker (writer) and inbox renderer (reader) cannot drift
+ * on the shape check.
+ */
+export const getViewCatalogEntity = (
+  contentAttributes: unknown,
+): MessageViewCatalogEntity | undefined => {
+  if (!contentAttributes || typeof contentAttributes !== "object") {
+    return
+  }
+  const { viewCatalog } = contentAttributes as { viewCatalog?: unknown }
+  if (!viewCatalog || typeof viewCatalog !== "object") {
+    return
+  }
+  const { footer } = viewCatalog as { footer?: unknown }
+  return typeof footer === "string" ? { footer } : {}
 }
 
 /**
@@ -389,6 +759,31 @@ export const resolveWhatsappCallActivityLabelKey = (
     : "unansweredVoiceCall"
 }
 
+/**
+ * A WhatsApp Flow's completion reply (`nfm_reply`). Shared by the worker
+ * (writer) and the inbox (reader). An `nfm_reply` named `address_message`
+ * is an address answer, not a Flow, so it does not match.
+ */
+export const getWhatsappFlowResponse = (
+  contentAttributes: unknown,
+): MessageWhatsappFlowResponseEntity | undefined => {
+  if (!contentAttributes || typeof contentAttributes !== "object") {
+    return
+  }
+  const attrs = contentAttributes as {
+    type?: string
+    name?: unknown
+    flowResponse?: unknown
+  }
+  return attrs.type === "whatsapp_flow_response" &&
+    (attrs.name === undefined || attrs.name === "flow") &&
+    attrs.flowResponse !== null &&
+    typeof attrs.flowResponse === "object" &&
+    !Array.isArray(attrs.flowResponse)
+    ? (contentAttributes as MessageWhatsappFlowResponseEntity)
+    : undefined
+}
+
 export const getWhatsappCallPermissionReply = (
   contentAttributes: unknown,
 ): MessageWhatsappCallPermissionReplyEntity | undefined => {
@@ -407,7 +802,10 @@ export const MessageEntitySchema = z.custom<IncomingMessage>(
 )
 
 export type IncomingAttachment = {
-  sourceId: string
+  // The provider's attachment id, or null when the channel's webhook does not
+  // carry one (a lazily-ingested attachment: the row is paired with the
+  // provider's media list later).
+  sourceId: string | null
   fileType: IncomingFileType
   mimeType: string
   originPath: string
@@ -416,6 +814,110 @@ export type IncomingAttachment = {
   width?: number | null
   height?: number | null
   name?: string
+  /**
+   * Set by the channel when the attachment arrived as a photo message, as
+   * opposed to an image sent as a document/file (a scan, an invoice) whose
+   * original the sender meant to keep. Only photos are re-encoded in storage.
+   * Not persisted.
+   */
+  isPhotoMessage?: boolean
+  /**
+   * Set when the channel already re-encoded the image before its first write
+   * (inline compression), so no background re-encode job is needed. Not
+   * persisted.
+   */
+  optimized?: boolean
+}
+
+/**
+ * The persisted form of `isPhotoMessage` (`Attachment.keepOriginal`): only an
+ * image sent as a file — not a photo message — keeps its original bytes.
+ * Other kinds have no opinion (null), except a `file` the channel explicitly
+ * marked as not a photo: its kind may be a guess (a pending attachment with an
+ * extension-less URL) and it can turn out to be an image once downloaded. The
+ * one place this rule lives; the webhook path and the history importers both
+ * call it.
+ */
+export const toKeepOriginal = (
+  attachment: Pick<IncomingAttachment, "fileType" | "isPhotoMessage">,
+): boolean | null => {
+  if (attachment.fileType === "image") {
+    return !attachment.isPhotoMessage
+  }
+  return attachment.fileType === "file" && attachment.isPhotoMessage === false
+    ? true
+    : null
+}
+
+const DEFERRABLE_ATTACHMENT_TYPES = ["image", "video", "audio", "file"] as const
+
+export type DeferrableAttachmentType =
+  (typeof DEFERRABLE_ATTACHMENT_TYPES)[number]
+
+/**
+ * Whether a channel's attachment type is plain media that can be fetched again
+ * later. Other types (templates, shares, stories, locations, fallbacks) are
+ * stored or handled at ingestion as before.
+ */
+export const isDeferrableAttachmentType = (
+  type: string,
+): type is DeferrableAttachmentType =>
+  (DEFERRABLE_ATTACHMENT_TYPES as readonly string[]).includes(type)
+
+const DEFAULT_MIME_TYPE_BY_KIND: Record<DeferrableAttachmentType, string> = {
+  image: "image/jpeg",
+  video: "video/mp4",
+  audio: "audio/mpeg",
+  file: "application/octet-stream",
+}
+
+const mimeTypeFromUrl = (url: string): string | undefined => {
+  try {
+    const extension = new URL(url).pathname.split(".").pop()?.toLowerCase()
+    return extension ? EXTENSION_MIME_TYPES[extension] : undefined
+  } catch {
+    return
+  }
+}
+
+/**
+ * An attachment ingested without downloading it: the provider's URL is kept as
+ * the reference (`originPath`) and the bytes are stored on first use. The size
+ * and dimensions are unknown until then. The MIME type and kind are a best
+ * guess from the URL and must agree with each other:
+ * - a webhook `file` takes the kind of its URL's MIME type, as the eager path
+ *   does with the real content (a JPEG sent as a file is an image);
+ * - an `image`/`video`/`audio` keeps its declared kind, and an extension that
+ *   contradicts it (a voice clip delivered as `.mp4`) falls back to the kind's
+ *   default MIME type.
+ *
+ * Null for a `file` whose URL does not tell what it is: its kind and MIME type
+ * decide where it shows up (an AI document reader looks for PDF/DOCX), so the
+ * caller downloads it at once, which reads the real content type.
+ */
+export const toPendingIncomingAttachment = (input: {
+  url: string
+  type: DeferrableAttachmentType
+}): IncomingAttachment | null => {
+  const fromUrl = mimeTypeFromUrl(input.url)
+  if (input.type === "file" && !fromUrl) {
+    return null
+  }
+  const mimeType =
+    fromUrl &&
+    (input.type === "file" || guessFileTypeFromMimeType(fromUrl) === input.type)
+      ? fromUrl
+      : DEFAULT_MIME_TYPE_BY_KIND[input.type]
+
+  return {
+    sourceId: null,
+    fileType:
+      input.type === "file" ? guessFileTypeFromMimeType(mimeType) : input.type,
+    mimeType,
+    originPath: input.url,
+    size: 0,
+    isPhotoMessage: input.type === "image",
+  }
 }
 
 export type OutgoingAttachment = {
@@ -432,6 +934,9 @@ export type OutgoingAttachment = {
 export type ExternalMediaResult = {
   originPath: string
   size: number
+  /** Only set when the stored bytes were re-encoded here. */
+  mimeType?: string
+  optimized?: boolean
   width?: number
   height?: number
   name?: string
@@ -569,6 +1074,170 @@ export type MessageTemplateEntity = {
         cards: MessageCardTemplate[]
       }
 }
+
+/**
+ * Where a product's channel-side identity comes from. One source per catalog
+ * system; a channel is mapped to its source by the business layer.
+ */
+export const productCatalogSources = z.enum(["metaCatalog"])
+export type ProductCatalogSource = z.infer<typeof productCatalogSources>
+
+export type ProductMessageItem = {
+  productId: string
+  name: string
+  imageUrl: string | null
+  price: number
+  currency: string
+  catalogReference: {
+    source: ProductCatalogSource
+    catalogId: string
+    retailerId: string
+  }
+}
+
+/**
+ * A `sendProducts` step after its product ids were resolved for one send. The
+ * channel-neutral hand-off from the business layer to an integration, and the
+ * snapshot stored on the message so history survives later product edits.
+ */
+export type ResolvedProductMessage =
+  | {
+      display: "products"
+      header?: string
+      body?: string
+      footer?: string
+      sections: Array<{ title?: string; items: ProductMessageItem[] }>
+    }
+  | { display: "carousel"; body: string; items: ProductMessageItem[] }
+
+export type MessageProductEntity = {
+  type: "product_message"
+  payload: ResolvedProductMessage
+}
+
+export const isMessageProductEntity = (
+  value: unknown,
+): value is MessageProductEntity =>
+  typeof value === "object" &&
+  value !== null &&
+  "type" in value &&
+  value.type === "product_message" &&
+  "payload" in value &&
+  typeof value.payload === "object" &&
+  value.payload !== null
+
+/**
+ * A catalog product as the contact's channel names it: raw identity only. An
+ * integration cannot know the catalog `source`, so it never builds a
+ * {@link ResolvedInboundProductReference}; the business layer does.
+ */
+export type InboundCatalogProductReference = {
+  catalogId: string
+  retailerId: string
+}
+
+/**
+ * What a channel reports when a contact interacts with the catalog. Channel
+ * neutral: an integration only fills this, whatever its own webhook looks like.
+ * - `cartSent`: the contact sent a shopping cart (an order of catalog items).
+ * - `productInquiry`: the contact asked about one specific product.
+ */
+export type IncomingCommerceEvent =
+  | {
+      kind: "cartSent"
+      catalogId: string
+      note: string | null
+      items: Array<
+        InboundCatalogProductReference & {
+          quantity: number
+          itemPrice: number
+          currency: string
+        }
+      >
+    }
+  | { kind: "productInquiry"; product: InboundCatalogProductReference }
+
+/**
+ * An inbound product reference after the business layer matched it to the
+ * workspace catalog. `product` is `null` when the item is not linked here.
+ */
+export type ResolvedInboundProductReference = {
+  catalogReference: ProductMessageItem["catalogReference"]
+  product: Omit<ProductMessageItem, "catalogReference"> | null
+}
+
+export type MessageInboundOrderEntity = {
+  note: string | null
+  items: Array<
+    ResolvedInboundProductReference & {
+      quantity: number
+      itemPrice: number
+      currency: string
+    }
+  >
+}
+
+// What a saved message may claim about a catalog interaction. `contentAttributes`
+// is caller-controlled on some channels (the public API channel stores it as
+// given), so these are checked field by field: a malformed or forged entry reads
+// as absent instead of reaching a trigger, a webhook payload or the inbox.
+const resolvedInboundProductReferenceSchema = z.object({
+  catalogReference: z.object({
+    source: productCatalogSources,
+    catalogId: z.string().min(1),
+    retailerId: z.string().min(1),
+  }),
+  product: z
+    .object({
+      productId: z.string().min(1),
+      name: z.string(),
+      imageUrl: z.string().nullable(),
+      price: z.number(),
+      currency: z.string(),
+    })
+    .nullable(),
+})
+
+const inboundOrderSchema = z.object({
+  note: z.string().nullable(),
+  items: z
+    .array(
+      resolvedInboundProductReferenceSchema.extend({
+        quantity: z.number(),
+        itemPrice: z.number(),
+        currency: z.string(),
+      }),
+    )
+    .min(1),
+})
+
+const readKeyedAttribute = (
+  contentAttributes: unknown,
+  key: "inboundOrder" | "referredProduct",
+): unknown =>
+  contentAttributes && typeof contentAttributes === "object"
+    ? (contentAttributes as Record<string, unknown>)[key]
+    : undefined
+
+/**
+ * Both entities live under their own key in `contentAttributes`, next to
+ * whatever the channel already stores (a WhatsApp order keeps its raw `order`
+ * fields), so adding them is backward compatible. Centralized so the worker
+ * (writer) and inbox renderer (reader) cannot drift on the shape check.
+ */
+export const getInboundOrder = (
+  contentAttributes: unknown,
+): MessageInboundOrderEntity | undefined =>
+  inboundOrderSchema.safeParse(
+    readKeyedAttribute(contentAttributes, "inboundOrder"),
+  ).data
+
+export const getReferredProduct = (
+  contentAttributes: unknown,
+): ResolvedInboundProductReference | undefined =>
+  resolvedInboundProductReferenceSchema.safeParse(
+    readKeyedAttribute(contentAttributes, "referredProduct"),
+  ).data
 
 export const contentTypes = z.enum(["text", "location", "refLink"])
 export type ContentType = z.infer<typeof contentTypes>

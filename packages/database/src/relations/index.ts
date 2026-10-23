@@ -5,8 +5,11 @@ import { aiConversationSourceRelations } from "./ai-conversation-source"
 import { aiEmbeddingRelations } from "./ai-embedding"
 import { aiFileRelations } from "./ai-file"
 import { aiFunctionRelations } from "./ai-function"
+import { aiHandoverBulkRunRelations } from "./ai-handover-bulk-run"
+import { aiHandoverSettingsRelations } from "./ai-handover-settings"
 import { aiMCPServerRelations } from "./ai-mcp-server"
 import {
+  analyticsAgentResponseEventRelations,
   analyticsBotMessageEventRelations,
   analyticsBroadcastEventRelations,
   analyticsContactEventRelations,
@@ -27,15 +30,20 @@ import { automationThrottleRelations } from "./automation-throttle"
 import { billableUsageEventRelations } from "./billable-usage-event"
 import { botFieldRelations } from "./bot-field"
 import { broadcastRelations } from "./broadcast"
+import { broadcastRecurrenceRelations } from "./broadcast-recurrence"
 import { broadcastTargetRelations } from "./broadcast-target"
+import { channelPostRelations } from "./channel-post"
 import { coexistSyncRunRelations } from "./coexist-sync-run"
 import { commentAutomationRelations } from "./comment-automation"
 import { commentAutomationEventRelations } from "./comment-automation-event"
 import { commentAutomationMissRelations } from "./comment-automation-miss"
 import { commentAutomationReplyRelations } from "./comment-automation-reply"
+import { connectSessionRelations } from "./connect-session"
+import { connectionRelations } from "./connection"
 import { contactRelations } from "./contact"
 import { contactCustomFieldRelations } from "./contact-custom-field"
 import { contactInboxRelations } from "./contact-inbox"
+import { contactInboxPostRelations } from "./contact-inbox-post"
 import { contactNoteRelations } from "./contact-note"
 import { contactsOnBroadcastsRelations } from "./contact-on-broadcast"
 import { contactsOnSequenceRelations } from "./contact-on-sequence"
@@ -47,10 +55,13 @@ import { conversationParticipantRelations } from "./conversation-participant"
 import { couponRelations } from "./coupon"
 import { platformCredentialRelations } from "./credential"
 import { customFieldRelations } from "./custom-field"
+import { decisionRelations } from "./decision"
 import { dynamicImageRelations } from "./dynamic-image"
 import { emailTopicRelations } from "./email-topic"
 import { auditLogRelations } from "./enterprise/audit-log"
 import { customDomainRelations } from "./enterprise/custom-domain"
+import { licenseRelations } from "./enterprise/license"
+import { platformAdminRelations } from "./enterprise/platform-admin"
 import { tenantRelations } from "./enterprise/tenant"
 import { tenantHelpItemRelations } from "./enterprise/tenant-help-item"
 import { userQuotaRelations } from "./enterprise/user-quota"
@@ -68,8 +79,11 @@ import { flowNodeStatRelations } from "./flow-node-stat"
 import { flowRunRelations } from "./flow-run"
 import { flowVersionRelations } from "./flow-version"
 import { folderRelations } from "./folder"
+import { googleAdsConversionEventRelations } from "./google-ads-conversion-event"
+import { googleAdsSettingsRelations } from "./google-ads-settings"
 import { igStoryAutomationRelations } from "./ig-story-automation"
 import { importRelations } from "./import"
+import { inboundWebhookRelations } from "./inbound-webhook"
 import { inboxRelations } from "./inbox"
 import { inboxContactStatsRelations } from "./inbox-contact-stats"
 import { inboxTeamRelations } from "./inbox-team"
@@ -83,6 +97,7 @@ import { integrationDripRelations } from "./integration-drip"
 import { integrationFacebookAdsRelations } from "./integration-facebook-ads"
 import { integrationGeminiRelations } from "./integration-gemini"
 import { integrationGetResponseRelations } from "./integration-get-response"
+import { integrationGoogleAdsRelations } from "./integration-google-ads"
 import { integrationGoogleCalendarRelations } from "./integration-google-calendar"
 import { integrationGoogleSheetsRelations } from "./integration-google-sheets"
 import { integrationInstagramRelations } from "./integration-instagram"
@@ -106,6 +121,9 @@ import { integrationZaloRelations } from "./integration-zalo"
 import { inventoryLocationRelations } from "./inventory-location"
 import { inventoryMovementRelations } from "./inventory-movement"
 import { inventoryStockRelations } from "./inventory-stock"
+import { leaderboardRelations } from "./leaderboard"
+import { leaderboardAuditLogRelations } from "./leaderboard-audit-log"
+import { leaderboardParticipantRelations } from "./leaderboard-participant"
 import { magicLinkRelations } from "./magic-link"
 import { mediaLibraryFileRelations } from "./media-library-file"
 import { mediaLibraryFolderRelations } from "./media-library-folder"
@@ -113,8 +131,10 @@ import { messageRelations } from "./message"
 import { messagingAdOperationRelations } from "./messaging-ad-operation"
 import { messagingAdsConnectionRelations } from "./messaging-ads-connection"
 import { messengerMessageTemplateRelations } from "./messenger-message-template"
+import { messengerWelcomeMessageFlowRelations } from "./messenger-welcome-message-flow"
 import { metaCapiEventRelations } from "./meta-capi-event"
 import { metaCatalogRelations } from "./meta-catalog"
+import { miniAppRelations } from "./mini-app"
 import { minigameRelations } from "./minigame"
 import { minigameContactRelations } from "./minigame-contact"
 import { minigamePlayRelations } from "./minigame-play"
@@ -137,12 +157,14 @@ import { productCategoryRelations } from "./product-category"
 import { questionnaireRelations } from "./questionnaire"
 import { reflinkRelations } from "./reflink"
 import { savedReplyRelations } from "./save-reply"
+import { savedReplyImageRelations } from "./saved-reply-image"
 import { sequenceRelations } from "./sequence"
 import { sequenceDispatchRelations } from "./sequence-dispatch"
 import { sequenceStepRelations } from "./sequence-step"
 import { spreadsheetRelations } from "./spreadsheet"
 import { tagRelations } from "./tag"
 import { tagChannelRelations } from "./tag-channel"
+import { telegramChatRelations } from "./telegram-chat"
 import { templateRelations } from "./template"
 import { templateInstallationRelations } from "./template-installation"
 import { templateInstalledResourceRelations } from "./template-installed-resource"
@@ -162,12 +184,15 @@ import { whatsappCallPermissionRelations } from "./whatsapp-call-permission"
 import { whatsappFlowRelations } from "./whatsapp-flow"
 import { whatsappMessageTemplateRelations } from "./whatsapp-message-template"
 import { whatsappSignupSessionRelations } from "./whatsapp-signup-session"
+import { workingHoursRelations } from "./working-hours"
 import { workspaceRelations } from "./workspace"
 import { workspaceApiTokenRelations } from "./workspace-api-token"
 import { workspaceMemberRelations } from "./workspace-member"
 
 export const relations = {
   ...integrationApiRelations,
+  ...connectionRelations,
+  ...connectSessionRelations,
   ...adsConversionEventRelations,
   ...metaCapiEventRelations,
   ...messagingAdOperationRelations,
@@ -176,7 +201,9 @@ export const relations = {
   ...metaCapiEventRelations,
   ...igStoryAutomationRelations,
   ...integrationOpenaiRelations,
+  ...channelPostRelations,
   ...contactRelations,
+  ...contactInboxPostRelations,
   ...tagRelations,
   ...templateRelations,
   ...templateInstallationRelations,
@@ -194,9 +221,12 @@ export const relations = {
   ...conversationRelations,
   ...couponRelations,
   ...messageRelations,
+  ...messengerWelcomeMessageFlowRelations,
   ...automatedResponseRelations,
   ...billableUsageEventRelations,
   ...customDomainRelations,
+  ...licenseRelations,
+  ...platformAdminRelations,
   ...tenantRelations,
   ...tenantHelpItemRelations,
   ...platformCredentialRelations,
@@ -204,20 +234,25 @@ export const relations = {
   ...workspaceUsageRelations,
   ...contactCustomFieldRelations,
   ...customFieldRelations,
+  ...decisionRelations,
   ...dynamicImageRelations,
   ...broadcastRelations,
+  ...broadcastRecurrenceRelations,
   ...broadcastTargetRelations,
   ...inboxTeamRelations,
   ...inboxRelations,
   ...conversationParticipantRelations,
   ...folderRelations,
   ...importRelations,
+  ...inboundWebhookRelations,
   ...fileRelations,
   ...flowRunRelations,
   ...flowVersionRelations,
   ...inboxTeamMemberRelations,
   ...integrationRelations,
   ...integrationMessengerRelations,
+  ...aiHandoverBulkRunRelations,
+  ...aiHandoverSettingsRelations,
   ...messengerMessageTemplateRelations,
   ...integrationWebchatRelations,
   ...integrationZaloRelations,
@@ -248,6 +283,9 @@ export const relations = {
   ...workspaceMemberRelations,
   ...contactNoteRelations,
   ...aiEmbeddingRelations,
+  ...integrationGoogleAdsRelations,
+  ...googleAdsConversionEventRelations,
+  ...googleAdsSettingsRelations,
   ...integrationGoogleCalendarRelations,
   ...integrationGoogleSheetsRelations,
   ...integrationFacebookAdsRelations,
@@ -261,6 +299,7 @@ export const relations = {
   ...contactsOnBroadcastsRelations,
   ...contactsToTagsRelations,
   ...tagChannelRelations,
+  ...telegramChatRelations,
   ...contactToTagChannelRelations,
   ...reflinkRelations,
   ...magicLinkRelations,
@@ -283,6 +322,7 @@ export const relations = {
   ...mediaLibraryFolderRelations,
   ...mediaLibraryFileRelations,
   ...savedReplyRelations,
+  ...savedReplyImageRelations,
   ...integrationTelegramRelations,
   ...integrationTiktokRelations,
   ...integrationInstagramRelations,
@@ -328,7 +368,13 @@ export const relations = {
   ...pointPurchaseOrderRelations,
   ...whatsappSignupSessionRelations,
   ...automationThrottleRelations,
+  ...miniAppRelations,
   ...minigameRelations,
   ...minigameContactRelations,
   ...minigamePlayRelations,
+  ...leaderboardRelations,
+  ...leaderboardParticipantRelations,
+  ...leaderboardAuditLogRelations,
+  ...workingHoursRelations,
+  ...analyticsAgentResponseEventRelations,
 }

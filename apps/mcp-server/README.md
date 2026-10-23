@@ -39,19 +39,19 @@ Use `search_tools` when the task needs something outside the default set (e.g. d
 
 | Tool | Description |
 |---|---|
-| `capabilities_get` | Discover the workspace's inboxes, WhatsApp templates, custom/bot fields, tags, AI agents, sequences, and flows — the ids a flow spec or a message needs to reference. |
+| `capabilities_get` | Discover workspace entities and query `channel` before authoring a channel-bound FlowSpec to receive its supported blocks and limits. |
 | `token_get` | Get the calling token's workspace id, permission (`read_only`/`full`), and scopes — check before attempting a write. |
 | `schemas_flow_spec` | Get the JSON Schema for the `spec` object `flows_publish`/`flows_update_draft`/`flows_validate` accept — the authoritative reference for every flow step type. |
 
 ## Available tools
 
-Tool names are derived from the OpenAPI `operationId` converted to `snake_case` (e.g. `tags.list` → `tags_list`). The current default set has 43 tools:
+Tool names are derived from the OpenAPI `operationId` converted to `snake_case` (e.g. `tags.list` → `tags_list`). The current default set has 48 tools:
 
 ### Capabilities
 
 | Tool | Description |
 |---|---|
-| `capabilities_get` | Discover the workspace's inboxes, templates, fields, tags, sequences, and flows |
+| `capabilities_get` | Discover workspace entities and a requested channel's FlowSpec policy |
 | `schemas_flow_spec` | Get JSON Schema for flow-spec DSL |
 | `token_get` | Get calling token workspace id, permission, and scopes |
 
@@ -82,6 +82,16 @@ Tool names are derived from the OpenAPI `operationId` converted to `snake_case` 
 | `broadcasts_list` | List broadcasts |
 | `broadcasts_get` | Get broadcast |
 | `broadcasts_stop` | Stop broadcast |
+
+### Connections
+
+| Tool | Description |
+|---|---|
+| `connections_create` | Connect channel or integration |
+| `connection_providers_list` | List connection providers |
+| `connect_sessions_get` | Get connect session |
+
+For `connections_create` with `provider: "api"`, the response includes a one-time `secret.token`. Store it before discarding the response; it is never retrievable again.
 
 ### Contacts
 
@@ -137,6 +147,13 @@ Tool names are derived from the OpenAPI `operationId` converted to `snake_case` 
 |---|---|
 | `messages_list` | List messages on conversation |
 
+### Mini Apps
+
+| Tool | Description |
+|---|---|
+| `mini_apps_list` | List Mini Apps |
+| `mini_apps_create` | Create Mini App |
+
 ### Sequences
 
 | Tool | Description |
@@ -145,11 +162,11 @@ Tool names are derived from the OpenAPI `operationId` converted to `snake_case` 
 | `sequences_get` | Get sequence |
 | `sequences_update` | Update sequence name or active state |
 
-Everything else — deletes, less-common resources (coupons, products, webhooks, saved replies, tags/triggers/inboxes/custom-fields management, integrations, workspace members, etc.), and channel-token-only or deprecated operations — is reachable via `search_tools` → `call_tool`, not `tools/list`.
+Everything else — deletes, less-common resources (coupons, products, webhooks, saved replies, tags/triggers/inboxes/custom-fields management, workspace members, etc.), connection lifecycle management beyond the initial connect (disconnect, reconnect, refresh, verify, rename), and channel-token-only or deprecated operations — is reachable via `search_tools` → `call_tool`, not `tools/list`.
 
 ## Prerequisites
 
-- Node.js >= 18
+- Node.js >= 24
 - A ChatbotX workspace token (`Settings → Developer → API Keys`)
 
 ## Quick start
@@ -323,7 +340,7 @@ pnpm --filter chatbotx-mcp eval:business \
 ```
 
 - `--repeat N` runs every selected case under every model and exposure N times. Smoke runs default to 3; baseline and candidate runs default to 1.
-- `--exposure meta-only` restricts the model's tool set to `search_tools`/`call_tool` only (no directly-listed default tools) — the path a client using only the default connection payload takes for any request outside the ~43 default-visible tools. `both` (the default) runs every case under both exposures.
+- `--exposure meta-only` restricts the model's tool set to `search_tools`/`call_tool` only (no directly-listed default tools) — the path a client using only the default connection payload takes for any request outside the ~45 default-visible tools. `both` (the default) runs every case under both exposures.
 - Each episode is graded on semantic arguments, ordered tool sequences, its expected final HTTP state, API-error claims, post-failure mutations, and step exhaustion. The summary reports the pass rate per model × exposure × locale × family; episodes also record `searchRank`, `callToolErrorCount`, and `unknownToolCount`.
 - The smoke sandbox includes contact, conversation reply, flow, broadcast, appointment, and analytics fixtures. No public appointment-availability operation exists, so unavailable-slot coverage exercises `appointments_book` returning 422.
 - Compare two runs (regressions fail the command):

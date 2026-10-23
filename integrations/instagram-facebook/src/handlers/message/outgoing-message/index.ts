@@ -7,6 +7,7 @@ import {
   type SendQuickReplyStepSchema,
   type SendTextStepSchema,
   type SendVideoStepSchema,
+  type StepType,
   stepTypes,
 } from "@chatbotx.io/flow-config"
 import {
@@ -19,7 +20,11 @@ import {
 } from "@chatbotx.io/sdk"
 import { sendPrivateReplyMessage } from "../../../apis/comment"
 import { sendMessage as sendMessageApi } from "../../../apis/message"
-import { mapToChannelError } from "../../../lib/error-mapper"
+import { takeThreadControl } from "../../../apis/page"
+import {
+  isNotThreadOwnerError,
+  mapToChannelError,
+} from "../../../lib/error-mapper"
 import { logger } from "../../../lib/logger"
 import {
   INSTAGRAM_MESSAGE_METADATA,
@@ -38,6 +43,45 @@ import { convertFlowStepMultipleImages } from "./send-multiple-images"
 import { convertFlowStepQuickReply } from "./send-quick-reply"
 import { convertFlowStepText } from "./send-text"
 
+export const handledFlowStepTypes = [
+  stepTypes.enum.sendText,
+  stepTypes.enum.sendImage,
+  stepTypes.enum.sendVideo,
+  stepTypes.enum.sendMultipleImages,
+  stepTypes.enum.sendAudio,
+  stepTypes.enum.sendFile,
+  stepTypes.enum.sendGif,
+  stepTypes.enum.sendQuickReply,
+  stepTypes.enum.sendCarousel,
+] as const satisfies readonly StepType[]
+
+/**
+ * One Send API call with the Handover Protocol recovery: when Meta refuses the
+ * send because another app owns the thread (2534037), take the thread back for
+ * this IGSID and retry exactly once. Any other error, a second 2534037, or a
+ * failing or refused take_thread_control propagates unchanged. Scoped to ONE
+ * message so a multi-message step never re-sends what already landed (fork,
+ * s171).
+ */
+const sendWithHandover = async (
+  auth: InstagramAuthValue,
+  contact: OutgoingContact,
+  payload: InstagramSendMessageRequest,
+) => {
+  try {
+    return await sendMessageApi(auth, payload)
+  } catch (error) {
+    if (!isNotThreadOwnerError(error)) {
+      throw error
+    }
+    logger.info(
+      `Send refused (2534037): taking thread control for IGSID ${contact.sourceId} and retrying once`,
+    )
+    await takeThreadControl(auth, contact.sourceId)
+    return await sendMessageApi(auth, payload)
+  }
+}
+
 export const sendMessage: MessageHandlers<InstagramAuthValue>["sendMessage"] =
   async (props) => {
     const {
@@ -55,7 +99,7 @@ export const sendMessage: MessageHandlers<InstagramAuthValue>["sendMessage"] =
       }
       for (const instagramMessage of instagramMessages) {
         const payload = buildMessagePayload(contact, instagramMessage)
-        const response = await sendMessageApi(ctx.auth, payload)
+        const response = await sendWithHandover(ctx.auth, contact, payload)
         sentCount += 1
         if (response.message_id) {
           messageIds.push(response.message_id)
@@ -220,7 +264,7 @@ export async function* convertFlowStep(
       ) as Generator<InstagramSendMessage>
       break
     default:
-      break
+      throw new Error(`Unsupported Instagram flow step: ${step.stepType}`)
   }
 }
 
@@ -280,8 +324,9 @@ export const sendFlowStep: MessageHandlers<InstagramAuthValue>["sendFlowStep"] =
               anchorCommentId,
               instagramMessage,
             )
-          : await sendMessageApi(
+          : await sendWithHandover(
               ctx.auth,
+              contact,
               buildMessagePayload(contact, instagramMessage),
             )
         anchorCommentId = undefined

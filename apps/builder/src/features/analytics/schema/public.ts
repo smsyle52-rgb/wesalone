@@ -1,5 +1,8 @@
 import {
+  agentResponseSeriesRowSchema,
   botMessageStatsSchema,
+  commentAutomationTimeseriesRow,
+  contactsByDimensionFields,
   conversationArchivedStatsSchema,
   conversationAssignedByAdminStatsSchema,
   conversationAssignedStatsSchema,
@@ -17,37 +20,40 @@ import {
   getSequenceStepStatsRequest,
   getSequenceStepStatsResponse,
   humanAgentStatsSchema,
+  isSupportedDimensionMetric,
   messagesByAdminStatsSchema,
   messagesBySenderStatsSchema,
   refLinkTimeseriesRow,
-  timeRangeQuerySchema,
-  timeRangeQueryWithGranularityDMSchema,
-  timeRangeQueryWithGranularityMHDSchema,
+  timeRangeQueryWithFilterSchema,
+  timeRangeQueryWithGranularityDMFilterSchema,
+  timeRangeQueryWithGranularityMHDFilterSchema,
   uniqueConversationsByAdminStatsSchema,
+  unsupportedDimensionMetricIssue,
 } from "@chatbotx.io/analytics/schemas"
+import { analyticsFilterOptionResource } from "@chatbotx.io/business/inbox/schema"
+import { zodBigintAsString } from "@chatbotx.io/utils"
 import { z } from "zod"
-import { withPublicPaging } from "@/lib/public-api/list"
+import { ianaTimezoneSchema } from "@/lib/public-api/iana-timezone"
+import { publicListRequest, withPublicPaging } from "@/lib/public-api/list"
 
 // ─────────────────────────────────────────────────────────────────────────
 // Shared input schemas (workspaceId stripped — injected from the token's
 // resolved workspace in the handler, never accepted from client input)
 // ─────────────────────────────────────────────────────────────────────────
 
-export const timeRangePublicRequest = timeRangeQuerySchema.omit({
+export const timeRangePublicRequest = timeRangeQueryWithFilterSchema.omit({
   workspaceId: true,
 })
 
 export const timeRangeWithGranularityMHDPublicRequest =
-  timeRangeQueryWithGranularityMHDSchema.omit({ workspaceId: true })
+  timeRangeQueryWithGranularityMHDFilterSchema.omit({ workspaceId: true })
 
 export const timeRangeWithGranularityDMPublicRequest =
-  timeRangeQueryWithGranularityDMSchema.omit({ workspaceId: true })
+  timeRangeQueryWithGranularityDMFilterSchema.omit({ workspaceId: true })
 
-export const contactsByDimensionPublicRequest = timeRangePublicRequest.extend({
-  dimension: z
-    .enum(["country", "channel", "source"])
-    .describe("How to group contact counts."),
-})
+export const contactsByDimensionPublicRequest = timeRangePublicRequest
+  .extend(contactsByDimensionFields)
+  .refine(isSupportedDimensionMetric, unsupportedDimensionMetricIssue)
 
 // ─────────────────────────────────────────────────────────────────────────
 // Contact stats
@@ -74,6 +80,10 @@ export const messagesByAdminPublicResponse = z.object({
 
 export const humanAgentStatsPublicResponse = z.object({
   data: z.array(humanAgentStatsSchema.omit({ workspaceId: true })),
+})
+
+export const agentResponseSeriesPublicResponse = z.object({
+  data: z.array(agentResponseSeriesRowSchema.omit({ workspaceId: true })),
 })
 
 export const messagesBySenderPublicResponse = z.object({
@@ -158,6 +168,20 @@ export const flowStatsPublicRequest = flowStatsRequest.omit({
 // anywhere in its shape — reused directly.
 export const flowStatsPublicResponse = flowNodeStatsResponse
 
+export const flowSmartDelayStatsPublicResponse = z.record(
+  z.string(),
+  z.object({
+    waiting: z
+      .number()
+      .int()
+      .describe("Contacts currently waiting at this wait/follow-up node."),
+    sent: z
+      .number()
+      .int()
+      .describe("Contacts that already went through this node."),
+  }),
+)
+
 // ─────────────────────────────────────────────────────────────────────────
 // Magic link / ref link stats — `from`/`to`, matching every other analytics
 // time-range operation (`timeRangeQuerySchema`), rather than the internal
@@ -195,7 +219,7 @@ export const linkStatsPublicRequest = withLegacyDateRangeAliases(
     to: z
       .string()
       .describe(
-        "ISO 8601 end of the time range (exclusive). Accepts the deprecated `endDate` name too.",
+        "ISO 8601 end of the time range (inclusive). Accepts the deprecated `endDate` name too.",
       ),
     linkId: z.string().describe("Magic link or ref link id."),
     timezone: z
@@ -225,13 +249,13 @@ export const linkContactsPublicRequest = withLegacyDateRangeAliases(
         .string()
         .optional()
         .describe(
-          "ISO 8601 end of the time range (exclusive). Accepts the deprecated `endDate` name too.",
+          "ISO 8601 end of the time range (inclusive). Accepts the deprecated `endDate` name too. The range applies only when both `from` and `to` are given.",
         ),
       timezone: z
         .string()
         .optional()
         .describe(
-          "IANA timezone used to bucket results, e.g. `America/New_York`.",
+          "Accepted for compatibility; the contact list does not use it.",
         ),
     }),
   ),
@@ -260,4 +284,59 @@ export const linkContactsPublicResponse = z.object({
   total: z.number(),
   page: z.number(),
   pageCount: z.number(),
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// Comment automation analytics. The `from`/`to` pair matches the other public
+// analytics routes; handlers map it to the service's `startDate`/`endDate`.
+// The customer comment texts returned here are PII: they are returned
+// verbatim to any `analytics`-scoped token, exactly as the dashboard shows them.
+// ─────────────────────────────────────────────────────────────────────────
+
+const commentAutomationRangePublicRequest = z.object({
+  automationId: zodBigintAsString().describe(
+    "Comment automation id, from any channel. Get it from `fbComments.list`, `igComments.list`, `threadsComments.list` or `tiktokComments.list`. An id that is not in this workspace returns an empty result.",
+  ),
+  from: z.iso
+    .datetime({ offset: true })
+    .describe(
+      "ISO 8601 start of the range (inclusive) with a UTC offset, e.g. `2026-10-01T00:00:00+07:00`.",
+    ),
+  to: z.iso
+    .datetime({ offset: true })
+    .describe(
+      "ISO 8601 end of the range (inclusive) with a UTC offset, e.g. `2026-10-02T23:59:59+07:00`.",
+    ),
+  timezone: ianaTimezoneSchema.describe(
+    "IANA timezone used to bucket days, e.g. `Asia/Ho_Chi_Minh`.",
+  ),
+})
+
+export const commentAutomationReplyStatsPublicRequest =
+  commentAutomationRangePublicRequest
+
+export const commentAutomationListPublicRequest =
+  commentAutomationRangePublicRequest.extend({
+    page: publicListRequest.shape.page,
+    perPage: publicListRequest.shape.perPage,
+    keyword: z
+      .string()
+      .optional()
+      .describe("Case-insensitive substring filter on the text."),
+  })
+
+export const commentAutomationReplyStatsPublicResponse = z.object({
+  data: z.array(commentAutomationTimeseriesRow),
+})
+export {
+  listCommentAutomationErrorsResponse as commentAutomationErrorsPublicResponse,
+  listCommentAutomationTextTotalsResponse as commentAutomationTextTotalsPublicResponse,
+} from "@chatbotx.io/analytics/schemas"
+
+// ─────────────────────────────────────────────────────────────────────────
+// Filter options (the channels / inboxes an analytics call can narrow to)
+// ─────────────────────────────────────────────────────────────────────────
+
+export const filterOptionsPublicResponse = z.object({
+  data: z.array(analyticsFilterOptionResource),
 })

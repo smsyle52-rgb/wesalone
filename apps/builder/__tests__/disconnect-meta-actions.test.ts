@@ -21,11 +21,12 @@ const mocks = vi.hoisted(() => {
       callback(tx),
     ),
     coexistTearDownForIntegration: vi.fn().mockResolvedValue(undefined),
+    connectionStateDisconnect: vi.fn().mockResolvedValue(undefined),
     findOrFail: vi.fn(),
-    inboxDisconnect: vi.fn().mockResolvedValue(undefined),
     instagramExists: vi.fn().mockResolvedValue(false),
     metaCapiDeleteByIntegration: vi.fn().mockResolvedValue(undefined),
     loggerWarn: vi.fn(),
+    loggerError: vi.fn(),
     messengerDisconnect: vi.fn().mockResolvedValue(undefined),
     messengerDisconnectSafe: vi.fn(() => false),
     messengerExists: vi.fn().mockResolvedValue(false),
@@ -54,11 +55,16 @@ vi.mock("@chatbotx.io/business/audit", () => ({
   auditService: { record: mocks.auditRecord },
 }))
 
+vi.mock("@chatbotx.io/business/connection", () => ({
+  connectionStateService: {
+    disconnectInbox: mocks.connectionStateDisconnect,
+  },
+}))
+
 vi.mock("@chatbotx.io/business", () => ({
   coexistService: {
     tearDownForIntegration: mocks.coexistTearDownForIntegration,
   },
-  inboxService: { disconnect: mocks.inboxDisconnect },
   instagramIntegrationService: {
     existsForPage: mocks.instagramExists,
     findByIdForWorkspace: mocks.findOrFail,
@@ -86,10 +92,6 @@ vi.mock("@chatbotx.io/database/repositories", () => ({
   },
 }))
 
-vi.mock("@chatbotx.io/database/partials", () => ({
-  channelTypes: { enum: { messenger: "messenger" } },
-}))
-
 vi.mock("@chatbotx.io/database/schema", () => ({
   coexistSyncRunModel: {
     finishedAt: "finishedAt",
@@ -105,6 +107,7 @@ vi.mock("@chatbotx.io/database/schema", () => ({
 }))
 
 vi.mock("@chatbotx.io/integration-messenger", () => ({
+  integration: { disconnect: mocks.messengerDisconnect },
   isDisconnectSafeError: mocks.messengerDisconnectSafe,
   isRevokedTokenError: vi.fn(() => false),
 }))
@@ -121,10 +124,6 @@ vi.mock("@chatbotx.io/integration-messenger/apis/page", () => ({
   subscribePageToAppWebhook: mocks.subscribePageToAppWebhook,
 }))
 
-vi.mock("@chatbotx.io/utils", () => ({
-  zodBigintAsString: vi.fn(),
-}))
-
 vi.mock("@/features/common/schema", () => ({
   workspaceIdAndIdRequestParams: [],
 }))
@@ -133,12 +132,15 @@ vi.mock("@/integration", () => ({
   integrations: {
     instagram: { disconnect: mocks.instagramDisconnect },
     instagramFacebook: { disconnect: mocks.instagramFacebookDisconnect },
-    messenger: { disconnect: mocks.messengerDisconnect },
   },
 }))
 
+vi.mock("@chatbotx.io/logger", () => ({
+  getChildLogger: () => ({ warn: mocks.loggerWarn, error: mocks.loggerError }),
+}))
+
 vi.mock("@/lib/log", () => ({
-  logger: { warn: mocks.loggerWarn },
+  logger: { warn: mocks.loggerWarn, error: vi.fn() },
 }))
 
 vi.mock("@/lib/safe-action", () => ({
@@ -208,11 +210,10 @@ describe("Meta disconnect actions", () => {
       version: "v99.0",
       subscribedFields: "general_info",
     })
-    expect(mocks.inboxDisconnect).toHaveBeenCalledWith({
+    expect(mocks.connectionStateDisconnect).toHaveBeenCalledWith({
       inboxId: "inbox-1",
       ownerId: "owner-1",
       workspaceId: "workspace-1",
-      reason: "manual",
       tx: mocks.tx,
     })
   })
@@ -244,11 +245,10 @@ describe("Meta disconnect actions", () => {
     })
 
     expect(mocks.instagramFacebookDisconnect).not.toHaveBeenCalled()
-    expect(mocks.inboxDisconnect).toHaveBeenCalledWith({
+    expect(mocks.connectionStateDisconnect).toHaveBeenCalledWith({
       inboxId: "inbox-2",
       ownerId: "owner-1",
       workspaceId: "workspace-1",
-      reason: "manual",
       tx: mocks.tx,
     })
   })
@@ -293,29 +293,36 @@ describe("Meta disconnect actions", () => {
       expect.stringContaining("proceeding with local disconnect"),
     )
     expect(mocks.tx.delete).toHaveBeenCalled()
-    expect(mocks.inboxDisconnect).toHaveBeenCalledWith({
+    expect(mocks.connectionStateDisconnect).toHaveBeenCalledWith({
       inboxId: "inbox-1",
       ownerId: "owner-1",
       workspaceId: "workspace-1",
-      reason: "manual",
       tx: mocks.tx,
     })
     expect(mocks.auditRecord).toHaveBeenCalled()
   })
 
-  test("messenger disconnect rethrows and skips teardown when the Graph error is not disconnect-safe", async () => {
+  test("messenger disconnect proceeds with local teardown and logs an error when the Graph error is not disconnect-safe", async () => {
     mocks.findOrFail.mockResolvedValueOnce(messengerRow)
     const graphError = new Error("(#4) Application request limit reached")
     mocks.messengerDisconnect.mockRejectedValueOnce(graphError)
     mocks.messengerDisconnectSafe.mockReturnValueOnce(false)
 
-    await expect(
-      disconnectMessenger({ workspaceId: "workspace-1", id: "messenger-1" }),
-    ).rejects.toBe(graphError)
+    await disconnectMessenger({ workspaceId: "workspace-1", id: "messenger-1" })
 
-    expect(mocks.dbTransaction).not.toHaveBeenCalled()
-    expect(mocks.inboxDisconnect).not.toHaveBeenCalled()
-    expect(mocks.auditRecord).not.toHaveBeenCalled()
+    expect(mocks.messengerDisconnectSafe).toHaveBeenCalledWith(graphError)
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ pageId: "page-1" }),
+      expect.stringContaining("proceeding with local database cleanup"),
+    )
+    expect(mocks.tx.delete).toHaveBeenCalled()
+    expect(mocks.connectionStateDisconnect).toHaveBeenCalledWith({
+      inboxId: "inbox-1",
+      ownerId: "owner-1",
+      workspaceId: "workspace-1",
+      tx: mocks.tx,
+    })
+    expect(mocks.auditRecord).toHaveBeenCalled()
   })
 
   test("messenger disconnect records a disconnect audit event after the transaction resolves", async () => {

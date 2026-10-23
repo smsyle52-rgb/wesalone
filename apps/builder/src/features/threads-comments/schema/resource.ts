@@ -8,6 +8,10 @@ import {
   createSelectSchema,
 } from "@chatbotx.io/database/schema"
 import z from "zod"
+import {
+  automationInboxIdResourceSchema,
+  postAccountInboxIdSchema,
+} from "@/features/shared/comment-automation/schema/account"
 
 const threadsReplySchema = z.discriminatedUnion("type", [
   z.object({
@@ -34,6 +38,7 @@ export const threadsCommentResource = createSelectSchema(
   {
     id: z.string(),
     workspaceId: z.string(),
+    inboxId: automationInboxIdResourceSchema,
     post: z.object({
       type: z.enum(["all", "postIds"]),
       value: z.array(z.string()),
@@ -74,3 +79,22 @@ export const threadsCommentResource = createSelectSchema(
 )
 
 export type ThreadsCommentResource = z.infer<typeof threadsCommentResource>
+
+export const listThreadsPostsResponse = z.object({
+  posts: z
+    .array(
+      z.object({
+        id: z.string(),
+        message: z.string().optional(),
+        full_picture: z.string().optional(),
+        created_time: z.string(),
+        permalink_url: z.string().optional(),
+        accountId: z.string(),
+        inboxId: postAccountInboxIdSchema,
+      }),
+    )
+    .describe("Recent posts across every connected Threads account."),
+  accounts: z
+    .array(z.object({ id: z.string(), name: z.string() }))
+    .describe("Connected Threads accounts the posts belong to."),
+})

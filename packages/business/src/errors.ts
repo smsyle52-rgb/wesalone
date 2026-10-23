@@ -1,6 +1,10 @@
 import type {
   BroadcastPlanLimitData,
   BroadcastPlanLimitReason,
+  IMAGES_NOT_SUPPORTED_ON_CHANNEL_CODE,
+  ImagesNotSupportedOnChannelReason,
+  PRODUCT_MESSAGE_UNRESOLVABLE_CODE,
+  ProductMessageUnresolvableReason,
   RestrictedBroadcastPlanPolicy,
 } from "@chatbotx.io/database/partials"
 import { SdkException } from "@chatbotx.io/sdk"
@@ -179,6 +183,61 @@ export class ChatbotXException extends Error {
   }
 }
 
+/**
+ * A bounded workspace purge reached its per-run limit while rows still
+ * remain. The scheduled worker treats this as an expected, resumable state:
+ * it keeps the durable purge fence and retries on its next run.
+ */
+export class WorkspacePurgeIncompleteError extends Error {
+  readonly workspaceId: string
+  readonly table: string
+
+  constructor(workspaceId: string, table: string) {
+    super(`Workspace purge is incomplete for ${table}`)
+    this.name = this.constructor.name
+    this.workspaceId = workspaceId
+    this.table = table
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, WorkspacePurgeIncompleteError)
+    }
+  }
+}
+
+export const workspaceDeletionStartedException = () =>
+  new ChatbotXException(
+    "Workspace deletion is already in progress",
+    "workspaceDeletionStarted",
+    409,
+  )
+
+/** The request field a broadcast validation failure points at. */
+export type BroadcastValidationField =
+  | "channel"
+  | "subaction"
+  | "flowId"
+  | "templateId"
+  | "targets"
+  | "integrationWhatsappId"
+  | "integrationMessengerId"
+  | "audienceRangeEnd"
+  | "recurrence"
+
+/**
+ * A rejected create/edit payload. Carries the offending field so the app
+ * layer can surface it as a field-level form error instead of a toast.
+ * `code` must stay `"validation"` — `isValidationException`
+ * (`apps/builder/src/lib/errors/validation-exception.ts`) narrows on that
+ * exact code before trusting `.field`.
+ */
+export class BroadcastValidationException extends ChatbotXException {
+  declare readonly field: BroadcastValidationField
+
+  constructor(message: string, field: BroadcastValidationField) {
+    super(message, "validation", 422)
+    this.field = field
+  }
+}
+
 export const notFoundException = (message: string) =>
   new ChatbotXException(message, "notFound", 404)
 
@@ -282,7 +341,7 @@ export const credentialMissingException = (message: string) =>
   new ChatbotXException(message, "credentialMissing")
 
 /**
- * A connect flow's session (the pending-auth cookie for Messenger/Instagram,
+ * A connect flow's session (the `ConnectSession` row for Messenger/Instagram,
  * or a WhatsApp signup session) is missing, expired, or otherwise unusable —
  * a condition that makes every remaining request in a multi-select batch
  * pointless, not just the one item. See
@@ -290,7 +349,7 @@ export const credentialMissingException = (message: string) =>
  * into a typed `sessionError` result instead of a thrown/rendered error.
  *
  * `code` defaults to "connectSessionExpired" (Messenger/Instagram's
- * pending-auth cookie); pass "signupSessionExpired" for WhatsApp's
+ * `ConnectSession` row); pass "signupSessionExpired" for WhatsApp's
  * per-number signup-session claim, which is tracked as a distinct exception
  * code even though both map to the same `sessionExpired` client code.
  */
@@ -300,6 +359,22 @@ export const connectSessionExpiredException = (
     | "connectSessionExpired"
     | "signupSessionExpired" = "connectSessionExpired",
 ) => new ChatbotXException(message, code)
+
+/**
+ * The user cancelled the OAuth dialog (provider returned `?error=
+ * access_denied`) — not an actual session expiry. Kept distinct from
+ * {@link connectSessionExpiredException} so the `/select` page can redirect
+ * back quietly (no `?error=` toast) instead of surfacing the generic
+ * "Your session expired" message for a plain user cancel. See
+ * `apps/builder/src/features/channel-connect/lib/select-page.tsx`'s
+ * `connectSessionCancelled` branch for why it never follows
+ * `ConnectSession.returnUrl` on this path.
+ */
+export const connectSessionCancelledException = () =>
+  new ChatbotXException(
+    "The connect session was cancelled.",
+    "connectSessionCancelled",
+  )
 
 /**
  * The acting user resolved a workspace id that they are not a member of.
@@ -346,3 +421,214 @@ export const paidPlanRequiredException = () =>
     "paidPlanRequired",
     403,
   )
+/** The admin console's "create workspace for an owner" flow refuses a second workspace for an owner who already has a live one — one owner, one owned workspace. */
+export const ownerAlreadyHasWorkspaceException = () =>
+  new ChatbotXException(
+    "This owner already has a workspace.",
+    "ownerAlreadyHasWorkspace",
+    409,
+  )
+
+/** A member email the admin console's create-workspace flow could not resolve to a user in the owner's tenant — only a root-tenant email auto-provisions; a reseller sub-tenant email must already exist. */
+export const adminWorkspaceMemberNotFoundException = (email: string) =>
+  new ChatbotXException(
+    `No user found for "${email}" in this tenant.`,
+    "memberNotFound",
+    404,
+  )
+
+/** The owner's `teamMembers` plan limit has no room left for the owner plus every requested member added in the same batch. */
+export const teamMembersLimitReachedException = () =>
+  new ChatbotXException(
+    "Team member limit reached for this plan",
+    "teamMembersLimit",
+  )
+
+/**
+ * `refresh`/`verify` fired against a `Connection` whose status is not one of
+ * `ACTIVE_CONNECTION_STATUSES` (`connected`/`degraded`) — matches the FSM's
+ * own precondition in `transitionConnection` (`state.ts`).
+ */
+export const connectionInactiveException = () =>
+  new ChatbotXException(
+    "This connection is not active.",
+    "connectionInactive",
+    409,
+  )
+
+/**
+ * `refresh`/`verify` cannot run when a provider has no satellite store.
+ * This is an expected unsupported operation for built-in connections such as
+ * `chatbotx`, so clients receive a request error instead of a server failure.
+ */
+export const connectionNotConfiguredException = (provider: string) =>
+  new ChatbotXException(
+    `Connection provider "${provider}" is not configured.`,
+    "connectionNotConfigured",
+    400,
+  )
+
+/**
+ * A provider whose connect lifecycle is owned by a dedicated, permission-gated
+ * entry point (e.g. Google Ads: super admin only, never a support session) was
+ * addressed through the generic connections API, which only checks workspace
+ * membership.
+ */
+export const connectionProviderDedicatedOnlyException = (provider: string) =>
+  new ChatbotXException(
+    `Connection provider "${provider}" can only be managed from its dedicated settings page.`,
+    "connectionProviderDedicatedOnly",
+    403,
+  )
+
+export const connectionNotRefreshableException = (provider: string) =>
+  new ChatbotXException(
+    `Connection provider "${provider}" does not support refresh.`,
+    "connectionNotRefreshable",
+    400,
+  )
+
+/** This provider is already connected in this workspace — a fresh `connectFromCredentials`/OAuth-connect call would collide with the unique `(workspaceId, provider, sourceId)` key. */
+export const connectionAlreadyConnectedException = () =>
+  new ChatbotXException(
+    "This provider is already connected in this workspace.",
+    "connectionAlreadyConnected",
+    409,
+  )
+
+/** Another request currently owns the short-lived lease for this target's connect attempt. */
+export const connectionInProgressException = () =>
+  new ChatbotXException(
+    "A connection attempt for this target is already in progress.",
+    "connectionInProgress",
+    409,
+  )
+
+/** `connectFromCredentials` called against a provider whose `strategy` isn't `token`/`api_key`/`self_serve` (or one that never declared `fromCredentials`). */
+export const connectionWrongStrategyException = (provider: string) =>
+  new ChatbotXException(
+    `Connection provider "${provider}" does not accept direct credentials.`,
+    "connectionWrongStrategy",
+    400,
+  )
+
+/** `provider.fromCredentials` rejected the supplied config with a live validation call (e.g. an invalid API key). */
+export const connectionCredentialsRejectedException = (message: string) =>
+  new ChatbotXException(message, "connectionCredentialsRejected", 400)
+
+/** A provider could not complete a connect request due to a transient upstream or transport failure. */
+export const connectionProviderUnavailableException = (
+  httpStatusCode: 502 | 503,
+) =>
+  new ChatbotXException(
+    "The provider is temporarily unavailable. Please try again.",
+    "connectionProviderUnavailable",
+    httpStatusCode,
+  )
+
+/** `startSession`/`completeAuthorization` called against a provider with no `authorizeUrl`/`exchangeCode` handler — not an OAuth-strategy provider. */
+export const connectionNotOAuthException = (provider: string) =>
+  new ChatbotXException(
+    `Connection provider "${provider}" does not support an OAuth connect flow.`,
+    "connectionNotOAuth",
+    400,
+  )
+
+/** The OAuth callback's `sessionId`/nonce did not resolve to a matching `ConnectSession` — a forged, stale, or already-consumed `state` parameter. */
+export const connectionStateMismatchException = () =>
+  new ChatbotXException(
+    "This connect session could not be verified. Please start the connection again.",
+    "connectionStateMismatch",
+    400,
+  )
+
+/** `listCandidates`/`describe` returned nothing selectable after a successful code exchange. */
+export const connectionNoCandidatesException = () =>
+  new ChatbotXException(
+    "No connectable accounts were found for this authorization.",
+    "connectionNoCandidates",
+    400,
+  )
+
+/** `reconnect`'s completion: the re-authorized account does not match the `Connection` being reconnected (user picked/granted the wrong account). */
+export const connectionIdentityMismatchException = () =>
+  new ChatbotXException(
+    "The reauthorized account does not match the connection being reconnected.",
+    "connectionIdentityMismatch",
+    400,
+  )
+
+/** API-driven `POST /v1/connections` for a channel provider hidden by the tenant's channel-visibility policy (not already connected in this workspace) — a deliberate tightening for an unattended caller; the interactive builder UI grandfathers an already-connected channel instead of hiding it. */
+export const channelHiddenException = (channel: string) =>
+  new ChatbotXException(
+    `The "${channel}" channel is not available for this workspace.`,
+    "channelHidden",
+    403,
+  )
+
+/**
+ * Pinned to the constant the API error declaration uses (a type-only import, so
+ * this module keeps no runtime dependency on the database partials).
+ */
+const productMessageUnresolvableCode: typeof PRODUCT_MESSAGE_UNRESOLVABLE_CODE =
+  "productMessageUnresolvable"
+
+/**
+ * The message cannot be built right now. Permanent for this send — the author
+ * has to change the message or the catalog — so it is not worth retrying.
+ */
+export class ProductMessageUnresolvableError extends ChatbotXException {
+  readonly reason: ProductMessageUnresolvableReason
+
+  constructor(
+    reason: ProductMessageUnresolvableReason,
+    productIds?: readonly string[],
+  ) {
+    // The reason rides in the message too: the inbox composer only receives the
+    // message (not `data`), and the agent there needs to know what to fix.
+    super(
+      `Product message cannot be sent: ${reason}${
+        productIds ? ` (${productIds.join(", ")})` : ""
+      }`,
+      productMessageUnresolvableCode,
+      422,
+    )
+    this.reason = reason
+    this.data = {
+      reason,
+      ...(productIds ? { productIds: productIds.join(",") } : {}),
+    }
+  }
+}
+
+const imagesNotSupportedOnChannelCode: typeof IMAGES_NOT_SUPPORTED_ON_CHANNEL_CODE =
+  "imagesNotSupportedOnChannel"
+
+/**
+ * The channel can't deliver the images on this send (Threads, Instagram or
+ * TikTok comment replies) or more images than it carries. Refused before any
+ * row exists instead of letting the channel handler drop them silently.
+ */
+export class ImagesNotSupportedOnChannelError extends ChatbotXException {
+  readonly reason: ImagesNotSupportedOnChannelReason
+
+  constructor(props: {
+    reason: ImagesNotSupportedOnChannelReason
+    channel: string
+    max: number
+  }) {
+    super(
+      props.reason === "imagesNotSupported"
+        ? `The ${props.channel} channel can't send images here`
+        : `The ${props.channel} channel can send at most ${props.max} image(s) here`,
+      imagesNotSupportedOnChannelCode,
+      422,
+    )
+    this.reason = props.reason
+    this.data = {
+      reason: props.reason,
+      channel: props.channel,
+      max: props.max,
+    }
+  }
+}

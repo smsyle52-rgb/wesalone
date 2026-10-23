@@ -41,6 +41,12 @@ export const PUBLIC_ROUTES = [
   "/media/attachment",
   "/media/avatar",
   "/minigames",
+  // Public leaderboard page; the personal bar is attributed only via a signed token.
+  "/leaderboards",
+  // Public Mini App runner; submissions are attributed only via a signed token.
+  "/mini-apps",
+  // Invitation codes are enrollment capabilities; accepting still requires a session.
+  "/invitations",
   "/auth",
   "/api",
   // Like "/api": the RPC handler runs the full router, where every procedure
@@ -57,7 +63,14 @@ export const PUBLIC_ROUTES = [
   "/booking",
   "/portal/redeem",
   "/webchat",
+  // Bot simulator preview: frames a website with the webchat widget for demos.
+  "/bs",
   "/t/",
+  // The neutral `ConnectSession` completion page — the person finishing an
+  // API/MCP-started OAuth connect is never necessarily a builder user or a
+  // member of the workspace that started it. `sessionId` itself is the
+  // capability token (see `app/connect/[sessionId]/page.tsx`'s doc comment).
+  "/connect",
 ]
 
 const matchesRoute = (pathname: string, route: string) => {

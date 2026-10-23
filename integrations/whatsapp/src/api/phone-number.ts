@@ -1,3 +1,4 @@
+import type { WhatsappPhoneNumber as AuthWhatsappPhoneNumber } from "@chatbotx.io/business/integration-whatsapp/auth-schema"
 import type { Context } from "@chatbotx.io/sdk"
 import ky from "ky"
 import { parsePhoneNumberFromString } from "libphonenumber-js"
@@ -32,24 +33,7 @@ export const normalizeWhatsappDisplayPhoneNumber = (phone: string): string => {
   return phone.replace(NON_DIGIT_RE, "")
 }
 
-export type WhatsappPhoneNumber = {
-  verified_name: string
-  code_verification_status: string
-  name_status?: string
-  display_phone_number: string
-  quality_rating: string
-  platform_type: string
-  throughput: Record<string, unknown>
-  webhook_configuration: Record<string, unknown>
-  id: string
-  /**
-   * Meta's truth about whether the number is live on the WhatsApp Business
-   * app (coexistence). Only present when the listing explicitly asked for it
-   * — `PHONE_NUMBER_LIST_COEXIST_FIELDS` below — since Graph's default field
-   * set for `/{waba}/phone_numbers` leaves it out.
-   */
-  is_on_biz_app?: boolean
-}
+export type WhatsappPhoneNumber = AuthWhatsappPhoneNumber
 
 /**
  * Graph's default `/{waba}/phone_numbers` field set plus `is_on_biz_app`.
@@ -69,6 +53,26 @@ export const PHONE_NUMBER_LIST_COEXIST_FIELDS = [
   "throughput",
   "webhook_configuration",
   "is_on_biz_app",
+].join(",")
+
+/**
+ * Graph's default field set plus `status`, which the register step reads to
+ * tell a number already connected on the Cloud API (e.g. shared through
+ * "Share existing WhatsApp phone numbers") from one that still needs
+ * `/register`. Naming any `fields` narrows the response, so the defaults are
+ * restated here.
+ */
+export const PHONE_NUMBER_REGISTER_FIELDS = [
+  "id",
+  "verified_name",
+  "display_phone_number",
+  "code_verification_status",
+  "name_status",
+  "quality_rating",
+  "platform_type",
+  "throughput",
+  "webhook_configuration",
+  "status",
 ].join(",")
 
 export type WhatsappPhoneNumberResponse = {

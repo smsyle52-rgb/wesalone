@@ -1,4 +1,9 @@
 import { conversationService } from "@chatbotx.io/business"
+import { ChatbotXException } from "@chatbotx.io/business/errors"
+import {
+  requestConversationThreadControl,
+  syncConversationThreadOwner,
+} from "@chatbotx.io/channel-registry/thread-control"
 import {
   channelTypes,
   conversationBotCategories,
@@ -12,10 +17,11 @@ import {
   possibleErrorsOnFindingResource,
   possibleErrorsOnListingResource,
   possibleErrorsOnMutatingResource,
+  possibleErrorsOnThreadControl,
 } from "@/lib/orpc/orpc-error-helper"
 import { cursorPaginationRequest } from "@/lib/pagination"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
-
+import { mapThreadControlError } from "../lib/thread-control-errors"
 import {
   findConversation,
   listConversations,
@@ -24,10 +30,20 @@ import {
   assignConversationPublicRequest,
   conversationIdPathParam,
   getConversationPublicResponse,
+  threadControlPublicRequest,
+  threadControlPublicResponse,
 } from "../schema/public"
 import { listConversationsResponse } from "../schema/resource"
 
 const workspaceTokenAuthAPI = workspaceTokenAuthAPIForScope("inbox")
+
+// English copy for the shared UI error mapper (the builder passes its i18n).
+const THREAD_CONTROL_ERROR_COPY = {
+  "conversationRouting.errors.unsupported":
+    "This channel does not support thread control.",
+  "conversationRouting.errors.actionFailed":
+    "The channel could not apply the thread-control action.",
+} as const
 
 function jsonQueryParam<T>(schema: z.ZodType<T>) {
   return z.preprocess((val) => {
@@ -83,12 +99,10 @@ const listConversationsQueryRequest = z.object({
     .describe("Restrict to conversations with the bot enabled or disabled."),
   tags: jsonQueryParam(
     z
-      .array(
-        z.enum(["noAdminReply", "unread", "followUp", "archived", "blocked"]),
-      )
+      .array(conversationStatuses)
       .optional()
       .describe(
-        "Restrict to conversations matching one of these system tags. Sent as a JSON-encoded array.",
+        "Restrict to conversations matching these system tags (all of them). Sent as a JSON-encoded array. `slaBreaching` = an open response-SLA window within its breaching threshold, `slaBreached` = an open window past its deadline; they are mutually exclusive and need a response SLA policy (`responseSla.get`).",
       ),
   ),
   contactFilter: jsonQueryParam(
@@ -404,5 +418,52 @@ export const conversationsPublicRouter = {
         },
       })
       return { success: true as const }
+    }),
+
+  threadControl: workspaceTokenAuthAPI
+    .route({
+      method: "POST",
+      path: "/v1/conversations/{id}/thread-control",
+      summary: "Control conversation thread",
+      description:
+        "Controls who owns a contact inbox's routing thread on channels that share a conversation with another app (e.g. WhatsApp with Meta AI or a partner): `take` it, `release` it, or `pass` it to the escalation role. `sync` asks the channel who currently owns the thread and updates the stored state to match without changing anything at the channel (channels that cannot report an owner, like WhatsApp, leave it unchanged). Read `contactInboxes[].threadControlState` and `threadOwnerRole` with `conversations.get` first. A `take` the channel refuses returns `status: notEscalation` (HTTP 200) instead of an error. Every successful call returns the routing `snapshot`.",
+      tags: ["Conversations"],
+    })
+    .input(threadControlPublicRequest)
+    .output(threadControlPublicResponse)
+    .errors(possibleErrorsOnThreadControl)
+    .handler(async ({ context, input }) => {
+      const workspaceId = context.workspace.id
+      const conversation = await conversationService.findByOrFail({
+        where: { id: input.id, workspaceId },
+      })
+      try {
+        // `sync` goes through the same error mapping as the other actions,
+        // so an unsupported channel or a channel failure is a declared 400.
+        const snapshot =
+          input.action === "sync"
+            ? await syncConversationThreadOwner({
+                workspaceId,
+                conversation,
+                contactInboxId: input.contactInboxId,
+              })
+            : await requestConversationThreadControl({
+                workspaceId,
+                conversation,
+                contactInboxId: input.contactInboxId,
+                action: input.action,
+              })
+        return { status: "applied" as const, snapshot }
+      } catch (error) {
+        if (error instanceof ChatbotXException && error.code === "notFound") {
+          throw error
+        }
+        const refusal = mapThreadControlError(
+          error,
+          input.action,
+          (key) => THREAD_CONTROL_ERROR_COPY[key],
+        )
+        return { status: refusal.status }
+      }
     }),
 }

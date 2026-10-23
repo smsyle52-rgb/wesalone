@@ -1,5 +1,6 @@
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { z } from "zod"
+import { automationInboxIdFilterSchema } from "@/features/shared/comment-automation/schema/account"
 import { publicListRequest, publicListResponse } from "@/lib/public-api/list"
 import { createFbCommentRequest, updateFbCommentRequest } from "./action"
 import { facebookPostSchema, fbCommentResource } from "./resource"
@@ -7,7 +8,11 @@ import { facebookPostSchema, fbCommentResource } from "./resource"
 const sortSchema = z.array(z.object({ id: z.string(), desc: z.boolean() }))
 
 export const listFbCommentsPublicRequest = publicListRequest.extend({
-  sort: sortSchema.optional().describe("Sort order."),
+  sort: sortSchema
+    .optional()
+    .describe(
+      "Sort order as [{ id, desc }] pairs, e.g. `createdAt`, `name`. No default order: pass `createdAt` descending for newest first.",
+    ),
   name: z
     .string()
     .nullish()
@@ -19,6 +24,7 @@ export const listFbCommentsPublicRequest = publicListRequest.extend({
     .boolean()
     .nullish()
     .describe("Restrict to enabled or disabled automations."),
+  inboxId: automationInboxIdFilterSchema,
 })
 
 export const fbCommentPublicResource = fbCommentResource.omit({

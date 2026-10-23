@@ -83,9 +83,26 @@ vi.mock("@chatbotx.io/redis", () => ({
   invalidateCacheByTags: vi.fn(async () => undefined),
   createRedisConnection: vi.fn(() => ({ on: vi.fn() })),
 }))
+vi.mock("@chatbotx.io/analytics", () => ({
+  macAnalyticsService: {},
+}))
 
 vi.mock("../src/platform/realtime-broadcast", () => ({
-  broadcastToWorkspaceParty: vi.fn(),
+  queueWorkspaceRealtimeEvent: vi.fn(),
+}))
+
+vi.mock("../src/working-hours/on-shift", () => ({
+  isUserOnShift: vi.fn(async () => true),
+}))
+
+vi.mock("../src/response-sla/service", () => ({
+  responseSlaService: {
+    // No policy: the statement just runs on the given client.
+    trackWindow: async (
+      props: { tx?: unknown },
+      run: (client: unknown) => Promise<unknown>,
+    ) => run(props.tx ?? (await import("@chatbotx.io/database/client")).db),
+  },
 }))
 
 vi.mock("../src/contact/service", () => ({
@@ -898,6 +915,7 @@ describe("questionnaireSubmissionService", () => {
       status: "completed",
       submissionId: "submission-1",
       triggerFlowId: "flow-1",
+      completedAt: expect.any(Date),
     })
 
     expect(mocks.updateBuilder.set).toHaveBeenCalledWith(

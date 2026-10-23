@@ -18,12 +18,15 @@ export const workspaceApiTokenScopes = z.enum([
   "broadcasts",
   "analytics",
   "ecommerce",
-  "integrations",
   "channels",
+  "integrations",
   "minigames",
   "appointments",
   "media",
   "ads",
+  "settings",
+  "mini-apps",
+  "leaderboards",
 ])
 export type WorkspaceApiTokenScope = z.infer<typeof workspaceApiTokenScopes>
 

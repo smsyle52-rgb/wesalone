@@ -25,6 +25,7 @@ const workerState = vi.hoisted(() => ({
   dispatchAdsConversionJob: vi.fn(async () => undefined),
   ensureBootstrapped: vi.fn(async () => undefined),
   getStoryReply: vi.fn(),
+  handleWhatsappIdentityChange: vi.fn(async () => undefined),
   receiveMessage: vi.fn(),
   workerClose: vi.fn(async () => undefined),
   workerOn: vi.fn(),
@@ -56,6 +57,7 @@ vi.mock("@chatbotx.io/worker-config", () => ({
     commentAIReply: "commentAIReply",
     processAutomatedResponse: "processAutomatedResponse",
     processStoryReplyAutomation: "processStoryReplyAutomation",
+    processStoryMentionAutomation: "processStoryMentionAutomation",
   },
   aiAgentQueue: { add: workerState.aiAgentQueueAdd },
   closeIntegrationQueueEvents: vi.fn(async () => undefined),
@@ -66,6 +68,7 @@ vi.mock("@chatbotx.io/worker-config", () => ({
   },
   getHeavyJobCompletionWaitTimeoutMs: vi.fn(() => 330_000),
   getRedisConnection: () => ({}),
+  getQueueConnection: () => ({}),
   HeavyJobAction: { aiGenerateImage: "aiGenerateImage" },
   IntegrationJobAction: {
     incomingMessage: "incomingMessage",
@@ -77,7 +80,9 @@ vi.mock("@chatbotx.io/worker-config", () => ({
     sendConversionEvent: "sendConversionEvent",
     syncRetargetAudience: "syncRetargetAudience",
     whatsappCallEvent: "whatsappCallEvent",
+    whatsappIdentityChange: "whatsappIdentityChange",
   },
+  PURGE_WORKSPACES_INTERVAL_MINUTES: 60,
   integrationQueue: { add: vi.fn() },
   queueNames: {
     enum: {
@@ -89,10 +94,14 @@ vi.mock("@chatbotx.io/worker-config", () => ({
 }))
 
 vi.mock("@chatbotx.io/automated-response", () => ({
-  automatedResponseService: { enqueue: vi.fn() },
+  automatedResponseService: {
+    enqueue: vi.fn(),
+    enqueueHandoffReentry: vi.fn(),
+  },
 }))
 
 vi.mock("@chatbotx.io/business", () => ({
+  buildContext: vi.fn(),
   conversationService: { ensureActive: vi.fn() },
   withBlockedOwnerGuard: vi.fn(
     async (_workspaceId: unknown, fn: () => Promise<unknown>) => await fn(),
@@ -150,6 +159,16 @@ vi.mock("../src/integration/handlers/ads-conversion/registry", () => ({
 vi.mock("../src/integration/handlers/automated-response", () => ({
   processAutomatedResponse: vi.fn(),
 }))
+// Pulls the variable engine (and with it modules this test's partial worker-config mock cannot serve).
+vi.mock(
+  "../src/integration/handlers/google-ads/resolve-matching-templates",
+  () => ({
+    resolveMatchingTemplates: vi.fn(),
+  }),
+)
+vi.mock("../src/integration/handlers/channel-audience-event", () => ({
+  processChannelAudienceEvent: vi.fn(),
+}))
 vi.mock("../src/integration/handlers/challenge", () => ({
   runChallenge: vi.fn(),
 }))
@@ -196,6 +215,15 @@ vi.mock("../src/integration/handlers/flow", () => ({
 vi.mock("../src/integration/handlers/follow-up", () => ({
   runFollowUpResume: vi.fn(),
 }))
+vi.mock("../src/integration/handlers/ai-handover-bulk-toggle", () => ({
+  runAiHandoverBulkToggle: vi.fn(),
+}))
+vi.mock("../src/integration/handlers/ai-handover-take-back", () => ({
+  runAiHandoverTakeBack: vi.fn(),
+}))
+vi.mock("../src/integration/handlers/handover-response", () => ({
+  startHandoverResponse: vi.fn(),
+}))
 vi.mock("../src/integration/handlers/inbox_labels", () => ({
   handleChannelLabelWebhook: vi.fn(),
 }))
@@ -229,6 +257,9 @@ vi.mock("../src/integration/handlers/wait-resume", () => ({
 vi.mock("../src/integration/handlers/whatsapp-call", () => ({
   handleWhatsappCallEvent: vi.fn(async () => undefined),
 }))
+vi.mock("../src/integration/handlers/whatsapp-identity-change", () => ({
+  handleWhatsappIdentityChange: workerState.handleWhatsappIdentityChange,
+}))
 
 vi.mock("../src/integration/handlers/whatsapp-voip-signaling", () => ({
   handleWhatsappVoipSignalingJob: vi.fn(),
@@ -238,7 +269,8 @@ vi.mock("../src/integration/job-context", () => ({
     async (_job: unknown, callback: () => Promise<unknown>) => callback(),
   ),
 }))
-vi.mock("../src/integration/routing", () => ({
+vi.mock("../src/integration/routing", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/integration/routing")>()),
   resolveIncomingTextRouting: vi.fn(),
 }))
 vi.mock("../src/integration/utils/message", () => ({
@@ -261,6 +293,12 @@ describe("integration worker process boot", () => {
     expect(workerState.capturedWorkers[2]?.queueName).toBe(
       "whatsappVoipSignaling",
     )
+  })
+
+  test("does not consume the profileSnapshot queue (it runs in the low process)", () => {
+    expect(
+      workerState.capturedWorkers.map((worker) => worker.queueName),
+    ).not.toContain("profileSnapshot")
   })
 
   test("keeps the env-tunable concurrency and long coexist lock on the integration worker", () => {
@@ -425,6 +463,49 @@ describe("whatsappCallEvent (the main integration queue's isBlockedWorkspace gat
   })
 })
 
+describe("whatsappIdentityChange integration worker dispatch", () => {
+  const job = {
+    type: "whatsappIdentityChange",
+    data: {
+      integrationType: "whatsapp",
+      integrationIdentifier: "phone-1",
+      payload: {
+        phoneNumberId: "phone-1",
+        messageId: "wamid.1",
+        change: {
+          kind: "userIdChanged",
+          previousUserId: "bsuid-old",
+          userId: "bsuid-new",
+        },
+      },
+    },
+  }
+
+  test("dispatches the normalized payload to the identity handler", async () => {
+    workerState.handleWhatsappIdentityChange.mockClear()
+    const [integrationWorker] = workerState.capturedWorkers
+
+    await integrationWorker?.processor({ data: job })
+
+    expect(workerState.handleWhatsappIdentityChange).toHaveBeenCalledWith(
+      job.data,
+    )
+  })
+
+  test("a blocked owner completes without invoking the identity handler", async () => {
+    const { isBlockedWorkspace } = await import(
+      "../src/lib/is-blocked-workspace"
+    )
+    vi.mocked(isBlockedWorkspace).mockResolvedValueOnce(true)
+    workerState.handleWhatsappIdentityChange.mockClear()
+    const [integrationWorker] = workerState.capturedWorkers
+
+    await integrationWorker?.processor({ data: job })
+
+    expect(workerState.handleWhatsappIdentityChange).not.toHaveBeenCalled()
+  })
+})
+
 describe("ads-conversion actions route through the shared integration switch", () => {
   const adsConversionJobs: AdsConversionJobData[] = [
     {
@@ -529,6 +610,101 @@ describe("Phase 1 AI reply compatibility forwarding", () => {
       }),
       { jobId: "story-reply-auto-message-1" },
     )
+  })
+
+  test("enqueues story mentions on aiAgent instead of the default routing", async () => {
+    workerState.aiAgentQueueAdd.mockClear()
+    const { conversationService } = await import("@chatbotx.io/business")
+    vi.mocked(conversationService.ensureActive).mockResolvedValueOnce(true)
+    workerState.getStoryReply.mockReturnValue(undefined)
+    workerState.receiveMessage.mockResolvedValue({
+      message: {
+        id: "message-2",
+        contactInboxId: "contact-inbox-1",
+        senderType: "contact",
+        contentType: "text",
+        attachments: [{ fileType: "image" }],
+        contentAttributes: { type: "story_mention" },
+        text: null,
+      },
+      conversation: { id: "conversation-1", workspaceId: "workspace-1" },
+      channelType: "instagram",
+    })
+    const [integrationWorker] = workerState.capturedWorkers
+
+    await integrationWorker?.processor({
+      id: "incoming-story-mention-job",
+      data: {
+        type: "incomingMessage",
+        data: {
+          integrationType: "instagram",
+          integrationIdentifier: "ig-1",
+          payload: {},
+        },
+      },
+    })
+
+    expect(workerState.aiAgentQueueAdd).toHaveBeenCalledTimes(1)
+    expect(workerState.aiAgentQueueAdd).toHaveBeenCalledWith(
+      "processStoryMentionAutomation",
+      {
+        type: "processStoryMentionAutomation",
+        data: {
+          workspaceId: "workspace-1",
+          conversationId: "conversation-1",
+          contactInboxId: "contact-inbox-1",
+          messageId: "message-2",
+          channelType: "instagram",
+        },
+      },
+      { jobId: "story-mention-auto-message-2" },
+    )
+  })
+
+  test("routes a story mention normally while the bot is paused for a human", async () => {
+    workerState.aiAgentQueueAdd.mockClear()
+    const { conversationService } = await import("@chatbotx.io/business")
+    vi.mocked(conversationService.ensureActive).mockResolvedValue(false)
+    const { resolveIncomingTextRouting } = await import(
+      "../src/integration/routing"
+    )
+    vi.mocked(resolveIncomingTextRouting).mockResolvedValueOnce({
+      type: "none",
+    })
+    workerState.getStoryReply.mockReturnValue(undefined)
+    workerState.receiveMessage.mockResolvedValue({
+      message: {
+        id: "message-3",
+        contactInboxId: "contact-inbox-1",
+        senderType: "contact",
+        contentType: "text",
+        attachments: [{ fileType: "image" }],
+        contentAttributes: { type: "story_mention" },
+        text: null,
+      },
+      conversation: { id: "conversation-1", workspaceId: "workspace-1" },
+      channelType: "instagram",
+    })
+    const [integrationWorker] = workerState.capturedWorkers
+
+    await integrationWorker?.processor({
+      id: "incoming-paused-story-mention-job",
+      data: {
+        type: "incomingMessage",
+        data: {
+          integrationType: "instagram",
+          integrationIdentifier: "ig-1",
+          payload: {},
+        },
+      },
+    })
+
+    expect(workerState.aiAgentQueueAdd).not.toHaveBeenCalledWith(
+      "processStoryMentionAutomation",
+      expect.anything(),
+      expect.anything(),
+    )
+    vi.mocked(conversationService.ensureActive).mockReset()
   })
 
   test("normalizes legacy automated-response model references before forwarding", async () => {

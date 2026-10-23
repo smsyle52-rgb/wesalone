@@ -2,15 +2,18 @@ import {
   type Context,
   defaultMimeTypeForFileType,
   type FileType,
+  getMediaStoragePrefix,
   type IncomingAttachment,
   resolveIncomingFileType,
 } from "@chatbotx.io/sdk"
 import { createId } from "@chatbotx.io/utils"
+import {
+  storeIncomingImage,
+  toStoredMediaFields,
+} from "@chatbotx.io/utils/store-incoming-image"
 import fetch from "cross-fetch"
-import imageSize from "image-size"
 import { rescue } from "../exception"
 import { instagramBusinessClient } from "../lib/http-client"
-import { logger } from "../lib/logger"
 import type {
   InstagramAttachment,
   InstagramAuthValue,
@@ -68,41 +71,26 @@ export const getMessageAttachmentEntity = async ({
     )
   }
 
-  const originPath = `${ctx.storagePrefix}/${createId()}`
-  const bytes = await response.arrayBuffer()
   // Type from the webhook's declared kind, not only the CDN header: Meta
   // serves voice clips as application/octet-stream, which would file them as
   // `file` and keep them away from speech-to-text.
   const headerMimeType = response.headers.get("content-type")
   const fileType = resolveIncomingFileType(headerMimeType, attachment.type)
   const mimeType = headerMimeType ?? defaultMimeTypeForFileType(fileType)
-
-  await ctx.uploader?.putObject(originPath, Buffer.from(bytes), {
-    ACL: "public-read",
-    ContentType: mimeType,
+  const isPhotoMessage = attachment.type === "image"
+  const stored = await storeIncomingImage({
+    uploader: ctx.uploader,
+    key: `${getMediaStoragePrefix(ctx)}/${createId()}`,
+    bytes: await response.arrayBuffer(),
+    mimeType,
+    profile: isPhotoMessage ? "media" : "original",
+    acl: "public-read",
   })
-
-  const imageProperties: {
-    width?: number
-    height?: number
-  } = {}
-  if (mimeType.startsWith("image/")) {
-    try {
-      const arrayBytes = new Uint8Array(bytes)
-      const dimensions = imageSize(arrayBytes)
-      imageProperties.width = dimensions.width
-      imageProperties.height = dimensions.height
-    } catch (error) {
-      logger.warn(error, "Failed to read attachment image dimensions")
-    }
-  }
 
   return {
     sourceId: createId(),
-    originPath,
+    isPhotoMessage,
     fileType,
-    mimeType,
-    size: Number.parseInt(response.headers.get("content-length") ?? "0", 10),
-    ...imageProperties,
+    ...toStoredMediaFields(stored),
   }
 }

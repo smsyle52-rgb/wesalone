@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
-const { resolveIncomingTextRouting } = await import(
-  "../src/integration/routing"
-)
+const { resolveIncomingTextRouting, shouldRunStoryMentionAutomation } =
+  await import("../src/integration/routing")
 
 const conversation = {
   id: "conversation-1",
@@ -109,6 +108,32 @@ describe("resolveIncomingTextRouting", () => {
     })
   })
 
+  test("routes inactive inbound text to the handoff re-entry classifier", async () => {
+    const isConversationActive = vi.fn(async () => false)
+
+    await expect(
+      resolveIncomingTextRouting({
+        conversation: conversation as never,
+        hasActionableInput: true,
+        hasText: true,
+        isConversationActive,
+      }),
+    ).resolves.toEqual({ type: "handoffReentry", conversation })
+  })
+
+  test("does not route attachment-only inactive input to the handoff classifier", async () => {
+    const isConversationActive = vi.fn(async () => false)
+
+    await expect(
+      resolveIncomingTextRouting({
+        conversation: conversation as never,
+        hasActionableInput: true,
+        hasText: false,
+        isConversationActive,
+      }),
+    ).resolves.toEqual({ type: "none" })
+  })
+
   test("skips messages with no actionable input without checking bot automation", async () => {
     const isConversationActive = vi.fn(async () => true)
 
@@ -123,5 +148,37 @@ describe("resolveIncomingTextRouting", () => {
     ).resolves.toEqual({ type: "none" })
 
     expect(isConversationActive).not.toHaveBeenCalled()
+  })
+})
+
+describe("shouldRunStoryMentionAutomation", () => {
+  test("runs the mention automation when the bot is active and nothing is pending", async () => {
+    await expect(
+      shouldRunStoryMentionAutomation({
+        conversation: conversation as never,
+        isConversationActive: async () => true,
+      }),
+    ).resolves.toBe(true)
+  })
+
+  test("leaves the mention to a pending challenge so it can take the media", async () => {
+    const isConversationActive = vi.fn(async () => true)
+
+    await expect(
+      shouldRunStoryMentionAutomation({
+        conversation: challengeConversation as never,
+        isConversationActive,
+      }),
+    ).resolves.toBe(false)
+    expect(isConversationActive).not.toHaveBeenCalled()
+  })
+
+  test("stays silent while the bot is paused for a human agent", async () => {
+    await expect(
+      shouldRunStoryMentionAutomation({
+        conversation: conversation as never,
+        isConversationActive: async () => false,
+      }),
+    ).resolves.toBe(false)
   })
 })

@@ -8,9 +8,12 @@ import {
   vi,
 } from "vitest"
 
-const { mockMarkReadByOutbound } = vi.hoisted(() => ({
-  mockMarkReadByOutbound: vi.fn().mockResolvedValue(true),
-}))
+const { mockMarkReadByOutbound, mockMessageUpdateSourceId } = vi.hoisted(
+  () => ({
+    mockMarkReadByOutbound: vi.fn().mockResolvedValue(true),
+    mockMessageUpdateSourceId: vi.fn().mockResolvedValue(undefined),
+  }),
+)
 
 function makeEmptySelectChain(): Promise<never[]> & Record<string, unknown> {
   const chain = Promise.resolve<never[]>([]) as Promise<never[]> &
@@ -95,9 +98,21 @@ vi.mock("@chatbotx.io/variables", () => ({
   contactVariableService: { getAll: vi.fn().mockResolvedValue({}) },
 }))
 
+const { findUnscopedMiniApp, signMiniAppResumeToken } = vi.hoisted(() => ({
+  findUnscopedMiniApp: vi.fn(),
+  signMiniAppResumeToken: vi.fn(),
+}))
+vi.mock("@chatbotx.io/business/mini-app", () => ({
+  miniAppService: { findUnscoped: findUnscopedMiniApp },
+}))
+vi.mock("@chatbotx.io/encryption/mini-app-token", () => ({
+  signMiniAppToken: vi.fn(),
+  signMiniAppResumeToken,
+}))
 vi.mock("@chatbotx.io/business", () => ({
-  broadcastToWorkspaceParty: vi.fn(),
-  publishToWorkspaceParty: vi.fn(),
+  publishWorkspaceRealtimeEvent: vi.fn(),
+  queueWorkspaceRealtimeEvent: vi.fn(),
+  queueMessageCreatedEvent: vi.fn(),
   contactInboxService: {
     recordSendFailure: vi.fn().mockResolvedValue(undefined),
     invalidateTracking: vi.fn().mockResolvedValue(undefined),
@@ -107,6 +122,14 @@ vi.mock("@chatbotx.io/business", () => ({
     recordOutboundMessageActivity: vi
       .fn()
       .mockResolvedValue({ cacheTags: ["contacts:contact-1:contact-inboxes"] }),
+  },
+  messageService: {
+    create: vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      id: "msg-1",
+    })),
+    updateSourceId: mockMessageUpdateSourceId,
   },
 }))
 
@@ -133,6 +156,7 @@ const { sendFlowStepToChannel } = await import(
 )
 const { validateMessengerTemplate, replaceMessengerTemplateVariables } =
   await import("../src/integration/handlers/messenger-template-handler")
+const { messageService } = await import("@chatbotx.io/business")
 const { db } = await import("@chatbotx.io/database/client")
 const { emit } = await import("@chatbotx.io/event-bus")
 const { enqueueIntegrationJob } = await import("@chatbotx.io/worker-config")
@@ -140,6 +164,7 @@ const { enqueueIntegrationJob } = await import("@chatbotx.io/worker-config")
 const mockSendFlowStep = sendFlowStepToChannel as MockInstance
 const mockValidate = validateMessengerTemplate as MockInstance
 const mockReplace = replaceMessengerTemplateVariables as MockInstance
+const mockMessageCreate = messageService.create as MockInstance
 const mockDbUpdate = db.update as MockInstance
 const mockEmit = emit as MockInstance
 const mockEnqueueIntegrationJob = enqueueIntegrationJob as MockInstance
@@ -196,9 +221,13 @@ describe("processMessengerTemplate — sourceId persistence", () => {
       template: TEMPLATE,
     })
 
-    expect(mockDbUpdate).toHaveBeenCalled()
-    const setCall = mockDbUpdate.mock.results[0].value.set
-    expect(setCall).toHaveBeenCalledWith({ sourceId: PROVIDER_ID })
+    expect(mockMessageUpdateSourceId).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "msg-1",
+        sourceId: PROVIDER_ID,
+        workspaceId: "ws-1",
+      }),
+    )
     // Template sends honour the inbox option like any other bot message.
     expect(mockMarkReadByOutbound).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -345,7 +374,7 @@ describe("processMessengerTemplate — header variable guard", () => {
     })
     // No provider call and no orphan outgoing message row.
     expect(mockSendFlowStep).not.toHaveBeenCalled()
-    expect(db.insert).not.toHaveBeenCalled()
+    expect(mockMessageCreate).not.toHaveBeenCalled()
     expect(mockEmit).toHaveBeenCalledWith(
       "message:failed",
       expect.objectContaining({ willRetry: false }),
@@ -409,6 +438,228 @@ describe("processMessengerTemplate — header variable guard", () => {
 
     expect(sentParams().button).toEqual([
       { sub_type: "url", index: 0, text: "https://x.test/jobs" },
+    ])
+  })
+
+  test("fills a blank Mini App URL suffix with the recipient's token variable", async () => {
+    mockValidate.mockResolvedValue(
+      validatedWith([
+        BODY_WITH_VARIABLE,
+        {
+          type: "BUTTONS",
+          buttons: [
+            {
+              type: "URL",
+              text: "Open",
+              url: "https://x.test/mini-apps?id=12&token={{1}}",
+            },
+          ],
+        },
+      ]),
+    )
+
+    await sendWithParams({
+      body: [{ text: "Hi" }],
+      button: [{ sub_type: "url", index: 0, text: "" }],
+    })
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateParams: expect.objectContaining({
+          button: [{ sub_type: "url", index: 0, text: "{{mini_app_token}}" }],
+        }),
+      }),
+    )
+  })
+
+  test("fills a blank URL suffix saved without an index only once", async () => {
+    mockValidate.mockResolvedValue(
+      validatedWith([
+        BODY_WITH_VARIABLE,
+        {
+          type: "BUTTONS",
+          buttons: [
+            {
+              type: "URL",
+              text: "Open",
+              url: "https://x.test/mini-apps?id=12&token={{1}}",
+            },
+          ],
+        },
+      ]),
+    )
+
+    await sendWithParams({
+      body: [{ text: "Hi" }],
+      button: [{ sub_type: "url", text: "" }],
+    })
+
+    expect(sentParams().button).toEqual([
+      { sub_type: "url", index: 0, text: "{{mini_app_token}}" },
+    ])
+  })
+
+  test("stores the token variable, not the signed token, on the message", async () => {
+    mockValidate.mockResolvedValue(
+      validatedWith([
+        BODY_WITH_VARIABLE,
+        {
+          type: "BUTTONS",
+          buttons: [
+            {
+              type: "URL",
+              text: "Open",
+              url: "https://x.test/mini-apps?id=12&token={{1}}",
+            },
+          ],
+        },
+      ]),
+    )
+    mockReplace.mockImplementation(
+      ({ templateParams }: { templateParams: { button?: unknown[] } }) =>
+        Promise.resolve({
+          ...templateParams,
+          button: [{ sub_type: "url", index: 0, text: "signed-token" }],
+        }),
+    )
+
+    await sendWithParams({
+      body: [{ text: "Hi" }],
+      button: [{ sub_type: "url", index: 0, text: "" }],
+    })
+
+    expect(
+      mockMessageCreate.mock.calls[0][0].contentAttributes.template.params
+        .button,
+    ).toEqual([{ sub_type: "url", index: 0, text: "{{mini_app_token}}" }])
+    expect(sentParams().button).toEqual([
+      { sub_type: "url", index: 0, text: "signed-token" },
+    ])
+  })
+
+  describe("a Mini App button sent from a flow", () => {
+    const miniAppComponents = [
+      BODY_WITH_VARIABLE,
+      {
+        type: "BUTTONS",
+        buttons: [
+          {
+            type: "URL",
+            text: "Open",
+            url: "https://x.test/mini-apps?id=12&token={{1}}",
+          },
+        ],
+      },
+    ]
+    const flowMiniAppButton = {
+      id: "btn-9",
+      label: "Open",
+      buttonType: "openMiniApp",
+      beforeStep: { id: "bs-9", stepType: "openMiniApp", miniAppId: "12" },
+      steps: [],
+    }
+
+    const sendFromFlow = () =>
+      processMessengerTemplate({
+        conversation: CONVERSATION as never,
+        contactInbox: CONTACT_INBOX as never,
+        template: {
+          ...TEMPLATE,
+          params: {
+            body: [{ text: "Hi" }],
+            button: [{ sub_type: "url", index: 0, text: "" }],
+          },
+        },
+        flow: { id: "flow-1", versionId: "fv-1" },
+        step: {
+          id: "step-1",
+          nodeId: "node-1",
+          stepType: "sendMessengerTemplateMessage",
+          template: TEMPLATE,
+          buttons: [flowMiniAppButton],
+        } as never,
+      })
+
+    beforeEach(() => {
+      mockValidate.mockResolvedValue(validatedWith(miniAppComponents))
+      mockReplace.mockImplementation(
+        ({ templateParams }: { templateParams: { button?: unknown[] } }) =>
+          Promise.resolve({
+            ...templateParams,
+            button: [{ sub_type: "url", index: 0, text: "signed-token" }],
+          }),
+      )
+      signMiniAppResumeToken.mockResolvedValue("resume/token")
+      findUnscopedMiniApp.mockResolvedValue({
+        id: "12",
+        workspaceId: CONVERSATION.workspaceId,
+        enabled: true,
+      })
+    })
+
+    test("sends the button's resume token as the link suffix", async () => {
+      await sendFromFlow()
+
+      expect(signMiniAppResumeToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          miniAppId: "12",
+          buttonPayload: expect.stringContaining("flow-1:fv-1:btn-9"),
+        }),
+      )
+      expect(sentParams().button).toEqual([
+        { sub_type: "url", index: 0, text: "resume%2Ftoken" },
+      ])
+    })
+
+    test("keeps the token variable, not the resume token, on the message", async () => {
+      await sendFromFlow()
+
+      expect(
+        mockMessageCreate.mock.calls[0][0].contentAttributes.template.params
+          .button,
+      ).toEqual([{ sub_type: "url", index: 0, text: "{{mini_app_token}}" }])
+    })
+
+    test("keeps the contact token when the Mini App is not in the workspace", async () => {
+      findUnscopedMiniApp.mockResolvedValue({
+        id: "12",
+        workspaceId: "other-workspace",
+        enabled: true,
+      })
+
+      await sendFromFlow()
+
+      expect(signMiniAppResumeToken).not.toHaveBeenCalled()
+      expect(sentParams().button).toEqual([
+        { sub_type: "url", index: 0, text: "signed-token" },
+      ])
+    })
+  })
+
+  test("keeps a URL suffix the step already filled", async () => {
+    mockValidate.mockResolvedValue(
+      validatedWith([
+        BODY_WITH_VARIABLE,
+        {
+          type: "BUTTONS",
+          buttons: [
+            {
+              type: "URL",
+              text: "Open",
+              url: "https://x.test/mini-apps?id=12&token={{1}}",
+            },
+          ],
+        },
+      ]),
+    )
+
+    await sendWithParams({
+      body: [{ text: "Hi" }],
+      button: [{ sub_type: "url", index: 0, text: "custom" }],
+    })
+
+    expect(sentParams().button).toEqual([
+      { sub_type: "url", index: 0, text: "custom" },
     ])
   })
 })

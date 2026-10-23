@@ -17,15 +17,19 @@ const {
 }))
 
 const contactAnalyticsService = { getContactsCount: vi.fn() }
+const agentResponseAnalyticsService = { getAgentResponseSeries: vi.fn() }
 
 vi.mock("@chatbotx.io/business", () => ({
   workspaceApiTokenService: { findWorkspaceByTokenHash },
   isWorkspaceScheduledForDeletion,
   userQuotaService: { getAccessState },
   quotaEnforcementService: { isAtLimit },
+  commentAutomationService: { findOrFail: vi.fn() },
+  contactInboxService: { findManyByIds: vi.fn() },
 }))
 
 vi.mock("@chatbotx.io/analytics", () => ({
+  agentResponseAnalyticsService,
   contactAnalyticsService,
   macAnalyticsService: {},
   messageAnalyticsService: {},
@@ -36,6 +40,7 @@ vi.mock("@chatbotx.io/analytics", () => ({
   flowAnalyticsService: {},
   magicLinkAnalyticsService: {},
   refLinkAnalyticsService: {},
+  commentAutomationAnalyticsService: {},
 }))
 
 vi.mock("@chatbotx.io/redis", () => ({
@@ -76,9 +81,13 @@ const authResult = (scopes: string[] | null) => ({
   apiToken: { id: "token-1", permission: "full" as const, scopes },
 })
 
-const invoke = (procedure: typeof analyticsPublicRouter.contactsCount) =>
+const invoke = (
+  procedure:
+    | typeof analyticsPublicRouter.contactsCount
+    | typeof analyticsPublicRouter.agentResponseSeries,
+) =>
   call(
-    procedure,
+    procedure as typeof analyticsPublicRouter.contactsCount,
     { from: "2026-01-01", to: "2026-01-31", timezone: "UTC" },
     {
       context: { headers: new Headers({ Authorization: `Bearer ${TOKEN}` }) },
@@ -114,5 +123,28 @@ describe("real router: analytics public API scope wiring", () => {
     ).resolves.toMatchObject({
       data: { count: 3 },
     })
+  })
+
+  test("a contacts-scoped token is denied the real GET /v1/analytics/agent-response-series route with FORBIDDEN", async () => {
+    findWorkspaceByTokenHash.mockResolvedValue(authResult(["contacts"]))
+
+    await expect(
+      invoke(analyticsPublicRouter.agentResponseSeries),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "Token is not authorized for the 'analytics' scope",
+    })
+    expect(
+      agentResponseAnalyticsService.getAgentResponseSeries,
+    ).not.toHaveBeenCalled()
+  })
+
+  test("an analytics-scoped token passes the real GET /v1/analytics/agent-response-series route", async () => {
+    findWorkspaceByTokenHash.mockResolvedValue(authResult(["analytics"]))
+    agentResponseAnalyticsService.getAgentResponseSeries.mockResolvedValue([])
+
+    await expect(
+      invoke(analyticsPublicRouter.agentResponseSeries),
+    ).resolves.toEqual({ data: [] })
   })
 })

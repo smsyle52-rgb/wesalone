@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { googleAdsUploadMethodSchema } from "./google-ads"
 
 export const credentialTypes = z.enum([
   "whatsapp",
@@ -7,6 +8,7 @@ export const credentialTypes = z.enum([
   "instagramFacebook",
   "threads",
   "google",
+  "googleAds",
   "zalo",
   "giphy",
   "stripe",
@@ -31,6 +33,12 @@ export const whatsappCredentialSchema = z.object({
   verifyToken: z.string(),
   clientSecret: z.string(),
   systemUserToken: z.string(),
+  // Optional: the credential `value` is stored encrypted as one object, so a
+  // required field would fail to parse every row written before this shipped.
+  // Embedded Signup `config_id` used by the Ads tab's dedicated Conversions API
+  // connect, kept apart from `configId` so the channel login can drop the CAPI
+  // permission.
+  capiConfigId: z.string().optional(),
 })
 export type WhatsappCredential = z.infer<typeof whatsappCredentialSchema>
 
@@ -42,6 +50,7 @@ export const whatsappCredentialPublicSchema = whatsappCredentialSchema.pick({
   businessId: true,
   businessName: true,
   verifyToken: true,
+  capiConfigId: true,
 })
 export type WhatsappCredentialPublic = z.infer<
   typeof whatsappCredentialPublicSchema
@@ -121,6 +130,33 @@ export const googleCredentialPublicSchema = googleCredentialSchema.pick({
 })
 export type GoogleCredentialPublic = z.infer<
   typeof googleCredentialPublicSchema
+>
+
+// Google Ads has its OWN OAuth app, separate from `google` (Sheets / Calendar /
+// sign-in): the sensitive `adwords` scope needs its own Google OAuth
+// verification, which must not gate the other Google features. The developer
+// token (optional; Google ignores it since 2026-09) is a secret and never part of
+// the public projection; only the non-secret boolean `hasDeveloperToken` is
+// exposed so the admin form can show whether one is configured.
+// `uploadMethod` is not secret and is public.
+export const googleAdsCredentialSchema = z.object({
+  clientId: z.string(),
+  clientSecret: z.string(),
+  // Optional: Google ignores the developer token since the 2026-09 sunset.
+  developerToken: z.string().optional(),
+  // Absent (every row saved before the choice existed) = Data Manager.
+  uploadMethod: googleAdsUploadMethodSchema.optional(),
+})
+export type GoogleAdsCredential = z.infer<typeof googleAdsCredentialSchema>
+
+export const googleAdsCredentialPublicSchema = googleAdsCredentialSchema
+  .pick({ clientId: true, uploadMethod: true, developerToken: true })
+  .transform(({ developerToken, ...rest }) => ({
+    ...rest,
+    hasDeveloperToken: Boolean(developerToken),
+  }))
+export type GoogleAdsCredentialPublic = z.infer<
+  typeof googleAdsCredentialPublicSchema
 >
 
 export const zaloCredentialSchema = z.object({
@@ -223,6 +259,7 @@ export const credentialSchemas = {
   instagramFacebook: instagramFacebookCredentialSchema,
   threads: threadsCredentialSchema,
   google: googleCredentialSchema,
+  googleAds: googleAdsCredentialSchema,
   zalo: zaloCredentialSchema,
   giphy: giphyCredentialSchema,
   stripe: stripeCredentialSchema,
@@ -239,6 +276,7 @@ export const credentialPublicSchemas = {
   instagramFacebook: instagramFacebookCredentialPublicSchema,
   threads: threadsCredentialPublicSchema,
   google: googleCredentialPublicSchema,
+  googleAds: googleAdsCredentialPublicSchema,
   zalo: zaloCredentialPublicSchema,
   giphy: giphyCredentialPublicSchema,
   stripe: stripeCredentialPublicSchema,
@@ -255,6 +293,7 @@ export type CredentialByType = {
   instagramFacebook: InstagramFacebookCredential
   threads: ThreadsCredential
   google: GoogleCredential
+  googleAds: GoogleAdsCredential
   zalo: ZaloCredential
   giphy: GiphyCredential
   stripe: StripeCredential
@@ -271,6 +310,7 @@ export type CredentialPublicByType = {
   instagramFacebook: InstagramFacebookCredentialPublic
   threads: ThreadsCredentialPublic
   google: GoogleCredentialPublic
+  googleAds: GoogleAdsCredentialPublic
   zalo: ZaloCredentialPublic
   giphy: GiphyCredentialPublic
   stripe: StripeCredentialPublic
@@ -290,8 +330,13 @@ export const whatsappCredentialUpdateSchema = z.object({
   businessId: z.string().trim().optional(),
   businessName: z.string().trim().min(1),
   verifyToken: z.string().trim().min(1),
-  clientSecret: z.string().trim().min(1),
-  systemUserToken: z.string().trim().min(1),
+  // Secrets are never sent back to the form, so a blank one keeps the stored
+  // value; the action rejects a first save that leaves either blank.
+  clientSecret: z.string().trim().optional(),
+  systemUserToken: z.string().trim().optional(),
+  // Optional so existing admins can keep saving without configuring the
+  // dedicated Conversions API connect.
+  capiConfigId: z.string().trim().optional(),
 })
 export type WhatsappCredentialUpdate = z.infer<
   typeof whatsappCredentialUpdateSchema
@@ -341,6 +386,20 @@ export const googleCredentialUpdateSchema = z.object({
 })
 export type GoogleCredentialUpdate = z.infer<
   typeof googleCredentialUpdateSchema
+>
+
+// The two secrets are optional on update: a blank client secret keeps the
+// stored one (`updateGoogleAdsSettingsAction` rejects it when none is stored
+// yet); a blank developer token keeps the stored one too. The token is removed
+// only by `clearGoogleAdsDeveloperTokenAction`.
+export const googleAdsCredentialUpdateSchema = z.object({
+  clientId: z.string().trim().min(1),
+  clientSecret: z.string().trim().optional(),
+  developerToken: z.string().trim().optional(),
+  uploadMethod: googleAdsUploadMethodSchema.optional(),
+})
+export type GoogleAdsCredentialUpdate = z.infer<
+  typeof googleAdsCredentialUpdateSchema
 >
 
 export const zaloCredentialUpdateSchema = z.object({

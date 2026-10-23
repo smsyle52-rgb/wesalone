@@ -1,6 +1,7 @@
 import type { Context, IncomingContact } from "@chatbotx.io/sdk"
 import { createId } from "@chatbotx.io/utils"
 import { fetchMediaWithLimits } from "@chatbotx.io/utils/media-download"
+import { storeIncomingImage } from "@chatbotx.io/utils/store-incoming-image"
 import { API_URL } from "../constants"
 import { InstagramAPIException, rescue } from "../exception"
 import { instagramGraphClient } from "../lib/http-client"
@@ -26,14 +27,14 @@ const fetchProfileFields = async ({
   const fields = includeProfilePic
     ? "name,username,profile_pic"
     : "name,username"
-  const queries = new URLSearchParams({
-    fields,
-    access_token: ctx.auth.tokens.accessToken,
-  })
+  // Auth in the Authorization header, not the query string — a query token
+  // leaks through the request URL captured on HTTP-client errors and logs.
+  const queries = new URLSearchParams({ fields })
 
   try {
     return await instagramGraphClient.get<InstagramUserProfile>(
       `${ctx.auth.metadata.version}/${psid}?${queries.toString()}`,
+      { headers: { Authorization: `Bearer ${ctx.auth.tokens.accessToken}` } },
     )
   } catch (error) {
     // Graph rejects `profile_pic` on some nodes (e.g. the business account's
@@ -53,9 +54,11 @@ const fetchProfileFields = async ({
 export const getUserProfile = ({
   ctx,
   psid,
+  includeAvatar = true,
 }: {
   ctx: Context<InstagramAuthValue>
   psid: string
+  includeAvatar?: boolean
 }): Promise<IncomingContact> => {
   const endpoint = `${API_URL}/${ctx.auth.metadata.version}/${psid}`
 
@@ -63,7 +66,7 @@ export const getUserProfile = ({
     const response = await fetchProfileFields({
       ctx,
       psid,
-      includeProfilePic: true,
+      includeProfilePic: includeAvatar,
     })
 
     const result: IncomingContact = {
@@ -74,7 +77,7 @@ export const getUserProfile = ({
       sourceUsername: response.username,
     }
 
-    if (response.profile_pic) {
+    if (includeAvatar && response.profile_pic) {
       try {
         result.avatar = await getUserProfilePicture({
           ctx,
@@ -123,11 +126,14 @@ export const getUserProfilePicture = async ({
   if (!media) {
     return
   }
-  const originPath = `${ctx.storagePrefix}/avatars/${createId()}`
-  await ctx.uploader?.putObject(originPath, Buffer.from(media.bytes), {
-    ACL: "public-read",
-    ContentType: media.mimeType,
+  const stored = await storeIncomingImage({
+    uploader: ctx.uploader,
+    key: `${ctx.storagePrefix}/avatars/${createId()}`,
+    bytes: Buffer.from(media.bytes),
+    mimeType: media.mimeType,
+    profile: "avatar",
+    acl: "public-read",
   })
 
-  return originPath
+  return stored.originPath
 }

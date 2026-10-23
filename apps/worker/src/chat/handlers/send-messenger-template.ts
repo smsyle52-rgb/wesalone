@@ -2,9 +2,9 @@ import {
   contactInboxService,
   conversationService,
   flowService,
-  publishToWorkspaceParty,
+  messageService,
+  queueMessageCreatedEvent,
 } from "@chatbotx.io/business"
-import { createMessageRepository } from "@chatbotx.io/database/repositories"
 import type { messageModel } from "@chatbotx.io/database/schema"
 import type {
   ContactInboxModel,
@@ -16,7 +16,9 @@ import {
   buttonStepDefaultFn,
   buttonTypes,
   extractMessengerTemplateParams,
+  findMessengerTokenVariable,
   isBulkOutboundMetadata,
+  type MessengerTemplateButtonParam,
   type MessengerTemplateComponent,
   type MessengerTemplateParams,
   type MetadataPayload,
@@ -25,7 +27,6 @@ import {
   startExternalFlowStepDefaultFn,
   stepTypes,
 } from "@chatbotx.io/flow-config"
-import { RealtimeEventType } from "@chatbotx.io/partysocket-config"
 import {
   ChannelError,
   ChannelErrorCategory,
@@ -44,6 +45,7 @@ import {
 } from "../../integration/handlers/messenger-template-handler"
 import { logger } from "../../lib/logger"
 import { skipIfBroadcastNotSendable } from "../utils/broadcast-sendable-guard"
+import { applyMiniAppResumeToTemplateParams } from "../utils/messenger-template-mini-app"
 import {
   shouldSuppressRetryableChannelError,
   willSendRetry,
@@ -96,15 +98,33 @@ function mergeMessengerTemplateButtonParams(
     return params
   }
 
-  const currentButtons = params.button ?? []
-  const currentKeys = new Set(
-    currentButtons.map((button) => `${button.sub_type}:${button.index ?? ""}`),
+  const buttonKey = (button: MessengerTemplateButtonParam) =>
+    `${button.sub_type}:${button.index ?? ""}`
+  const templateButtonsByKey = new Map(
+    templateButtonParams.map((button) => [buttonKey(button), button]),
   )
+  // A URL suffix left blank in the step falls back to the template's default,
+  // the recipient's token variable for a Mini App or Minigame link.
+  let filledBlankSuffix = false
+  // An entry saved without `index` gets its array position, the same fallback
+  // the Messenger sender applies, so it matches its template button.
+  const indexedButtons = (params.button ?? []).map((button, position) =>
+    button.index === undefined ? { ...button, index: position } : button,
+  )
+  const currentButtons = indexedButtons.map((button) => {
+    const defaultText = templateButtonsByKey.get(buttonKey(button))?.text
+    if (button.sub_type !== "url" || button.text?.trim() || !defaultText) {
+      return button
+    }
+    filledBlankSuffix = true
+    return { ...button, text: defaultText }
+  })
+  const currentKeys = new Set(currentButtons.map(buttonKey))
   const missingButtons = templateButtonParams.filter(
-    (button) => !currentKeys.has(`${button.sub_type}:${button.index ?? ""}`),
+    (button) => !currentKeys.has(buttonKey(button)),
   )
 
-  if (missingButtons.length === 0) {
+  if (missingButtons.length === 0 && !filledBlankSuffix) {
     return params
   }
 
@@ -113,6 +133,30 @@ function mergeMessengerTemplateButtonParams(
     button: [...currentButtons, ...missingButtons].sort(
       (left, right) => (left.index ?? 0) - (right.index ?? 0),
     ),
+  }
+}
+
+/**
+ * The params kept on the message row and pushed to the inbox: a URL suffix
+ * built from a Mini App or Minigame token keeps its unresolved variable, so
+ * no one reading the conversation can reuse the contact's signed token.
+ */
+function maskTokenButtonParams(
+  unresolvedParams: MessengerTemplateParams,
+  resolvedParams: MessengerTemplateParams,
+): MessengerTemplateParams {
+  if (!resolvedParams.button) {
+    return resolvedParams
+  }
+  return {
+    ...resolvedParams,
+    button: resolvedParams.button.map((button, position) => {
+      const unresolvedText = unresolvedParams.button?.[position]?.text
+      return button.sub_type === "url" &&
+        findMessengerTokenVariable(unresolvedText)
+        ? { ...button, text: unresolvedText }
+        : button
+    }),
   }
 }
 
@@ -223,6 +267,24 @@ export async function processMessengerTemplate(
       variables,
       parameterFormat: template.parameterFormat,
     })
+    // Sent only: the stored message keeps the masked params below, so the
+    // resume token never reaches the inbox.
+    const sentParams = flow
+      ? await applyMiniAppResumeToTemplateParams({
+          workspaceId: conversation.workspaceId,
+          contactId: conversation.contactId,
+          conversationId: conversation.id,
+          contactInboxId: contactInbox.id,
+          flowId: flow.id,
+          flowVersionId: flow.versionId,
+          metadata,
+          components:
+            (validated.template.components as MessengerTemplateComponent[]) ||
+            [],
+          params: replacedParams,
+          flowButtons: step?.buttons ?? [],
+        })
+      : replacedParams
 
     const contentAttributes = {
       type: "messenger_template",
@@ -230,7 +292,7 @@ export async function processMessengerTemplate(
         name: template.name,
         language: template.language,
         id: template.id,
-        params: replacedParams,
+        params: maskTokenButtonParams(completeParams, replacedParams),
         parameterFormat: template.parameterFormat,
       },
       stepId: step?.id,
@@ -242,8 +304,7 @@ export async function processMessengerTemplate(
       metadata,
     }
 
-    const messageRepository = await createMessageRepository()
-    newMessage = await messageRepository.create({
+    newMessage = await messageService.create({
       id: createId(),
       contactInboxId: contactInbox.id,
       workspaceId: conversation.workspaceId,
@@ -265,16 +326,19 @@ export async function processMessengerTemplate(
         contactId: contactInbox.contactId,
         at: createdMessage.createdAt,
         bumpActivity: !isBulkOutbound,
+        // Template sends are proactive, never a reply to the last message.
+        closeHumanReplyWindow: false,
       })
     if (trackingInvalidation) {
       await contactInboxService.invalidateTracking(trackingInvalidation)
     }
 
     if (!isBulkOutbound) {
-      publishToWorkspaceParty(conversation.workspaceId, {
-        eventType: RealtimeEventType.messageCreated,
-        data: newMessage,
-      })
+      queueMessageCreatedEvent(
+        conversation.workspaceId,
+        newMessage,
+        conversation,
+      )
     }
 
     const result = await sendFlowStepToChannel({
@@ -287,7 +351,7 @@ export async function processMessengerTemplate(
         nodeId: step?.nodeId ?? createId(),
         stepType: stepTypes.enum.sendMessengerTemplateMessage,
         buttons: step?.buttons ?? [],
-        template: { ...template, params: replacedParams },
+        template: { ...template, params: sentParams },
       },
       metadata,
       messageId: newMessage.id,
@@ -334,12 +398,12 @@ export async function processMessengerTemplate(
 
     if (providerMessageId) {
       try {
-        await messageRepository.updateSourceId(
-          newMessage.id,
-          providerMessageId,
-          conversation.workspaceId,
-          newMessage.createdAt,
-        )
+        await messageService.updateSourceId({
+          id: newMessage.id,
+          sourceId: providerMessageId,
+          workspaceId: conversation.workspaceId,
+          createdAt: newMessage.createdAt,
+        })
       } catch (err) {
         logger.error(
           err,

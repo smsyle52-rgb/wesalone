@@ -102,8 +102,30 @@ vi.mock("@chatbotx.io/worker-config", () => ({
 }))
 
 vi.mock("@chatbotx.io/business", () => ({
-  broadcastToWorkspaceParty: mockBroadcast,
-  publishToWorkspaceParty: mockBroadcast,
+  publishWorkspaceRealtimeEvent: mockBroadcast,
+  queueWorkspaceRealtimeEvent: mockBroadcast,
+  queueMessageCreatedEvent: (
+    workspaceId: string,
+    data: unknown,
+    conversation: {
+      assignedInboxTeamId?: string | null
+      assignedUserId?: string | null
+      inboxId?: string | null
+    },
+  ) =>
+    mockBroadcast(workspaceId, {
+      eventType: "messageCreated",
+      data,
+      route: {
+        assignedTeamIds: conversation.assignedInboxTeamId
+          ? [conversation.assignedInboxTeamId]
+          : [],
+        assignedUserIds: conversation.assignedUserId
+          ? [conversation.assignedUserId]
+          : [],
+        ...(conversation.inboxId ? { inboxId: conversation.inboxId } : {}),
+      },
+    }),
   contactInboxService: {
     recordSendFailure: mockRecordSendFailure,
     invalidateTracking: mockInvalidateTracking,
@@ -116,14 +138,31 @@ vi.mock("@chatbotx.io/business", () => ({
     findSendableBroadcast: mockFindSendableBroadcast,
     resetContactForResume: mockResetContactForResume,
   },
+  messageService: {
+    create: async (...args: unknown[]) =>
+      (await mockCreateMessageRepository()).create(...args),
+    updateSourceId: async (input: {
+      createdAt: Date
+      id: string
+      sourceId: string
+      workspaceId: string
+    }) =>
+      (await mockCreateMessageRepository()).updateSourceId(
+        input.id,
+        input.sourceId,
+        input.workspaceId,
+        input.createdAt,
+      ),
+  },
 }))
 
 vi.mock("@chatbotx.io/event-bus", () => ({
   emit: mockEmit,
 }))
 
-vi.mock("@chatbotx.io/partysocket-config", () => ({
+vi.mock("@chatbotx.io/realtime-protocol", () => ({
   RealtimeEventType: { messageCreated: "messageCreated" },
+  routeForConversation: vi.fn(),
 }))
 
 vi.mock("@chatbotx.io/sdk", async (importOriginal) => {
@@ -188,9 +227,11 @@ vi.mock("../src/chat/handlers/send-flow-step", () => ({
 
 import type { ProcessWhatsappTemplateParams } from "../src/chat/handlers/send-whatsapp-template"
 
-const { processWhatsappTemplate, sendWhatsappTemplateMessage } = await import(
-  "../src/chat/handlers/send-whatsapp-template"
-)
+const {
+  processWhatsappTemplate,
+  sendWhatsappTemplateMessage,
+  sendWhatsappTemplateToConversation,
+} = await import("../src/chat/handlers/send-whatsapp-template")
 const { ChannelError, ChannelErrorCategory } = await import("@chatbotx.io/sdk")
 
 // ---------------------------------------------------------------------------
@@ -445,6 +486,7 @@ describe("processWhatsappTemplate", () => {
       contactId: undefined,
       at: createdAt,
       bumpActivity: true,
+      closeHumanReplyWindow: false,
     })
     expect(mockInvalidateTracking).toHaveBeenCalledWith({
       cacheTags: ["contacts:contact-1:contact-inboxes"],
@@ -801,6 +843,16 @@ describe("processWhatsappTemplate — template quick-reply flow routing", () => 
     const sentStep = mockSendFlowStep.mock.calls[0][0].step
     expect(sentStep.template.params.button).toBeUndefined()
   })
+
+  test("marks the send as a template so the conversation-routing gate lets it through", async () => {
+    await processWhatsappTemplate({
+      conversation: fakeConversation,
+      contactInbox: fakeContactInbox,
+      template: fakeTemplate,
+    })
+
+    expect(mockSendFlowStep.mock.calls[0][0].isTemplateMessage).toBe(true)
+  })
 })
 
 describe("processWhatsappTemplate — BSUID auth-template guard (D5)", () => {
@@ -931,5 +983,92 @@ describe("processWhatsappTemplate — BSUID auth-template guard (D5)", () => {
     ).resolves.toBeDefined()
 
     expect(mockSendFlowStep).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("sendWhatsappTemplateToConversation — who sent it", () => {
+  const sentAt = new Date("2026-01-01T00:00:00Z")
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockRepositoryCreate.mockResolvedValue({
+      id: "msg-created",
+      contactInboxId: "ci-1",
+      workspaceId: "ws-1",
+      conversationId: "conv-1",
+      messageType: "outgoing",
+      contentType: "text",
+      senderType: "bot",
+      sourceId: null,
+      text: "Template: wa-template",
+      contentAttributes: {},
+      createdAt: sentAt,
+      updatedAt: sentAt,
+    })
+    mockCreateMessageRepository.mockResolvedValue({
+      create: mockRepositoryCreate,
+      updateSourceId: mockRepositoryUpdateSourceId,
+    })
+    mockValidateTemplate.mockResolvedValue({
+      inbox: { integrationWhatsapp: { id: "iw-1" } },
+      template: {
+        id: "tmpl-wa-1",
+        name: "wa-template",
+        language: "en",
+        components: [],
+      },
+    })
+    mockReplaceVariables.mockResolvedValue([])
+    mockContactVariables.mockResolvedValue([])
+    mockSendFlowStep.mockResolvedValue({
+      messageIds: ["provider-wa-1"],
+      sentCount: 1,
+    })
+    mockEmit.mockResolvedValue(undefined)
+  })
+
+  const job = (
+    extra: Partial<
+      Parameters<typeof sendWhatsappTemplateToConversation>[0]
+    > = {},
+  ): Parameters<typeof sendWhatsappTemplateToConversation>[0] => ({
+    conversation: fakeConversation,
+    contactInbox: { ...fakeContactInbox, contactId: "contact-1" },
+    templateId: "tmpl-wa-1",
+    ...extra,
+  })
+
+  test("a member-initiated template is recorded as a human message", async () => {
+    await sendWhatsappTemplateToConversation(
+      job({ initiatedBy: "user", adminId: "admin-1" }),
+    )
+
+    expect(mockSendFlowStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        humanSender: { adminId: "admin-1", occurredAt: sentAt },
+      }),
+    )
+  })
+
+  test.each([
+    ["a public API call", { initiatedBy: "api" as const }],
+    ["a job queued before the origin existed", {}],
+    ["a user origin without an admin id", { initiatedBy: "user" as const }],
+  ])("%s stays a bot message", async (_name, extra) => {
+    await sendWhatsappTemplateToConversation(job(extra))
+
+    expect(mockSendFlowStep).toHaveBeenCalledWith(
+      expect.objectContaining({ humanSender: undefined }),
+    )
+  })
+
+  test("a broadcast template never carries a human sender", async () => {
+    mockFindSendableBroadcast.mockResolvedValue({ id: "broadcast-1" })
+
+    await sendWhatsappTemplateMessage(broadcastTemplateJobData)
+
+    expect(mockSendFlowStep).toHaveBeenCalledWith(
+      expect.objectContaining({ humanSender: undefined }),
+    )
   })
 })

@@ -11,9 +11,16 @@ import {
   type SQL,
   sql,
 } from "@chatbotx.io/database/client"
-import type { ConversationAttributes } from "@chatbotx.io/database/partials"
+import type {
+  ConversationAttributes,
+  ConversationQuickReplyChallenge,
+} from "@chatbotx.io/database/partials"
 import {
+  assignTargetIfUnassigned,
   assignUserIfUnassigned,
+  closeHumanReplyWindow,
+  contactInboxOperationalColumns,
+  contactInboxRepository,
   createMessageRepository,
   getSafeSinceTime,
 } from "@chatbotx.io/database/repositories"
@@ -42,13 +49,18 @@ import {
   emitConversationTransferredToHuman,
   emitConversationUnassigned,
 } from "@chatbotx.io/events"
-import { RealtimeEventType } from "@chatbotx.io/partysocket-config"
+import {
+  RealtimeEventType,
+  routeForAssignment,
+  routeForConversation,
+} from "@chatbotx.io/realtime-protocol"
 import { withCache } from "@chatbotx.io/redis"
 import { createId } from "@chatbotx.io/utils"
 import {
   NotificationJobAction,
   notificationQueue,
 } from "@chatbotx.io/worker-config"
+import type { PgUpdateSetSource } from "drizzle-orm/pg-core"
 import { BaseService } from "../base.service"
 import { contactService } from "../contact"
 import type {
@@ -59,8 +71,33 @@ import { contactInboxService } from "../contact-inbox/service"
 import { inboxTeamService } from "../enterprise/inbox-team/service"
 import { ChatbotXException, notFoundException } from "../errors"
 import { logger } from "../logger"
-import { publishToWorkspaceParty } from "../platform/realtime-broadcast"
+import { queueWorkspaceRealtimeEvent } from "../platform/realtime-broadcast"
+import { responseSlaService } from "../response-sla/service"
+import { smartDelayService } from "../smart-delay/service"
+import { threadControlService } from "../thread-control/service"
+import { isUserOnShift } from "../working-hours/on-shift"
 import { workspaceMemberService } from "../workspace-member/service"
+import {
+  type HumanReplyWindowTransition,
+  humanReplyWindowSet,
+  reopenIfUnansweredSince,
+} from "./human-reply-window"
+
+// Contact-authored message opens the DM waiting window; a native-app outgoing
+// echo (a human replied outside the product) closes it; anything else leaves it.
+const resolveInboundWindow = (props: {
+  at: Date
+  contactRepliedAt?: Date
+  isExternalHumanEcho?: boolean
+}): HumanReplyWindowTransition | undefined => {
+  if (props.contactRepliedAt) {
+    return { open: props.contactRepliedAt }
+  }
+  if (props.isExternalHumanEcho) {
+    return { close: props.at, actor: "externalHuman" }
+  }
+  return
+}
 
 export const BOT_DISABLE_DURATION_MS = 24 * 60 * 60 * 1000
 
@@ -120,22 +157,93 @@ export type ConversationWithContactInboxes = ConversationModel & {
   contactInboxes: ContactInboxModel[]
 }
 
+const quickReplyChallengeJson = () =>
+  sql`${conversationModel.additionalAttributes}->'challenge'`
+
+const isQuickReplyChallenge = () =>
+  sql`${quickReplyChallengeJson()}->>'type' = 'quickReply'`
+
+/**
+ * SET fragment that drops a quick-reply challenge and leaves every other
+ * challenge (e.g. Get User Data `type: "step"`) untouched. Reused by the
+ * handoff executor.
+ */
+const dropChallenge = () =>
+  sql`${conversationModel.additionalAttributes} - 'challenge'`
+
+const setChallenge = (
+  challenge: NonNullable<ConversationAttributes["challenge"]>,
+) =>
+  sql`jsonb_set(COALESCE(${conversationModel.additionalAttributes}, '{}'::jsonb), '{challenge}', ${JSON.stringify(challenge)}::jsonb, true)`
+
+export const sqlDropQuickReplyChallenge = () =>
+  sql`CASE WHEN ${isQuickReplyChallenge()} THEN ${dropChallenge()} ELSE ${conversationModel.additionalAttributes} END`
+
+type ReopenWindowOption = {
+  /**
+   * Reopen the DM waiting window at the contact's unanswered last message.
+   * Opt-in: only a pause that runs as an immediate reaction to that message
+   * passes true. A bot close leaves no marker, so a later manual pause must
+   * not resurrect a window the bot already answered.
+   */
+  reopenUnansweredHumanReplyWindow?: boolean
+}
+
+type BotPauseOptions = ReopenWindowOption & {
+  /** `undefined` pauses for the default duration; `null` pauses indefinitely. */
+  botResumeAt?: Date | null
+}
+
+/** The one SET clause every bot pause writes (identical for all pause paths). */
+const botPauseSet = (options: BotPauseOptions) => ({
+  botEnabled: false,
+  botResumeAt:
+    options.botResumeAt === undefined
+      ? new Date(Date.now() + BOT_DISABLE_DURATION_MS)
+      : options.botResumeAt,
+  additionalAttributes: sqlDropQuickReplyChallenge(),
+  ...(options.reopenUnansweredHumanReplyWindow
+    ? { awaitingHumanReplySince: reopenIfUnansweredSince() }
+    : {}),
+})
+
 class ConversationService extends BaseService {
-  async markAgentReplied(input: { id: string; workspaceId: string; at: Date }) {
-    await db
-      .update(conversationModel)
-      .set({
-        agentLastReadAt: input.at,
-        lastActivityAt: input.at,
-        adminRepliedAt: input.at,
-      })
-      .where(
-        and(
-          eq(conversationModel.id, input.id),
-          eq(conversationModel.workspaceId, input.workspaceId),
-        ),
-      )
+  /**
+   * Records a human reply and closes the DM waiting window in one serialized
+   * claim (see `closeHumanReplyWindow`). `isFirstResponse` is true when the
+   * conversation had never been answered by a human/API before this reply.
+   * Returns `null` when the conversation is not in the workspace.
+   */
+  async markAgentReplied(input: {
+    id: string
+    workspaceId: string
+    at: Date
+  }): Promise<{
+    closedAwaitingSince: Date | null
+    isFirstResponse: boolean
+    assignedUserId: string | null
+    assignedUserAt: Date | null
+    /** SLA snapshot of the window this reply closed; `null` when no SLA applied. */
+    slaDueAt: Date | null
+    slaTargetSeconds: number | null
+  } | null> {
+    const claim = await closeHumanReplyWindow({
+      workspaceId: input.workspaceId,
+      conversationId: input.id,
+      repliedAt: input.at,
+    })
     await this.invalidate({ workspaceId: input.workspaceId, ids: [input.id] })
+    if (!claim) {
+      return null
+    }
+    return {
+      closedAwaitingSince: claim.closedAwaitingSince,
+      isFirstResponse: claim.previousAdminRepliedAt === null,
+      assignedUserId: claim.assignedUserId,
+      assignedUserAt: claim.assignedUserAt,
+      slaDueAt: claim.closedResponseDueAt,
+      slaTargetSeconds: claim.closedResponseSlaTargetSeconds,
+    }
   }
   protected readonly cachePrefix: string = "conversations"
 
@@ -221,8 +329,8 @@ class ConversationService extends BaseService {
   }): Promise<void> {
     const additionalAttributes =
       props.challenge === undefined
-        ? sql`${conversationModel.additionalAttributes} - 'challenge'`
-        : sql`jsonb_set(COALESCE(${conversationModel.additionalAttributes}, '{}'::jsonb), '{challenge}', ${JSON.stringify(props.challenge)}::jsonb, true)`
+        ? dropChallenge()
+        : setChallenge(props.challenge)
 
     const [row] = await db
       .update(conversationModel)
@@ -260,7 +368,7 @@ class ConversationService extends BaseService {
     const rows = await db
       .update(conversationModel)
       .set({
-        additionalAttributes: sql`${conversationModel.additionalAttributes} - 'challenge'`,
+        additionalAttributes: dropChallenge(),
       })
       .where(
         and(
@@ -291,7 +399,7 @@ class ConversationService extends BaseService {
     const rows = await db
       .update(conversationModel)
       .set({
-        additionalAttributes: sql`jsonb_set(COALESCE(${conversationModel.additionalAttributes}, '{}'::jsonb), '{challenge}', ${JSON.stringify(props.challenge)}::jsonb, true)`,
+        additionalAttributes: setChallenge(props.challenge),
       })
       .where(
         and(
@@ -305,14 +413,160 @@ class ConversationService extends BaseService {
     return rows.length > 0
   }
 
+  /**
+   * Clears a pending quick-reply retry. Never touches a Get User Data
+   * (`type: "step"`) challenge. Returns whether a row changed, so concurrent
+   * callers can tell who won. `attempts` makes it a compare-and-set on the
+   * current attempt count (mirrors `setQuickReplyChallengeAttempts`), so a
+   * stale caller cannot clear a freshly re-armed challenge.
+   */
+  async clearQuickReplyChallenge(props: {
+    tx?: DatabaseClient
+    workspaceId: string
+    conversationId: string
+    nodeId?: string
+    exceptFlowId?: string
+    attempts?: number
+  }): Promise<boolean> {
+    const { tx = db } = props
+    const challenge = quickReplyChallengeJson()
+    const rows = await tx
+      .update(conversationModel)
+      .set({ additionalAttributes: dropChallenge() })
+      .where(
+        and(
+          eq(conversationModel.workspaceId, props.workspaceId),
+          eq(conversationModel.id, props.conversationId),
+          isQuickReplyChallenge(),
+          props.nodeId
+            ? sql`${challenge}->'data'->>'nodeId' = ${props.nodeId}`
+            : undefined,
+          props.exceptFlowId
+            ? sql`${challenge}->'data'->>'flowId' <> ${props.exceptFlowId}`
+            : undefined,
+          props.attempts === undefined
+            ? undefined
+            : sql`(${challenge}->'data'->>'attempts')::int = ${props.attempts}`,
+        ),
+      )
+      .returning({ id: conversationModel.id })
+
+    return rows.length > 0
+  }
+
+  /**
+   * Writes a quick-reply retry challenge only while the bot is enabled, so a
+   * pause landing between the caller's `ensureActive` read and this write
+   * cannot leave a challenge on a handed-off conversation. Returns whether it
+   * was written.
+   */
+  async armQuickReplyChallenge(props: {
+    workspaceId: string
+    conversationId: string
+    challenge: ConversationQuickReplyChallenge
+  }): Promise<boolean> {
+    const rows = await db
+      .update(conversationModel)
+      .set({
+        additionalAttributes: setChallenge(props.challenge),
+      })
+      .where(
+        and(
+          eq(conversationModel.workspaceId, props.workspaceId),
+          eq(conversationModel.id, props.conversationId),
+          eq(conversationModel.botEnabled, true),
+        ),
+      )
+      .returning({ id: conversationModel.id })
+
+    return rows.length > 0
+  }
+
+  /** Compare-and-set on `attempts`: only one concurrent retry wins. */
+  async setQuickReplyChallengeAttempts(props: {
+    tx?: DatabaseClient
+    workspaceId: string
+    conversationId: string
+    nodeId: string
+    fromAttempts: number
+    toAttempts: number
+  }): Promise<boolean> {
+    const { tx = db } = props
+    const challenge = quickReplyChallengeJson()
+    const rows = await tx
+      .update(conversationModel)
+      .set({
+        additionalAttributes: sql`jsonb_set(${conversationModel.additionalAttributes}, '{challenge,data,attempts}', to_jsonb(${props.toAttempts}::int), false)`,
+      })
+      .where(
+        and(
+          eq(conversationModel.workspaceId, props.workspaceId),
+          eq(conversationModel.id, props.conversationId),
+          isQuickReplyChallenge(),
+          sql`${challenge}->'data'->>'nodeId' = ${props.nodeId}`,
+          sql`(${challenge}->'data'->>'attempts')::int = ${props.fromAttempts}`,
+        ),
+      )
+      .returning({ id: conversationModel.id })
+
+    return rows.length > 0
+  }
+
+  async clearQuickReplyChallengesForStaleVersion(props: {
+    tx?: DatabaseClient
+    workspaceId: string
+    flowId: string
+    currentFlowVersionId: string
+  }): Promise<number> {
+    const { tx = db } = props
+    const challenge = quickReplyChallengeJson()
+    const rows = await tx
+      .update(conversationModel)
+      .set({ additionalAttributes: dropChallenge() })
+      .where(
+        and(
+          eq(conversationModel.workspaceId, props.workspaceId),
+          isQuickReplyChallenge(),
+          sql`${challenge}->'data'->>'flowId' = ${props.flowId}`,
+          sql`${challenge}->'data'->>'flowVersionId' IS NOT NULL`,
+          sql`${challenge}->'data'->>'flowVersionId' <> ${props.currentFlowVersionId}`,
+        ),
+      )
+      .returning({ id: conversationModel.id })
+
+    return rows.length
+  }
+
+  /**
+   * A contact can hold a DM conversation and one comment thread per post, so
+   * "the contact's conversation" is a choice, not a lookup. The one query
+   * evaluates that choice in a single snapshot: a concurrently created DM
+   * cannot appear between a DM probe and the comment-thread fallback.
+   *
+   * The DM thread always wins. Every caller is a
+   * `/v1/contacts/{identifier}/messages` handler — send, list and get — and a
+   * direct message is what all three are about. A contact who has only ever
+   * commented has no DM row to prefer and resolves to their newest comment
+   * thread instead. Equal activity timestamps fall back to `id` so the result
+   * stays deterministic.
+   */
   async findByContactWithInboxes(props: {
     contactId: string
     workspaceId: string
     tx?: DatabaseClient
   }): Promise<ConversationWithContactInboxes | undefined> {
     const { tx = db, contactId, workspaceId } = props
+
     return (await tx.query.conversationModel.findFirst({
       where: { contactId, workspaceId },
+      // `sourceId IS NOT NULL` sorts false (DM) before true (comment thread).
+      // `lastActivityAt` is nullable with no default, so `NULLS LAST` is
+      // explicit, then id is the stable tie-breaker.
+      orderBy: (table) => [
+        sql`${table.sourceId} IS NOT NULL`,
+        sql`${table.lastActivityAt} DESC NULLS LAST`,
+        sql`${table.id} DESC`,
+      ],
       with: { contactInboxes: true },
     })) as ConversationWithContactInboxes | undefined
   }
@@ -320,9 +574,25 @@ class ConversationService extends BaseService {
   /**
    * Shared by the public `/v1/contacts/{identifier}/messages|auto-replies|flows`
    * handlers: resolve the contact's conversation and the specific
-   * `ContactInbox` to send through (or the first one when `inboxId` is
-   * omitted), throwing the same 404 either way instead of repeating both
-   * lookups + both `notFoundException` calls at every call site.
+   * `ContactInbox` to send through, throwing the same 404 either way instead of
+   * repeating both lookups + both `notFoundException` calls at every call site.
+   *
+   * Both halves used to be picked arbitrarily, and a send that resolved wrong
+   * failed asynchronously — the handler had already answered 204.
+   *
+   * - The conversation comes from `findByContactWithInboxes`, which settles the
+   *   DM-vs-comment-thread choice for the read paths too.
+   * - The `ContactInbox` now comes from `findRecentByContactId`. The relation
+   *   on the conversation row is keyed by `contactId`, so it carries every
+   *   inbox the contact has across every channel — taking `[0]` of an unordered
+   *   list could address the wrong page entirely. An explicit `inboxId` still
+   *   wins and is still matched against that relation.
+   *
+   * The channel is therefore decided by the `ContactInbox` alone — a
+   * `Conversation` carries no inbox or channel column, and the single DM row a
+   * contact owns is shared across all of their channels. So for a contact
+   * connected on more than one channel, omitting `inboxId` makes the channel a
+   * best guess ("most recently active"). Pass `inboxId` when it must be exact.
    */
   async resolveContactInboxForSend(props: {
     contactId: string
@@ -343,7 +613,10 @@ class ConversationService extends BaseService {
 
     const contactInbox = inboxId
       ? conversation.contactInboxes.find((ci) => ci.inboxId === inboxId)
-      : conversation.contactInboxes[0]
+      : await contactInboxService.findRecentByContactId({
+          workspaceId,
+          contactId,
+        })
     if (!contactInbox) {
       throw notFoundException("Conversation not found")
     }
@@ -356,9 +629,8 @@ class ConversationService extends BaseService {
    * `createMessageAction`: resolve the `ContactInbox` to send an outgoing
    * message through, scoped to an already-identified `conversationId` rather
    * than `contactId` (see `resolveContactInboxForSend` for the public-API
-   * variant, which starts from `contactId` and falls back to the
-   * conversation's first `ContactInbox` instead of the most recently
-   * active one).
+   * variant, which starts from `contactId` and resolves the conversation too).
+   * Both settle on the same `ContactInbox` for a given contact.
    */
   async resolveContactInboxForConversation(props: {
     conversation: Pick<ConversationModel, "contactId">
@@ -386,11 +658,14 @@ class ConversationService extends BaseService {
   }): Promise<ConversationModel | undefined> {
     const { tx = db, contactId } = props
     // A contact can have multiple conversations (DM + comment threads), all
-    // sharing the same ContactInbox — order by lastActivityAt so callers get
-    // the conversation the contact is actually active in, not an arbitrary one.
+    // sharing the same ContactInbox — order by activity so callers get the
+    // conversation the contact is actually active in, not an arbitrary one.
+    // NULLS LAST keeps never-active conversations last; id resolves equal
+    // activity timestamps deterministically.
     return await tx.query.conversationModel.findFirst({
       where: { contactId },
-      orderBy: { lastActivityAt: "desc" },
+      orderBy: (table) =>
+        sql`${table.lastActivityAt} DESC NULLS LAST, ${table.id} DESC`,
     })
   }
 
@@ -512,7 +787,10 @@ class ConversationService extends BaseService {
             tags: true,
           },
         },
-        contactInboxes: { with: { inbox: true } },
+        contactInboxes: {
+          columns: contactInboxOperationalColumns,
+          with: { inbox: true },
+        },
         messages: true,
         assignedUser: true,
         assignedInboxTeam: true,
@@ -664,7 +942,15 @@ class ConversationService extends BaseService {
     const ids = conversations.map((c) => c.id)
     await tx
       .update(conversationModel)
-      .set({ archivedAt })
+      .set({
+        archivedAt,
+        ...(archivedAt
+          ? humanReplyWindowSet({
+              close: archivedAt,
+              actor: "archive",
+            })
+          : {}),
+      })
       .where(
         and(
           eq(conversationModel.workspaceId, workspaceId),
@@ -686,16 +972,78 @@ class ConversationService extends BaseService {
           props.userId,
         )
       }
+      await this.releaseOwnedThreads({ workspaceId, conversations, archivedAt })
     }
 
+    const attributions = await this.resolveAnalyticsAttribution({
+      workspaceId,
+      contactIds: conversations.map((conv) => conv.contactId),
+    })
     for (const conv of conversations) {
       emit("analytics:dashboard", {
         eventType,
         workspaceId,
         conversationId: conv.id,
         occurredAt: new Date(),
+        ...attributions.get(conv.contactId),
         metadata: { triggerContext },
       })
+    }
+  }
+
+  /**
+   * (channel, inboxId) pair analytics attributes each conversation event to.
+   * A conversation belongs to a contact, not an inbox, so the pair comes from
+   * the contact's most recently active ContactInbox — attribution by routing
+   * rule, not causal. One workspace-scoped query for the whole batch; contacts
+   * without a ContactInbox stay unattributed. It reads on `db`, never the
+   * caller's transaction, and a failed read only leaves the events
+   * unattributed: the conversation change is already committed.
+   */
+  private async resolveAnalyticsAttribution(props: {
+    workspaceId: string
+    contactIds: string[]
+  }): Promise<Map<string, { channel: string; inboxId: string }>> {
+    const { workspaceId } = props
+    try {
+      const rows = await contactInboxRepository.listLatestAnalyticsAttribution({
+        workspaceId,
+        contactIds: [...new Set(props.contactIds)],
+      })
+      return new Map(
+        rows.map((row) => [
+          row.contactId,
+          { channel: row.channel, inboxId: row.inboxId },
+        ]),
+      )
+    } catch (err) {
+      logger.warn(
+        { err, workspaceId },
+        "Conversation analytics attribution lookup failed; events stay unattributed",
+      )
+      return new Map()
+    }
+  }
+
+  /**
+   * Archiving ends the conversation, so every routing thread we own for these
+   * contacts is released (the owner keeps a thread while the customer stays
+   * active; stopping sends does not free it). Best effort by design: the
+   * archive is already written, so a failure to enqueue is logged and the
+   * thread simply idles out after 24h of customer silence.
+   */
+  private async releaseOwnedThreads(props: {
+    workspaceId: string
+    conversations: { id: string; contactId: string }[]
+    archivedAt: Date
+  }): Promise<void> {
+    try {
+      await threadControlService.releaseOwnedThreadsForContacts(props)
+    } catch (err) {
+      logger.warn(
+        { err, workspaceId: props.workspaceId },
+        "Unable to enqueue thread release after archiving conversations",
+      )
     }
   }
 
@@ -747,6 +1095,7 @@ class ConversationService extends BaseService {
     workspaceId: string,
     assignedId: string | null | undefined,
     onInvalid: "throw" | "ignore" = "throw",
+    tx?: DatabaseClient,
   ): Promise<{
     assignedUserId: string | null
     assignedInboxTeamId: string | null
@@ -765,6 +1114,7 @@ class ConversationService extends BaseService {
         await workspaceMemberService.findByWorkspaceIdAndUserId({
           workspaceId,
           userId,
+          tx,
         })
       if (workspaceMember) {
         updatedData.assignedUserId = workspaceMember.userId
@@ -777,12 +1127,14 @@ class ConversationService extends BaseService {
         const inboxTeam = await inboxTeamService.findByIdOrFail({
           workspaceId,
           inboxTeamId,
+          tx,
         })
         updatedData.assignedInboxTeamId = inboxTeam.id
       } else {
         const teamExists = await inboxTeamService.exists({
           workspaceId,
           id: inboxTeamId,
+          tx,
         })
         if (teamExists) {
           updatedData.assignedInboxTeamId = inboxTeamId
@@ -807,9 +1159,8 @@ class ConversationService extends BaseService {
     assignedId: string | null | undefined
     assignedBy?: string
     triggerContext: Omit<TriggerContext, "triggerType">
-    tx?: DatabaseClient
   }): Promise<void> {
-    const { workspaceId, contactIds, assignedId, assignedBy, tx } = props
+    const { workspaceId, contactIds, assignedId, assignedBy } = props
 
     const updatedData = await this.resolveAssignmentTarget(
       workspaceId,
@@ -819,7 +1170,6 @@ class ConversationService extends BaseService {
     const conversations = await this.findManyByContactIds({
       workspaceId,
       contactIds,
-      tx,
     })
     if (conversations.length === 0) {
       return
@@ -838,7 +1188,6 @@ class ConversationService extends BaseService {
             ? "conversation_assigned"
             : "conversation_unassigned",
       },
-      tx,
     })
   }
 
@@ -853,12 +1202,14 @@ class ConversationService extends BaseService {
     assignedBy?: string
     triggerContext: Omit<TriggerContext, "triggerType">
     tx?: DatabaseClient
+    afterCommit?: (callback: () => Promise<void>) => void
   }): Promise<void> {
-    const { workspaceId, conversation, assignedId, assignedBy, tx } = props
-
+    const { workspaceId, conversation, assignedId, assignedBy } = props
     const updatedData = await this.resolveAssignmentTarget(
       workspaceId,
       assignedId,
+      "throw",
+      props.tx,
     )
 
     await this.updateAssignment({
@@ -874,7 +1225,8 @@ class ConversationService extends BaseService {
             ? "conversation_assigned"
             : "conversation_unassigned",
       },
-      tx,
+      tx: props.tx,
+      afterCommit: props.afterCommit,
     })
   }
 
@@ -895,10 +1247,11 @@ class ConversationService extends BaseService {
     workspaceId: string
     conversation: { id: string; contactId: string }
     assignedId: string
+    silent?: boolean
     triggerContext: TriggerContext
-    tx?: DatabaseClient
   }): Promise<void> {
-    const { workspaceId, conversation, assignedId, triggerContext, tx } = props
+    const { workspaceId, conversation, assignedId, silent, triggerContext } =
+      props
 
     const updatedData = await this.resolveAssignmentTarget(
       workspaceId,
@@ -910,13 +1263,29 @@ class ConversationService extends BaseService {
       return
     }
 
+    // Automated paths never hand a conversation to an agent who is off shift
+    // (a person assigning in the inbox goes through `assignOne`, unchecked).
+    if (
+      updatedData.assignedUserId &&
+      !(await isUserOnShift({
+        workspaceId,
+        userId: updatedData.assignedUserId,
+      }))
+    ) {
+      logger.debug(
+        { workspaceId, conversationId: conversation.id },
+        "Assignment skipped: the target agent is off shift",
+      )
+      return
+    }
+
     await this.updateAssignment({
       workspaceId,
       conversations: [conversation],
       assignedUserId: updatedData.assignedUserId,
       assignedInboxTeamId: updatedData.assignedInboxTeamId,
+      silent,
       triggerContext,
-      tx,
     })
   }
 
@@ -926,8 +1295,10 @@ class ConversationService extends BaseService {
     assignedUserId: string | null
     assignedInboxTeamId: string | null
     assignedBy?: string
+    silent?: boolean
     triggerContext: TriggerContext
     tx?: DatabaseClient
+    afterCommit?: (callback: () => Promise<void>) => void
   }): Promise<ConversationModel[]> {
     const {
       workspaceId,
@@ -935,31 +1306,114 @@ class ConversationService extends BaseService {
       assignedUserId,
       assignedInboxTeamId,
       assignedBy,
+      silent,
       triggerContext,
-      tx = db,
     } = props
-    const ids = conversations.map((c) => c.id)
-    const updated = await tx
-      .update(conversationModel)
-      .set({ assignedUserId, assignedInboxTeamId })
-      .where(
-        and(
-          eq(conversationModel.workspaceId, workspaceId),
-          inArray(conversationModel.id, ids),
-        ),
+
+    if (props.tx && !props.afterCommit) {
+      throw new Error(
+        "updateAssignment with tx requires an afterCommit callback",
       )
-      .returning()
+    }
+    if (conversations.length === 0) {
+      return []
+    }
 
-    await this.publishAssignmentChanges({
-      workspaceId,
-      conversations: updated,
-      assignedUserId,
-      assignedInboxTeamId,
-      assignedBy,
-      triggerContext,
-    })
+    const ids = conversations.map((conversation) => conversation.id)
+    const assignedAt = new Date()
+    const updateInTransaction = async (
+      transaction: DatabaseClient,
+    ): Promise<{
+      previousAssignments: Map<
+        string,
+        { assignedInboxTeamId: string | null; assignedUserId: string | null }
+      >
+      updated: ConversationModel[]
+    }> => {
+      const previous = await transaction
+        .select({
+          assignedInboxTeamId: conversationModel.assignedInboxTeamId,
+          assignedUserId: conversationModel.assignedUserId,
+          id: conversationModel.id,
+        })
+        .from(conversationModel)
+        .where(
+          and(
+            eq(conversationModel.workspaceId, workspaceId),
+            inArray(conversationModel.id, ids),
+          ),
+        )
+        .for("update")
+      const updated = await transaction
+        .update(conversationModel)
+        .set({
+          assignedUserId,
+          assignedInboxTeamId,
+          assignedUserAt: sql`CASE WHEN ${assignedUserId}::bigint IS NULL THEN NULL WHEN "assignedUserId" IS DISTINCT FROM ${assignedUserId}::bigint THEN ${assignedAt.toISOString()}::timestamptz ELSE "assignedUserAt" END`,
+        })
+        .where(
+          and(
+            eq(conversationModel.workspaceId, workspaceId),
+            inArray(conversationModel.id, ids),
+          ),
+        )
+        .returning()
+      return {
+        previousAssignments: new Map(
+          previous.map((conversation) => [conversation.id, conversation]),
+        ),
+        updated,
+      }
+    }
+    const result = props.tx
+      ? await responseSlaService.trackWindow(
+          {
+            workspaceId,
+            conversationIds: ids,
+            assigneeHints: [assignedUserId],
+            tx: props.tx,
+          },
+          updateInTransaction,
+        )
+      : await db.transaction((tx) =>
+          responseSlaService.trackWindow(
+            {
+              workspaceId,
+              conversationIds: ids,
+              assigneeHints: [assignedUserId],
+              tx,
+            },
+            updateInTransaction,
+          ),
+        )
+    const publish = async () =>
+      await this.publishAssignmentChanges({
+        workspaceId,
+        conversations: result.updated.map((conversation) => {
+          const previousAssignment = result.previousAssignments.get(
+            conversation.id,
+          )
+          return {
+            id: conversation.id,
+            contactId: conversation.contactId,
+            previousAssignedInboxTeamId:
+              previousAssignment?.assignedInboxTeamId,
+            previousAssignedUserId: previousAssignment?.assignedUserId,
+          }
+        }),
+        assignedUserId,
+        assignedInboxTeamId,
+        assignedBy,
+        silent,
+        triggerContext,
+      })
+    if (props.tx) {
+      props.afterCommit?.(publish)
+    } else {
+      await publish()
+    }
 
-    return updated
+    return result.updated
   }
 
   /**
@@ -970,10 +1424,16 @@ class ConversationService extends BaseService {
    */
   private async publishAssignmentChanges(props: {
     workspaceId: string
-    conversations: { id: string; contactId: string }[]
+    conversations: {
+      id: string
+      contactId: string
+      previousAssignedInboxTeamId?: string | null
+      previousAssignedUserId?: string | null
+    }[]
     assignedUserId: string | null
     assignedInboxTeamId: string | null
     assignedBy?: string
+    silent?: boolean
     triggerContext: TriggerContext
   }): Promise<void> {
     const {
@@ -982,6 +1442,7 @@ class ConversationService extends BaseService {
       assignedUserId,
       assignedInboxTeamId,
       assignedBy,
+      silent,
       triggerContext,
     } = props
     if (conversations.length === 0) {
@@ -991,10 +1452,22 @@ class ConversationService extends BaseService {
 
     await this.invalidate({ workspaceId, ids })
 
-    publishToWorkspaceParty(workspaceId, {
-      eventType: RealtimeEventType.conversationAssigned,
-      data: { conversationIds: ids, assignedUserId, assignedInboxTeamId },
-    })
+    if (!silent) {
+      await queueWorkspaceRealtimeEvent(workspaceId, {
+        eventType: RealtimeEventType.conversationAssigned,
+        data: { conversationIds: ids, assignedUserId, assignedInboxTeamId },
+        route: routeForAssignment({
+          assignedUserId,
+          assignedInboxTeamId,
+          previousAssignedUserIds: conversations.map(
+            ({ previousAssignedUserId }) => previousAssignedUserId,
+          ),
+          previousAssignedInboxTeamIds: conversations.map(
+            ({ previousAssignedInboxTeamId }) => previousAssignedInboxTeamId,
+          ),
+        }),
+      })
+    }
 
     if (assignedUserId && assignedUserId !== assignedBy) {
       try {
@@ -1017,6 +1490,10 @@ class ConversationService extends BaseService {
     }
 
     const assignedTo = assignedUserId || assignedInboxTeamId
+    const attributions = await this.resolveAnalyticsAttribution({
+      workspaceId,
+      contactIds: conversations.map((conv) => conv.contactId),
+    })
     for (const conv of conversations) {
       if (assignedTo) {
         await emitConversationAssigned(
@@ -1032,6 +1509,7 @@ class ConversationService extends BaseService {
           conversationId: conv.id,
           toAssignee: assignedTo,
           occurredAt: new Date(),
+          ...attributions.get(conv.contactId),
           metadata: { triggerContext },
         })
       } else {
@@ -1046,6 +1524,7 @@ class ConversationService extends BaseService {
           workspaceId,
           conversationId: conv.id,
           occurredAt: new Date(),
+          ...attributions.get(conv.contactId),
           metadata: { triggerContext },
         })
       }
@@ -1066,9 +1545,15 @@ class ConversationService extends BaseService {
     tx?: DatabaseClient
   }): Promise<ConversationModel[]> {
     const { workspaceId, conversationId, userId, triggerHandler, tx } = props
-    const claimed = await assignUserIfUnassigned(
-      { workspaceId, conversationId, userId },
-      tx,
+    const claimed = await responseSlaService.trackWindow(
+      {
+        workspaceId,
+        conversationIds: [conversationId],
+        assigneeHints: [userId],
+        tx,
+      },
+      (client) =>
+        assignUserIfUnassigned({ workspaceId, conversationId, userId }, client),
     )
 
     await this.publishAssignmentChanges({
@@ -1087,32 +1572,148 @@ class ConversationService extends BaseService {
     return claimed
   }
 
-  async updateBotEnabled(props: {
+  async claimAssignmentIfUnassigned(props: {
+    assignedId: `t_${string}` | `u_${string}`
+    conversation: Pick<ConversationModel, "id">
+    triggerContext: TriggerContext
     workspaceId: string
-    ids: string[]
-    botEnabled: boolean
-    botResumeAt?: Date | null
-    tx?: DatabaseClient
-  }): Promise<void> {
-    const { workspaceId, ids, botEnabled, tx = db } = props
-    let botResumeAt: Date | null
-    if (props.botResumeAt !== undefined) {
-      botResumeAt = props.botResumeAt
-    } else if (botEnabled) {
-      botResumeAt = null
-    } else {
-      botResumeAt = new Date(Date.now() + BOT_DISABLE_DURATION_MS)
-    }
-    await tx
-      .update(conversationModel)
-      .set({ botEnabled, botResumeAt })
-      .where(
-        and(
-          eq(conversationModel.workspaceId, workspaceId),
-          inArray(conversationModel.id, ids),
+  }): Promise<"alreadyAssigned" | "claimed"> {
+    const isTeam = props.assignedId.startsWith("t_")
+    const id = props.assignedId.slice(2)
+    const claimed = await responseSlaService.trackWindow(
+      {
+        workspaceId: props.workspaceId,
+        conversationIds: [props.conversation.id],
+        assigneeHints: [isTeam ? null : id],
+      },
+      (client) =>
+        assignTargetIfUnassigned(
+          {
+            assignedInboxTeamId: isTeam ? id : null,
+            assignedUserId: isTeam ? null : id,
+            conversationId: props.conversation.id,
+            workspaceId: props.workspaceId,
+          },
+          client,
         ),
+    )
+    if (claimed.length === 0) {
+      return "alreadyAssigned"
+    }
+    await this.publishAssignmentChanges({
+      assignedBy: undefined,
+      assignedInboxTeamId: isTeam ? id : null,
+      assignedUserId: isTeam ? null : id,
+      conversations: claimed,
+      triggerContext: props.triggerContext,
+      workspaceId: props.workspaceId,
+    })
+    return "claimed"
+  }
+
+  async updateBotEnabled(
+    props: BotPauseOptions & {
+      workspaceId: string
+      ids: string[]
+      botEnabled: boolean
+      tx?: DatabaseClient
+    },
+  ): Promise<void> {
+    const { workspaceId, ids, botEnabled, tx = db } = props
+    const update = (client: DatabaseClient) =>
+      client
+        .update(conversationModel)
+        .set(
+          botEnabled
+            ? { botEnabled, botResumeAt: props.botResumeAt ?? null }
+            : botPauseSet(props),
+        )
+        .where(
+          and(
+            eq(conversationModel.workspaceId, workspaceId),
+            inArray(conversationModel.id, ids),
+          ),
+        )
+    // Only a pause that reopens the waiting window can start an SLA.
+    if (!botEnabled && props.reopenUnansweredHumanReplyWindow) {
+      await responseSlaService.trackWindow(
+        { workspaceId, conversationIds: ids, tx: props.tx },
+        update,
       )
+    } else {
+      await update(tx)
+    }
+    if (!botEnabled) {
+      // Best-effort: fire-time `ensureActive` already skips a follow-up on a
+      // paused conversation, so a failed cancel must never fail the pause (or
+      // skip `invalidate`). Inside a caller's tx it runs behind a SAVEPOINT so
+      // a failed statement cannot poison the outer transaction.
+      const cancel = (client: DatabaseClient) =>
+        smartDelayService.cancelQuickReplyFollowUps({
+          tx: client,
+          workspaceId,
+          conversationIds: ids,
+        })
+      try {
+        if (props.tx) {
+          await props.tx.transaction(cancel)
+        } else {
+          await cancel(tx)
+        }
+      } catch (error) {
+        logger.warn(
+          { err: error, workspaceId, conversationIds: ids },
+          "quick reply follow-up cancel on bot pause failed",
+        )
+      }
+    }
     await this.invalidate({ workspaceId, ids })
+  }
+
+  /**
+   * Atomic handoff to a human: pauses the bot only while it is still enabled
+   * (the WHERE guard is the idempotency check, so concurrent handoffs cannot
+   * both win). With `reopenUnansweredHumanReplyWindow` it reopens the DM
+   * waiting window when the contact's last message is unanswered. Returns
+   * whether this call performed the handoff.
+   */
+  async handOffIfBotEnabled(
+    props: ReopenWindowOption & {
+      workspaceId: string
+      conversationId: string
+      tx?: DatabaseClient
+    },
+  ): Promise<boolean> {
+    const { workspaceId, conversationId } = props
+    const handOff = (client: DatabaseClient) =>
+      client
+        .update(conversationModel)
+        .set(
+          botPauseSet({
+            reopenUnansweredHumanReplyWindow:
+              props.reopenUnansweredHumanReplyWindow,
+          }),
+        )
+        .where(
+          and(
+            eq(conversationModel.id, conversationId),
+            eq(conversationModel.workspaceId, workspaceId),
+            eq(conversationModel.botEnabled, true),
+          ),
+        )
+        .returning({ id: conversationModel.id })
+    // A handoff that reopens the unanswered window starts the response SLA.
+    const updated = props.reopenUnansweredHumanReplyWindow
+      ? await responseSlaService.trackWindow(
+          { workspaceId, conversationIds: [conversationId], tx: props.tx },
+          handOff,
+        )
+      : await handOff(props.tx ?? db)
+    if (updated.length === 0) {
+      return false
+    }
+    await this.invalidate({ workspaceId, ids: [conversationId] })
+    return true
   }
 
   async updateFollowed(props: {
@@ -1147,11 +1748,16 @@ class ConversationService extends BaseService {
       await emitConversationFollowUp(workspaceId, contactId, id, props.userId)
     }
 
+    const attributions = await this.resolveAnalyticsAttribution({
+      workspaceId,
+      contactIds: [contactId],
+    })
     emit("analytics:dashboard", {
       eventType: followed ? "conversation:followed" : "conversation:unfollowed",
       workspaceId,
       conversationId: id,
       occurredAt: new Date(),
+      ...attributions.get(contactId),
       metadata: { triggerContext },
     })
   }
@@ -1184,15 +1790,17 @@ class ConversationService extends BaseService {
   async markUnread(props: {
     workspaceId: string
     id: string
+    silent?: boolean
     tx?: DatabaseClient
+    afterCommit?: (callback: () => Promise<void>) => void
   }): Promise<{ agentLastReadAt: Date | null }> {
-    const { workspaceId, id, tx } = props
+    const { workspaceId, id, silent, tx } = props
     const conversation = await this.findByOrFail({
       where: { id, workspaceId },
       tx,
     })
 
-    const messageRepository = await createMessageRepository()
+    const messageRepository = await createMessageRepository(tx)
     const last2Messages = await messageRepository.findLastByConversation(
       conversation.id,
       {
@@ -1218,7 +1826,14 @@ class ConversationService extends BaseService {
     const agentLastReadAt =
       last2Messages.length >= 2 ? (last2Messages[1]?.createdAt ?? null) : null
 
-    await this.updateReadStatus({ workspaceId, id, agentLastReadAt, tx })
+    await this.updateReadStatus({
+      workspaceId,
+      id,
+      agentLastReadAt,
+      silent,
+      tx,
+      afterCommit: props.afterCommit,
+    })
 
     return { agentLastReadAt }
   }
@@ -1266,10 +1881,18 @@ class ConversationService extends BaseService {
     workspaceId: string
     id: string
     agentLastReadAt: Date | null
+    silent?: boolean
     tx?: DatabaseClient
+    afterCommit?: (callback: () => Promise<void>) => void
   }): Promise<void> {
-    const { workspaceId, id, agentLastReadAt, tx = db } = props
-    await tx
+    const { workspaceId, id, agentLastReadAt, silent, tx = db } = props
+
+    if (props.tx && !props.afterCommit) {
+      throw new Error(
+        "updateReadStatus with tx requires an afterCommit callback",
+      )
+    }
+    const [updated] = await tx
       .update(conversationModel)
       .set({ agentLastReadAt })
       .where(
@@ -1278,14 +1901,34 @@ class ConversationService extends BaseService {
           eq(conversationModel.workspaceId, workspaceId),
         ),
       )
-    await this.invalidate({ workspaceId, ids: [id] })
-    publishToWorkspaceParty(workspaceId, {
-      eventType: RealtimeEventType.conversationUpdated,
-      data: {
-        conversationIds: [id],
-        changes: { agentLastReadAt: agentLastReadAt?.toISOString() ?? null },
-      },
-    })
+      .returning({
+        assignedInboxTeamId: conversationModel.assignedInboxTeamId,
+        assignedUserId: conversationModel.assignedUserId,
+      })
+    if (!updated) {
+      return
+    }
+
+    const publish = async () => {
+      await this.invalidate({ workspaceId, ids: [id] })
+      if (!silent) {
+        await queueWorkspaceRealtimeEvent(workspaceId, {
+          eventType: RealtimeEventType.conversationUpdated,
+          data: {
+            conversationIds: [id],
+            changes: {
+              agentLastReadAt: agentLastReadAt?.toISOString() ?? null,
+            },
+          },
+          route: routeForConversation(updated),
+        })
+      }
+    }
+    if (props.tx) {
+      props.afterCommit?.(publish)
+      return
+    }
+    await publish()
   }
 
   /**
@@ -1327,7 +1970,11 @@ class ConversationService extends BaseService {
           ),
         ),
       )
-      .returning({ id: conversationModel.id })
+      .returning({
+        assignedInboxTeamId: conversationModel.assignedInboxTeamId,
+        assignedUserId: conversationModel.assignedUserId,
+        id: conversationModel.id,
+      })
 
     if (updated.length === 0) {
       return false
@@ -1335,12 +1982,13 @@ class ConversationService extends BaseService {
 
     await this.invalidate({ workspaceId, ids: [conversationId] })
     if (!silent) {
-      publishToWorkspaceParty(workspaceId, {
+      await queueWorkspaceRealtimeEvent(workspaceId, {
         eventType: RealtimeEventType.conversationUpdated,
         data: {
           conversationIds: [conversationId],
           changes: { agentLastReadAt: readAt.toISOString() },
         },
+        route: routeForConversation(updated[0]),
       })
     }
 
@@ -1468,21 +2116,20 @@ class ConversationService extends BaseService {
     currentStep?: string | null
     lastActivityAt?: Date
     lastStep?: string | null
+    contactLastReadAt?: Date
     contactRepliedAt?: Date
+    /** DM waiting-window transition applied in this same UPDATE. */
+    humanReplyWindow?: HumanReplyWindowTransition
     tx?: DatabaseClient
   }): Promise<void> {
     const { workspaceId, conversationId, tx = db } = props
-    const data: Omit<
-      Partial<typeof conversationModel.$inferInsert>,
-      "contactRepliedAt"
-    > & {
-      contactRepliedAt?: Date | SQL
-    } = {}
+    const data: PgUpdateSetSource<typeof conversationModel> = {}
     if ("currentStep" in props) {
       data.currentStep = props.currentStep
     }
-    if ("lastActivityAt" in props) {
-      data.lastActivityAt = props.lastActivityAt
+    if (props.lastActivityAt !== undefined) {
+      // Postgres GREATEST ignores NULL operands, so a NULL column advances to the new value.
+      data.lastActivityAt = sql`GREATEST(${conversationModel.lastActivityAt}, ${props.lastActivityAt})`
     }
     if ("contactRepliedAt" in props && props.contactRepliedAt) {
       // Advance-only: a delayed/retried older webhook processed after a
@@ -1494,20 +2141,36 @@ class ConversationService extends BaseService {
     if ("lastStep" in props) {
       data.lastStep = props.lastStep
     }
+    if (props.contactLastReadAt !== undefined) {
+      data.contactLastReadAt = props.contactLastReadAt
+    }
+    if (props.humanReplyWindow) {
+      Object.assign(data, humanReplyWindowSet(props.humanReplyWindow))
+    }
 
     if (Object.keys(data).length === 0) {
       return
     }
 
-    await tx
-      .update(conversationModel)
-      .set(data)
-      .where(
-        and(
-          eq(conversationModel.id, conversationId),
-          eq(conversationModel.workspaceId, workspaceId),
-        ),
+    const update = (client: DatabaseClient) =>
+      client
+        .update(conversationModel)
+        .set(data)
+        .where(
+          and(
+            eq(conversationModel.id, conversationId),
+            eq(conversationModel.workspaceId, workspaceId),
+          ),
+        )
+    // A contact message opening the window starts the response SLA.
+    if (props.humanReplyWindow && "open" in props.humanReplyWindow) {
+      await responseSlaService.trackWindow(
+        { workspaceId, conversationIds: [conversationId], tx: props.tx },
+        update,
       )
+    } else {
+      await update(tx)
+    }
     if (!props.tx) {
       await this.invalidate({ workspaceId, ids: [conversationId] })
     }
@@ -1515,20 +2178,27 @@ class ConversationService extends BaseService {
 
   // ─── Bot state helpers ───────────────────────────────────────────────────
 
-  async disableBotState(props: {
-    workspaceId: string
-    conversations: { id: string; contactId: string }[]
-    userId?: string
-    triggerContext: TriggerContext
-    tx?: DatabaseClient
-  }): Promise<void> {
+  async disableBotState(
+    props: ReopenWindowOption & {
+      workspaceId: string
+      conversations: { id: string; contactId: string }[]
+      userId?: string
+      triggerContext: TriggerContext
+      tx?: DatabaseClient
+    },
+  ): Promise<void> {
     await this.updateBotEnabled({
       workspaceId: props.workspaceId,
       ids: props.conversations.map((c) => c.id),
       botEnabled: false,
+      reopenUnansweredHumanReplyWindow: props.reopenUnansweredHumanReplyWindow,
       tx: props.tx,
     })
 
+    const attributions = await this.resolveAnalyticsAttribution({
+      workspaceId: props.workspaceId,
+      contactIds: props.conversations.map((conv) => conv.contactId),
+    })
     for (const conv of props.conversations) {
       await emitConversationTransferredToHuman(
         props.workspaceId,
@@ -1542,6 +2212,7 @@ class ConversationService extends BaseService {
         workspaceId: props.workspaceId,
         conversationId: conv.id,
         occurredAt: new Date(),
+        ...attributions.get(conv.contactId),
         metadata: { triggerContext: props.triggerContext },
       })
     }
@@ -1562,6 +2233,10 @@ class ConversationService extends BaseService {
       tx: props.tx,
     })
 
+    const attributions = await this.resolveAnalyticsAttribution({
+      workspaceId: props.workspaceId,
+      contactIds: props.conversations.map((conv) => conv.contactId),
+    })
     for (const conv of props.conversations) {
       await emitConversationTransferredToBot(
         props.workspaceId,
@@ -1575,6 +2250,7 @@ class ConversationService extends BaseService {
         workspaceId: props.workspaceId,
         conversationId: conv.id,
         occurredAt: new Date(),
+        ...attributions.get(conv.contactId),
         metadata: { triggerContext: props.triggerContext },
       })
     }
@@ -1695,8 +2371,15 @@ class ConversationService extends BaseService {
     tracking: ContactInboxTrackingData
     contactLocation?: ContactModel["location"] | null
     at: Date
+    /** Contact's own inbox read cursor, advanced with an inbound message. */
+    contactLastReadAt?: Date
     /** Set only for contact-authored messages; drives the "No admin reply" filter. */
     contactRepliedAt?: Date
+    /**
+     * Native-app outgoing echo (a human replied outside the product): closes
+     * the DM waiting window without emitting a response event.
+     */
+    isExternalHumanEcho?: boolean
   }): Promise<ContactInboxTrackingInvalidation | null> {
     const {
       workspaceId,
@@ -1706,8 +2389,15 @@ class ConversationService extends BaseService {
       tracking,
       contactLocation,
       at,
+      contactLastReadAt,
       contactRepliedAt,
+      isExternalHumanEcho,
     } = props
+    const humanReplyWindow = resolveInboundWindow({
+      at,
+      contactRepliedAt,
+      isExternalHumanEcho,
+    })
 
     return await db.transaction(async (tx) => {
       const invalidation = await contactInboxService.updateTracking({
@@ -1731,7 +2421,9 @@ class ConversationService extends BaseService {
         workspaceId,
         conversationId,
         lastActivityAt: at,
+        ...(contactLastReadAt ? { contactLastReadAt } : {}),
         ...(contactRepliedAt ? { contactRepliedAt } : {}),
+        ...(humanReplyWindow ? { humanReplyWindow } : {}),
       })
 
       return invalidation
@@ -1753,6 +2445,8 @@ class ConversationService extends BaseService {
     bumpActivity?: boolean
     lastStep?: string | null
     currentStep?: string | null
+    /** Bot send closes the DM waiting window unless false (bulk/proactive). */
+    closeHumanReplyWindow?: boolean
   }): Promise<ContactInboxTrackingInvalidation | null> {
     const {
       workspaceId,
@@ -1763,6 +2457,7 @@ class ConversationService extends BaseService {
       bumpActivity = true,
       lastStep,
       currentStep,
+      closeHumanReplyWindow: shouldCloseWindow = true,
     } = props
 
     return await db.transaction(async (tx) => {
@@ -1782,6 +2477,9 @@ class ConversationService extends BaseService {
         ...(bumpActivity ? { lastActivityAt: at } : {}),
         lastStep,
         currentStep,
+        ...(shouldCloseWindow
+          ? { humanReplyWindow: { close: at, actor: "bot" as const } }
+          : {}),
       })
 
       return invalidation
@@ -1807,6 +2505,8 @@ class ConversationService extends BaseService {
     contactId: string
     at: Date
     bumpActivity?: boolean
+    /** Bot send closes the DM waiting window unless false (bulk/proactive). */
+    closeHumanReplyWindow?: boolean
   }): Promise<ContactInboxTrackingInvalidation | null> {
     const {
       workspaceId,
@@ -1815,6 +2515,7 @@ class ConversationService extends BaseService {
       contactId,
       at,
       bumpActivity = true,
+      closeHumanReplyWindow: shouldCloseWindow = true,
     } = props
 
     return await db.transaction(async (tx) => {
@@ -1832,6 +2533,9 @@ class ConversationService extends BaseService {
         workspaceId,
         conversationId,
         ...(bumpActivity ? { lastActivityAt: at } : {}),
+        ...(shouldCloseWindow
+          ? { humanReplyWindow: { close: at, actor: "bot" as const } }
+          : {}),
       })
 
       return invalidation
@@ -1846,6 +2550,7 @@ class ConversationService extends BaseService {
    * avoid a larger move of `filterConversationConditions` construction.
    */
   async countByAssignee(props: {
+    workspaceId: string
     filterConditions: SQL[]
     userIds: string[]
     inboxTeamIds: string[]
@@ -1857,7 +2562,13 @@ class ConversationService extends BaseService {
       conversationsCount: number
     }>
   > {
-    const { filterConditions, userIds, inboxTeamIds, tx = db } = props
+    const {
+      workspaceId,
+      filterConditions,
+      userIds,
+      inboxTeamIds,
+      tx = db,
+    } = props
     return await tx
       .select({
         assignedUserId: conversationModel.assignedUserId,
@@ -1871,6 +2582,7 @@ class ConversationService extends BaseService {
       )
       .where(
         and(
+          eq(conversationModel.workspaceId, workspaceId),
           ...filterConditions,
           and(
             or(

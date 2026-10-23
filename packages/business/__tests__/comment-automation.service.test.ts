@@ -61,6 +61,12 @@ vi.mock("@chatbotx.io/database/partials", () => ({
       : reply,
 }))
 
+// Stub flowService so its transitive deps aren't loaded; flow validation is
+// covered in comment-automation-write-methods.test.ts.
+vi.mock("../src/flow/service", () => ({
+  flowService: { exists: vi.fn().mockResolvedValue(true) },
+}))
+
 vi.mock("@chatbotx.io/database/schema", () => ({
   contactInboxModel: { contactId: "ContactInbox.contactId" },
   commentAutomationModel: {
@@ -189,9 +195,8 @@ describe("commentAutomationService threads CRUD", () => {
     await commentAutomationService.listThreadsAutomations({
       workspaceId: "workspace-1",
       isActive: true,
-      limit: 10,
-      offset: 0,
-      orderBy: { createdAt: "asc" },
+      page: 1,
+      perPage: 10,
     })
     await commentAutomationService.getThreadsAutomation({
       workspaceId: "workspace-1",
@@ -205,7 +210,8 @@ describe("commentAutomationService threads CRUD", () => {
           type: "threads",
           isActive: true,
         }),
-        orderBy: { createdAt: "asc" },
+        limit: 10,
+        offset: 0,
       }),
     )
     expect(mocks.count).toHaveBeenCalledOnce()

@@ -14,6 +14,10 @@ export const queueNames = z.enum([
   "quota",
   "notification",
   "callTranscription",
+  "profileSnapshot",
   "whatsappVoipSignaling",
   "low",
+  "leaderboard",
 ])
+
+export type QueueName = z.infer<typeof queueNames>

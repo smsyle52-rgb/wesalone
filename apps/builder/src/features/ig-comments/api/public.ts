@@ -1,4 +1,6 @@
 import { commentAutomationService } from "@chatbotx.io/business"
+import { igCommentAutomationTypes } from "@chatbotx.io/database/partials"
+import { bulkUpdateIdsRequest } from "@/features/common/schema"
 import {
   possibleErrorsOnCreatingResource,
   possibleErrorsOnDeletingResource,
@@ -7,6 +9,7 @@ import {
   possibleErrorsOnMutatingResource,
 } from "@/lib/orpc/orpc-error-helper"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
+import { ensureLiveCommentsSubscriptionForAutomation } from "../lib/ensure-live-comments-subscription"
 import {
   listInstagramFacebookMedia,
   listInstagramLoginMedia,
@@ -82,11 +85,17 @@ export const igCommentsPublicRouter = {
     .errors(possibleErrorsOnCreatingResource)
     .handler(async ({ context, input }) => {
       const { type, ...data } = input
-      return await commentAutomationService.createInstagram({
+      const created = await commentAutomationService.createInstagram({
         workspaceId: context.workspace.id,
         type,
         data,
       })
+      await ensureLiveCommentsSubscriptionForAutomation({
+        workspaceId: context.workspace.id,
+        type,
+        post: data.post,
+      })
+      return created
     }),
 
   update: workspaceTokenAuthAPI
@@ -142,7 +151,27 @@ export const igCommentsPublicRouter = {
     .errors(possibleErrorsOnListingResource)
     .handler(async ({ context, input }) =>
       input.variant === "instagram"
-        ? await listInstagramLoginMedia(context.workspace.id)
-        : await listInstagramFacebookMedia(context.workspace.id),
+        ? await listInstagramLoginMedia(context.workspace.id, input.inboxId)
+        : await listInstagramFacebookMedia(context.workspace.id, input.inboxId),
     ),
+
+  deleteMany: workspaceTokenAuthAPI
+    .route({
+      method: "POST",
+      path: "/v1/ig-comments/bulk-delete",
+      summary: "Delete multiple Instagram comment automations",
+      description:
+        "Permanently deletes several Instagram comment automations in one call; ids of another channel or workspace are ignored. Use `igComments.list` to find their ids first.",
+      successStatus: 204,
+      tags: ["IG Comments"],
+    })
+    .input(bulkUpdateIdsRequest)
+    .errors(possibleErrorsOnDeletingResource)
+    .handler(async ({ context, input }) => {
+      await commentAutomationService.deleteMany({
+        workspaceId: context.workspace.id,
+        ids: input.ids,
+        types: [...igCommentAutomationTypes.options],
+      })
+    }),
 }

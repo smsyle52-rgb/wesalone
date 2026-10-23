@@ -19,8 +19,12 @@ export const CONNECT_PICKER_CHANNELS = [
 ] as const
 export type ConnectPickerChannel = (typeof CONNECT_PICKER_CHANNELS)[number]
 
-/** The route every channel's "session expired, try again" link points to today — shared here so no caller hard-codes it. */
-export const CONNECT_RETRY_HREF = "/channels/create"
+/** Shared so no caller hard-codes every channel's retry route; empty or missing IDs use the bare route for WhatsApp before its workspace exists. */
+export function getConnectRetryHref(workspaceId?: string | null): string {
+  return workspaceId
+    ? `/channels/create?${new URLSearchParams({ workspaceId })}`
+    : "/channels/create"
+}
 
 /**
  * How many accounts the batch connects at once. Bounded on purpose: every
@@ -64,10 +68,16 @@ export type ConnectRoute<TBody> = {
 // Arrow wrappers, never a bare `client.x.y` method reference: the oRPC
 // procedure client relies on its receiver, and a detached reference loses it
 // (AGENTS.md invariant 13).
-const MESSENGER_CONNECT_ROUTE: ConnectRoute<{ pageId: string }> = {
+const MESSENGER_CONNECT_ROUTE: ConnectRoute<{
+  sessionId: string
+  pageId: string
+}> = {
   call: (body) => client.integrationMessengerAPIs.connectMessengerPageAPI(body),
 }
-const INSTAGRAM_FACEBOOK_CONNECT_ROUTE: ConnectRoute<{ igId: string }> = {
+const INSTAGRAM_FACEBOOK_CONNECT_ROUTE: ConnectRoute<{
+  sessionId: string
+  igId: string
+}> = {
   call: (body) =>
     client.integrationInstagramAPIs.connectInstagramFacebookAccountAPI(body),
 }
@@ -81,7 +91,10 @@ const WHATSAPP_CONNECT_ROUTE: ConnectRoute<ConnectWhatsappViaSessionBody> = {
  * entry of its own — but its route belongs in this file with every other
  * channel literal.
  */
-export const INSTAGRAM_DIRECT_CONNECT_ROUTE: ConnectRoute<{ igId: string }> = {
+export const INSTAGRAM_DIRECT_CONNECT_ROUTE: ConnectRoute<{
+  sessionId: string
+  igId: string
+}> = {
   call: (body) =>
     client.integrationInstagramAPIs.connectInstagramAccountAPI(body),
 }

@@ -7,24 +7,29 @@ import {
 
 const NEW_SCOPES = [
   "channels",
+  "integrations",
   "minigames",
   "appointments",
   "media",
   "ads",
+  "settings",
+  "mini-apps",
+  "leaderboards",
 ] as const
 
 describe("workspaceApiTokenScopes", () => {
-  test("includes the 5 newly named resource-area scopes", () => {
+  test("preserves distinct channel and integration resource-area scopes", () => {
     for (const scope of NEW_SCOPES) {
       expect(workspaceApiTokenScopes.options).toContain(scope)
     }
-    expect(workspaceApiTokenScopes.options).toHaveLength(12)
+    expect(workspaceApiTokenScopes.options).not.toContain("connections")
+    expect(workspaceApiTokenScopes.options).toHaveLength(15)
   })
 })
 
 describe("orderedWorkspaceApiTokenScopes", () => {
-  test("has 12 entries with unique, contiguous orders", () => {
-    expect(orderedWorkspaceApiTokenScopes).toHaveLength(12)
+  test("has 15 entries with unique, contiguous orders", () => {
+    expect(orderedWorkspaceApiTokenScopes).toHaveLength(15)
 
     const orders = orderedWorkspaceApiTokenScopes
       .map((scope) => workspaceApiTokenScopeRegistry[scope].order)

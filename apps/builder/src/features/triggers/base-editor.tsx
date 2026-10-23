@@ -80,8 +80,8 @@ export const BaseEditor = ({
         return t("trigger.conditions.subscribedToSequence")
       case triggerEventTypes.enum.unsubscribedFromSequence:
         return t("trigger.conditions.unsubscribedFromSequence")
-      case triggerEventTypes.enum.WhatsappShoppingCartSent:
-        return t("trigger.conditions.WhatsappShoppingCartSent")
+      case triggerEventTypes.enum.shoppingCartSent:
+        return t("trigger.conditions.shoppingCartSent")
       case triggerEventTypes.enum.userAskedAboutProduct:
         return t("trigger.conditions.userAskedAboutProduct")
       case triggerEventTypes.enum.cartAbandoned:
@@ -129,6 +129,8 @@ export const BaseEditor = ({
         return t("trigger.actions.transferConversationToHuman")
       case triggerActions.enum.sendMetaCapiEvent:
         return t("trigger.actions.sendMetaCapiEvent")
+      case triggerActions.enum.sendGoogleAdsConversion:
+        return t("trigger.actions.sendGoogleAdsConversion")
       case triggerActions.enum.runGoogleSheet:
         return "Google Sheets"
       default:

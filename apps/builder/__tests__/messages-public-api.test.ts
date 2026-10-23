@@ -54,18 +54,34 @@ const messageService = {
   findByIdWithUrls: vi.fn(),
   createOutgoing: vi.fn(),
 }
+const resolveTemplateParams = vi.fn()
 vi.mock("@chatbotx.io/business", () => ({
   conversationService,
   messageService,
+  resolveTemplateParams,
 }))
 
-vi.mock("@chatbotx.io/business/errors", () => ({
-  BROADCAST_PLAN_LIMIT_CODE: "broadcastPlanLimit",
+vi.mock("@chatbotx.io/business/errors", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@chatbotx.io/business/errors")>()),
   notFoundException: (message: string) => new Error(message),
 }))
 
 const listMessages = vi.fn()
 vi.mock("@/features/messages/queries", () => ({ listMessages }))
+
+const requestCallPermission = vi.fn()
+vi.mock(
+  "@/features/integration-whatsapp/calling/lib/request-call-permission",
+  () => ({
+    ENGLISH_CALL_PERMISSION_MESSAGES: { notFound: "nf" },
+    requestWhatsappCallPermission: requestCallPermission,
+  }),
+)
+
+const sendTemplate = vi.fn()
+vi.mock("@/features/messages/lib/send-whatsapp-template", () => ({
+  sendWhatsappTemplateToConversation: sendTemplate,
+}))
 
 const editMessage = vi.fn()
 vi.mock("@/features/messages/actions/edit-message.action", () => ({
@@ -80,6 +96,11 @@ vi.mock("@/features/messages/actions/delete-message.action", () => ({
 const changeMessageAttributes = vi.fn()
 vi.mock("@/features/messages/actions/change-message-attributes.action", () => ({
   changeMessageAttributes,
+}))
+
+const getWhatsappFlowResponseView = vi.fn()
+vi.mock("@/features/messages/lib/get-whatsapp-flow-response", () => ({
+  getWhatsappFlowResponseView,
 }))
 
 vi.mock("@/lib/workspace-quota", () => ({
@@ -197,6 +218,35 @@ describe("GET /v1/conversations/{conversationId}/messages/{messageId}", () => {
   })
 })
 
+describe("GET /v1/conversations/{conversationId}/messages/{messageId}/flow-response", () => {
+  const procedure = findProcedure(
+    "GET",
+    "/v1/conversations/{conversationId}/messages/{messageId}/flow-response",
+  )
+
+  test("labels the response through the shared lib, scoped to the token's workspace", async () => {
+    const createdAt = new Date("2026-10-01T00:00:00Z")
+    const view = {
+      fields: [{ key: "name", label: "Name", kind: "text", value: "An" }],
+      labelSource: "whatsappFlow",
+    }
+    getWhatsappFlowResponseView.mockResolvedValueOnce(view)
+
+    const result = await procedure.handler?.({
+      context,
+      input: { conversationId: "conv-1", messageId: "msg-1", createdAt },
+    })
+
+    expect(getWhatsappFlowResponseView).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      conversationId: "conv-1",
+      messageId: "msg-1",
+      createdAt,
+    })
+    expect(result).toBe(view)
+  })
+})
+
 describe("POST /v1/conversations/{conversationId}/messages", () => {
   const procedure = findProcedure(
     "POST",
@@ -232,6 +282,61 @@ describe("POST /v1/conversations/{conversationId}/messages", () => {
       "user",
     )
     expect(result).toEqual({ id: "msg-1" })
+  })
+
+  test("hands a product message to createOutgoing unchanged, on the requested inbox", async () => {
+    conversationService.findByOrFail.mockResolvedValueOnce({
+      id: "conv-1",
+      contactId: "contact-1",
+    })
+    conversationService.resolveContactInboxForConversation.mockResolvedValueOnce(
+      { id: "contact-inbox-1" },
+    )
+    messageService.createOutgoing.mockResolvedValueOnce({ id: "msg-1" })
+
+    const input = {
+      conversationId: "conv-1",
+      inboxId: "inbox-1",
+      products: {
+        display: "products",
+        body: "Look",
+        sections: [{ productIds: ["1", "2"] }],
+      },
+    }
+    await procedure.handler?.({ context, input })
+
+    expect(
+      conversationService.resolveContactInboxForConversation,
+    ).toHaveBeenCalledWith(expect.objectContaining({ inboxId: "inbox-1" }))
+    expect(messageService.createOutgoing).toHaveBeenCalledWith(
+      expect.objectContaining({ input }),
+    )
+  })
+
+  test("lets an unsendable product message surface as the service's error", async () => {
+    conversationService.findByOrFail.mockResolvedValueOnce({
+      id: "conv-1",
+      contactId: "contact-1",
+    })
+    conversationService.resolveContactInboxForConversation.mockResolvedValueOnce(
+      { id: "contact-inbox-1" },
+    )
+    const error = Object.assign(new Error("Product message cannot be sent"), {
+      code: "productMessageUnresolvable",
+      httpStatusCode: 422,
+      data: { reason: "channelUnsupported" },
+    })
+    messageService.createOutgoing.mockRejectedValueOnce(error)
+
+    await expect(
+      procedure.handler?.({
+        context,
+        input: {
+          conversationId: "conv-1",
+          products: { display: "products", sections: [{ productIds: ["1"] }] },
+        },
+      }),
+    ).rejects.toBe(error)
   })
 })
 
@@ -322,5 +427,115 @@ describe("POST /v1/conversations/{conversationId}/messages/{messageId}/attribute
         liked: true,
       },
     })
+  })
+})
+
+describe("POST /v1/conversations/{conversationId}/whatsapp-template", () => {
+  const procedure = findProcedure(
+    "POST",
+    "/v1/conversations/{conversationId}/whatsapp-template",
+  )
+
+  test("queues the template for a conversation of the token's workspace", async () => {
+    sendTemplate.mockResolvedValue(undefined)
+
+    await procedure.handler?.({
+      context: { workspace: { id: "workspace-1" } },
+      input: {
+        conversationId: "9",
+        templateId: "5",
+        templateData: { params: [] },
+        inboxId: "3",
+      },
+    })
+
+    expect(sendTemplate).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      conversationId: "9",
+      request: { templateId: "5", templateData: { params: [] }, inboxId: "3" },
+      // An API send is not an agent reply: no human-sent analytics event.
+      sender: { initiatedBy: "api" },
+    })
+  })
+
+  test("answers 202 because delivery is asynchronous", () => {
+    expect(procedure.route.successStatus).toBe(202)
+  })
+
+  test("builds templateData from flat templateParams", async () => {
+    const nested = { body: [{ type: "text", text: "Ada" }] }
+    resolveTemplateParams.mockResolvedValueOnce(nested)
+    sendTemplate.mockResolvedValue(undefined)
+
+    await procedure.handler?.({
+      context: { workspace: { id: "workspace-1" } },
+      input: {
+        conversationId: "9",
+        templateId: "5",
+        templateParams: { "body.1": "Ada" },
+      },
+    })
+
+    expect(resolveTemplateParams).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      channel: "whatsapp",
+      templateId: "5",
+      values: { "body.1": "Ada" },
+      field: "templateParams",
+    })
+    expect(sendTemplate).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      conversationId: "9",
+      request: { templateId: "5", templateData: nested },
+      sender: { initiatedBy: "api" },
+    })
+  })
+
+  test("a template outside the workspace is not queued", async () => {
+    resolveTemplateParams.mockRejectedValueOnce(
+      Object.assign(new Error("Template not found"), { code: "notFound" }),
+    )
+
+    await expect(
+      procedure.handler?.({
+        context: { workspace: { id: "workspace-1" } },
+        input: {
+          conversationId: "9",
+          templateId: "x",
+          templateParams: { "body.1": "Ada" },
+        },
+      }),
+    ).rejects.toMatchObject({ code: "notFound" })
+    expect(sendTemplate).not.toHaveBeenCalled()
+  })
+})
+
+describe("POST /v1/conversations/{conversationId}/whatsapp-call-permission", () => {
+  const procedure = findProcedure(
+    "POST",
+    "/v1/conversations/{conversationId}/whatsapp-call-permission",
+  )
+
+  test("sends the request for a conversation of the workspace, with no agent", async () => {
+    conversationService.findByOrFail.mockResolvedValue({ id: "9" })
+    requestCallPermission.mockResolvedValue(undefined)
+
+    const result = await procedure.handler?.({
+      context: { workspace: { id: "workspace-1" } },
+      input: { conversationId: "9", text: "May we call you?", inboxId: "3" },
+    })
+
+    expect(conversationService.findByOrFail).toHaveBeenCalledWith({
+      where: { id: "9", workspaceId: "workspace-1" },
+    })
+    expect(requestCallPermission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: "workspace-1",
+        text: "May we call you?",
+        inboxId: "3",
+      }),
+    )
+    expect(requestCallPermission.mock.calls[0]?.[0]).not.toHaveProperty("user")
+    expect(result).toEqual({ queued: true })
   })
 })

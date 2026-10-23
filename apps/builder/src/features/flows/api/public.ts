@@ -1,9 +1,11 @@
 import {
   flowService,
   flowVersionService,
-  importService,
+  messengerWelcomeMessageFlowService,
 } from "@chatbotx.io/business"
 import { validationException } from "@chatbotx.io/business/errors"
+import { importService } from "@chatbotx.io/business/import"
+import { stepTypes } from "@chatbotx.io/flow-config"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { DefaultJobAction, defaultQueue } from "@chatbotx.io/worker-config"
 import { z } from "zod"
@@ -13,10 +15,13 @@ import {
   possibleErrorsOnCreatingResource,
   possibleErrorsOnDeletingResource,
   possibleErrorsOnFindingResource,
-  possibleErrorsOnListingResource,
   possibleErrorsOnMutatingResource,
 } from "@/lib/orpc/orpc-error-helper"
-import { publicListRequest, publicListResponse } from "@/lib/public-api/list"
+import {
+  publicListRequest,
+  publicListResponse,
+  publicSortRequest,
+} from "@/lib/public-api/list"
 import { publicIdParam } from "@/lib/public-api/params"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
 import {
@@ -32,7 +37,11 @@ import {
   updateDraftFlowRequest,
   updateFlowSchema,
 } from "../schema/action"
-import { flowResource, flowWithVersionsResource } from "../schema/resource"
+import {
+  flowResource,
+  flowWithVersionsResource,
+  welcomeMessageFlowResource,
+} from "../schema/resource"
 
 const workspaceTokenAuthAPI = workspaceTokenAuthAPIForScope("automation")
 
@@ -43,7 +52,7 @@ export const flowsPublicRouter = {
       path: "/v1/flows",
       summary: "List flows",
       description:
-        "Use this to find flow ids and names before fetching one with `flows.get` or publishing a draft with `flows.publish`. Returns active flows in the workspace.",
+        "Use this to find flow ids and names before fetching one with `flows.get` or publishing a draft with `flows.publish`. Returns active flows in the workspace, newest first unless `sort` is given. Filter by `name` (substring), `folderId`, or `startType` to pick a flow for a template broadcast.",
       tags: ["Flows"],
       spec: mcpSpec({ visibility: "default" }),
     })
@@ -56,19 +65,50 @@ export const flowsPublicRouter = {
           .describe(
             "Restrict to active flows. Set to false to include inactive ones too.",
           ),
+        name: z
+          .string()
+          .nullish()
+          .describe("Case-insensitive substring match on the flow name."),
+        folderId: zodBigintAsString()
+          .nullish()
+          .describe(
+            'Folder id to filter by. Pass "0" for flows in no folder. Omit for all folders.',
+          ),
+        startType: z
+          .enum([
+            stepTypes.enum.sendWaTemplateMessage,
+            stepTypes.enum.sendMessengerTemplateMessage,
+          ])
+          .optional()
+          .describe(
+            "Only flows whose start node, in the draft or the published version, has a step that sends this kind of template message. `sendWaTemplateMessage` also needs `integrationWhatsappId`, otherwise nothing matches.",
+          ),
+        integrationWhatsappId: zodBigintAsString()
+          .optional()
+          .describe(
+            "With `startType` `sendWaTemplateMessage`: only flows whose template belongs to this WhatsApp channel id. Get it from `whatsappChannels.list`; an id that is not in this workspace returns 404.",
+          ),
+        sort: publicSortRequest(["name", "createdAt", "updatedAt"]),
       }),
     )
-    .output(publicListResponse(flowResource.pick({ id: true, name: true })))
-    .errors(possibleErrorsOnListingResource)
+    .output(
+      publicListResponse(
+        flowResource.pick({
+          id: true,
+          name: true,
+          folderId: true,
+          active: true,
+        }),
+      ),
+    )
+    .errors(possibleErrorsOnFindingResource)
     .handler(async ({ context, input }) => {
       const { data, pageCount } = await flowService.list({
         ...input,
         workspaceId: context.workspace.id,
+        sort: input.sort ?? [{ id: "createdAt", desc: true }],
       })
-      return {
-        data: data.map((flow) => ({ id: flow.id, name: flow.name })),
-        pageCount,
-      }
+      return { data: data.map(toPublicFlowListItem), pageCount }
     }),
 
   get: workspaceTokenAuthAPI
@@ -77,20 +117,28 @@ export const flowsPublicRouter = {
       path: "/v1/flows/{id}",
       summary: "Get flow",
       description:
-        "Use this to inspect one flow and its versions after finding its id with `flows.list`. Call `flows.updateDraft` to change the draft or `flows.publish` to create a version.",
+        "Use this to inspect one flow and its versions after finding its id with `flows.list`. Call `flows.updateDraft` to change the draft or `flows.publish` to create a version. `welcomeMessageFlows` lists the Meta welcome message flow created on each Messenger page from the published starting step (refreshed a few seconds after `flows.publish`); use its id in Click-to-Messenger ads.",
       tags: ["Flows"],
       spec: mcpSpec({ visibility: "default" }),
     })
     .input(publicIdParam("flow", "flows.list"))
-    .output(flowWithVersionsResource)
+    .output(
+      flowWithVersionsResource.and(
+        z.object({ welcomeMessageFlows: z.array(welcomeMessageFlowResource) }),
+      ),
+    )
     .errors(possibleErrorsOnFindingResource)
-    .handler(
-      async ({ context, input }) =>
-        await flowService.findById({
-          workspaceId: context.workspace.id,
-          id: input.id,
+    .handler(async ({ context, input }) => {
+      const scope = { workspaceId: context.workspace.id }
+      const [flow, welcomeMessageFlows] = await Promise.all([
+        flowService.findById({ ...scope, id: input.id }),
+        messengerWelcomeMessageFlowService.listCurrentByFlow({
+          ...scope,
+          flowId: input.id,
         }),
-    ),
+      ])
+      return { ...flow, welcomeMessageFlows }
+    }),
 
   create: workspaceTokenAuthAPI
     .route({
@@ -145,7 +193,7 @@ export const flowsPublicRouter = {
       path: "/v1/flows/{id}",
       summary: "Update flow settings",
       description:
-        "Partially updates a flow's name, active, or enableInInbox flags.",
+        "Partially updates a flow's name, active, or enableInInbox flags. A new name is also applied to the flow's existing Meta welcome message flows (best-effort, asynchronous).",
       successStatus: 204,
       tags: ["Flows"],
     })
@@ -162,7 +210,7 @@ export const flowsPublicRouter = {
       path: "/v1/flows/{id}",
       summary: "Delete flow",
       description:
-        "Permanently deletes a flow and its draft/published versions. Use `flows.get` to confirm it first.",
+        "Permanently deletes a flow and its draft/published versions. Use `flows.get` to confirm it first. Also deletes its Meta welcome message flows (best-effort, asynchronous).",
       successStatus: 204,
       tags: ["Flows"],
     })
@@ -202,7 +250,7 @@ export const flowsPublicRouter = {
       path: "/v1/flows/{id}/publish",
       summary: "Publish flow",
       description:
-        "Creates an immutable version from a draft and synchronizes the draft to match. Call `flows.validate` before this when supplying a spec, or use `flows.updateDraft` to save changes without publishing.",
+        "Creates an immutable version from a draft and synchronizes the draft to match. Call `flows.validate` before this when supplying a spec, or use `flows.updateDraft` to save changes without publishing. Also syncs the Meta welcome message flow on every Messenger page (best-effort, asynchronous); read the ids from `flows.get`.",
       successStatus: 204,
       tags: ["Flows"],
       spec: mcpSpec({ visibility: "default" }),
@@ -341,3 +389,15 @@ export const flowsPublicRouter = {
       return { importId: result.importId }
     }),
 }
+
+const toPublicFlowListItem = (flow: {
+  id: string
+  name: string
+  folderId: string | null
+  active: boolean
+}) => ({
+  id: flow.id,
+  name: flow.name,
+  folderId: flow.folderId,
+  active: flow.active,
+})

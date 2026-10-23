@@ -317,3 +317,111 @@ describe("ConditionEvaluator customFieldValueChanged operator vocabulary", () =>
     ).resolves.toBe(true)
   })
 })
+
+describe("ConditionEvaluator WhatsApp call conditions", () => {
+  const evaluator = new ConditionEvaluator()
+
+  // The five call conditions the Triggers screen offers under the WhatsApp
+  // group. The events are emitted (apps/worker/src/integration/handlers/
+  // whatsapp-call.ts, whatsapp-call-recording.ts) and the webhook payload
+  // builder maps all five, so a rule using one has to be able to match.
+  const CALL_CONDITIONS = [
+    triggerEventTypes.enum.incomingCall,
+    triggerEventTypes.enum.missedAudioCall,
+    triggerEventTypes.enum.callEnded,
+    triggerEventTypes.enum.callRecorded,
+    triggerEventTypes.enum.callTranscribed,
+  ]
+
+  test.each(
+    CALL_CONDITIONS,
+  )("%s matches the event that carries it", async (type) => {
+    await expect(
+      evaluator.evaluate(buildContext({ type }, { callId: "call-1" })),
+    ).resolves.toBe(true)
+  })
+
+  // Control: the conditions the screen keeps commented out must still fall
+  // through to `false`, so the case above is not just "everything matches".
+  test("a condition the screen does not offer still does not match", async () => {
+    await expect(
+      evaluator.evaluate(
+        buildContext({ type: triggerEventTypes.enum.ticketCreated }),
+      ),
+    ).resolves.toBe(false)
+  })
+})
+
+describe("ConditionEvaluator catalog conditions", () => {
+  const evaluator = new ConditionEvaluator()
+
+  const product = (productId: string | null) => ({
+    catalogReference: {
+      source: "metaCatalog",
+      catalogId: "catalog-1",
+      retailerId: `sku-${productId}`,
+    },
+    product: productId
+      ? { productId, name: "n", imageUrl: null, price: 1, currency: "USD" }
+      : null,
+  })
+  const cart = {
+    products: [
+      { ...product("product-1"), quantity: 1 },
+      { ...product(null), quantity: 1 },
+    ],
+  }
+  const inquiry = { product: product("product-1") }
+
+  const cases = [
+    [triggerEventTypes.enum.shoppingCartSent, cart],
+    [triggerEventTypes.enum.userAskedAboutProduct, inquiry],
+  ] as const
+
+  test.each(
+    cases,
+  )("%s with no product matches any event", async (type, data) => {
+    await expect(
+      evaluator.evaluate(buildContext({ type, sourceId: null }, data)),
+    ).resolves.toBe(true)
+  })
+
+  test.each(
+    cases,
+  )("%s pinned to a product matches an event that refers to it", async (type, data) => {
+    await expect(
+      evaluator.evaluate(buildContext({ type, sourceId: "product-1" }, data)),
+    ).resolves.toBe(true)
+  })
+
+  test.each(
+    cases,
+  )("%s pinned to another product does not match", async (type, data) => {
+    await expect(
+      evaluator.evaluate(buildContext({ type, sourceId: "product-2" }, data)),
+    ).resolves.toBe(false)
+  })
+
+  test.each(
+    cases,
+  )("%s pinned to a product never matches references that resolved to nothing", async (type) => {
+    const unresolved =
+      type === triggerEventTypes.enum.shoppingCartSent
+        ? { products: [{ ...product(null), quantity: 1 }] }
+        : { product: product(null) }
+
+    await expect(
+      evaluator.evaluate(
+        buildContext({ type, sourceId: "product-1" }, unresolved),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  test.each(
+    cases,
+  )("%s pinned to a product does not throw on metadata without references", async (type) => {
+    await expect(
+      evaluator.evaluate(buildContext({ type, sourceId: "product-1" }, {})),
+    ).resolves.toBe(false)
+  })
+})

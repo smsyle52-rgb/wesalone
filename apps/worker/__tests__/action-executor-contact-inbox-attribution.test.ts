@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 // ActionExecutor must resolve the contact inbox via contactInboxRepository
 // (never a raw db.query.contactInboxModel lookup), preferring a threaded
 // contactInboxId over the contact's most-recently-active inbox, and only the
-// 3 inbox-consuming branches (startAnotherFlow, sendMetaCapiEvent,
-// runGoogleSheet) should ever call the resolver at all — the other 11
+// 4 inbox-consuming branches (startAnotherFlow, sendMetaCapiEvent,
+// sendGoogleAdsConversion, runGoogleSheet) should ever call the resolver at all — the other 11
 // contact/conversation-scoped actions must run without paying for that
 // query.
 // ---------------------------------------------------------------------------
@@ -18,6 +18,9 @@ const mocks = vi.hoisted(() => ({
   findActiveById: vi.fn(),
   findByIdForContact: vi.fn(),
   findMostRecentByContact: vi.fn(),
+  findGoogleClickAttribution: vi.fn(),
+  findLatestGoogleClickInboxByContact: vi.fn(),
+  recordGoogleAdsConversion: vi.fn(),
   enqueueEvent: vi.fn(),
   buildSourceKey: vi.fn(),
   setValues: vi.fn(),
@@ -52,7 +55,20 @@ vi.mock("@chatbotx.io/database/repositories", () => ({
   },
 }))
 
-vi.mock("@chatbotx.io/business", () => ({
+vi.mock("@chatbotx.io/business", async () => ({
+  // Pure consent mapping stays real; only the settings read is stubbed.
+  ...(await vi.importActual<
+    typeof import("../../../packages/business/src/google-ads/consent")
+  >("../../../packages/business/src/google-ads/consent")),
+  googleAdsSettingsService: {
+    getConsent: async () => ({
+      status: "absent",
+      consent: {
+        adUserData: { type: "notProvided" },
+        adPersonalization: { type: "notProvided" },
+      },
+    }),
+  },
   contactCustomFieldService: {
     setValues: (...args: unknown[]) => mocks.setValues(...args),
     deleteByCustomFieldId: (...args: unknown[]) =>
@@ -87,6 +103,15 @@ vi.mock("@chatbotx.io/business", () => ({
   metaConversionsService: {
     enqueueEvent: (...args: unknown[]) => mocks.enqueueEvent(...args),
     buildSourceKey: (...args: unknown[]) => mocks.buildSourceKey(...args),
+  },
+  contactInboxService: {
+    findGoogleClickAttribution: (...args: unknown[]) =>
+      mocks.findGoogleClickAttribution(...args),
+    findLatestGoogleClickInboxByContact: (...args: unknown[]) =>
+      mocks.findLatestGoogleClickInboxByContact(...args),
+  },
+  googleAdsConversionService: {
+    record: (...args: unknown[]) => mocks.recordGoogleAdsConversion(...args),
   },
 }))
 
@@ -186,7 +211,7 @@ describe("ActionExecutor — per-integration contact inbox attribution", () => {
       await executor.execute({
         action: { type: "sendMetaCapiEvent" },
         contactId: "contact-1",
-        triggerId: "trigger-1",
+        source: { kind: "trigger", triggerId: "trigger-1" },
         workspaceId: "ws-1",
         contactInboxId: "ci-whatsapp",
       })
@@ -205,7 +230,7 @@ describe("ActionExecutor — per-integration contact inbox attribution", () => {
       await executor.execute({
         action: { type: "startAnotherFlow", flowId: "flow-1" },
         contactId: "contact-1",
-        triggerId: "trigger-1",
+        source: { kind: "trigger", triggerId: "trigger-1" },
         workspaceId: "ws-1",
         contactInboxId: "ci-whatsapp",
       })
@@ -228,7 +253,7 @@ describe("ActionExecutor — per-integration contact inbox attribution", () => {
       await executor.execute({
         action: { type: "sendMetaCapiEvent" },
         contactId: "contact-1",
-        triggerId: "trigger-1",
+        source: { kind: "trigger", triggerId: "trigger-1" },
         workspaceId: "ws-1",
       })
 
@@ -243,6 +268,39 @@ describe("ActionExecutor — per-integration contact inbox attribution", () => {
     })
   })
 
+  describe("sendGoogleAdsConversion — threaded inbox with a click wins", () => {
+    test("records against the threaded WhatsApp inbox without the latest-click fallback", async () => {
+      mocks.findByIdForContact.mockResolvedValue(WHATSAPP_INBOX)
+      mocks.findGoogleClickAttribution.mockResolvedValue({
+        id: "ci-whatsapp",
+        referral: { gclid: "gclid-1234567890" },
+      })
+      mocks.recordGoogleAdsConversion.mockResolvedValue({ status: "queued" })
+
+      const executor = new ActionExecutor()
+      await executor.execute({
+        action: {
+          type: "sendGoogleAdsConversion",
+          conversionActionId: "123",
+          dedupMode: "click",
+        },
+        contactId: "contact-1",
+        source: { kind: "trigger", triggerId: "trigger-1" },
+        workspaceId: "ws-1",
+        contactInboxId: "ci-whatsapp",
+      })
+
+      expect(mocks.findLatestGoogleClickInboxByContact).not.toHaveBeenCalled()
+      expect(mocks.recordGoogleAdsConversion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contactInboxId: "ci-whatsapp",
+          source: "triggerAction",
+          scopeId: "trigger-1",
+        }),
+      )
+    })
+  })
+
   describe("stale/foreign threaded id falls back to most-recent", () => {
     test("sendMetaCapiEvent falls back when the threaded contactInboxId doesn't resolve for this contact/workspace", async () => {
       mocks.findByIdForContact.mockResolvedValue(null)
@@ -253,7 +311,7 @@ describe("ActionExecutor — per-integration contact inbox attribution", () => {
       await executor.execute({
         action: { type: "sendMetaCapiEvent" },
         contactId: "contact-1",
-        triggerId: "trigger-1",
+        source: { kind: "trigger", triggerId: "trigger-1" },
         workspaceId: "ws-1",
         contactInboxId: "ci-stale",
       })
@@ -264,13 +322,22 @@ describe("ActionExecutor — per-integration contact inbox attribution", () => {
     })
   })
 
-  describe("no inbox at all — the 3 inbox-consuming branches warn and skip", () => {
+  describe("no inbox at all — the 4 inbox-consuming branches warn and skip", () => {
     beforeEach(() => {
       mocks.findMostRecentByContact.mockResolvedValue(null)
+      mocks.findLatestGoogleClickInboxByContact.mockResolvedValue(null)
     })
 
     test.each([
       ["sendMetaCapiEvent", { type: "sendMetaCapiEvent" }],
+      [
+        "sendGoogleAdsConversion",
+        {
+          type: "sendGoogleAdsConversion",
+          conversionActionId: "123",
+          dedupMode: "click",
+        },
+      ],
       ["startAnotherFlow", { type: "startAnotherFlow", flowId: "flow-1" }],
       [
         "runGoogleSheet",
@@ -287,12 +354,13 @@ describe("ActionExecutor — per-integration contact inbox attribution", () => {
         executor.execute({
           action,
           contactId: "contact-1",
-          triggerId: "trigger-1",
+          source: { kind: "trigger", triggerId: "trigger-1" },
           workspaceId: "ws-1",
         }),
-      ).resolves.toBeUndefined()
+      ).resolves.toMatchObject({ status: "skipped" })
 
       expect(mocks.enqueueEvent).not.toHaveBeenCalled()
+      expect(mocks.recordGoogleAdsConversion).not.toHaveBeenCalled()
       expect(mocks.integrationQueueAdd).not.toHaveBeenCalled()
       expect(mocks.getSpreadsheetRow).not.toHaveBeenCalled()
       expect(baseLogger.warn).toHaveBeenCalled()
@@ -339,13 +407,145 @@ describe("ActionExecutor — per-integration contact inbox attribution", () => {
         executor.execute({
           action,
           contactId: "contact-1",
-          triggerId: "trigger-1",
+          source: { kind: "trigger", triggerId: "trigger-1" },
           workspaceId: "ws-1",
         }),
-      ).resolves.toBeUndefined()
+      ).resolves.toEqual({ status: "succeeded" })
 
       expect(mocks.findByIdForContact).not.toHaveBeenCalled()
       expect(mocks.findMostRecentByContact).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe("ActionExecutor — outcomes and non-trigger sources", () => {
+  const inboundWebhook = {
+    kind: "inboundWebhook" as const,
+    inboundWebhookId: "iw-1",
+  }
+  const run = (action: Record<string, unknown>, extra = {}) =>
+    new ActionExecutor().execute({
+      action,
+      contactId: "contact-1",
+      workspaceId: "ws-1",
+      source: inboundWebhook,
+      ...extra,
+    })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.findLatestCreatedByContact.mockResolvedValue({
+      id: "conv-1",
+      contactId: "contact-1",
+      workspaceId: "ws-1",
+    })
+    mocks.findByIdForContact.mockResolvedValue(WHATSAPP_INBOX)
+    // Overrides the throwing implementation a previous describe installed.
+    mocks.findMostRecentByContact.mockResolvedValue(WHATSAPP_INBOX)
+    mocks.attachExistingToContactForTrigger.mockResolvedValue([])
+    mocks.findActiveById.mockResolvedValue({
+      id: "flow-1",
+      currentVersionId: "fv-1",
+    })
+  })
+
+  test("a contact without a conversation is skipped, not reported as done", async () => {
+    mocks.findLatestCreatedByContact.mockResolvedValue(undefined)
+
+    await expect(run({ type: "addTag", tagIds: ["t1"] })).resolves.toEqual({
+      status: "skipped",
+      reason: "noConversation",
+    })
+    expect(mocks.attachExistingToContactForTrigger).not.toHaveBeenCalled()
+  })
+
+  test("startAnotherFlow queues the flow on the threaded contact inbox for an inbound webhook", async () => {
+    await expect(
+      run(
+        { type: "startAnotherFlow", flowId: "flow-1" },
+        { contactInboxId: "ci-whatsapp" },
+      ),
+    ).resolves.toEqual({ status: "succeeded" })
+
+    expect(mocks.findByIdForContact).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ci-whatsapp", contactId: "contact-1" }),
+    )
+    expect(mocks.integrationQueueAdd).toHaveBeenCalledWith(
+      "sendFlow",
+      expect.objectContaining({
+        data: expect.objectContaining({
+          flowId: "flow-1",
+          contactInboxId: "ci-whatsapp",
+        }),
+      }),
+    )
+  })
+
+  test("an inbound-webhook flow start carries a deterministic job id, so a retried action cannot send it twice", async () => {
+    await run(
+      { type: "startAnotherFlow", flowId: "flow-1" },
+      { contactInboxId: "ci-whatsapp", occurrenceKey: "inboundWebhook:r-1:1" },
+    )
+
+    expect(mocks.integrationQueueAdd).toHaveBeenCalledWith(
+      "sendFlow",
+      expect.anything(),
+      { jobId: "send-flow-inboundWebhook-r-1-1" },
+    )
+  })
+
+  test("a trigger flow start keeps its unkeyed enqueue", async () => {
+    await new ActionExecutor().execute({
+      action: { type: "startAnotherFlow", flowId: "flow-1" },
+      contactId: "contact-1",
+      workspaceId: "ws-1",
+      source: { kind: "trigger", triggerId: "trigger-1" },
+      occurrenceKey: "trigger:occ:trigger-1:0",
+    })
+
+    expect(mocks.integrationQueueAdd).toHaveBeenCalledTimes(1)
+    expect(mocks.integrationQueueAdd.mock.calls[0]).toHaveLength(2)
+  })
+
+  test("an inactive or missing flow is skipped as flowInactive", async () => {
+    mocks.findActiveById.mockResolvedValue(null)
+
+    await expect(
+      run({ type: "startAnotherFlow", flowId: "flow-1" }),
+    ).resolves.toEqual({ status: "skipped", reason: "flowInactive" })
+    expect(mocks.integrationQueueAdd).not.toHaveBeenCalled()
+  })
+
+  test("tag actions run for an inbound webhook", async () => {
+    await expect(run({ type: "addTag", tagIds: ["t1"] })).resolves.toEqual({
+      status: "succeeded",
+    })
+    expect(mocks.attachExistingToContactForTrigger).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      contactId: "contact-1",
+      tagIds: ["t1"],
+    })
+  })
+
+  test.each([
+    ["sendMetaCapiEvent", { type: "sendMetaCapiEvent" }],
+    ["sendGoogleAdsConversion", { type: "sendGoogleAdsConversion" }],
+    ["runGoogleSheet", { type: "runGoogleSheet", action: "spreadsheetGetRow" }],
+  ])("%s is trigger-only: skipped for an inbound webhook without touching its dedup scope", async (_name, action) => {
+    await expect(run(action)).resolves.toEqual({
+      status: "skipped",
+      reason: "unsupportedSource",
+    })
+    expect(mocks.findMostRecentByContact).not.toHaveBeenCalled()
+    expect(mocks.enqueueEvent).not.toHaveBeenCalled()
+    expect(mocks.recordGoogleAdsConversion).not.toHaveBeenCalled()
+    expect(mocks.getSpreadsheetRow).not.toHaveBeenCalled()
+  })
+
+  test("an unknown action type is skipped", async () => {
+    await expect(run({ type: "somethingNew" })).resolves.toEqual({
+      status: "skipped",
+      reason: "unknownAction",
     })
   })
 })

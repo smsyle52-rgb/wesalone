@@ -29,7 +29,9 @@ const chatStoreState = {
   updateConversations: vi.fn(),
   bubbleConversationToTop: bubbleConversationToTopMock,
   openConversation: openConversationMock,
+  patchContactInboxThreadControl: vi.fn(),
   resumeConversationHeadRefresh: vi.fn(),
+  scheduleConversationHeadRefresh: vi.fn(),
 }
 const wholeStoreSelectionMock = vi.fn()
 vi.mock("@/features/chat/store/chat-store-provider", () => ({
@@ -40,6 +42,11 @@ vi.mock("@/features/chat/store/chat-store-provider", () => ({
     }
     return selection
   },
+}))
+
+const responseSlaState = { enabled: false }
+vi.mock("@/features/response-sla/provider/response-sla-hook", () => ({
+  useResponseSlaEnabled: () => responseSlaState.enabled,
 }))
 
 const conversationIdParamMock = { set: vi.fn(), clear: vi.fn() }
@@ -110,11 +117,12 @@ describe("ChatRealtime — chat event parity", () => {
     expect(wholeStoreSelectionMock).not.toHaveBeenCalled()
   })
 
-  test("registers exactly the ten chat events, no more, no fewer", async () => {
+  test("registers exactly the eleven chat events, no more, no fewer", async () => {
     await render()
     expect(Object.keys(capturedHandlers ?? {}).sort()).toEqual(
       [
         "contactBlocked",
+        "contactInboxThreadControlUpdated",
         "contactUnblocked",
         "conversationAssigned",
         "conversationUpdated",
@@ -243,6 +251,69 @@ describe("ChatRealtime — chat event parity", () => {
     )
   })
 
+  test("an assignment refreshes the list head only while the SLA is on (the deadline may move)", async () => {
+    await render()
+    const assigned = {
+      conversationIds: ["conv-1"],
+      assignedUserId: "user-1",
+      assignedInboxTeamId: null,
+    }
+
+    act(() => emit("conversationAssigned", assigned))
+    expect(
+      chatStoreState.scheduleConversationHeadRefresh,
+    ).not.toHaveBeenCalled()
+
+    responseSlaState.enabled = true
+    await render()
+    act(() => emit("conversationAssigned", assigned))
+    expect(chatStoreState.scheduleConversationHeadRefresh).toHaveBeenCalledWith(
+      "workspace-1",
+    )
+    responseSlaState.enabled = false
+  })
+
+  test("a customer message refreshes the list head only while the SLA is on", async () => {
+    const customerMessage = {
+      id: "message-9",
+      conversationId: "conversation-9",
+      messageType: "incoming",
+    }
+    const agentMessage = {
+      ...customerMessage,
+      id: "message-10",
+      messageType: "outgoing",
+    }
+
+    await render()
+    await act(async () => {
+      emit("messageCreated", customerMessage)
+      await Promise.resolve()
+    })
+    expect(
+      chatStoreState.scheduleConversationHeadRefresh,
+    ).not.toHaveBeenCalled()
+
+    responseSlaState.enabled = true
+    await render()
+    await act(async () => {
+      emit("messageCreated", agentMessage)
+      await Promise.resolve()
+    })
+    expect(
+      chatStoreState.scheduleConversationHeadRefresh,
+    ).not.toHaveBeenCalled()
+
+    await act(async () => {
+      emit("messageCreated", customerMessage)
+      await Promise.resolve()
+    })
+    expect(chatStoreState.scheduleConversationHeadRefresh).toHaveBeenCalledWith(
+      "workspace-1",
+    )
+    responseSlaState.enabled = false
+  })
+
   test("conversationUpdated applies a valid agent read timestamp", async () => {
     await render()
     act(() =>
@@ -268,6 +339,29 @@ describe("ChatRealtime — chat event parity", () => {
     )
 
     expect(chatStoreState.applyAgentLastReadAt).not.toHaveBeenCalled()
+  })
+
+  test("contactInboxThreadControlUpdated patches the contact inbox of its conversation", async () => {
+    await render()
+    act(() =>
+      emit("contactInboxThreadControlUpdated", {
+        conversationId: "conv-1",
+        contactInboxId: "ci-1",
+        threadControlState: "standby",
+        threadOwnerRole: "ai_agent",
+        threadControlUpdatedAt: "2026-09-29T10:00:00.000Z",
+      }),
+    )
+
+    expect(chatStoreState.patchContactInboxThreadControl).toHaveBeenCalledWith(
+      "conv-1",
+      {
+        contactInboxId: "ci-1",
+        threadControlState: "standby",
+        threadOwnerRole: "ai_agent",
+        threadControlUpdatedAt: "2026-09-29T10:00:00.000Z",
+      },
+    )
   })
 
   test("conversationUpdated ignores a malformed agent read timestamp", async () => {

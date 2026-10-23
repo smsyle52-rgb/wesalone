@@ -5,8 +5,8 @@ import {
   decodeOAuthState,
   WA_OAUTH_CODE_PARAM,
   WA_OAUTH_ERROR_PARAM,
-  WA_OAUTH_RESULT,
   type WhatsappOAuthRelayResult,
+  whatsappCallbackOutcome,
 } from "@/features/integration-whatsapp/libs/embedded-signup"
 import { defaultLocale, isLocale } from "@/i18n/config"
 import { logger } from "@/lib/log"
@@ -120,10 +120,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   const locale = isLocale(requestedLocale) ? requestedLocale : defaultLocale
   const t = await getTranslations({ locale, namespace: "whatsapp" })
 
-  const result: WhatsappOAuthRelayResult =
-    code && !error
-      ? { type: WA_OAUTH_RESULT, status: "success", code }
-      : { type: WA_OAUTH_RESULT, status: "error" }
+  const { result, messageKey } = whatsappCallbackOutcome({ code, error })
 
   // Same-tab fallback target: the originating page, carrying the code so it can
   // finish the connect without an opener. `safeReferer` is already restricted to
@@ -140,7 +137,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       result,
       targetOrigin,
       fallbackUrl: fallbackUrl.toString(),
-      message: t("embeddedSignupDone"),
+      message: t(messageKey),
     }),
     { headers: RELAY_RESPONSE_HEADERS },
   )

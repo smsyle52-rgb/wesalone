@@ -6,7 +6,9 @@ const createPageMessageTemplate = vi.fn()
 const syncTemplates = vi.fn()
 const findByIdForWorkspace = vi.fn()
 const listCloneTargetsForUser = vi.fn()
+const assertPublicUrl = vi.fn((..._args: unknown[]) => Promise.resolve())
 const findByIdForIntegration = vi.fn()
+const findIdBySourceId = vi.fn()
 
 // Captures the handler the safe-action chain wraps so the action's
 // authorization can be exercised directly.
@@ -16,7 +18,14 @@ vi.mock("@chatbotx.io/integration-messenger/apis/upload", () => ({
   resumableUploadImage,
 }))
 
+// Clone never carries a MINI_APP button, so the Mini App ownership check is
+// never reached; mocked only to keep its DB-backed module out of the import.
+vi.mock("@chatbotx.io/business/mini-app", () => ({
+  miniAppService: { findOrFail: vi.fn() },
+}))
 vi.mock("@chatbotx.io/business", () => ({
+  assertPublicUrl: (...args: unknown[]) => assertPublicUrl(...args),
+  buildContext: vi.fn(),
   messengerIntegrationService: {
     findByIdForWorkspace: (...args: unknown[]) => findByIdForWorkspace(...args),
     listCloneTargetsForUser: (...args: unknown[]) =>
@@ -25,6 +34,8 @@ vi.mock("@chatbotx.io/business", () => ({
   messengerMessageTemplateService: {
     findByIdForIntegration: (...args: unknown[]) =>
       findByIdForIntegration(...args),
+    findIdBySourceId: (...args: unknown[]) => findIdBySourceId(...args),
+    syncFromMeta: vi.fn(),
   },
 }))
 
@@ -37,13 +48,16 @@ vi.mock("@chatbotx.io/redis", () => ({
   invalidateCacheByTags: vi.fn(),
 }))
 
-vi.mock(
-  "@/features/integration-messenger/message-templates/actions/sync-message-templates",
-  () => ({
-    syncMessengerMessageTemplatesForIntegration: (...args: unknown[]) =>
-      syncTemplates(...args),
-  }),
-)
+vi.mock("@/integration", () => ({
+  integrations: {
+    messenger: {
+      runAction: vi.fn(() => {
+        syncTemplates()
+        return Promise.resolve({ data: [] })
+      }),
+    },
+  },
+}))
 
 vi.mock("@/lib/safe-action", () => ({
   workspaceActionClient: {
@@ -58,13 +72,41 @@ vi.mock("@/lib/safe-action", () => ({
   },
 }))
 
-const { prepareComponentsForClone } = await import(
+const { prepareComponentsForClone, createMessengerMessageTemplate } =
+  await import(
+    "@/features/integration-messenger/message-templates/lib/message-template-operations"
+  )
+await import(
   "@/features/integration-messenger/message-templates/actions/clone-message-templates"
 )
 
 describe("prepareComponentsForClone", () => {
   beforeEach(() => {
     resumableUploadImage.mockClear()
+    assertPublicUrl.mockReset().mockResolvedValue(undefined)
+  })
+
+  test("refuses a stored image URL that resolves to a non-public address, without fetching it", async () => {
+    assertPublicUrl.mockRejectedValue(new Error("[ssrf-guard] not allowed"))
+    const components = [
+      {
+        type: "HEADER",
+        format: "IMAGE",
+        example: { header_handle: ["http://169.254.169.254/latest/meta"] },
+      },
+    ]
+
+    await expect(
+      prepareComponentsForClone(components, {} as never),
+    ).rejects.toMatchObject({
+      name: "ChatbotXException",
+      message: expect.stringContaining("ssrf-guard"),
+    })
+    expect(assertPublicUrl).toHaveBeenCalledWith(
+      "http://169.254.169.254/latest/meta",
+      "Template header image URL",
+    )
+    expect(resumableUploadImage).not.toHaveBeenCalled()
   })
 
   test("rejects opaque Meta image handles", async () => {
@@ -246,9 +288,139 @@ describe("cloneMessengerMessageTemplateAction authorization", () => {
 
     const result = await run(["im-a", "im-b"])
 
+    // A plain Error's message is not shown: only Meta's and validation text.
     expect(result.failed).toEqual([
-      { channel: "Page im-a", error: "rate limited" },
+      { channel: "Page im-a", error: "Could not clone the template" },
     ])
     expect(result.succeeded).toEqual([{ channel: "Page im-b" }])
+  })
+
+  test("a database failure after Meta approved never leaks its SQL", async () => {
+    listCloneTargetsForUser.mockResolvedValue([target("im-a")])
+    createPageMessageTemplate.mockResolvedValue({
+      id: "meta-a",
+      status: "APPROVED",
+    })
+    const { integrations } = await import("@/integration")
+    vi.mocked(integrations.messenger.runAction).mockRejectedValueOnce(
+      new Error(
+        'Failed query: insert into "MessengerMessageTemplate" ("name") values ($1)\nparams: secret',
+      ),
+    )
+
+    const result = await run(["im-a"])
+
+    expect(JSON.stringify(result.failed)).not.toContain("insert into")
+    expect(JSON.stringify(result.failed)).not.toContain("secret")
+  })
+})
+
+describe("createMessengerMessageTemplate header image", () => {
+  test("a caller-supplied image URL on a non-public address is refused before anything is uploaded or created", async () => {
+    assertPublicUrl.mockReset().mockRejectedValue(new Error("[ssrf-guard] no"))
+    createPageMessageTemplate.mockReset()
+    resumableUploadImage.mockClear()
+
+    await expect(
+      createMessengerMessageTemplate({
+        workspaceId: "ws-1",
+        integrationMessenger: { auth: {} } as never,
+        request: {
+          name: "promo",
+          language: "vi",
+          headerType: "text_and_image",
+          headerText: "Hi",
+          headerVariables: [],
+          headerImageUrl: "http://169.254.169.254/x.png",
+          body: "Body",
+          bodyVariables: [],
+          buttons: [],
+        },
+      }),
+    ).rejects.toThrow("ssrf-guard")
+    expect(resumableUploadImage).not.toHaveBeenCalled()
+    expect(createPageMessageTemplate).not.toHaveBeenCalled()
+  })
+
+  test("a header image that is not an image is a 4xx with the reason, not a plain Error", async () => {
+    assertPublicUrl.mockReset().mockResolvedValue(undefined)
+    createPageMessageTemplate.mockReset()
+    resumableUploadImage
+      .mockClear()
+      .mockRejectedValueOnce(
+        new Error(
+          'Header image must be an image file, got "text/html" instead',
+        ),
+      )
+
+    await expect(
+      createMessengerMessageTemplate({
+        workspaceId: "ws-1",
+        integrationMessenger: { auth: {} } as never,
+        request: {
+          name: "promo",
+          language: "vi",
+          headerType: "text_and_image",
+          headerText: "Hi",
+          headerVariables: [],
+          headerImageUrl: "https://cdn.example.com/x.png",
+          body: "Body",
+          bodyVariables: [],
+          buttons: [],
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "ChatbotXException",
+      message: expect.stringContaining("must be an image file"),
+    })
+    expect(createPageMessageTemplate).not.toHaveBeenCalled()
+  })
+})
+
+describe("createMessengerMessageTemplate local template id", () => {
+  const request = {
+    name: "promo",
+    language: "vi",
+    headerType: "none" as const,
+    headerText: "",
+    headerVariables: [],
+    body: "Body",
+    bodyVariables: [],
+    buttons: [],
+  }
+
+  beforeEach(() => {
+    createPageMessageTemplate
+      .mockReset()
+      .mockResolvedValue({ id: "meta-1", status: "APPROVED" })
+    findIdBySourceId.mockReset()
+  })
+
+  test("returns the id of the mirrored copy, looked up by page and Meta id", async () => {
+    findIdBySourceId.mockResolvedValue("local-1")
+
+    const created = await createMessengerMessageTemplate({
+      workspaceId: "ws-1",
+      integrationMessenger: { id: "im-1", auth: {} } as never,
+      request,
+    })
+
+    expect(findIdBySourceId).toHaveBeenCalledWith({
+      integrationMessengerId: "im-1",
+      sourceId: "meta-1",
+    })
+    expect(created).toMatchObject({ id: "meta-1", templateId: "local-1" })
+  })
+
+  test("returns null when Meta did not list the new template yet", async () => {
+    findIdBySourceId.mockResolvedValue(null)
+
+    const created = await createMessengerMessageTemplate({
+      workspaceId: "ws-1",
+      integrationMessenger: { id: "im-1", auth: {} } as never,
+      request,
+    })
+
+    expect(created.templateId).toBeNull()
   })
 })
