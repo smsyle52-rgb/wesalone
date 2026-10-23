@@ -277,6 +277,8 @@ export async function replyByAI(
     modelId,
     usedFallbackText: true,
     toolStats: {
+      actionToolAvailable: false,
+      actionToolCalled: false,
       steps: 0,
       toolCallsCount: 0,
       toolResultsCount: 0,

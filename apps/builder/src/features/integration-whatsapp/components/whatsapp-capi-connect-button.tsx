@@ -85,7 +85,7 @@ export function WhatsappCapiConnectButton({
 
     const opened = openPopup(
       buildFacebookOAuthDialogUrl({
-        resellerOrigin: window.location.origin,
+        resellerUrl: window.location.href,
         redirectUri: oauthCallbackUrl,
         clientId: settings.clientId,
         configId: settings.capiConfigId,

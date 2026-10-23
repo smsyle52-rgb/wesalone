@@ -55,6 +55,8 @@ vi.mock("@chatbotx.io/database/client", () => ({
   isNull: vi.fn(),
   lte: vi.fn(),
   relationsFilterToSQL: vi.fn(),
+  // createDraft numbers orders with a `sql` subquery; its value is opaque here.
+  sql: vi.fn(() => ({})),
   isUniqueViolationError: (error: unknown) =>
     error instanceof FakeUniqueViolationError,
 }))

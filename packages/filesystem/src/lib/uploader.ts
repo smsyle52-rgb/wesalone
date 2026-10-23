@@ -321,7 +321,10 @@ export class Uploader {
   async headObject(path: string) {
     if (this.#azure) {
       const properties = await this.#azure.getBlobClient(path).getProperties()
-      return { ContentLength: properties.contentLength }
+      return {
+        ContentLength: properties.contentLength,
+        ContentType: properties.contentType,
+      }
     }
 
     if (this.#gcs) {
@@ -329,7 +332,10 @@ export class Uploader {
         .bucket(this.#bucketName)
         .file(path)
         .getMetadata()
-      return { ContentLength: Number(metadata.size ?? 0) }
+      return {
+        ContentLength: Number(metadata.size ?? 0),
+        ContentType: metadata.contentType,
+      }
     }
 
     const command = new HeadObjectCommand({
