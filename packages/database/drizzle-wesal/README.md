@@ -30,18 +30,20 @@ migration here can safely depend on upstream tables.
 
 ## Known exceptions (pre-existing, do not "clean up")
 
-Two upstream migrations in `../drizzle/` **are** edited, and must stay edited:
+Three upstream migrations in `../drizzle/` **are** edited, and must stay edited:
 
 - `20260517074023_migrate_analytics_to_timescaledb_table`
 - `20260622040000_align_message_attachment_to_shard_schema`
+- `20261018142305_working_hours` (only its trailing hypertable, compression
+  and retention statements for `AnalyticsAgentResponseEvent` were removed)
 
-Both originally ran `CREATE EXTENSION timescaledb` and created hypertables.
+All three originally ran `CREATE EXTENSION timescaledb` and created hypertables.
 Google Cloud SQL — our deployment target — does not offer the TimescaleDB
 extension at all, so the whole migration chain failed there. The TimescaleDB
 statements were removed; the tables are ordinary PostgreSQL tables with the
 same columns, primary keys and indexes.
 
-These two files will conflict on every `git pull upstream`. Resolve by keeping
+These files will conflict on every `git pull upstream`. Resolve by keeping
 our version, unless we have moved off Cloud SQL to a Postgres that ships
 TimescaleDB.
 

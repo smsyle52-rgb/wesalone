@@ -61,20 +61,8 @@ ALTER TABLE "WorkingHours" ADD CONSTRAINT "WorkingHours_workspaceId_Workspace_id
 ALTER TABLE "WorkingHoursInterval" ADD CONSTRAINT "WorkingHoursInterval_workingHoursId_WorkingHours_id_fkey" FOREIGN KEY ("workingHoursId") REFERENCES "WorkingHours"("id") ON DELETE CASCADE ON UPDATE CASCADE;--> statement-breakpoint
 ALTER TABLE "WorkingHoursMember" ADD CONSTRAINT "WorkingHoursMember_workspaceId_Workspace_id_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;--> statement-breakpoint
 ALTER TABLE "WorkingHoursMember" ADD CONSTRAINT "WorkingHoursMember_userId_User_id_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;--> statement-breakpoint
-ALTER TABLE "WorkingHoursMember" ADD CONSTRAINT "WorkingHoursMember_workingHoursId_workspaceId_fkey" FOREIGN KEY ("workingHoursId","workspaceId") REFERENCES "WorkingHours"("id","workspaceId") ON DELETE CASCADE ON UPDATE CASCADE;--> statement-breakpoint
--- AnalyticsAgentResponseEvent hypertable
-SELECT create_hypertable(
-  '"AnalyticsAgentResponseEvent"',
-  by_range('occurredAt', INTERVAL '30 days'),
-  if_not_exists => TRUE
-);
---> statement-breakpoint
-ALTER TABLE "AnalyticsAgentResponseEvent" SET (
-  timescaledb.compress = TRUE,
-  timescaledb.compress_segmentby = '"workspaceId"',
-  timescaledb.compress_orderby = '"occurredAt" DESC'
-);
---> statement-breakpoint
-SELECT add_compression_policy('"AnalyticsAgentResponseEvent"', INTERVAL '30 days', if_not_exists => TRUE);
---> statement-breakpoint
-SELECT add_retention_policy('"AnalyticsAgentResponseEvent"', INTERVAL '10 years', if_not_exists => TRUE);
+ALTER TABLE "WorkingHoursMember" ADD CONSTRAINT "WorkingHoursMember_workingHoursId_workspaceId_fkey" FOREIGN KEY ("workingHoursId","workspaceId") REFERENCES "WorkingHours"("id","workspaceId") ON DELETE CASCADE ON UPDATE CASCADE;
+-- Wesal One: the upstream TimescaleDB statements (create_hypertable,
+-- compression and retention policies) were removed. Our Postgres does not
+-- ship TimescaleDB, so "AnalyticsAgentResponseEvent" stays an ordinary table
+-- with the same columns, primary key and indexes. See drizzle-wesal/README.md.
