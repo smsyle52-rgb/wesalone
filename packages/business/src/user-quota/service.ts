@@ -617,6 +617,56 @@ class UserQuotaService extends BaseService {
    * Redis counter is authoritative and can be ahead of the DB `macUsed`
    * column (see {@link getAccessStateFromQuota} for the pure/DB-only variant).
    */
+  /**
+   * Re-open an expired/blocked trial with a fixed allowance of bot replies.
+   *
+   * Sets a fresh trial window and caps BOTH the lifetime and the monthly
+   * bot-message counters at `messages`, with usage reset to zero. The worker's
+   * existing `isBotMessageQuotaReached` gate then stops bot replies once the
+   * allowance is spent. Other limits (contacts, channels, ...) are untouched.
+   *
+   * Does not re-connect channels that the expired-trial teardown already
+   * disconnected — those must be re-connected by the owner.
+   */
+  async grantTrialBotMessages(props: {
+    userId: string
+    messages: number
+    trialDays: number
+    now?: Date
+  }): Promise<void> {
+    const { userId, messages, trialDays, now = new Date() } = props
+    if (!Number.isInteger(messages) || messages <= 0) {
+      throw new Error("messages must be a positive integer")
+    }
+    if (!Number.isInteger(trialDays) || trialDays <= 0) {
+      throw new Error("trialDays must be a positive integer")
+    }
+
+    const periodEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000)
+    const values = {
+      planStatus: planStatuses.enum.trial,
+      periodStart: now,
+      periodEnd,
+      botMessagesLimit: messages,
+      botMessagesUsed: 0,
+      botMessagesTopUpGranted: 0,
+      monthlyBotMessagesLimit: messages,
+      monthlyBotMessagesUsed: 0,
+      monthlyBotMessagesPeriodStart: now,
+      channelsTornDownAt: null,
+      macBlockedNotifiedAt: null,
+      syncedAt: now,
+    }
+
+    await db
+      .insert(userQuotaModel)
+      .values({ userId, planName: "Trial", ...values })
+      .onConflictDoUpdate({ target: userQuotaModel.userId, set: values })
+
+    await this.store.resetLive(userId)
+    await this.store.invalidate(userId)
+  }
+
   async getAccessState(userId: string): Promise<AccessState> {
     const quota = await this.getForUser(userId)
     const state = this.getAccessStateFromQuota(quota)

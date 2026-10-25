@@ -225,6 +225,22 @@ export class LiveCounterStore<TRow> {
     }
   }
 
+  /**
+   * Drop the Redis live counters for `id` so the next read cold-seeds from the
+   * DB row. Used after an explicit DB-side counter reset (e.g. a trial grant).
+   */
+  async resetLive(id: string): Promise<void> {
+    try {
+      const client = await cacheConnections.useExisting()
+      await client.del(this.liveKey(id))
+    } catch (err) {
+      logger.warn(
+        { err },
+        `${this.config.label}: Redis live-counter reset failed, stale counters may persist`,
+      )
+    }
+  }
+
   /** Increment the live counter (cold-seeding first so it starts from the DB base). */
   async incrementBy(
     id: string,
