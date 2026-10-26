@@ -509,9 +509,12 @@ export function buildPlatformOverrideCandidates(
       platformAzureOpenAI: true,
       model: override.azureOpenAI.chatDeployment,
     }
+    const azureLast =
+      env.PLATFORM_AI_CHAT_PRIMARY !== "azureOpenAI" &&
+      env.PLATFORM_AI_AZURE_CHAT_FALLBACK !== "off"
     if (env.PLATFORM_AI_CHAT_PRIMARY === "azureOpenAI") {
       candidates.unshift(azureCandidate)
-    } else {
+    } else if (azureLast) {
       candidates.push(azureCandidate)
     }
     // The Foundry model answers first; every candidate above stays behind it
@@ -524,8 +527,12 @@ export function buildPlatformOverrideCandidates(
     )
     if (env.PLATFORM_AI_CHAT_PRIMARY === "vertexFirst") {
       // Vertex answers first; the Foundry models sit between it and the Azure
-      // OpenAI deployment.
-      candidates.splice(-1, 0, ...foundryCandidates)
+      // OpenAI deployment (or close the chain when that one is switched off).
+      if (azureLast) {
+        candidates.splice(-1, 0, ...foundryCandidates)
+      } else {
+        candidates.push(...foundryCandidates)
+      }
     } else {
       candidates.unshift(...foundryCandidates)
     }

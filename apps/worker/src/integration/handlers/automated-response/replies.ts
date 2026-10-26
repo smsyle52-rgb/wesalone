@@ -1539,7 +1539,17 @@ async function runAIReply(
       }
     }
 
-    await settleUsage()
+    // Nothing reached the customer, and the turn moves on to the next
+    // candidate (or ends silently). Charge only the attempt that answers:
+    // one silent turn used to bill every model in the chain (four charges for
+    // a single customer message, 26 Oct 2026).
+    if (reservation) {
+      await usageMeteringService.release(
+        reservation,
+        new Error("AI produced an empty completion"),
+      )
+      reservation = undefined
+    }
     logger.warn(
       {
         provider,

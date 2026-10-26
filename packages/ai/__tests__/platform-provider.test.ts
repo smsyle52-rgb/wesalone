@@ -281,6 +281,41 @@ describe("Azure Foundry first-choice chat model", () => {
     }
   })
 
+  test("PLATFORM_AI_AZURE_CHAT_FALLBACK=off drops the Azure deployment and keeps the Foundry model first", () => {
+    Object.assign(envMock, foundryEnv, {
+      PLATFORM_AI_AZURE_CHAT_FALLBACK: "off",
+    })
+    try {
+      expect(
+        buildPlatformOverrideCandidates(override).map((item) => item.model),
+      ).toEqual(["muse-spark-1.3", "gemini-3.5-flash"])
+    } finally {
+      clearFoundryEnv()
+      ;(envMock as Record<string, unknown>).PLATFORM_AI_AZURE_CHAT_FALLBACK =
+        undefined
+    }
+  })
+
+  test("with vertexFirst and the Azure fallback off, the Foundry model closes the chain", () => {
+    Object.assign(envMock, foundryEnv, {
+      PLATFORM_AI_AZURE_CHAT_FALLBACK: "off",
+      PLATFORM_AI_CHAT_PRIMARY: "vertexFirst",
+    })
+    try {
+      expect(
+        buildPlatformOverrideCandidates(override).map((item) => item.model),
+      ).toEqual(["gemini-3.5-flash", "muse-spark-1.3"])
+    } finally {
+      clearFoundryEnv()
+      for (const key of [
+        "PLATFORM_AI_AZURE_CHAT_FALLBACK",
+        "PLATFORM_AI_CHAT_PRIMARY",
+      ]) {
+        delete (envMock as Record<string, unknown>)[key]
+      }
+    }
+  })
+
   test("is ignored unless all four settings are present", () => {
     Object.assign(envMock, foundryEnv, {
       AZURE_FOUNDRY_CHAT_API_KEY: undefined,

@@ -19,6 +19,15 @@ export const keys = () =>
         .enum(["vertex", "azureOpenAI", "vertexFirst"])
         .optional()
         .default("vertex"),
+      // `off` drops the Azure OpenAI chat deployment from the end of the reply
+      // chain (the Foundry slot above stays). It was the last resort of a
+      // chain whose earlier models had deliberately stayed silent, and it
+      // answered by writing a tool call out as plain text to the customer
+      // (26 Oct 2026). Capabilities that use Azure directly are unaffected.
+      PLATFORM_AI_AZURE_CHAT_FALLBACK: z
+        .enum(["on", "off"])
+        .optional()
+        .default("on"),
       AZURE_OPENAI_ENDPOINT: z.url().optional(),
       AZURE_OPENAI_API_KEY: z.string().trim().min(1).optional(),
       AZURE_OPENAI_LOCATION: z.string().trim().min(1).optional(),

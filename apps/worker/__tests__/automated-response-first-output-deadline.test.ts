@@ -321,6 +321,39 @@ describe("replyByAI — first-output deadline", () => {
     expect(usageMeteringReleaseMock).not.toHaveBeenCalled()
   })
 
+  test("a model that ends with an empty reply is not charged and the next model answers", async () => {
+    vi.mocked(streamText).mockImplementation(((args: StreamTextArgs) =>
+      args.model.modelId === "slow-model"
+        ? {
+            // Ends at once with no text and no tool call.
+            textStream: (async function* () {
+              yield* []
+            })(),
+            totalUsage: Promise.resolve({
+              inputTokens: 4000,
+              outputTokens: 0,
+              inputTokenDetails: { cacheReadTokens: 0 },
+              outputTokenDetails: { reasoningTokens: 200 },
+            }),
+          }
+        : answersAfter(args, "أهلًا")) as unknown as typeof streamText)
+
+    const result = await replyByAI(baseProps)
+
+    expect(result).toMatchObject({ responded: true, modelId: "fast-model" })
+    expect(sendMessageAndWaitMock).toHaveBeenCalledTimes(1)
+    // The empty attempt releases its hold; only the answering model is billed.
+    expect(usageMeteringReleaseMock).toHaveBeenCalledWith(
+      expect.objectContaining({ operationId: "op-slow-model" }),
+      expect.any(Error),
+    )
+    expect(usageMeteringSettleLanguageMock).toHaveBeenCalledTimes(1)
+    expect(usageMeteringSettleLanguageMock).toHaveBeenCalledWith(
+      expect.objectContaining({ operationId: "op-fast-model" }),
+      expect.anything(),
+    )
+  })
+
   test("the last model in the chain is never cut by the deadline", async () => {
     state.platformOverride = {
       chatModel: "only-model",
