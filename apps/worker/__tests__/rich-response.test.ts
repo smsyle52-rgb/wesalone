@@ -451,6 +451,54 @@ describe("sendRichMessages", () => {
     )
   })
 
+  test("sends quick replies as a text step with buttons on WhatsApp", async () => {
+    const result = await sendRichMessages(
+      [
+        {
+          message: {
+            text: "تقصد السعر أو الفروع؟",
+            quick_replies: [
+              { content_type: "text", title: "السعر", payload: "السعر" },
+              { content_type: "text", title: "الفروع", payload: "الفروع" },
+            ],
+          },
+        },
+      ],
+      ctx,
+    )
+
+    expect(result).toEqual({ enqueued: 1, skipped: 0 })
+    const step = chatQueueAddBulk.mock.calls[0]?.[0]?.[0]?.data.data.step
+    expect(step).toMatchObject({
+      stepType: "sendText",
+      text: "تقصد السعر أو الفروع؟",
+    })
+    expect(step?.buttons.map((button) => button.label)).toEqual([
+      "السعر",
+      "الفروع",
+    ])
+  })
+
+  test("keeps the quick-reply step on channels that support it", async () => {
+    await sendRichMessages(
+      [
+        {
+          message: {
+            text: "Choose",
+            quick_replies: [{ content_type: "text", title: "A", payload: "a" }],
+          },
+        },
+      ],
+      { ...ctx, channel: "messenger" },
+    )
+
+    const step = chatQueueAddBulk.mock.calls[0]?.[0]?.[0]?.data.data.step
+    expect(step).toMatchObject({
+      stepType: "sendQuickReply",
+      message: "Choose",
+    })
+  })
+
   test("skips native WhatsApp rich item without enqueueing jobs", async () => {
     const result = await sendRichMessages(
       [

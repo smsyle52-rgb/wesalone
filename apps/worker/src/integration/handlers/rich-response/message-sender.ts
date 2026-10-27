@@ -2,6 +2,7 @@ import {
   type ButtonStepProps,
   buttonStepDefaultFn,
   buttonTypes,
+  getChannelFlowPolicy,
   openWebsiteStepDefaultFn,
   type SendCardStepSchema,
   sendAudioStepDefaultFn,
@@ -18,6 +19,8 @@ import {
   sendTextStepSchema,
   sendVideoStepDefaultFn,
   sendVideoStepSchema,
+  stepSupport,
+  stepTypes,
   uploadModes,
 } from "@chatbotx.io/flow-config"
 import { createId } from "@chatbotx.io/utils"
@@ -171,12 +174,26 @@ function convertMessengerMessage(
       message.quick_replies,
       context,
     )
+    const text = message.text ?? "Please select an option"
+    // WhatsApp has no quick-reply step: its channel policy marks it
+    // unsupported and sendFlowStep drops it without sending anything (every
+    // rich reply with choices was lost, 27 Oct 2026). A text step with the
+    // same choices as buttons renders as native reply buttons there.
+    if (
+      getChannelFlowPolicy(context.channel)?.steps[
+        stepTypes.enum.sendQuickReply
+      ] === stepSupport.unsupported
+    ) {
+      return {
+        step: sendTextStepSchema.parse(
+          sendTextStepDefaultFn({ text, buttons }),
+        ),
+        buttonPayloads,
+      }
+    }
     return {
       step: sendQuickReplyStepSchema.parse(
-        sendQuickReplyStepDefaultFn({
-          message: message.text ?? "Please select an option",
-          buttons,
-        }),
+        sendQuickReplyStepDefaultFn({ message: text, buttons }),
       ),
       buttonPayloads,
     }
