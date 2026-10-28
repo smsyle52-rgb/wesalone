@@ -944,10 +944,10 @@ class ContactService extends BaseService {
     const { prefix, value, where } = parseContactIdentifier(identifier)
     const whereClause = { workspaceId, ...where }
 
-    const existing = await db.query.contactModel.findFirst({
-      where: whereClause,
-      columns: { id: true },
-    })
+    // Same lookup as `resolveIdByIdentifier`: a phone stored without "+", or
+    // known only as a WhatsApp wa_id, updates that contact instead of
+    // conflicting with it.
+    const existing = await contactRepository.findIdByIdentityWhere(whereClause)
 
     if (existing) {
       const avatarPath = avatar

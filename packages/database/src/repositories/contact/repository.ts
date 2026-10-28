@@ -9,7 +9,8 @@ import {
   isNull,
   sql,
 } from "../../client"
-import { contactModel } from "../../schema"
+import { channelTypes } from "../../partials"
+import { contactInboxModel, contactModel, inboxModel } from "../../schema"
 import { buildContactListWhere, resolveContactOrderBy } from "./list-where"
 
 type ContactListInput = {
@@ -26,10 +27,49 @@ const PUBLIC_CONTACT_RELATIONS = {
   conversation: { with: { assignedUser: true, assignedInboxTeam: true } },
 } as const
 
+const MIN_PHONE_DIGITS = 7
+
+// A `phone:` identifier misses the exact `phoneNumber` match for many
+// WhatsApp contacts: imports stored bare digits, some rows have no phone, and
+// a number the customer typed can overwrite it (a Yemeni number read as
+// +84). An app sending OTP codes by phone then 404'd for over half of its
+// WhatsApp contacts (28 Oct 2026). Fall back to the same digits stored without
+// "+", then to the WhatsApp contact whose wa_id is that number.
+async function findIdByPhoneVariant(
+  tx: DatabaseClient,
+  workspaceId: string,
+  phoneNumber: string,
+) {
+  const digits = phoneNumber.replace(/\D/g, "")
+  if (digits.length < MIN_PHONE_DIGITS) {
+    return null
+  }
+  const stored = await tx.query.contactModel.findFirst({
+    where: { workspaceId, phoneNumber: { in: [digits, `+${digits}`] } },
+    columns: { id: true },
+  })
+  if (stored) {
+    return stored
+  }
+  const [byWaId] = await tx
+    .select({ id: contactInboxModel.contactId })
+    .from(contactInboxModel)
+    .innerJoin(inboxModel, eq(inboxModel.id, contactInboxModel.inboxId))
+    .where(
+      and(
+        eq(inboxModel.workspaceId, workspaceId),
+        eq(inboxModel.channel, channelTypes.enum.whatsapp),
+        eq(contactInboxModel.sourceId, digits),
+      ),
+    )
+    .limit(1)
+  return byWaId ?? null
+}
+
 export const contactRepository = {
   buildListWhere: buildContactListWhere,
   resolveOrderBy: resolveContactOrderBy,
-  findIdByIdentityWhere(
+  async findIdByIdentityWhere(
     input: {
       workspaceId: string
       id?: string
@@ -38,9 +78,14 @@ export const contactRepository = {
     },
     tx: DatabaseClient = db,
   ) {
-    return tx.query.contactModel
-      .findFirst({ where: input, columns: { id: true } })
-      .then((contact) => contact ?? null)
+    const contact = await tx.query.contactModel.findFirst({
+      where: input,
+      columns: { id: true },
+    })
+    if (contact || !input.phoneNumber || input.id || input.email) {
+      return contact ?? null
+    }
+    return findIdByPhoneVariant(tx, input.workspaceId, input.phoneNumber)
   },
   findPublicById(
     input: { workspaceId: string; id: string },
