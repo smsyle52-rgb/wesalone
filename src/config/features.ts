@@ -13,7 +13,13 @@
  * `POST/DELETE /workspaces/{workspaceId}/contacts/{contactId}/block|unblock|<delete>` ship under
  * bearer/session auth and `pnpm generate:api` has been re-run.
  */
+/**
+ * `socialSignIn`: Google/Facebook sign-in cannot finish in the app yet — the OAuth flow runs in an
+ * isolated browser session and no bearer token is handed back (see social-buttons.tsx). Hidden
+ * until the backend relays a token to the app.
+ */
 export const FEATURES = {
+  socialSignIn: false,
   sendSequence: false,
   blockContact: false,
   deleteContact: false,

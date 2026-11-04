@@ -11,6 +11,18 @@ import { setAuthToken } from './auth-token';
  */
 const AUTH_BASE_URL = `${env.apiBaseUrl}/api/auth`;
 
+/**
+ * better-auth rejects a request that carries cookies but no `Origin` ("Missing or null Origin").
+ * React Native's Android networking keeps a cookie jar, so after the first response sets a cookie
+ * every later auth call sends one — and RN never adds an Origin header itself. Sending the
+ * backend's own origin (always in its `trustedOrigins`) keeps sign-in working on real devices.
+ */
+const AUTH_ORIGIN = new URL(env.apiBaseUrl).origin;
+
+export function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return { Origin: AUTH_ORIGIN, ...extra };
+}
+
 export interface SessionUser {
   id: string;
   email: string;
@@ -53,7 +65,7 @@ async function throwIfError(response: Response): Promise<void> {
 export async function signInWithEmail(email: string, password: string): Promise<SessionUser> {
   const response = await fetch(`${AUTH_BASE_URL}/sign-in/email`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ email, password }),
   });
 
@@ -74,7 +86,7 @@ export async function signInWithEmail(email: string, password: string): Promise<
 export async function getSession(token: string): Promise<SessionUser | null> {
   const response = await fetch(`${AUTH_BASE_URL}/get-session`, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: authHeaders({ Authorization: `Bearer ${token}` }),
   });
 
   if (!response.ok) {
@@ -88,7 +100,7 @@ export async function getSession(token: string): Promise<SessionUser | null> {
 export async function requestPasswordReset(email: string): Promise<void> {
   const response = await fetch(`${AUTH_BASE_URL}/forget-password`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ email, redirectTo: '/' }),
   });
   await throwIfError(response);
@@ -104,7 +116,7 @@ export async function changePassword(
 ): Promise<void> {
   const response = await fetch(`${AUTH_BASE_URL}/change-password`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: authHeaders({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }),
     body: JSON.stringify({ currentPassword, newPassword, revokeOtherSessions: true }),
   });
   await throwIfError(response);
@@ -113,7 +125,7 @@ export async function changePassword(
 export async function signOut(token: string): Promise<void> {
   const response = await fetch(`${AUTH_BASE_URL}/sign-out`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: authHeaders({ Authorization: `Bearer ${token}` }),
   });
   // Best-effort: even if the server call fails, the caller clears local token/state.
   if (!response.ok) {
@@ -138,7 +150,7 @@ export const SOCIAL_CALLBACK_URL = `${brand.brandScheme}://auth-callback`;
 export async function startSocialSignIn(provider: SocialProvider): Promise<string> {
   const response = await fetch(`${AUTH_BASE_URL}/sign-in/social`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ provider, callbackURL: SOCIAL_CALLBACK_URL }),
   });
 

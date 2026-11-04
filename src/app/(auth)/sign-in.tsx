@@ -13,6 +13,7 @@ import { ErrorBanner } from '@/components/ui/error-banner';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
+import { FEATURES } from '@/config/features';
 import { SocialButtons } from '@/features/auth/social-buttons';
 import { consumePendingDeepLink } from '@/lib/pending-deep-link';
 import { useAuthStore } from '@/stores/use-auth-store';
@@ -132,18 +133,22 @@ export default function SignInScreen() {
               </Text>
             </Link>
 
-            <View style={[styles.dividerRow, { gap: spacing.sm }]}>
-              <View style={styles.dividerLine}>
-                <Divider />
-              </View>
-              <Text variant="caption" color="secondary">
-                {t('auth.orContinueWith')}
-              </Text>
-              <View style={styles.dividerLine}>
-                <Divider />
-              </View>
-            </View>
-            <SocialButtons />
+            {FEATURES.socialSignIn ? (
+              <>
+                <View style={[styles.dividerRow, { gap: spacing.sm }]}>
+                  <View style={styles.dividerLine}>
+                    <Divider />
+                  </View>
+                  <Text variant="caption" color="secondary">
+                    {t('auth.orContinueWith')}
+                  </Text>
+                  <View style={styles.dividerLine}>
+                    <Divider />
+                  </View>
+                </View>
+                <SocialButtons />
+              </>
+            ) : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
