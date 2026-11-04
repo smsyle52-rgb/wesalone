@@ -9,14 +9,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Icon } from '@/components/ui/icon';
+import { BrandMark } from '@/components/brand-mark';
 import { Screen } from '@/components/ui/screen';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { useWorkspaceStore } from '@/stores/use-workspace-store';
 import { useReducedMotion } from '@/theme/motion';
-import { useTheme } from '@/theme/use-theme';
 
-const LOGO_SIZE = 72;
+const LOGO_SIZE = 96;
 const PULSE_DURATION_MS = 900;
 
 /**
@@ -51,7 +50,6 @@ export default function IndexRedirect() {
  * the brief window between the splash screen hiding and the auth/workspace bootstrap gates
  * resolving, so it's the first thing a returning user sees post-splash. */
 function LoadingScreen() {
-  const { colors } = useTheme();
   const reducedMotion = useReducedMotion();
   const scale = useSharedValue(1);
 
@@ -73,14 +71,8 @@ function LoadingScreen() {
   return (
     <Screen>
       <View style={styles.center}>
-        <Animated.View
-          style={[
-            styles.logoCircle,
-            { backgroundColor: colors.brandSoft, borderRadius: LOGO_SIZE / 2 },
-            animatedStyle,
-          ]}
-        >
-          <Icon name="messages-square" size={32} color={colors.brand} />
+        <Animated.View style={animatedStyle}>
+          <BrandMark size={LOGO_SIZE} />
         </Animated.View>
       </View>
     </Screen>
@@ -90,12 +82,6 @@ function LoadingScreen() {
 const styles = StyleSheet.create({
   center: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoCircle: {
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },

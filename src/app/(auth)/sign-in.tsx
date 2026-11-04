@@ -6,10 +6,10 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 import Animated, { FadeInUp } from 'react-native-reanimated';
 
 import { signInWithEmail } from '@/api/auth-endpoints';
+import { BrandMark } from '@/components/brand-mark';
 import { Button } from '@/components/ui/button';
 import { Divider } from '@/components/ui/divider';
 import { ErrorBanner } from '@/components/ui/error-banner';
-import { Icon } from '@/components/ui/icon';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
@@ -19,11 +19,11 @@ import { useAuthStore } from '@/stores/use-auth-store';
 import { useReducedMotion } from '@/theme/motion';
 import { useTheme } from '@/theme/use-theme';
 
-const LOGO_SIZE = 72;
+const LOGO_SIZE = 96;
 
 export default function SignInScreen() {
   const { t } = useTranslation();
-  const { colors, spacing } = useTheme();
+  const { spacing } = useTheme();
   const reducedMotion = useReducedMotion();
   const setSignedIn = useAuthStore((state) => state.setSignedIn);
 
@@ -74,14 +74,7 @@ export default function SignInScreen() {
               entering={reducedMotion ? undefined : FadeInUp.duration(400)}
               style={[styles.logoWrap, { marginBottom: spacing.sm }]}
             >
-              <View
-                style={[
-                  styles.logoCircle,
-                  { backgroundColor: colors.brandSoft, borderRadius: LOGO_SIZE / 2 },
-                ]}
-              >
-                <Icon name="messages-square" size={32} color={colors.brand} />
-              </View>
+              <BrandMark size={LOGO_SIZE} />
             </Animated.View>
 
             <Text variant="display" style={styles.centered}>
@@ -171,12 +164,6 @@ const styles = StyleSheet.create({
   },
   logoWrap: {
     alignItems: 'center',
-  },
-  logoCircle: {
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   link: {
     alignSelf: 'center',
