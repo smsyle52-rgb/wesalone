@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "Enregistrer un message vocal",
+    "sendVoiceNote": "Envoyer le message vocal",
+    "cancelVoiceNote": "Supprimer l’enregistrement",
+    "recordingVoiceNote": "Enregistrement…",
+    "micPermissionDenied": "L’accès au micro est désactivé. Autorisez-le dans les Réglages pour enregistrer des messages vocaux.",
+    "voiceNoteFailed": "Impossible d’enregistrer le message vocal. Veuillez réessayer."
   },
   "contacts": {
     "title": "Contacts",

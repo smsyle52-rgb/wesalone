@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "錄製語音訊息",
+    "sendVoiceNote": "傳送語音訊息",
+    "cancelVoiceNote": "捨棄錄音",
+    "recordingVoiceNote": "錄音中…",
+    "micPermissionDenied": "麥克風存取已關閉。請在設定中允許以錄製語音訊息。",
+    "voiceNoteFailed": "無法錄製語音訊息，請再試一次。"
   },
   "contacts": {
     "title": "聯絡人",

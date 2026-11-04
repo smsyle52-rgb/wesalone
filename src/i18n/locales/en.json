@@ -166,7 +166,13 @@
       "pending": "Sending",
       "sent": "Sent",
       "failed": "Failed to send"
-    }
+    },
+    "recordVoiceNote": "Record voice message",
+    "sendVoiceNote": "Send voice message",
+    "cancelVoiceNote": "Discard recording",
+    "recordingVoiceNote": "Recording…",
+    "micPermissionDenied": "Microphone access is off. Allow it in Settings to record voice messages.",
+    "voiceNoteFailed": "Couldn't record the voice message. Please try again."
   },
   "contacts": {
     "title": "Contacts",

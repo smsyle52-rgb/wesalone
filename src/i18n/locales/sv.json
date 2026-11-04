@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "Spela in röstmeddelande",
+    "sendVoiceNote": "Skicka röstmeddelande",
+    "cancelVoiceNote": "Släng inspelning",
+    "recordingVoiceNote": "Spelar in…",
+    "micPermissionDenied": "Mikrofonåtkomst är avstängd. Tillåt den i Inställningar för att spela in röstmeddelanden.",
+    "voiceNoteFailed": "Röstmeddelandet kunde inte spelas in. Försök igen."
   },
   "contacts": {
     "title": "Kontakter",

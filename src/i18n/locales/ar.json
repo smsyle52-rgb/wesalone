@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "تسجيل رسالة صوتية",
+    "sendVoiceNote": "إرسال الرسالة الصوتية",
+    "cancelVoiceNote": "حذف التسجيل",
+    "recordingVoiceNote": "جارٍ التسجيل…",
+    "micPermissionDenied": "الوصول إلى الميكروفون متوقف. اسمح به من الإعدادات لتسجيل الرسائل الصوتية.",
+    "voiceNoteFailed": "تعذّر تسجيل الرسالة الصوتية. حاول مرة أخرى."
   },
   "contacts": {
     "title": "جهات الاتصال",

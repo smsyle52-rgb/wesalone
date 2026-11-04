@@ -77,6 +77,8 @@ import {
   Workflow,
   X,
   type LucideIcon,
+  Mic,
+  Trash2,
 } from 'lucide-react-native';
 import { I18nManager } from 'react-native';
 
@@ -87,6 +89,8 @@ import { I18nManager } from 'react-native';
  * imported above, so unused lucide icons are tree-shaken.
  */
 const ICONS = {
+  mic: Mic,
+  'trash-2': Trash2,
   archive: Archive,
   'archive-x': ArchiveX,
   'app-window': AppWindow,

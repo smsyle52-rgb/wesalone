@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "Sesli mesaj kaydet",
+    "sendVoiceNote": "Sesli mesajı gönder",
+    "cancelVoiceNote": "Kaydı sil",
+    "recordingVoiceNote": "Kaydediliyor…",
+    "micPermissionDenied": "Mikrofon erişimi kapalı. Sesli mesaj kaydetmek için Ayarlar'dan izin verin.",
+    "voiceNoteFailed": "Sesli mesaj kaydedilemedi. Lütfen tekrar deneyin."
   },
   "contacts": {
     "title": "Kişiler",

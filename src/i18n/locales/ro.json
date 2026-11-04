@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "Înregistrează mesaj vocal",
+    "sendVoiceNote": "Trimite mesajul vocal",
+    "cancelVoiceNote": "Renunță la înregistrare",
+    "recordingVoiceNote": "Se înregistrează…",
+    "micPermissionDenied": "Accesul la microfon este dezactivat. Permite-l din Setări pentru a înregistra mesaje vocale.",
+    "voiceNoteFailed": "Mesajul vocal nu a putut fi înregistrat. Încearcă din nou."
   },
   "contacts": {
     "title": "Contacte",

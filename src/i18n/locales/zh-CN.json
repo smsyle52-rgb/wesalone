@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "录制语音消息",
+    "sendVoiceNote": "发送语音消息",
+    "cancelVoiceNote": "放弃录音",
+    "recordingVoiceNote": "正在录音…",
+    "micPermissionDenied": "麦克风访问已关闭。请在设置中允许以录制语音消息。",
+    "voiceNoteFailed": "无法录制语音消息，请重试。"
   },
   "contacts": {
     "title": "联系人",

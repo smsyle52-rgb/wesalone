@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "הקלטת הודעה קולית",
+    "sendVoiceNote": "שליחת ההודעה הקולית",
+    "cancelVoiceNote": "מחיקת ההקלטה",
+    "recordingVoiceNote": "מקליט…",
+    "micPermissionDenied": "הגישה למיקרופון כבויה. אפשרו אותה בהגדרות כדי להקליט הודעות קוליות.",
+    "voiceNoteFailed": "לא ניתן להקליט את ההודעה הקולית. נסו שוב."
   },
   "contacts": {
     "title": "אנשי קשר",

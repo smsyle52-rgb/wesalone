@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "Ghi âm tin nhắn thoại",
+    "sendVoiceNote": "Gửi tin nhắn thoại",
+    "cancelVoiceNote": "Hủy bản ghi",
+    "recordingVoiceNote": "Đang ghi âm…",
+    "micPermissionDenied": "Quyền truy cập micrô đang tắt. Hãy cho phép trong Cài đặt để ghi âm tin nhắn thoại.",
+    "voiceNoteFailed": "Không thể ghi âm tin nhắn thoại. Vui lòng thử lại."
   },
   "contacts": {
     "title": "Liên hệ",

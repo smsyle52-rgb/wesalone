@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "Gravar mensagem de voz",
+    "sendVoiceNote": "Enviar mensagem de voz",
+    "cancelVoiceNote": "Descartar gravação",
+    "recordingVoiceNote": "Gravando…",
+    "micPermissionDenied": "O acesso ao microfone está desativado. Permita nos Ajustes para gravar mensagens de voz.",
+    "voiceNoteFailed": "Não foi possível gravar a mensagem de voz. Tente novamente."
   },
   "contacts": {
     "title": "Contatos",

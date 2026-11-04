@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "Nauhoita ääniviesti",
+    "sendVoiceNote": "Lähetä ääniviesti",
+    "cancelVoiceNote": "Hylkää nauhoitus",
+    "recordingVoiceNote": "Nauhoitetaan…",
+    "micPermissionDenied": "Mikrofonin käyttö on pois päältä. Salli se asetuksista nauhoittaaksesi ääniviestejä.",
+    "voiceNoteFailed": "Ääniviestiä ei voitu nauhoittaa. Yritä uudelleen."
   },
   "contacts": {
     "title": "Yhteystiedot",

@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "Spraakbericht opnemen",
+    "sendVoiceNote": "Spraakbericht verzenden",
+    "cancelVoiceNote": "Opname verwijderen",
+    "recordingVoiceNote": "Opnemen…",
+    "micPermissionDenied": "Microfoontoegang staat uit. Sta deze toe in Instellingen om spraakberichten op te nemen.",
+    "voiceNoteFailed": "Het spraakbericht kon niet worden opgenomen. Probeer het opnieuw."
   },
   "contacts": {
     "title": "Contacten",

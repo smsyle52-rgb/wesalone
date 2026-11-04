@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "Optag talebesked",
+    "sendVoiceNote": "Send talebesked",
+    "cancelVoiceNote": "Kassér optagelse",
+    "recordingVoiceNote": "Optager…",
+    "micPermissionDenied": "Mikrofonadgang er slået fra. Tillad den i Indstillinger for at optage talebeskeder.",
+    "voiceNoteFailed": "Talebeskeden kunne ikke optages. Prøv igen."
   },
   "contacts": {
     "title": "Kontakter",

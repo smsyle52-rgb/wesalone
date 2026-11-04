@@ -160,7 +160,13 @@
     },
     "locationShared": "Location shared",
     "unsupportedContent": "[{{contentType}}] Unsupported on mobile",
-    "activityFallback": "Activity"
+    "activityFallback": "Activity",
+    "recordVoiceNote": "ボイスメッセージを録音",
+    "sendVoiceNote": "ボイスメッセージを送信",
+    "cancelVoiceNote": "録音を破棄",
+    "recordingVoiceNote": "録音中…",
+    "micPermissionDenied": "マイクへのアクセスがオフです。ボイスメッセージを録音するには設定で許可してください。",
+    "voiceNoteFailed": "ボイスメッセージを録音できませんでした。もう一度お試しください。"
   },
   "contacts": {
     "title": "連絡先",

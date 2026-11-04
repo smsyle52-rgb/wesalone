@@ -215,6 +215,14 @@ const config: ExpoConfig = {
       },
     ],
     [
+      'expo-audio',
+      {
+        microphonePermission:
+          'Allow $(PRODUCT_NAME) to access your microphone to record voice messages.',
+        recordAudioAndroid: true,
+      },
+    ],
+    [
       'expo-localization',
       {
         // Native RTL layout for `ar`/`he`. Requires a new dev/production build to take effect —
