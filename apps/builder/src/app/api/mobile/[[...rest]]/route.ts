@@ -44,11 +44,14 @@ async function handleRequest(request: Request) {
     )
   }
 
+  // Auth reads only `context.headers`, so dropping the cookie there is what
+  // makes this surface bearer-only. The request itself is passed through
+  // untouched: re-wrapping a NextRequest (`new Request(request, ...)`) throws
+  // "Cannot read private member #state" inside the Next.js runtime.
   const headers = new Headers(request.headers)
   headers.delete("cookie")
-  const bearerOnlyRequest = new Request(request, { headers })
 
-  const { response } = await openAPIHandler.handle(bearerOnlyRequest, {
+  const { response } = await openAPIHandler.handle(request, {
     prefix: "/api/mobile",
     context: { headers, url: request.url },
   })

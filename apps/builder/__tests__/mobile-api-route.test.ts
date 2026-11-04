@@ -44,8 +44,7 @@ describe("/api/mobile route", () => {
       }),
     )
 
-    const [request, options] = handle.mock.calls[0] ?? []
-    expect(request.headers.get("cookie")).toBeNull()
+    const [, options] = handle.mock.calls[0] ?? []
     expect(options.context.headers.get("cookie")).toBeNull()
     expect(options.context.headers.get("authorization")).toBe("Bearer tok")
     expect(options.prefix).toBe("/api/mobile")
