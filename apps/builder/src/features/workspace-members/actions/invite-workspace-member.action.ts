@@ -7,15 +7,11 @@ import {
 } from "@chatbotx.io/business"
 import { auditService } from "@chatbotx.io/business/audit"
 import { ChatbotXException } from "@chatbotx.io/business/errors"
-import { isCommunity } from "@/env"
 import { workspaceIdrequestParams } from "@/features/common/schema"
 import { hasWorkspacePermission } from "@/lib/auth/permission-routes"
 import { getCurrentUserAndTargetWorkspace } from "@/lib/auth/utils"
 import { workspaceActionClient } from "@/lib/safe-action"
-import {
-  getSuperAdminPermissions,
-  normalizeContactsPermissions,
-} from "../helpers"
+import { normalizeContactsPermissions } from "../helpers"
 import { inviteWorkspaceMemberRequest } from "../schema/mutation"
 
 export const inviteWorkspaceMemberAction = workspaceActionClient
@@ -51,9 +47,9 @@ export const inviteWorkspaceMemberAction = workspaceActionClient
       )
     }
 
-    const permissions = isCommunity()
-      ? getSuperAdminPermissions()
-      : normalizeContactsPermissions(parsedInput.permissions)
+    // Wesal One: granular member permissions on every edition (upstream
+    // community forces super admin). Enforcement is edition-independent.
+    const permissions = normalizeContactsPermissions(parsedInput.permissions)
 
     const invitation = await invitationService.create({
       workspaceId,

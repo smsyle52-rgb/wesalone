@@ -4,7 +4,6 @@ import type { WorkspaceMemberPermissions } from "@chatbotx.io/database/partials"
 import { SwitchField } from "@chatbotx.io/ui/components/form/switch-field"
 import { useTranslations } from "next-intl"
 import type { UseFormReturn } from "react-hook-form"
-import { isCommunity } from "@/env"
 import { useWorkspaceMemberPermissionsCoupling } from "../hooks/use-permissions-coupling"
 
 type WorkspaceMemberPermissionFieldsProps<
@@ -29,7 +28,6 @@ export function WorkspaceMemberPermissionFields<
   return (
     <>
       <SwitchField
-        disabled={isCommunity()}
         formItemClassName="flex flex-row-reverse items-center justify-end gap-2"
         label={t("fields.permissions.superAdmin")}
         name="permissions.superAdmin"

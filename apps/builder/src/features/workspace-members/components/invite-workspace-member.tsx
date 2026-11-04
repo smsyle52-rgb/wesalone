@@ -29,7 +29,7 @@ import { UpgradePlanButton } from "@/features/billing/upgrade-plan-button"
 import { useInvalidateUsers } from "@/features/users/provider/user-hook"
 import { useWorkspaceId } from "@/hooks/routing"
 import { inviteWorkspaceMemberAction } from "../actions/invite-workspace-member.action"
-import { getSuperAdminPermissions } from "../helpers"
+import { getStaffPermissions } from "../helpers"
 import { inviteWorkspaceMemberRequest } from "../schema/mutation"
 import { WorkspaceMemberPermissionFields } from "./workspace-member-permission-fields"
 export function InviteWorkspaceMemberDialog({
@@ -180,7 +180,7 @@ export function AddWorkspaceMemberForm({
         formProps: {
           mode: "onChange",
           defaultValues: {
-            permissions: getSuperAdminPermissions(),
+            permissions: getStaffPermissions(),
           },
         },
       },

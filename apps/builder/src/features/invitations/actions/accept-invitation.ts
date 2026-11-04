@@ -15,8 +15,6 @@ import { createId } from "@chatbotx.io/utils"
 import { cookies } from "next/headers"
 import { getTranslations } from "next-intl/server"
 import { z } from "zod"
-import { isCommunity } from "@/env"
-import { getSuperAdminPermissions } from "@/features/workspace-members/helpers"
 import { getDomainFromHeader } from "@/lib/domain"
 import { authActionClient } from "@/lib/safe-action"
 
@@ -67,12 +65,9 @@ export const acceptInvitationAction = authActionClient
       }
     }
 
-    // Defense in depth: even though invite-time normalization is the source of
-    // truth, re-force full super-admin permissions for community here so a row
-    // written by any other path can't grant a restricted community member.
-    const permissions = isCommunity()
-      ? getSuperAdminPermissions()
-      : invitation.permissions
+    // Wesal One: the invitation's stored (invite-time normalized) permissions
+    // apply on every edition, so a restricted invite yields a restricted member.
+    const permissions = invitation.permissions
 
     await workspaceMemberService.create({
       data: {

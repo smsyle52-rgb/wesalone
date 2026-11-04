@@ -250,16 +250,16 @@ describe("inviteWorkspaceMemberAction", () => {
     expect(mockInvitationCreate).not.toHaveBeenCalled()
   })
 
-  test("forces full super-admin permissions for community invitations", async () => {
+  test("keeps granular invite permissions on community edition", async () => {
     mockCurrentMember()
     mockIsCommunity.mockReturnValue(true)
 
     await (inviteWorkspaceMemberAction as (props: unknown) => Promise<unknown>)(
-      actionCtx(),
+      actionCtx(assignedOnlyPermissions),
     )
 
     const insertedValues = getInsertedValues()
-    expect(insertedValues.permissions).toEqual(fullPermissions)
+    expect(insertedValues.permissions).toEqual(assignedOnlyPermissions)
   })
 
   test("normalizes full contacts permissions outside community edition", async () => {
@@ -334,13 +334,13 @@ describe("updateWorkspaceMemberAction", () => {
     })
   })
 
-  test("forces full super-admin permissions for community updates", async () => {
+  test("keeps granular update permissions on community edition", async () => {
     mockIsCommunity.mockReturnValue(true)
     mockFindByIdOrFail.mockResolvedValue({
       id: MEMBER_ID,
       userId: MEMBER_USER_ID,
       workspaceId: WORKSPACE_ID,
-      permissions: normalizedGranularPermissions,
+      permissions: fullPermissions,
     })
 
     await (updateWorkspaceMemberAction as (props: unknown) => Promise<unknown>)(
@@ -350,7 +350,7 @@ describe("updateWorkspaceMemberAction", () => {
     expect(mockUpdateMember).toHaveBeenCalledWith({
       id: MEMBER_ID,
       workspaceId: WORKSPACE_ID,
-      data: { ...updateInput, permissions: fullPermissions },
+      data: { ...updateInput, permissions: normalizedGranularPermissions },
       revokeRealtime: true,
     })
   })

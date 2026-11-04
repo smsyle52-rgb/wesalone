@@ -179,14 +179,14 @@ describe("acceptInvitationAction", () => {
     expect(getSuperAdminPermissions).not.toHaveBeenCalled()
   })
 
-  test("forces super-admin permissions on community edition regardless of invitation permissions", async () => {
+  test("uses the invitation's stored permissions on community edition too", async () => {
     isCommunity.mockReturnValue(true)
 
     await invoke()
 
     expect(workspaceMemberServiceCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ permissions: { superAdmin: true } }),
+        data: expect.objectContaining({ permissions: { superAdmin: false } }),
       }),
     )
   })
