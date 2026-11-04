@@ -1,3 +1,4 @@
+nodeLinker: hoisted
 allowBuilds:
   dtrace-provider: false
   esbuild: true

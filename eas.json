@@ -9,7 +9,8 @@
         "BRAND": "wesalone",
         "API_BASE_URL": "https://wesal.one",
         "WS_URL": "https://wesal.one/ws/"
-      }
+      },
+      "pnpm": "11.15.1"
     },
     "development": {
       "extends": "base",
