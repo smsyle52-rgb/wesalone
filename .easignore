@@ -37,10 +37,6 @@ yarn-error.*
 !.env.example
 
 # brand overlays (white-label customer brands live outside this repo — see docs/white-label.md)
-brands/*
-!brands/chatbotx/
-!brands/_template/
-!brands/wesalone/
 
 # typescript
 *.tsbuildinfo
