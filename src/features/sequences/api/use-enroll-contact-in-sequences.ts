@@ -1,8 +1,8 @@
+import { apiRestBaseUrl } from '@/api/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { getAuthToken } from '@/api/auth-token';
 import { queryKeys } from '@/api/query-keys';
-import { env } from '@/config/env';
 import { FEATURES } from '@/config/features';
 
 /**
@@ -27,17 +27,14 @@ async function postEnrollContactsInSequences(
   body: EnrollContactsInSequencesRequest,
 ): Promise<void> {
   const token = await getAuthToken();
-  const response = await fetch(
-    `${env.apiBaseUrl}/api/workspaces/${workspaceId}/contacts/sequences`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
+  const response = await fetch(`${apiRestBaseUrl}/workspaces/${workspaceId}/contacts/sequences`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-  );
+    body: JSON.stringify(body),
+  });
 
   if (!response.ok) {
     let message = response.statusText;

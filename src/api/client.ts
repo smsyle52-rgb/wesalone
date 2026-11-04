@@ -28,6 +28,10 @@ const authMiddleware: Middleware = {
  * multipart upload route are separate surfaces under plain `/api` — see auth-endpoints.ts and
  * send-message-multipart.ts).
  */
-export const apiClient = createClient<paths>({ baseUrl: `${env.apiBaseUrl}/api` });
+/** Wesal One serves the session-authed REST surface for this app at `/api/mobile` (bearer-only);
+ * plain `/api` there is the workspace-token public API. Auth stays at `/api/auth`. */
+export const apiRestBaseUrl = `${env.apiBaseUrl}/api/mobile`;
+
+export const apiClient = createClient<paths>({ baseUrl: apiRestBaseUrl });
 
 apiClient.use(authMiddleware);

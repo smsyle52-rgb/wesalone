@@ -1,7 +1,7 @@
+import { apiRestBaseUrl } from '@/api/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { isWorkspaceQuery } from '@/api/query-keys';
-import { env } from '@/config/env';
 import { FEATURES } from '@/config/features';
 import { authorizedFetch } from '@/features/contacts/api/contact-fetch';
 import type { ListContactsResponse } from '@/features/contacts/api/use-contacts-infinite';
@@ -20,7 +20,7 @@ import {
 class FeatureUnavailableError extends Error {}
 
 async function deleteContactRequest(workspaceId: string, contactId: string): Promise<void> {
-  await authorizedFetch(`${env.apiBaseUrl}/api/workspaces/${workspaceId}/contacts/${contactId}`, {
+  await authorizedFetch(`${apiRestBaseUrl}/workspaces/${workspaceId}/contacts/${contactId}`, {
     method: 'DELETE',
   });
 }

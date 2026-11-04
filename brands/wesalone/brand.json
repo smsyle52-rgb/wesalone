@@ -1,0 +1,21 @@
+{
+  "id": "wesalone",
+  "displayName": "وصال ون",
+  "slug": "wesal-one",
+  "scheme": "chatconnectxapp",
+  "ios": {
+    "bundleIdentifier": "one.wesal.app"
+  },
+  "android": {
+    "package": "one.wesal.app",
+    "adaptiveIconBackgroundColor": "#030B24"
+  },
+  "colors": {
+    "brand": "#0E86D4",
+    "splashBackground": "#030B24"
+  },
+  "eas": {
+    "projectId": "",
+    "owner": ""
+  }
+}

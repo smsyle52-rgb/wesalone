@@ -34,11 +34,10 @@ export function useContactsInfinite(workspaceId: string | null, keyword: string)
     enabled: workspaceId !== null,
     initialPageParam: 1,
     queryFn: async ({ pageParam }): Promise<ListContactsResponse> => {
-      const { data, error } = await apiClient.GET('/workspaces/{workspaceId}/contacts', {
-        params: {
-          path: { workspaceId: workspaceId! },
-          query: { page: pageParam, perPage: PER_PAGE, keyword: keyword || undefined },
-        },
+      // Wesal One serves the contact list as `POST .../contacts/list` (body = list filters).
+      const { data, error } = await apiClient.POST('/workspaces/{workspaceId}/contacts/list', {
+        params: { path: { workspaceId: workspaceId! } },
+        body: { page: pageParam, perPage: PER_PAGE, keyword: keyword || undefined },
       });
       if (error) throw new ApiError(error);
       return data;

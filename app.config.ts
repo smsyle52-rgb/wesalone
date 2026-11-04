@@ -226,9 +226,9 @@ const config: ExpoConfig = {
     [
       'expo-notifications',
       {
-        // No dedicated notification icon asset exists yet (Android requires a flat white
-        // silhouette, distinct from the app icon) — falls back to Expo's generated default until
-        // one is designed. `color` tints that icon with the brand color.
+        // Android status-bar icon: a flat white silhouette (the adaptive monochrome asset),
+        // tinted with the brand color.
+        icon: `${assetsDir}/android-icon-monochrome.png`,
         color: brand.colors.brand,
       },
     ],
@@ -257,8 +257,7 @@ const config: ExpoConfig = {
     // (e.g. in `.env`, loaded by `expo start` through the standard EXPO_PUBLIC_ / dotenv support,
     // or exported in the shell before running Expo CLI commands).
     apiBaseUrl: process.env.API_BASE_URL ?? 'http://localhost:3123',
-    // Realtime PartyKit server. Web reads this from tenant settings; for mobile dev we default to
-    // the local partykit dev port until tenant-settings discovery is wired up.
+    // Realtime gateway base URL (Wesal One serves it at `<origin>/ws/`); see src/realtime/wesal-socket.ts.
     wsUrl: process.env.WS_URL ?? 'http://localhost:1999',
     // Mirrors the expo-localization plugin's supportsRTL above for Expo Go, which can't read the
     // native Info.plist/strings.xml values the plugin writes at build time.

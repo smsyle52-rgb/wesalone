@@ -1,7 +1,7 @@
+import { apiRestBaseUrl } from '@/api/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/api/query-keys';
-import { env } from '@/config/env';
 import { FEATURES } from '@/config/features';
 import { authorizedFetch } from '@/features/contacts/api/contact-fetch';
 import type { ContactDetail } from '@/features/contacts/api/use-contact-detail';
@@ -26,7 +26,7 @@ async function postBlockContact(
   action: 'block' | 'unblock',
 ): Promise<void> {
   await authorizedFetch(
-    `${env.apiBaseUrl}/api/workspaces/${workspaceId}/contacts/${contactId}/${action}`,
+    `${apiRestBaseUrl}/workspaces/${workspaceId}/contacts/${contactId}/${action}`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' } },
   );
 }

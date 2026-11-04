@@ -103,7 +103,7 @@ describe('sendMultipartMessage', () => {
 
     expect(xhr.openedMethod).toBe('POST');
     expect(xhr.openedUrl).toBe(
-      'https://test.invalid/api/workspaces/ws-1/conversations/conv-1/messages',
+      'https://test.invalid/api/mobile/workspaces/ws-1/conversations/conv-1/messages',
     );
 
     const form = xhr.sentBody as FormData;

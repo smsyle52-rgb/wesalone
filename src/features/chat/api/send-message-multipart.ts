@@ -1,6 +1,6 @@
+import { apiRestBaseUrl } from '@/api/client';
 import { getAuthToken } from '@/api/auth-token';
 import { ApiError } from '@/api/errors';
-import { env } from '@/config/env';
 
 /**
  * Chat message attachments go through the SAME message-create endpoint as text
@@ -74,7 +74,7 @@ function toApiError(status: number, body: unknown, fallbackMessage: string): Api
 
 export async function sendMultipartMessage(params: SendMultipartMessageParams): Promise<unknown> {
   const token = await getAuthToken();
-  const url = `${env.apiBaseUrl}/api/workspaces/${params.workspaceId}/conversations/${params.conversationId}/messages`;
+  const url = `${apiRestBaseUrl}/workspaces/${params.workspaceId}/conversations/${params.conversationId}/messages`;
 
   const form = new FormData();
   if (params.text) form.append('text', params.text);

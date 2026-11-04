@@ -134,7 +134,12 @@ export function parseRealtimeEvent(raw: string): RealtimeEventData | null {
   } catch {
     return null;
   }
+  return validateRealtimeEvent(parsed);
+}
 
+/** Same validation as `parseRealtimeEvent`, for an envelope that is already parsed — the Wesal One
+ * gateway sends events inside a `{ batch, seq }` frame, so each batch item arrives as an object. */
+export function validateRealtimeEvent(parsed: unknown): RealtimeEventData | null {
   if (!isObject(parsed)) return null;
   const { eventType, data } = parsed;
   if (typeof eventType !== 'string') return null;
