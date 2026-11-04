@@ -9869,5 +9869,13 @@
         }
       }
     }
+  },
+  "voiceNote": {
+    "record": "Səsli mesaj yaz",
+    "stop": "Dayandır və əlavə et",
+    "cancel": "Yazını ləğv et",
+    "micDenied": "Mikrofona giriş bloklanıb. Yazmaq üçün brauzerdə icazə verin.",
+    "unsupported": "Bu brauzer səs yaza bilmir.",
+    "failed": "Yazını emal etmək mümkün olmadı. Yenidən cəhd edin."
   }
 }

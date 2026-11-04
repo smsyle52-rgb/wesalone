@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Spraakbericht opnemen",
+    "stop": "Stoppen en bijvoegen",
+    "cancel": "Opname annuleren",
+    "micDenied": "Toegang tot de microfoon is geblokkeerd. Sta deze toe in je browser om op te nemen.",
+    "unsupported": "Deze browser kan geen audio opnemen.",
+    "failed": "De opname kon niet worden verwerkt. Probeer het opnieuw."
   }
 }

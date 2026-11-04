@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Enregistrer un message vocal",
+    "stop": "Arrêter et joindre",
+    "cancel": "Annuler l’enregistrement",
+    "micDenied": "L’accès au micro est bloqué. Autorisez-le dans votre navigateur pour enregistrer.",
+    "unsupported": "Ce navigateur ne peut pas enregistrer de son.",
+    "failed": "Impossible de traiter l’enregistrement. Veuillez réessayer."
   }
 }

@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Grabar mensaje de voz",
+    "stop": "Detener y adjuntar",
+    "cancel": "Cancelar grabación",
+    "micDenied": "Se bloqueó el acceso al micrófono. Permítelo en tu navegador para grabar.",
+    "unsupported": "Este navegador no puede grabar audio.",
+    "failed": "No se pudo procesar la grabación. Inténtalo de nuevo."
   }
 }

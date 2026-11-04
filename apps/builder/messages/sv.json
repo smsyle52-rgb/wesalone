@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Spela in röstmeddelande",
+    "stop": "Stoppa och bifoga",
+    "cancel": "Avbryt inspelning",
+    "micDenied": "Mikrofonåtkomst blockerades. Tillåt den i webbläsaren för att spela in.",
+    "unsupported": "Den här webbläsaren kan inte spela in ljud.",
+    "failed": "Inspelningen kunde inte bearbetas. Försök igen."
   }
 }

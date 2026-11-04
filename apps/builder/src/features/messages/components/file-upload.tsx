@@ -6,6 +6,35 @@ import { useImperativeHandle } from "react"
 import { useDropzone } from "react-dropzone"
 import { Controller, useFormContext } from "react-hook-form"
 
+function FileThumb({ file }: { file: FileWithPreview }) {
+  if (file.type.startsWith("image")) {
+    return (
+      <Image
+        alt="file"
+        className="h-16 w-auto"
+        height={64}
+        onLoad={() => {
+          URL.revokeObjectURL(file.preview)
+        }}
+        src={file.preview}
+        width={64}
+      />
+    )
+  }
+  if (file.type.startsWith("audio")) {
+    return (
+      // biome-ignore lint/a11y/useMediaCaption: agent-recorded voice note preview
+      <audio
+        className="h-10 max-w-64"
+        controls
+        preload="metadata"
+        src={file.preview}
+      />
+    )
+  }
+  return <div className="truncate bg-white px-2 py-1 text-sm">{file.name}</div>
+}
+
 export const FileUploadPreview = ({
   ref,
   maxFiles = 1,
@@ -46,21 +75,8 @@ export const FileUploadPreview = ({
 
   const thumbs = getValues("files").map((file: FileWithPreview) => (
     <div className="relative rounded-md border" key={file.name}>
-      <div className="max-w-36 overflow-hidden rounded-md">
-        {file.type.startsWith("image") ? (
-          <Image
-            alt="file"
-            className="h-16 w-auto"
-            height={64}
-            onLoad={() => {
-              URL.revokeObjectURL(file.preview)
-            }}
-            src={file.preview}
-            width={64}
-          />
-        ) : (
-          <div className="truncate bg-white px-2 py-1 text-sm">{file.name}</div>
-        )}
+      <div className="max-w-64 overflow-hidden rounded-md">
+        <FileThumb file={file} />
       </div>
 
       <Button

@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Sprachnachricht aufnehmen",
+    "stop": "Stoppen und anhängen",
+    "cancel": "Aufnahme abbrechen",
+    "micDenied": "Der Mikrofonzugriff wurde blockiert. Erlaube ihn im Browser, um aufzunehmen.",
+    "unsupported": "Dieser Browser kann keinen Ton aufnehmen.",
+    "failed": "Die Aufnahme konnte nicht verarbeitet werden. Bitte versuche es erneut."
   }
 }

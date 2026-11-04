@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Record voice message",
+    "stop": "Stop and attach",
+    "cancel": "Cancel recording",
+    "micDenied": "Microphone access was blocked. Allow it in your browser to record.",
+    "unsupported": "This browser can't record audio.",
+    "failed": "Couldn't process the recording. Please try again."
   }
 }

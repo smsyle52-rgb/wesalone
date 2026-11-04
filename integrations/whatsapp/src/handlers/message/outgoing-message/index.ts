@@ -123,7 +123,14 @@ function* convertMessageToWhatsappMessage(
           yield new Video(attachment.url ?? "")
           continue
         case "audio":
-          yield new Audio(attachment.url ?? "")
+          // Ogg/Opus (what the inbox recorder produces) goes out as a voice
+          // note: shown with the play/waveform UI, auto-downloaded, and
+          // transcribable by the recipient. Other audio stays a file.
+          yield new Audio(
+            attachment.url ?? "",
+            false,
+            isWhatsappVoiceNoteMimeType(attachment.mimeType),
+          )
           continue
         default:
           yield new Document(attachment.url ?? "")
@@ -133,6 +140,12 @@ function* convertMessageToWhatsappMessage(
   } else {
     yield new Text(message.text ?? "not handled yet")
   }
+}
+
+/** WhatsApp only plays Ogg with the Opus codec as a voice note. */
+export function isWhatsappVoiceNoteMimeType(mimeType?: string | null): boolean {
+  const base = (mimeType ?? "").split(";")[0]?.trim().toLowerCase()
+  return base === "audio/ogg" || base === "audio/opus"
 }
 
 function* convertFlowStepToWhatsappMessage(

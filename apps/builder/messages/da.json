@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Optag talebesked",
+    "stop": "Stop og vedhæft",
+    "cancel": "Annuller optagelse",
+    "micDenied": "Adgang til mikrofonen blev blokeret. Tillad den i din browser for at optage.",
+    "unsupported": "Denne browser kan ikke optage lyd.",
+    "failed": "Optagelsen kunne ikke behandles. Prøv igen."
   }
 }

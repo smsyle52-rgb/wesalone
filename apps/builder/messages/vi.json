@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Ghi âm tin nhắn thoại",
+    "stop": "Dừng và đính kèm",
+    "cancel": "Hủy ghi âm",
+    "micDenied": "Quyền truy cập micrô đã bị chặn. Hãy cho phép trong trình duyệt để ghi âm.",
+    "unsupported": "Trình duyệt này không thể ghi âm.",
+    "failed": "Không thể xử lý bản ghi. Vui lòng thử lại."
   }
 }

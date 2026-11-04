@@ -57,6 +57,7 @@ import { FileUploadPreview } from "./file-upload"
 import { InputMenu } from "./input-menu"
 import { MediaFilePreview } from "./media-file-preview"
 import { ThreadControlLockedComposer } from "./thread-control-locked-composer"
+import { VoiceRecorder } from "./voice-recorder"
 
 const CHANNEL_WINDOW_SECONDS: Record<ChannelType, number> = {
   api: 0,
@@ -724,6 +725,20 @@ export const MessageInput = () => {
                   >
                     <PaperclipIcon aria-hidden="true" />
                   </Button>
+                  <VoiceRecorder
+                    disabled={hasFiles}
+                    onRecorded={(file) =>
+                      form.setValue(
+                        "files",
+                        [
+                          Object.assign(file, {
+                            preview: URL.createObjectURL(file),
+                          }),
+                        ],
+                        { shouldValidate: true },
+                      )
+                    }
+                  />
                   <MediaLibraryTrigger
                     multiple={true}
                     onSelect={(file) => {

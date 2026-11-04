@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Înregistrează mesaj vocal",
+    "stop": "Oprește și atașează",
+    "cancel": "Anulează înregistrarea",
+    "micDenied": "Accesul la microfon a fost blocat. Permite-l în browser pentru a înregistra.",
+    "unsupported": "Acest browser nu poate înregistra audio.",
+    "failed": "Înregistrarea nu a putut fi procesată. Încearcă din nou."
   }
 }

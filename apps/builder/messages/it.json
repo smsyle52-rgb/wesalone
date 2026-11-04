@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Registra messaggio vocale",
+    "stop": "Interrompi e allega",
+    "cancel": "Annulla registrazione",
+    "micDenied": "L’accesso al microfono è bloccato. Consentilo nel browser per registrare.",
+    "unsupported": "Questo browser non può registrare audio.",
+    "failed": "Impossibile elaborare la registrazione. Riprova."
   }
 }

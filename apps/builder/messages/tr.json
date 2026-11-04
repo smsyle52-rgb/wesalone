@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Sesli mesaj kaydet",
+    "stop": "Durdur ve ekle",
+    "cancel": "Kaydı iptal et",
+    "micDenied": "Mikrofon erişimi engellendi. Kayıt için tarayıcıda izin verin.",
+    "unsupported": "Bu tarayıcı ses kaydedemiyor.",
+    "failed": "Kayıt işlenemedi. Lütfen tekrar deneyin."
   }
 }

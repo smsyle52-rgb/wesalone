@@ -9869,5 +9869,13 @@
         }
       ]
     }
+  },
+  "voiceNote": {
+    "record": "Rekam pesan suara",
+    "stop": "Hentikan dan lampirkan",
+    "cancel": "Batalkan rekaman",
+    "micDenied": "Akses mikrofon diblokir. Izinkan di browser untuk merekam.",
+    "unsupported": "Browser ini tidak dapat merekam audio.",
+    "failed": "Rekaman tidak dapat diproses. Coba lagi."
   }
 }
