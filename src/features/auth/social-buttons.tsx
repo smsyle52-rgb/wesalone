@@ -6,6 +6,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { getSession, SOCIAL_CALLBACK_URL, startSocialSignIn } from '@/api/auth-endpoints';
 import { getAuthToken } from '@/api/auth-token';
+import { BrandIcon, GoogleLogo } from '@/components/ui/brand-icons';
 import { Button } from '@/components/ui/button';
 import { ErrorBanner } from '@/components/ui/error-banner';
 import { consumePendingDeepLink } from '@/lib/pending-deep-link';
@@ -80,6 +81,9 @@ export function SocialButtons() {
       <Button
         label={t('auth.continueWithGoogle')}
         variant="secondary"
+        size="lg"
+        fullWidth
+        leading={<GoogleLogo size={20} />}
         loading={loadingProvider === 'google'}
         disabled={loadingProvider !== null}
         onPress={() => handleSignIn('google')}
@@ -87,6 +91,9 @@ export function SocialButtons() {
       <Button
         label={t('auth.continueWithFacebook')}
         variant="secondary"
+        size="lg"
+        fullWidth
+        leading={<BrandIcon name="facebook" size={20} color="#1877F2" />}
         loading={loadingProvider === 'facebook'}
         disabled={loadingProvider !== null}
         onPress={() => handleSignIn('facebook')}
