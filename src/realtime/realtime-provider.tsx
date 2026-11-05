@@ -1,13 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { getAuthToken } from '@/api/auth-token';
 import { useWorkspaceStore } from '@/stores/use-workspace-store';
 
 import { invalidateWorkspaceQueries, useRealtimeAppState } from './app-state';
+import { RealtimeControlsContext } from './realtime-context';
 import { clearAllTypingTimers } from './typing-timers';
 import { resetConnectionStore, useConnectionStore } from './use-connection-store';
+import { useNetworkReachability } from './use-network-reachability';
 import { clearPendingConversationInvalidates, useRealtimeHandlers } from './use-realtime-handlers';
 import { WesalSocket } from './wesal-socket';
 
@@ -23,6 +26,7 @@ function ConnectedRealtimeProvider({
   const handleEvent = useRealtimeHandlers(queryClient, workspaceId);
   const setStatus = useConnectionStore((state) => state.setStatus);
   const markOpened = useConnectionStore((state) => state.markOpened);
+  const markFailed = useConnectionStore((state) => state.markFailed);
 
   // Reset during the first render, before the socket below can fire `onOpen` (see git history
   // for why an effect-based reset races the first open).
@@ -47,6 +51,7 @@ function ConnectedRealtimeProvider({
         markOpened();
       },
       onClose: () => setStatus('closed'),
+      onFailed: markFailed,
       onResync: () => invalidateWorkspaceQueries(queryClient, workspaceId),
     });
     socketRef.current = socket;
@@ -57,20 +62,39 @@ function ConnectedRealtimeProvider({
       clearAllTypingTimers();
       clearPendingConversationInvalidates();
     };
-  }, [workspaceId, queryClient, handleEvent, markOpened, setStatus]);
+  }, [workspaceId, queryClient, handleEvent, markOpened, markFailed, setStatus]);
 
   const handleBackground = useCallback(() => {
     socketRef.current?.suspend();
   }, []);
 
+  // The reconnect's `onOpen` owns the catch-up refetch, so foreground only resumes the socket.
   const handleForeground = useCallback(() => {
     socketRef.current?.resume();
-    invalidateWorkspaceQueries(queryClient, workspaceId);
-  }, [queryClient, workspaceId]);
+  }, []);
 
   useRealtimeAppState({ onBackground: handleBackground, onForeground: handleForeground });
 
-  return children;
+  const handleNetworkRegained = useCallback(() => {
+    // A stopped (backgrounded) connection must not be revived by a network event.
+    if (AppState.currentState === 'active') socketRef.current?.resume();
+  }, []);
+
+  useNetworkReachability({ onRegained: handleNetworkRegained });
+
+  const controls = useMemo(
+    () => ({
+      retry: () => {
+        setStatus('connecting');
+        socketRef.current?.retry();
+      },
+    }),
+    [setStatus],
+  );
+
+  return (
+    <RealtimeControlsContext.Provider value={controls}>{children}</RealtimeControlsContext.Provider>
+  );
 }
 
 /** Only connects once a workspace is selected — defensive, since the tabs layout already guards

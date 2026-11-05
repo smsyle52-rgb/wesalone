@@ -111,7 +111,23 @@
     "unarchiveConfirm": "استعادة هذه المحادثة من الأرشيف؟",
     "disableBotHint": "يوقف البوت لمدة 24 ساعة",
     "botResumesAt": "يعود البوت الساعة {{time}}",
-    "openActions": "فتح إجراءات المحادثة"
+    "openActions": "فتح إجراءات المحادثة",
+    "yesterday": "Yesterday",
+    "preview": {
+      "you": "You",
+      "bot": "Bot",
+      "failed": "Failed to send",
+      "deleted": "Message deleted",
+      "image": "Photo",
+      "gif": "GIF",
+      "video": "Video",
+      "audio": "Audio",
+      "file": "File"
+    },
+    "emptyUnread": "You're all caught up",
+    "emptyFollowing": "No followed conversations",
+    "emptyBot": "No conversations handled by the bot",
+    "inboxTitle": "Inbox"
   },
   "chat": {
     "typeAMessage": "اكتب رسالة",
@@ -288,7 +304,14 @@
     "online": "عاد الاتصال",
     "connecting": "جارٍ الاتصال…",
     "reconnecting": "جارٍ إعادة الاتصال…",
-    "offline": "أنت غير متصل"
+    "offline": "أنت غير متصل",
+    "waitingNetwork": "Waiting for network…",
+    "updating": "Updating…",
+    "failedTitle": "Live updates stopped",
+    "failedRevoked": "You no longer have access to this workspace's live updates.",
+    "failedAuth": "We couldn't authorize the live connection.",
+    "failedGeneric": "The live connection stopped unexpectedly.",
+    "retry": "Retry"
   },
   "notifications": {
     "androidChannelName": "الإشعارات"

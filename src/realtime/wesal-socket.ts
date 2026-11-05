@@ -120,6 +120,8 @@ export type WesalSocketOptions = {
   onEvents: (events: RealtimeEventData[]) => void;
   onOpen?: (isReconnect: boolean) => void;
   onClose?: () => void;
+  /** Retrying can never succeed on its own (token refused or the session was revoked). */
+  onFailed?: (reason: 'revoked' | 'auth') => void;
   /** Server asked for a full refetch (close 4002) or sent a frame we could not read. */
   onResync?: () => void;
 };
@@ -129,6 +131,7 @@ export class WesalSocket {
   private socket: WebSocket | null = null;
   private connecting = false;
   private closed = false;
+  private failed = false;
   private attempt = 0;
   private hasOpened = false;
   private lastSeq: string | null = null;
@@ -140,13 +143,13 @@ export class WesalSocket {
   constructor(private readonly options: WesalSocketOptions) {}
 
   connect = (): void => {
-    if (this.closed || this.connecting || this.socket || this.reconnectTimer) return;
+    if (this.closed || this.failed || this.connecting || this.socket || this.reconnectTimer) return;
     this.connecting = true;
     this.openSocket()
       .catch((error: unknown) => {
         if (__DEV__) console.warn('[realtime] connect failed', error);
         if (error instanceof RealtimeFatalError) {
-          this.close();
+          this.fail('auth');
           return;
         }
         this.scheduleReconnect(0, '');
@@ -173,7 +176,7 @@ export class WesalSocket {
   };
 
   resume = (): void => {
-    if (this.closed) return;
+    if (this.closed || this.failed) return;
     if (this.retryNotBefore !== null && Date.now() < this.retryNotBefore) return;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -181,6 +184,26 @@ export class WesalSocket {
     }
     this.connect();
   };
+
+  /** Starts over after a terminal failure (the user tapped "retry"). */
+  retry = (): void => {
+    if (this.closed) return;
+    this.failed = false;
+    this.attempt = 0;
+    this.retryNotBefore = null;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    this.connect();
+  };
+
+  private fail(reason: 'revoked' | 'auth'): void {
+    this.failed = true;
+    this.clearTimers();
+    const socket = this.socket;
+    this.socket = null;
+    socket?.close();
+    this.options.onFailed?.(reason);
+  }
 
   private async openSocket(): Promise<void> {
     const bearer = await this.options.getBearerToken();
@@ -227,7 +250,11 @@ export class WesalSocket {
   }
 
   private scheduleReconnect(code: number, reason: string): void {
-    if (this.closed || code === CLOSE_CODE.revoked) return;
+    if (this.closed) return;
+    if (code === CLOSE_CODE.revoked) {
+      this.fail('revoked');
+      return;
+    }
     if (code === CLOSE_CODE.resync) {
       // Replay cannot cover the gap: start fresh and refetch everything.
       this.lastSeq = null;

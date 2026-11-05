@@ -25,7 +25,12 @@ type ListConversationsOperation =
   operations['conversationsAPI.listConversationsByPOSTAuthenticatedAPI'];
 export type ListConversationsResponse =
   ListConversationsOperation['responses'][200]['content']['application/json'];
-export type ConversationListItem = ListConversationsResponse['data'][number];
+/** The waiting/SLA fields are newer than this app's generated schema; they are optional so the
+ * waiting chip simply stays hidden when the server does not send them. */
+export type ConversationListItem = ListConversationsResponse['data'][number] & {
+  awaitingHumanReplySince?: string | null;
+  responseSlaBreachingAt?: string | null;
+};
 
 const PER_PAGE = 30;
 

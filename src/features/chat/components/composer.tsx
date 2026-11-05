@@ -424,6 +424,7 @@ export function Composer({ workspaceId, conversationId, style }: ComposerProps) 
                     accessibilityLabel={t('chat.send')}
                     onPress={handleSend}
                     disabled={!hasContent || Boolean(quotaBlocked)}
+                    hitSlop={4}
                     style={[
                       styles.sendButton,
                       {
@@ -435,7 +436,7 @@ export function Composer({ workspaceId, conversationId, style }: ComposerProps) 
                   >
                     <Icon
                       name={isEditing ? 'check' : 'send-horizontal'}
-                      size={24}
+                      size={20}
                       color={hasContent ? colors.onBrand : colors.textTertiary}
                       flipRTL={!isEditing}
                     />
@@ -519,8 +520,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   sendButton: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
+    marginBottom: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
