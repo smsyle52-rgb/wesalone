@@ -16,6 +16,7 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
 import { I18nManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useTranslation } from 'react-i18next';
 
 import { getSession } from '@/api/auth-endpoints';
@@ -185,26 +186,28 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
-        <BottomSheetModalProvider>
-          <ThemeProvider value={getNavigationTheme(scheme)}>
-            <ToastProvider>
-              <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="camera" options={{ presentation: 'fullScreenModal' }} />
-                <Stack.Screen
-                  name="image-viewer"
-                  options={{
-                    presentation: 'fullScreenModal',
-                    animation: 'fade',
-                    contentStyle: { backgroundColor: 'transparent' },
-                  }}
-                />
-              </Stack>
-            </ToastProvider>
-          </ThemeProvider>
-        </BottomSheetModalProvider>
-      </QueryClientProvider>
+      <KeyboardProvider>
+        <QueryClientProvider client={queryClient}>
+          <BottomSheetModalProvider>
+            <ThemeProvider value={getNavigationTheme(scheme)}>
+              <ToastProvider>
+                <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="camera" options={{ presentation: 'fullScreenModal' }} />
+                  <Stack.Screen
+                    name="image-viewer"
+                    options={{
+                      presentation: 'fullScreenModal',
+                      animation: 'fade',
+                      contentStyle: { backgroundColor: 'transparent' },
+                    }}
+                  />
+                </Stack>
+              </ToastProvider>
+            </ThemeProvider>
+          </BottomSheetModalProvider>
+        </QueryClientProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

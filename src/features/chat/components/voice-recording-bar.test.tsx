@@ -1,6 +1,11 @@
-import { act, renderHook } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
 
-import { formatRecordingTime, useVoiceRecording, voiceNoteFileName } from './voice-recording-bar';
+import {
+  formatRecordingTime,
+  useVoiceRecording,
+  voiceNoteFileName,
+  VoiceRecordingSession,
+} from './voice-recording-bar';
 
 // jest.mock calls below are hoisted above these imports by babel-jest.
 
@@ -97,5 +102,44 @@ describe('useVoiceRecording', () => {
     expect(onDenied).toHaveBeenCalled();
     expect(mockRecorder.record).not.toHaveBeenCalled();
     expect(result.current.isActive).toBe(false);
+  });
+});
+
+describe('VoiceRecordingSession', () => {
+  it('starts recording on mount and hands back the file on send', async () => {
+    const onFinished = jest.fn();
+    const screen = await render(
+      <VoiceRecordingSession
+        onPermissionDenied={jest.fn()}
+        onError={jest.fn()}
+        onFinished={onFinished}
+      />,
+    );
+    await act(async () => {});
+    expect(mockRecorder.record).toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('chat.sendVoiceNote'));
+    });
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ uri: 'file:///cache/recording.m4a', mimeType: 'audio/mp4' }),
+    );
+  });
+
+  it('ends without a file when the microphone is denied', async () => {
+    mockRequestPermissions.mockResolvedValue({ granted: false });
+    const onFinished = jest.fn();
+    const onPermissionDenied = jest.fn();
+    await render(
+      <VoiceRecordingSession
+        onPermissionDenied={onPermissionDenied}
+        onError={jest.fn()}
+        onFinished={onFinished}
+      />,
+    );
+    await act(async () => {});
+    expect(onPermissionDenied).toHaveBeenCalled();
+    expect(onFinished).toHaveBeenCalledWith(null);
+    expect(mockRecorder.record).not.toHaveBeenCalled();
   });
 });

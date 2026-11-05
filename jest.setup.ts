@@ -101,3 +101,9 @@ jest.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
   }
   originalConsoleError(...args);
 });
+
+jest.mock('react-native-keyboard-controller', () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories cannot
+  // use ESM imports
+  require('react-native-keyboard-controller/jest'),
+);

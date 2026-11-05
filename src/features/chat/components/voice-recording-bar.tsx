@@ -166,3 +166,65 @@ const styles = StyleSheet.create({
   hint: { flexShrink: 1 },
   sendButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
 });
+
+interface VoiceRecordingSessionProps {
+  onPermissionDenied: () => void;
+  onError: () => void;
+  /** Called once the session ends: with the recorded file on send, or null on cancel/failure. */
+  onFinished: (asset: VoiceNoteAsset | null) => void;
+}
+
+/**
+ * Owns the microphone for one voice note. Mounted only while recording, so a chat that is just
+ * being read never creates a native recorder or polls its status. Starts recording on mount.
+ */
+export function VoiceRecordingSession({
+  onPermissionDenied,
+  onError,
+  onFinished,
+}: VoiceRecordingSessionProps) {
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const handleDenied = useCallback(() => {
+    setPermissionDenied(true);
+    onPermissionDenied();
+  }, [onPermissionDenied]);
+  const voice = useVoiceRecording(handleDenied);
+  const startedRef = useRef(false);
+  const finishingRef = useRef(false);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    voice.start().catch(() => {
+      onError();
+      onFinished(null);
+    });
+  }, [voice, onError, onFinished]);
+
+  useEffect(() => {
+    if (permissionDenied) onFinished(null);
+  }, [permissionDenied, onFinished]);
+
+  const finish = useCallback(
+    async (send: boolean) => {
+      if (finishingRef.current) return;
+      finishingRef.current = true;
+      try {
+        onFinished(await voice.finish(send));
+      } catch {
+        onError();
+        onFinished(null);
+      }
+    },
+    [voice, onError, onFinished],
+  );
+
+  return (
+    <VoiceRecordingBar
+      durationMillis={voice.durationMillis}
+      onCancel={() => finish(false)}
+      onSend={() => finish(true)}
+      onLimitReached={() => finish(true)}
+    />
+  );
+}

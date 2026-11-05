@@ -36,7 +36,7 @@ import { ComposerActionsSheet } from './composer-actions-sheet';
 import { FlowPickerSheet } from './flow-picker-sheet';
 import { QuotaBanner } from './quota-banner';
 import { SavedRepliesSheet } from './saved-replies-sheet';
-import { useVoiceRecording, VoiceRecordingBar } from './voice-recording-bar';
+import { type VoiceNoteAsset, VoiceRecordingSession } from './voice-recording-bar';
 
 interface ComposerProps {
   workspaceId: string;
@@ -93,10 +93,13 @@ export function Composer({ workspaceId, conversationId, style }: ComposerProps) 
     transform: [{ scale: sendButtonScale.value }],
   }));
 
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const handleMicPermissionDenied = useCallback(() => {
     toast({ message: t('chat.micPermissionDenied'), tone: 'danger' });
   }, [t, toast]);
-  const voice = useVoiceRecording(handleMicPermissionDenied);
+  const handleVoiceNoteError = useCallback(() => {
+    toast({ message: t('chat.voiceNoteFailed'), tone: 'danger' });
+  }, [t, toast]);
 
   const hasContent = draft.trim().length > 0;
   const isEditing = composerMode?.type === 'edit';
@@ -200,26 +203,22 @@ export function Composer({ workspaceId, conversationId, style }: ComposerProps) 
     }
   }
 
-  async function handleStartVoiceNote() {
+  function handleStartVoiceNote() {
     if (quotaBlocked) return;
-    try {
-      await voice.start();
-    } catch {
-      toast({ message: t('chat.voiceNoteFailed'), tone: 'danger' });
-    }
+    setIsRecordingVoice(true);
   }
 
-  async function handleFinishVoiceNote(send: boolean) {
-    try {
-      const asset = await voice.finish(send);
-      if (asset) {
-        triggerHaptic('light');
-        await sendAssets([asset]);
-      }
-    } catch {
-      toast({ message: t('chat.voiceNoteFailed'), tone: 'danger' });
-    }
-  }
+  const handleVoiceNoteFinished = useCallback(
+    (asset: VoiceNoteAsset | null) => {
+      setIsRecordingVoice(false);
+      if (!asset) return;
+      triggerHaptic('light');
+      void sendAssets([asset]);
+    },
+    // sendAssets is recreated each render; the session only calls this once, at the end.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   function handleCamera() {
     actionsSheetRef.current?.dismiss();
@@ -342,12 +341,11 @@ export function Composer({ workspaceId, conversationId, style }: ComposerProps) 
           { padding: spacing.sm, gap: spacing.xs, borderTopColor: colors.borderSubtle },
         ]}
       >
-        {voice.isActive ? (
-          <VoiceRecordingBar
-            durationMillis={voice.durationMillis}
-            onCancel={() => handleFinishVoiceNote(false)}
-            onSend={() => handleFinishVoiceNote(true)}
-            onLimitReached={() => handleFinishVoiceNote(true)}
+        {isRecordingVoice ? (
+          <VoiceRecordingSession
+            onPermissionDenied={handleMicPermissionDenied}
+            onError={handleVoiceNoteError}
+            onFinished={handleVoiceNoteFinished}
           />
         ) : (
           <>
