@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Renunță la înregistrare",
     "recordingVoiceNote": "Se înregistrează…",
     "micPermissionDenied": "Accesul la microfon este dezactivat. Permite-l din Setări pentru a înregistra mesaje vocale.",
-    "voiceNoteFailed": "Mesajul vocal nu a putut fi înregistrat. Încearcă din nou."
+    "voiceNoteFailed": "Mesajul vocal nu a putut fi înregistrat. Încearcă din nou.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Contacte",

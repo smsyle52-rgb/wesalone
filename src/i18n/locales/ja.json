@@ -166,7 +166,15 @@
     "cancelVoiceNote": "録音を破棄",
     "recordingVoiceNote": "録音中…",
     "micPermissionDenied": "マイクへのアクセスがオフです。ボイスメッセージを録音するには設定で許可してください。",
-    "voiceNoteFailed": "ボイスメッセージを録音できませんでした。もう一度お試しください。"
+    "voiceNoteFailed": "ボイスメッセージを録音できませんでした。もう一度お試しください。",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "連絡先",

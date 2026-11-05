@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Opname verwijderen",
     "recordingVoiceNote": "Opnemen…",
     "micPermissionDenied": "Microfoontoegang staat uit. Sta deze toe in Instellingen om spraakberichten op te nemen.",
-    "voiceNoteFailed": "Het spraakbericht kon niet worden opgenomen. Probeer het opnieuw."
+    "voiceNoteFailed": "Het spraakbericht kon niet worden opgenomen. Probeer het opnieuw.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Contacten",

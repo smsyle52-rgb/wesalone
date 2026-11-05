@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Kassér optagelse",
     "recordingVoiceNote": "Optager…",
     "micPermissionDenied": "Mikrofonadgang er slået fra. Tillad den i Indstillinger for at optage talebeskeder.",
-    "voiceNoteFailed": "Talebeskeden kunne ikke optages. Prøv igen."
+    "voiceNoteFailed": "Talebeskeden kunne ikke optages. Prøv igen.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Kontakter",

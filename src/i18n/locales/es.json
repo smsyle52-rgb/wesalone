@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Descartar grabación",
     "recordingVoiceNote": "Grabando…",
     "micPermissionDenied": "El acceso al micrófono está desactivado. Actívalo en Ajustes para grabar mensajes de voz.",
-    "voiceNoteFailed": "No se pudo grabar el mensaje de voz. Inténtalo de nuevo."
+    "voiceNoteFailed": "No se pudo grabar el mensaje de voz. Inténtalo de nuevo.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Contactos",

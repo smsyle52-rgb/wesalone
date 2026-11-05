@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Elimina registrazione",
     "recordingVoiceNote": "Registrazione…",
     "micPermissionDenied": "L’accesso al microfono è disattivato. Consentilo nelle Impostazioni per registrare messaggi vocali.",
-    "voiceNoteFailed": "Impossibile registrare il messaggio vocale. Riprova."
+    "voiceNoteFailed": "Impossibile registrare il messaggio vocale. Riprova.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Contatti",

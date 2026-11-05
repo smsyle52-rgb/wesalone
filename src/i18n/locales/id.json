@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Buang rekaman",
     "recordingVoiceNote": "Merekam…",
     "micPermissionDenied": "Akses mikrofon nonaktif. Izinkan di Pengaturan untuk merekam pesan suara.",
-    "voiceNoteFailed": "Pesan suara tidak dapat direkam. Coba lagi."
+    "voiceNoteFailed": "Pesan suara tidak dapat direkam. Coba lagi.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Kontak",

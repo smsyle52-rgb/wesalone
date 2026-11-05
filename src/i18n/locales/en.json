@@ -172,7 +172,15 @@
     "cancelVoiceNote": "Discard recording",
     "recordingVoiceNote": "Recording…",
     "micPermissionDenied": "Microphone access is off. Allow it in Settings to record voice messages.",
-    "voiceNoteFailed": "Couldn't record the voice message. Please try again."
+    "voiceNoteFailed": "Couldn't record the voice message. Please try again.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Contacts",

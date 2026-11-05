@@ -166,7 +166,15 @@
     "cancelVoiceNote": "حذف التسجيل",
     "recordingVoiceNote": "جارٍ التسجيل…",
     "micPermissionDenied": "الوصول إلى الميكروفون متوقف. اسمح به من الإعدادات لتسجيل الرسائل الصوتية.",
-    "voiceNoteFailed": "تعذّر تسجيل الرسالة الصوتية. حاول مرة أخرى."
+    "voiceNoteFailed": "تعذّر تسجيل الرسالة الصوتية. حاول مرة أخرى.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "جهات الاتصال",

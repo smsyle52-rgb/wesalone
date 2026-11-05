@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Aufnahme verwerfen",
     "recordingVoiceNote": "Aufnahme läuft…",
     "micPermissionDenied": "Der Mikrofonzugriff ist deaktiviert. Erlaube ihn in den Einstellungen, um Sprachnachrichten aufzunehmen.",
-    "voiceNoteFailed": "Die Sprachnachricht konnte nicht aufgenommen werden. Bitte versuche es erneut."
+    "voiceNoteFailed": "Die Sprachnachricht konnte nicht aufgenommen werden. Bitte versuche es erneut.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Kontakte",

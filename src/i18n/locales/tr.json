@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Kaydı sil",
     "recordingVoiceNote": "Kaydediliyor…",
     "micPermissionDenied": "Mikrofon erişimi kapalı. Sesli mesaj kaydetmek için Ayarlar'dan izin verin.",
-    "voiceNoteFailed": "Sesli mesaj kaydedilemedi. Lütfen tekrar deneyin."
+    "voiceNoteFailed": "Sesli mesaj kaydedilemedi. Lütfen tekrar deneyin.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Kişiler",

@@ -166,7 +166,15 @@
     "cancelVoiceNote": "捨棄錄音",
     "recordingVoiceNote": "錄音中…",
     "micPermissionDenied": "麥克風存取已關閉。請在設定中允許以錄製語音訊息。",
-    "voiceNoteFailed": "無法錄製語音訊息，請再試一次。"
+    "voiceNoteFailed": "無法錄製語音訊息，請再試一次。",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "聯絡人",

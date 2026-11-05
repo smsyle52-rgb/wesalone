@@ -166,7 +166,15 @@
     "cancelVoiceNote": "מחיקת ההקלטה",
     "recordingVoiceNote": "מקליט…",
     "micPermissionDenied": "הגישה למיקרופון כבויה. אפשרו אותה בהגדרות כדי להקליט הודעות קוליות.",
-    "voiceNoteFailed": "לא ניתן להקליט את ההודעה הקולית. נסו שוב."
+    "voiceNoteFailed": "לא ניתן להקליט את ההודעה הקולית. נסו שוב.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "אנשי קשר",

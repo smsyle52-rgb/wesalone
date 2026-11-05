@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Supprimer l’enregistrement",
     "recordingVoiceNote": "Enregistrement…",
     "micPermissionDenied": "L’accès au micro est désactivé. Autorisez-le dans les Réglages pour enregistrer des messages vocaux.",
-    "voiceNoteFailed": "Impossible d’enregistrer le message vocal. Veuillez réessayer."
+    "voiceNoteFailed": "Impossible d’enregistrer le message vocal. Veuillez réessayer.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Contacts",

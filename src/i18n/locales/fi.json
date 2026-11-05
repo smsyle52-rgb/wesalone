@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Hylkää nauhoitus",
     "recordingVoiceNote": "Nauhoitetaan…",
     "micPermissionDenied": "Mikrofonin käyttö on pois päältä. Salli se asetuksista nauhoittaaksesi ääniviestejä.",
-    "voiceNoteFailed": "Ääniviestiä ei voitu nauhoittaa. Yritä uudelleen."
+    "voiceNoteFailed": "Ääniviestiä ei voitu nauhoittaa. Yritä uudelleen.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Yhteystiedot",

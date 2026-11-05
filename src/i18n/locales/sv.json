@@ -166,7 +166,15 @@
     "cancelVoiceNote": "Släng inspelning",
     "recordingVoiceNote": "Spelar in…",
     "micPermissionDenied": "Mikrofonåtkomst är avstängd. Tillåt den i Inställningar för att spela in röstmeddelanden.",
-    "voiceNoteFailed": "Röstmeddelandet kunde inte spelas in. Försök igen."
+    "voiceNoteFailed": "Röstmeddelandet kunde inte spelas in. Försök igen.",
+    "botStatusOn": "Bot",
+    "botStatusOff": "Bot off",
+    "botStatusPaused": "Paused",
+    "botStatusPausedUntil": "Paused · {{time}}",
+    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowRemaining": "{{time}} left",
+    "botPausedRemaining": "Bot paused · {{minutes}} min left",
+    "resumeBot": "Resume bot"
   },
   "contacts": {
     "title": "Kontakter",
