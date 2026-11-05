@@ -142,10 +142,28 @@ export function UpdateWorkspaceMemberForm({
 
   useEffect(() => {
     if (workspaceMember) {
+      // Load the saved notification settings too. Without them the switches
+      // always open as "off", and saving the dialog wiped the member's
+      // notifications. Stored JSON may miss keys, so absent means off.
+      const types = (workspaceMember.notificationTypes ?? {}) as Partial<
+        Record<"notifyAdmin" | "newMessageToHuman" | "newOrder", boolean>
+      >
+      const channels = (workspaceMember.notificationChannels ?? {}) as Partial<
+        Record<"messenger" | "email" | "telegram" | "browser", boolean>
+      >
       reset({
         permissions: workspaceMember.permissions,
-        // notificationTypes: workspaceMember.notificationTypes,
-        // notificationChannels: workspaceMember.notificationChannels,
+        notificationTypes: {
+          notifyAdmin: types.notifyAdmin === true,
+          newMessageToHuman: types.newMessageToHuman === true,
+          newOrder: types.newOrder === true,
+        },
+        notificationChannels: {
+          messenger: channels.messenger === true,
+          email: channels.email === true,
+          telegram: channels.telegram === true,
+          browser: channels.browser === true,
+        },
       })
     }
   }, [workspaceMember, reset])
