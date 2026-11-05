@@ -84,15 +84,18 @@ export async function sendMultipartMessage(params: SendMultipartMessageParams): 
   if (params.replyToMessageCreatedAt) {
     form.append('replyToMessageCreatedAt', params.replyToMessageCreatedAt);
   }
-  for (const attachment of params.attachments) {
+  params.attachments.forEach((attachment, index) => {
     // React Native's XHR/FormData accepts this `{ uri, type, name }` object in place of a real
     // Blob for file parts — the standard RN convention, distinct from web File/Blob uploads.
-    form.append('files', {
+    // Indexed keys (`files[0]`, `files[1]`…): the backend's oRPC form decoding uses bracket
+    // notation, and a lone plain `files` part decodes to a single File, not the array its schema
+    // requires — a one-attachment send (every voice note) was rejected with 400.
+    form.append(`files[${index}]`, {
       uri: attachment.uri,
       type: attachment.mimeType,
       name: attachment.fileName,
     } as unknown as Blob);
-  }
+  });
 
   return new Promise<unknown>((resolve, reject) => {
     const xhr = new XMLHttpRequest();

@@ -108,7 +108,7 @@ describe('sendMultipartMessage', () => {
 
     const form = xhr.sentBody as FormData;
     expect(getFormPart(form, 'clientId')).toBe('client-1');
-    expect(getFormPart(form, 'files')).toEqual({
+    expect(getFormPart(form, 'files[0]')).toEqual({
       uri: 'file:///tmp/photo.jpg',
       type: 'image/jpeg',
       name: 'photo.jpg',
