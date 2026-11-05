@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
+// Assigned-only scoping is covered by conversation-assignee-scope.test.ts;
+// here the caller is an unrestricted member.
+vi.mock("@/features/conversations/lib/assignee-scope", () => ({
+  resolveConversationAssigneeScope: vi.fn().mockResolvedValue(undefined),
+  resolveAssigneeScopeForUser: vi.fn().mockResolvedValue(undefined),
+  assertConversationVisible: vi.fn(),
+  assertConversationsVisible: vi.fn(),
+  assertContactsVisible: vi.fn(),
+  assertContactInboxVisible: vi.fn(),
+}))
+
 const {
   mockFindConversation,
   mockGetContact,

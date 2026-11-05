@@ -1,6 +1,17 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
+// Assigned-only scoping is covered by conversation-assignee-scope.test.ts;
+// here the caller is an unrestricted member.
+vi.mock("@/features/conversations/lib/assignee-scope", () => ({
+  resolveConversationAssigneeScope: vi.fn().mockResolvedValue(undefined),
+  resolveAssigneeScopeForUser: vi.fn().mockResolvedValue(undefined),
+  assertConversationVisible: vi.fn(),
+  assertConversationsVisible: vi.fn(),
+  assertContactsVisible: vi.fn(),
+  assertContactInboxVisible: vi.fn(),
+}))
+
 const mockUpdateReadStatus = vi.fn()
 
 vi.mock("@chatbotx.io/business", () => ({
@@ -31,6 +42,7 @@ describe("readConversationAction", () => {
   test("persists a read timestamp and returns exactly the value it wrote", async () => {
     const result = await readConversationAction({
       bindArgsParsedInputs: ["workspace-1", "conversation-1"],
+      ctx: { user: { id: "user-1" }, workspaceMemberPermissions: {} },
     } as never)
 
     expect(mockUpdateReadStatus).toHaveBeenCalledTimes(1)
@@ -47,6 +59,7 @@ describe("readConversationAction", () => {
     await expect(
       readConversationAction({
         bindArgsParsedInputs: ["workspace-1", "missing"],
+        ctx: { user: { id: "user-1" }, workspaceMemberPermissions: {} },
       } as never),
     ).rejects.toThrow("Conversation not found")
   })
