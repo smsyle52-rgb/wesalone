@@ -8,6 +8,12 @@ import { assertWorkspaceNotBlocked } from "@/lib/workspace-quota"
 import { workspaceAuthorizedMidddleware } from "@/middlewares/auth"
 import { authorizedAPI } from "@/orpc"
 import { CONVERSATIONS_LIST_POST_PATH } from "../lib/api-paths"
+import {
+  assertContactsVisible,
+  assertConversationsVisible,
+  assertConversationVisible,
+  resolveConversationAssigneeScope,
+} from "../lib/assignee-scope"
 import { getPostDetailsQuery } from "../queries/get-post-details.query"
 import {
   findConversation,
@@ -47,14 +53,19 @@ export const conversationsAuthenticatedAPI = {
     .input(listConversationsRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .output(listConversationsResponse)
-    .handler(
-      async ({ input, context }) =>
-        await listConversations(input, {
-          includeEmailAndPhone: canViewContactEmailAndPhone(
-            context.workspaceMember.permissions,
-          ),
-        }),
-    ),
+    .handler(async ({ input, context }) => {
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      return await listConversations(input, {
+        includeEmailAndPhone: canViewContactEmailAndPhone(
+          context.workspaceMember.permissions,
+        ),
+        assignee,
+      })
+    }),
 
   listConversationsByPOSTAuthenticatedAPI: authorizedAPI
     .route({
@@ -66,14 +77,19 @@ export const conversationsAuthenticatedAPI = {
     .input(listConversationsRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .output(listConversationsResponse)
-    .handler(
-      async ({ input, context }) =>
-        await listConversations(input, {
-          includeEmailAndPhone: canViewContactEmailAndPhone(
-            context.workspaceMember.permissions,
-          ),
-        }),
-    ),
+    .handler(async ({ input, context }) => {
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      return await listConversations(input, {
+        includeEmailAndPhone: canViewContactEmailAndPhone(
+          context.workspaceMember.permissions,
+        ),
+        assignee,
+      })
+    }),
 
   findConversationAuthenticatedAPI: authorizedAPI
     .route({
@@ -85,7 +101,14 @@ export const conversationsAuthenticatedAPI = {
     .input(findConversationRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .output(findConversationResponse)
-    .handler(async ({ input }) => await findConversation(input)),
+    .handler(async ({ input, context }) => {
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      return await findConversation(input, { assignee })
+    }),
 
   getPostDetailsAuthenticatedAPI: authorizedAPI
     .route({
@@ -129,6 +152,16 @@ export const conversationsAuthenticatedAPI = {
     .output(successResponse)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      await assertContactsVisible({
+        workspaceId: input.workspaceId,
+        contactIds: input.contactIds,
+        scope: assignee,
+      })
 
       await conversationService.assignByContactIds({
         workspaceId: input.workspaceId,
@@ -157,6 +190,16 @@ export const conversationsAuthenticatedAPI = {
     .output(successResponse)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      await assertConversationsVisible({
+        workspaceId: input.workspaceId,
+        conversationIds: input.ids,
+        scope: assignee,
+      })
 
       await conversationService.archiveByIds({
         workspaceId: input.workspaceId,
@@ -185,6 +228,16 @@ export const conversationsAuthenticatedAPI = {
     .output(successResponse)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      await assertConversationsVisible({
+        workspaceId: input.workspaceId,
+        conversationIds: input.ids,
+        scope: assignee,
+      })
 
       await conversationService.unarchiveByIds({
         workspaceId: input.workspaceId,
@@ -213,6 +266,16 @@ export const conversationsAuthenticatedAPI = {
     .output(successResponse)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      await assertConversationsVisible({
+        workspaceId: input.workspaceId,
+        conversationIds: input.ids,
+        scope: assignee,
+      })
 
       await conversationService.setBotEnabledByIds({
         workspaceId: input.workspaceId,
@@ -242,6 +305,16 @@ export const conversationsAuthenticatedAPI = {
     .output(successResponse)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      await assertConversationsVisible({
+        workspaceId: input.workspaceId,
+        conversationIds: input.ids,
+        scope: assignee,
+      })
 
       await conversationService.setBotEnabledByIds({
         workspaceId: input.workspaceId,
@@ -269,6 +342,16 @@ export const conversationsAuthenticatedAPI = {
     .output(successResponse)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      await assertConversationVisible({
+        workspaceId: input.workspaceId,
+        conversationId: input.id,
+        scope: assignee,
+      })
 
       await conversationService.updateReadStatus({
         workspaceId: input.workspaceId,
@@ -295,6 +378,16 @@ export const conversationsAuthenticatedAPI = {
     )
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      await assertConversationVisible({
+        workspaceId: input.workspaceId,
+        conversationId: input.id,
+        scope: assignee,
+      })
 
       const result = await conversationService.markUnread({
         workspaceId: input.workspaceId,
@@ -315,6 +408,16 @@ export const conversationsAuthenticatedAPI = {
     .output(successResponse)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      await assertConversationVisible({
+        workspaceId: input.workspaceId,
+        conversationId: input.id,
+        scope: assignee,
+      })
 
       await conversationService.setFollowed({
         workspaceId: input.workspaceId,
@@ -342,6 +445,16 @@ export const conversationsAuthenticatedAPI = {
     .output(successResponse)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      const assignee = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      await assertConversationVisible({
+        workspaceId: input.workspaceId,
+        conversationId: input.id,
+        scope: assignee,
+      })
 
       await conversationService.setFollowed({
         workspaceId: input.workspaceId,

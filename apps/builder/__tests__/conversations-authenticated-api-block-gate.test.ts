@@ -122,6 +122,13 @@ vi.mock("@/features/conversations/queries/list-conversations.query", () => ({
 vi.mock("@/features/contacts/permissions", () => ({
   canViewContactEmailAndPhone,
 }))
+// Assigned-only scoping has its own tests; here every member is unrestricted.
+vi.mock("@/features/conversations/lib/assignee-scope", () => ({
+  resolveConversationAssigneeScope: vi.fn().mockResolvedValue(undefined),
+  assertConversationVisible: vi.fn(),
+  assertConversationsVisible: vi.fn(),
+  assertContactsVisible: vi.fn(),
+}))
 vi.mock("@/lib/auth/utils", () => ({
   getCurrentUserAndTargetWorkspace: vi.fn().mockResolvedValue(null),
 }))
@@ -173,6 +180,7 @@ describe("conversationsAuthenticatedAPI — trial-expired/MAC block gate", () =>
         context: {
           user: { id: "user-1" },
           workspace: { ownerId: "active-owner" },
+          workspaceMember: { permissions: {} },
         },
       }),
     ).resolves.toEqual({ success: true })

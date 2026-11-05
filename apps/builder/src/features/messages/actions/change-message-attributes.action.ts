@@ -5,6 +5,10 @@ import { ChatbotXException } from "@chatbotx.io/business/errors"
 import { createMessageRepository } from "@chatbotx.io/database/repositories"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { ChatJobAction, chatQueue } from "@chatbotx.io/worker-config"
+import {
+  assertConversationVisible,
+  resolveConversationAssigneeScope,
+} from "@/features/conversations/lib/assignee-scope"
 import { workspaceActionClient } from "@/lib/safe-action"
 import {
   type ChangeMessageAttributesRequest,
@@ -64,6 +68,15 @@ export const changeMessageAttributesAction = workspaceActionClient
       bindArgsParsedInputs: [workspaceId, conversationId],
       parsedInput,
     } = props
+    await assertConversationVisible({
+      workspaceId,
+      conversationId,
+      scope: await resolveConversationAssigneeScope({
+        workspaceId,
+        userId: props.ctx.user.id,
+        permissions: props.ctx.workspaceMemberPermissions,
+      }),
+    })
 
     return await changeMessageAttributes({
       workspaceId,

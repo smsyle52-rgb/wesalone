@@ -13,6 +13,10 @@ import {
 } from "@chatbotx.io/realtime-protocol"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { ChatJobAction, chatQueue } from "@chatbotx.io/worker-config"
+import {
+  assertConversationVisible,
+  resolveConversationAssigneeScope,
+} from "@/features/conversations/lib/assignee-scope"
 import { workspaceActionClient } from "@/lib/safe-action"
 import {
   type DeleteMessageRequest,
@@ -93,6 +97,15 @@ export const deleteMessageAction = workspaceActionClient
       bindArgsParsedInputs: [workspaceId, conversationId],
       parsedInput,
     } = props
+    await assertConversationVisible({
+      workspaceId,
+      conversationId,
+      scope: await resolveConversationAssigneeScope({
+        workspaceId,
+        userId: props.ctx.user.id,
+        permissions: props.ctx.workspaceMemberPermissions,
+      }),
+    })
 
     return await deleteMessage({ workspaceId, conversationId, parsedInput })
   })

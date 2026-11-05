@@ -16,6 +16,10 @@ import type {
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { endOfHour } from "date-fns"
 import z from "zod"
+import {
+  buildAssigneeScopeWhere,
+  type ConversationAssigneeScope,
+} from "@/features/conversations/lib/assignee-scope-where"
 import type { ListConversationsRequest } from "@/features/conversations/schema/query"
 import { decodeCursor, encodeCursor } from "@/lib/pagination"
 import type {
@@ -98,7 +102,11 @@ type ConversationCursor = z.infer<typeof conversationCursorSchema>
 
 export const listConversations = async (
   data: ListConversationsRequest,
-  access: { includeEmailAndPhone: boolean },
+  access: {
+    includeEmailAndPhone: boolean
+    /** Set for "assigned contacts only" members. */
+    assignee?: ConversationAssigneeScope
+  },
 ): Promise<ListConversationsResponse> => {
   const { workspaceId, ...input } = data
 
@@ -113,6 +121,7 @@ export const listConversations = async (
   // tokens, which are workspace-level not member-scoped) and threads it through.
   const where = buildConversationWhere(workspaceId, input, cursor, {
     includeEmailAndPhone: access.includeEmailAndPhone,
+    assignee: access.assignee,
   })
 
   const conversations = await conversationService.findManyQuery({
@@ -207,9 +216,12 @@ export const listConversations = async (
 
 export const findConversation = async (
   input: FindConversationRequest,
+  access: { assignee?: ConversationAssigneeScope } = {},
 ): Promise<FindConversationResponse> => {
   const conversation = await conversationService.findWithFullRelations({
-    where: input,
+    where: access.assignee
+      ? { ...input, ...buildAssigneeScopeWhere(access.assignee) }
+      : input,
   })
   if (!conversation) {
     throw notFoundException("Conversation not found")

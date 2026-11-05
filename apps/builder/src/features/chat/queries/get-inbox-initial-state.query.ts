@@ -11,6 +11,7 @@ import {
 } from "@/features/chat/store/chat-store"
 import type { ContactPermissionScope } from "@/features/contacts/permissions"
 import { getContact } from "@/features/contacts/queries/get-contact.query"
+import { resolveAssigneeScopeForUser } from "@/features/conversations/lib/assignee-scope"
 import {
   findConversation,
   listConversations,
@@ -162,6 +163,12 @@ const loadInitialState = async ({
 }): Promise<ChatStoreInitialState | null> => {
   const conversationId =
     urlConversation.kind === "valid" ? urlConversation.id : undefined
+  // Assigned-only members get the same scope as the inbox API, so the first
+  // paint never shows a conversation the live list would hide.
+  const assignee = await resolveAssigneeScopeForUser({
+    workspaceId,
+    restrictToAssignedUserId: contactPermissionScope.restrictToAssignedUserId,
+  })
   const conversationsPromise = listConversations(
     {
       workspaceId,
@@ -170,10 +177,11 @@ const loadInitialState = async ({
     },
     {
       includeEmailAndPhone: contactPermissionScope.canViewEmailAndPhone,
+      assignee,
     },
   )
   const findConversationPromise = conversationId
-    ? findConversation({ workspaceId, id: conversationId })
+    ? findConversation({ workspaceId, id: conversationId }, { assignee })
     : null
 
   const activeConversationPromise: Promise<ListConversationItemResource | null> =
@@ -189,8 +197,15 @@ const loadInitialState = async ({
       )
       return {}
     }
+  // A deep-linked id is only trusted after the scoped find succeeds, so an
+  // assigned-only member cannot read another agent's messages via the URL.
   const messagesPromise: Promise<ChatStoreInitialState> = conversationId
-    ? seedMessagesState(workspaceId, conversationId).catch(
+    ? (assignee && findConversationPromise
+        ? findConversationPromise.then(() =>
+            seedMessagesState(workspaceId, conversationId),
+          )
+        : seedMessagesState(workspaceId, conversationId)
+      ).catch(
         logSeedFailure(
           "getInboxInitialState: failed to seed messages state",
           conversationId,

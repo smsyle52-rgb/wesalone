@@ -9,6 +9,10 @@ import {
   workspaceIdrequestParams,
 } from "@/features/common/schema"
 import { workspaceActionClient } from "@/lib/safe-action"
+import {
+  assertConversationsVisible,
+  resolveConversationAssigneeScope,
+} from "../lib/assignee-scope"
 
 export const enableBotAction = workspaceActionClient
   .bindArgsSchemas(workspaceIdrequestParams)
@@ -21,8 +25,20 @@ export const enableBotAction = workspaceActionClient
     }: {
       bindArgsParsedInputs: WorkspaceIdRequestParams
       parsedInput: BulkUpdateIdsRequest
-      ctx: { user: UserModel }
+      ctx: {
+        user: UserModel
+        workspaceMemberPermissions: Record<string, unknown>
+      }
     }) => {
+      await assertConversationsVisible({
+        workspaceId,
+        conversationIds: parsedInput.ids,
+        scope: await resolveConversationAssigneeScope({
+          workspaceId,
+          userId: ctx.user.id,
+          permissions: ctx.workspaceMemberPermissions,
+        }),
+      })
       await conversationService.setBotEnabledByIds({
         workspaceId,
         ids: parsedInput.ids,

@@ -5,6 +5,12 @@ import {
 } from "@chatbotx.io/business"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import z from "zod"
+import {
+  assertContactInboxVisible,
+  assertConversationVisible,
+  type ConversationAssigneeScope,
+  resolveConversationAssigneeScope,
+} from "@/features/conversations/lib/assignee-scope"
 import { assertWorkspaceNotBlocked } from "@/lib/workspace-quota"
 import { workspaceAuthorizedMidddleware } from "@/middlewares/auth"
 import { authorizedAPI } from "@/orpc"
@@ -27,6 +33,28 @@ import {
 } from "../schema/query"
 import { messageResourceWithRelations } from "../schema/resource"
 
+/** Resolves the caller's scope and refuses a conversation outside it. */
+const assertCallerSeesConversation = async (props: {
+  workspaceId: string
+  conversationId: string
+  context: {
+    user: { id: string }
+    workspaceMember: { permissions: Record<string, unknown> }
+  }
+}): Promise<ConversationAssigneeScope | undefined> => {
+  const scope = await resolveConversationAssigneeScope({
+    workspaceId: props.workspaceId,
+    userId: props.context.user.id,
+    permissions: props.context.workspaceMember.permissions,
+  })
+  await assertConversationVisible({
+    workspaceId: props.workspaceId,
+    conversationId: props.conversationId,
+    scope,
+  })
+  return scope
+}
+
 const workspaceIdAndConversationIdRequest = z.object({
   workspaceId: zodBigintAsString(),
   conversationId: zodBigintAsString(),
@@ -43,7 +71,32 @@ export const messagesAuthenticatedAPI = {
     .input(listMessagesRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .output(listMessagesResponse)
-    .handler(async ({ input }) => await listMessages(input)),
+    .handler(async ({ input, context }) => {
+      const scope = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      if (scope) {
+        if (input.conversationId) {
+          await assertConversationVisible({
+            workspaceId: input.workspaceId,
+            conversationId: input.conversationId,
+            scope,
+          })
+        } else if (input.contactInboxId) {
+          await assertContactInboxVisible({
+            workspaceId: input.workspaceId,
+            contactInboxId: input.contactInboxId,
+            scope,
+          })
+        } else {
+          // Neither id: the list would not be tied to one conversation.
+          return { data: [], nextCursor: null, prevCursor: null }
+        }
+      }
+      return await listMessages(input)
+    }),
 
   findMessageAuthenticatedAPI: authorizedAPI
     .route({
@@ -55,7 +108,22 @@ export const messagesAuthenticatedAPI = {
     .input(findMessageRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .output(messageResourceWithRelations)
-    .handler(async ({ input }) => await findMessage(input)),
+    .handler(async ({ input, context }) => {
+      const scope = await resolveConversationAssigneeScope({
+        workspaceId: input.workspaceId,
+        userId: context.user.id,
+        permissions: context.workspaceMember.permissions,
+      })
+      const message = await findMessage(input)
+      if (scope) {
+        await assertConversationVisible({
+          workspaceId: input.workspaceId,
+          conversationId: String(message.conversationId),
+          scope,
+        })
+      }
+      return message
+    }),
 
   getWhatsappFlowResponseAuthenticatedAPI: authorizedAPI
     .route({
@@ -72,15 +140,19 @@ export const messagesAuthenticatedAPI = {
     )
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .output(whatsappFlowResponseSchema)
-    .handler(
-      async ({ input }) =>
-        await getWhatsappFlowResponseView({
-          workspaceId: input.workspaceId,
-          conversationId: input.conversationId,
-          messageId: input.messageId,
-          createdAt: input.createdAt,
-        }),
-    ),
+    .handler(async ({ input, context }) => {
+      await assertCallerSeesConversation({
+        workspaceId: input.workspaceId,
+        conversationId: input.conversationId,
+        context,
+      })
+      return await getWhatsappFlowResponseView({
+        workspaceId: input.workspaceId,
+        conversationId: input.conversationId,
+        messageId: input.messageId,
+        createdAt: input.createdAt,
+      })
+    }),
 
   createMessageAuthenticatedAPI: authorizedAPI
     .route({
@@ -94,6 +166,11 @@ export const messagesAuthenticatedAPI = {
     .output(messageResourceWithRelations.nullable())
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      await assertCallerSeesConversation({
+        workspaceId: input.workspaceId,
+        conversationId: input.conversationId,
+        context,
+      })
 
       const conversation = await conversationService.findByOrFail({
         where: { id: input.conversationId, workspaceId: input.workspaceId },
@@ -131,6 +208,11 @@ export const messagesAuthenticatedAPI = {
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      await assertCallerSeesConversation({
+        workspaceId: input.workspaceId,
+        conversationId: input.conversationId,
+        context,
+      })
 
       return editMessage({
         workspaceId: input.workspaceId,
@@ -150,6 +232,11 @@ export const messagesAuthenticatedAPI = {
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      await assertCallerSeesConversation({
+        workspaceId: input.workspaceId,
+        conversationId: input.conversationId,
+        context,
+      })
 
       return deleteMessage({
         workspaceId: input.workspaceId,
@@ -171,6 +258,11 @@ export const messagesAuthenticatedAPI = {
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      await assertCallerSeesConversation({
+        workspaceId: input.workspaceId,
+        conversationId: input.conversationId,
+        context,
+      })
 
       return changeMessageAttributes({
         workspaceId: input.workspaceId,

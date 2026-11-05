@@ -1,6 +1,10 @@
 "use server"
 import { conversationService, messageService } from "@chatbotx.io/business"
 import { zodBigintAsString } from "@chatbotx.io/utils"
+import {
+  assertConversationVisible,
+  resolveConversationAssigneeScope,
+} from "@/features/conversations/lib/assignee-scope"
 import { workspaceActionClient } from "@/lib/safe-action"
 import { createMessageWithRoutingBypassRequest } from "../schema/mutation"
 export const createMessageAction = workspaceActionClient
@@ -12,6 +16,15 @@ export const createMessageAction = workspaceActionClient
       parsedInput,
       ctx,
     } = props
+    await assertConversationVisible({
+      workspaceId,
+      conversationId,
+      scope: await resolveConversationAssigneeScope({
+        workspaceId,
+        userId: props.ctx.user.id,
+        permissions: props.ctx.workspaceMemberPermissions,
+      }),
+    })
 
     const conversation = await conversationService.findByOrFail({
       where: {

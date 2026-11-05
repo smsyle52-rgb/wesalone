@@ -11,6 +11,10 @@ import {
   assignConversationSchema,
 } from "@/features/conversations/schema/action"
 import { workspaceActionClient } from "@/lib/safe-action"
+import {
+  assertContactsVisible,
+  resolveConversationAssigneeScope,
+} from "../lib/assignee-scope"
 
 export const assignConversationAction = workspaceActionClient
   .bindArgsSchemas(workspaceIdrequestParams)
@@ -23,8 +27,20 @@ export const assignConversationAction = workspaceActionClient
     }: {
       bindArgsParsedInputs: WorkspaceIdRequestParams
       parsedInput: AssignConversationSchema
-      ctx: { user: UserModel }
+      ctx: {
+        user: UserModel
+        workspaceMemberPermissions: Record<string, unknown>
+      }
     }) => {
+      await assertContactsVisible({
+        workspaceId,
+        contactIds: parsedInput.contactIds,
+        scope: await resolveConversationAssigneeScope({
+          workspaceId,
+          userId: ctx.user.id,
+          permissions: ctx.workspaceMemberPermissions,
+        }),
+      })
       await conversationService.assignByContactIds({
         workspaceId,
         contactIds: parsedInput.contactIds,

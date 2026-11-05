@@ -3,6 +3,10 @@
 import { conversationService } from "@chatbotx.io/business"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { workspaceActionClient } from "@/lib/safe-action"
+import {
+  assertConversationVisible,
+  resolveConversationAssigneeScope,
+} from "../lib/assignee-scope"
 
 export const readConversationAction = workspaceActionClient
   .bindArgsSchemas([zodBigintAsString(), zodBigintAsString()])
@@ -10,6 +14,15 @@ export const readConversationAction = workspaceActionClient
     const {
       bindArgsParsedInputs: [workspaceId, id],
     } = props
+    await assertConversationVisible({
+      workspaceId,
+      conversationId: id,
+      scope: await resolveConversationAssigneeScope({
+        workspaceId,
+        userId: props.ctx.user.id,
+        permissions: props.ctx.workspaceMemberPermissions,
+      }),
+    })
     const agentLastReadAt = new Date()
 
     await conversationService.updateReadStatus({

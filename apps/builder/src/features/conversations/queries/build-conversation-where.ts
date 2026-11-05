@@ -11,6 +11,10 @@ import {
   pruneEmailPhoneFilterConditions,
   UNASSIGNED_ASSIGNEE_VALUE,
 } from "@chatbotx.io/database/queries"
+import {
+  buildAssigneeScopeWhere,
+  type ConversationAssigneeScope,
+} from "@/features/conversations/lib/assignee-scope-where"
 import type { ListConversationsRequest } from "@/features/conversations/schema/query"
 
 type ConversationCursor = {
@@ -20,6 +24,8 @@ type ConversationCursor = {
 
 type BuildConversationWhereOptions = {
   includeEmailAndPhone?: boolean
+  /** Set for "assigned contacts only" members: keeps only their conversations. */
+  assignee?: ConversationAssigneeScope
 }
 
 type QueryWhere = Record<string, unknown>
@@ -120,6 +126,14 @@ export function buildConversationWhere(
 
   if (!isArchiveView) {
     where.archivedAt = { isNull: true }
+  }
+
+  // Assigned-only members: enforced here, in the one place every inbox list
+  // query is built, so no filter (tags, keyword, assignee, contact filter)
+  // can widen it. It is AND-ed in via `AND`, never merged into `OR`/top-level
+  // keys another filter below may set.
+  if (options.assignee) {
+    where.AND = [buildAssigneeScopeWhere(options.assignee)]
   }
 
   // `blocked` is never pruned by the email/phone scope, so the raw request

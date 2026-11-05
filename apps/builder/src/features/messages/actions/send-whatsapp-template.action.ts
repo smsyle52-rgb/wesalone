@@ -1,6 +1,10 @@
 "use server"
 
 import { zodBigintAsString } from "@chatbotx.io/utils"
+import {
+  assertConversationVisible,
+  resolveConversationAssigneeScope,
+} from "@/features/conversations/lib/assignee-scope"
 import { workspaceActionClient } from "@/lib/safe-action"
 import { sendWhatsappTemplateToConversation } from "../lib/send-whatsapp-template"
 import { sendWhatsappTemplateRequest } from "../schema/send-template"
@@ -18,6 +22,15 @@ export const sendWhatsappTemplateAction = workspaceActionClient
       parsedInput,
       ctx,
     } = props
+    await assertConversationVisible({
+      workspaceId,
+      conversationId,
+      scope: await resolveConversationAssigneeScope({
+        workspaceId,
+        userId: props.ctx.user.id,
+        permissions: props.ctx.workspaceMemberPermissions,
+      }),
+    })
 
     await sendWhatsappTemplateToConversation({
       workspaceId,
