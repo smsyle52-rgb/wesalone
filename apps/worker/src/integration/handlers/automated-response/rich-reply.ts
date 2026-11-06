@@ -5,7 +5,7 @@ import { createId } from "@chatbotx.io/utils"
 import { normalizeError } from "universal-error-normalizer"
 import { logger } from "../../../lib/logger"
 import { sendMessageAndWait } from "../../utils/message"
-import { parseRichResponse } from "../rich-response"
+import { parseRichResponse, salvageRichResponseText } from "../rich-response"
 import { executeRichActions } from "../rich-response/action-executor"
 import { sendRichMessages } from "../rich-response/message-sender"
 import type {
@@ -107,6 +107,24 @@ export async function handleRichAIReply({
       const trimmedText = parseResult.text.trim()
       await sendMessageAndWait(conversation.id, trimmedText, trackingContext)
       await appendAssistantHistory(conversation.id, trimmedText)
+      return buildSuccessResult({ buildToolStats, modelId, provider })
+    }
+
+    // Broken or over-long rich JSON used to end in silence for the customer
+    // once every model in the chain failed the same way. Send its readable
+    // text as a plain message instead; buttons and cards are dropped.
+    const salvagedText = salvageRichResponseText(parseResult.text)
+    if (salvagedText) {
+      logger.warn(
+        {
+          workspaceId: conversation.workspaceId,
+          conversationId: conversation.id,
+          reason: parseResult.reason,
+        },
+        "[rich-response] sent salvaged text from an invalid rich response",
+      )
+      await sendMessageAndWait(conversation.id, salvagedText, trackingContext)
+      await appendAssistantHistory(conversation.id, salvagedText)
       return buildSuccessResult({ buildToolStats, modelId, provider })
     }
 

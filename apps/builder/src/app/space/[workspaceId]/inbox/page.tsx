@@ -46,6 +46,14 @@ export default async function InboxPage({
   }
 
   const conversationId = (await searchParams)?.conversationId
+  // Stored JSON may miss keys; absent means off.
+  const notificationTypes = (targetWorkspaceMember.notificationTypes ??
+    {}) as Partial<Record<"newMessageToHuman", boolean>>
+  const notificationChannels = (targetWorkspaceMember.notificationChannels ??
+    {}) as Partial<Record<"browser", boolean>>
+  const browserNotifications =
+    notificationTypes.newMessageToHuman === true &&
+    notificationChannels.browser === true
 
   return (
     <FullBleed>
@@ -57,6 +65,7 @@ export default async function InboxPage({
         }
       >
         <InboxContent
+          browserNotifications={browserNotifications}
           canViewEmailAndPhone={contactPermissionScope.canViewEmailAndPhone}
           contactPermissionScope={contactPermissionScope}
           conversationId={conversationId}
@@ -69,12 +78,14 @@ export default async function InboxPage({
 }
 
 async function InboxContent({
+  browserNotifications,
   canViewEmailAndPhone,
   contactPermissionScope,
   conversationId,
   layout,
   workspaceId,
 }: {
+  browserNotifications: boolean
   canViewEmailAndPhone: boolean
   contactPermissionScope: ContactPermissionScope
   conversationId?: string
@@ -90,6 +101,7 @@ async function InboxContent({
   return (
     <ChatStoreProvider initialState={initialState ?? undefined}>
       <ChatLayout
+        browserNotifications={browserNotifications}
         canViewEmailAndPhone={canViewEmailAndPhone}
         layout={layout}
         workspaceId={workspaceId}

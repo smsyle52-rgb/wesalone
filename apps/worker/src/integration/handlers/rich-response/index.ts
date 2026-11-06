@@ -276,3 +276,29 @@ function extractJsonPrefix(text: string): string | undefined {
     }
   }
 }
+
+const TEXT_VALUE_RE = /"text"\s*:\s*"((?:[^"\\]|\\.)*)"/g
+
+/**
+ * Pulls the readable `"text"` values out of a rich response that failed to
+ * parse (cut-off JSON, or valid JSON the schema rejects, e.g. text over its
+ * length cap). Only complete JSON string values are taken, so no braces or
+ * half-escaped fragments reach the customer. Returns undefined when nothing
+ * readable is found, and the caller stays silent exactly as before.
+ */
+export function salvageRichResponseText(text: string): string | undefined {
+  const parts: string[] = []
+  for (const match of text.matchAll(TEXT_VALUE_RE)) {
+    try {
+      const value = JSON.parse(`"${match[1]}"`) as string
+      const trimmed = value.trim()
+      if (trimmed && !parts.includes(trimmed)) {
+        parts.push(trimmed)
+      }
+    } catch {
+      // An invalid escape inside one value: skip that value only.
+    }
+  }
+  const joined = parts.join("\n\n").trim()
+  return joined || undefined
+}

@@ -46,6 +46,10 @@ const nextConfig: NextConfigWithStaticGenerationConcurrency = {
     serverActions: {
       bodySizeLimit: "20mb",
     },
+    // The proxy (src/proxy.ts) runs on page routes, so server-action uploads
+    // pass through it. Its default 10MB body buffer would cut a 16MB inbox
+    // attachment short; keep it equal to the server-action limit.
+    proxyClientMaxBodySize: "20mb",
     // Additive to Next's built-in default list, which already covers
     // lucide-react. `@chatbotx.io/ui` doesn't belong here: it's imported via
     // per-file subpaths and its root export is not a re-export barrel, so

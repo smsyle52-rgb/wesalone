@@ -261,24 +261,12 @@ export function UpdateWorkspaceMemberForm({
         <div className="flex flex-col gap-4">
           <Label>{t("fields.notificationChannel.label")}</Label>
           <div className="flex flex-col gap-4">
-            <SwitchField
-              formItemClassName="flex flex-row-reverse items-center justify-end gap-2"
-              label={t("fields.notificationChannel.messenger")}
-              name="notificationChannels.messenger"
-              required
-            />
-            <SwitchField
-              formItemClassName="flex flex-row-reverse items-center justify-end gap-2"
-              label={t("fields.notificationChannel.email")}
-              name="notificationChannels.email"
-              required
-            />
-            <SwitchField
-              formItemClassName="flex flex-row-reverse items-center justify-end gap-2"
-              label={t("fields.notificationChannel.telegram")}
-              name="notificationChannels.telegram"
-              required
-            />
+            {/*
+              Only "Browser" is delivered today (inbox chime + system
+              notification). Messenger, email and Telegram have no sender, so
+              their switches are hidden; saved values stay untouched because
+              the form still loads and submits them.
+            */}
             <SwitchField
               formItemClassName="flex flex-row-reverse items-center justify-end gap-2"
               label={t("fields.notificationChannel.browser")}

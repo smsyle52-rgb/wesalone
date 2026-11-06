@@ -3,8 +3,10 @@ import { sendProductsContentSchema } from "@chatbotx.io/flow-config"
 import { zodBigintAsString } from "@chatbotx.io/utils"
 import { z } from "zod"
 import { zodGuestConversationId } from "@/features/integration-webchat/lib/guest-conversation-id"
-
-const MAX_FILE_SIZE = 5 * 1000 * 1000
+import {
+  ATTACHMENT_LIMIT_MESSAGE,
+  isWithinAttachmentLimit,
+} from "../lib/attachment-limits"
 
 const mediaLibraryFileRequest = z.object({
   path: z
@@ -53,12 +55,14 @@ export const createMessageRequest = z
       text: z.string().trim().min(1).max(1000).describe("Message text."),
       files: z
         .array(
-          z.instanceof(File).refine((file) => file.size <= MAX_FILE_SIZE, {
-            message: "Max image size is 5MB.",
+          z.instanceof(File).refine(isWithinAttachmentLimit, {
+            message: ATTACHMENT_LIMIT_MESSAGE,
           }),
         )
         .min(1)
-        .describe("Media files to attach, up to 5MB each."),
+        .describe(
+          "Media files to attach: images up to 5MB, video, audio and documents up to 16MB each.",
+        ),
     }),
     z.object({
       text: z.string().trim().min(1).max(1000).describe("Message text."),
@@ -94,12 +98,14 @@ export const createMessageRequest = z
     z.object({
       files: z
         .array(
-          z.instanceof(File).refine((file) => file.size <= MAX_FILE_SIZE, {
-            message: "Max image size is 5MB.",
+          z.instanceof(File).refine(isWithinAttachmentLimit, {
+            message: ATTACHMENT_LIMIT_MESSAGE,
           }),
         )
         .min(1)
-        .describe("Media files to attach, up to 5MB each."),
+        .describe(
+          "Media files to attach: images up to 5MB, video, audio and documents up to 16MB each.",
+        ),
     }),
     z.object({
       mediaFile: mediaLibraryFileRequest.describe(
@@ -189,8 +195,8 @@ export const createWebchatMessageRequest = z
     z.object({
       files: z
         .array(
-          z.instanceof(File).refine((file) => file.size <= MAX_FILE_SIZE, {
-            message: "Max image size is 5MB.",
+          z.instanceof(File).refine(isWithinAttachmentLimit, {
+            message: ATTACHMENT_LIMIT_MESSAGE,
           }),
         )
         .min(1),
@@ -264,8 +270,8 @@ export type EditMessageRequest = z.infer<typeof editMessageRequest>
 export const sendFileMessageRequest = z.object({
   contactId: zodBigintAsString(),
   channel: channelTypes,
-  file: z.file().refine((file) => file.size <= MAX_FILE_SIZE, {
-    message: "Max image size is 5MB.",
+  file: z.file().refine(isWithinAttachmentLimit, {
+    message: ATTACHMENT_LIMIT_MESSAGE,
   }),
 })
 

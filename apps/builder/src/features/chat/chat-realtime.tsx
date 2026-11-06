@@ -13,14 +13,21 @@ import { outboundCallModeQueryKeys } from "../integration-whatsapp/calling/voip/
 import { useWhatsappVoipCallStore } from "../integration-whatsapp/calling/voip/voip-call-store"
 import type { MessageResourceWithRelations } from "../messages/schema/resource"
 import { useResponseSlaEnabled } from "../response-sla/provider/response-sla-hook"
+import { useNewMessageNotifier } from "./hooks/use-new-message-notifier"
 import { useChatStore } from "./store/chat-store-provider"
 
 /** Cap for the bubble-to-top dedupe set below. */
 const SEEN_WHATSAPP_CALL_IDS_CAPACITY = 500
 
 /** Registers this component's chat event handlers against the shared workspace realtime socket. */
-export function ChatRealtime() {
+export function ChatRealtime({
+  browserNotifications = false,
+}: {
+  /** The member turned on "New message to human" with the "Browser" channel. */
+  browserNotifications?: boolean
+} = {}) {
   const workspaceId = useWorkspaceId()
+  const notifyNewMessages = useNewMessageNotifier(browserNotifications)
   const queryClient = useQueryClient()
   const invalidateOutboundCallMode = (conversationId: string) =>
     queryClient.invalidateQueries({
@@ -77,6 +84,7 @@ export function ChatRealtime() {
     pendingCreatedMessagesRef.current = []
     isMessageFlushQueuedRef.current = false
     handleNewMessages(messages)
+    notifyNewMessages(messages)
     // A customer message can open an SLA window whose deadline only the server
     // computes: a loaded row picks it up with the next (throttled) head fetch.
     // Skipped while the SLA is off so ordinary traffic costs nothing extra.

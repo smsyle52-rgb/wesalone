@@ -30,6 +30,8 @@ import { ChatRealtime } from "./chat-realtime"
 import { useChatStore } from "./store/chat-store-provider"
 
 type ChatLayoutProps = {
+  /** Chime + system notification for new customer messages (member setting). */
+  browserNotifications?: boolean
   canViewEmailAndPhone?: boolean
   workspaceId: string
   layout?: [number, number, number]
@@ -38,6 +40,7 @@ type ChatLayoutProps = {
 export const ChatLayout = (props: ChatLayoutProps) => {
   const t = useTranslations()
   const {
+    browserNotifications = false,
     canViewEmailAndPhone = true,
     workspaceId,
     layout = [25, 50, 25],
@@ -126,7 +129,7 @@ export const ChatLayout = (props: ChatLayoutProps) => {
         Kept outside the panes: on mobile the message pane unmounts whenever the
         user goes back to the list, and the realtime socket must not go with it.
       */}
-      <ChatRealtime />
+      <ChatRealtime browserNotifications={browserNotifications} />
       {/*
         The VoIP provider (single `useWhatsappVoipCall` peer/hook instance),
         the call panel and `WhatsappCallInfoSheet` now

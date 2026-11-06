@@ -2,9 +2,17 @@ import type { FileWithPreview } from "@chatbotx.io/filesystem"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import { XCircleIcon } from "lucide-react"
 import Image from "next/image"
+import { useTranslations } from "next-intl"
 import { useImperativeHandle } from "react"
 import { useDropzone } from "react-dropzone"
 import { Controller, useFormContext } from "react-hook-form"
+import { toast } from "sonner"
+import {
+  isWithinAttachmentLimit,
+  MAX_OTHER_ATTACHMENT_MB,
+  maxAttachmentBytes,
+  maxAttachmentMb,
+} from "../lib/attachment-limits"
 
 function FileThumb({ file }: { file: FileWithPreview }) {
   if (file.type.startsWith("image")) {
@@ -43,14 +51,33 @@ export const FileUploadPreview = ({
 } & {
   ref: React.RefObject<unknown>
 }) => {
+  const t = useTranslations()
   const { control, setValue, getValues } = useFormContext()
 
   const { getRootProps, getInputProps, open } = useDropzone({
     noClick: true,
     maxFiles,
-    maxSize: 5 * 1024 * 1024,
+    // The overall cap; images get their tighter cap from the validator.
+    maxSize: maxAttachmentBytes(""),
     multiple: maxFiles > 1,
     noKeyboard: true,
+    validator: (file) =>
+      isWithinAttachmentLimit(file)
+        ? null
+        : { code: "file-too-large", message: file.name },
+    // Without this a too-large file was dropped silently and the agent saw
+    // nothing happen when picking a video.
+    onDropRejected: (rejections) => {
+      for (const { file } of rejections) {
+        toast.error(
+          t("fields.import.fileTooLarge", {
+            size: file.type
+              ? maxAttachmentMb(file.type)
+              : MAX_OTHER_ATTACHMENT_MB,
+          }),
+        )
+      }
+    },
     onDrop: (acceptedFiles) => {
       setValue(
         "files",
