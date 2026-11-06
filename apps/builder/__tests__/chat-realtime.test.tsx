@@ -57,6 +57,11 @@ vi.mock("@/features/conversations/hooks/use-conversation-id-param", () => ({
 // Captures the handler map `ChatRealtime` passes to `useWorkspaceRealtimeEvents`
 // so `emit` can invoke it directly, mirroring what the real provider dispatches.
 let capturedHandlers: Record<string, (event: unknown) => void> | null = null
+// New-message alerts (chime/notification) are browser-only and covered on
+// their own; here they are a no-op so the event parity checks stay focused.
+vi.mock("@/features/chat/hooks/use-new-message-notifier", () => ({
+  useNewMessageNotifier: () => () => undefined,
+}))
 vi.mock("@/features/realtime/use-workspace-realtime-events", () => ({
   useWorkspaceRealtimeEvents: (
     handlers: Record<string, (event: unknown) => void>,
