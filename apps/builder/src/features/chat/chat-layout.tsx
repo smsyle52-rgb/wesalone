@@ -33,6 +33,8 @@ type ChatLayoutProps = {
   /** Chime + system notification for new customer messages (member setting). */
   browserNotifications?: boolean
   canViewEmailAndPhone?: boolean
+  /** VAPID public key for browser push; absent when push is not set up. */
+  webPushPublicKey?: string
   workspaceId: string
   layout?: [number, number, number]
 }
@@ -42,6 +44,7 @@ export const ChatLayout = (props: ChatLayoutProps) => {
   const {
     browserNotifications = false,
     canViewEmailAndPhone = true,
+    webPushPublicKey,
     workspaceId,
     layout = [25, 50, 25],
   } = props
@@ -129,7 +132,10 @@ export const ChatLayout = (props: ChatLayoutProps) => {
         Kept outside the panes: on mobile the message pane unmounts whenever the
         user goes back to the list, and the realtime socket must not go with it.
       */}
-      <ChatRealtime browserNotifications={browserNotifications} />
+      <ChatRealtime
+        browserNotifications={browserNotifications}
+        webPushPublicKey={webPushPublicKey}
+      />
       {/*
         The VoIP provider (single `useWhatsappVoipCall` peer/hook instance),
         the call panel and `WhatsappCallInfoSheet` now

@@ -133,7 +133,7 @@ export const config = {
     // Arabic while every other public page honoured the parameter — and that
     // link is what we hand to reviewers who cannot read Arabic. It is in
     // publicRoutes, so running the middleware here costs no auth redirect.
-    "/((?!webchat|zalo_verifier|chat-widget|assets|ws|storage|_next/static|_next/image|favicon.ico|avatars|.*.svg|brand|openapi.json|dynamic-image/|media/attachment/|media/avatar/|mini-game/).*)",
+    "/((?!wesal-sw.js|webchat|zalo_verifier|chat-widget|assets|ws|storage|_next/static|_next/image|favicon.ico|avatars|.*.svg|brand|openapi.json|dynamic-image/|media/attachment/|media/avatar/|mini-game/).*)",
     "/api/presigned-upload",
   ],
 }

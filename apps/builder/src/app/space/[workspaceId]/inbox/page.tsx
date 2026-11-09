@@ -4,6 +4,7 @@ import { cookies } from "next/headers"
 import { notFound } from "next/navigation"
 import { Suspense } from "react"
 import { FullBleed } from "@/components/full-bleed"
+import { env } from "@/env"
 import { ChatLayout } from "@/features/chat/chat-layout"
 import { getInboxInitialState } from "@/features/chat/queries/get-inbox-initial-state.query"
 import { ChatStoreProvider } from "@/features/chat/store/chat-store-provider"
@@ -70,6 +71,7 @@ export default async function InboxPage({
           contactPermissionScope={contactPermissionScope}
           conversationId={conversationId}
           layout={savedLayout}
+          webPushPublicKey={env.WEB_PUSH_VAPID_PUBLIC_KEY}
           workspaceId={workspaceId}
         />
       </Suspense>
@@ -83,9 +85,11 @@ async function InboxContent({
   contactPermissionScope,
   conversationId,
   layout,
+  webPushPublicKey,
   workspaceId,
 }: {
   browserNotifications: boolean
+  webPushPublicKey?: string
   canViewEmailAndPhone: boolean
   contactPermissionScope: ContactPermissionScope
   conversationId?: string
@@ -104,6 +108,7 @@ async function InboxContent({
         browserNotifications={browserNotifications}
         canViewEmailAndPhone={canViewEmailAndPhone}
         layout={layout}
+        webPushPublicKey={webPushPublicKey}
         workspaceId={workspaceId}
       />
     </ChatStoreProvider>

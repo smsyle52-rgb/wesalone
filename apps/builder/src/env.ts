@@ -35,6 +35,9 @@ export const env = createEnv({
     TURN_URL: z.string().optional(),
     TURN_STATIC_SECRET: z.string().optional(),
     REALTIME_PROXY_URL: z.url().optional().default("http://localhost:1999"),
+    // Browser Web Push: the VAPID public key handed to browsers. Must match
+    // the worker's WEB_PUSH_VAPID_PUBLIC_KEY; unset disables browser push.
+    WEB_PUSH_VAPID_PUBLIC_KEY: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_BUILDER_URL: z.url(),

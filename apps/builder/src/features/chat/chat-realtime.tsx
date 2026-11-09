@@ -14,6 +14,7 @@ import { useWhatsappVoipCallStore } from "../integration-whatsapp/calling/voip/v
 import type { MessageResourceWithRelations } from "../messages/schema/resource"
 import { useResponseSlaEnabled } from "../response-sla/provider/response-sla-hook"
 import { useNewMessageNotifier } from "./hooks/use-new-message-notifier"
+import { useWebPushSubscription } from "./hooks/use-web-push-subscription"
 import { useChatStore } from "./store/chat-store-provider"
 
 /** Cap for the bubble-to-top dedupe set below. */
@@ -22,12 +23,20 @@ const SEEN_WHATSAPP_CALL_IDS_CAPACITY = 500
 /** Registers this component's chat event handlers against the shared workspace realtime socket. */
 export function ChatRealtime({
   browserNotifications = false,
+  webPushPublicKey,
 }: {
   /** The member turned on "New message to human" with the "Browser" channel. */
   browserNotifications?: boolean
+  /** VAPID public key; when set, alerts also reach a closed tab or app. */
+  webPushPublicKey?: string
 } = {}) {
   const workspaceId = useWorkspaceId()
   const notifyNewMessages = useNewMessageNotifier(browserNotifications)
+  useWebPushSubscription({
+    enabled: browserNotifications,
+    publicKey: webPushPublicKey,
+    workspaceId,
+  })
   const queryClient = useQueryClient()
   const invalidateOutboundCallMode = (conversationId: string) =>
     queryClient.invalidateQueries({

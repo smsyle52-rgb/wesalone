@@ -132,6 +132,11 @@ export const env = createEnv({
     // Kill switch — Expo needs no credential to send, so unlike FCM there is
     // no natural "unset = disabled" signal. Operators flip this explicitly.
     EXPO_PUSH_ENABLED: z.stringbool().default(true),
+    // Browser Web Push (VAPID). Unset keys disable browser push; the public
+    // key must match the one the builder hands to browsers.
+    WEB_PUSH_VAPID_PUBLIC_KEY: z.string().optional(),
+    WEB_PUSH_VAPID_PRIVATE_KEY: z.string().optional(),
+    WEB_PUSH_SUBJECT: z.string().default("mailto:support@wesal.one"),
 
     // Rate-limits the opt-in call-transcription queue so a call
     // spike cannot burn the AI budget.

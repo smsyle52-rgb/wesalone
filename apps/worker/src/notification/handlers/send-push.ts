@@ -5,12 +5,21 @@ import {
   workspaceMemberService,
   workspaceService,
 } from "@chatbotx.io/business"
-import type { ConversationModel } from "@chatbotx.io/database/types"
+import type {
+  ConversationModel,
+  UserDeviceTokenModel,
+} from "@chatbotx.io/database/types"
 import type { NotificationJobData } from "@chatbotx.io/worker-config"
 import { Expo, type ExpoPushMessage, type ExpoPushToken } from "expo-server-sdk"
 import { logger } from "../../lib/logger"
 import { buildNotificationContent } from "../lib/build-notification-content"
 import { getExpoClient } from "../lib/expo"
+import {
+  isWebPushConfigured,
+  parseWebPushSubscription,
+  sendWebPush,
+} from "../lib/web-push"
+import { selectWebPushRecipients } from "../lib/web-push-recipients"
 
 /**
  * Recipients = the assigned user, else every workspace member (unassigned
@@ -58,11 +67,18 @@ const resolveNotificationContent = async (
   })
 }
 
+type NotificationContent = { title: string; body: string }
+
+/** Browser subscriptions are stored as device tokens with platform "web". */
+const isWebToken = (deviceToken: UserDeviceTokenModel): boolean =>
+  deviceToken.platform === "web"
+
 export const sendPushForNotificationJob = async (
   job: NotificationJobData,
 ): Promise<void> => {
   const expo = getExpoClient()
-  if (!expo) {
+  const webPushReady = isWebPushConfigured()
+  if (!(expo || webPushReady)) {
     return
   }
 
@@ -82,9 +98,101 @@ export const sendPushForNotificationJob = async (
     return
   }
 
+  let content: Promise<NotificationContent> | undefined
+  const getContent = () => {
+    content ??= resolveNotificationContent(job, conversation)
+    return content
+  }
+
+  const webTokens = deviceTokens.filter(isWebToken)
+  const mobileTokens = deviceTokens.filter((token) => !isWebToken(token))
+
+  // Browser push is independent of Expo: one failing must not stop the other.
+  const [webResult, expoResult] = await Promise.allSettled([
+    webPushReady && webTokens.length > 0
+      ? sendBrowserPush({
+          job,
+          conversation,
+          recipientUserIds,
+          webTokens,
+          getContent,
+        })
+      : Promise.resolve(),
+    expo && mobileTokens.length > 0
+      ? sendExpoPush({ expo, job, mobileTokens, getContent })
+      : Promise.resolve(),
+  ])
+  if (webResult.status === "rejected") {
+    logger.warn({ err: webResult.reason }, "browser push failed")
+  }
+  if (expoResult.status === "rejected") {
+    throw expoResult.reason
+  }
+}
+
+const sendBrowserPush = async (props: {
+  job: NotificationJobData
+  conversation: ConversationModel
+  recipientUserIds: string[]
+  webTokens: UserDeviceTokenModel[]
+  getContent: () => Promise<NotificationContent>
+}): Promise<void> => {
+  const { job, conversation } = props
+  const members = await workspaceMemberService.listByWorkspaceId({
+    workspaceId: job.data.workspaceId,
+  })
+  const allowed = selectWebPushRecipients({
+    job,
+    conversationAssignedUserId: conversation.assignedUserId ?? null,
+    members,
+    candidateUserIds: props.recipientUserIds,
+  })
+  const targets = props.webTokens.filter((token) => allowed.has(token.userId))
+  if (targets.length === 0) {
+    return
+  }
+
+  const { workspaceId, conversationId } = job.data
+  const { title, body } = await props.getContent()
+  const payload = {
+    title,
+    body,
+    url: `/space/${workspaceId}/inbox?conversationId=${conversationId}`,
+    tag: `wesal-conversation-${conversationId}`,
+  }
+
+  const goneTokens: string[] = []
+  await Promise.all(
+    targets.map(async (deviceToken) => {
+      const subscription = parseWebPushSubscription(deviceToken.token)
+      if (!subscription) {
+        goneTokens.push(deviceToken.token)
+        return
+      }
+      if ((await sendWebPush(subscription, payload)) === "gone") {
+        goneTokens.push(deviceToken.token)
+      }
+    }),
+  )
+  if (goneTokens.length > 0) {
+    await deviceTokenService.deleteByTokens({ tokens: goneTokens })
+    logger.info(
+      { count: goneTokens.length },
+      "pruned expired browser push subscriptions",
+    )
+  }
+}
+
+const sendExpoPush = async (props: {
+  expo: NonNullable<ReturnType<typeof getExpoClient>>
+  job: NotificationJobData
+  mobileTokens: UserDeviceTokenModel[]
+  getContent: () => Promise<NotificationContent>
+}): Promise<void> => {
+  const { expo, job } = props
   const validTokens: ExpoPushToken[] = []
   const invalidTokens: string[] = []
-  for (const deviceToken of deviceTokens) {
+  for (const deviceToken of props.mobileTokens) {
     if (Expo.isExpoPushToken(deviceToken.token)) {
       validTokens.push(deviceToken.token)
     } else {
@@ -102,8 +210,7 @@ export const sendPushForNotificationJob = async (
 
   const { workspaceId, conversationId } = job.data
   const messageId = "messageId" in job.data ? job.data.messageId : ""
-  const { title, body } = await resolveNotificationContent(job, conversation)
-
+  const { title, body } = await props.getContent()
   const messages: ExpoPushMessage[] = validTokens.map((token) => ({
     to: token,
     title,

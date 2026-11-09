@@ -1,6 +1,9 @@
 {
   "name": "Wesal One",
   "short_name": "Wesal One",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
       "src": "/brand/favicon/web-app-manifest-192x192.png",
