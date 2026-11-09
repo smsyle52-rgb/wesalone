@@ -45,6 +45,13 @@ vi.mock("@/features/messages/actions/create-message.action", () => ({
 }))
 vi.mock("@/features/messages/components/input-menu", () => ({
   InputMenu: () => null,
+  SendFlowDialogTrigger: ({
+    children,
+    templateStartType,
+  }: {
+    children: React.ReactNode
+    templateStartType?: string
+  }) => <div data-template-start={templateStartType}>{children}</div>,
 }))
 vi.mock("@/features/messages/components/file-upload", () => ({
   FileUploadPreview: () => null,
@@ -109,6 +116,22 @@ const storeState = {
       sourceId: null,
       contactInboxes: [lockedInbox("ci-2")],
     },
+    {
+      id: "conv-expired",
+      workspaceId: "ws-1",
+      sourceId: null,
+      // Unlocked WhatsApp thread whose customer last wrote two days ago.
+      contactInboxes: [
+        {
+          id: "ci-3",
+          channel: "whatsapp",
+          lastIncomingMessageAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+          threadControlState: null,
+          threadOwnerRole: null,
+          threadControlUpdatedAt: null,
+        },
+      ],
+    },
   ],
 }
 vi.mock("@/features/chat/store/chat-store-provider", () => ({
@@ -158,5 +181,19 @@ describe("MessageInput — conversation-routing lock", () => {
     act(() => root.render(<MessageInput />))
 
     expect(lifecycle.mounts).toEqual(["conv-1"])
+  })
+
+  test("offers an approved template once the WhatsApp 24-hour window closed", () => {
+    storeState.activeConversationId = "conv-expired"
+    act(() => root.render(<MessageInput />))
+
+    expect(container.textContent).toContain(
+      "messages.messagingWindowClosedSendTemplate",
+    )
+    const trigger = container.querySelector("[data-template-start]")
+    expect(trigger?.getAttribute("data-template-start")).toBe(
+      "sendWaTemplateMessage",
+    )
+    expect(trigger?.textContent).toContain("actions.sendTemplate")
   })
 })

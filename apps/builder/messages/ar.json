@@ -159,7 +159,8 @@
     "viewRuns": "عرض عمليات التشغيل",
     "editSchedule": "تعديل الجدول",
     "newLineHint": "‏Shift + Enter لسطر جديد",
-    "tryAgain": "حاول مرة أخرى"
+    "tryAgain": "حاول مرة أخرى",
+    "sendTemplate": "إرسال قالب"
   },
   "errors": {
     "superAdminRequired": "يجب أن تكون مسؤولًا فائقًا لمساحة العمل للقيام بذلك.",
@@ -3842,6 +3843,7 @@
     "enableSuccess": "تم تمكين {feature} بنجاح",
     "userInactive": "لقد ظل المستخدم غير نشط لأكثر من 7 أيام",
     "messagingWindowClosed": "لا يمكن إرسال الرسالة خارج النافذة المسموح بها",
+    "messagingWindowClosedSendTemplate": "انتهت نافذة الـ24 ساعة. أرسل قالباً معتمداً، وعندما يرد العميل تنفتح المحادثة من جديد.",
     "humanAgentWindowExpired": "انتهت نافذة المراسلة. يجب أن ترسل جهة الاتصال رسالة أولًا لإعادة فتح المحادثة.",
     "restoreVersionSuccess": "تمت استعادة المسار إلى الإصدار المحدد",
     "revertToPublishedSuccess": "تمت إعادة المسودة إلى الإصدار المنشور",

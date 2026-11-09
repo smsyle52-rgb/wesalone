@@ -159,7 +159,8 @@
     "viewRuns": "View runs",
     "editSchedule": "Edit schedule",
     "newLineHint": "Shift + Enter for a new line",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "sendTemplate": "Send template"
   },
   "errors": {
     "superAdminRequired": "You need to be a workspace super admin to do this.",
@@ -4524,6 +4525,7 @@
     "enableSuccess": "{feature} enabled successfully",
     "userInactive": "User has been inactive more than 7 days",
     "messagingWindowClosed": "The message can not be send outside the allowed window",
+    "messagingWindowClosedSendTemplate": "The 24-hour window has closed. Send an approved template; when the customer replies, the chat opens again.",
     "humanAgentWindowExpired": "Messaging window expired. The contact must message first to reopen the conversation.",
     "restoreVersionSuccess": "Flow restored to selected version",
     "revertToPublishedSuccess": "Draft reverted to the published version",

@@ -1,6 +1,7 @@
 "use client"
 
 import type { ChannelType } from "@chatbotx.io/database/partials"
+import { stepTypes } from "@chatbotx.io/flow-config"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import { Form } from "@chatbotx.io/ui/components/ui/form"
 import { Textarea } from "@chatbotx.io/ui/components/ui/textarea"
@@ -23,6 +24,7 @@ import {
   PaperclipIcon,
   ReplyIcon,
   SendHorizonalIcon,
+  WorkflowIcon,
   XIcon,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -54,7 +56,7 @@ import { createMessageAction } from "../actions/create-message.action"
 import { createMessageWithRoutingBypassRequest } from "../schema/mutation"
 import type { MessageResource } from "../schema/resource"
 import { FileUploadPreview } from "./file-upload"
-import { InputMenu } from "./input-menu"
+import { InputMenu, SendFlowDialogTrigger } from "./input-menu"
 import { MediaFilePreview } from "./media-file-preview"
 import { ThreadControlLockedComposer } from "./thread-control-locked-composer"
 import { VoiceRecorder } from "./voice-recorder"
@@ -579,12 +581,28 @@ export const MessageInput = () => {
   }
 
   if (isDirectChannelWindowClosed) {
+    // WhatsApp still allows an approved template outside the 24-hour window,
+    // and the customer's reply reopens the window. Offer it here, since the
+    // composer (and its "Send flow" menu) is hidden in this state.
+    const canSendTemplate = channel === "whatsapp"
     return (
       <div className="m-3 shrink-0 rounded-xl border pt-2">
         <div className="flex flex-col items-center justify-center gap-3 px-4 py-6 text-center">
           <p className="text-muted-foreground text-sm">
-            {t("messages.messagingWindowClosed")}
+            {canSendTemplate
+              ? t("messages.messagingWindowClosedSendTemplate")
+              : t("messages.messagingWindowClosed")}
           </p>
+          {canSendTemplate && (
+            <SendFlowDialogTrigger
+              templateStartType={stepTypes.enum.sendWaTemplateMessage}
+            >
+              <Button type="button" variant="outline">
+                <WorkflowIcon aria-hidden />
+                {t("actions.sendTemplate")}
+              </Button>
+            </SendFlowDialogTrigger>
+          )}
         </div>
       </div>
     )
