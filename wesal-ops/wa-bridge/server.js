@@ -53,8 +53,12 @@ function startSession(ws) {
   s.lastError = null
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: `ws${ws}`, dataPath: DATA_DIR }),
+    // The host can be busy (image builds): give WhatsApp Web time to load.
+    authTimeoutMs: 180_000,
+    qrMaxRetries: 0,
     puppeteer: {
       headless: true,
+      protocolTimeout: 300_000,
       executablePath: process.env.CHROME_PATH || undefined,
       args: [
         "--no-sandbox",
@@ -232,7 +236,7 @@ ${s?.me ? `<div>الرقم المربوط: <b dir="ltr">+${s.me}</b></div>` : ""
 ${qrImg}
 ${qrImg ? `<small>من جوال الرقم: واتساب للأعمال ← الأجهزة المرتبطة ← ربط جهاز، ثم امسح الرمز.</small>` : ""}
 <small>رسائل اليوم عبر واتساب ويب: ${sentToday} / ${DAILY_CAP}</small>
-<form method="post" action="logout" onsubmit="return confirm('فكّ الربط وإظهار رمز جديد؟')"><button>إعادة الربط</button></form>
+${["ready", "auth_failure", "error"].includes(s?.state) ? `<form method="post" action="logout" onsubmit="return confirm('فكّ الربط وإظهار رمز جديد؟')"><button>إعادة الربط</button></form>` : ""}
 </div><small>الصفحة تتحدّث كل ٥ ثوانٍ.</small></body></html>`
 }
 
@@ -254,6 +258,12 @@ const server = http.createServer(async (req, res) => {
       if (!WORKSPACES[ws]) return send(res, 404, "not found", "text/plain")
       if (req.method === "POST" && parts[3] === "logout") {
         const s = sessions[ws]
+        // Only a linked or failed session can be reset; pressing it while
+        // WhatsApp Web is still loading just restarts the load forever.
+        if (!["ready", "authenticated", "auth_failure", "error", "disconnected"].includes(s?.state)) {
+          res.writeHead(303, { Location: "./" })
+          return res.end()
+        }
         log("warn", "admin logout", { ws })
         try {
           await s?.client?.logout()
@@ -318,5 +328,9 @@ const shutdown = async () => {
   await Promise.allSettled(Object.values(sessions).map((s) => s.client?.destroy()))
   process.exit(0)
 }
+// A closed browser tab rejects in-flight puppeteer calls; log it, never crash
+// (a crash would drop every linked session at once).
+process.on("unhandledRejection", (err) => log("error", "unhandledRejection", { err: String(err?.message || err) }))
+process.on("uncaughtException", (err) => log("error", "uncaughtException", { err: String(err?.message || err) }))
 process.on("SIGTERM", shutdown)
 process.on("SIGINT", shutdown)
