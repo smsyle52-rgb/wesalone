@@ -46,8 +46,11 @@ function FileThumb({ file }: { file: FileWithPreview }) {
 export const FileUploadPreview = ({
   ref,
   maxFiles = 1,
+  maxOtherMb = MAX_OTHER_ATTACHMENT_MB,
 }: {
   maxFiles?: number
+  /** Cap for video, audio and documents (32MB on WhatsApp Web workspaces). */
+  maxOtherMb?: number
 } & {
   ref: React.RefObject<unknown>
 }) => {
@@ -58,11 +61,11 @@ export const FileUploadPreview = ({
     noClick: true,
     maxFiles,
     // The overall cap; images get their tighter cap from the validator.
-    maxSize: maxAttachmentBytes(""),
+    maxSize: maxAttachmentBytes("", maxOtherMb),
     multiple: maxFiles > 1,
     noKeyboard: true,
     validator: (file) =>
-      isWithinAttachmentLimit(file)
+      isWithinAttachmentLimit(file, maxOtherMb)
         ? null
         : { code: "file-too-large", message: file.name },
     // Without this a too-large file was dropped silently and the agent saw
@@ -72,8 +75,8 @@ export const FileUploadPreview = ({
         toast.error(
           t("fields.import.fileTooLarge", {
             size: file.type
-              ? maxAttachmentMb(file.type)
-              : MAX_OTHER_ATTACHMENT_MB,
+              ? maxAttachmentMb(file.type, maxOtherMb)
+              : maxOtherMb,
           }),
         )
       }

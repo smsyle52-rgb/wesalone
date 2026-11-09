@@ -1,0 +1,27 @@
+# Wesal WhatsApp Web bridge — separate from the main stack on purpose.
+# Joins the main "wesal" network so the worker and caddy can reach it as
+# http://wa-bridge:8090. Nothing is published to the host.
+services:
+  wa-bridge:
+    image: wesal/wa-bridge:v1
+    container_name: wesal-wa-bridge
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8090"
+      DATA_DIR: /data
+    volumes:
+      - wabridge-data:/data
+    shm_size: "512m"
+    mem_limit: 2g
+    networks:
+      wesal:
+        aliases: [wa-bridge]
+
+networks:
+  wesal:
+    external: true
+    name: wesal_wesal
+
+volumes:
+  wabridge-data:

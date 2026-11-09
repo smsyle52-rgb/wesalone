@@ -5,7 +5,7 @@ import { z } from "zod"
 import { zodGuestConversationId } from "@/features/integration-webchat/lib/guest-conversation-id"
 import {
   ATTACHMENT_LIMIT_MESSAGE,
-  isWithinAttachmentLimit,
+  isWithinServerAttachmentLimit,
 } from "../lib/attachment-limits"
 
 const mediaLibraryFileRequest = z.object({
@@ -55,7 +55,7 @@ export const createMessageRequest = z
       text: z.string().trim().min(1).max(1000).describe("Message text."),
       files: z
         .array(
-          z.instanceof(File).refine(isWithinAttachmentLimit, {
+          z.instanceof(File).refine(isWithinServerAttachmentLimit, {
             message: ATTACHMENT_LIMIT_MESSAGE,
           }),
         )
@@ -98,7 +98,7 @@ export const createMessageRequest = z
     z.object({
       files: z
         .array(
-          z.instanceof(File).refine(isWithinAttachmentLimit, {
+          z.instanceof(File).refine(isWithinServerAttachmentLimit, {
             message: ATTACHMENT_LIMIT_MESSAGE,
           }),
         )
@@ -195,7 +195,7 @@ export const createWebchatMessageRequest = z
     z.object({
       files: z
         .array(
-          z.instanceof(File).refine(isWithinAttachmentLimit, {
+          z.instanceof(File).refine(isWithinServerAttachmentLimit, {
             message: ATTACHMENT_LIMIT_MESSAGE,
           }),
         )
@@ -270,7 +270,7 @@ export type EditMessageRequest = z.infer<typeof editMessageRequest>
 export const sendFileMessageRequest = z.object({
   contactId: zodBigintAsString(),
   channel: channelTypes,
-  file: z.file().refine(isWithinAttachmentLimit, {
+  file: z.file().refine(isWithinServerAttachmentLimit, {
     message: ATTACHMENT_LIMIT_MESSAGE,
   }),
 })

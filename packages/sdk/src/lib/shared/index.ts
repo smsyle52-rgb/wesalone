@@ -14,6 +14,7 @@ export * from "./meta-messaging"
 export * from "./mime-types"
 export * from "./profile-fields"
 export * from "./recording-content-type"
+export * from "./wa-bridge"
 
 export type Handler<I, O> = (props: I) => Promise<O>
 

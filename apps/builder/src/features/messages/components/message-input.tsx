@@ -2,6 +2,7 @@
 
 import type { ChannelType } from "@chatbotx.io/database/partials"
 import { stepTypes } from "@chatbotx.io/flow-config"
+import { isWaBridgeWorkspace } from "@chatbotx.io/sdk"
 import { Button } from "@chatbotx.io/ui/components/ui/button"
 import { Form } from "@chatbotx.io/ui/components/ui/form"
 import { Textarea } from "@chatbotx.io/ui/components/ui/textarea"
@@ -53,6 +54,10 @@ import type { SavedReplyResource } from "@/features/saved-replies/schema/resourc
 import { authClient } from "@/lib/auth/auth-client"
 import { useChatStore } from "../../chat/store/chat-store-provider"
 import { createMessageAction } from "../actions/create-message.action"
+import {
+  MAX_BRIDGE_ATTACHMENT_MB,
+  MAX_OTHER_ATTACHMENT_MB,
+} from "../lib/attachment-limits"
 import { createMessageWithRoutingBypassRequest } from "../schema/mutation"
 import type { MessageResource } from "../schema/resource"
 import { FileUploadPreview } from "./file-upload"
@@ -530,9 +535,17 @@ export const MessageInput = () => {
     )
   }, [isMetaDm, lastIncomingTs, clockTick])
 
+  // Wesal: bridge workspaces keep the composer open on WhatsApp after the
+  // window closes; the worker sends those messages through WhatsApp Web.
+  const isWaBridge =
+    channel === "whatsapp" && isWaBridgeWorkspace(conversation?.workspaceId)
+
   const isDirectChannelWindowClosed = useMemo(
-    () => (channel === "whatsapp" || channel === "tiktok") && isWindowExpired,
-    [channel, isWindowExpired],
+    () =>
+      (channel === "whatsapp" || channel === "tiktok") &&
+      isWindowExpired &&
+      !isWaBridge,
+    [channel, isWindowExpired, isWaBridge],
   )
 
   // Check if a media file (device upload or Media Library pick) is attached
@@ -682,7 +695,12 @@ export const MessageInput = () => {
           </div>
           {!isInstagramPostComment && (
             <div className="px-2">
-              <FileUploadPreview ref={fileUploadRef} />
+              <FileUploadPreview
+                maxOtherMb={
+                  isWaBridge ? MAX_BRIDGE_ATTACHMENT_MB : MAX_OTHER_ATTACHMENT_MB
+                }
+                ref={fileUploadRef}
+              />
               {selectedMediaFiles.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {selectedMediaFiles.map((mediaFile) => (

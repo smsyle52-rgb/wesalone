@@ -32,6 +32,7 @@ import { getWhatsappClient } from "../../../client"
 import { API_URL, DEFAULT_API_VERSION } from "../../../constants"
 import { mapToChannelError } from "../../../lib/error-mapper"
 import { logger } from "../../../lib/logger"
+import { sendViaWaBridge, shouldUseWaBridge } from "../../../lib/wa-bridge"
 import {
   isBsuidRecipient,
   resolveRecipientParams,
@@ -377,8 +378,22 @@ export const sendMessage: MessageHandlers<WhatsappAuthValue>["sendMessage"] =
   async (props) => {
     const {
       ctx,
-      data: { contact, message, quickReplies },
+      data: { contact, message, quickReplies, sendFrom },
     } = props
+
+    // Wesal: an agent's message the Cloud API cannot carry (24h window closed,
+    // or a video over 16MB) goes through the WhatsApp Web bridge instead.
+    if (
+      !quickReplies?.length &&
+      shouldUseWaBridge({ contact, message, sendFrom })
+    ) {
+      try {
+        return await sendViaWaBridge({ contact, message })
+      } catch (error) {
+        throw mapToChannelError(error)
+      }
+    }
+
     const whatsappClient = getWhatsappClient(ctx.auth)
     const messageIds: string[] = []
     let sentCount = 0
