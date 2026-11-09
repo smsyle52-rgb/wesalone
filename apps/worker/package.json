@@ -109,6 +109,7 @@
     "remove-markdown": "^0.6.3",
     "sharp": "0.35.5",
     "universal-error-normalizer": "^1.0.0",
+    "web-push": "3.6.7",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },
@@ -119,6 +120,7 @@
     "@types/mailparser": "^3.4.6",
     "@types/mime-types": "^3.0.1",
     "@types/node": "24.x",
+    "@types/web-push": "3.6.4",
     "concurrently": "^10.0.3",
     "dotenv-cli": "^11.0.0",
     "pino-pretty": "^13.1.3",
