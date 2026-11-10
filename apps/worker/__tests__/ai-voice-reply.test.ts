@@ -1,17 +1,20 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
-const { synth, reserve, release, settleUnits, saveAudio, send } = vi.hoisted(
-  () => ({
+const { synth, eleven, reserve, release, settleUnits, saveAudio, send } =
+  vi.hoisted(() => ({
     synth: vi.fn(),
+    eleven: vi.fn(),
     reserve: vi.fn(),
     release: vi.fn(),
     settleUnits: vi.fn(),
     saveAudio: vi.fn(),
     send: vi.fn(),
-  }),
-)
+  }))
 
-vi.mock("@chatbotx.io/ai/server", () => ({ synthesizePlatformSpeech: synth }))
+vi.mock("@chatbotx.io/ai/server", () => ({
+  synthesizePlatformSpeech: synth,
+  synthesizeElevenLabsSpeech: eleven,
+}))
 vi.mock("@chatbotx.io/business", () => ({
   usageMeteringService: { reserve, release, settleUnits },
 }))
@@ -93,5 +96,33 @@ describe("sendVoiceReply", () => {
   test("returns false when there is nothing to speak", async () => {
     expect(await sendVoiceReply({ ...base, text: "3061241212" })).toBe(false)
     expect(synth).not.toHaveBeenCalled()
+  })
+
+  test("speaks with the cloned ElevenLabs voice when one is set", async () => {
+    eleven.mockResolvedValue({
+      audio: new Uint8Array([2]),
+      mediaType: "audio/ogg",
+    })
+    const ok = await sendVoiceReply({
+      ...base,
+      text: "أبشر يا غالي",
+      elevenLabsVoiceId: "v1",
+    })
+    expect(ok).toBe(true)
+    expect(eleven).toHaveBeenCalledWith(
+      expect.objectContaining({ voiceId: "v1" }),
+    )
+    expect(synth).not.toHaveBeenCalled()
+  })
+
+  test("falls back to the platform voice when ElevenLabs fails", async () => {
+    eleven.mockRejectedValue(new Error("401"))
+    const ok = await sendVoiceReply({
+      ...base,
+      text: "أبشر يا غالي",
+      elevenLabsVoiceId: "v1",
+    })
+    expect(ok).toBe(true)
+    expect(synth).toHaveBeenCalled()
   })
 })

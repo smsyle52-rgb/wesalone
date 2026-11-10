@@ -4,11 +4,18 @@
  * messages are still answered with text, and anything the customer must copy
  * (account or phone numbers) is always sent as text next to the voice note.
  *
- * `voice` overrides the platform's configured voice for that workspace (a
- * Google Cloud Chirp3-HD voice name, e.g. "ar-XA-Chirp3-HD-Charon").
+ * `elevenLabsVoiceId` speaks with a cloned voice on ElevenLabs (used first when
+ * the server has an ElevenLabs key). `voice` overrides the platform's Google
+ * voice (a Chirp3-HD voice name, e.g. "ar-XA-Chirp3-HD-Charon"), which is the
+ * fallback.
  */
+export type AiVoiceReplyConfig = {
+  voice?: string
+  elevenLabsVoiceId?: string
+}
+
 export const AI_VOICE_REPLY_WORKSPACES: Readonly<
-  Record<string, { voice?: string }>
+  Record<string, AiVoiceReplyConfig>
 > = {
   // ملكة سبأ
   "11767468508764852": {},
@@ -16,7 +23,7 @@ export const AI_VOICE_REPLY_WORKSPACES: Readonly<
 
 export const getAiVoiceReplyConfig = (
   workspaceId: string | null | undefined,
-): { voice?: string } | null =>
+): AiVoiceReplyConfig | null =>
   (workspaceId && AI_VOICE_REPLY_WORKSPACES[String(workspaceId)]) || null
 
 /** Lines a customer has to read or copy: account, wallet and phone numbers. */

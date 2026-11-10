@@ -1,6 +1,7 @@
 export * from "./cache"
 export * from "./cache/ai-context-store"
 export * from "./cache/schema"
+export * from "./elevenlabs-speech"
 export * from "./embedding-model"
 export * from "./factory"
 export * from "./google-cloud-document"

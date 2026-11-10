@@ -107,7 +107,7 @@ export type ReplyByAIProps = {
    * Wesal: answer with a voice note instead of text (the customer sent a voice
    * note in a voice-reply workspace). Falls back to text when speech fails.
    */
-  voiceReply?: { voice?: string }
+  voiceReply?: { voice?: string; elevenLabsVoiceId?: string }
 }
 
 export type ReplyByAIExecutionResult = {
@@ -1446,6 +1446,7 @@ async function runAIReply(
         conversation,
         text: fullText,
         voice: props.voiceReply.voice,
+        elevenLabsVoiceId: props.voiceReply.elevenLabsVoiceId,
         operationKey: props.triggerMessageId ?? String(startTime),
         takeTrackingContext: () => consumeTrackingContext(trackingContextRef),
       })

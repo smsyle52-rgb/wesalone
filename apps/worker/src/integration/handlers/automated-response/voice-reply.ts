@@ -1,4 +1,7 @@
-import { synthesizePlatformSpeech } from "@chatbotx.io/ai/server"
+import {
+  synthesizeElevenLabsSpeech,
+  synthesizePlatformSpeech,
+} from "@chatbotx.io/ai/server"
 import { usageMeteringService } from "@chatbotx.io/business"
 import type { ConversationModel } from "@chatbotx.io/database/types"
 import { splitVoiceReply } from "@chatbotx.io/sdk"
@@ -8,6 +11,38 @@ import { sendMessageAndWait } from "../../utils/message"
 import { textToSpeechStorageService } from "../text-to-speech/storage"
 
 const VOICE_REPLY_TIMEOUT_MS = 45_000
+
+/** The cloned ElevenLabs voice first, then the platform's Google voice. */
+async function synthesizeSpeech(props: {
+  text: string
+  voice?: string
+  elevenLabsVoiceId?: string
+  signal: AbortSignal
+}): ReturnType<typeof synthesizePlatformSpeech> {
+  if (props.elevenLabsVoiceId) {
+    try {
+      const cloned = await synthesizeElevenLabsSpeech({
+        text: props.text,
+        voiceId: props.elevenLabsVoiceId,
+        signal: props.signal,
+      })
+      if (cloned) {
+        return cloned
+      }
+    } catch (err) {
+      logger.warn(
+        { err },
+        "[automated-response] ElevenLabs voice failed — trying the platform voice",
+      )
+    }
+  }
+  return await synthesizePlatformSpeech({
+    text: props.text,
+    encoding: "OGG_OPUS",
+    voice: props.voice,
+    signal: props.signal,
+  })
+}
 
 /**
  * Wesal: sends an AI agent reply as a voice note (Ogg/Opus, which WhatsApp
@@ -22,10 +57,11 @@ export async function sendVoiceReply(props: {
   conversation: Pick<ConversationModel, "id" | "workspaceId">
   text: string
   voice?: string
+  elevenLabsVoiceId?: string
   operationKey: string
   takeTrackingContext: () => BotResponseTrackingContext | undefined
 }): Promise<boolean> {
-  const { conversation, text, voice, operationKey } = props
+  const { conversation, text, voice, elevenLabsVoiceId, operationKey } = props
   const { spoken, textOnly } = splitVoiceReply(text)
   if (!spoken) {
     return false
@@ -45,10 +81,10 @@ export async function sendVoiceReply(props: {
     })
     let speech: Awaited<ReturnType<typeof synthesizePlatformSpeech>>
     try {
-      speech = await synthesizePlatformSpeech({
+      speech = await synthesizeSpeech({
         text: spoken,
-        encoding: "OGG_OPUS",
         voice,
+        elevenLabsVoiceId,
         signal: controller.signal,
       })
     } catch (error) {
