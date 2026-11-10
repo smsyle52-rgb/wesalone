@@ -1,4 +1,4 @@
-import { authHeaders, signInWithEmail } from './auth-endpoints';
+import { authHeaders, requestPasswordReset, signInWithEmail } from './auth-endpoints';
 
 // jest.mock calls below are hoisted above this import by babel-jest.
 jest.mock('@/config/env', () => ({
@@ -38,5 +38,21 @@ describe('signInWithEmail', () => {
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://wesal.one/api/auth/sign-in/email');
     expect((init.headers as Record<string, string>).Origin).toBe('https://wesal.one');
+  });
+});
+
+describe('requestPasswordReset', () => {
+  it('posts to the request-password-reset route with the web reset page as redirect', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await requestPasswordReset('a@b.test');
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(/\/request-password-reset$/);
+    expect(JSON.parse(init.body as string)).toEqual({
+      email: 'a@b.test',
+      redirectTo: '/auth/reset-password',
+    });
   });
 });

@@ -8,6 +8,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { describeAuthError } from '@/lib/describe-auth-error';
 import { signInWithEmail } from '@/api/auth-endpoints';
 import { BrandMark } from '@/components/brand-mark';
 import { Button } from '@/components/ui/button';
@@ -58,7 +59,7 @@ export default function SignInScreen() {
       // for exactly this "any valid path string" case.
       router.replace((pendingDeepLink ?? '/') as Href);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errors.unknown'));
+      setError(describeAuthError(err, t));
     } finally {
       setIsSubmitting(false);
     }

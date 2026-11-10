@@ -98,10 +98,10 @@ export async function getSession(token: string): Promise<SessionUser | null> {
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
-  const response = await fetch(`${AUTH_BASE_URL}/forget-password`, {
+  const response = await fetch(`${AUTH_BASE_URL}/request-password-reset`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ email, redirectTo: '/' }),
+    body: JSON.stringify({ email, redirectTo: '/auth/reset-password' }),
   });
   await throwIfError(response);
 }
