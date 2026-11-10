@@ -79,6 +79,7 @@ import {
   consumeTrackingContext,
   type TrackingContextRef,
 } from "./tracking-context"
+import { sendVoiceReply } from "./voice-reply"
 
 export type ReplyByAIProps = {
   conversation: ConversationModel
@@ -102,6 +103,11 @@ export type ReplyByAIProps = {
   workspaceLanguage?: string
   defaultReplyFrequency: DefaultReplyFrequency
   workspaceTimezone?: string
+  /**
+   * Wesal: answer with a voice note instead of text (the customer sent a voice
+   * note in a voice-reply workspace). Falls back to text when speech fails.
+   */
+  voiceReply?: { voice?: string }
 }
 
 export type ReplyByAIExecutionResult = {
@@ -1397,7 +1403,8 @@ async function runAIReply(
     const { messageCount, fullText } = await processStreamingText(
       result.textStream,
       async (_segment, parts) => {
-        if (directSendTracker.sent) {
+        // A voice reply is sent whole once the stream ends (below).
+        if (directSendTracker.sent || props.voiceReply) {
           return
         }
         for (const part of parts) {
@@ -1427,6 +1434,28 @@ async function runAIReply(
     if (deadline.timedOut() && messageCount === 0 && !directSendTracker.sent) {
       await handOffAfterFirstOutputTimeout()
       return null
+    }
+
+    if (
+      props.voiceReply &&
+      !directSendTracker.sent &&
+      messageCount > 0 &&
+      fullText
+    ) {
+      const sentAsVoice = await sendVoiceReply({
+        conversation,
+        text: fullText,
+        voice: props.voiceReply.voice,
+        operationKey: props.triggerMessageId ?? String(startTime),
+        takeTrackingContext: () => consumeTrackingContext(trackingContextRef),
+      })
+      if (!sentAsVoice) {
+        await sendMessageAndWait(
+          conversation.id,
+          fullText,
+          consumeTrackingContext(trackingContextRef),
+        )
+      }
     }
 
     if (directSendTracker.sent) {

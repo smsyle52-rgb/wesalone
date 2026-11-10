@@ -16,16 +16,28 @@ function inferLanguageCode(voice: string): string {
   return match?.[1] ?? "ar-XA"
 }
 
+/** Google's audio encodings and the media type each one produces. */
+const AUDIO_ENCODINGS = {
+  MP3: "audio/mpeg",
+  // Ogg/Opus is what WhatsApp plays as a voice note.
+  OGG_OPUS: "audio/ogg",
+} as const
+
 export async function synthesizePlatformSpeech(props: {
   text: string
   signal?: AbortSignal
+  /** Defaults to MP3. */
+  encoding?: keyof typeof AUDIO_ENCODINGS
+  /** Overrides the platform's configured voice. */
+  voice?: string
 }): Promise<null | { audio: Uint8Array; mediaType: string }> {
   const capability = await getPlatformTextToSpeechConfig()
   if (!capability) {
     return null
   }
 
-  const voice = capability.voice ?? "ar-XA-Chirp3-HD-Aoede"
+  const voice = props.voice ?? capability.voice ?? "ar-XA-Chirp3-HD-Aoede"
+  const encoding = props.encoding ?? "MP3"
 
   // A bare `new GoogleAuth()` looks for Application Default Credentials —
   // GOOGLE_APPLICATION_CREDENTIALS, a metadata server, a gcloud login. None of
@@ -66,7 +78,7 @@ export async function synthesizePlatformSpeech(props: {
           languageCode: inferLanguageCode(voice),
           name: voice,
         },
-        audioConfig: { audioEncoding: "MP3" },
+        audioConfig: { audioEncoding: encoding },
       }),
       signal: props.signal,
     },
@@ -83,6 +95,6 @@ export async function synthesizePlatformSpeech(props: {
 
   return {
     audio: Uint8Array.from(Buffer.from(payload.audioContent, "base64")),
-    mediaType: "audio/mpeg",
+    mediaType: AUDIO_ENCODINGS[encoding],
   }
 }

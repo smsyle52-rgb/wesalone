@@ -19,7 +19,9 @@ import {
 } from "@chatbotx.io/database/repositories"
 import { emit } from "@chatbotx.io/event-bus"
 import {
+  AI_VOICE_REPLY_INSTRUCTION,
   DOCX_MIME_TYPES,
+  getAiVoiceReplyConfig,
   IMAGE_MIME_TYPES,
   PDF_MIME_TYPES,
 } from "@chatbotx.io/sdk"
@@ -386,6 +388,20 @@ export async function processAutomatedResponse(
       })
     }
 
+    // Wesal: a voice note is answered with a voice note in voice-reply
+    // workspaces, once the voice note could be understood.
+    const voiceReplyConfig = getAiVoiceReplyConfig(conversation.workspaceId)
+    const voiceReply =
+      voiceReplyConfig && audioTranscripts.length > 0
+        ? voiceReplyConfig
+        : undefined
+    if (voiceReply) {
+      messages.push({
+        role: aiMessageRoles.enum.system,
+        content: AI_VOICE_REPLY_INSTRUCTION,
+      })
+    }
+
     if (isFileOnlyTrigger) {
       messages.push({
         role: aiMessageRoles.enum.user,
@@ -438,6 +454,7 @@ export async function processAutomatedResponse(
         workspaceLanguage: workspace.language,
         defaultReplyFrequency,
         workspaceTimezone: workspace.timezone ?? undefined,
+        voiceReply,
       })
     } finally {
       clearInterval(typingIntervalId)

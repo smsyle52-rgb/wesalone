@@ -11,7 +11,7 @@ import { createId } from "@chatbotx.io/utils"
 export type TTSAudioOutput = {
   publicUrl: string
   storagePath: string
-  mimeType: "audio/mpeg" | "audio/wav"
+  mimeType: "audio/mpeg" | "audio/wav" | "audio/ogg"
   size: number
 }
 
@@ -26,7 +26,14 @@ type SaveTextToSpeechAudioProps = {
 const allowedMimeTypes = new Set<TTSAudioOutput["mimeType"]>([
   "audio/mpeg",
   "audio/wav",
+  "audio/ogg",
 ])
+
+const extensions: Record<TTSAudioOutput["mimeType"], string> = {
+  "audio/mpeg": AI_TEXT_TO_SPEECH_DEFAULT_EXTENSION,
+  "audio/wav": "wav",
+  "audio/ogg": "ogg",
+}
 
 export const textToSpeechStorageService = {
   saveAudio: async ({
@@ -44,8 +51,7 @@ export const textToSpeechStorageService = {
           AI_TEXT_TO_SPEECH_DEFAULT_MIME_TYPE) as TTSAudioOutput["mimeType"])
       : AI_TEXT_TO_SPEECH_DEFAULT_MIME_TYPE
 
-    const extension =
-      contentType === "audio/wav" ? "wav" : AI_TEXT_TO_SPEECH_DEFAULT_EXTENSION
+    const extension = extensions[contentType]
 
     const buffer =
       typeof audioData === "string"
