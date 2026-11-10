@@ -8,7 +8,7 @@ import type {
   TextInputContentSizeChangeEventData,
   ViewStyle,
 } from 'react-native';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { ErrorBanner } from '@/components/ui/error-banner';
@@ -212,6 +212,7 @@ export function Composer({ workspaceId, conversationId, style }: ComposerProps) 
 
   function handleStartVoiceNote() {
     if (quotaBlocked) return;
+    Keyboard.dismiss();
     setIsRecordingVoice(true);
   }
 
@@ -250,12 +251,19 @@ export function Composer({ workspaceId, conversationId, style }: ComposerProps) 
     await sendAssets(assets);
   }
 
+  function handleOpenActionsSheet() {
+    Keyboard.dismiss();
+    actionsSheetRef.current?.present();
+  }
+
   function handleOpenFlowPicker() {
+    Keyboard.dismiss();
     actionsSheetRef.current?.dismiss();
     flowPickerRef.current?.present();
   }
 
   function handleOpenSendSequence() {
+    Keyboard.dismiss();
     actionsSheetRef.current?.dismiss();
     sequencePickerRef.current?.present();
   }
@@ -276,6 +284,7 @@ export function Composer({ workspaceId, conversationId, style }: ComposerProps) 
   }
 
   function handleOpenSavedReplies() {
+    Keyboard.dismiss();
     actionsSheetRef.current?.dismiss();
     savedRepliesRef.current?.present();
   }
@@ -372,7 +381,7 @@ export function Composer({ workspaceId, conversationId, style }: ComposerProps) 
                 icon="circle-plus"
                 size="lg"
                 variant="ghost"
-                onPress={() => actionsSheetRef.current?.present()}
+                onPress={handleOpenActionsSheet}
                 disabled={Boolean(quotaBlocked)}
               />
 
