@@ -9877,5 +9877,11 @@
     "micDenied": "Quyền truy cập micrô đã bị chặn. Hãy cho phép trong trình duyệt để ghi âm.",
     "unsupported": "Trình duyệt này không thể ghi âm.",
     "failed": "Không thể xử lý bản ghi. Vui lòng thử lại."
+  },
+  "waBridge": {
+    "title": "WhatsApp Web (replies after 24 hours)",
+    "description": "Link this number's WhatsApp Business app as a device so agents can reply to customers after the 24-hour window closes. Replies inside the window still go through the official API.",
+    "open": "Link WhatsApp Web",
+    "hint": "Opens the linking page: scan the code from the phone (WhatsApp Business → Linked devices → Link a device)."
   }
 }

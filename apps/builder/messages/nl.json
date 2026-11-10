@@ -9877,5 +9877,11 @@
     "micDenied": "Toegang tot de microfoon is geblokkeerd. Sta deze toe in je browser om op te nemen.",
     "unsupported": "Deze browser kan geen audio opnemen.",
     "failed": "De opname kon niet worden verwerkt. Probeer het opnieuw."
+  },
+  "waBridge": {
+    "title": "WhatsApp Web (replies after 24 hours)",
+    "description": "Link this number's WhatsApp Business app as a device so agents can reply to customers after the 24-hour window closes. Replies inside the window still go through the official API.",
+    "open": "Link WhatsApp Web",
+    "hint": "Opens the linking page: scan the code from the phone (WhatsApp Business → Linked devices → Link a device)."
   }
 }

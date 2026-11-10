@@ -9877,5 +9877,11 @@
     "micDenied": "Se bloqueó el acceso al micrófono. Permítelo en tu navegador para grabar.",
     "unsupported": "Este navegador no puede grabar audio.",
     "failed": "No se pudo procesar la grabación. Inténtalo de nuevo."
+  },
+  "waBridge": {
+    "title": "WhatsApp Web (replies after 24 hours)",
+    "description": "Link this number's WhatsApp Business app as a device so agents can reply to customers after the 24-hour window closes. Replies inside the window still go through the official API.",
+    "open": "Link WhatsApp Web",
+    "hint": "Opens the linking page: scan the code from the phone (WhatsApp Business → Linked devices → Link a device)."
   }
 }

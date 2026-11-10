@@ -9877,5 +9877,11 @@
     "micDenied": "マイクへのアクセスがブロックされました。録音するにはブラウザで許可してください。",
     "unsupported": "このブラウザでは音声を録音できません。",
     "failed": "録音を処理できませんでした。もう一度お試しください。"
+  },
+  "waBridge": {
+    "title": "WhatsApp Web (replies after 24 hours)",
+    "description": "Link this number's WhatsApp Business app as a device so agents can reply to customers after the 24-hour window closes. Replies inside the window still go through the official API.",
+    "open": "Link WhatsApp Web",
+    "hint": "Opens the linking page: scan the code from the phone (WhatsApp Business → Linked devices → Link a device)."
   }
 }

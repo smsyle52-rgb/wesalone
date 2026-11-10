@@ -267,9 +267,14 @@ const server = http.createServer(async (req, res) => {
 
     // /admin/<token>/<ws>[/logout]
     if (parts[0] === "admin") {
-      if (!safeEqual(parts[1] || "", ADMIN_TOKEN)) return send(res, 404, "not found", "text/plain")
       const ws = parts[2]
       if (!WORKSPACES[ws]) return send(res, 404, "not found", "text/plain")
+      // Either the master token, or the per-workspace token the platform's
+      // WhatsApp settings page links to: HMAC(ADMIN_TOKEN, workspaceId).
+      const wsToken = crypto.createHmac("sha256", ADMIN_TOKEN).update(ws).digest("hex")
+      if (!(safeEqual(parts[1] || "", ADMIN_TOKEN) || safeEqual(parts[1] || "", wsToken))) {
+        return send(res, 404, "not found", "text/plain")
+      }
       if (req.method === "POST" && parts[3] === "logout") {
         const s = sessions[ws]
         // Only a linked or failed session can be reset; pressing it while

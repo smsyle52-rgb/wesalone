@@ -9877,5 +9877,11 @@
     "micDenied": "麥克風存取已被封鎖。請在瀏覽器中允許以進行錄音。",
     "unsupported": "此瀏覽器無法錄製音訊。",
     "failed": "無法處理錄音，請再試一次。"
+  },
+  "waBridge": {
+    "title": "WhatsApp Web (replies after 24 hours)",
+    "description": "Link this number's WhatsApp Business app as a device so agents can reply to customers after the 24-hour window closes. Replies inside the window still go through the official API.",
+    "open": "Link WhatsApp Web",
+    "hint": "Opens the linking page: scan the code from the phone (WhatsApp Business → Linked devices → Link a device)."
   }
 }

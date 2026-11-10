@@ -1,6 +1,7 @@
 import { platformCredentialService } from "@chatbotx.io/business"
 import { getIdFromParams } from "@chatbotx.io/utils"
 import { notFound } from "next/navigation"
+import { WaBridgeCard } from "@/features/integration-whatsapp/components/wa-bridge-card"
 import { listIntegrationWhatsapps } from "@/features/integration-whatsapp/queries"
 import { WhatsappManage } from "@/features/integration-whatsapp/whatsapp-manage"
 import { requireVisibleChannel } from "@/lib/workspace/require-visible-channel"
@@ -30,11 +31,14 @@ export default async function SettingChannelWhatsappPage(props: {
   const canCreate = await resolveChannelCreatable(workspaceId, "whatsapp")
 
   return (
-    <WhatsappManage
-      canCreate={canCreate}
-      isEnabled={hasWhatsappSettings}
-      promises={promises}
-      workspaceId={workspaceId}
-    />
+    <>
+      <WaBridgeCard workspaceId={workspaceId} />
+      <WhatsappManage
+        canCreate={canCreate}
+        isEnabled={hasWhatsappSettings}
+        promises={promises}
+        workspaceId={workspaceId}
+      />
+    </>
   )
 }
