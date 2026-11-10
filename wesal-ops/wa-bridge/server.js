@@ -5,6 +5,8 @@
 "use strict"
 const http = require("node:http")
 const crypto = require("node:crypto")
+const fs = require("node:fs")
+const path = require("node:path")
 const QRCode = require("qrcode")
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js")
 
@@ -46,7 +48,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 /** @type {Record<string, any>} */
 const sessions = {}
 
+// A container restart leaves Chromium's profile lock behind (the old
+// hostname no longer exists), and Chromium then refuses to start.
+function clearProfileLock(ws) {
+  const dir = path.join(DATA_DIR, `session-ws${ws}`)
+  for (const f of ["SingletonLock", "SingletonCookie", "SingletonSocket"]) {
+    try {
+      fs.rmSync(path.join(dir, f), { force: true })
+    } catch {}
+  }
+}
+
 function startSession(ws) {
+  clearProfileLock(ws)
   const s = sessions[ws] || (sessions[ws] = { ws, sent: 0, day: "", chain: Promise.resolve() })
   s.state = "starting"
   s.qr = null
