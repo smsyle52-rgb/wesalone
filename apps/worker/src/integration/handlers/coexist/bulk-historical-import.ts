@@ -22,7 +22,10 @@ import type { InboxModel } from "@chatbotx.io/database/types"
 import {
   type IncomingContact,
   type IncomingMessage,
+  isWaBridgeWorkspace,
   toKeepOriginal,
+  WA_BRIDGE_SOURCE_ID_PREFIX,
+  wamidKeyId,
 } from "@chatbotx.io/sdk"
 import { createId } from "@chatbotx.io/utils"
 import pLimit from "p-limit"
@@ -553,6 +556,76 @@ export type BulkImportHistoricalResult = {
  * message bodies), COALESCE-fills the parent Contact row in the same tx so
  * downstream UI sees the enrichment atomically with the new messages.
  */
+/** Bridge rows older than this are never matched to an echo. */
+const WA_BRIDGE_ECHO_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1000
+
+/**
+ * Wesal: an agent message sent through the WhatsApp Web bridge is stored at
+ * send time as `wab.<key id>`. Coexistence then echoes the same message back
+ * with a `wamid.` wrapping that key id. Instead of inserting the echo as a
+ * second row, give the bridge row the wamid (so delivery receipts reach it)
+ * and drop the echo. Only runs for bridge workspaces, and only when the batch
+ * holds outgoing wamids.
+ */
+const adoptWaBridgeEchoes = async (props: {
+  workspaceId: string
+  runId: string
+  contactInboxId: string
+  messages: HistoricalMessage[]
+}): Promise<HistoricalMessage[]> => {
+  const { workspaceId, runId, contactInboxId, messages } = props
+  if (!isWaBridgeWorkspace(workspaceId)) {
+    return messages
+  }
+  const wamidByBridgeId = new Map<string, string>()
+  for (const msg of messages) {
+    if (msg.messageType !== "outgoing") {
+      continue
+    }
+    const keyId = wamidKeyId(msg.sourceId)
+    if (keyId) {
+      wamidByBridgeId.set(`${WA_BRIDGE_SOURCE_ID_PREFIX}${keyId}`, msg.sourceId)
+    }
+  }
+  if (wamidByBridgeId.size === 0) {
+    return messages
+  }
+
+  try {
+    const repository = await createMessageRepository()
+    const rows = await repository.findManyBySourceIds({
+      workspaceId,
+      contactInboxIds: [contactInboxId],
+      sourceIds: [...wamidByBridgeId.keys()],
+      sinceTime: new Date(Date.now() - WA_BRIDGE_ECHO_LOOKBACK_MS),
+    })
+    const adopted = new Set<string>()
+    for (const row of rows) {
+      const wamid = row.sourceId ? wamidByBridgeId.get(row.sourceId) : undefined
+      if (!wamid) {
+        continue
+      }
+      await repository.updateSourceId(row.id, wamid, workspaceId, row.createdAt)
+      adopted.add(wamid)
+    }
+    if (adopted.size === 0) {
+      return messages
+    }
+    logger.info(
+      { runId, contactInboxId, adopted: adopted.size },
+      "[coexist] WhatsApp Web bridge echoes merged into their sent rows",
+    )
+    return messages.filter((msg) => !adopted.has(msg.sourceId))
+  } catch (err) {
+    // Never lose the echo over this: worst case it imports as before.
+    logger.warn(
+      { err, runId, contactInboxId },
+      "[coexist] WhatsApp Web bridge echo match failed — importing as-is",
+    )
+    return messages
+  }
+}
+
 export const bulkImportMessages = async (props: {
   workspaceId: string
   runId: string
@@ -576,10 +649,15 @@ export const bulkImportMessages = async (props: {
     contactInboxId,
     contactId,
     conversationId,
-    messages,
     contactEnrichment,
     idFactory,
   } = props
+  const messages = await adoptWaBridgeEchoes({
+    workspaceId,
+    runId,
+    contactInboxId,
+    messages: props.messages,
+  })
 
   const empty: BulkImportMessagesResult = {
     importedMessages: 0,

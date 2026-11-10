@@ -32,11 +32,11 @@ import { getWhatsappClient } from "../../../client"
 import { API_URL, DEFAULT_API_VERSION } from "../../../constants"
 import { mapToChannelError } from "../../../lib/error-mapper"
 import { logger } from "../../../lib/logger"
-import { sendViaWaBridge, shouldUseWaBridge } from "../../../lib/wa-bridge"
 import {
   isBsuidRecipient,
   resolveRecipientParams,
 } from "../../../lib/recipient"
+import { sendViaWaBridge, shouldUseWaBridge } from "../../../lib/wa-bridge"
 import type {
   LocationRequestMessage,
   RawWhatsappMessage,
@@ -388,7 +388,11 @@ export const sendMessage: MessageHandlers<WhatsappAuthValue>["sendMessage"] =
       shouldUseWaBridge({ contact, message, sendFrom })
     ) {
       try {
-        return await sendViaWaBridge({ contact, message })
+        return await sendViaWaBridge({
+          contact,
+          message,
+          fromPhoneNumber: ctx.auth.metadata?.phoneNumber?.display_phone_number,
+        })
       } catch (error) {
         throw mapToChannelError(error)
       }

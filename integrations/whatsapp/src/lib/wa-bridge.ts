@@ -7,6 +7,7 @@ import {
   type OutgoingContact,
   type OutgoingMessage,
   type OutgoingSendResult,
+  toWaBridgeSourceId,
   WA_CLOUD_API_MAX_MEDIA_BYTES,
 } from "@chatbotx.io/sdk"
 import { logger } from "./logger"
@@ -68,8 +69,11 @@ export const shouldUseWaBridge = (props: {
 export const sendViaWaBridge = async (props: {
   contact: OutgoingContact
   message: OutgoingMessage
+  /** The inbox's own number (display form is fine); the bridge prefers it. */
+  fromPhoneNumber?: string | null
 }): Promise<OutgoingSendResult> => {
-  const { contact, message } = props
+  const { contact, message, fromPhoneNumber } = props
+  const from = (fromPhoneNumber ?? "").replace(/\D/g, "")
   const media: BridgeMedia[] = (message.attachments ?? [])
     .filter((attachment) => Boolean(attachment.url))
     .map((attachment) => ({
@@ -91,6 +95,7 @@ export const sendViaWaBridge = async (props: {
       body: JSON.stringify({
         workspaceId: message.workspaceId,
         to: contact.sourceId,
+        from: from || undefined,
         text: message.text ?? "",
         media,
       }),
@@ -102,6 +107,7 @@ export const sendViaWaBridge = async (props: {
 
   const body = (await response.json().catch(() => ({}))) as {
     ids?: string[]
+    from?: string
     error?: string
   }
   if (!response.ok) {
@@ -112,9 +118,11 @@ export const sendViaWaBridge = async (props: {
     throw new Error(`WhatsApp Web: ${body.error ?? `HTTP ${response.status}`}`)
   }
 
-  const messageIds = body.ids ?? []
+  // `wab.<key id>` lets the coexistence echo of this message (a `wamid.`
+  // wrapping the same key id) merge into this row instead of duplicating it.
+  const messageIds = (body.ids ?? []).map(toWaBridgeSourceId)
   logger.info(
-    { messageId: message.id, count: messageIds.length },
+    { messageId: message.id, count: messageIds.length, from: body.from },
     "wa-bridge send ok",
   )
   return { messageIds, sentCount: messageIds.length }

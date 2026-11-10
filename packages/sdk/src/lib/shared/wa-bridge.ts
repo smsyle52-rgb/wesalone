@@ -18,6 +18,42 @@ export const isWaBridgeWorkspace = (
 ): boolean =>
   Boolean(workspaceId) && WA_BRIDGE_WORKSPACE_IDS.includes(String(workspaceId))
 
+/**
+ * A message the bridge sends is stored with sourceId `wab.<key id>`, where the
+ * key id is WhatsApp's own message id (the last part of whatsapp-web.js's
+ * `true_<chat>_<key id>`). The Cloud API echo of that same message arrives
+ * later with a `wamid.` that wraps the same key id, so the coexistence import
+ * can find the bridge row and adopt the wamid instead of adding a duplicate.
+ */
+export const WA_BRIDGE_SOURCE_ID_PREFIX = "wab."
+
+const BRIDGE_ID = /^(?:true|false)_[^_]+_([A-Za-z0-9]+)/
+const KEY_ID = /^[A-Za-z0-9]{8,64}$/
+
+export const toWaBridgeSourceId = (bridgeId: string): string => {
+  const keyId = BRIDGE_ID.exec(bridgeId)?.[1]
+  return keyId ? `${WA_BRIDGE_SOURCE_ID_PREFIX}${keyId}` : bridgeId
+}
+
+/**
+ * The WhatsApp key id inside a Cloud API `wamid.` (base64 of a Thrift-compact
+ * struct: the chat id first, the key id last). Null when it does not parse.
+ */
+export const wamidKeyId = (wamid: string): string | null => {
+  if (!wamid.startsWith("wamid.")) {
+    return null
+  }
+  let decoded: string
+  try {
+    decoded = Buffer.from(wamid.slice(6), "base64").toString("latin1")
+  } catch {
+    return null
+  }
+  const runs = decoded.match(/[A-Za-z0-9]{8,64}/g)
+  const last = runs?.at(-1)
+  return last && KEY_ID.test(last) ? last : null
+}
+
 /** Cloud API caps video and audio at 16MB. */
 export const WA_CLOUD_API_MAX_MEDIA_BYTES = 16 * 1000 * 1000
 

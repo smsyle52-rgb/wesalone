@@ -930,3 +930,79 @@ describe("applyCoexistActivityUpdates", () => {
     ])
   })
 })
+
+describe("bulkImportMessages — WhatsApp Web bridge echoes (Wesal)", () => {
+  // A bridge workspace (see WA_BRIDGE_WORKSPACE_IDS) and a real echo pair.
+  const BRIDGE_PROPS = { ...BASE_PROPS, workspaceId: "11617037325598720" }
+  const KEY = "3EB01B7DF4FCEFDD3175FD"
+  const WAMID =
+    "wamid.HBgTWUUuMTUxMTg3OTQxNzMyOTc5OBUUABEYFjNFQjAxQjdERjRGQ0VGREQzMTc1RkQA"
+  const echo = { ...makeMessage(WAMID), messageType: "outgoing" as const }
+
+  const mockFindManyBySourceIds = vi.fn()
+  const mockUpdateSourceId = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBulkCreate.mockResolvedValue([])
+    mockBulkCreateAttachments.mockResolvedValue([])
+    mockFindManyBySourceIds.mockResolvedValue([])
+    mockUpdateSourceId.mockResolvedValue({ id: "bridge-row" })
+    mockCreateMessageRepository.mockResolvedValue({
+      bulkCreate: mockBulkCreate,
+      bulkCreateAttachments: mockBulkCreateAttachments,
+      findManyBySourceIds: mockFindManyBySourceIds,
+      updateSourceId: mockUpdateSourceId,
+    })
+  })
+
+  test("merges the echo into the bridge row instead of inserting it", async () => {
+    const createdAt = new Date("2026-11-10T01:03:58.492Z")
+    mockFindManyBySourceIds.mockResolvedValue([
+      { id: "bridge-row", sourceId: `wab.${KEY}`, createdAt },
+    ])
+
+    const result = await bulkImportMessages({
+      ...BRIDGE_PROPS,
+      messages: [echo],
+    })
+
+    expect(mockFindManyBySourceIds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: BRIDGE_PROPS.workspaceId,
+        contactInboxIds: ["ci-1"],
+        sourceIds: [`wab.${KEY}`],
+      }),
+    )
+    expect(mockUpdateSourceId).toHaveBeenCalledWith(
+      "bridge-row",
+      WAMID,
+      BRIDGE_PROPS.workspaceId,
+      createdAt,
+    )
+    expect(mockBulkCreate).not.toHaveBeenCalled()
+    expect(result.importedMessages).toBe(0)
+  })
+
+  test("imports the echo as before when no bridge row matches", async () => {
+    await bulkImportMessages({ ...BRIDGE_PROPS, messages: [echo] })
+
+    expect(mockUpdateSourceId).not.toHaveBeenCalled()
+    expect(mockBulkCreate).toHaveBeenCalledTimes(1)
+  })
+
+  test("skips the lookup outside bridge workspaces", async () => {
+    await bulkImportMessages({ ...BASE_PROPS, messages: [echo] })
+
+    expect(mockFindManyBySourceIds).not.toHaveBeenCalled()
+    expect(mockBulkCreate).toHaveBeenCalledTimes(1)
+  })
+
+  test("imports the echo when the lookup fails", async () => {
+    mockFindManyBySourceIds.mockRejectedValue(new Error("shard down"))
+
+    await bulkImportMessages({ ...BRIDGE_PROPS, messages: [echo] })
+
+    expect(mockBulkCreate).toHaveBeenCalledTimes(1)
+  })
+})
