@@ -33,12 +33,15 @@ export async function WaBridgeCard({ workspaceId }: { workspaceId: string }) {
         <CardDescription>{t("description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-start gap-2">
-        <Button asChild>
-          <a href={href} rel="noopener noreferrer" target="_blank">
-            <QrCodeIcon aria-hidden />
-            {t("open")}
-          </a>
-        </Button>
+        <Button
+          nativeButton={false}
+          render={
+            <a href={href} rel="noopener noreferrer" target="_blank">
+              <QrCodeIcon aria-hidden />
+              {t("open")}
+            </a>
+          }
+        />
         <p className="text-muted-foreground text-xs">{t("hint")}</p>
       </CardContent>
     </Card>

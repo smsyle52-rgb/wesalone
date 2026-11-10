@@ -10,10 +10,13 @@ services:
     environment:
       PORT: "8090"
       DATA_DIR: /data
+      # Linked numbers per workspace (each one is a headless Chromium).
+      MAX_NUMBERS: "5"
     volumes:
       - wabridge-data:/data
     shm_size: "512m"
-    mem_limit: 2g
+    # ~300MB per linked number; unlinked numbers pause after 5 min.
+    mem_limit: 4g
     networks:
       wesal:
         aliases: [wa-bridge]
