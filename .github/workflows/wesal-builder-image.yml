@@ -1,0 +1,50 @@
+# Wesal: build the builder (Next.js) image on a GitHub runner instead of the
+# production server (a server-side build starves production of memory), and
+# publish it as a pre-release asset the server downloads with `docker load`.
+name: wesal-builder-image
+
+on:
+  push:
+    branches: [wesal/wa-bridge]
+    paths-ignore:
+      - "wesal-ops/**"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker system prune -af >/dev/null
+          df -h /
+
+      - uses: actions/checkout@v5
+
+      - name: Build builder image
+        run: |
+          TAG=wab-${GITHUB_SHA::9}
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          DOCKER_BUILDKIT=1 docker build -f apps/builder/docker/Dockerfile -t wesal/builder:$TAG .
+          docker image ls wesal/builder
+
+      - name: Save image
+        run: |
+          docker save wesal/builder:$TAG | gzip -1 > builder-$TAG.tar.gz
+          ls -lh builder-$TAG.tar.gz
+          sha256sum builder-$TAG.tar.gz | tee builder-$TAG.tar.gz.sha256
+          split -b 1900m -d builder-$TAG.tar.gz builder-$TAG.tar.gz.part-
+          ls -lh builder-$TAG.tar.gz.part-*
+
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "img-$TAG" --prerelease --target "$GITHUB_SHA" \
+            --title "builder image $TAG (deploy artifact, temporary)" \
+            --notes "Temporary deploy artifact. Deleted after the server loads it." \
+            builder-$TAG.tar.gz.part-* builder-$TAG.tar.gz.sha256
