@@ -28,9 +28,10 @@ export async function synthesizeElevenLabsSpeech(props: {
         text: props.text,
         model_id: ELEVENLABS_MODEL,
         voice_settings: {
-          stability: 0.45,
-          similarity_boost: 0.85,
-          style: 0.2,
+          // Closest to the staff member's own accent in side-by-side tests.
+          stability: 0.6,
+          similarity_boost: 0.95,
+          style: 0,
           use_speaker_boost: true,
         },
       }),

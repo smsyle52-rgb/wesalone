@@ -388,6 +388,33 @@ export async function processAutomatedResponse(
       })
     }
 
+    // Wesal: a voice note has no text, so without this the agent's memory
+    // never holds what the customer said by voice and it asks again (crop,
+    // governorate…) on the next turn. Keep the transcript as the customer's
+    // message, keyed by the voice note so it is stored once.
+    if (audioTranscripts.length > 0 && messageId) {
+      try {
+        await aiContextService.appendHistory({
+          conversationId: conversation.id,
+          newMessages: [
+            {
+              message: {
+                role: aiMessageRoles.enum.user,
+                content: `(رسالة صوتية من العميل) ${audioTranscripts.join("\n")}`,
+              } as ModelMessage,
+              messageId,
+              createdAt: (triggerMessage?.createdAt ?? new Date()).getTime(),
+            },
+          ],
+        })
+      } catch (err) {
+        logger.warn(
+          { err, conversationId: conversation.id, messageId },
+          "[automated-response] could not keep the voice-note transcript in the agent's memory",
+        )
+      }
+    }
+
     // Wesal: a voice note is answered with a voice note in voice-reply
     // workspaces, once the voice note could be understood.
     const voiceReplyConfig = getAiVoiceReplyConfig(conversation.workspaceId)
