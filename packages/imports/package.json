@@ -25,7 +25,8 @@
     "./parsers": "./src/parsers/index.ts",
     "./parsers/headers": "./src/parsers/headers.ts",
     "./stream-guard": "./src/stream-guard.ts",
-    "./modules/contacts": "./src/modules/contacts/index.ts"
+    "./modules/contacts": "./src/modules/contacts/index.ts",
+    "./xlsx-writer": "./src/xlsx-writer.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",

@@ -302,6 +302,54 @@
       "remove": "Retirer",
       "filterHint": "Les filtres ne comptent que les événements enregistrés après l'ajout du filtrage : les événements plus anciens n'ont pas de boîte de réception, et les anciens événements de bot et de conversation n'ont pas non plus de canal. Tous compte toujours tout.",
       "tooManyInboxes": "Choisissez au maximum {max} boîtes de réception, ou cochez Toutes."
+    },
+    "export": {
+      "button": "Export",
+      "thisPageExcel": "This page — Excel (.xlsx)",
+      "thisPageCsv": "This page — CSV",
+      "allExcel": "All analytics — Excel (.xlsx)",
+      "sheets": {
+        "summary": "Summary",
+        "contactsPerDay": "Contacts per day",
+        "newContactsPerDay": "New contacts per day",
+        "blockedContactsPerDay": "Blocked contacts per day",
+        "messagesBySender": "Messages by sender",
+        "messagesByAdmin": "Messages by agent",
+        "humanAgentStats": "Agent stats",
+        "agentResponseSeries": "Agent response times",
+        "conversationHandoffs": "Handoffs",
+        "conversationFollowUps": "Follow-ups",
+        "conversationArchived": "Closed conversations",
+        "conversationAssigned": "Assigned conversations",
+        "conversationAssignedByAdmin": "Assigned by agent",
+        "uniqueConversationsByAdmin": "Conversations per agent",
+        "botMessagesByResult": "Bot messages by result",
+        "botMessagesWithResponse": "Bot messages with reply",
+        "botMessagesNoResponse": "Bot messages without reply",
+        "botMessagesAiProviders": "AI providers"
+      },
+      "metrics": {
+        "from": "From",
+        "to": "To",
+        "timezone": "Timezone",
+        "contactsCount": "Total contacts",
+        "newContactsCount": "New contacts",
+        "blockedContactsCount": "Blocked contacts",
+        "activeContactsCount": "Active contacts"
+      },
+      "columns": {
+        "metric": "Metric",
+        "value": "Value",
+        "date": "Date",
+        "count": "Count",
+        "adminId": "Agent ID",
+        "aiProvider": "AI provider",
+        "result": "Result",
+        "hasResponse": "Has reply",
+        "responseType": "Reply type",
+        "senderType": "Sender",
+        "channel": "Channel"
+      }
     }
   },
   "flowAnalytics": {

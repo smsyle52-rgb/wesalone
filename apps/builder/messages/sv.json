@@ -359,6 +359,54 @@
       "remove": "Ta bort",
       "filterHint": "Filter räknar bara händelser som registrerats efter att filtrering lades till: äldre händelser saknar inkorg, och äldre bot- och konversationshändelser saknar även kanal. Alla räknar alltid allt.",
       "tooManyInboxes": "Välj högst {max} inkorgar, eller markera Alla."
+    },
+    "export": {
+      "button": "Export",
+      "thisPageExcel": "This page — Excel (.xlsx)",
+      "thisPageCsv": "This page — CSV",
+      "allExcel": "All analytics — Excel (.xlsx)",
+      "sheets": {
+        "summary": "Summary",
+        "contactsPerDay": "Contacts per day",
+        "newContactsPerDay": "New contacts per day",
+        "blockedContactsPerDay": "Blocked contacts per day",
+        "messagesBySender": "Messages by sender",
+        "messagesByAdmin": "Messages by agent",
+        "humanAgentStats": "Agent stats",
+        "agentResponseSeries": "Agent response times",
+        "conversationHandoffs": "Handoffs",
+        "conversationFollowUps": "Follow-ups",
+        "conversationArchived": "Closed conversations",
+        "conversationAssigned": "Assigned conversations",
+        "conversationAssignedByAdmin": "Assigned by agent",
+        "uniqueConversationsByAdmin": "Conversations per agent",
+        "botMessagesByResult": "Bot messages by result",
+        "botMessagesWithResponse": "Bot messages with reply",
+        "botMessagesNoResponse": "Bot messages without reply",
+        "botMessagesAiProviders": "AI providers"
+      },
+      "metrics": {
+        "from": "From",
+        "to": "To",
+        "timezone": "Timezone",
+        "contactsCount": "Total contacts",
+        "newContactsCount": "New contacts",
+        "blockedContactsCount": "Blocked contacts",
+        "activeContactsCount": "Active contacts"
+      },
+      "columns": {
+        "metric": "Metric",
+        "value": "Value",
+        "date": "Date",
+        "count": "Count",
+        "adminId": "Agent ID",
+        "aiProvider": "AI provider",
+        "result": "Result",
+        "hasResponse": "Has reply",
+        "responseType": "Reply type",
+        "senderType": "Sender",
+        "channel": "Channel"
+      }
     }
   },
   "appointmentScheduling": {

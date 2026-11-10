@@ -345,6 +345,54 @@
       "remove": "Remove",
       "filterHint": "Filters only count events recorded after filtering was added: older events have no inbox, and older bot and conversation events have no channel either. All always counts everything.",
       "tooManyInboxes": "Pick at most {max} inboxes, or tick All."
+    },
+    "export": {
+      "button": "Export",
+      "thisPageExcel": "This page — Excel (.xlsx)",
+      "thisPageCsv": "This page — CSV",
+      "allExcel": "All analytics — Excel (.xlsx)",
+      "sheets": {
+        "summary": "Summary",
+        "contactsPerDay": "Contacts per day",
+        "newContactsPerDay": "New contacts per day",
+        "blockedContactsPerDay": "Blocked contacts per day",
+        "messagesBySender": "Messages by sender",
+        "messagesByAdmin": "Messages by agent",
+        "humanAgentStats": "Agent stats",
+        "agentResponseSeries": "Agent response times",
+        "conversationHandoffs": "Handoffs",
+        "conversationFollowUps": "Follow-ups",
+        "conversationArchived": "Closed conversations",
+        "conversationAssigned": "Assigned conversations",
+        "conversationAssignedByAdmin": "Assigned by agent",
+        "uniqueConversationsByAdmin": "Conversations per agent",
+        "botMessagesByResult": "Bot messages by result",
+        "botMessagesWithResponse": "Bot messages with reply",
+        "botMessagesNoResponse": "Bot messages without reply",
+        "botMessagesAiProviders": "AI providers"
+      },
+      "metrics": {
+        "from": "From",
+        "to": "To",
+        "timezone": "Timezone",
+        "contactsCount": "Total contacts",
+        "newContactsCount": "New contacts",
+        "blockedContactsCount": "Blocked contacts",
+        "activeContactsCount": "Active contacts"
+      },
+      "columns": {
+        "metric": "Metric",
+        "value": "Value",
+        "date": "Date",
+        "count": "Count",
+        "adminId": "Agent ID",
+        "aiProvider": "AI provider",
+        "result": "Result",
+        "hasResponse": "Has reply",
+        "responseType": "Reply type",
+        "senderType": "Sender",
+        "channel": "Channel"
+      }
     }
   },
   "flowAnalytics": {
@@ -9884,6 +9932,6 @@
     "title": "WhatsApp Web (replies after 24 hours)",
     "description": "Link this number's WhatsApp Business app as a device so agents can reply to customers after the 24-hour window closes. Replies inside the window still go through the official API.",
     "open": "Link WhatsApp Web",
-    "hint": "Opens the linking page: scan the code from the phone (WhatsApp Business → Linked devices → Link a device)."
+    "hint": "Opens the linking page: scan the code from the phone (WhatsApp Business → Linked devices → Link a device). You can add more than one number; every linked number serves all of this workspace's conversations."
   }
 }

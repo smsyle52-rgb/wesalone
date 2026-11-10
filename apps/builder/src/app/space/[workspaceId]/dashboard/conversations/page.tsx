@@ -3,6 +3,7 @@ import { inboxService } from "@chatbotx.io/business"
 import { getIdFromParams } from "@chatbotx.io/utils"
 import { notFound } from "next/navigation"
 import { AnalyticsChannelFilter } from "@/features/analytics/components/analytics-channel-filter"
+import { AnalyticsExportButton } from "@/features/analytics/components/analytics-export-button"
 import { AnalyticsNav } from "@/features/analytics/components/analytics-nav"
 import { resolveAdsDashboardChannels } from "@/features/analytics/lib/ads-dashboard-channels"
 import { resolveGoogleAdsDashboardEntry } from "@/features/analytics/lib/google-ads-dashboard-entry"
@@ -47,7 +48,12 @@ export default async function ConversationsAnalyticsPage({
   return (
     <div className="flex flex-col gap-4">
       <ConversationsDashboard
-        channelFilter={<AnalyticsChannelFilter options={filterInboxes} />}
+        channelFilter={
+          <>
+            <AnalyticsChannelFilter options={filterInboxes} />
+            <AnalyticsExportButton section="conversations" />
+          </>
+        }
         defaultSearchParams={{
           workspaceId,
           timezone,

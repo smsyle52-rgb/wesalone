@@ -30,8 +30,11 @@ import {
   possibleErrorsOnListingResource,
 } from "@/lib/orpc/orpc-error-helper"
 import { workspaceTokenAuthAPIForScope } from "@/orpc"
+import { buildAnalyticsExport } from "../lib/analytics-export"
 import {
   agentResponseSeriesPublicResponse,
+  analyticsExportPublicRequest,
+  analyticsExportPublicResponse,
   botMessagesAIProvidersPublicResponse,
   botMessagesPublicResponse,
   broadcastStatsPublicRequest,
@@ -920,6 +923,28 @@ export const analyticsPublicRouter = {
         flowId: input.flowId,
       })
       await invalidateCacheByTags([flowStatsCacheTag(input.flowId)])
+    }),
+
+  export: workspaceTokenAuthAPI
+    .route({
+      method: "GET",
+      path: "/v1/analytics/export",
+      summary: "Export analytics dashboard tables",
+      description:
+        "Returns the Analytics dashboard's contacts and/or conversations data for the `from`/`to` range as tables (`key`, `columns`, `rows`) — the same data the dashboard's Export button writes to Excel/CSV. The `summary` table holds the range and the contact totals. Narrow with `channels` and `inboxIds` (ids from `analytics.filterOptions`) exactly like the other `analytics.*` calls. Daily series use the `timezone` for day boundaries.",
+      tags: ["Analytics"],
+      spec: mcpSpec({ visibility: "default" }),
+    })
+    .input(analyticsExportPublicRequest)
+    .output(analyticsExportPublicResponse)
+    .errors(possibleErrorsOnListingResource)
+    .handler(async ({ context, input }) => {
+      const { section, ...query } = input
+      const data = await buildAnalyticsExport({
+        section,
+        query: { ...query, workspaceId: context.workspace.id },
+      })
+      return { data }
     }),
 
   ...commentAutomationAnalyticsPublicRouter,

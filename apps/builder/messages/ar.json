@@ -303,6 +303,54 @@
       "remove": "إزالة",
       "filterHint": "لا تحتسب عوامل التصفية إلا الأحداث المسجلة بعد إضافة التصفية: الأحداث الأقدم بلا صندوق وارد، وأحداث البوت والمحادثات الأقدم بلا قناة أيضًا. الكل يحتسب كل شيء دائمًا.",
       "tooManyInboxes": "اختر {max} صندوق وارد كحد أقصى، أو حدد الكل."
+    },
+    "export": {
+      "button": "تصدير",
+      "thisPageExcel": "هذه الصفحة — Excel (.xlsx)",
+      "thisPageCsv": "هذه الصفحة — CSV",
+      "allExcel": "كل التحاليل — Excel (.xlsx)",
+      "sheets": {
+        "summary": "الملخص",
+        "contactsPerDay": "جهات الاتصال يومياً",
+        "newContactsPerDay": "جهات اتصال جديدة يومياً",
+        "blockedContactsPerDay": "المحظورون يومياً",
+        "messagesBySender": "الرسائل حسب المرسل",
+        "messagesByAdmin": "الرسائل حسب الموظف",
+        "humanAgentStats": "إحصائيات الموظفين",
+        "agentResponseSeries": "أوقات رد الموظفين",
+        "conversationHandoffs": "التحويل للموظف",
+        "conversationFollowUps": "المتابعات",
+        "conversationArchived": "المحادثات المغلقة",
+        "conversationAssigned": "المحادثات المسندة",
+        "conversationAssignedByAdmin": "الإسناد حسب الموظف",
+        "uniqueConversationsByAdmin": "المحادثات لكل موظف",
+        "botMessagesByResult": "رسائل البوت حسب النتيجة",
+        "botMessagesWithResponse": "رسائل البوت مع رد",
+        "botMessagesNoResponse": "رسائل البوت بدون رد",
+        "botMessagesAiProviders": "مزودو الذكاء الاصطناعي"
+      },
+      "metrics": {
+        "from": "من",
+        "to": "إلى",
+        "timezone": "المنطقة الزمنية",
+        "contactsCount": "إجمالي جهات الاتصال",
+        "newContactsCount": "جهات اتصال جديدة",
+        "blockedContactsCount": "المحظورون",
+        "activeContactsCount": "النشطون"
+      },
+      "columns": {
+        "metric": "المؤشر",
+        "value": "القيمة",
+        "date": "التاريخ",
+        "count": "العدد",
+        "adminId": "معرّف الموظف",
+        "aiProvider": "مزود الذكاء الاصطناعي",
+        "result": "النتيجة",
+        "hasResponse": "فيه رد",
+        "responseType": "نوع الرد",
+        "senderType": "المرسل",
+        "channel": "القناة"
+      }
     }
   },
   "flowAnalytics": {
@@ -9884,6 +9932,6 @@
     "title": "واتساب ويب (الرد بعد 24 ساعة)",
     "description": "اربط تطبيق واتساب للأعمال لهذا الرقم كجهاز مرتبط ليتمكّن الموظفون من الرد على العملاء بعد انتهاء نافذة الـ24 ساعة. الردود داخل النافذة تبقى عبر الواجهة الرسمية.",
     "open": "ربط واتساب ويب",
-    "hint": "يفتح صفحة الربط: امسح الرمز من الجوال (واتساب للأعمال ← الأجهزة المرتبطة ← ربط جهاز)."
+    "hint": "يفتح صفحة الربط: امسح الرمز من الجوال (واتساب للأعمال ← الأجهزة المرتبطة ← ربط جهاز). تقدر تضيف أكثر من رقم للمساحة، وكل الأرقام تخدم كل محادثاتها."
   }
 }

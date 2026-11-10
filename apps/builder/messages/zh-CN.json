@@ -568,6 +568,54 @@
       "remove": "移除",
       "filterHint": "筛选只统计添加筛选功能后记录的事件：较早的事件没有收件箱，较早的机器人和对话事件也没有渠道。“全部”始终统计所有数据。",
       "tooManyInboxes": "最多选择 {max} 个收件箱，或勾选全部。"
+    },
+    "export": {
+      "button": "Export",
+      "thisPageExcel": "This page — Excel (.xlsx)",
+      "thisPageCsv": "This page — CSV",
+      "allExcel": "All analytics — Excel (.xlsx)",
+      "sheets": {
+        "summary": "Summary",
+        "contactsPerDay": "Contacts per day",
+        "newContactsPerDay": "New contacts per day",
+        "blockedContactsPerDay": "Blocked contacts per day",
+        "messagesBySender": "Messages by sender",
+        "messagesByAdmin": "Messages by agent",
+        "humanAgentStats": "Agent stats",
+        "agentResponseSeries": "Agent response times",
+        "conversationHandoffs": "Handoffs",
+        "conversationFollowUps": "Follow-ups",
+        "conversationArchived": "Closed conversations",
+        "conversationAssigned": "Assigned conversations",
+        "conversationAssignedByAdmin": "Assigned by agent",
+        "uniqueConversationsByAdmin": "Conversations per agent",
+        "botMessagesByResult": "Bot messages by result",
+        "botMessagesWithResponse": "Bot messages with reply",
+        "botMessagesNoResponse": "Bot messages without reply",
+        "botMessagesAiProviders": "AI providers"
+      },
+      "metrics": {
+        "from": "From",
+        "to": "To",
+        "timezone": "Timezone",
+        "contactsCount": "Total contacts",
+        "newContactsCount": "New contacts",
+        "blockedContactsCount": "Blocked contacts",
+        "activeContactsCount": "Active contacts"
+      },
+      "columns": {
+        "metric": "Metric",
+        "value": "Value",
+        "date": "Date",
+        "count": "Count",
+        "adminId": "Agent ID",
+        "aiProvider": "AI provider",
+        "result": "Result",
+        "hasResponse": "Has reply",
+        "responseType": "Reply type",
+        "senderType": "Sender",
+        "channel": "Channel"
+      }
     }
   },
   "appointmentScheduling": {

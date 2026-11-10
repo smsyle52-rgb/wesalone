@@ -35,6 +35,10 @@ import { zodBigintAsString } from "@chatbotx.io/utils"
 import { z } from "zod"
 import { ianaTimezoneSchema } from "@/lib/public-api/iana-timezone"
 import { publicListRequest, withPublicPaging } from "@/lib/public-api/list"
+import {
+  analyticsExportSections,
+  analyticsExportSheetKeys,
+} from "../lib/analytics-export-schema"
 
 // ─────────────────────────────────────────────────────────────────────────
 // Shared input schemas (workspaceId stripped — injected from the token's
@@ -339,4 +343,30 @@ export {
 
 export const filterOptionsPublicResponse = z.object({
   data: z.array(analyticsFilterOptionResource),
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// Wesal: dashboard export (contacts + conversations tables)
+// ─────────────────────────────────────────────────────────────────────────
+
+export const analyticsExportPublicRequest = timeRangePublicRequest.extend({
+  section: analyticsExportSections
+    .default("all")
+    .describe(
+      "Which dashboard section to export: `contacts`, `conversations`, or `all` (both).",
+    ),
+})
+
+const analyticsExportCell = z
+  .union([z.string(), z.number(), z.boolean()])
+  .nullable()
+
+export const analyticsExportPublicResponse = z.object({
+  data: z.array(
+    z.object({
+      key: z.enum(analyticsExportSheetKeys),
+      columns: z.array(z.string()),
+      rows: z.array(z.record(z.string(), analyticsExportCell)),
+    }),
+  ),
 })

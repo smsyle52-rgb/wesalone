@@ -2121,6 +2121,54 @@
       "remove": "移除",
       "filterHint": "篩選只統計新增篩選功能後記錄的事件：較早的事件沒有收件匣，較早的機器人與對話事件也沒有管道。「全部」一律統計所有資料。",
       "tooManyInboxes": "最多選擇 {max} 個收件匣，或勾選全部。"
+    },
+    "export": {
+      "button": "Export",
+      "thisPageExcel": "This page — Excel (.xlsx)",
+      "thisPageCsv": "This page — CSV",
+      "allExcel": "All analytics — Excel (.xlsx)",
+      "sheets": {
+        "summary": "Summary",
+        "contactsPerDay": "Contacts per day",
+        "newContactsPerDay": "New contacts per day",
+        "blockedContactsPerDay": "Blocked contacts per day",
+        "messagesBySender": "Messages by sender",
+        "messagesByAdmin": "Messages by agent",
+        "humanAgentStats": "Agent stats",
+        "agentResponseSeries": "Agent response times",
+        "conversationHandoffs": "Handoffs",
+        "conversationFollowUps": "Follow-ups",
+        "conversationArchived": "Closed conversations",
+        "conversationAssigned": "Assigned conversations",
+        "conversationAssignedByAdmin": "Assigned by agent",
+        "uniqueConversationsByAdmin": "Conversations per agent",
+        "botMessagesByResult": "Bot messages by result",
+        "botMessagesWithResponse": "Bot messages with reply",
+        "botMessagesNoResponse": "Bot messages without reply",
+        "botMessagesAiProviders": "AI providers"
+      },
+      "metrics": {
+        "from": "From",
+        "to": "To",
+        "timezone": "Timezone",
+        "contactsCount": "Total contacts",
+        "newContactsCount": "New contacts",
+        "blockedContactsCount": "Blocked contacts",
+        "activeContactsCount": "Active contacts"
+      },
+      "columns": {
+        "metric": "Metric",
+        "value": "Value",
+        "date": "Date",
+        "count": "Count",
+        "adminId": "Agent ID",
+        "aiProvider": "AI provider",
+        "result": "Result",
+        "hasResponse": "Has reply",
+        "responseType": "Reply type",
+        "senderType": "Sender",
+        "channel": "Channel"
+      }
     }
   },
   "flowAnalytics": {
