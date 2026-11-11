@@ -30,6 +30,8 @@ export const PUBLIC_ROUTES = [
   "/privacy",
   "/terms",
   "/contact",
+  // Wesal: staff open it on their phone to install the app (PWA).
+  "/install",
   "/login",
   "/pricing",
   "/signup",

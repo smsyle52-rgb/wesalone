@@ -9750,9 +9750,7 @@
       "sections": [
         {
           "title": "Conversations and teams",
-          "body": [
-            "A unified inbox with assignment and permissions."
-          ]
+          "body": ["A unified inbox with assignment and permissions."]
         },
         {
           "title": "Agents and commerce",
@@ -9769,9 +9767,7 @@
       "sections": [
         {
           "title": "Meta channels",
-          "body": [
-            "WhatsApp, Instagram and Messenger in a unified inbox."
-          ]
+          "body": ["WhatsApp, Instagram and Messenger in a unified inbox."]
         },
         {
           "title": "Telegram and web",
@@ -9788,9 +9784,7 @@
       "sections": [
         {
           "title": "Mission",
-          "body": [
-            "Give businesses a clear customer service and sales system."
-          ]
+          "body": ["Give businesses a clear customer service and sales system."]
         },
         {
           "title": "Commitment",
@@ -9807,15 +9801,11 @@
       "sections": [
         {
           "title": "Email",
-          "body": [
-            "support@wesal.one"
-          ]
+          "body": ["support@wesal.one"]
         },
         {
           "title": "WhatsApp",
-          "body": [
-            "+967 775 324 950"
-          ]
+          "body": ["+967 775 324 950"]
         }
       ]
     },
@@ -9933,5 +9923,21 @@
     "description": "Link this number's WhatsApp Business app as a device so agents can reply to customers after the 24-hour window closes. Replies inside the window still go through the official API.",
     "open": "Link WhatsApp Web",
     "hint": "Opens the linking page: scan the code from the phone (WhatsApp Business → Linked devices → Link a device). You can add more than one number; every linked number serves all of this workspace's conversations."
+  },
+  "installApp": {
+    "title": "Wesal One app",
+    "subtitle": "Install the app on your phone so customer messages reach you right away.",
+    "install": "Install the app",
+    "installed": "The app is installed on your phone ✅",
+    "open": "Open the app",
+    "iosTitle": "On iPhone, install from Safari:",
+    "iosStep1": "Open this link in Safari.",
+    "iosStep2": "Tap the Share button (the square with an arrow pointing up).",
+    "iosStep3": "Choose “Add to Home Screen”, then “Add”.",
+    "manualTitle": "Install from your browser:",
+    "manualStep1": "Open this link in Chrome.",
+    "manualStep2": "Tap the three dots ⋮ at the top.",
+    "manualStep3": "Choose “Install app” or “Add to Home screen”.",
+    "afterInstall": "After installing, open Wesal One from its icon, sign in, and allow notifications."
   }
 }
