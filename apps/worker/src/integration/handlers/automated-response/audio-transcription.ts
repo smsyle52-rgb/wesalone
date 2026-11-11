@@ -1,5 +1,9 @@
 import { aiTimeouts } from "@chatbotx.io/ai"
-import { getPlatformTranscriptionModel } from "@chatbotx.io/ai/server"
+import {
+  getPlatformAzureFoundryChatConfig,
+  getPlatformTranscriptionModel,
+  transcribeWithPlatformChatModel,
+} from "@chatbotx.io/ai/server"
 import { usageMeteringService } from "@chatbotx.io/business"
 import type { AttachmentModel } from "@chatbotx.io/database/types"
 import { uploader } from "@chatbotx.io/filesystem"
@@ -44,7 +48,10 @@ export async function transcribeAudioAttachments(props: {
   }
 
   const platformTranscription = await getPlatformTranscriptionModel()
-  if (!platformTranscription) {
+  // Wesal: the platform chat model (Gemini) listens first; the speech-to-text
+  // model is the fallback.
+  const chatModelId = getPlatformAzureFoundryChatConfig()?.model
+  if (!(platformTranscription || chatModelId)) {
     logger.warn(
       {
         conversationId: props.conversationId,
@@ -62,7 +69,7 @@ export async function transcribeAudioAttachments(props: {
       operationId: `auto-transcription:${props.conversationId}:${attachment.id}`,
       category: "transcription",
       provider: "platform",
-      model: platformTranscription.modelId,
+      model: chatModelId ?? platformTranscription?.modelId,
       metadata: {
         conversationId: props.conversationId,
         attachmentId: attachment.id,
@@ -81,6 +88,27 @@ export async function transcribeAudioAttachments(props: {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), aiTimeouts.aiTotal)
       try {
+        const heard = await transcribeWithChatModel({
+          audio: new Uint8Array(audio),
+          mimeType: attachment.mimeType,
+          signal: controller.signal,
+          conversationId: props.conversationId,
+        })
+        if (heard !== null) {
+          await usageMeteringService.settleUnits(
+            reservation,
+            "transcription",
+            estimateVoiceNoteSeconds(audio.byteLength),
+            { model: chatModelId },
+          )
+          if (heard) {
+            transcripts.push(heard)
+          }
+          continue
+        }
+        if (!platformTranscription) {
+          throw new Error("Speech-to-text is not configured")
+        }
         const result = await transcribe({
           model: platformTranscription.model,
           audio: new Uint8Array(audio),
@@ -113,7 +141,7 @@ export async function transcribeAudioAttachments(props: {
           err: normalizeError(error),
           attachmentId: attachment.id,
           conversationId: props.conversationId,
-          modelId: platformTranscription.modelId,
+          modelId: chatModelId ?? platformTranscription?.modelId,
           workspaceId: props.workspaceId,
         },
         "[automated-response] audio transcription failed",
@@ -122,4 +150,30 @@ export async function transcribeAudioAttachments(props: {
   }
 
   return transcripts
+}
+
+/** WhatsApp voice notes are Opus at roughly 16 kbit/s. */
+const estimateVoiceNoteSeconds = (bytes: number): number =>
+  Math.max(1, Math.round(bytes / 2000))
+
+/**
+ * The chat model's transcript, or null when it is not available or failed —
+ * then the speech-to-text model takes over.
+ */
+async function transcribeWithChatModel(props: {
+  audio: Uint8Array
+  mimeType: string
+  signal: AbortSignal
+  conversationId: string
+}): Promise<string | null> {
+  try {
+    const result = await transcribeWithPlatformChatModel(props)
+    return result ? result.text : null
+  } catch (err) {
+    logger.warn(
+      { err, conversationId: props.conversationId },
+      "[automated-response] chat-model transcription failed — using speech-to-text",
+    )
+    return null
+  }
 }
