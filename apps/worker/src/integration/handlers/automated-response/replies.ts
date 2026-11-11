@@ -66,6 +66,7 @@ import { createAIAgentActionsTool } from "../ai-agent-actions/tool-executor"
 import { logProviderAttempt } from "../shared/provider-attempt-logger"
 import { reserveUsageOrUnmetered } from "../shared/reserve-usage"
 import { createMcpTokenResolver } from "../shared/resolve-mcp-token"
+import { describeAdReferral } from "./ad-context"
 import { triggerDefaultReplyFlow } from "./default-reply"
 import { handlePointsExhausted } from "./points-exhausted"
 import { handleRichAIReply } from "./rich-reply"
@@ -1114,9 +1115,13 @@ async function runAIReply(
       : guardedPrompt
     // Wesal: the voice-reply instruction joins the system prompt. Sent as a
     // later system message, Gemini (the fallback models) refuses the request.
-    const systemPrompt = props.voiceReply
-      ? `${replyPrompt}\n\n${AI_VOICE_REPLY_INSTRUCTION}`
-      : replyPrompt
+    const systemPrompt = [
+      replyPrompt,
+      props.voiceReply ? AI_VOICE_REPLY_INSTRUCTION : null,
+      describeAdReferral(props.contactInbox.referral),
+    ]
+      .filter(Boolean)
+      .join("\n\n")
 
     const toolNamesSet = new Set<string>()
     /**
