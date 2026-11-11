@@ -318,7 +318,8 @@
       "passwordTooLong": "Salasana on liian pitkä.",
       "userNotFound": "Tällä sähköpostiosoitteella ei löytynyt tiliä.",
       "emailNotVerified": "Vahvista sähköpostiosoitteesi ennen kirjautumista."
-    }
+    },
+    "appCrashed": "Sovellus sulkeutui odottamatta viime kerralla. Lähetä kuvakaappaus tästä viestistä tukeen."
   },
   "realtime": {
     "connecting": "Yhdistetään…",

@@ -318,7 +318,8 @@
       "passwordTooLong": "La contraseña es demasiado larga.",
       "userNotFound": "No se encontró ninguna cuenta con este correo.",
       "emailNotVerified": "Verifica tu correo electrónico antes de iniciar sesión."
-    }
+    },
+    "appCrashed": "La app se cerró inesperadamente la última vez. Envía una captura de este mensaje a soporte."
   },
   "realtime": {
     "connecting": "Conectando…",

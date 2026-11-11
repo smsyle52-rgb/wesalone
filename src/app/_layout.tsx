@@ -1,3 +1,4 @@
+import '@/lib/crash-reporter';
 import '@/lib/install-crypto-polyfill';
 import '@/lib/install-message-event-polyfill';
 
@@ -14,7 +15,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useState } from 'react';
-import { I18nManager } from 'react-native';
+import { Alert, I18nManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +27,7 @@ import { ToastProvider } from '@/components/ui/toast';
 import { initI18n } from '@/i18n';
 import { applyLanguage } from '@/i18n/apply-language';
 import { reconcileRTLOnLaunch } from '@/i18n/reconcile-rtl';
+import { takeLastCrash } from '@/lib/crash-reporter';
 import { queryClient } from '@/lib/query-client';
 import { capturePendingDeepLink } from '@/lib/pending-deep-link';
 // Importing this (rather than only from Settings, lazily, as before) registers
@@ -177,6 +179,15 @@ export default function RootLayout() {
     ensureAndroidNotificationChannel();
     return initNotificationTapHandling();
   }, [authReady]);
+
+  // Shows the error that closed the app last time, once, so it can be reported.
+  const { t } = useTranslation();
+  useEffect(() => {
+    if (!languageReady) return;
+    takeLastCrash().then((crash) => {
+      if (crash) Alert.alert(t('errors.appCrashed'), crash);
+    });
+  }, [languageReady, t]);
 
   // Android only — iOS has no themable window/root background to set here, and
   // `expo-system-ui` no-ops harmlessly on iOS/web.

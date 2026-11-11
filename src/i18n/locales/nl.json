@@ -331,6 +331,7 @@
       "passwordTooLong": "Wachtwoord is te lang.",
       "userNotFound": "Geen account gevonden voor dit e-mailadres.",
       "emailNotVerified": "Verifieer je e-mailadres voordat je inlogt."
-    }
+    },
+    "appCrashed": "De app werd de vorige keer onverwacht gesloten. Stuur een screenshot van dit bericht naar support."
   }
 }

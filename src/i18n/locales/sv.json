@@ -331,6 +331,7 @@
       "passwordTooLong": "Lösenordet är för långt.",
       "userNotFound": "Inget konto hittades för den här e-postadressen.",
       "emailNotVerified": "Verifiera din e-postadress innan du loggar in."
-    }
+    },
+    "appCrashed": "Appen stängdes oväntat förra gången. Skicka en skärmbild av detta meddelande till supporten."
   }
 }

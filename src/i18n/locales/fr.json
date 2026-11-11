@@ -318,7 +318,8 @@
       "passwordTooLong": "Le mot de passe est trop long.",
       "userNotFound": "Aucun compte n'est associé à cet e-mail.",
       "emailNotVerified": "Veuillez vérifier votre e-mail avant de vous connecter."
-    }
+    },
+    "appCrashed": "L'application s'est fermée de manière inattendue la dernière fois. Envoyez une capture de ce message au support."
   },
   "realtime": {
     "connecting": "Connexion…",

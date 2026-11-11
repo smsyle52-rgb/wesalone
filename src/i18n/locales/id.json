@@ -318,7 +318,8 @@
       "passwordTooLong": "Kata sandi terlalu panjang.",
       "userNotFound": "Tidak ada akun untuk email ini.",
       "emailNotVerified": "Harap verifikasi email Anda sebelum masuk."
-    }
+    },
+    "appCrashed": "Aplikasi tertutup secara tak terduga terakhir kali. Kirim tangkapan layar pesan ini ke dukungan."
   },
   "realtime": {
     "connecting": "Menghubungkan…",

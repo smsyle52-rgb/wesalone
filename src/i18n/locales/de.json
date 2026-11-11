@@ -318,7 +318,8 @@
       "passwordTooLong": "Das Passwort ist zu lang.",
       "userNotFound": "Für diese E-Mail-Adresse wurde kein Konto gefunden.",
       "emailNotVerified": "Bitte bestätige deine E-Mail-Adresse, bevor du dich anmeldest."
-    }
+    },
+    "appCrashed": "Die App wurde beim letzten Mal unerwartet beendet. Bitte sende einen Screenshot dieser Meldung an den Support."
   },
   "realtime": {
     "connecting": "Verbindung wird hergestellt…",

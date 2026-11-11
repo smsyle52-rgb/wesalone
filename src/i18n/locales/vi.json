@@ -331,6 +331,7 @@
       "passwordTooLong": "Mật khẩu quá dài.",
       "userNotFound": "Không tìm thấy tài khoản với email này.",
       "emailNotVerified": "Vui lòng xác minh email trước khi đăng nhập."
-    }
+    },
+    "appCrashed": "Ứng dụng đã đóng đột ngột lần trước. Vui lòng gửi ảnh chụp thông báo này cho bộ phận hỗ trợ."
   }
 }

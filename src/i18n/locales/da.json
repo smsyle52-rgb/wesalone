@@ -318,7 +318,8 @@
       "passwordTooLong": "Adgangskoden er for lang.",
       "userNotFound": "Der blev ikke fundet nogen konto for denne email.",
       "emailNotVerified": "Bekræft din email, før du logger ind."
-    }
+    },
+    "appCrashed": "Appen lukkede uventet sidste gang. Send et skærmbillede af denne besked til support."
   },
   "realtime": {
     "connecting": "Forbinder…",

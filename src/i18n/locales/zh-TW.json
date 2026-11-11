@@ -331,6 +331,7 @@
       "passwordTooLong": "密碼太長。",
       "userNotFound": "找不到使用此電子郵件的帳號。",
       "emailNotVerified": "請先驗證電子郵件再登入。"
-    }
+    },
+    "appCrashed": "應用程式上次意外關閉。請將此訊息的截圖傳送給支援團隊。"
   }
 }

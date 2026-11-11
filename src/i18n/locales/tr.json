@@ -331,6 +331,7 @@
       "passwordTooLong": "Parola çok uzun.",
       "userNotFound": "Bu e-posta için hesap bulunamadı.",
       "emailNotVerified": "Giriş yapmadan önce lütfen e-postanızı doğrulayın."
-    }
+    },
+    "appCrashed": "Uygulama geçen sefer beklenmedik şekilde kapandı. Lütfen bu mesajın ekran görüntüsünü desteğe gönderin."
   }
 }

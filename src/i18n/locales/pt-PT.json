@@ -331,6 +331,7 @@
       "passwordTooLong": "A palavra-passe é demasiado longa.",
       "userNotFound": "Não foi encontrada nenhuma conta para este e-mail.",
       "emailNotVerified": "Verifique o seu e-mail antes de iniciar sessão."
-    }
+    },
+    "appCrashed": "A app fechou inesperadamente da última vez. Envie uma captura desta mensagem ao suporte."
   }
 }

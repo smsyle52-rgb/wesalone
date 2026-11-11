@@ -107,11 +107,3 @@ jest.mock('react-native-keyboard-controller', () =>
   // use ESM imports
   require('react-native-keyboard-controller/jest'),
 );
-
-// expo-network is a native module with no Jest preset mock; reachability defaults to "online".
-jest.mock('expo-network', () => ({
-  __esModule: true,
-  getNetworkStateAsync: async () => ({ isConnected: true, isInternetReachable: true }),
-  addNetworkStateListener: () => ({ remove: () => {} }),
-  useNetworkState: () => ({ isConnected: true, isInternetReachable: true }),
-}));
