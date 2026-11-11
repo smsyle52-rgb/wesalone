@@ -39,7 +39,8 @@ export const createXlsxWorkbook = async (
     for (const row of sheet.rows) {
       ws.addRow(row.map(safeCell))
     }
-    for (const column of ws.columns) {
+    // ExcelJS returns null columns for a sheet with no cells (an empty table).
+    for (const column of ws.columns ?? []) {
       column.width = 18
     }
   }
