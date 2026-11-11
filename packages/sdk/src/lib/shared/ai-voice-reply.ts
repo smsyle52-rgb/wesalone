@@ -17,14 +17,51 @@ export type AiVoiceReplyConfig = {
 export const AI_VOICE_REPLY_WORKSPACES: Readonly<
   Record<string, AiVoiceReplyConfig>
 > = {
-  // ملكة سبأ: صوت الموظفة ملاك، مستنسخ من كل تسجيلاتها بموافقة الشركة.
-  "11767468508764852": { elevenLabsVoiceId: "0AulIHZ1bpx87MDMNlci" },
+  // ملكة سبأ: صوت "سلمى" من مكتبة أصوات ElevenLabs (اختيار الإدارة).
+  "11767468508764852": { elevenLabsVoiceId: "a1KZUXKFVFDOb33I1uqr" },
+}
+
+/**
+ * Reads the server's `AI_VOICE_REPLY_ELEVENLABS_VOICES` setting: a JSON object
+ * of workspace id to ElevenLabs voice id, so a workspace's voice can be changed
+ * without a new release. Anything malformed is ignored.
+ */
+export const parseElevenLabsVoiceOverrides = (
+  raw: string | null | undefined,
+): Record<string, string> => {
+  if (!raw?.trim()) {
+    return {}
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {}
+    }
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, string] =>
+          typeof entry[1] === "string" && entry[1].trim() !== "",
+      ),
+    )
+  } catch {
+    return {}
+  }
 }
 
 export const getAiVoiceReplyConfig = (
   workspaceId: string | null | undefined,
-): AiVoiceReplyConfig | null =>
-  (workspaceId && AI_VOICE_REPLY_WORKSPACES[String(workspaceId)]) || null
+  elevenLabsVoiceOverrides?: string | null,
+): AiVoiceReplyConfig | null => {
+  const config =
+    (workspaceId && AI_VOICE_REPLY_WORKSPACES[String(workspaceId)]) || null
+  if (!config) {
+    return null
+  }
+  const voiceId = parseElevenLabsVoiceOverrides(elevenLabsVoiceOverrides)[
+    String(workspaceId)
+  ]
+  return voiceId ? { ...config, elevenLabsVoiceId: voiceId } : config
+}
 
 /** Lines a customer has to read or copy: account, wallet and phone numbers. */
 const COPYABLE_NUMBER = /\d[\d\s\-()]{6,}\d/

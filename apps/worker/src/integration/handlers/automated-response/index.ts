@@ -417,7 +417,10 @@ export async function processAutomatedResponse(
 
     // Wesal: a voice note is answered with a voice note in voice-reply
     // workspaces, once the voice note could be understood.
-    const voiceReplyConfig = getAiVoiceReplyConfig(conversation.workspaceId)
+    const voiceReplyConfig = getAiVoiceReplyConfig(
+      conversation.workspaceId,
+      process.env.AI_VOICE_REPLY_ELEVENLABS_VOICES,
+    )
     const voiceReply =
       voiceReplyConfig && audioTranscripts.length > 0
         ? voiceReplyConfig

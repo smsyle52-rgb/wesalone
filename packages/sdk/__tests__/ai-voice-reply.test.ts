@@ -31,4 +31,18 @@ describe("getAiVoiceReplyConfig", () => {
     expect(getAiVoiceReplyConfig("1")).toBeNull()
     expect(getAiVoiceReplyConfig(null)).toBeNull()
   })
+
+  it("takes a workspace's voice from the server setting when set", () => {
+    const saba = "11767468508764852"
+    const overrides = JSON.stringify({ [saba]: "voice-from-env", "1": "x" })
+    expect(getAiVoiceReplyConfig(saba, overrides)?.elevenLabsVoiceId).toBe(
+      "voice-from-env",
+    )
+    // The setting never turns voice replies on for an unlisted workspace.
+    expect(getAiVoiceReplyConfig("1", overrides)).toBeNull()
+    // A malformed setting keeps the built-in voice.
+    expect(getAiVoiceReplyConfig(saba, "{oops")?.elevenLabsVoiceId).toBe(
+      getAiVoiceReplyConfig(saba)?.elevenLabsVoiceId,
+    )
+  })
 })
