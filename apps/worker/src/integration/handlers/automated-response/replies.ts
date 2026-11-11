@@ -39,6 +39,7 @@ import type {
   ConversationModel,
 } from "@chatbotx.io/database/types"
 import { webhookChannelOrigin } from "@chatbotx.io/events/context"
+import { AI_VOICE_REPLY_INSTRUCTION } from "@chatbotx.io/sdk"
 import { contactVariableService } from "@chatbotx.io/variables"
 import {
   type BotResponseTrackingContext,
@@ -1108,9 +1109,14 @@ async function runAIReply(
       ),
       toolset.webSearchOmitReason,
     )
-    const systemPrompt = richModeEnabled
+    const replyPrompt = richModeEnabled
       ? appendRichResponseFormat(guardedPrompt)
       : guardedPrompt
+    // Wesal: the voice-reply instruction joins the system prompt. Sent as a
+    // later system message, Gemini (the fallback models) refuses the request.
+    const systemPrompt = props.voiceReply
+      ? `${replyPrompt}\n\n${AI_VOICE_REPLY_INSTRUCTION}`
+      : replyPrompt
 
     const toolNamesSet = new Set<string>()
     /**

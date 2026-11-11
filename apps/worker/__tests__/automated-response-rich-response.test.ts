@@ -1,9 +1,10 @@
+import { processStreamingText } from "@chatbotx.io/ai"
 import type {
   AIAgentModel,
   ContactInboxModel,
   ConversationModel,
 } from "@chatbotx.io/database/types"
-import { processStreamingText } from "@chatbotx.io/ai"
+import { AI_VOICE_REPLY_INSTRUCTION } from "@chatbotx.io/sdk"
 import { type ModelMessage, streamText } from "ai"
 import { beforeEach, describe, expect, test, vi } from "vitest"
 import { replyByAI } from "../src/integration/handlers/automated-response/replies"
@@ -163,6 +164,9 @@ vi.mock(
   (importOriginal) => importOriginal(),
 )
 
+vi.mock("../src/integration/handlers/automated-response/voice-reply", () => ({
+  sendVoiceReply: vi.fn(async () => true),
+}))
 vi.mock("../src/integration/handlers/rich-response/message-sender", () => ({
   sendRichMessages: sendRichMessagesMock,
 }))
@@ -495,6 +499,25 @@ describe("replyByAI — rich mode routing", () => {
       expect.objectContaining({ reason: "missing_rich_response_execution_id" }),
       expect.any(String),
     )
+  })
+
+  test("a voice reply puts its instruction in the system prompt, not a later system message", async () => {
+    state.aiResponseText = "رد صوتي"
+
+    await replyByAI({
+      ...baseProps,
+      aiAgent: makeAIAgent({ isRichResponse: false }),
+      voiceReply: { elevenLabsVoiceId: "voice" },
+    })
+
+    const call = vi.mocked(streamText).mock.calls[0]?.[0]
+    expect(call?.system).toContain(AI_VOICE_REPLY_INSTRUCTION)
+    // Gemini refuses a system message after the conversation has started.
+    expect(
+      (call?.messages ?? []).some(
+        (message: ModelMessage) => message.role === "system",
+      ),
+    ).toBe(false)
   })
 
   test("isRichResponse=false → normal streaming path, rich modules not called", async () => {

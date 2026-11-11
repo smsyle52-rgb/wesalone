@@ -19,7 +19,6 @@ import {
 } from "@chatbotx.io/database/repositories"
 import { emit } from "@chatbotx.io/event-bus"
 import {
-  AI_VOICE_REPLY_INSTRUCTION,
   DOCX_MIME_TYPES,
   getAiVoiceReplyConfig,
   IMAGE_MIME_TYPES,
@@ -425,13 +424,6 @@ export async function processAutomatedResponse(
       voiceReplyConfig && audioTranscripts.length > 0
         ? voiceReplyConfig
         : undefined
-    if (voiceReply) {
-      messages.push({
-        role: aiMessageRoles.enum.system,
-        content: AI_VOICE_REPLY_INSTRUCTION,
-      })
-    }
-
     if (isFileOnlyTrigger) {
       messages.push({
         role: aiMessageRoles.enum.user,
