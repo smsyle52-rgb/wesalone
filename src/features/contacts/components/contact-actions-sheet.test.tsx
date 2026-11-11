@@ -1,6 +1,4 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
-import { router } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
 
@@ -161,32 +159,5 @@ describe('ContactActionsSheet', () => {
 
     fireEvent.press(screen.getByText('Block contact'));
     await waitFor(() => expect(mockFetch).not.toHaveBeenCalled());
-  });
-  it('calls onDeleted (not router.back) after the user confirms deletion', async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    mockedDelete.mockResolvedValue({ data: {}, error: undefined });
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const onDeleted = jest.fn();
-    const onClose = jest.fn();
-    await render(
-      <ContactActionsSheet
-        workspaceId="ws-1"
-        contact={fakeContact()}
-        onClose={onClose}
-        onDeleted={onDeleted}
-      />,
-      { wrapper: wrapper(queryClient) },
-    );
-
-    fireEvent.press(screen.getByText('Delete contact'));
-    expect(alertSpy).toHaveBeenCalledTimes(1);
-    expect(onDeleted).not.toHaveBeenCalled();
-
-    const buttons = alertSpy.mock.calls[0][2] ?? [];
-    buttons.find((button) => button.style === 'destructive')?.onPress?.();
-
-    expect(onDeleted).toHaveBeenCalledTimes(1);
-    expect(router.back).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
   });
 });

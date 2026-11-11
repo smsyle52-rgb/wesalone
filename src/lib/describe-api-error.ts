@@ -34,6 +34,12 @@ export function describeApiError(error: unknown, t: TFunction): string {
       if (normalized.reason === 'mac') return t('errors.workspaceBlockedMac');
       if (normalized.reason === 'trialExpired') return t('errors.workspaceBlockedTrialExpired');
       return t('errors.workspaceBlocked');
+    case 'tooManyRequests':
+      return t('errors.tooManyRequests');
+    case 'invalidRequestData':
+      return t('errors.invalidRequest');
+    case 'imagesNotSupportedOnChannel':
+      return t('errors.imagesNotSupported');
     case 'unknown':
       return isNetworkError(error) ? t('errors.network') : t('errors.unknown');
     default:

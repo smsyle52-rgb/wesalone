@@ -27,6 +27,9 @@ export type NormalizedApiError =
   | { kind: 'mustChangePassword' }
   | { kind: 'workspaceBlocked'; reason: 'mac' | 'trialExpired' | 'unknown'; message: string }
   | { kind: 'notFound' }
+  | { kind: 'tooManyRequests'; message: string }
+  | { kind: 'invalidRequestData'; message: string }
+  | { kind: 'imagesNotSupportedOnChannel'; message: string }
   | { kind: 'unknown'; message: string };
 
 const MUST_CHANGE_PASSWORD_MESSAGE = 'Password change required';
@@ -85,6 +88,18 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
   }
   if (body.code === 'NOT_FOUND' || body.status === 404) {
     return { kind: 'notFound' };
+  }
+  if (body.code === 'tooManyRequests' || body.status === 429) {
+    return { kind: 'tooManyRequests', message: body.message ?? 'Too many requests' };
+  }
+  if (body.code === 'imagesNotSupportedOnChannel') {
+    return {
+      kind: 'imagesNotSupportedOnChannel',
+      message: body.message ?? 'Images are not supported on this channel',
+    };
+  }
+  if (body.code === 'invalidRequestData' || body.code === 'validation' || body.status === 422) {
+    return { kind: 'invalidRequestData', message: body.message ?? 'Invalid request' };
   }
   return { kind: 'unknown', message: body.message ?? 'Unknown error' };
 }
