@@ -361,110 +361,110 @@ export function Composer({ workspaceId, conversationId, style }: ComposerProps) 
 
       {messagingWindow.status === 'closed' ? (
         <WindowClosedBar onSendFlow={handleOpenFlowPicker} />
-      ) : (
-        <View
-          style={[
-            styles.row,
-            { padding: spacing.sm, gap: spacing.xs, borderTopColor: colors.borderSubtle },
-          ]}
-        >
-          {isRecordingVoice ? (
-            <VoiceRecordingSession
-              onPermissionDenied={handleMicPermissionDenied}
-              onError={handleVoiceNoteError}
-              onFinished={handleVoiceNoteFinished}
+      ) : null}
+
+      <View
+        style={[
+          styles.row,
+          { padding: spacing.sm, gap: spacing.xs, borderTopColor: colors.borderSubtle },
+        ]}
+      >
+        {isRecordingVoice ? (
+          <VoiceRecordingSession
+            onPermissionDenied={handleMicPermissionDenied}
+            onError={handleVoiceNoteError}
+            onFinished={handleVoiceNoteFinished}
+          />
+        ) : (
+          <>
+            <IconButton
+              accessibilityLabel={t('chat.attach')}
+              icon="circle-plus"
+              size="lg"
+              variant="ghost"
+              onPress={handleOpenActionsSheet}
+              disabled={Boolean(quotaBlocked)}
             />
-          ) : (
-            <>
+
+            <IconButton
+              accessibilityLabel={t('chat.camera')}
+              icon="camera"
+              size="lg"
+              variant="ghost"
+              onPress={handleInlineCamera}
+              disabled={Boolean(quotaBlocked)}
+            />
+
+            <TextInput
+              value={draft}
+              onChangeText={handleChangeText}
+              onContentSizeChange={handleContentSizeChange}
+              placeholder={t('chat.typeAMessage')}
+              placeholderTextColor={colors.textSecondary}
+              keyboardAppearance={scheme}
+              multiline
+              editable={!quotaBlocked}
+              style={[
+                styles.input,
+                {
+                  height: inputHeight,
+                  backgroundColor: colors.surface0,
+                  borderRadius: radius.md,
+                  color: colors.textPrimary,
+                  paddingHorizontal: spacing.sm,
+                },
+              ]}
+            />
+
+            {hasContent ? null : (
               <IconButton
-                accessibilityLabel={t('chat.attach')}
-                icon="circle-plus"
+                accessibilityLabel={t('chat.savedReplies')}
+                icon="message-square-more"
                 size="lg"
                 variant="ghost"
-                onPress={handleOpenActionsSheet}
+                onPress={handleOpenSavedReplies}
                 disabled={Boolean(quotaBlocked)}
               />
+            )}
 
+            {hasContent || isEditing ? (
+              <Animated.View style={sendButtonStyle}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('chat.send')}
+                  onPress={handleSend}
+                  disabled={!hasContent || Boolean(quotaBlocked)}
+                  hitSlop={4}
+                  style={[
+                    styles.sendButton,
+                    {
+                      backgroundColor: hasContent ? colors.brand : colors.surface0,
+                      borderRadius: radius.full,
+                    },
+                    (!hasContent || quotaBlocked) && styles.sendButtonDisabled,
+                  ]}
+                >
+                  <Icon
+                    name={isEditing ? 'check' : 'send-horizontal'}
+                    size={20}
+                    color={hasContent ? colors.onBrand : colors.textTertiary}
+                    flipRTL={!isEditing}
+                  />
+                </Pressable>
+              </Animated.View>
+            ) : (
               <IconButton
-                accessibilityLabel={t('chat.camera')}
-                icon="camera"
+                accessibilityLabel={t('chat.recordVoiceNote')}
+                icon="mic"
                 size="lg"
                 variant="ghost"
-                onPress={handleInlineCamera}
+                onPress={handleStartVoiceNote}
                 disabled={Boolean(quotaBlocked)}
               />
-
-              <TextInput
-                value={draft}
-                onChangeText={handleChangeText}
-                onContentSizeChange={handleContentSizeChange}
-                placeholder={t('chat.typeAMessage')}
-                placeholderTextColor={colors.textSecondary}
-                keyboardAppearance={scheme}
-                multiline
-                editable={!quotaBlocked}
-                style={[
-                  styles.input,
-                  {
-                    height: inputHeight,
-                    backgroundColor: colors.surface0,
-                    borderRadius: radius.md,
-                    color: colors.textPrimary,
-                    paddingHorizontal: spacing.sm,
-                  },
-                ]}
-              />
-
-              {hasContent ? null : (
-                <IconButton
-                  accessibilityLabel={t('chat.savedReplies')}
-                  icon="message-square-more"
-                  size="lg"
-                  variant="ghost"
-                  onPress={handleOpenSavedReplies}
-                  disabled={Boolean(quotaBlocked)}
-                />
-              )}
-
-              {hasContent || isEditing ? (
-                <Animated.View style={sendButtonStyle}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('chat.send')}
-                    onPress={handleSend}
-                    disabled={!hasContent || Boolean(quotaBlocked)}
-                    hitSlop={4}
-                    style={[
-                      styles.sendButton,
-                      {
-                        backgroundColor: hasContent ? colors.brand : colors.surface0,
-                        borderRadius: radius.full,
-                      },
-                      (!hasContent || quotaBlocked) && styles.sendButtonDisabled,
-                    ]}
-                  >
-                    <Icon
-                      name={isEditing ? 'check' : 'send-horizontal'}
-                      size={20}
-                      color={hasContent ? colors.onBrand : colors.textTertiary}
-                      flipRTL={!isEditing}
-                    />
-                  </Pressable>
-                </Animated.View>
-              ) : (
-                <IconButton
-                  accessibilityLabel={t('chat.recordVoiceNote')}
-                  icon="mic"
-                  size="lg"
-                  variant="ghost"
-                  onPress={handleStartVoiceNote}
-                  disabled={Boolean(quotaBlocked)}
-                />
-              )}
-            </>
-          )}
-        </View>
-      )}
+            )}
+          </>
+        )}
+      </View>
 
       <ComposerActionsSheet
         ref={actionsSheetRef}

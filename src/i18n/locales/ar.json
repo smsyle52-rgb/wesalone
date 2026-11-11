@@ -183,7 +183,7 @@
     "activityFallback": "نشاط",
     "botStatusOn": "الروبوت",
     "botStatusOff": "الروبوت متوقف",
-    "windowClosedBanner": "مرّت أكثر من 24 ساعة على آخر رسالة من جهة الاتصال. يمكنك إرسال قالب أو مسار فقط.",
+    "windowClosedBanner": "مرّت أكثر من 24 ساعة على آخر رسالة من العميل، وقد لا تقبل القناة إلا قالباً أو مساراً.",
     "windowRemaining": "متبقي {{time}}",
     "recordVoiceNote": "تسجيل رسالة صوتية",
     "sendVoiceNote": "إرسال الرسالة الصوتية",

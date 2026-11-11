@@ -196,7 +196,7 @@
     "voiceNoteFailed": "Couldn't record the voice message. Please try again.",
     "botStatusOn": "Bot",
     "botStatusOff": "Bot off",
-    "windowClosedBanner": "More than 24h since the contact's last message. You can only send a template or flow.",
+    "windowClosedBanner": "More than 24h since the contact's last message. The channel may only accept a template or flow.",
     "windowRemaining": "{{time}} left"
   },
   "contacts": {

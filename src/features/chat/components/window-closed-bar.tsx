@@ -10,11 +10,12 @@ interface WindowClosedBarProps {
   onSendFlow: () => void;
 }
 
-/** Replaces the text input once the 24h customer-service window has closed: explains why and
- * offers the one action the channel still allows (sending a flow/template). */
+/** Shown above the composer once the 24h customer-service window has closed: explains that the
+ * channel may reject free-form replies and offers a flow/template. The input stays usable — the
+ * server returns the channel's own error if a reply is refused. */
 export function WindowClosedBar({ onSendFlow }: WindowClosedBarProps) {
   const { t } = useTranslation();
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing } = useTheme();
 
   return (
     <View>
@@ -33,14 +34,8 @@ export function WindowClosedBar({ onSendFlow }: WindowClosedBarProps) {
         <Text variant="caption" style={styles.bannerText}>
           {t('chat.windowClosedBanner')}
         </Text>
-      </View>
-      <View style={{ padding: spacing.sm }}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onSendFlow}
-          style={[styles.action, { backgroundColor: colors.brand, borderRadius: radius.full }]}
-        >
-          <Text variant="bodyStrong" color="onBrand">
+        <Pressable accessibilityRole="button" onPress={onSendFlow} hitSlop={8}>
+          <Text variant="caption" color="brand">
             {t('chat.sendFlow')}
           </Text>
         </Pressable>
@@ -52,5 +47,4 @@ export function WindowClosedBar({ onSendFlow }: WindowClosedBarProps) {
 const styles = StyleSheet.create({
   banner: { flexDirection: 'row', alignItems: 'flex-start' },
   bannerText: { flex: 1 },
-  action: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
 });
