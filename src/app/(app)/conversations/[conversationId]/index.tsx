@@ -3,9 +3,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type BottomSheet from '@gorhom/bottom-sheet';
-import type { LayoutChangeEvent } from 'react-native';
-import { Keyboard, Platform } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { flattenPages } from '@/api/pagination';
@@ -41,7 +39,6 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
 
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-  const [headerHeight, setHeaderHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const actionsMenuRef = useRef<BottomSheet>(null);
   const messageListRef = useRef<MessageListHandle>(null);
@@ -187,25 +184,17 @@ export default function ChatScreen() {
     );
   }
 
-  function handleHeaderLayout(event: LayoutChangeEvent) {
-    setHeaderHeight(event.nativeEvent.layout.height);
-  }
-
   return (
     <Screen edges={['top']}>
       <ChatHeader
         workspaceId={workspaceId}
         conversationId={conversationId}
         onBack={() => router.back()}
-        onLayout={handleHeaderLayout}
       />
       <ConnectionErrorCard />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        // react-native-keyboard-controller's KAV tracks the keyboard frame-by-frame on both
-        // platforms; RN's built-in KAV does not resize under Android's mandatory edge-to-edge.
-        behavior="padding"
-        keyboardVerticalOffset={headerHeight + insets.top}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {messagesQuery.isError ? (
           <ErrorBanner
