@@ -42,9 +42,10 @@ const MEDIA_SUPPORT_BY_CHANNEL = {
     "unsupported",
   ],
   webchat: ["full", "full", "full", "full", "full"],
+  // Wesal: WhatsApp flows send video (agent trial videos).
   whatsapp: [
     "full",
-    "unsupported",
+    "full",
     "unsupported",
     "unsupported",
     "unsupported",

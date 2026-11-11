@@ -18,6 +18,7 @@ export const whatsappFlowPolicy = defineChannelFlowPolicy({
     stepTypes.enum.sendText,
     stepTypes.enum.sendImage,
     stepTypes.enum.sendMultipleImages,
+    stepTypes.enum.sendVideo,
     stepTypes.enum.sendCarousel,
     stepTypes.enum.sendViewCatalog,
     stepTypes.enum.sendWaTemplateMessage,

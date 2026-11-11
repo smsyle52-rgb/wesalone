@@ -40,7 +40,7 @@ describe("resolveMediaStepSupport", () => {
     ["instagram", "sendImage", "noButtons"],
     ["instagram", "sendVideo", "noButtons"],
     ["whatsapp", "sendImage", "full"],
-    ["whatsapp", "sendVideo", "unsupported"],
+    ["whatsapp", "sendVideo", "full"],
     ["whatsapp", "sendAudio", "unsupported"],
     ["whatsapp", "sendFile", "unsupported"],
     ["whatsapp", "sendGif", "unsupported"],
