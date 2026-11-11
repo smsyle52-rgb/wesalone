@@ -8,11 +8,11 @@ import { WA_BRIDGE_MAX_ATTACHMENT_MB } from "@chatbotx.io/sdk"
  * well inside its 100MB document cap.
  *
  * Wesal: WhatsApp Web bridge workspaces (`WA_BRIDGE_WORKSPACE_IDS`) may attach
- * up to 32MB; the worker sends those over the bridge, which has no 16MB cap.
+ * up to 100MB; the worker sends those over the bridge, which has no 16MB cap.
  * The server-side schema therefore accepts the larger cap for every request
  * (it cannot see the workspace); the composer applies the per-workspace one.
  * Both stay under the server-action and proxy body limits in `next.config.ts`
- * (40MB).
+ * (110MB).
  */
 export const MAX_IMAGE_ATTACHMENT_MB = 5
 export const MAX_OTHER_ATTACHMENT_MB = 16

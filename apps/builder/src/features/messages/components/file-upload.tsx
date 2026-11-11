@@ -49,7 +49,7 @@ export const FileUploadPreview = ({
   maxOtherMb = MAX_OTHER_ATTACHMENT_MB,
 }: {
   maxFiles?: number
-  /** Cap for video, audio and documents (32MB on WhatsApp Web workspaces). */
+  /** Cap for video, audio and documents (100MB on WhatsApp Web workspaces). */
   maxOtherMb?: number
 } & {
   ref: React.RefObject<unknown>

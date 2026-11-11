@@ -19,7 +19,8 @@ import { logger } from "./logger"
  * usual. See `WA_BRIDGE_WORKSPACE_IDS` for the rules.
  */
 
-const BRIDGE_TIMEOUT_MS = 120_000
+// Long enough for the bridge to upload a 100MB video to WhatsApp.
+const BRIDGE_TIMEOUT_MS = 300_000
 
 const PHONE_DIGITS = /^\d{7,15}$/
 

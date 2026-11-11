@@ -57,8 +57,11 @@ export const wamidKeyId = (wamid: string): string | null => {
 /** Cloud API caps video and audio at 16MB. */
 export const WA_CLOUD_API_MAX_MEDIA_BYTES = 16 * 1000 * 1000
 
-/** Bridge workspaces may attach video, audio and documents up to 32MB. */
-export const WA_BRIDGE_MAX_ATTACHMENT_MB = 32
+/**
+ * Bridge workspaces may attach video, audio and documents up to 100MB — a
+ * 3-4 minute phone video. WhatsApp Web itself takes far larger files.
+ */
+export const WA_BRIDGE_MAX_ATTACHMENT_MB = 100
 
 /** A little under 24h so a send racing the boundary never hits Meta's 131047. */
 export const WA_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000 - 5 * 60 * 1000
