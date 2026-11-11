@@ -70,7 +70,6 @@ jest.mock('@gorhom/bottom-sheet', () => {
 
 const mockedPost = apiClient.POST as jest.Mock;
 const mockedGet = apiClient.GET as jest.Mock;
-const mockedDelete = apiClient.DELETE as jest.Mock;
 
 beforeAll(() => {
   initI18n();
