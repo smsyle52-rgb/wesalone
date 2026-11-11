@@ -23,6 +23,7 @@ interface SequencesTabProps {
  * needed for the read-only enrollment list below. No longer read-only overall, though: an "Add to
  * sequence" button opens `SequencePickerSheet` (flag-gated — see `src/config/features.ts` and
  * `sequence-picker-sheet.tsx`'s own "Coming soon" behavior while `FEATURES.sendSequence` is off).
+ * Long-pressing an enrollment (or its "Unsubscribe" accessibility action) asks to unenroll.
  * Renders inline (no own scroll container — `ContactPanel` owns the single scroll surface).
  */
 export function SequencesTab({ contact, workspaceId }: SequencesTabProps) {
