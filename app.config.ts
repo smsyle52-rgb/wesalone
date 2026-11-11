@@ -155,6 +155,7 @@ const hasEasProject = brand.eas.projectId.length > 0;
 const config: ExpoConfig = {
   name: `${brand.displayName}${envConfig.nameSuffix}`,
   slug: brand.slug,
+  description: `${brand.displayName} — customer conversations, contacts and live chat on your phone.`,
   version: '1.0.0',
   orientation: 'portrait',
   icon: `${assetsDir}/icon.png`,
@@ -163,7 +164,9 @@ const config: ExpoConfig = {
   // New Architecture is mandatory (no opt-out) as of this SDK — no `newArchEnabled` property
   // exists in the config schema to set.
   ios: {
-    icon: './assets/expo.icon',
+    // Brand icon (not the stock Expo template `.icon` bundle) so white-label builds ship their own.
+    icon: `${assetsDir}/icon.png`,
+    supportsTablet: true,
     bundleIdentifier: `${brand.ios.bundleIdentifier}${envConfig.idSuffix}`,
     // Only OS-provided TLS/Keychain + random UUIDs — no custom crypto, so export-compliance exempt.
     // Skips the App Store Connect "App Encryption Documentation" prompt on every upload.
