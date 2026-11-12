@@ -424,6 +424,10 @@ export async function processAutomatedResponse(
       voiceReplyConfig && audioTranscripts.length > 0
         ? voiceReplyConfig
         : undefined
+    // Wesal: in mixed workspaces a written message may get a voice note too;
+    // the agent decides reply by reply.
+    const voiceChoice =
+      voiceReplyConfig?.mixed && !voiceReply ? voiceReplyConfig : undefined
     if (isFileOnlyTrigger) {
       messages.push({
         role: aiMessageRoles.enum.user,
@@ -477,6 +481,7 @@ export async function processAutomatedResponse(
         defaultReplyFrequency,
         workspaceTimezone: workspace.timezone ?? undefined,
         voiceReply,
+        voiceChoice,
       })
     } finally {
       clearInterval(typingIntervalId)

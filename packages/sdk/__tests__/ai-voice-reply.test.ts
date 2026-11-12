@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   getAiVoiceReplyConfig,
   splitVoiceReply,
+  takeVoiceChoice,
 } from "../src/lib/shared/ai-voice-reply"
 
 describe("splitVoiceReply", () => {
@@ -44,5 +45,29 @@ describe("getAiVoiceReplyConfig", () => {
     expect(getAiVoiceReplyConfig(saba, "{oops")?.elevenLabsVoiceId).toBe(
       getAiVoiceReplyConfig(saba)?.elevenLabsVoiceId,
     )
+  })
+})
+
+describe("takeVoiceChoice", () => {
+  it("reads a reply the agent chose to speak", () => {
+    expect(takeVoiceChoice("[صوت]\nأرحب يا محمد، معك ملاك")).toEqual({
+      voice: true,
+      text: "أرحب يا محمد، معك ملاك",
+    })
+  })
+
+  it("keeps an unmarked reply as text", () => {
+    expect(takeVoiceChoice("الكيس بـ 12,500 ريال")).toEqual({
+      voice: false,
+      text: "الكيس بـ 12,500 ريال",
+    })
+  })
+
+  it("drops a stray marker inside a text reply", () => {
+    expect(takeVoiceChoice("تمام [صوت] نحجز لك").text).toBe("تمام  نحجز لك")
+  })
+
+  it("lets the Saba workspace mix voice and text", () => {
+    expect(getAiVoiceReplyConfig("11767468508764852")?.mixed).toBe(true)
   })
 })

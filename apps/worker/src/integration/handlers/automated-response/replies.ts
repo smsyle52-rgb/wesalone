@@ -39,7 +39,12 @@ import type {
   ConversationModel,
 } from "@chatbotx.io/database/types"
 import { webhookChannelOrigin } from "@chatbotx.io/events/context"
-import { AI_VOICE_REPLY_INSTRUCTION } from "@chatbotx.io/sdk"
+import {
+  AI_VOICE_CHOICE_INSTRUCTION,
+  AI_VOICE_REPLY_INSTRUCTION,
+  stripVoiceChoiceMarker,
+  takeVoiceChoice,
+} from "@chatbotx.io/sdk"
 import { contactVariableService } from "@chatbotx.io/variables"
 import {
   type BotResponseTrackingContext,
@@ -110,6 +115,11 @@ export type ReplyByAIProps = {
    * note in a voice-reply workspace). Falls back to text when speech fails.
    */
   voiceReply?: { voice?: string; elevenLabsVoiceId?: string }
+  /**
+   * Wesal: the customer wrote text in a mixed voice workspace. The agent may
+   * open its reply with `AI_VOICE_CHOICE_MARKER` to send it as a voice note.
+   */
+  voiceChoice?: { voice?: string; elevenLabsVoiceId?: string }
 }
 
 export type ReplyByAIExecutionResult = {
@@ -1118,6 +1128,7 @@ async function runAIReply(
     const systemPrompt = [
       replyPrompt,
       props.voiceReply ? AI_VOICE_REPLY_INSTRUCTION : null,
+      props.voiceChoice ? AI_VOICE_CHOICE_INSTRUCTION : null,
       describeAdReferral(props.contactInbox.referral),
     ]
       .filter(Boolean)
@@ -1411,11 +1422,18 @@ async function runAIReply(
       return richResult
     }
 
+    // Mixed voice mode: the reply is held until the stream ends, when the
+    // agent's choice (voice or text) is known.
+    const heldParts: string[] = []
     const { messageCount, fullText } = await processStreamingText(
       result.textStream,
       async (_segment, parts) => {
         // A voice reply is sent whole once the stream ends (below).
         if (directSendTracker.sent || props.voiceReply) {
+          return
+        }
+        if (props.voiceChoice) {
+          heldParts.push(...parts)
           return
         }
         for (const part of parts) {
@@ -1467,6 +1485,38 @@ async function runAIReply(
           fullText,
           consumeTrackingContext(trackingContextRef),
         )
+      }
+    }
+
+    if (
+      props.voiceChoice &&
+      !directSendTracker.sent &&
+      messageCount > 0 &&
+      fullText
+    ) {
+      const choice = takeVoiceChoice(fullText)
+      const sentAsVoice =
+        choice.voice &&
+        choice.text &&
+        (await sendVoiceReply({
+          conversation,
+          text: choice.text,
+          voice: props.voiceChoice.voice,
+          elevenLabsVoiceId: props.voiceChoice.elevenLabsVoiceId,
+          operationKey: props.triggerMessageId ?? String(startTime),
+          takeTrackingContext: () => consumeTrackingContext(trackingContextRef),
+        }))
+      if (!sentAsVoice) {
+        for (const part of heldParts) {
+          const text = stripVoiceChoiceMarker(part)
+          if (text) {
+            await sendMessageAndWait(
+              conversation.id,
+              text,
+              consumeTrackingContext(trackingContextRef),
+            )
+          }
+        }
       }
     }
 
