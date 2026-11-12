@@ -318,8 +318,28 @@ export async function processAutomatedResponse(
         workspaceId: conversation.workspaceId,
       })
 
+      // Wesal: the agent's own replies are already in its history (stored
+      // when it answered). Their copies from the message table carry another
+      // id, so without this skip every text reply was remembered twice and the
+      // agent read itself repeating.
+      const recentAgentReplies = aiContext.history
+        .slice(-MAX_CONVERSATION_HISTORY)
+        .filter((entry) => entry.role === "assistant")
+        .map((entry) =>
+          typeof entry.content === "string"
+            ? entry.content
+            : JSON.stringify(entry.content),
+        )
       const newMessages = newDbMessages.flatMap((msg) => {
         if (!msg.text) {
+          return []
+        }
+        const text = msg.text.trim()
+        if (
+          msg.senderType === "bot" &&
+          text &&
+          recentAgentReplies.some((reply) => reply.includes(text))
+        ) {
           return []
         }
         let role: "user" | "assistant" | null = null
