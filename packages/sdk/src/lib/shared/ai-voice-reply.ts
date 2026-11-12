@@ -14,8 +14,8 @@ export type AiVoiceReplyConfig = {
   elevenLabsVoiceId?: string
   /**
    * Text messages may be answered with a voice note too: the agent marks the
-   * replies it wants spoken with `AI_VOICE_CHOICE_MARKER`, so the conversation
-   * mixes voice and text.
+   * replies it wants spoken with `AI_VOICE_CHOICE_MARKER`: most of the talk is
+   * voice, and text is kept for what the customer must read or copy.
    */
   mixed?: boolean
 }
@@ -107,11 +107,10 @@ export const AI_VOICE_CHOICE_MARKER = "[صوت]"
  * Appended to the agent's context in mixed mode, when the customer wrote text:
  * the agent picks, reply by reply, whether to speak or to write.
  */
-export const AI_VOICE_CHOICE_INSTRUCTION = `تقدر ترد على العميل برسالة صوتية أو برسالة مكتوبة، وأنت تختار حسب الموقف عشان تكون المحادثة خليط طبيعي بين الصوت والنص.
-- إذا اخترت يكون ردك صوت: ابدأ الرد بالوسم ${AI_VOICE_CHOICE_MARKER} في أول سطر، ثم اكتب الرد كلامًا منطوقًا طبيعيًا بنفس شخصيتك ولهجتك، جمل قصيرة متصلة، بدون قوائم أو ترقيم أو رموز أو إيموجي أو روابط، والأسعار بالكلمات كما تُنطق.
-- الصوت يناسب: الترحيب الأول، شرح التشخيص وسبب المشكلة وعلاجها، الطمأنة والإقناع والتعاطف.
-- النص (بدون الوسم) يناسب: الأسعار والإجمالي، أرقام الحسابات والهواتف، ملخص الطلب، خطوات الاستخدام المرقمة، والردود القصيرة جدًا.
-- لا ترسل أكثر من ردين صوتيين ورا بعض، ولا تخلي كل الردود نص.`
+export const AI_VOICE_CHOICE_INSTRUCTION = `أغلب ردودك على العميل تكون رسائل صوتية، والنص فقط للأشياء المهمة اللي يحتاج يقرأها أو ينسخها.
+- الرد الصوتي: ابدأ الرد بالوسم ${AI_VOICE_CHOICE_MARKER} في أول سطر، ثم اكتب الرد كلامًا منطوقًا طبيعيًا بنفس شخصيتك ولهجتك، جمل قصيرة متصلة، بدون قوائم أو ترقيم أو رموز أو إيموجي أو روابط، والأسعار بالكلمات كما تُنطق.
+- الصوت لكل النقاش: الترحيب، الأسئلة، التشخيص وسبب المشكلة وعلاجها، السعر والكمية، الطمأنة والإقناع، والمتابعة.
+- النص (بدون الوسم) فقط لـ: أرقام الحسابات والمحافظ والهواتف، الموقع والعناوين والروابط، ملخص الطلب بالإجمالي، وطريقة الاستخدام المرقمة إذا طلبها العميل مكتوبة.`
 
 /**
  * Reads the agent's choice in mixed mode: whether the reply opens with the
