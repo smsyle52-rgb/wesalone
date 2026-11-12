@@ -37,6 +37,7 @@ import {
   type ChannelType,
   type CommentAutomationType,
   type ContactSource,
+  channelTypes,
   contactSources,
   type IntegrationType,
   supportsPostTracking,
@@ -491,6 +492,8 @@ export const receiveMessage = async (
         contactId: contactInbox.contactId,
         workspaceId: inbox.workspaceId,
         text: incomingMessage.text,
+        // The WhatsApp wa_id already is the contact's own number.
+        keepPhoneNumber: inbox.channel === channelTypes.enum.whatsapp,
       })
     } catch (error) {
       logger.warn(

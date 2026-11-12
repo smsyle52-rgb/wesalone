@@ -203,4 +203,27 @@ describe("updateContactFromMessage", () => {
     await updateContactFromMessage(props)
     expect(mockSet).toHaveBeenCalledWith({ phoneNumber: "+84912345678" })
   })
+
+  // WhatsApp: the wa_id is the contact's own number; a typed one is usually
+  // someone else's and must not replace it.
+  test("keepPhoneNumber leaves the phone alone but still saves the email", async () => {
+    await updateContactFromMessage({
+      contactId: "c1",
+      workspaceId: "w1",
+      text: "phone 0912345678 mail jane@acme.com",
+      keepPhoneNumber: true,
+    })
+    expect(mockSet).toHaveBeenCalledOnce()
+    expect(mockSet).toHaveBeenCalledWith({ email: "jane@acme.com" })
+  })
+
+  test("keepPhoneNumber with only a phone in the text writes nothing", async () => {
+    await updateContactFromMessage({
+      contactId: "c1",
+      workspaceId: "w1",
+      text: "call me at 0912345678",
+      keepPhoneNumber: true,
+    })
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
 })

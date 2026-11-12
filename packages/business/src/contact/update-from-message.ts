@@ -15,6 +15,13 @@ export type UpdateContactFromMessageProps = {
    * extra DB round trip per inbound message.
    */
   defaultCountry?: string | null
+  /**
+   * Keep Contact.phoneNumber even when the text holds a phone. For WhatsApp
+   * the contact's own number is its wa_id; a number typed in a message is
+   * usually someone else's (a courier, a friend, the merchant's manager) and
+   * overwriting with it sent OTP codes to the wrong person (12 Nov 2026).
+   */
+  keepPhoneNumber?: boolean
 }
 
 export type UpdateContactFromMessageResult = {
@@ -41,7 +48,8 @@ const MIN_EXTRACT_LENGTH = 5
 export const updateContactFromMessage = async (
   props: UpdateContactFromMessageProps,
 ): Promise<UpdateContactFromMessageResult> => {
-  const { contactId, workspaceId, text, defaultCountry } = props
+  const { contactId, workspaceId, text, defaultCountry, keepPhoneNumber } =
+    props
   if (!text || text.length < MIN_EXTRACT_LENGTH) {
     return {}
   }
@@ -58,7 +66,7 @@ export const updateContactFromMessage = async (
   const extracted = extractContactInfo(text, country)
 
   const updates: { phoneNumber?: string; email?: string } = {}
-  if (extracted.phoneNumber) {
+  if (extracted.phoneNumber && !keepPhoneNumber) {
     updates.phoneNumber = extracted.phoneNumber
   }
   if (extracted.email) {

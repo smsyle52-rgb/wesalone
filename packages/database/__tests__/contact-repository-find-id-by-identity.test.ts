@@ -35,10 +35,30 @@ const makeTx = (input: {
 }
 
 describe("contactRepository.findIdByIdentityWhere", () => {
-  test("returns the exact phoneNumber match without any fallback", async () => {
-    const { tx, findFirst, select } = makeTx({
-      findFirst: [{ id: "contact-1" }],
+  // The stored phone can belong to someone else (a number another customer
+  // typed); the WhatsApp wa_id is always the customer's own number.
+  test("resolves a phone to the WhatsApp contact whose wa_id is that number first", async () => {
+    const { tx, where, findFirst } = makeTx({
+      findFirst: [],
+      waIdRows: [{ id: "contact-wa" }],
     })
+
+    const result = await contactRepository.findIdByIdentityWhere(
+      { workspaceId: "ws-1", phoneNumber: "+967 777 714 479" },
+      tx,
+    )
+
+    expect(result).toEqual({ id: "contact-wa" })
+    expect(findFirst).not.toHaveBeenCalled()
+    const { sql, params } = render(where.mock.calls[0]?.[0])
+    expect(sql).toContain('"Inbox"."workspaceId" = $1')
+    expect(sql).toContain('"Inbox"."channel" = $2')
+    expect(sql).toContain('"ContactInbox"."sourceId" = $3')
+    expect(params).toEqual(["ws-1", "whatsapp", "967777714479"])
+  })
+
+  test("falls back to the exact stored phone when no WhatsApp contact has it", async () => {
+    const { tx, findFirst } = makeTx({ findFirst: [{ id: "contact-1" }] })
 
     const result = await contactRepository.findIdByIdentityWhere(
       { workspaceId: "ws-1", phoneNumber: "+967782141619" },
@@ -46,12 +66,15 @@ describe("contactRepository.findIdByIdentityWhere", () => {
     )
 
     expect(result).toEqual({ id: "contact-1" })
-    expect(findFirst).toHaveBeenCalledTimes(1)
-    expect(select).not.toHaveBeenCalled()
+    expect(findFirst).toHaveBeenCalledOnce()
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { workspaceId: "ws-1", phoneNumber: "+967782141619" },
+      columns: { id: true },
+    })
   })
 
-  test("falls back to the same digits stored without a plus sign", async () => {
-    const { tx, findFirst, select } = makeTx({
+  test("then to the same digits stored without a plus sign", async () => {
+    const { tx, findFirst } = makeTx({
       findFirst: [undefined, { id: "contact-2" }],
     })
 
@@ -68,31 +91,9 @@ describe("contactRepository.findIdByIdentityWhere", () => {
       },
       columns: { id: true },
     })
-    expect(select).not.toHaveBeenCalled()
   })
 
-  // The stored phone can be empty or a mis-parsed number the customer typed;
-  // the WhatsApp wa_id is still the customer's real number.
-  test("falls back to the workspace's WhatsApp contact whose wa_id is the number", async () => {
-    const { tx, where } = makeTx({
-      findFirst: [undefined, undefined],
-      waIdRows: [{ id: "contact-3" }],
-    })
-
-    const result = await contactRepository.findIdByIdentityWhere(
-      { workspaceId: "ws-1", phoneNumber: "+967 782 141 619" },
-      tx,
-    )
-
-    expect(result).toEqual({ id: "contact-3" })
-    const { sql, params } = render(where.mock.calls[0]?.[0])
-    expect(sql).toContain('"Inbox"."workspaceId" = $1')
-    expect(sql).toContain('"Inbox"."channel" = $2')
-    expect(sql).toContain('"ContactInbox"."sourceId" = $3')
-    expect(params).toEqual(["ws-1", "whatsapp", "967782141619"])
-  })
-
-  test("returns null when no variant matches", async () => {
+  test("returns null when nothing matches", async () => {
     const { tx } = makeTx({ findFirst: [undefined, undefined] })
 
     const result = await contactRepository.findIdByIdentityWhere(
@@ -103,7 +104,7 @@ describe("contactRepository.findIdByIdentityWhere", () => {
     expect(result).toBeNull()
   })
 
-  test("does not fall back for id or email identifiers, or too few digits", async () => {
+  test("uses an exact match only for id, email, or a phone with too few digits", async () => {
     const byEmail = makeTx({ findFirst: [undefined] })
     expect(
       await contactRepository.findIdByIdentityWhere(
@@ -111,7 +112,8 @@ describe("contactRepository.findIdByIdentityWhere", () => {
         byEmail.tx,
       ),
     ).toBeNull()
-    expect(byEmail.findFirst).toHaveBeenCalledTimes(1)
+    expect(byEmail.findFirst).toHaveBeenCalledOnce()
+    expect(byEmail.select).not.toHaveBeenCalled()
 
     const shortPhone = makeTx({ findFirst: [undefined] })
     expect(
@@ -120,7 +122,7 @@ describe("contactRepository.findIdByIdentityWhere", () => {
         shortPhone.tx,
       ),
     ).toBeNull()
-    expect(shortPhone.findFirst).toHaveBeenCalledTimes(1)
+    expect(shortPhone.findFirst).toHaveBeenCalledOnce()
     expect(shortPhone.select).not.toHaveBeenCalled()
   })
 })

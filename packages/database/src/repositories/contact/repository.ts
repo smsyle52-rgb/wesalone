@@ -29,41 +29,48 @@ const PUBLIC_CONTACT_RELATIONS = {
 
 const MIN_PHONE_DIGITS = 7
 
-// A `phone:` identifier misses the exact `phoneNumber` match for many
-// WhatsApp contacts: imports stored bare digits, some rows have no phone, and
-// a number the customer typed can overwrite it (a Yemeni number read as
-// +84). An app sending OTP codes by phone then 404'd for over half of its
-// WhatsApp contacts (28 Oct 2026). Fall back to the same digits stored without
-// "+", then to the WhatsApp contact whose wa_id is that number.
-async function findIdByPhoneVariant(
+// A `phone:` identifier resolves to the WhatsApp contact whose wa_id is that
+// number before any stored `phoneNumber`: the stored column can be empty,
+// bare digits from an import, or a number some other customer typed in a
+// message — which sent one app's OTP codes for its manager to a stranger's
+// WhatsApp (12 Nov 2026). Then the exact stored phone, then the same digits
+// stored without "+".
+async function findIdByPhone(
   tx: DatabaseClient,
   workspaceId: string,
   phoneNumber: string,
 ) {
   const digits = phoneNumber.replace(/\D/g, "")
-  if (digits.length < MIN_PHONE_DIGITS) {
-    return null
+  const hasDigits = digits.length >= MIN_PHONE_DIGITS
+  if (hasDigits) {
+    const [byWaId] = await tx
+      .select({ id: contactInboxModel.contactId })
+      .from(contactInboxModel)
+      .innerJoin(inboxModel, eq(inboxModel.id, contactInboxModel.inboxId))
+      .where(
+        and(
+          eq(inboxModel.workspaceId, workspaceId),
+          eq(inboxModel.channel, channelTypes.enum.whatsapp),
+          eq(contactInboxModel.sourceId, digits),
+        ),
+      )
+      .limit(1)
+    if (byWaId) {
+      return byWaId
+    }
+  }
+  const exact = await tx.query.contactModel.findFirst({
+    where: { workspaceId, phoneNumber },
+    columns: { id: true },
+  })
+  if (exact || !hasDigits) {
+    return exact ?? null
   }
   const stored = await tx.query.contactModel.findFirst({
     where: { workspaceId, phoneNumber: { in: [digits, `+${digits}`] } },
     columns: { id: true },
   })
-  if (stored) {
-    return stored
-  }
-  const [byWaId] = await tx
-    .select({ id: contactInboxModel.contactId })
-    .from(contactInboxModel)
-    .innerJoin(inboxModel, eq(inboxModel.id, contactInboxModel.inboxId))
-    .where(
-      and(
-        eq(inboxModel.workspaceId, workspaceId),
-        eq(inboxModel.channel, channelTypes.enum.whatsapp),
-        eq(contactInboxModel.sourceId, digits),
-      ),
-    )
-    .limit(1)
-  return byWaId ?? null
+  return stored ?? null
 }
 
 export const contactRepository = {
@@ -78,14 +85,14 @@ export const contactRepository = {
     },
     tx: DatabaseClient = db,
   ) {
+    if (input.phoneNumber && !input.id && !input.email) {
+      return findIdByPhone(tx, input.workspaceId, input.phoneNumber)
+    }
     const contact = await tx.query.contactModel.findFirst({
       where: input,
       columns: { id: true },
     })
-    if (contact || !input.phoneNumber || input.id || input.email) {
-      return contact ?? null
-    }
-    return findIdByPhoneVariant(tx, input.workspaceId, input.phoneNumber)
+    return contact ?? null
   },
   findPublicById(
     input: { workspaceId: string; id: string },
