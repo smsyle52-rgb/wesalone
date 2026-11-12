@@ -332,6 +332,7 @@
       "userNotFound": "Bu e-posta için hesap bulunamadı.",
       "emailNotVerified": "Giriş yapmadan önce lütfen e-postanızı doğrulayın."
     },
-    "appCrashed": "Uygulama geçen sefer beklenmedik şekilde kapandı. Lütfen bu mesajın ekran görüntüsünü desteğe gönderin."
+    "appCrashed": "Uygulama geçen sefer beklenmedik şekilde kapandı. Lütfen bu mesajın ekran görüntüsünü desteğe gönderin.",
+    "appFroze": "Uygulama geçen sefer dondu. Lütfen bu mesajın ekran görüntüsünü desteğe gönderin."
   }
 }

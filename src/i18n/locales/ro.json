@@ -335,6 +335,7 @@
       "userNotFound": "Nu există niciun cont pentru acest e-mail.",
       "emailNotVerified": "Verifică-ți adresa de e-mail înainte de a te conecta."
     },
-    "appCrashed": "Aplicația s-a închis neașteptat data trecută. Trimite o captură a acestui mesaj la suport."
+    "appCrashed": "Aplicația s-a închis neașteptat data trecută. Trimite o captură a acestui mesaj la suport.",
+    "appFroze": "Aplicația s-a blocat data trecută. Trimite o captură a acestui mesaj la suport."
   }
 }

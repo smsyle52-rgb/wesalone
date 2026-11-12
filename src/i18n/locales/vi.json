@@ -332,6 +332,7 @@
       "userNotFound": "Không tìm thấy tài khoản với email này.",
       "emailNotVerified": "Vui lòng xác minh email trước khi đăng nhập."
     },
-    "appCrashed": "Ứng dụng đã đóng đột ngột lần trước. Vui lòng gửi ảnh chụp thông báo này cho bộ phận hỗ trợ."
+    "appCrashed": "Ứng dụng đã đóng đột ngột lần trước. Vui lòng gửi ảnh chụp thông báo này cho bộ phận hỗ trợ.",
+    "appFroze": "Ứng dụng bị treo lần trước. Vui lòng gửi ảnh chụp thông báo này cho bộ phận hỗ trợ."
   }
 }

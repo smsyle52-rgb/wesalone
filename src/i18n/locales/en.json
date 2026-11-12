@@ -332,6 +332,7 @@
       "userNotFound": "No account found for this email.",
       "emailNotVerified": "Please verify your email before signing in."
     },
-    "appCrashed": "The app closed unexpectedly last time. Please send a screenshot of this message to support."
+    "appCrashed": "The app closed unexpectedly last time. Please send a screenshot of this message to support.",
+    "appFroze": "The app froze last time. Please send a screenshot of this message to support."
   }
 }

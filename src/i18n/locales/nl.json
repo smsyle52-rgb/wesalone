@@ -332,6 +332,7 @@
       "userNotFound": "Geen account gevonden voor dit e-mailadres.",
       "emailNotVerified": "Verifieer je e-mailadres voordat je inlogt."
     },
-    "appCrashed": "De app werd de vorige keer onverwacht gesloten. Stuur een screenshot van dit bericht naar support."
+    "appCrashed": "De app werd de vorige keer onverwacht gesloten. Stuur een screenshot van dit bericht naar support.",
+    "appFroze": "De app liep de vorige keer vast. Stuur een screenshot van dit bericht naar support."
   }
 }

@@ -332,6 +332,7 @@
       "userNotFound": "Nenhuma conta encontrada para este e-mail.",
       "emailNotVerified": "Verifique seu e-mail antes de entrar."
     },
-    "appCrashed": "O app fechou inesperadamente da última vez. Envie uma captura desta mensagem ao suporte."
+    "appCrashed": "O app fechou inesperadamente da última vez. Envie uma captura desta mensagem ao suporte.",
+    "appFroze": "O app travou da última vez. Envie uma captura desta mensagem ao suporte."
   }
 }

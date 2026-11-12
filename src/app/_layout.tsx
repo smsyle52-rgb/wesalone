@@ -10,7 +10,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import type { ErrorBoundaryProps } from 'expo-router';
-import { Stack, ThemeProvider } from 'expo-router';
+import { Stack, ThemeProvider, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
@@ -27,7 +27,7 @@ import { ToastProvider } from '@/components/ui/toast';
 import { initI18n } from '@/i18n';
 import { applyLanguage } from '@/i18n/apply-language';
 import { reconcileRTLOnLaunch } from '@/i18n/reconcile-rtl';
-import { takeLastCrash } from '@/lib/crash-reporter';
+import { setCrashRoute, startStallWatcher, takeLastCrash } from '@/lib/crash-reporter';
 import { queryClient } from '@/lib/query-client';
 import { capturePendingDeepLink } from '@/lib/pending-deep-link';
 // Importing this (rather than only from Settings, lazily, as before) registers
@@ -180,14 +180,22 @@ export default function RootLayout() {
     return initNotificationTapHandling();
   }, [authReady]);
 
-  // Shows the error that closed the app last time, once, so it can be reported.
+  // Shows the crash or freeze recorded last time, once, so it can be reported.
   const { t } = useTranslation();
   useEffect(() => {
     if (!languageReady) return;
     takeLastCrash().then((crash) => {
-      if (crash) Alert.alert(t('errors.appCrashed'), crash);
+      if (!crash) return;
+      const title = crash.startsWith('JS blocked') ? t('errors.appFroze') : t('errors.appCrashed');
+      Alert.alert(title, crash);
     });
   }, [languageReady, t]);
+
+  const pathname = usePathname();
+  useEffect(() => {
+    setCrashRoute(pathname);
+  }, [pathname]);
+  useEffect(() => startStallWatcher(), []);
 
   // Android only — iOS has no themable window/root background to set here, and
   // `expo-system-ui` no-ops harmlessly on iOS/web.

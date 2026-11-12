@@ -319,7 +319,8 @@
       "userNotFound": "Tällä sähköpostiosoitteella ei löytynyt tiliä.",
       "emailNotVerified": "Vahvista sähköpostiosoitteesi ennen kirjautumista."
     },
-    "appCrashed": "Sovellus sulkeutui odottamatta viime kerralla. Lähetä kuvakaappaus tästä viestistä tukeen."
+    "appCrashed": "Sovellus sulkeutui odottamatta viime kerralla. Lähetä kuvakaappaus tästä viestistä tukeen.",
+    "appFroze": "Sovellus jumittui viime kerralla. Lähetä kuvakaappaus tästä viestistä tukeen."
   },
   "realtime": {
     "connecting": "Yhdistetään…",

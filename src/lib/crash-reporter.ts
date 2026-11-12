@@ -7,6 +7,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 const STORAGE_KEY = 'wesalone.lastCrash';
 const MAX_STACK_LINES = 8;
+const STALL_TICK_MS = 1_000;
+/** A gap this long between 1s ticks means the JS thread was blocked (the UI cannot respond). */
+export const STALL_THRESHOLD_MS = 3_000;
 
 interface ErrorUtilsLike {
   getGlobalHandler: () => (error: unknown, isFatal?: boolean) => void;
@@ -31,6 +34,36 @@ function install(): void {
     }
     previous(error, isFatal);
   });
+}
+
+let currentRoute = '';
+
+/** Lets the stall watcher say which screen froze. */
+export function setCrashRoute(route: string): void {
+  currentRoute = route;
+}
+
+/**
+ * Records a JS-thread freeze: a 1s interval that fires much later than scheduled means nothing
+ * else could run meanwhile. Saved like a crash so the next launch shows it.
+ */
+export function startStallWatcher(
+  record: (text: string) => void = (text) => {
+    AsyncStorage.setItem(STORAGE_KEY, text).catch(() => undefined);
+  },
+  now: () => number = Date.now,
+): () => void {
+  let last = now();
+  const id = setInterval(() => {
+    const current = now();
+    const blockedMs = current - last - STALL_TICK_MS;
+    last = current;
+    if (blockedMs >= STALL_THRESHOLD_MS) {
+      const seconds = Math.round(blockedMs / 1000);
+      record(`JS blocked for ${seconds}s${currentRoute ? ` on ${currentRoute}` : ''}`);
+    }
+  }, STALL_TICK_MS);
+  return () => clearInterval(id);
 }
 
 /** Returns the crash saved by the previous run (if any) and forgets it. */
