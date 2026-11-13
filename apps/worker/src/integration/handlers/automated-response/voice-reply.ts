@@ -12,7 +12,11 @@ import { textToSpeechStorageService } from "../text-to-speech/storage"
 
 const VOICE_REPLY_TIMEOUT_MS = 45_000
 
-/** The cloned ElevenLabs voice first, then the platform's Google voice. */
+/**
+ * A workspace with a cloned ElevenLabs voice speaks only in that voice: when
+ * ElevenLabs fails (quota spent, outage) the reply goes out as text rather
+ * than in a different Google voice. Other workspaces use the platform voice.
+ */
 async function synthesizeSpeech(props: {
   text: string
   voice?: string
@@ -21,19 +25,17 @@ async function synthesizeSpeech(props: {
 }): ReturnType<typeof synthesizePlatformSpeech> {
   if (props.elevenLabsVoiceId) {
     try {
-      const cloned = await synthesizeElevenLabsSpeech({
+      return await synthesizeElevenLabsSpeech({
         text: props.text,
         voiceId: props.elevenLabsVoiceId,
         signal: props.signal,
       })
-      if (cloned) {
-        return cloned
-      }
     } catch (err) {
       logger.warn(
         { err },
-        "[automated-response] ElevenLabs voice failed — trying the platform voice",
+        "[automated-response] ElevenLabs voice failed — sending text instead",
       )
+      return null
     }
   }
   return await synthesizePlatformSpeech({

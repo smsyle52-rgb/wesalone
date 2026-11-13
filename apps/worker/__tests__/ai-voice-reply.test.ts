@@ -115,14 +115,27 @@ describe("sendVoiceReply", () => {
     expect(synth).not.toHaveBeenCalled()
   })
 
-  test("falls back to the platform voice when ElevenLabs fails", async () => {
-    eleven.mockRejectedValue(new Error("401"))
+  test("sends text, not the platform voice, when ElevenLabs fails", async () => {
+    eleven.mockRejectedValue(new Error("quota_exceeded"))
     const ok = await sendVoiceReply({
       ...base,
       text: "أبشر يا غالي",
       elevenLabsVoiceId: "v1",
     })
-    expect(ok).toBe(true)
-    expect(synth).toHaveBeenCalled()
+    expect(ok).toBe(false)
+    expect(synth).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  test("sends text when ElevenLabs returns no audio", async () => {
+    eleven.mockResolvedValue(null)
+    const ok = await sendVoiceReply({
+      ...base,
+      text: "أبشر يا غالي",
+      elevenLabsVoiceId: "v1",
+    })
+    expect(ok).toBe(false)
+    expect(synth).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
   })
 })
