@@ -13,6 +13,7 @@ import { getIdFromParams } from "@chatbotx.io/utils"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { getTranslations } from "next-intl/server"
+import type { SearchParams } from "nuqs/server"
 import { isCommunity } from "@/env"
 import { listWorkspaceMembers } from "@/features/workspace-members/queries"
 import { getWorkspaceMembersSearchParamsCache } from "@/features/workspace-members/schema/query"
@@ -21,8 +22,10 @@ import { assertCurrentUserCanAccessChatbot } from "@/lib/auth/utils"
 
 export default async function SettingsAdminPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ workspaceId: string }>
+  searchParams: Promise<SearchParams>
 }) {
   const workspaceId = getIdFromParams(await params, "workspaceId")
   if (!workspaceId) {
@@ -36,7 +39,8 @@ export default async function SettingsAdminPage({
   const promises = Promise.all([
     listWorkspaceMembers({
       workspaceId,
-      ...getWorkspaceMembersSearchParamsCache.parse({}),
+      // The table's page, page size and search live in the URL.
+      ...getWorkspaceMembersSearchParamsCache.parse(await searchParams),
     }),
   ])
 
