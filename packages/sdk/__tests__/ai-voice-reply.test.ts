@@ -67,6 +67,16 @@ describe("takeVoiceChoice", () => {
     expect(takeVoiceChoice("تمام [صوت] نحجز لك").text).toBe("تمام  نحجز لك")
   })
 
+  it("turns a workspace's voice replies off with the value off", () => {
+    const saba = "11767468508764852"
+    expect(
+      getAiVoiceReplyConfig(saba, JSON.stringify({ [saba]: "off" })),
+    ).toBeNull()
+    expect(
+      getAiVoiceReplyConfig(saba, JSON.stringify({ [saba]: " OFF " })),
+    ).toBeNull()
+  })
+
   it("lets the Saba workspace mix voice and text", () => {
     expect(getAiVoiceReplyConfig("11767468508764852")?.mixed).toBe(true)
   })

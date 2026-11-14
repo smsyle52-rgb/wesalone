@@ -57,6 +57,9 @@ export const parseElevenLabsVoiceOverrides = (
   }
 }
 
+/** `AI_VOICE_REPLY_ELEVENLABS_VOICES` value that turns a workspace's voice off. */
+export const VOICE_REPLY_OFF = "off"
+
 export const getAiVoiceReplyConfig = (
   workspaceId: string | null | undefined,
   elevenLabsVoiceOverrides?: string | null,
@@ -69,6 +72,11 @@ export const getAiVoiceReplyConfig = (
   const voiceId = parseElevenLabsVoiceOverrides(elevenLabsVoiceOverrides)[
     String(workspaceId)
   ]
+  // "off" turns voice replies off for the workspace (text only) without a
+  // new release.
+  if (voiceId?.trim().toLowerCase() === VOICE_REPLY_OFF) {
+    return null
+  }
   return voiceId ? { ...config, elevenLabsVoiceId: voiceId } : config
 }
 
