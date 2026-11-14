@@ -28,6 +28,10 @@ export const keys = () =>
         .enum(["on", "off"])
         .optional()
         .default("on"),
+      // OpenAI-compatible endpoint behind the `openaiCompatible` capability
+      // provider (e.g. the internal model proxy). Both must be set.
+      PLATFORM_AI_PROXY_BASE_URL: z.url().optional(),
+      PLATFORM_AI_PROXY_API_KEY: z.string().trim().min(1).optional(),
       AZURE_OPENAI_ENDPOINT: z.url().optional(),
       AZURE_OPENAI_API_KEY: z.string().trim().min(1).optional(),
       AZURE_OPENAI_LOCATION: z.string().trim().min(1).optional(),

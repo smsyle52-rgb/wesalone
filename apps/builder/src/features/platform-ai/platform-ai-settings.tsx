@@ -237,6 +237,13 @@ const AZURE_OPENAI_OR_WORKSPACE_OPTIONS = [
 
 const WORKSPACE_OPTIONS = [{ label: "Workspace", value: "workspace" }]
 
+// Language-model capabilities can also run on the OpenAI-compatible proxy
+// configured by PLATFORM_AI_PROXY_BASE_URL / PLATFORM_AI_PROXY_API_KEY.
+const LANGUAGE_MODEL_OPTIONS = [
+  ...AZURE_OPENAI_OR_WORKSPACE_OPTIONS,
+  { label: "OpenAI-compatible proxy", value: "openaiCompatible" },
+]
+
 // Speech-to-text resolves through the platform provider: Azure OpenAI
 // (OpenAI's own transcription model, served from Azure) with Vertex as the
 // fallback that runs today. Offering only Workspace made the row
@@ -261,7 +268,7 @@ const DOCUMENT_PROVIDER_OPTIONS = [
 ]
 
 const CAPABILITY_FIELDS = [
-  { key: "vision", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
+  { key: "vision", providers: LANGUAGE_MODEL_OPTIONS },
   { key: "embedding", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
   { key: "summarization", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },
   { key: "extraction", providers: AZURE_OPENAI_OR_WORKSPACE_OPTIONS },

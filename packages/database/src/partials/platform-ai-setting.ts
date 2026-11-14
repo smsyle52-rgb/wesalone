@@ -16,6 +16,10 @@ export const platformAiCapabilityProviders = z.enum([
   "googleCloud",
   "workspace",
   "local",
+  // Wesal One: an OpenAI-compatible endpoint configured by
+  // PLATFORM_AI_PROXY_BASE_URL / PLATFORM_AI_PROXY_API_KEY. Language-model
+  // capabilities only (vision, summarization, extraction, webSearch).
+  "openaiCompatible",
 ])
 export type PlatformAiCapabilityProvider = z.infer<
   typeof platformAiCapabilityProviders

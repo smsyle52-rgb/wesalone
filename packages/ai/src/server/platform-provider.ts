@@ -1,5 +1,6 @@
 import { createVertex, type GoogleVertexProvider } from "@ai-sdk/google-vertex"
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai"
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import {
   DEFAULT_PLATFORM_AI_CAPABILITIES,
   platformAiSettingService,
@@ -540,9 +541,90 @@ export function buildPlatformOverrideCandidates(
   return candidates
 }
 
+/**
+ * Wesal One: a language-model capability served by the OpenAI-compatible
+ * proxy (`openaiCompatible`). Returns `undefined` when the capability uses
+ * another provider, and `null` when the proxy is not configured so the caller
+ * falls back to the agent's own model. `fallbackModel`, when set, answers on
+ * the same endpoint if the primary model fails.
+ */
+async function getPlatformProxyLanguageModel(
+  name: PlatformAiCapabilityName,
+): Promise<LanguageModel | null | undefined> {
+  const override = await getActivePlatformAiOverride()
+  const capability = override?.capabilities[name]
+  if (capability?.provider !== "openaiCompatible") {
+    return
+  }
+  const baseURL = env.PLATFORM_AI_PROXY_BASE_URL
+  const apiKey = env.PLATFORM_AI_PROXY_API_KEY
+  if (!(baseURL && apiKey)) {
+    logger.error(
+      { capability: name },
+      "[platform-ai] openaiCompatible capability selected but PLATFORM_AI_PROXY_BASE_URL / PLATFORM_AI_PROXY_API_KEY are not set",
+    )
+    return null
+  }
+
+  const provider = createOpenAICompatible({
+    name: "platform-proxy",
+    baseURL,
+    apiKey,
+  })
+  const primary = provider(capability.model)
+  const fallbackModelId = capability.fallbackModel
+  if (!fallbackModelId || fallbackModelId === capability.model) {
+    return primary
+  }
+
+  const fallback = provider(fallbackModelId)
+  const logFallback = (error: unknown) =>
+    logger.warn(
+      {
+        capability: name,
+        model: capability.model,
+        fallbackModel: fallbackModelId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "[platform-ai] proxy model failed, retrying with fallback model",
+    )
+  return wrapLanguageModel({
+    model: primary,
+    middleware: {
+      specificationVersion: "v3",
+      wrapGenerate: async ({ doGenerate, params }) => {
+        try {
+          return await doGenerate()
+        } catch (error) {
+          if (params.abortSignal?.aborted) {
+            throw error
+          }
+          logFallback(error)
+          return fallback.doGenerate(params)
+        }
+      },
+      wrapStream: async ({ doStream, params }) => {
+        try {
+          return await doStream()
+        } catch (error) {
+          if (params.abortSignal?.aborted) {
+            throw error
+          }
+          logFallback(error)
+          return fallback.doStream(params)
+        }
+      },
+    },
+  })
+}
+
 export async function getPlatformCapabilityLanguageModel(
   name: "extraction" | "summarization" | "vision" | "webSearch",
 ): Promise<LanguageModel | null> {
+  const proxyModel = await getPlatformProxyLanguageModel(name)
+  if (proxyModel !== undefined) {
+    return proxyModel
+  }
   const capability = await getActivePlatformAiCapability(name)
   if (!capability) {
     return null
