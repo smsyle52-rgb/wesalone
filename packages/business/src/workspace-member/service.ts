@@ -475,6 +475,9 @@ export class WorkspaceMemberService extends BaseService {
       db.query.workspaceMemberModel.findMany({
         ...pagination,
         where,
+        // A stable order is required for offset pagination: without it
+        // Postgres may return the same members on every page.
+        orderBy: { createdAt: "desc", id: "desc" },
         with: {
           user: true,
         },

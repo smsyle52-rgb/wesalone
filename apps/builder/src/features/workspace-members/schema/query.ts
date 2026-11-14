@@ -10,8 +10,10 @@ import { basePaginationRequest } from "@/lib/pagination"
 import { workspaceMemberResource } from "./resource"
 
 export const getWorkspaceMembersSearchParamsCache = createSearchParamsCache({
-  page: parseAsInteger,
-  perPage: parseAsInteger,
+  // Match the table's client defaults (page 1, 10 rows) — the table clears
+  // default values from the URL, so a bare page would otherwise get 20 rows.
+  page: parseAsInteger.withDefault(1),
+  perPage: parseAsInteger.withDefault(10),
   keyword: parseAsString,
 })
 
