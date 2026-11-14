@@ -17,6 +17,7 @@ import {
   contentTypes,
   getWhatsappCallPermissionRequest,
   isMessageProductEntity,
+  isWaBridgeAllMessagesWorkspace,
   isWhatsappNativeLocationRequest,
   type MessageButtonTemplate,
   type MessageHandlers,
@@ -407,7 +408,16 @@ export const sendMessage: MessageHandlers<WhatsappAuthValue>["sendMessage"] =
           fromPhoneNumber: ctx.auth.metadata?.phoneNumber?.display_phone_number,
         })
       } catch (error) {
-        throw mapToChannelError(error)
+        // A workspace that routes every message through the bridge still has
+        // the Cloud API: an unlinked number or a spent daily cap falls back
+        // to it instead of losing the reply.
+        if (!isWaBridgeAllMessagesWorkspace(message.workspaceId)) {
+          throw mapToChannelError(error)
+        }
+        logger.warn(
+          { err: error, messageId: message.id },
+          "wa-bridge send failed — falling back to the Cloud API",
+        )
       }
     }
 

@@ -11,12 +11,35 @@
 export const WA_BRIDGE_WORKSPACE_IDS: readonly string[] = [
   "11767468508764852",
   "11617037325598720",
+  "11617037734543360",
+  "11761402707397258",
+  "11750564628532208",
 ]
 
 export const isWaBridgeWorkspace = (
   workspaceId: string | null | undefined,
 ): boolean =>
   Boolean(workspaceId) && WA_BRIDGE_WORKSPACE_IDS.includes(String(workspaceId))
+
+/**
+ * Wesal: bridge workspaces whose Cloud API accepts messages but Meta never
+ * delivers them (the WhatsApp Business Account is blocked for a payment
+ * method error, 141006). Every message the bridge can carry — bot and AI
+ * agent replies included, inside the 24h window too — goes through the
+ * WhatsApp Web bridge first, and falls back to the Cloud API when the bridge
+ * cannot send it (number not linked, daily cap reached).
+ */
+export const WA_BRIDGE_ALL_MESSAGES_WORKSPACE_IDS: readonly string[] = [
+  "11617037734543360",
+  "11761402707397258",
+  "11750564628532208",
+]
+
+export const isWaBridgeAllMessagesWorkspace = (
+  workspaceId: string | null | undefined,
+): boolean =>
+  Boolean(workspaceId) &&
+  WA_BRIDGE_ALL_MESSAGES_WORKSPACE_IDS.includes(String(workspaceId))
 
 /**
  * A message the bridge sends is stored with sourceId `wab.<key id>`, where the

@@ -2,6 +2,7 @@ import {
   contentTypes,
   getWhatsappCallPermissionRequest,
   isMessageProductEntity,
+  isWaBridgeAllMessagesWorkspace,
   isWaBridgeWorkspace,
   isWaServiceWindowClosed,
   type OutgoingContact,
@@ -46,9 +47,6 @@ export const shouldUseWaBridge = (props: {
   sendFrom?: "inbox"
 }): boolean => {
   const { contact, message, sendFrom } = props
-  if (sendFrom !== "inbox") {
-    return false
-  }
   if (!isWaBridgeWorkspace(message.workspaceId)) {
     return false
   }
@@ -59,6 +57,14 @@ export const shouldUseWaBridge = (props: {
     return false
   }
   if (!isBridgeable(message)) {
+    return false
+  }
+  // Meta accepts but never delivers for these workspaces: every bridgeable
+  // message (bot, AI agent, flows, inbox) tries the bridge first.
+  if (isWaBridgeAllMessagesWorkspace(message.workspaceId)) {
+    return true
+  }
+  if (sendFrom !== "inbox") {
     return false
   }
   return (
