@@ -593,7 +593,9 @@ function createReplyToolset(options: {
       workspaceId: conversation.workspaceId,
       conversationId: conversation.id,
       contactId: conversation.contactId,
-      sendMessage: async (text: string) => {
+      sendMessage: async (rawText: string) => {
+        // Never show the voice marker in a text message.
+        const text = stripVoiceChoiceMarker(rawText)
         options.directSendTracker.sent = true
         options.directSendTracker.sentText = text
         if (text) {
@@ -1437,9 +1439,15 @@ async function runAIReply(
           return
         }
         for (const part of parts) {
+          // A prompt written for voice may still open a reply with the voice
+          // marker when the workspace's voice is off: never show it.
+          const text = stripVoiceChoiceMarker(part)
+          if (!text) {
+            continue
+          }
           await sendMessageAndWait(
             conversation.id,
-            part,
+            text,
             consumeTrackingContext(trackingContextRef),
           )
         }
