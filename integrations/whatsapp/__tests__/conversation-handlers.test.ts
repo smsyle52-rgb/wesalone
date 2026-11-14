@@ -63,4 +63,17 @@ describe("whatsapp conversation handlers", () => {
 
     expect(mockMarkAsRead).not.toHaveBeenCalled()
   })
+
+  test("bridge-delivered messages (wab. ids) never reach the Graph API", async () => {
+    await conversationHandlers.sendTyping({
+      ctx,
+      data: { contact, typing: true, messageSourceId: "wab.3EB0ABC" },
+    } as never)
+    await conversationHandlers.agentMarkAsRead({
+      ctx,
+      data: { contact, messageSourceId: "wab.3EB0ABC" },
+    } as never)
+
+    expect(mockMarkAsRead).not.toHaveBeenCalled()
+  })
 })

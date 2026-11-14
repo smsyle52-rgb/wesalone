@@ -6,6 +6,7 @@ import {
   ThreadControlTakeRefusedError,
   type ThreadControlWebhookResult,
   threadControlRoles,
+  WA_BRIDGE_SOURCE_ID_PREFIX,
 } from "@chatbotx.io/sdk"
 import { z } from "zod"
 import {
@@ -38,6 +39,10 @@ const sendTyping: ConversationHandlers<WhatsappAuthValue>["sendTyping"] =
     if (!(typing && messageSourceId)) {
       return // no typing-off API; no anchor message to type on
     }
+    // A message the WhatsApp Web bridge delivered has no Cloud API wamid.
+    if (messageSourceId.startsWith(WA_BRIDGE_SOURCE_ID_PREFIX)) {
+      return
+    }
 
     const whatsappClient = getWhatsappClient(ctx.auth)
 
@@ -55,7 +60,10 @@ const agentMarkAsRead: ConversationHandlers<WhatsappAuthValue>["agentMarkAsRead"
       data: { messageSourceId },
     } = props
 
-    if (!messageSourceId) {
+    if (
+      !messageSourceId ||
+      messageSourceId.startsWith(WA_BRIDGE_SOURCE_ID_PREFIX)
+    ) {
       return
     }
 

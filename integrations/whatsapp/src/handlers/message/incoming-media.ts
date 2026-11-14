@@ -4,6 +4,7 @@ import {
   type FileType,
   getMediaStoragePrefix,
   type IncomingAttachment,
+  isWaBridgeMediaId,
   SdkException,
 } from "@chatbotx.io/sdk"
 import { createId } from "@chatbotx.io/utils"
@@ -21,12 +22,55 @@ import type {
   WhatsappMessageParser,
 } from "./message-parser-types"
 
+/**
+ * Wesal: a file a bridge-only workspace received through the WhatsApp Web
+ * bridge. The bridge holds the bytes; the Graph API knows nothing of it.
+ */
+const fetchBridgeMedia = async (
+  ctx: Context<WhatsappAuthValue>,
+  mediaId: string,
+  profile: ImageOptimizeProfile,
+): Promise<ExternalMediaResult> => {
+  const response = await fetch(
+    `${process.env.WA_BRIDGE_URL}/media/${encodeURIComponent(mediaId)}`,
+    { headers: { "x-bridge-token": process.env.WA_BRIDGE_TOKEN ?? "" } },
+  )
+  if (!(response.ok && response.body)) {
+    logger.error(
+      { mediaId, status: response.status },
+      "Unable to fetch wa-bridge media",
+    )
+    throw new SdkException("Unable to download media")
+  }
+  const mimeType = (
+    response.headers.get("content-type") ?? "application/octet-stream"
+  )
+    .split(";")[0]
+    .trim()
+  const stored = await storeIncomingImage({
+    uploader: ctx.uploader,
+    key: `${getMediaStoragePrefix(ctx)}/${createId()}`,
+    bytes: Buffer.from(await response.arrayBuffer()),
+    mimeType,
+    profile,
+    acl: "public-read",
+  })
+  const { mimeType: optimizedMimeType, ...fields } = toStoredMediaFields(stored)
+  return {
+    ...fields,
+    ...(stored.optimized ? { mimeType: optimizedMimeType } : {}),
+  }
+}
+
 const fetchMedia = async (
   ctx: Context<WhatsappAuthValue>,
   whatsappClient: WhatsAppAPI,
   mediaId: string,
   profile: ImageOptimizeProfile,
 ): Promise<ExternalMediaResult> => {
+  if (isWaBridgeMediaId(mediaId)) {
+    return fetchBridgeMedia(ctx, mediaId, profile)
+  }
   try {
     const mediaResponse = await whatsappClient.retrieveMedia(mediaId)
     if ("url" in mediaResponse && "mime_type" in mediaResponse) {

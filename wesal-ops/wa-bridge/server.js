@@ -1,7 +1,10 @@
 // Wesal WhatsApp Web bridge — linked devices of each workspace's WhatsApp
 // Business numbers (up to MAX_NUMBERS per workspace). Sends ONLY what the platform worker asks for (agent messages
-// outside the 24h window, or large videos). It never reads, answers or marks
-// incoming messages; the Cloud API (coexistence) stays the inbound path.
+// outside the 24h window, or large videos). It never answers or marks
+// incoming messages; the Cloud API (coexistence) stays the inbound path —
+// except for INBOUND_WEBHOOKS workspaces (no Cloud API number at all), whose
+// incoming messages are forwarded to their manual WhatsApp webhook in the
+// Cloud API payload shape, signed with that integration's secret.
 "use strict"
 const http = require("node:http")
 const crypto = require("node:crypto")
@@ -25,6 +28,26 @@ const WORKSPACES = Object.fromEntries(
       return [id, label.join(":") || id]
     }),
 )
+
+// Bridge-only workspaces: "<ws>:<integrationId>:<phoneNumberId>:<secret>"
+// entries, comma separated. Their incoming messages are POSTed to
+// `${INBOUND_WEBHOOK_BASE}/<integrationId>`.
+const INBOUND_WEBHOOK_BASE = (process.env.INBOUND_WEBHOOK_BASE || "").replace(/\/+$/, "")
+const INBOUND = Object.fromEntries(
+  (process.env.INBOUND_WEBHOOKS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [ws, integrationId, phoneNumberId, ...secret] = entry.split(":")
+      return [ws, { integrationId, phoneNumberId, secret: secret.join(":") }]
+    })
+    .filter(([ws, v]) => ws && v.integrationId && v.phoneNumberId && v.secret),
+)
+const MEDIA_DIR = path.join(DATA_DIR, "inbound-media")
+const MEDIA_TTL_MS = 6 * 60 * 60_000
+// Platform media ids for files this bridge received (see /media/<token>).
+const MEDIA_PREFIX = "wab-media:"
 
 if (BRIDGE_TOKEN.length < 32 || ADMIN_TOKEN.length < 32) {
   console.error("BRIDGE_TOKEN and ADMIN_TOKEN must be set (>=32 chars)")
@@ -161,6 +184,13 @@ function startSession(ws, slot) {
       await client.sendPresenceUnavailable()
     } catch {}
   })
+  if (INBOUND[ws]) {
+    client.on("message", (m) => {
+      forwardInbound(s, m).catch((err) =>
+        log("error", "inbound forward failed", { ws, slot, err: String(err?.message || err) }),
+      )
+    })
+  }
   client.on("auth_failure", (m) => {
     s.state = "auth_failure"
     s.lastError = String(m)
@@ -337,6 +367,156 @@ async function doSend(s, { to, text, media }) {
   return ids
 }
 
+// ---- Inbound (bridge-only workspaces) ------------------------------------
+
+const KEY_ID = /^(?:true|false)_[^_]+_([A-Za-z0-9]+)/
+const inboundId = (m) => {
+  const id = msgId(m)
+  const keyId = KEY_ID.exec(id)?.[1] || m?.id?.id || id
+  return `wab.${keyId}`
+}
+
+// WhatsApp Web addresses some customers by a LID instead of their number;
+// the platform keys WhatsApp contacts by phone number.
+async function senderOf(m) {
+  const from = String(m.from || "")
+  let contact = null
+  try {
+    contact = await m.getContact()
+  } catch {}
+  let phone = from.endsWith("@c.us") ? from.split("@")[0] : String(contact?.number || "")
+  phone = phone.replace(/\D/g, "")
+  const name = contact?.pushname || contact?.name || contact?.verifiedName || ""
+  return { phone, name }
+}
+
+const MEDIA_TYPES = { image: "image", video: "video", audio: "audio", ptt: "audio", document: "document", sticker: "sticker" }
+
+async function storeInboundMedia(m) {
+  const media = await m.downloadMedia()
+  if (!media?.data) return null
+  fs.mkdirSync(MEDIA_DIR, { recursive: true })
+  const token = crypto.randomBytes(16).toString("hex")
+  fs.writeFileSync(path.join(MEDIA_DIR, token), Buffer.from(media.data, "base64"))
+  fs.writeFileSync(
+    path.join(MEDIA_DIR, `${token}.json`),
+    JSON.stringify({ mimeType: media.mimetype || "application/octet-stream", filename: media.filename || null }),
+  )
+  return { id: `${MEDIA_PREFIX}${token}`, mimeType: (media.mimetype || "application/octet-stream").split(";")[0].trim(), filename: media.filename || null }
+}
+
+/** Builds the Cloud API `messages[0]` entry for one WhatsApp Web message. */
+async function toCloudMessage(m, phone) {
+  const base = { from: phone, id: inboundId(m), timestamp: String(m.timestamp || Math.floor(Date.now() / 1000)) }
+  const kind = MEDIA_TYPES[m.type]
+  if (kind && m.hasMedia) {
+    const stored = await storeInboundMedia(m)
+    if (stored) {
+      const body = { id: stored.id, mime_type: stored.mimeType }
+      const caption = (m.body || "").trim()
+      if (caption && (kind === "image" || kind === "document" || kind === "video")) body.caption = caption
+      if (kind === "document" && stored.filename) body.filename = stored.filename
+      if (m.type === "ptt") body.voice = true
+      return { ...base, type: kind, [kind]: body }
+    }
+  }
+  if (m.type === "location" && m.location) {
+    return {
+      ...base,
+      type: "location",
+      location: {
+        latitude: Number(m.location.latitude),
+        longitude: Number(m.location.longitude),
+        ...(m.location.name ? { name: String(m.location.name) } : {}),
+        ...(m.location.address ? { address: String(m.location.address) } : {}),
+      },
+    }
+  }
+  const text = (m.body || "").trim()
+  if (!text) return null
+  return { ...base, type: "text", text: { body: text } }
+}
+
+async function postInbound(cfg, payload) {
+  const body = JSON.stringify(payload)
+  const sig = crypto.createHmac("sha256", cfg.secret).update(body).digest("hex")
+  let lastErr = null
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt) await sleep(2000 * 2 ** attempt)
+    try {
+      const r = await fetch(`${INBOUND_WEBHOOK_BASE}/${cfg.integrationId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hub-signature-256": `sha256=${sig}` },
+        body,
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (r.ok) return
+      lastErr = `HTTP ${r.status}`
+      if (r.status >= 400 && r.status < 500 && r.status !== 429) break
+    } catch (err) {
+      lastErr = String(err?.message || err)
+    }
+  }
+  throw new Error(`webhook rejected: ${lastErr}`)
+}
+
+async function forwardInbound(s, m) {
+  const cfg = INBOUND[s.ws]
+  if (!(cfg && INBOUND_WEBHOOK_BASE) || m.fromMe || m.isStatus || m.broadcast) return
+  const from = String(m.from || "")
+  if (!from || from.endsWith("@g.us") || from.endsWith("@broadcast") || from.endsWith("@newsletter")) return
+  const { phone, name } = await senderOf(m)
+  if (!/^\d{7,15}$/.test(phone)) {
+    log("warn", "inbound skipped: no phone number", { ws: s.ws, slot: s.slot })
+    return
+  }
+  const message = await toCloudMessage(m, phone)
+  if (!message) return
+  // Replies to this customer leave from the number they wrote to.
+  if (s.me) {
+    if (!routes[s.ws]) routes[s.ws] = {}
+    routes[s.ws][phone] = s.me
+    saveRoutesSoon()
+  }
+  await postInbound(cfg, {
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        id: `wab-${s.ws}`,
+        changes: [
+          {
+            field: "messages",
+            value: {
+              messaging_product: "whatsapp",
+              metadata: { display_phone_number: s.me || "", phone_number_id: cfg.phoneNumberId },
+              contacts: [{ profile: { name: name || phone }, wa_id: phone }],
+              messages: [message],
+            },
+          },
+        ],
+      },
+    ],
+  })
+  log("info", "inbound forwarded", { ws: s.ws, slot: s.slot, type: message.type })
+}
+
+// Drop received files the platform has had time to copy.
+setInterval(() => {
+  let names = []
+  try {
+    names = fs.readdirSync(MEDIA_DIR)
+  } catch {
+    return
+  }
+  const cutoff = Date.now() - MEDIA_TTL_MS
+  for (const n of names) {
+    try {
+      const f = path.join(MEDIA_DIR, n)
+      if (fs.statSync(f).mtimeMs < cutoff) fs.rmSync(f, { force: true })
+    } catch {}
+  }
+}, 60 * 60_000).unref()
+
 function readJson(req, limit = 1_000_000) {
   return new Promise((resolve, reject) => {
     let size = 0
@@ -493,6 +673,18 @@ const server = http.createServer(async (req, res) => {
         return redirect(res, back)
       }
       return send(res, 404, "not found", "text/plain")
+    }
+
+    // GET /media/<token>: a file an inbound message carried (bridge token).
+    if (req.method === "GET" && parts[0] === "media" && parts.length === 2) {
+      if (!safeEqual(req.headers["x-bridge-token"] || "", BRIDGE_TOKEN)) return send(res, 401, { error: "unauthorized" })
+      const token = parts[1].startsWith(MEDIA_PREFIX) ? parts[1].slice(MEDIA_PREFIX.length) : parts[1]
+      if (!/^[a-f0-9]{32}$/.test(token)) return send(res, 404, { error: "not found" })
+      const file = path.join(MEDIA_DIR, token)
+      if (!fs.existsSync(file)) return send(res, 404, { error: "not found" })
+      const meta = readJsonFile(`${file}.json`, {})
+      res.writeHead(200, { "Content-Type": meta.mimeType || "application/octet-stream", "Cache-Control": "no-store" })
+      return fs.createReadStream(file).pipe(res)
     }
 
     if (req.method === "POST" && url.pathname === "/send") {

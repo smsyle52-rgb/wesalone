@@ -14,6 +14,9 @@ export const WA_BRIDGE_WORKSPACE_IDS: readonly string[] = [
   "11617037734543360",
   "11761402707397258",
   "11750564628532208",
+  // Abu Hashem store: bridge-only (Meta refused the number), see
+  // WA_BRIDGE_ALL_MESSAGES_WORKSPACE_IDS.
+  "11617037597900800",
 ]
 
 export const isWaBridgeWorkspace = (
@@ -33,6 +36,9 @@ export const WA_BRIDGE_ALL_MESSAGES_WORKSPACE_IDS: readonly string[] = [
   "11617037734543360",
   "11761402707397258",
   "11750564628532208",
+  // No Cloud API number at all: inbound arrives from the bridge through a
+  // manual WhatsApp integration, and every reply must leave through it.
+  "11617037597900800",
 ]
 
 export const isWaBridgeAllMessagesWorkspace = (
@@ -49,6 +55,16 @@ export const isWaBridgeAllMessagesWorkspace = (
  * can find the bridge row and adopt the wamid instead of adding a duplicate.
  */
 export const WA_BRIDGE_SOURCE_ID_PREFIX = "wab."
+
+/**
+ * Media id of a file an inbound message carried through the bridge (bridge-
+ * only workspaces). The bytes are served by the bridge at `/media/<id>`, not
+ * by the Graph API.
+ */
+export const WA_BRIDGE_MEDIA_ID_PREFIX = "wab-media:"
+
+export const isWaBridgeMediaId = (mediaId: string): boolean =>
+  mediaId.startsWith(WA_BRIDGE_MEDIA_ID_PREFIX)
 
 const BRIDGE_ID = /^(?:true|false)_[^_]+_([A-Za-z0-9]+)/
 const KEY_ID = /^[A-Za-z0-9]{8,64}$/
