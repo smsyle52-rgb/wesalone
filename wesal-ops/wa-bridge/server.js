@@ -332,6 +332,83 @@ async function resolveChatId(client, to) {
   return null
 }
 
+// Reads a business's catalog through WhatsApp Web's own catalog module. The
+// module is internal, so the call shape is probed and the raw answer is
+// returned (trimmed) beside the products found in it.
+async function readCatalog(s, { phone, limit }) {
+  return await s.client.pupPage.evaluate(
+    async ({ phone, limit }) => {
+      const out = { fns: [], used: null, errors: [], raw: null, products: [] }
+      let bridge
+      try {
+        bridge = window.require("WAWebBizProductCatalogBridge")
+        out.fns = Object.keys(bridge)
+      } catch (e) {
+        out.errors.push(`module: ${e?.message || e}`)
+        return out
+      }
+      const wid = window.require("WAWebWidFactory").createWid(`${phone}@c.us`)
+      const names = out.fns.filter((n) => /catalog/i.test(n) && typeof bridge[n] === "function")
+      let res
+      for (const name of names) {
+        for (const args of [[wid, undefined, limit, 800, 800], [wid, limit, 800, 800], [wid]]) {
+          try {
+            res = await bridge[name](...args)
+            if (res) {
+              out.used = `${name}/${args.length}`
+              break
+            }
+          } catch (e) {
+            out.errors.push(`${name}/${args.length}: ${e?.message || e}`)
+          }
+        }
+        if (res) break
+      }
+      if (!res) return out
+      const seen = new WeakSet()
+      const plain = (v, depth = 0) => {
+        if (v === null || typeof v !== "object") return v
+        if (seen.has(v) || depth > 6) return "[…]"
+        seen.add(v)
+        if (Array.isArray(v)) return v.slice(0, 120).map((x) => plain(x, depth + 1))
+        const o = {}
+        for (const k of Object.keys(v).slice(0, 60)) o[k] = plain(v[k], depth + 1)
+        return o
+      }
+      const data = plain(res)
+      out.raw = JSON.stringify(data).slice(0, 4000)
+      const urlsIn = (o) => {
+        const urls = []
+        const walk = (x) => {
+          if (typeof x === "string" && /^https:\/\//.test(x) && !urls.includes(x)) urls.push(x)
+          else if (x && typeof x === "object") for (const v of Object.values(x)) walk(v)
+        }
+        walk(o)
+        return urls
+      }
+      const walk = (x) => {
+        if (!x || typeof x !== "object") return
+        if (Array.isArray(x)) return x.forEach(walk)
+        if (typeof x.name === "string" && (x.price !== undefined || x.priceAmount1000 !== undefined || x.image_cdn_urls || x.imageCdnUrl || x.retailer_id || x.retailerId)) {
+          out.products.push({
+            id: x.id ?? null,
+            name: x.name,
+            description: x.description ?? null,
+            price: x.price ?? x.priceAmount1000 ?? null,
+            currency: x.currency ?? null,
+            images: urlsIn(x),
+          })
+          return
+        }
+        Object.values(x).forEach(walk)
+      }
+      walk(data)
+      return out
+    },
+    { phone, limit },
+  )
+}
+
 async function doSend(s, { to, text, media }) {
   const client = s.client
   const chatId = await resolveChatId(client, to)
@@ -735,6 +812,36 @@ const server = http.createServer(async (req, res) => {
         log("error", "send failed", { ws, slot: s.slot, err: String(err?.message || err) })
         return send(res, err?.status || 502, { error: String(err?.message || err) })
       }
+    }
+
+    // POST /catalog: read another business's WhatsApp catalog the way a
+    // customer browses it from this workspace's linked number (the Cloud API
+    // cannot read a catalog made in the WhatsApp Business app).
+    if (req.method === "POST" && url.pathname === "/catalog") {
+      if (!safeEqual(req.headers["x-bridge-token"] || "", BRIDGE_TOKEN)) return send(res, 401, { error: "unauthorized" })
+      const body = await readJson(req)
+      const ws = String(body.workspaceId || "")
+      if (!WORKSPACES[ws]) return send(res, 403, { error: "workspace not enabled" })
+      const phone = String(body.phone || "").replace(/\D/g, "")
+      if (!/^\d{7,15}$/.test(phone)) return send(res, 400, { error: "phone required" })
+      const s = sessionsOf(ws).find((x) => x.state === "ready")
+      if (!s) return send(res, 503, { error: "no linked number is ready" })
+      const result = await readCatalog(s, { phone, limit: Math.min(Number(body.limit) || 60, 100) })
+      if (body.images !== false) {
+        for (const p of result.products) {
+          const url = p.images[0]
+          if (!url) continue
+          try {
+            const r = await fetch(url)
+            if (r.ok) p.image = Buffer.from(await r.arrayBuffer()).toString("base64")
+            else p.imageError = `HTTP ${r.status}`
+          } catch (err) {
+            p.imageError = String(err?.message || err)
+          }
+        }
+      }
+      log("info", "catalog read", { ws, slot: s.slot, count: result.products.length })
+      return send(res, 200, result)
     }
 
     return send(res, 404, { error: "not found" })
