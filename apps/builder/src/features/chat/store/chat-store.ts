@@ -28,7 +28,13 @@ import type {
 } from "@/features/messages/schema/resource"
 import { logger } from "@/lib/log"
 import { client } from "@/lib/orpc/orpc"
-export const INBOX_CONVERSATIONS_PER_PAGE = 20
+// 50 rather than 20: a busy inbox holds thousands of conversations, and with
+// small pages scrolling stalled at every page boundary. The list also
+// prefetches well before its end (see conversation-list.tsx).
+export const INBOX_CONVERSATIONS_PER_PAGE = 50
+// The head refresh after new messages only needs the newest rows, and it
+// runs often in a busy inbox, so it stays small.
+const INBOX_HEAD_REFRESH_PER_PAGE = 20
 export const INBOX_MESSAGES_PER_PAGE = 20
 const CONVERSATION_HEAD_REFRESH_THROTTLE_MS = 5000
 
@@ -620,7 +626,7 @@ export const createChatStore = (initialState: ChatStoreInitialState = {}) => {
               await client.conversationsAPI.listConversationsByPOSTAuthenticatedAPI(
                 {
                   workspaceId,
-                  perPage: INBOX_CONVERSATIONS_PER_PAGE,
+                  perPage: INBOX_HEAD_REFRESH_PER_PAGE,
                   cursor: "",
                   ...requestedFilters,
                 },

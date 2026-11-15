@@ -10,6 +10,7 @@ type VirtuosoCapturedProps = {
   computeItemKey?: (index: number, item: { id: string }) => string
   data: { id: string }[]
   itemContent?: (index: number, item: { id: string }) => React.ReactNode
+  rangeChanged?: (range: { startIndex: number; endIndex: number }) => void
 }
 
 const capturedProps: { current: VirtuosoCapturedProps | null } = {
@@ -105,6 +106,34 @@ describe("ConversationList", () => {
     })
 
     expect(storeState.loadMoreConversations).toHaveBeenCalledTimes(1)
+  })
+
+  test("prefetches the next page well before the agent reaches the end", () => {
+    const saved = {
+      conversations: storeState.conversations,
+      nextCursorConversation: storeState.nextCursorConversation,
+    }
+    storeState.isFirstLoadConversation = false
+    storeState.conversations = Array.from({ length: 60 }, (_, i) => ({
+      id: `conv-${i}`,
+    }))
+    storeState.nextCursorConversation = "cursor-1"
+
+    try {
+      act(() => {
+        root.render(<ConversationList workspaceId="ws-1" />)
+      })
+      expect(storeState.loadMoreConversations).not.toHaveBeenCalled()
+
+      // 24 rows still below the visible range: already inside the prefetch window.
+      act(() => {
+        capturedProps.current?.rangeChanged?.({ startIndex: 20, endIndex: 35 })
+      })
+      expect(storeState.loadMoreConversations).toHaveBeenCalledTimes(1)
+    } finally {
+      storeState.conversations = saved.conversations
+      storeState.nextCursorConversation = saved.nextCursorConversation
+    }
   })
 
   test("skips the mount load when the server already seeded the first page", () => {

@@ -12,7 +12,7 @@ import { Form } from "@chatbotx.io/ui/components/ui/form"
 import { Skeleton } from "@chatbotx.io/ui/components/ui/skeleton"
 import { SearchIcon, UserPlusIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { type GridComponents, Virtuoso } from "react-virtuoso"
 import { toast } from "sonner"
@@ -82,14 +82,38 @@ export default function ConversationList({
     initActiveConversationFromUrl(workspaceId)
   }, [])
 
+  // Set when a page fails, so the automatic re-check below does not retry it
+  // in a loop; the agent's next scroll retries it, as before.
+  const loadFailed = useRef(false)
+
   // Load more items when reaching the end of the list
   const loadMoreItems = () => {
     if (!isLoadingConversation && hasNextPage) {
+      loadFailed.current = false
       loadMoreConversations(workspaceId).catch(() => {
+        loadFailed.current = true
         toast.error(t("messages.errorLoadingData"))
       })
     }
   }
+
+  // Prefetch the next page while the agent is still this many rows from the
+  // end, so a continuous scroll never reaches a page boundary and stalls.
+  const PREFETCH_ROWS = 25
+  const lastEndIndex = useRef(0)
+  // `rangeChanged` only fires when the visible range moves, so a page that
+  // lands while the agent is already near the end would otherwise wait for
+  // another scroll. Re-check after every append and keep loading.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-run only when the list grows or a load finishes
+  useEffect(() => {
+    if (
+      !(loadFailed.current || isFirstLoadConversation) &&
+      conversations.length > 0 &&
+      lastEndIndex.current >= conversations.length - PREFETCH_ROWS
+    ) {
+      loadMoreItems()
+    }
+  }, [conversations.length, isLoadingConversation])
 
   const handleChange = useDebouncedCallback(() => {
     conversationIdParam.clear()
@@ -187,6 +211,7 @@ export default function ConversationList({
             }}
             computeItemKey={(_, item) => item.id}
             data={conversations}
+            increaseViewportBy={{ top: 0, bottom: 800 }}
             itemContent={(_, item) => (
               <ConversationItem
                 assigneeOptionNameByValue={assigneeOptionNameByValue}
@@ -198,7 +223,8 @@ export default function ConversationList({
               />
             )}
             rangeChanged={({ endIndex }) => {
-              if (endIndex >= conversations.length - 5) {
+              lastEndIndex.current = endIndex
+              if (endIndex >= conversations.length - PREFETCH_ROWS) {
                 loadMoreItems()
               }
             }}
