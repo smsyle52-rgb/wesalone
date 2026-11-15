@@ -315,15 +315,31 @@ function pickSession(ws, from, to) {
 
 const MEDIA_KINDS = ["image/", "video/", "audio/"]
 
+// A customer WhatsApp addresses by a LID (privacy id) reaches the platform
+// keyed by that LID's digits (see senderOf), so a reply to it is not a phone
+// number: fall back to the existing LID chat they wrote from.
+async function resolveChatId(client, to) {
+  const digits = String(to).replace(/\D/g, "")
+  try {
+    const numberId = await client.getNumberId(digits)
+    if (numberId) return numberId._serialized
+  } catch {}
+  if (!/^\d{7,20}$/.test(digits)) return null
+  try {
+    const chat = await client.getChatById(`${digits}@lid`)
+    if (chat?.id?._serialized) return chat.id._serialized
+  } catch {}
+  return null
+}
+
 async function doSend(s, { to, text, media }) {
   const client = s.client
-  const numberId = await client.getNumberId(String(to))
-  if (!numberId) {
+  const chatId = await resolveChatId(client, to)
+  if (!chatId) {
     const e = new Error("الرقم غير مسجّل في واتساب")
     e.status = 422
     throw e
   }
-  const chatId = numberId._serialized
   const ids = []
   await sleep(1200 + Math.floor(Math.random() * 2300))
   const files = Array.isArray(media) ? media : []
