@@ -10,6 +10,7 @@ export type FlowStateFilter = {
   startType?: string
   integrationWhatsappId?: string
   integrationWhatsappIds?: string[]
+  enableInInbox?: boolean
 }
 
 export const useFlows = (

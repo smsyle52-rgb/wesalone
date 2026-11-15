@@ -8,14 +8,14 @@ import {
   workspaceIdrequestParams,
 } from "@/features/common/schema"
 import { getCurrentUser } from "@/lib/auth/utils"
-import { workspaceActionClient } from "@/lib/safe-action"
+import { workspaceFlowsActionClient } from "@/lib/safe-action"
 import {
   type ImportFlowRequest,
   type ImportFlowResponse,
   importFlowRequest,
 } from "../schema/action"
 
-export const importFlowAction = workspaceActionClient
+export const importFlowAction = workspaceFlowsActionClient
   .bindArgsSchemas(workspaceIdrequestParams)
   .inputSchema(importFlowRequest)
   .action(

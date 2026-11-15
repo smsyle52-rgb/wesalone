@@ -238,6 +238,32 @@ export const rejectSupportSession = createMiddleware<{
 })
 
 /**
+ * Flow authoring (create, edit, publish, restore, delete, import) needs the
+ * member's "flows" permission; superAdmin passes. The sidebar only hides the
+ * Flows page, so without this an inbox-only agent holding a flow's URL could
+ * still edit and publish it. Sending a flow from the inbox composer goes
+ * through the message actions and stays open to every inbox agent.
+ */
+export const requireFlowsPermission = createMiddleware<{
+  ctx: { workspaceMemberPermissions: PermissionsInput }
+}>().define(async ({ ctx, next }) => {
+  if (!hasWorkspacePermission(ctx.workspaceMemberPermissions, "flows")) {
+    const t = await getTranslations()
+    throw new ChatbotXException(
+      t("flows.permissionDenied"),
+      "flowsPermissionDenied",
+      403,
+    )
+  }
+  return await next({ ctx })
+})
+
+/** `workspaceActionClient` for flow authoring actions (see above). */
+export const workspaceFlowsActionClient = workspaceActionClient.use(
+  requireFlowsPermission,
+)
+
+/**
  * Refuses a member with neither contacts nor onlyAssignedContacts from any
  * calling action that starts or joins a call. Reuses hasContactsAccess, which
  * already lets superAdmin through, rather than a parallel permission check.

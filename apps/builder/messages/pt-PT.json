@@ -2537,6 +2537,7 @@
     "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
+    "permissionDenied": "Não tem permissão para gerir fluxos. Peça a permissão de Fluxos a um administrador do espaço de trabalho.",
     "export": {
       "notPublished": "Este fluxo nunca foi publicado. Publique-o antes de exportar.",
       "failed": "Falha na exportação. Tente novamente."

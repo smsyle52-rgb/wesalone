@@ -33,6 +33,8 @@ export const listFlowsRequest = basePaginationRequest.extend({
   name: z.string().nullish(),
   folderId: zodBigintAsString().nullish(),
   active: z.boolean().nullish(),
+  /** `true` lists only flows marked "Show in inbox" (the composer's picker). */
+  enableInInbox: z.boolean().nullish(),
   startType: z.string().nullish(),
   integrationWhatsappId: zodBigintAsString().nullish(),
   /** Flows whose start template belongs to any of these integrations (multi-page broadcasts). */

@@ -2,9 +2,9 @@
 
 import { flowService } from "@chatbotx.io/business"
 import { zodBigintAsString } from "@chatbotx.io/utils"
-import { workspaceActionClient } from "@/lib/safe-action"
+import { workspaceFlowsActionClient } from "@/lib/safe-action"
 
-export const duplicateFlowAction = workspaceActionClient
+export const duplicateFlowAction = workspaceFlowsActionClient
   .bindArgsSchemas([zodBigintAsString(), zodBigintAsString()])
   .action(({ bindArgsParsedInputs: [workspaceId, id] }) =>
     flowService.duplicate({ workspaceId, id }),

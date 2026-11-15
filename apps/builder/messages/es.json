@@ -2693,6 +2693,7 @@
     "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
+    "permissionDenied": "No tienes permiso para gestionar flujos. Pide a un administrador del espacio de trabajo el permiso de Flujos.",
     "export": {
       "notPublished": "Este flujo nunca se ha publicado. Publícalo antes de exportarlo.",
       "failed": "Error al exportar. Inténtalo de nuevo."

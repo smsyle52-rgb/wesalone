@@ -2537,6 +2537,7 @@
     "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
+    "permissionDenied": "Du har ikke tilladelse til at administrere flows. Bed en administrator af arbejdsområdet om tilladelsen Flows.",
     "export": {
       "notPublished": "Denne flow er aldrig blevet offentliggjort. Udgiv den, før du eksporterer.",
       "failed": "Eksport mislykkedes. Prøv igen."

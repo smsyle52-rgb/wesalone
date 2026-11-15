@@ -9,9 +9,11 @@ import {
 } from "@chatbotx.io/business"
 import { convertStartNodeToMessengerAdsJson } from "@chatbotx.io/integration-messenger/messenger-ads"
 import { zodBigintAsString } from "@chatbotx.io/utils"
+import { ORPCError } from "@orpc/server"
 import z from "zod"
 import { flowVersionResource } from "@/features/flow-versions/schema/resource"
 import { withWorkspaceIdSchema } from "@/features/workspaces/schema/resource"
+import { hasWorkspacePermission } from "@/lib/auth/permission-routes"
 import { workspaceAuthorizedMidddleware } from "@/middlewares/auth"
 import { authorizedAPI } from "@/orpc"
 import { listFlows } from "../queries"
@@ -151,7 +153,14 @@ export const privateFlowsAPI = {
     })
     .input(flowStatsRequest)
     .use(workspaceAuthorizedMidddleware, (input) => input.workspaceId)
-    .handler(async ({ input }) => {
+    .handler(async ({ input, context }) => {
+      // Resetting stats is flow management, like the flow actions gated by
+      // requireFlowsPermission; reading flows and stats stays open.
+      if (
+        !hasWorkspacePermission(context.workspaceMember.permissions, "flows")
+      ) {
+        throw new ORPCError("FORBIDDEN")
+      }
       await flowAnalyticsService.resetStatsSession({
         workspaceId: input.workspaceId,
         flowId: input.flowId,

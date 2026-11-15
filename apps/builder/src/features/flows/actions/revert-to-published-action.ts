@@ -2,9 +2,9 @@
 
 import { flowVersionService } from "@chatbotx.io/business"
 import { zodBigintAsString } from "@chatbotx.io/utils"
-import { workspaceActionClient } from "@/lib/safe-action"
+import { workspaceFlowsActionClient } from "@/lib/safe-action"
 
-export const revertToPublishedAction = workspaceActionClient
+export const revertToPublishedAction = workspaceFlowsActionClient
   .bindArgsSchemas([zodBigintAsString(), zodBigintAsString()])
   .action(async (props) => {
     const {

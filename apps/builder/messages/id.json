@@ -2537,6 +2537,7 @@
     "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
+    "permissionDenied": "Anda tidak memiliki izin untuk mengelola alur. Minta izin Alur kepada admin ruang kerja.",
     "export": {
       "notPublished": "Alur ini belum pernah dipublikasikan. Publikasikan sebelum mengekspor.",
       "failed": "Ekspor gagal. Silakan coba lagi."

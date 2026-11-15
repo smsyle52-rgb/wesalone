@@ -3548,6 +3548,7 @@
     }
   },
   "flows": {
+    "permissionDenied": "Du har inte behörighet att hantera flöden. Be en administratör för arbetsytan om behörigheten Flöden.",
     "export": {
       "notPublished": "Det här flödet har aldrig publicerats. Publicera det innan du exporterar.",
       "failed": "Export misslyckades. Försök igen."

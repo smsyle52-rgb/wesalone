@@ -3551,6 +3551,7 @@
     }
   },
   "flows": {
+    "permissionDenied": "你没有管理流程的权限。请向工作区管理员申请“流程”权限。",
     "export": {
       "notPublished": "该流程从未发布过。请先发布后再导出。",
       "failed": "导出失败，请重试。"

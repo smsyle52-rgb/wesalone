@@ -12,6 +12,8 @@ export type FlowListInput = {
   name?: string | null
   folderId?: string | null
   active?: boolean | null
+  /** Only flows offered in the inbox composer's "Send flow" picker. */
+  enableInInbox?: boolean | null
   page?: number | null
   perPage?: number | null
   sort?: { id: string; desc: boolean }[] | null
@@ -27,6 +29,7 @@ const buildWhere = (input: FlowListInput) => ({
     : undefined,
   name: input.name ? { ilike: likeContains(input.name) } : undefined,
   active: input.active === null ? undefined : (input.active ?? undefined),
+  enableInInbox: input.enableInInbox ?? undefined,
 })
 
 export const flowRepository = {

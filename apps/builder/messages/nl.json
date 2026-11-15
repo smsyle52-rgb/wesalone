@@ -2537,6 +2537,7 @@
     }
   },
   "flows": {
+    "permissionDenied": "Je hebt geen toestemming om flows te beheren. Vraag een werkruimtebeheerder om de machtiging Flows.",
     "export": {
       "notPublished": "Deze flow is nog nooit gepubliceerd. Publiceer deze voordat je exporteert.",
       "failed": "Exporteren mislukt. Probeer het opnieuw."

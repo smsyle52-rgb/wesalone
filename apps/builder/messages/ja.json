@@ -2537,6 +2537,7 @@
     "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
+    "permissionDenied": "フローを管理する権限がありません。ワークスペース管理者にフローの権限を依頼してください。",
     "export": {
       "notPublished": "このフローはまだ公開されていません。エクスポートする前に公開してください。",
       "failed": "エクスポートに失敗しました。もう一度お試しください。"

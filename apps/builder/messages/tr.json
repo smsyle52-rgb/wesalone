@@ -2693,6 +2693,7 @@
     "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
+    "permissionDenied": "Akışları yönetme izniniz yok. Çalışma alanı yöneticisinden Akışlar iznini isteyin.",
     "export": {
       "notPublished": "Bu akış hiç yayınlanmadı. Dışa aktarmadan önce yayınlayın.",
       "failed": "Dışa aktarma başarısız oldu. Lütfen tekrar deneyin."

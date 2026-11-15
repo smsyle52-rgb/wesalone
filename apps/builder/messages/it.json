@@ -2537,6 +2537,7 @@
     }
   },
   "flows": {
+    "permissionDenied": "Non hai l'autorizzazione per gestire i flussi. Chiedi l'autorizzazione Flussi a un amministratore dello spazio di lavoro.",
     "export": {
       "notPublished": "Questo flusso non è mai stato pubblicato. Pubblicalo prima di esportarlo.",
       "failed": "Esportazione non riuscita. Riprova."

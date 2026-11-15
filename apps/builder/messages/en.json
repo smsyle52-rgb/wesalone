@@ -3376,6 +3376,7 @@
     }
   },
   "flows": {
+    "permissionDenied": "You don't have permission to manage flows. Ask a workspace admin for the Flows permission.",
     "title": "Flows",
     "export": {
       "notPublished": "This flow has never been published. Publish it before exporting.",

@@ -3375,6 +3375,7 @@
     }
   },
   "flows": {
+    "permissionDenied": "Axınları idarə etmək icazəniz yoxdur. İş sahəsi administratorundan Axınlar icazəsini istəyin.",
     "title": "Axınlar",
     "export": {
       "notPublished": "Bu axın hələ dərc edilməyib. İxrac etməzdən əvvəl onu dərc edin.",

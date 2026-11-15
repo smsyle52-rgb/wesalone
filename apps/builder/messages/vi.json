@@ -2735,6 +2735,7 @@
     "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
+    "permissionDenied": "Bạn không có quyền quản lý luồng. Hãy yêu cầu quản trị viên không gian làm việc cấp quyền Luồng.",
     "export": {
       "notPublished": "Luồng này chưa từng được xuất bản. Hãy xuất bản trước khi xuất tệp.",
       "failed": "Xuất tệp thất bại. Vui lòng thử lại."

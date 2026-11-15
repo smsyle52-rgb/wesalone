@@ -2537,6 +2537,7 @@
     "selectOptionsPlaceholder": "Select options"
   },
   "flows": {
+    "permissionDenied": "Sie haben keine Berechtigung, Flows zu verwalten. Bitten Sie einen Workspace-Admin um die Berechtigung „Flows“.",
     "export": {
       "notPublished": "Dieser Flow wurde noch nie veröffentlicht. Veröffentlichen Sie ihn, bevor Sie ihn exportieren.",
       "failed": "Export fehlgeschlagen. Bitte versuchen Sie es erneut."

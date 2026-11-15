@@ -1,5 +1,6 @@
 {
   "flows": {
+    "permissionDenied": "Nu ai permisiunea de a gestiona fluxurile. Cere permisiunea Fluxuri unui administrator al spațiului de lucru.",
     "export": {
       "notPublished": "Acest flux nu a fost niciodată publicat. Publicați-l înainte de a-l exporta.",
       "failed": "Exportul a eșuat. Vă rugăm să încercați din nou."

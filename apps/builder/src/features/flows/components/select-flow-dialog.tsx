@@ -92,11 +92,16 @@ export function SelectFlowDialog({
   // In the standby composer (templateStartType set) every tab is scoped to this
   // conversation's WhatsApp number: only template-first flows of that
   // integration are sendable while a partner holds the thread, so Flows and
-  // Node are narrowed the same way as Template. The normal composer passes no
-  // scope, so all flows are offered.
+  // Node are narrowed the same way as Template. Either way only flows marked
+  // "Show in inbox" are offered, so an internal flow (e.g. one that reassigns
+  // the conversation) can be kept out of the agents' picker.
   const scopedFilter = templateStartType
-    ? { startType: templateStartType, integrationWhatsappId }
-    : undefined
+    ? {
+        startType: templateStartType,
+        integrationWhatsappId,
+        enableInInbox: true,
+      }
+    : { enableInInbox: true }
   // Hold the scoped queries until the integration resolves: without it the
   // backend returns an empty list, so an early fetch only re-runs.
   const scopedEnabled =
