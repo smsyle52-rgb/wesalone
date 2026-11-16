@@ -51,7 +51,8 @@
     "current": "مساحة العمل الحالية",
     "switch": "تبديل",
     "switchConfirmTitle": "تبديل مساحة العمل؟",
-    "switchConfirmBody": "التبديل إلى {{name}}؟ ستغادر مساحة العمل الحالية."
+    "switchConfirmBody": "التبديل إلى {{name}}؟ ستغادر مساحة العمل الحالية.",
+    "defaultName": "مساحة عمل {{name}}"
   },
   "inbox": {
     "title": "صندوق الوارد"
@@ -301,7 +302,17 @@
     "version": "الإصدار {{version}}",
     "legal": "قانوني",
     "termsOfService": "شروط الخدمة",
-    "privacyPolicy": "سياسة الخصوصية"
+    "privacyPolicy": "سياسة الخصوصية",
+    "deleteAccount": "حذف الحساب",
+    "deleteAccountWarning": "احذف حسابك وبياناتك نهائيًا.",
+    "deleteAccountTitle": "حذف حسابك",
+    "deleteAccountBody": "سيتم جدولة حذف حسابك وكل مساحة عمل تملكها. ستغادر مساحات العمل التي أنت عضو فيها فقط، وسيتم تسجيل خروجك من جميع الأجهزة.",
+    "deleteAccountConfirmLabel": "اكتب DELETE للتأكيد",
+    "deleteAccountSubmit": "حذف حسابي",
+    "deleteAccountSupportRequired": "لا يمكن حذف حسابك من التطبيق. يرجى التواصل مع الدعم.",
+    "deleteAccountFailed": "تعذّر حذف حسابك. يرجى المحاولة مرة أخرى.",
+    "deleteAccountScheduled": "تمت جدولة حذف حسابك.",
+    "deleteAccountConfirmHint": "DELETE"
   },
   "profile": {
     "plan": "الخطة"
@@ -328,7 +339,8 @@
       "passwordTooShort": "كلمة المرور قصيرة جدًا.",
       "passwordTooLong": "كلمة المرور طويلة جدًا.",
       "userNotFound": "لم يتم العثور على حساب لهذا البريد الإلكتروني.",
-      "emailNotVerified": "يرجى تأكيد بريدك الإلكتروني قبل تسجيل الدخول."
+      "emailNotVerified": "يرجى تأكيد بريدك الإلكتروني قبل تسجيل الدخول.",
+      "accountDeletionPending": "تمت جدولة حذف هذا الحساب."
     },
     "appCrashed": "أُغلق التطبيق بشكل غير متوقع في المرة السابقة. يرجى إرسال صورة لهذه الرسالة إلى الدعم.",
     "appFroze": "تجمّد التطبيق في المرة السابقة. يرجى إرسال صورة لهذه الرسالة إلى الدعم."
@@ -347,6 +359,10 @@
     "offline": "أنت غير متصل"
   },
   "notifications": {
-    "androidChannelName": "الإشعارات"
+    "androidChannelName": "الإشعارات",
+    "promptTitle": "لا تفوّت أي رسالة من عملائك",
+    "promptBody": "فعّل الإشعارات لتصلك تنبيهات الرسائل الجديدة حتى عندما يكون التطبيق مغلقًا.",
+    "promptEnable": "تفعيل الإشعارات",
+    "promptLater": "ليس الآن"
   }
 }
