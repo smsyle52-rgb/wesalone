@@ -66,6 +66,7 @@ import {
   willSendRetry,
 } from "../utils/retry"
 import { reconcileChannelSendError } from "./channel-send-error-reconcilers"
+import { withWhatsappVoiceNotes } from "./whatsapp-voice-note"
 
 // Keep private comment replies aligned with sendMessageToChannel's isPrivateReply
 // routing below and packages/business/src/message/create-outgoing.ts's DM routing.
@@ -275,6 +276,12 @@ export async function sendMessageToChannel(
             null,
         },
       }
+    }
+
+    // Safari records MP4/AAC, which WhatsApp drops (error 131053); send an
+    // Ogg/Opus copy instead. Falls back to the original on any failure.
+    if (contactInbox.channel === "whatsapp") {
+      handlerMessage = await withWhatsappVoiceNotes(handlerMessage)
     }
 
     const handlerData = {

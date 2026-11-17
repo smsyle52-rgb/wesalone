@@ -29,6 +29,7 @@ RUN SKIP_ENV_CHECK=true pnpm turbo run build --filter=worker
 FROM base AS release
 RUN apt update && \
   apt install -y tini redis && \
+  apt install -y --no-install-recommends ffmpeg && \
   apt-get autoremove -y && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
