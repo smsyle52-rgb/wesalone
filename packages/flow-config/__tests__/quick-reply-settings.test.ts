@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import {
   buttonTypes,
   computeQuickReplyFollowUpTriggerAt,
+  deferFollowUpOutOfQuietHours,
   flowValidationCodes,
   getUserDataStepDefaultFn,
   listQuickReplySettingsHandles,
@@ -344,12 +345,57 @@ describe("computeQuickReplyFollowUpTriggerAt", () => {
 
   test("adds the configured delay to now", () => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date("2026-09-30T00:00:00.000Z"))
+    // 12:00 in Yemen (UTC+3); +2h lands at 14:00, outside the quiet hours.
+    vi.setSystemTime(new Date("2026-09-30T09:00:00.000Z"))
     expect(
       computeQuickReplyFollowUpTriggerAt({
         duration: 2,
         unit: "hours",
       }).toISOString(),
-    ).toBe("2026-09-30T02:00:00.000Z")
+    ).toBe("2026-09-30T11:00:00.000Z")
+  })
+
+  test("moves a follow-up that lands after 22:00 to 09:00 the next day", () => {
+    vi.useFakeTimers()
+    // 21:00 in Yemen; +3h lands at 00:00, inside the quiet hours.
+    vi.setSystemTime(new Date("2026-09-30T18:00:00.000Z"))
+    expect(
+      computeQuickReplyFollowUpTriggerAt({
+        duration: 3,
+        unit: "hours",
+      }).toISOString(),
+    ).toBe("2026-10-01T06:00:00.000Z")
+  })
+
+  test("moves a follow-up that lands before 09:00 to 09:00 the same day", () => {
+    vi.useFakeTimers()
+    // 01:00 in Yemen; +3h lands at 04:00, inside the quiet hours.
+    vi.setSystemTime(new Date("2026-09-29T22:00:00.000Z"))
+    expect(
+      computeQuickReplyFollowUpTriggerAt({
+        duration: 3,
+        unit: "hours",
+      }).toISOString(),
+    ).toBe("2026-09-30T06:00:00.000Z")
+  })
+})
+
+describe("deferFollowUpOutOfQuietHours", () => {
+  test("keeps 09:00 and 21:59 local, defers 22:00 local", () => {
+    expect(
+      deferFollowUpOutOfQuietHours(
+        new Date("2026-09-30T06:00:00.000Z"),
+      ).toISOString(),
+    ).toBe("2026-09-30T06:00:00.000Z")
+    expect(
+      deferFollowUpOutOfQuietHours(
+        new Date("2026-09-30T18:59:00.000Z"),
+      ).toISOString(),
+    ).toBe("2026-09-30T18:59:00.000Z")
+    expect(
+      deferFollowUpOutOfQuietHours(
+        new Date("2026-09-30T19:00:00.000Z"),
+      ).toISOString(),
+    ).toBe("2026-10-01T06:00:00.000Z")
   })
 })

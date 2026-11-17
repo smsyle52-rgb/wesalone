@@ -257,10 +257,34 @@ export const listQuickReplySettingsHandles = (
   return handles
 }
 
+/**
+ * Wesal One: a follow-up never reaches a customer at night. The platform's
+ * customers are in Yemen (UTC+3, no daylight saving), so a follow-up that
+ * would fire between 22:00 and 09:00 local time is moved to 09:00.
+ */
+const FOLLOW_UP_LOCAL_OFFSET_MS = 3 * 3_600_000
+const FOLLOW_UP_QUIET_START_HOUR = 22
+const FOLLOW_UP_QUIET_END_HOUR = 9
+
+export const deferFollowUpOutOfQuietHours = (date: Date): Date => {
+  const local = new Date(date.getTime() + FOLLOW_UP_LOCAL_OFFSET_MS)
+  const hour = local.getUTCHours()
+  if (hour >= FOLLOW_UP_QUIET_END_HOUR && hour < FOLLOW_UP_QUIET_START_HOUR) {
+    return date
+  }
+  if (hour >= FOLLOW_UP_QUIET_START_HOUR) {
+    local.setUTCDate(local.getUTCDate() + 1)
+  }
+  local.setUTCHours(FOLLOW_UP_QUIET_END_HOUR, 0, 0, 0)
+  return new Date(local.getTime() - FOLLOW_UP_LOCAL_OFFSET_MS)
+}
+
 export const computeQuickReplyFollowUpTriggerAt = (
   settings: Pick<QuickReplyFollowUpSettings, "duration" | "unit">,
 ): Date =>
-  addMilliseconds(
-    Date.now(),
-    Number(settings.duration) * delayUnitToMs(settings.unit),
+  deferFollowUpOutOfQuietHours(
+    addMilliseconds(
+      Date.now(),
+      Number(settings.duration) * delayUnitToMs(settings.unit),
+    ),
   )
