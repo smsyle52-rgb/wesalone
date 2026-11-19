@@ -764,7 +764,8 @@ describe("orderService", () => {
         where: expect.objectContaining({
           OR: [
             { createdAt: { lt: after.createdAt } },
-            { createdAt: after.createdAt, id: { lt: after.id } },
+            // `eq` explicit: Drizzle drops a bare Date from a relational where.
+            { createdAt: { eq: after.createdAt }, id: { lt: after.id } },
           ],
         }),
       }),

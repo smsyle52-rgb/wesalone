@@ -300,7 +300,9 @@ class OrderService extends BaseService {
     if (after) {
       where.OR = [
         { createdAt: { lt: after.createdAt } },
-        { createdAt: after.createdAt, id: { lt: after.id } },
+        // `eq` spelled out: a bare Date is read as an empty operator object
+        // and the column dropped, leaving only `id < after.id`.
+        { createdAt: { eq: after.createdAt }, id: { lt: after.id } },
       ]
     }
 

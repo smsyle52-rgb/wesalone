@@ -153,8 +153,13 @@ export function buildConversationWhere(
       ? [
           { lastActivityAt: { lt: cursor.lastActivityAt } },
           { lastActivityAt: { isNull: true } },
+          // `eq` must be spelled out: Drizzle's relational `where` reads a bare
+          // Date as an (empty) operator object and drops the column, which
+          // turned this branch into `id < cursor.id` alone — older-id but
+          // newer-activity conversations then came back on every page and the
+          // inbox looped instead of reaching its oldest conversation.
           {
-            lastActivityAt: cursor.lastActivityAt,
+            lastActivityAt: { eq: cursor.lastActivityAt },
             id: { lt: cursor.id },
           },
         ]
