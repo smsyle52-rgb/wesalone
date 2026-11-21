@@ -38,9 +38,18 @@ export type PointsNoticeStatus = PointsBalanceStatus | "grace"
  * be stopped on the day gets the advance "grace" warning.
  */
 export function pointsNoticeStatus(
-  balance: { totalAvailablePoints: number; monthlyGrantedPoints: number },
+  balance: {
+    totalAvailablePoints: number
+    monthlyGrantedPoints: number
+    hasCreditLine?: boolean
+  },
   options: { graceActive: boolean },
 ): PointsNoticeStatus | null {
+  // A hidden platform credit line keeps the agent answering after the visible
+  // balance hits zero, so "low"/"depleted" warnings would be false.
+  if (balance.hasCreditLine) {
+    return null
+  }
   const status = classifyPointsBalance(balance)
   if (!options.graceActive) {
     return status

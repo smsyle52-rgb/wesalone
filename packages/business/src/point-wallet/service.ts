@@ -41,7 +41,22 @@ export type WalletBalance = {
   frozenPoints: number
   totalAvailablePoints: number
   nearestExpiry: Date | null
+  /**
+   * Points consumed from a hidden platform credit line (a grant whose
+   * metadata has `creditLine: true`). The credit line itself only keeps the
+   * agent running and is billed separately, so its remaining balance is never
+   * counted in `purchasedPoints`/`totalAvailablePoints` — merchants see only
+   * what they used beyond their package.
+   */
+  overagePoints: number
+  /** True while a hidden credit line still has points left to spend. */
+  hasCreditLine: boolean
 }
+
+const isCreditLineGrant = (metadata: unknown): boolean =>
+  typeof metadata === "object" &&
+  metadata !== null &&
+  (metadata as Record<string, unknown>).creditLine === true
 
 async function getOrCreateWallet(
   userId: string,
@@ -100,10 +115,19 @@ async function getWalletBalance(userId: string): Promise<WalletBalance> {
   let monthlyOriginalMicro = 0n
   let purchasedMicro = 0n
   let frozenMicro = 0n
+  let overageMicro = 0n
+  let hasCreditLine = false
   let nearestExpiry: Date | null = null
 
   for (const grant of grants) {
     const remaining = BigInt(grant.remainingMicroPoints)
+    if (isCreditLineGrant(grant.metadata)) {
+      overageMicro += BigInt(grant.originalMicroPoints) - remaining
+      if (grant.status === "active" && remaining > 0n) {
+        hasCreditLine = true
+      }
+      continue
+    }
     if (grant.status === "frozen") {
       frozenMicro += remaining
       continue
@@ -150,6 +174,8 @@ async function getWalletBalance(userId: string): Promise<WalletBalance> {
     frozenPoints: toVisiblePoints(frozenMicro),
     totalAvailablePoints: toVisiblePoints(availableMicro),
     nearestExpiry,
+    overagePoints: toVisiblePoints(overageMicro),
+    hasCreditLine,
   }
 }
 

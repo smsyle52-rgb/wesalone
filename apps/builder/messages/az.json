@@ -9452,6 +9452,7 @@
       "monthly": "From monthly plan",
       "purchased": "Purchased points",
       "frozen": "Frozen points",
+      "overage": "Usage beyond your package",
       "reserved": "Reserved by running tasks",
       "breakdown": "Usage by category (30 days)",
       "categories": {

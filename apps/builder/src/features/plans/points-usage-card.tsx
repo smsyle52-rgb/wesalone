@@ -106,6 +106,16 @@ export async function PointsUsageCard({
               </div>
             </div>
           )}
+          {balance.overagePoints > 0 && (
+            <div>
+              <div className="font-semibold text-destructive">
+                {balance.overagePoints.toLocaleString()}
+              </div>
+              <div className="text-muted-foreground">
+                {t("plans.usage.overage")}
+              </div>
+            </div>
+          )}
         </div>
 
         {balance.nearestExpiry && (
