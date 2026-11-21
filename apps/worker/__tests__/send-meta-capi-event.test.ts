@@ -90,9 +90,36 @@ vi.mock("../src/lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
-const { handleSendMetaCapiEvent } = await import(
+const { handleSendMetaCapiEvent, withWhatsappPhoneFallback } = await import(
   "../src/integration/handlers/meta-conversions/send-meta-capi-event"
 )
+
+describe("withWhatsappPhoneFallback", () => {
+  const contact = { id: "contact-1", phoneNumber: null }
+
+  test("uses the WhatsApp wa_id as the phone when none is stored", () => {
+    expect(
+      withWhatsappPhoneFallback("whatsapp", contact, "967771234567"),
+    ).toEqual({ id: "contact-1", phoneNumber: "+967771234567" })
+  })
+
+  test("keeps a stored phone", () => {
+    const withPhone = { id: "contact-1", phoneNumber: "+966500000000" }
+    expect(
+      withWhatsappPhoneFallback("whatsapp", withPhone, "967771234567"),
+    ).toBe(withPhone)
+  })
+
+  test("ignores other channels and non-numeric source ids", () => {
+    expect(withWhatsappPhoneFallback("messenger", contact, "12345678")).toBe(
+      contact,
+    )
+    expect(
+      withWhatsappPhoneFallback("whatsapp", contact, "1234567890@lid"),
+    ).toBe(contact)
+    expect(withWhatsappPhoneFallback("whatsapp", contact, null)).toBe(contact)
+  })
+})
 
 const jobData = {
   metaCapiEventId: "mce-1",

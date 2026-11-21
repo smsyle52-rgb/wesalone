@@ -68,6 +68,28 @@ const sentStatus = {
   to: "sent",
 } as const
 
+const WA_ID_DIGITS = /^\d{7,15}$/
+
+/**
+ * A WhatsApp `wa_id` is the customer's phone number. Contacts that arrive
+ * through a coexistence number usually have no stored phone, so a
+ * non-messaging event (hashed customer info only) would carry nothing Meta
+ * can match on. Fall back to the wa_id as the phone; a stored phone wins, and
+ * a non-numeric source id (e.g. a WhatsApp LID) is never used.
+ */
+export function withWhatsappPhoneFallback<
+  T extends { phoneNumber?: string | null },
+>(channel: string, contact: T, contactInboxSourceId?: string | null): T {
+  if (channel !== "whatsapp" || contact.phoneNumber?.trim()) {
+    return contact
+  }
+  const sourceId = contactInboxSourceId?.trim() ?? ""
+  if (!WA_ID_DIGITS.test(sourceId)) {
+    return contact
+  }
+  return { ...contact, phoneNumber: `+${sourceId}` }
+}
+
 function buildEventPayload<TChannel extends MetaConversionsChannel>(input: {
   channel: TChannel
   accessToken: string
@@ -389,7 +411,13 @@ export async function handleSendMetaCapiEvent(
       // Customer-info matching — `contactInboxContact` was already
       // resolved and workspace/inbox-validated by the Phase 0 guard above, so
       // it is safe to hash and send.
-      const userData = await hashContactUserData(contactInboxContact)
+      const userData = await hashContactUserData(
+        withWhatsappPhoneFallback(
+          event.channel,
+          contactInboxContact,
+          contactInbox.sourceId,
+        ),
+      )
 
       await sendConversionEvent({
         testEventCode,
