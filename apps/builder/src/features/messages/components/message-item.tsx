@@ -64,6 +64,7 @@ import { InboundOrderBubble } from "./inbound-order-bubble"
 import { MessageActions, MessageActionsEditor } from "./message-actions"
 import { MessageBubble } from "./message-bubble"
 import { MessageErrorBadge } from "./message-error-badge"
+import { OggCompatibleAudio } from "./ogg-compatible-audio"
 import { ProductMessageBubble } from "./product-message-bubble"
 import { ReferredProductContext } from "./referred-product-context"
 import { ThreadControlContextCard } from "./thread-control-context-card"
@@ -646,21 +647,12 @@ const RenderAttachmentItem = (props: { attachment: AttachmentResource }) => {
       )
     case "audio":
       return (
-        // `preload="metadata"` (not "none") so the player shows the clip's
-        // total duration at rest instead of 0:00 / 0:00.
-        <audio
-          controls
+        <OggCompatibleAudio
           key={attachmentUrl}
+          mimeType={attachment.mimeType}
           onError={onError}
-          preload="metadata"
-        >
-          <track default kind="captions" />
-          <source
-            onError={onError}
-            src={attachmentUrl}
-            type={attachment.mimeType}
-          />
-        </audio>
+          src={attachmentUrl}
+        />
       )
     default:
       return (
