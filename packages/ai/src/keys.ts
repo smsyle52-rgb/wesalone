@@ -77,6 +77,11 @@ export const keys = () =>
       AZURE_FOUNDRY_CHAT_FALLBACK_REASONING_EFFORT: z
         .enum(["minimal", "low", "medium", "high"])
         .optional(),
+      // Per-workspace first-choice Foundry model, as a comma-separated list of
+      // `workspaceId:modelId` pairs (e.g. `116170:gemini-3.8-flash-tiered`).
+      // The model is served by the first Foundry endpoint/deployment above and
+      // answers before the platform-wide one for that workspace only.
+      PLATFORM_AI_WORKSPACE_CHAT_MODELS: z.string().trim().min(1).optional(),
       // Vertex AI authenticates with Azure Managed Identity through Google
       // Workload Identity Federation. None of these values is a credential.
       VERTEX_AI_PROJECT_ID: z.string().trim().min(1).optional(),

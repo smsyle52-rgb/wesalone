@@ -112,10 +112,58 @@ export function getPlatformAzureFoundryChatConfigs(): PlatformAzureFoundryChatCo
   ]
 }
 
+const WORKSPACE_ID = /^\d+$/
+
+let workspaceChatModelsCache: { raw: string; map: Map<string, string> } | null =
+  null
+
+/**
+ * Wesal One: the per-workspace first-choice Foundry models from
+ * `PLATFORM_AI_WORKSPACE_CHAT_MODELS` (`workspaceId:modelId,…`). Malformed
+ * pairs are skipped so a typo never takes replies down.
+ */
+export function getPlatformWorkspaceChatModels(): Map<string, string> {
+  const raw = env.PLATFORM_AI_WORKSPACE_CHAT_MODELS ?? ""
+  if (workspaceChatModelsCache?.raw === raw) {
+    return workspaceChatModelsCache.map
+  }
+  const map = new Map<string, string>()
+  for (const pair of raw.split(",")) {
+    const separator = pair.indexOf(":")
+    const workspaceId = pair.slice(0, separator).trim()
+    const model = pair.slice(separator + 1).trim()
+    if (separator > 0 && WORKSPACE_ID.test(workspaceId) && model) {
+      map.set(workspaceId, model)
+    }
+  }
+  workspaceChatModelsCache = { raw, map }
+  return map
+}
+
+/**
+ * The Foundry config that serves `modelId`: one of the platform-wide models,
+ * or a per-workspace model served by the first-choice endpoint/deployment.
+ */
+export function findPlatformAzureFoundryChatConfig(
+  modelId: string,
+): PlatformAzureFoundryChatConfig | null {
+  const configs = getPlatformAzureFoundryChatConfigs()
+  const platform = configs.find((config) => config.model === modelId)
+  if (platform) {
+    return platform
+  }
+  const primary = configs[0]
+  if (
+    primary &&
+    [...getPlatformWorkspaceChatModels().values()].includes(modelId)
+  ) {
+    return { ...primary, model: modelId }
+  }
+  return null
+}
+
 export function isPlatformAzureFoundryChatModel(modelId: string): boolean {
-  return getPlatformAzureFoundryChatConfigs().some(
-    (config) => config.model === modelId,
-  )
+  return findPlatformAzureFoundryChatConfig(modelId) !== null
 }
 
 /**
@@ -498,6 +546,7 @@ export function isPlatformAzureOpenAIModelCandidate(
  */
 export function buildPlatformOverrideCandidates(
   override: PlatformAiOverride,
+  workspaceId?: string,
 ): PlatformModelCandidate[] {
   const candidates: PlatformModelCandidate[] = [
     { platformVertex: true, model: override.chatModel },
@@ -520,10 +569,25 @@ export function buildPlatformOverrideCandidates(
     }
     // The Foundry model answers first; every candidate above stays behind it
     // as the fallback for when its (small) quota is used up.
-    const foundryCandidates = getPlatformAzureFoundryChatConfigs().map(
-      (config): PlatformModelCandidate => ({
+    // A workspace's own model (PLATFORM_AI_WORKSPACE_CHAT_MODELS) heads the
+    // Foundry group; the platform-wide models stay behind it as fallbacks.
+    const platformModels = getPlatformAzureFoundryChatConfigs().map(
+      (config) => config.model,
+    )
+    const workspaceModel =
+      workspaceId && platformModels.length > 0
+        ? getPlatformWorkspaceChatModels().get(workspaceId)
+        : undefined
+    const foundryModels = workspaceModel
+      ? [
+          workspaceModel,
+          ...platformModels.filter((model) => model !== workspaceModel),
+        ]
+      : platformModels
+    const foundryCandidates = foundryModels.map(
+      (model): PlatformModelCandidate => ({
         platformAzureOpenAI: true,
-        model: config.model,
+        model,
       }),
     )
     if (env.PLATFORM_AI_CHAT_PRIMARY === "vertexFirst") {
@@ -934,9 +998,7 @@ export function getPlatformAzureOpenAIChatModel(
   modelId: string,
   override: Pick<PlatformAzureOpenAIConfig, "endpoint" | "apiKey">,
 ): LanguageModel {
-  const foundry = getPlatformAzureFoundryChatConfigs().find(
-    (config) => config.model === modelId,
-  )
+  const foundry = findPlatformAzureFoundryChatConfig(modelId)
   if (foundry) {
     return getPlatformAzureFoundryChatModel(foundry)
   }

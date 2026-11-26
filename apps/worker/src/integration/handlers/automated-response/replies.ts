@@ -206,7 +206,9 @@ export async function replyByAI(
   const platformOverride = await getActivePlatformAiOverride()
   const providers = resolveReplyProviders(
     aiAgent.models as AIAgentProviderModels,
-    platformOverride ? buildPlatformOverrideCandidates(platformOverride) : null,
+    platformOverride
+      ? buildPlatformOverrideCandidates(platformOverride, aiAgent.workspaceId)
+      : null,
   )
 
   const controller = new AbortController()
@@ -390,7 +392,9 @@ export async function generateAIReplyText(
   const platformOverride = await getActivePlatformAiOverride()
   const providers = resolveReplyProviders(
     aiAgent.models as AIAgentProviderModels,
-    platformOverride ? buildPlatformOverrideCandidates(platformOverride) : null,
+    platformOverride
+      ? buildPlatformOverrideCandidates(platformOverride, aiAgent.workspaceId)
+      : null,
   )
 
   const controller = new AbortController()

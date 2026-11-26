@@ -83,6 +83,7 @@ const {
   getPlatformEmbeddingModel,
   getPlatformEmbeddingProviderOptions,
   getPlatformVertexChatModel,
+  isPlatformAzureFoundryChatModel,
   isPlatformAzureOpenAIModelCandidate,
   isPlatformVertexModelCandidate,
 } = await import("../src/server/platform-provider")
@@ -313,6 +314,44 @@ describe("Azure Foundry first-choice chat model", () => {
       ]) {
         delete (envMock as Record<string, unknown>)[key]
       }
+    }
+  })
+
+  test("a workspace's own model heads the Foundry group for that workspace only", () => {
+    Object.assign(envMock, foundryEnv, {
+      PLATFORM_AI_WORKSPACE_CHAT_MODELS:
+        "111:gemini-3.8-flash-tiered, bad-pair ,222:muse-spark-1.3",
+    })
+    try {
+      expect(
+        buildPlatformOverrideCandidates(override, "111").map(
+          (item) => item.model,
+        ),
+      ).toEqual([
+        "gemini-3.8-flash-tiered",
+        "muse-spark-1.3",
+        "gemini-3.5-flash",
+        "wesal-chat",
+      ])
+      // Same as the platform model: no duplicate candidate.
+      expect(
+        buildPlatformOverrideCandidates(override, "222").map(
+          (item) => item.model,
+        ),
+      ).toEqual(["muse-spark-1.3", "gemini-3.5-flash", "wesal-chat"])
+      expect(
+        buildPlatformOverrideCandidates(override, "333").map(
+          (item) => item.model,
+        ),
+      ).toEqual(["muse-spark-1.3", "gemini-3.5-flash", "wesal-chat"])
+      expect(isPlatformAzureFoundryChatModel("gemini-3.8-flash-tiered")).toBe(
+        true,
+      )
+      expect(isPlatformAzureFoundryChatModel("unknown-model")).toBe(false)
+    } finally {
+      clearFoundryEnv()
+      ;(envMock as Record<string, unknown>).PLATFORM_AI_WORKSPACE_CHAT_MODELS =
+        undefined
     }
   })
 
