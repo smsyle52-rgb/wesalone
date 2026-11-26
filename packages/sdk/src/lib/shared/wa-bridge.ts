@@ -17,6 +17,8 @@ export const WA_BRIDGE_WORKSPACE_IDS: readonly string[] = [
   // Abu Hashem store: bridge-only (Meta refused the number), see
   // WA_BRIDGE_ALL_MESSAGES_WORKSPACE_IDS.
   "11617037597900800",
+  // Fantastic (فانتستك): bridge-only, same setup as Abu Hashem.
+  "11798546055790168",
 ]
 
 export const isWaBridgeWorkspace = (
@@ -39,6 +41,7 @@ export const WA_BRIDGE_ALL_MESSAGES_WORKSPACE_IDS: readonly string[] = [
   // No Cloud API number at all: inbound arrives from the bridge through a
   // manual WhatsApp integration, and every reply must leave through it.
   "11617037597900800",
+  "11798546055790168",
 ]
 
 export const isWaBridgeAllMessagesWorkspace = (
