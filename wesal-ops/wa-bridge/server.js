@@ -521,6 +521,10 @@ async function senderOf(m) {
   } catch {}
   let phone = from.endsWith("@c.us") ? from.split("@")[0] : String(contact?.number || "")
   phone = phone.replace(/\D/g, "")
+  // A hidden-number sender (@lid) with no phone mapping: key the contact by
+  // its LID digits rather than dropping the message. Replies reach it through
+  // resolveChatId's `<digits>@lid` fallback.
+  if (!phone && from.endsWith("@lid")) phone = from.split("@")[0].replace(/\D/g, "")
   const name = contact?.pushname || contact?.name || contact?.verifiedName || ""
   return { phone, name }
 }
@@ -602,7 +606,7 @@ async function forwardInbound(s, m) {
   if (!from || from.endsWith("@g.us") || from.endsWith("@broadcast") || from.endsWith("@newsletter")) return
   const { phone, name } = await senderOf(m)
   if (!/^\d{7,15}$/.test(phone)) {
-    log("warn", "inbound skipped: no phone number", { ws: s.ws, slot: s.slot })
+    log("warn", "inbound skipped: no phone number", { ws: s.ws, slot: s.slot, fromKind: from.split("@")[1] || "", digits: phone.length })
     return
   }
   const message = await toCloudMessage(m, phone)
