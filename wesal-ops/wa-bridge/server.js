@@ -18,6 +18,15 @@ const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN || ""
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ""
 const DATA_DIR = process.env.DATA_DIR || "/data"
 const DAILY_CAP = Number(process.env.DAILY_CAP || 300)
+// Per-workspace overrides: DAILY_CAP_OVERRIDES="<workspaceId>:<cap>,..."
+const CAP_OVERRIDES = Object.fromEntries(
+  String(process.env.DAILY_CAP_OVERRIDES || "")
+    .split(",")
+    .map((p) => p.trim().split(":"))
+    .filter(([w, c]) => w && Number(c) > 0)
+    .map(([w, c]) => [w.trim(), Number(c)]),
+)
+const capFor = (ws) => CAP_OVERRIDES[String(ws)] ?? DAILY_CAP
 const WORKSPACES = Object.fromEntries(
   (process.env.WORKSPACES || "")
     .split(",")
@@ -134,6 +143,21 @@ function clearProfileLock(ws, slot) {
   }
 }
 
+// Only a few WhatsApp Web pages may boot at once: on a 2-vCPU host nine
+// Chromiums starting together starve each other and every one times out.
+const START_CONCURRENCY = Math.max(1, Number(process.env.START_CONCURRENCY || 2))
+let booting = 0
+const bootWaiters = []
+const acquireBoot = () =>
+  booting < START_CONCURRENCY
+    ? (booting++, Promise.resolve())
+    : new Promise((resolve) => bootWaiters.push(resolve))
+const releaseBoot = () => {
+  const next = bootWaiters.shift()
+  if (next) next()
+  else booting--
+}
+
 function startSession(ws, slot) {
   clearProfileLock(ws, slot)
   const k = key(ws, slot)
@@ -146,7 +170,7 @@ function startSession(ws, slot) {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: clientIdOf(ws, slot), dataPath: DATA_DIR }),
     // The host can be busy (image builds): give WhatsApp Web time to load.
-    authTimeoutMs: 180_000,
+    authTimeoutMs: Math.max(60_000, Number(process.env.AUTH_TIMEOUT_MS || 180_000)),
     qrMaxRetries: 0,
     puppeteer: {
       headless: true,
@@ -208,7 +232,25 @@ function startSession(ws, slot) {
       if (s.client === client) startSession(ws, slot)
     }, 15_000)
   })
+  acquireBoot().then(() => bootClient(s, client, ws, slot))
+}
+
+function bootClient(s, client, ws, slot) {
+  let released = false
+  const done = () => {
+    if (!released) {
+      released = true
+      releaseBoot()
+    }
+  }
+  // Replaced while waiting for a boot slot: hand the slot straight back.
+  if (s.client !== client) return done()
+  client.once("qr", done)
+  client.once("ready", done)
+  client.once("auth_failure", done)
+  client.once("disconnected", done)
   client.initialize().catch((err) => {
+    done()
     if (s.client !== client) return
     s.state = "error"
     s.lastError = String(err?.message || err)
@@ -290,7 +332,7 @@ const sentToday = (s) => (s.day === today() ? s.sent : 0)
  */
 function pickSession(ws, from, to) {
   const all = sessionsOf(ws)
-  const usable = all.filter((s) => s.state === "ready" && sentToday(s) < DAILY_CAP)
+  const usable = all.filter((s) => s.state === "ready" && sentToday(s) < capFor(ws))
   if (from) {
     const own = all.find((s) => s.me === from)
     if (own) {
@@ -298,13 +340,13 @@ function pickSession(ws, from, to) {
       // The conversation's own number is linked but down: do not answer the
       // customer from another number of the same business.
       if (own.state !== "ready") return { error: "رقم هذه المحادثة غير متصل بواتساب ويب — امسح رمز QR من صفحة الربط", status: 503 }
-      return { error: `تجاوز رقم هذه المحادثة الحد اليومي (${DAILY_CAP}) لحماية الرقم`, status: 429 }
+      return { error: `تجاوز رقم هذه المحادثة الحد اليومي (${capFor(ws)}) لحماية الرقم`, status: 429 }
     }
   }
   if (usable.length === 0) {
     const anyReady = all.some((s) => s.state === "ready")
     return anyReady
-      ? { error: `تجاوزت كل الأرقام الحد اليومي (${DAILY_CAP}) لحماية الأرقام`, status: 429 }
+      ? { error: `تجاوزت كل الأرقام الحد اليومي (${capFor(ws)}) لحماية الأرقام`, status: 429 }
       : { error: "واتساب ويب غير متصل — امسح رمز QR من صفحة الربط", status: 503 }
   }
   const sticky = routes[ws]?.[to]
@@ -661,7 +703,7 @@ async function numberCard(ws, s, canRemove) {
 ${s.me ? `<div>الرقم المربوط: <b dir="ltr">+${esc(s.me)}</b></div>` : ""}
 ${qrImg}
 ${qrImg ? `<small>من جوال الرقم: واتساب للأعمال ← الأجهزة المرتبطة ← ربط جهاز، ثم امسح الرمز.</small>` : ""}
-<small>رسائل اليوم عبر هذا الرقم: ${sentToday(s)} / ${DAILY_CAP}</small>
+<small>رسائل اليوم عبر هذا الرقم: ${sentToday(s)} / ${capFor(ws)}</small>
 <div class="row">
 ${["ready", "auth_failure", "error"].includes(s.state) ? `<form method="post" action="${base}/logout" onsubmit="return confirm('فكّ الربط وإظهار رمز جديد؟')"><button>إعادة الربط</button></form>` : ""}
 ${canRemove ? `<form method="post" action="${base}/remove" onsubmit="return confirm('حذف هذا الرقم من واتساب ويب؟')"><button>حذف الرقم</button></form>` : ""}
