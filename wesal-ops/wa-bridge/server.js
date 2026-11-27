@@ -813,7 +813,12 @@ const server = http.createServer(async (req, res) => {
     // GET /media/<token>: a file an inbound message carried (bridge token).
     if (req.method === "GET" && parts[0] === "media" && parts.length === 2) {
       if (!safeEqual(req.headers["x-bridge-token"] || "", BRIDGE_TOKEN)) return send(res, 401, { error: "unauthorized" })
-      const token = parts[1].startsWith(MEDIA_PREFIX) ? parts[1].slice(MEDIA_PREFIX.length) : parts[1]
+      // The platform sends the id URL-encoded ("wab-media%3A<token>").
+      let rawId = parts[1]
+      try {
+        rawId = decodeURIComponent(rawId)
+      } catch {}
+      const token = rawId.startsWith(MEDIA_PREFIX) ? rawId.slice(MEDIA_PREFIX.length) : rawId
       if (!/^[a-f0-9]{32}$/.test(token)) return send(res, 404, { error: "not found" })
       const file = path.join(MEDIA_DIR, token)
       if (!fs.existsSync(file)) return send(res, 404, { error: "not found" })
