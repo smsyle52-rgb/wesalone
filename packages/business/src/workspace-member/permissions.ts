@@ -13,6 +13,7 @@ export const FULL_WORKSPACE_MEMBER_PERMISSIONS: WorkspaceMemberPermissions =
     flows: true,
     contacts: true,
     onlyAssignedContacts: true,
+    assignConversations: true,
     emailAndPhone: true,
     broadcast: true,
     ecommerce: true,
@@ -43,5 +44,16 @@ export function hasContactsAccess(permissions: PermissionsInput): boolean {
   return (
     hasWorkspacePermission(permissions, "contacts") ||
     hasWorkspacePermission(permissions, "onlyAssignedContacts")
+  )
+}
+
+/**
+ * Wesal One: assigning or transferring a conversation. Allowed unless the
+ * member's `assignConversations` flag is explicitly off (absent means
+ * allowed, for members saved before the flag existed); superAdmin always may.
+ */
+export function canAssignConversations(permissions: PermissionsInput): boolean {
+  return (
+    permissions.superAdmin === true || permissions.assignConversations !== false
   )
 }

@@ -63,6 +63,11 @@ export function WorkspaceMemberPermissionFields<
           )}
           <SwitchField
             formItemClassName="flex flex-row-reverse items-center justify-end gap-2"
+            label={t("fields.permissions.assignConversations")}
+            name="permissions.assignConversations"
+          />
+          <SwitchField
+            formItemClassName="flex flex-row-reverse items-center justify-end gap-2"
             label={t("fields.permissions.emailAndPhone")}
             name="permissions.emailAndPhone"
             required

@@ -1000,6 +1000,7 @@
       "flows": "Flussi",
       "contacts": "Contatti / Posta in arrivo",
       "onlyAssignedContacts": "Solo contatti assegnati",
+      "assignConversations": "Assign & transfer conversations",
       "emailAndPhone": "E-mail e telefono",
       "broadcast": "Broadcast",
       "ecommerce": "E-commerce"

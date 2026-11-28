@@ -152,7 +152,11 @@ export function UpdateWorkspaceMemberForm({
         Record<"messenger" | "email" | "telegram" | "browser", boolean>
       >
       reset({
-        permissions: workspaceMember.permissions,
+        permissions: {
+          ...workspaceMember.permissions,
+          assignConversations:
+            workspaceMember.permissions.assignConversations !== false,
+        },
         notificationTypes: {
           notifyAdmin: types.notifyAdmin === true,
           newMessageToHuman: types.newMessageToHuman === true,
@@ -211,6 +215,11 @@ export function UpdateWorkspaceMemberForm({
                     required
                   />
                 )}
+                <SwitchField
+                  formItemClassName="flex flex-row-reverse items-center justify-end gap-2"
+                  label={t("fields.permissions.assignConversations")}
+                  name="permissions.assignConversations"
+                />
                 <SwitchField
                   formItemClassName="flex flex-row-reverse items-center justify-end gap-2"
                   label={t("fields.permissions.emailAndPhone")}

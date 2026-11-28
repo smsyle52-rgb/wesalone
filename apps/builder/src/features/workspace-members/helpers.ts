@@ -21,6 +21,7 @@ export function getStaffPermissions(): WorkspaceMemberPermissions {
     flows: false,
     contacts: false,
     onlyAssignedContacts: true,
+    assignConversations: true,
     emailAndPhone: true,
     broadcast: false,
     ecommerce: false,

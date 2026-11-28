@@ -1953,6 +1953,7 @@
       "flows": "Flow",
       "contacts": "Kontak / Inbox",
       "onlyAssignedContacts": "Hanya Kontak yang Ditugaskan",
+      "assignConversations": "Assign & transfer conversations",
       "emailAndPhone": "Email dan Telepon",
       "broadcast": "Broadcast",
       "ecommerce": "E-commerce"

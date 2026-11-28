@@ -36,6 +36,7 @@ import ArchiveConversationDialog from "../conversations/components/archive-conve
 import AssignConversationDialog from "../conversations/components/assign-conversation-dialog"
 import DisableBotDialog from "../conversations/components/disable-bot-dialog"
 import EnableBotDialog from "../conversations/components/enable-bot-dialog"
+import { useCanAssignConversations } from "../workspace-members/provider/member-permissions-context"
 import AddContactSequenceDialog from "./components/add-contact-sequence-dialog"
 import AddContactTagDialog from "./components/add-contact-tag-dialog"
 import AddContactCustomFieldDialog from "./components/add-custom-field-dialog"
@@ -62,6 +63,7 @@ export function ContactListAction({
   disabled = false,
 }: ContactListActionProps) {
   const t = useTranslations()
+  const canAssign = useCanAssignConversations()
   const invalidateContacts = useInvalidateContacts()
 
   const rows = table.getFilteredSelectedRowModel().rows
@@ -88,20 +90,22 @@ export function ContactListAction({
         }
       />
       <DropdownMenuContent className="w-56">
-        <AssignConversationDialog
-          contactIds={rows.map((r) => r.id)}
-          onSuccess={handleMutationSuccess}
-          trigger={
-            <DropdownMenuItem
-              closeOnClick={false}
-              disabled={actionsDisabled}
-              onClick={(e) => e.preventDefault()}
-            >
-              <MessageCirclePlusIcon />
-              {t("actions.assign")}
-            </DropdownMenuItem>
-          }
-        />
+        {canAssign && (
+          <AssignConversationDialog
+            contactIds={rows.map((r) => r.id)}
+            onSuccess={handleMutationSuccess}
+            trigger={
+              <DropdownMenuItem
+                closeOnClick={false}
+                disabled={actionsDisabled}
+                onClick={(e) => e.preventDefault()}
+              >
+                <MessageCirclePlusIcon />
+                {t("actions.assign")}
+              </DropdownMenuItem>
+            }
+          />
+        )}
 
         <AddContactTagDialog
           ids={rows.map((r) => r.id)}

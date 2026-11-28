@@ -36,6 +36,9 @@ export const workspaceMemberPermissionsSchema = z.object({
   flows: z.boolean(),
   contacts: z.boolean(),
   onlyAssignedContacts: z.boolean(),
+  // Wesal One: may this member assign/transfer conversations? Absent means
+  // yes, so members saved before the flag existed keep the button.
+  assignConversations: z.boolean().optional(),
   emailAndPhone: z.boolean(),
   broadcast: z.boolean(),
   ecommerce: z.boolean(),

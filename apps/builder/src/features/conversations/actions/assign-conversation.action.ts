@@ -10,6 +10,7 @@ import {
   type AssignConversationSchema,
   assignConversationSchema,
 } from "@/features/conversations/schema/action"
+import { canAssignConversations } from "@/lib/auth/permission-routes"
 import { workspaceActionClient } from "@/lib/safe-action"
 import {
   assertContactsVisible,
@@ -32,6 +33,9 @@ export const assignConversationAction = workspaceActionClient
         workspaceMemberPermissions: Record<string, unknown>
       }
     }) => {
+      if (!canAssignConversations(ctx.workspaceMemberPermissions)) {
+        throw new Error("You are not allowed to assign conversations")
+      }
       await assertContactsVisible({
         workspaceId,
         contactIds: parsedInput.contactIds,

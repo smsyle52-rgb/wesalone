@@ -2899,6 +2899,7 @@
       "flows": "流程",
       "label": "权限",
       "onlyAssignedContacts": "仅分配联系人",
+      "assignConversations": "Assign & transfer conversations",
       "superAdmin": "超级管理员"
     },
     "persistentMenu": {

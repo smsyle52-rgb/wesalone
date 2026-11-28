@@ -1953,6 +1953,7 @@
       "flows": "Flows",
       "contacts": "Kontakte / Posteingang",
       "onlyAssignedContacts": "Nur zugewiesene Kontakte",
+      "assignConversations": "Assign & transfer conversations",
       "emailAndPhone": "E-Mail und Telefon",
       "broadcast": "Broadcast",
       "ecommerce": "E-Commerce"
