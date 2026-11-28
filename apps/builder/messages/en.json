@@ -2161,6 +2161,7 @@
       "flows": "Flows",
       "contacts": "Contacts",
       "onlyAssignedContacts": "Only Assigned Contacts",
+      "assignConversations": "Assign & transfer conversations",
       "emailAndPhone": "Email and Phone",
       "broadcast": "Broadcast",
       "ecommerce": "Ecommerce"

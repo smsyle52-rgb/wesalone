@@ -2896,6 +2896,7 @@
       "flows": "Flöden",
       "label": "Behörigheter",
       "onlyAssignedContacts": "Endast tilldelade kontakter",
+      "assignConversations": "Assign & transfer conversations",
       "superAdmin": "Superadministratör"
     },
     "persistentMenu": {

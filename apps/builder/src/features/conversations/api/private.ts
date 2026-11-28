@@ -1,9 +1,11 @@
 import { conversationService } from "@chatbotx.io/business"
 import { channelTypes } from "@chatbotx.io/database/partials"
 import { zodBigintAsString } from "@chatbotx.io/utils"
+import { ORPCError } from "@orpc/server"
 import z from "zod"
 import { bulkUpdateIdsRequest, successResponse } from "@/features/common/schema"
 import { canViewContactEmailAndPhone } from "@/features/contacts/permissions"
+import { canAssignConversations } from "@/lib/auth/permission-routes"
 import { assertWorkspaceNotBlocked } from "@/lib/workspace-quota"
 import { workspaceAuthorizedMidddleware } from "@/middlewares/auth"
 import { authorizedAPI } from "@/orpc"
@@ -152,6 +154,11 @@ export const conversationsAuthenticatedAPI = {
     .output(successResponse)
     .handler(async ({ input, context }) => {
       await assertWorkspaceNotBlocked(context.workspace.ownerId)
+      if (!canAssignConversations(context.workspaceMember.permissions)) {
+        throw new ORPCError("FORBIDDEN", {
+          message: "You are not allowed to assign conversations",
+        })
+      }
       const assignee = await resolveConversationAssigneeScope({
         workspaceId: input.workspaceId,
         userId: context.user.id,

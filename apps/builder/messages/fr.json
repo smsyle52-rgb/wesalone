@@ -1953,6 +1953,7 @@
       "flows": "Flux",
       "contacts": "Contacts / Boîte de réception",
       "onlyAssignedContacts": "Uniquement les contacts attribués",
+      "assignConversations": "Assign & transfer conversations",
       "emailAndPhone": "E-mail et téléphone",
       "broadcast": "Diffusion",
       "ecommerce": "E-commerce"

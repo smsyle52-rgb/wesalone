@@ -10,6 +10,7 @@ import {
 import type { WorkspaceMemberPermissions } from "@chatbotx.io/database/partials"
 
 export {
+  canAssignConversations,
   hasContactsAccess,
   hasWorkspacePermission,
   type PermissionsInput,

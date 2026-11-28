@@ -5,6 +5,7 @@ import { ChevronDownIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useContactAssigneeOptionsWithStatus } from "@/features/users/provider/user-hook"
+import { useCanAssignConversations } from "@/features/workspace-members/provider/member-permissions-context"
 import { authClient } from "@/lib/auth/auth-client"
 import type { ListConversationItemResource } from "../schema/resource"
 import AssignConversationDialog, {
@@ -21,6 +22,7 @@ export function UpdateConversationAssignee({
   onChange,
 }: UpdateConversationAssigneeProps) {
   const t = useTranslations()
+  const canAssign = useCanAssignConversations()
 
   const { data: session } = authClient.useSession()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -127,6 +129,13 @@ export function UpdateConversationAssignee({
     conversation.id,
     relationLabel,
   ])
+
+  if (!canAssign) {
+    // Read-only: the member sees who holds the chat but cannot reassign it.
+    return selectedId ? (
+      <span className="text-gray-500 text-xs">{agentLabel}</span>
+    ) : null
+  }
 
   return (
     <AssignConversationDialog

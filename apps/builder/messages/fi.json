@@ -1953,6 +1953,7 @@
       "flows": "Flow't",
       "contacts": "Yhteystiedot / Saapuneet",
       "onlyAssignedContacts": "Vain määritetyt yhteystiedot",
+      "assignConversations": "Assign & transfer conversations",
       "emailAndPhone": "Sähköposti ja puhelin",
       "broadcast": "Joukkolähetys",
       "ecommerce": "Verkkokauppa"

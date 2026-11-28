@@ -31,6 +31,7 @@ import { isCloud } from "@/env"
 import { AnalyticsApiProvider } from "@/features/analytics/components/analytics-api-provider"
 import { CouponTopicStoreProvider } from "@/features/coupons/provider/coupon-topic-store-context"
 import { getTenantSettings } from "@/features/tenant/utils"
+import { MemberPermissionsProvider } from "@/features/workspace-members/provider/member-permissions-context"
 import { hasWorkspacePermission } from "@/lib/auth/permission-routes"
 import { enforcePasswordCurrent } from "@/lib/auth/require-password-current"
 import {
@@ -211,7 +212,11 @@ export default async function WorkspaceLayout({
                 callingEnabled={realtimeGates.callingEnabled}
                 realtimeEnabled={realtimeGates.realtimeEnabled}
               >
-                {children}
+                <MemberPermissionsProvider
+                  permissions={targetWorkspaceMember.permissions}
+                >
+                  {children}
+                </MemberPermissionsProvider>
               </WorkspaceRealtimeShell>
             </CouponTopicStoreProvider>
           </AnalyticsApiProvider>
