@@ -42,6 +42,7 @@ import {
   shouldStopAutomatedResponseAfterGlobalRouter,
 } from "./global-router"
 import { runAgentReply } from "./run-agent-reply"
+import { isAgentAllowedForContact } from "./test-contacts"
 
 /**
  * Labels the WhatsApp integration stores for inbound types it has no parser
@@ -213,6 +214,19 @@ export async function processAutomatedResponse(
 
   try {
     const aiAgent = await aiAgentService.findDefault(conversation.workspaceId)
+    if (
+      aiAgent &&
+      !isAgentAllowedForContact(conversation.workspaceId, contactInbox.sourceId)
+    ) {
+      logger.info(
+        {
+          conversationId: conversation.id,
+          workspaceId: conversation.workspaceId,
+        },
+        "[automated-response] agent in test mode — contact not on the test list",
+      )
+      return
+    }
 
     if (!aiAgent) {
       const defaultReplyResult = await triggerDefaultReplyFlow({
