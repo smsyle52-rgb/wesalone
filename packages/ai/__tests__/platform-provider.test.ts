@@ -355,6 +355,29 @@ describe("Azure Foundry first-choice chat model", () => {
     }
   })
 
+  test("a workspace set to vertex starts on Vertex, Foundry behind it", () => {
+    Object.assign(envMock, foundryEnv, {
+      PLATFORM_AI_WORKSPACE_CHAT_MODELS: "111:vertex",
+    })
+    try {
+      expect(
+        buildPlatformOverrideCandidates(override, "111").map(
+          (item) => item.model,
+        ),
+      ).toEqual(["gemini-3.5-flash", "muse-spark-1.3", "wesal-chat"])
+      expect(
+        buildPlatformOverrideCandidates(override, "222").map(
+          (item) => item.model,
+        ),
+      ).toEqual(["muse-spark-1.3", "gemini-3.5-flash", "wesal-chat"])
+      expect(isPlatformAzureFoundryChatModel("vertex")).toBe(false)
+    } finally {
+      clearFoundryEnv()
+      ;(envMock as Record<string, unknown>).PLATFORM_AI_WORKSPACE_CHAT_MODELS =
+        undefined
+    }
+  })
+
   test("is ignored unless all four settings are present", () => {
     Object.assign(envMock, foundryEnv, {
       AZURE_FOUNDRY_CHAT_API_KEY: undefined,

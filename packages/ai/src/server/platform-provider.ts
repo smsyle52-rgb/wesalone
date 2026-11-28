@@ -114,6 +114,13 @@ export function getPlatformAzureFoundryChatConfigs(): PlatformAzureFoundryChatCo
 
 const WORKSPACE_ID = /^\d+$/
 
+/**
+ * Reserved `PLATFORM_AI_WORKSPACE_CHAT_MODELS` value: that workspace's replies
+ * start on platform Vertex (the admin chat model), with the Foundry models
+ * behind it as fallbacks — `vertexFirst` for one workspace only.
+ */
+export const PLATFORM_WORKSPACE_VERTEX_FIRST = "vertex"
+
 let workspaceChatModelsCache: { raw: string; map: Map<string, string> } | null =
   null
 
@@ -155,6 +162,7 @@ export function findPlatformAzureFoundryChatConfig(
   const primary = configs[0]
   if (
     primary &&
+    modelId !== PLATFORM_WORKSPACE_VERTEX_FIRST &&
     [...getPlatformWorkspaceChatModels().values()].includes(modelId)
   ) {
     return { ...primary, model: modelId }
@@ -574,10 +582,13 @@ export function buildPlatformOverrideCandidates(
     const platformModels = getPlatformAzureFoundryChatConfigs().map(
       (config) => config.model,
     )
-    const workspaceModel =
+    const workspaceChoice =
       workspaceId && platformModels.length > 0
         ? getPlatformWorkspaceChatModels().get(workspaceId)
         : undefined
+    const workspaceVertexFirst =
+      workspaceChoice === PLATFORM_WORKSPACE_VERTEX_FIRST
+    const workspaceModel = workspaceVertexFirst ? undefined : workspaceChoice
     const foundryModels = workspaceModel
       ? [
           workspaceModel,
@@ -590,7 +601,10 @@ export function buildPlatformOverrideCandidates(
         model,
       }),
     )
-    if (env.PLATFORM_AI_CHAT_PRIMARY === "vertexFirst") {
+    if (
+      env.PLATFORM_AI_CHAT_PRIMARY === "vertexFirst" ||
+      workspaceVertexFirst
+    ) {
       // Vertex answers first; the Foundry models sit between it and the Azure
       // OpenAI deployment (or close the chain when that one is switched off).
       if (azureLast) {
